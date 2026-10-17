@@ -854,11 +854,16 @@ diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on
 
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
-returns what was accepted; a round that proposes more than `candidateBudget` (262,144) candidates
-judges only that many and raises `W_CANDIDATE_BUDGET`; the candidate readings one epoch holds are
-limited to `epochReadingBytes` (256 MiB by estimate) and raise `W_READING_BUDGET` when dropped. The
-tuning ROMs stay far below both (13,612 candidates and about 105 MB at most), so they bound only a
-flood of pointers (a 32 MiB image of self-referencing Thumb pointers analyses under a 512 MiB heap). A path that runs over more than `zeroRun` (64) consecutive all-zero instructions
+returns what was accepted; grow judges at most `candidateBudget` (262,144) distinct harvest targets
+in a whole run, so past it a fresh target is never judged (a target judged before still is) and
+`W_CANDIDATE_BUDGET` is raised once; the candidate readings one epoch holds are limited to
+`epochReadingBytes` (256 MiB by estimate) and raise `W_READING_BUDGET` once when dropped, together with
+their 'epoch-reuse' facts. The tuning ROMs stay far below both (13,431 distinct targets in a run and
+about 105 MB at most), so they bound only a flood of pointers: its rejections and verdicts are bounded by
+the budget whatever the number of grow rounds, while its time still grows with the rounds, because each
+round's harvest enumerates the flood (a 32 MiB image of self-referencing Thumb pointers analyses under a
+512 MiB heap). Seeds are checked before round 0: one whose entry is not an address, whose mode is
+unknown or whose size does not fit the ROM is left out with `W_SEED_MALFORMED`. A path that runs over more than `zeroRun` (64) consecutive all-zero instructions
 stops with a 'zero-run' error, and a walk that records `walkInsns` (65,536) instructions stops with a
 'walk-limit' error and raises `W_WALK_LIMIT`, which bounds the memory a candidate's reading holds
 (D42, D59). `RomliftInvariantError` (exit 70) is reserved for broken internal invariants, such
@@ -1770,7 +1775,7 @@ defined. The codes:
 | `E_ROM_NOT_GBA`, `E_ROM_SHA1_MISMATCH` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER` | `core/config` |
 | `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_NAME_COLLISION`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH` | `core/model` |
-| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
+| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
 | `W_C_ORDER` | `core/reconcile` |

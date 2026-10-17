@@ -1540,14 +1540,20 @@ exceptions and that memory was still unbounded in the number of candidates. Adde
   absorb retries (a block a claimed halfword or one zero halfword on) moved into `gap.adr-block-absorb`.
   Gap positions are bus addresses. The forward slot is typed `{ thumb, arm, after }` instead of by
   position, with the ranks of the old list (0, 1, 2…), so the worklist order is unchanged.
-- (m) **Analysis memory is bounded in the number of candidates.** `LIMITS.candidateBudget` (262,144;
-  the tuning ROMs' largest round has 13,612) now binds: a grow round judges that many candidates and
-  raises `W_CANDIDATE_BUDGET`. `LIMITS.epochReadingBytes` (256 MiB by `readingBytes`' estimate; the
-  tuning ROMs hold about 105 MB at most): past it the candidate readings an epoch holds are dropped,
-  their verdicts staying memoised, and `W_READING_BUDGET` (new) is raised once; a dropped reading
-  asked for again is walked again, so (D13) holds exactly below the budget. A 32 MiB image whose last
-  28 MiB are self-referencing Thumb pointers analyses under a 512 MiB heap; without the two budgets it
-  runs out of heap.
+- (m) **Analysis memory is bounded in the number of candidates.** `LIMITS.candidateBudget` (262,144)
+  binds the distinct harvest targets grow judges in a whole run (revised in fix round 3; it bound each
+  grow round at first, and since the targets that fail intrinsically leave the next snapshot, every
+  later round judged a fresh 262,144, so rejections, time and memory grew with the rounds times the
+  budget: fe7j plus a 16 MiB flood left 4.2 M rejections). Past it a fresh target is not judged, a
+  target judged before still is, and `W_CANDIDATE_BUDGET` is raised once. The tuning ROMs judge at most
+  13,431 distinct targets in a run (pokeemerald). `LIMITS.epochReadingBytes` (256 MiB by
+  `readingBytes`' estimate; the tuning ROMs hold about 105 MB at most): past it the candidate readings an
+  epoch holds are dropped, their verdicts staying memoised and their 'epoch-reuse' facts dropped with
+  them (`forget` in epoch.ts is the one path out of `settled`), and `W_READING_BUDGET` is raised once;
+  a dropped reading asked for again is walked again, so (D13) holds exactly below the budget. A flood's
+  rejections and verdicts are bounded by the budget; its time still grows with the grow rounds, because
+  each round's harvest enumerates the flood (fe7j plus 16 MiB: 160 s, 1.9 GB peak RSS, 261,475
+  rejections). The flood tests are a stress tier in `test:local`.
 - (n) **`AnalysisTuning.worklist` is removed**: it had one value and no reader.
 - (o) **No hand decoding outside the ISA.** `isConditional` (from the row's `cond` field) and
   `thumbWordAt` (foundation/isa/decode.ts) replace `word >>> 28 !== 0xe` in the ARM walk and
@@ -1556,11 +1562,30 @@ exceptions and that memory was still unbounded in the number of candidates. Adde
   checks every RegisterSpec name of every row.
 - (p) **The glued split uses the label classifier's functions**: a glued miss is `insideExtent` only
   inside the extent of a found function that has an ELF entry (`classify.ts` `gluedWhere`).
+- (q) **A failing gate keeps its notes.** `failureDetail` (test/gates/gate.ts) appends the notes a gate
+  wrote before it failed to its failure message, so the gate record carries the measurements that
+  explain a failure (a sealed ROM's counts).
+- (r) **Seeds are checked before round 0** (fix round 3). A seed whose entry is not a non-negative safe
+  integer, whose mode is neither `thumb` nor `arm`, or whose size is not a positive integer that fits the
+  ROM from its entry is left out with `W_SEED_MALFORMED` (new) and is absent from the result's options;
+  an entry of NaN ran a confirm run out of heap, a negative size made an extent that misses its entry. An
+  entry that is odd, outside the ROM or listed twice is well formed and judged by validity
+  (`W_LISTED_INVALID`).
+- (s) **`seed.rom-entry` proposes the startup target only when its first ARM word is wholly in the
+  ROM** (fix round 3): a truncated image (the header plus a halfword) gave a function with an empty
+  extent. The rule cannot raise a diagnostic; the image's single function at 0x08000000 says what was
+  found.
+- (t) **`bench run` never drops the printer member silently** (fix round 3). It records the local corpus
+  summary when it is current; otherwise the previous artifact's member while its inputs digest still
+  equals `corpusInputsDigest` (computed from the source tree, no corpus run needed); otherwise it refuses
+  to write and says to run `npm run corpus`. The phase-2 exit list runs `npm run corpus` before
+  `bench run`.
 
 Consequences: functions, extents, claims and the parity view are unchanged on the five tuning ROMs and
 the 31 fixtures; rejections change (claimed harvest targets, veto rejections, the unanchored detail), so
-every analysis digest moves; tmc's glued split reads 2 inside an extent, 15 outside, 34 past the code
-end (its verdict is unchanged).
+every analysis digest moves in fix round 2; tmc's glued split reads 2 inside an extent, 15 outside, 34
+past the code end (its verdict is unchanged). (q) to (t) change no analysis digest of the tuning ROMs:
+no tuning run reaches either budget, passes a malformed seed or is truncated.
 
 ---
 
