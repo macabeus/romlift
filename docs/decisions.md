@@ -1594,6 +1594,16 @@ no tuning run reaches either budget, passes a malformed seed or is truncated.
 
 ## D60. The owner's answer to §12 item 4: tune on tmc, with the rules and conventions it needed
 
+**Status (fix round 2, 17 October 2026).** The adversarial review of `f802822` found one more gate change
+the owner had not authorised (the code-end convention of (j), the only reading under which tmc passes
+`g2.code-end`) and a waiver applied on an inference (the two-families condition of `g2.held-out`), and
+that fix round 1 had claimed generality from preconditions rather than decisions. Fix round 2 withdrew
+(j) (owner question Q5), waived only the fresh-family condition (Q4 stays open and the gate fails on the
+other), made `g2.poc-parity` check its coverage once historical, recorded each rule's decisive effect
+(on tmc only: every rule is single-instance), widened `seed.ram-copy` to end-pointer copies and pool
+boundaries with windows set from the measured distribution, added fixtures for the untested clauses, and
+pinned tmc's PoC reference by content. Phase 2 does not land until the owner answers Q1 to Q5.
+
 **Status (fix round 1, 17 October 2026).** The adversarial review of `74ec273` found that the landing at
 `808513f` rested on three gate changes the owner had not authorised (a `g2.poc-parity` fail frozen by
 raising `phase.json`, the `scaffold` family not asked of tmc, a confirm mode that made
@@ -1630,10 +1640,17 @@ tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeu
   is the only gate change the decision authorises. A sealed pair of a fresh family is still needed before release 1 claims
   generality (D53).
 Each rule below names its fixture (each `expect.json` fails with the branch reverted, checked by forcing
-the branch's condition off) and its counter-check: where on the six tuning ROMs its condition holds, and
-what it does there. Generality is claimed only where the counter-check shows the condition on more than
-tmc; a rule whose condition holds once is marked single-instance, and tmc's after-numbers are not evidence
-of generality until a sealed ROM of a fresh family passes (D53).
+the branch's condition off) and its counter-check: where on the six tuning ROMs its condition holds, and,
+since fix round 2 (overfitting-r1-1), where it decides an outcome (disabling it moves a row). Fix round 1
+claimed generality for (e), (g) and (h) from the count of a precondition on several ROMs; that was wrong:
+**the measured effect of the whole D60 rule set is on tmc only.** Each branch disabled at `f802822` moves
+only tmc rows (review of `f802822`: the veneer array, the 2-mod-4 halfwords, the stub copies, the
+forward-chain pointer test, the resume, the adr tests); with `seed.ram-copy` and
+`accept.prologue-and-calls-accepted` both disabled, fe7j, klonoa, pokeemerald, sa2 and sa3 keep their
+rows (tp 7,724, 556, 15,856, 2,892, 4,693, the same false entries, extents and code end) and tmc drops to
+tp 8,597. So every rule (a) to (h) is single-instance in the sense of D53: its decisive conditions hold
+on one ROM, its fixtures are self-authored, and tmc's after-numbers are no evidence of generality until a
+sealed ROM of a fresh family passes.
 
 - (a) **The gap scan resumes through the profile** (fill-gaps.ts `resume`): after a reading, at the
   halfword where it ends when `alignment.thumbFunction` allows a Thumb function there and the halfword is
@@ -1641,8 +1658,8 @@ of generality until a sealed ROM of a fresh family passes (D53).
   always took the next word, so libgcc's `_call_via_r8` … `_call_via_lr` (2-byte stubs at 2 mod 4) and an
   alternative entry `movs r3, #1; b …` right after a function were never candidates. Traversal, not a rule
   (D59 l): the profile decides where a function may start, the proposers what starts there. Fixture
-  `gap-resume-2mod4`. Counter-check: fires once on pokeemerald (0x082DF012, found without it too) and 9
-  times on tmc (8 entries recovered).
+  `gap-resume-2mod4`. Counter-check: fires once on pokeemerald (0x082DF012, found without it too, so it
+  decides nothing there) and 9 times on tmc (8 entries recovered): decisive on tmc only, single-instance.
 - (b) **`gap.end-anchor` takes a veneer-array element**: a two-instruction `ldr rN, [pc, #k]; bx rN` whose
   code ends exactly where an accepted stub of the same shape starts counts without `gapScan.minInsns` and
   without filling the hole (its pool lies after the array). Fixture `veneer-array`. Counter-check: 5
@@ -1822,17 +1839,21 @@ of generality until a sealed ROM of a fresh family passes (D53).
   improvements and cannot be accepted, so `g2.baseline-rows` fails on tmc (phase-2.md, "Owner questions").
 
 **Consequences.** tmc at `d645160` (sealed): 8,589 entries for 8,636 ELF functions, tp 8,582, recall
-99.37%, 51 glued, 3 label candidates, 8 false entries, code end −4,130. After (a) to (n): 8,643 entries,
-tp 8,631, precision 99.86%, recall 99.94%, 5 misses (`labels`), 12 false entries (`untyped`), extents
-8,388/8,388, code end 0. The pinned PoC's own run of tmc: tp 8,582, 54 misses, 7 false entries, extents
-8,388/8,388, scaffold OK. On fe7j, klonoa, pokeemerald, sa2 and sa3 every bench row is unchanged (entries,
-true positives, misses, false entries with their origins, extents, code end: klonoa +4, fe7j +8); analysis digests move only through (c) (two rejections on pokeemerald) and (h)
-(origins). pokefirered and pokeruby still pass sealed with unchanged counts. 59 rules, 41 fixtures.
-Known limitation: tmc's `arm_sub_080B1FE4`, a two-instruction ARM leaf after an ARM function, is read as
-Thumb (the ARM gap scan needs three instructions; the bench scores addresses, not modes). Gates the
-decision does not cover: `g2.poc-parity` (no M1 evidence for tmc), `g2.baseline-rows` (8 rows tmc has and
-the PoC's run of it does not), `g2.confirm-equals-discover` (6 functions on tmc); phase 2 does not land
-until the owner answers them.
+99.37%, 51 glued, 3 label candidates, 8 false entries, code end −4,130. After (a) to (n) and fix round 2:
+8,643 entries, tp 8,631, precision 99.86%, recall 99.94%, 5 misses (`labels`), 12 false entries
+(`untyped`), extents 8,388/8,388, code end +148 under the convention of phase 1 (the found code end is
+the ELF's last instruction plus its shared pool; Q5). The pinned PoC's own run of tmc: tp 8,582, 54
+misses, 7 false entries, extents 8,388/8,388, scaffold OK, pinned by content in
+`bench/baseline/poc-dump-rows.json`. On fe7j, klonoa, pokeemerald, sa2 and sa3 every bench row is
+unchanged (entries, true positives, misses, false entries with their origins, extents, code end: klonoa
++4, fe7j +8); analysis digests move only through (c) (two rejections on pokeemerald) and (h) (origins).
+pokefirered and pokeruby still pass sealed with unchanged counts. 59 rules, 45 fixtures. Known
+limitation: tmc's `arm_sub_080B1FE4`, a two-instruction ARM leaf after an ARM function, is read as Thumb
+(the ARM gap scan needs three instructions; the bench scores addresses, not modes). Gates the decision
+does not cover, each an owner question of phase-2.md: `g2.poc-parity` (no M1 evidence for tmc; Q1),
+`g2.baseline-rows` (8 rows tmc has and the PoC's run of it does not; Q2), `g2.confirm-equals-discover`
+(6 functions on tmc; Q3), `g2.held-out`'s two-families condition (Q4), `g2.code-end` on tmc (+148; Q5);
+phase 2 does not land until the owner answers them.
 
 **Rejected.** A per-dataset `codeEnd` row (`80762ff`; a switch only tmc carried, replaced by (j)).
 Confirm mode taking the listed entries after the passes (`747293f`; it made the gate hold by
