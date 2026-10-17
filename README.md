@@ -14,7 +14,10 @@ and needs only Node.js and the GBA toolchain.
 
 ## Status
 
-Phase 0 of 6: the repository skeleton. No command works yet.
+Phase 1 of 6 (Decoder) passes its local gate, with its CI run and the merge to `main` pending
+([docs/phase-1.md](docs/phase-1.md)): the Thumb and ARM instruction table with its decoder, encoder,
+formatter and parser round-trips 100% of printed mnemonics through GNU `as`, `romlift doctor` checks the user's toolchain, and the bench harness rescores the proof of concept on
+the five tuning ROMs. `doctor` is the only command so far; phase 2 (Analysis) is next.
 
 | Phase | Delivers |
 | --- | --- |
@@ -31,8 +34,9 @@ Phase 0 of 6: the repository skeleton. No command works yet.
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D53 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D54 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
+| [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |
@@ -47,6 +51,7 @@ Contributors and agents: read [AGENTS.md](AGENTS.md).
 npm ci
 npm run typecheck
 npm test
+node --conditions=source src/cli/main.ts doctor
 ```
 
 ## License

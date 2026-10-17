@@ -1,0 +1,47 @@
+Archive member included to satisfy reference by file (symbol)
+
+lib/libfixture.a(div.o)       build/main.o (fixture_div)
+
+Linker script and memory map
+
+                0x00000004                        fixture_count = 0x4
+
+ewram
+
+iwram           0x03000000      0x120
+                0x03000000                        . = 0x0
+ COMMON         0x03000000       0x20 build/main.o
+                0x03000000                fixture_buffer
+ *fill*         0x03000020       0x10 00000000
+ iwram_code_with_a_long_input_name
+                0x03000030       0xf0 lib/libfixture.a(iwram_copy.o)
+                0x03000030                fixture_copy_loop
+
+rom_text_with_a_long_output_name
+                0x08000000      0x200 load address 0x08100000
+ build/main.o(.text)
+ .text          0x08000000      0x180 build/main.o
+                0x08000000                fixture_main
+                0x08000100                fixture_tick
+ *libfixture.a:*.o(.text)
+ .text          0x08000180       0x40 lib/libfixture.a(div.o)
+                0x08000180                fixture_div
+                0x080001a0                fixture_mod
+ .text.unwrapped
+                0x080001c0       0x40 ../../tools/lib/libgcc.a(_call_via_rX.o)
+                0x080001c0                _call_via_r0
+                [!provide]                        PROVIDE (fixture_end = .)
+
+/DISCARD/
+ *(.comment)
+START GROUP
+LOAD build/main.o
+LOAD lib/libfixture.a
+END GROUP
+OUTPUT(fixture.elf elf32-littlearm)
+LOAD linker stubs
+
+Cross Reference Table
+
+Symbol                                            File
+fixture_div                                       lib/libfixture.a(div.o)

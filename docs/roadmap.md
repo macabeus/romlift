@@ -15,11 +15,11 @@ Every phase has the same shape (D43):
    family registries and `codes.ts` files, and makes the phase's gate files real (their bodies were
    written as `pending` in phase 1; component 0 updates them if the frozen API changed). It must pass
    `npm run typecheck` and `npm test`. Nothing else starts before it is committed.
-2. **Three to five parallel components**, each on its own branch `phase/<n>/<component>` in its own
-   worktree:
+2. **Three to five parallel components**, each on its own branch `phase-<n>-<component>` in its own
+   worktree (phase 1 used these flat names; D55 j):
 
    ```
-   git worktree add ../romlift-wt/p<n>-<component> -b phase/<n>/<component> phase/<n>-<name>
+   git worktree add ../romlift-wt/p<n>-<component> -b phase-<n>-<component> phase-<n>
    ```
 
    Each owns the files listed for it and no others. A file listed for one parallel component is never
@@ -29,9 +29,12 @@ Every phase has the same shape (D43):
    changed asks the lead, who commits the change to the phase branch; every component then rebases. No
    component commits `bench/results.json`, `bench/baseline/speed.json` or `test/gates/phase.json`.
 3. **The integrator** (the lead again) merges the components in the listed order, runs the steps that
-   need everything together (milestones, real-tier runs), regenerates `bench/results.json`, and runs the
-   exit commands. When they pass, it raises `test/gates/phase.json` in the merge commit to `main` and
-   pushes.
+   need everything together (milestones, real-tier runs), raises `test/gates/phase.json` on the phase
+   branch (it is part of the source digest the closing real-tier run records, D55 j), regenerates
+   `bench/results.json`, and runs the exit commands, the real tier before the ci tier (D54 i). When
+   they pass, it pushes the phase branch and opens the pull request to `main`, so `ci.yml`,
+   `printer.yml` and `provenance.yml` run on it, records their results in the phase record, and merges;
+   the merge carries the raised marker.
 
 **Every commit message** ends with:
 
@@ -57,8 +60,26 @@ Claude-Session: https://claude.ai/code/session_01JNLnM6KmzWvJDFNNgMvvvX
 
 ## Phase 1: Decoder
 
-Entry: an empty repository. Branch `phase/1-decoder`. Six components: 1.0, then 1.A–1.D in parallel,
+Entry: an empty repository. Branch `phase-1` (D55 j). Six components: 1.0, then 1.A–1.D in parallel,
 then 1.I.
+
+### As executed (D54)
+
+Phase 1 runs as nine components in three waves on the branch `phase-1`, each component on its own
+branch and worktree; sections 1.0–1.I below still describe what the phase delivers. D54 records each
+deviation and why.
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p1-infra` | 0 | 1.0's repository files, `test/architecture.test.ts` and its checker `test/helpers/architecture.ts`, `test/gates/gate.ts`, `phase.json`, `ci.yml`, the frozen CLI types (`registry.ts`, `exit-codes.ts`, `commands/index.ts`, `lists/toolchain.ts`), `foundation/util/prng.ts` |
+| `p1-foundation` | 0 | all of 1.B, plus 1.0's barrels, `span.ts`, `diagnostic.ts`, `formats/types.ts`, `src/api/files.ts` |
+| `p1-isa` | 1 | 1.A, plus `foundation/isa/types.ts`, the corpus (`test/corpus/generate.ts`, `foundation/isa/corpus.ts`) and `shell/toolchain/binutils.ts` |
+| `p1-cli` | 1 | 1.C's CLI: `main.ts`, `args.ts`, reporters, registry helpers |
+| `p1-bench` | 1 | 1.D |
+| `p1-gates-early` | 1 | the `g1.*`, `g2.*` and `g3.*` gate files |
+| `p1-doctor` | 2 | 1.C's `doctor`: `shell/toolchain/doctor.ts`, `commands/doctor.ts`, `lists/toolchain.ts`, `api/toolchain.ts` |
+| `p1-gates-late` | 2 | the `g4.*`, `g5.*` and `g6.*` gate files |
+| `p1-integration` | last | 1.I; runs the exit commands with the real tier before the ci tier |
 
 ### 1.0 Repository and frozen interfaces (lead)
 
@@ -83,7 +104,9 @@ then 1.I.
   `test/helpers/{thumb,arm}.ts`, `test/local/poc-decoder-differential.test.ts`.
 - **Public API (`romlift/isa`):** `decode(mode, word, addr)`, `encode(spec, fields)`,
   `format(insn, resolver)`, `parse(text, mode, addr, resolver)`, `assemble(parsed, addr)`,
-  `roundTrips(insn, resolver)`, `specOf(id)`, `DIALECT` (`preamble(mode)`, `macrosInc`).
+  `roundTrips(insn, resolver)`, `specOf(id)`, `DIALECT` (`preamble(mode)`, `macrosInc`); D55 (h) adds
+  `formatRaw`, `rawReason`, `RAW_REASONS` and the types `Assembled`, `ParsedInsn`, `ParsedCandidate`,
+  `FieldKind`, `Dialect`.
 - **Gated by:** unit tests per row; `decode∘encode` and "round-trips or raw" property tests; goldens;
   the differential test (the `Flow` kind of every Thumb halfword and of a seeded ARM sample equals the
   PoC's `thumb.ts`/`arm.ts` classification, where both define one).
@@ -155,8 +178,8 @@ npm run bench -- doctor-real
 npm run export-poc -- --mode scored               # spawns the PoC's own tsx (architecture §4.5)
 npm run test:local                               # the decoder differential against the PoC
 npm run bench -- run
+npm run bench -- gates --require 1 --tier real         # before the ci tier (D54 i)
 npm run bench -- gates --require 1 --tier ci
-npm run bench -- gates --require 1 --tier real
 ```
 
 Thresholds: the corpus prints 100.00% of printed mnemonics round-tripping on Thumb, `bl` and ARM, both

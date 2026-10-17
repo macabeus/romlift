@@ -1,0 +1,42 @@
+// The metric families of architecture §8.4 and the phase from which each is gated. A `rom` family is
+// recorded per tuning ROM in meta.families; a `global` family is a top-level member of results.json
+// named after it (the printer's corpus summary is `printer`); `sealed` families are judged per sealed
+// ROM by g2.held-out. The provenance check requires every family live at the landed phase.
+
+export type FamilyScope = 'rom' | 'global' | 'sealed';
+
+export interface FamilySpec {
+  readonly liveFrom: 1 | 2 | 3 | 4 | 5 | 6;
+  readonly scope: FamilyScope;
+  readonly summary: string;
+}
+
+export const FAMILIES = {
+  printer: { liveFrom: 1, scope: 'global', summary: '100% round-trip; raw share never rises; both alignments and every offset extreme agree' },
+  scaffold: { liveFrom: 1, scope: 'rom', summary: 'the scaffold reproduces the SHA-1' },
+  entries: { liveFrom: 2, scope: 'rom', summary: 'every miss and false entry listed; raw precision and true positives hold' },
+  extents: { liveFrom: 2, scope: 'rom', summary: 'no agreeing function stops agreeing; 99.9% of sized functions agree' },
+  'code-end': { liveFrom: 2, scope: 'rom', summary: 'within 16 bytes of the ELF' },
+  'held-out': { liveFrom: 2, scope: 'sealed', summary: 'the sealed held-out gate' },
+  determinism: { liveFrom: 2, scope: 'rom', summary: 'two processes with a varied environment give one digest' },
+  speed: { liveFrom: 2, scope: 'rom', summary: 'CPU time within the ratchet and the budget' },
+  readability: { liveFrom: 3, scope: 'rom', summary: 'readability shares only increase; objdiff score 0' },
+  memory: { liveFrom: 3, scope: 'global', summary: 'peak RSS below 512 MiB on the 32 MiB synthetic ROM' },
+  signatures: { liveFrom: 6, scope: 'rom', summary: 'every placement at an ELF FUNC or a listed untyped address' },
+} as const satisfies Record<string, FamilySpec>;
+
+export type Family = keyof typeof FAMILIES;
+
+/** The per-ROM families a phase-1 `bench run` measures, from the PoC's dumps. */
+export const PHASE1_ROM_FAMILIES: readonly Family[] = ['code-end', 'entries', 'extents', 'scaffold'];
+
+export function familySpec(family: Family): FamilySpec {
+  return FAMILIES[family];
+}
+
+/** The families of `scope` gated once phase `landed` has landed, in name order. */
+export function liveFamilies(landed: number, scope: FamilyScope): Family[] {
+  return (Object.keys(FAMILIES) as Family[])
+    .filter((f) => familySpec(f).scope === scope && familySpec(f).liveFrom <= landed)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}

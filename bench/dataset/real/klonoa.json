@@ -1,0 +1,40 @@
+{
+  "name": "klonoa",
+  "rom": "kleod/baserom.gba",
+  "elf": "kleod/kleod.elf",
+  "map": "kleod/kleod.map",
+  "sha1": "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b",
+  "elfCommit": "a57c1f0",
+  "elfSha256": "5d57d920b5c48761d885a16c3b8d0c2bd8bdc45f33b9f97d1257d9396638224c",
+  "family": "kleod",
+  "buildNote": "the kleod checkout carries two uncommitted Makefile changes needed to rebuild it on macOS: CPP is $(TOOLCHAIN)cpp, the cross preprocessor, because Apple clang's cpp defines __APPLE__ and selects IDE-only branches of include/global.h and include/gba/defines.h; and the asm/data/ pattern rule precedes the asm/ rule, because GNU Make 3.81 (macOS's) takes the first matching pattern rule, not the shortest stem, and asm/data/ files need preproc. The built ROM matches the dataset SHA-1",
+  "heldout": false,
+  "revealed": [],
+  "labels": [
+    {
+      "addr": "0x0804F378",
+      "name": "sub_0804F378",
+      "category": "mixer-internal",
+      "note": "adopted from a run on 2026-10-16; reason inside-code"
+    },
+    {
+      "addr": "0x0804F3A6",
+      "name": "sub_0804F3A6",
+      "category": "mixer-internal",
+      "note": "adopted from a run on 2026-10-16; reason inside-code"
+    },
+    {
+      "addr": "0x0804F698",
+      "name": "sub_0804F698",
+      "category": "mixer-internal",
+      "note": "adopted from a run on 2026-10-16; reason inside-code"
+    }
+  ],
+  "untyped": [
+    {
+      "addr": "0x0804F73E",
+      "category": "unreviewed",
+      "note": "adopted from a run on 2026-10-16; via call, 26 bytes"
+    }
+  ]
+}

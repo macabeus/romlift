@@ -26,17 +26,17 @@ ROM and ELF paths, SHA-1s and ELF commits are those recorded in the PoC's `bench
 
 These three pairs are the held-out gate of phase 2 ("the same gates on at least two ROMs never used to tune the rules"). The romlift rules must never be tuned on them: do not inspect their misses to invent or adjust a rule. They are run only to measure, and a failure there is fixed by finding the general compiler behaviour behind it and checking the fix on the tuning set first.
 
-| Dataset name (proposed) | Game | Checkout (upstream) | Checkout commit | Expected ROM | Expected ELF | Map |
+| Dataset name (proposed) | Game | Checkout (upstream) | Checkout commit | ROM | ELF | Map |
 | --- | --- | --- | --- | --- | --- | --- |
 | `pokefirered` | Pokémon FireRed | `pokefirered/` (pret/pokefirered) | `037335f` | `pokefirered/pokefirered.gba` | `pokefirered/pokefirered.elf` | `pokefirered/pokefirered.map` |
 | `pokeruby` | Pokémon Ruby | `pokeruby/` (pret/pokeruby) | `5784633` | `pokeruby/pokeruby.gba` | `pokeruby/pokeruby.elf` | `pokeruby/pokeruby.map` |
-| `tmc` | The Legend of Zelda: The Minish Cap | `tmc/` (zeldaret/tmc) | `6fb6dfb` | `tmc/tmc.gba` | `tmc/tmc.elf` | `tmc/tmc.map` |
+| `tmc` | The Legend of Zelda: The Minish Cap | `tmc/` (zeldaret/tmc) | `6fb6dfb` | `tmc/tmc.gba` | `tmc/tmc.elf` | `tmc/build/USA/tmc.map` |
 
-Status on 2026-10-17: another agent is preparing these builds. `pokefirered` and `pokeruby` already have a built ELF, ROM and map in their checkouts; `tmc` has only `baserom.gba` and no ELF yet. Each pair counts as ready only when its build reproduces the checkout's own SHA-1 file; its ROM SHA-1 and ELF commit are then recorded in its dataset file, like the tuning set.
+Status on 2026-10-17: all three held-out builds (`pokefirered`, `pokeruby`, `tmc`) reproduce their checkout's own SHA-1 file, so all three pairs are ready. `tmc` writes its ELF at the checkout root (`tmc/tmc.elf`) and its map under the build directory (`tmc/build/USA/tmc.map`), not beside the ELF. Their ROM SHA-1s, ELF digests and ELF commits are recorded in their dataset files when the sealed datasets are created (phase 2), by the tooling that runs them sealed; this document records only the paths, so nobody opens, hashes or inspects a held-out file to keep it current.
 
-## Engine families and the reserve pool
+## Codebase families and the reserve pool
 
-Every dataset records its engine family (architecture §8.2). `g2.held-out` needs two passing sealed ROMs
+Every dataset records its codebase family (architecture §8.2; the term is D55's, replacing "engine family"). `g2.held-out` needs two passing sealed ROMs
 from at least two families, one of them absent from the tuning set (decision D53), so the two pret Gen-3
 siblings of Emerald cannot pass the gate alone.
 
@@ -52,7 +52,7 @@ siblings of Emerald cannot pass the gate alone.
 **Reserve pool.** Candidate checkouts for a fresh sealed pair when a held-out ROM is revealed or fails,
 preferring families absent from the tuning set. None is admitted yet: each counts only when its build
 reproduces its own SHA-1 file and its ELF types functions, and it is then sealed on creation like the
-three above. Candidates to evaluate, in order of preference: Kirby & the Amazing Mirror (a HAL engine),
+three above. Candidates to evaluate, in order of preference: Kirby & the Amazing Mirror (a HAL codebase),
 Pokémon Pinball: Ruby & Sapphire (a non-Gen-3 pret project), then siblings of tuning ROMs that count only
 as their family (Fire Emblem 8, Fire Emblem 6, Sonic Advance).
 

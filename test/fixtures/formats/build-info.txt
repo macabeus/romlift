@@ -1,0 +1,3 @@
+# Built by build.sh; the assembler and linker that produced tiny.elf and tiny.map:
+# as: GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126
+# ld: GNU ld (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126

@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53; each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -1128,6 +1128,137 @@ improvised.
 
 **Rejected.** Landing automatically on a recorded failure (weakens the plan's gate without the owner).
 Counting siblings of a tuning ROM as independent.
+
+## D54. Phase-1 component boundaries as executed
+
+**Context.** Roadmap 1.0–1.D splits phase 1 into a lead, four parallel components and an integrator.
+Executing it with parallel agents exposed dependencies the split did not allow for: 1.D calls
+`parseElf`, `parseGnuMap` and `canonicalJson`, and a parallel component cannot typecheck against
+exports that are not merged yet; the corpus is the proof of the encoder, but it sat with the CLI;
+`doctor` needs the finished ISA and corpus; the gate files are too many for the lead alone; and a few
+files the work needs were in no listing.
+
+**Decision.** Phase 1 runs as nine components in three waves plus the integrator (the table is in
+roadmap.md, "As executed"). The deviations from roadmap 1.0–1.D:
+
+- (a) 1.B's files move into wave 0, as component `p1-foundation`, beside the lead's `p1-infra`,
+  because 1.D calls `parseElf` and `canonicalJson`, and parallel components cannot typecheck against
+  unmerged exports.
+- (b) `src/foundation/isa/types.ts` is created and owned by the ISA component (`p1-isa`), not by the
+  lead: no other wave-1 component uses it.
+- (c) The binutils runner (`src/shell/toolchain/binutils.ts`, `assembleWithBinutils`) and the corpus
+  (`test/corpus/generate.ts` plus a new pure `src/foundation/isa/corpus.ts`) belong to the ISA
+  component, so the author of the encoder proves it against `as`. The corpus core lives in `src`
+  because `doctor` (shell) must re-assemble it and the shell may not import `test/`.
+- (d) `doctor` and its command move to wave 2 (`p1-doctor`), once the ISA and corpus have merged.
+- (e) The gate files are written by two gate components, `p1-gates-early` (g1–g3, wave 1) and
+  `p1-gates-late` (g4–g6, wave 2), on the `test/gates/gate.ts` contract that `p1-infra` freezes.
+- (f) New files: `src/api/files.ts` (the `romlift/node` file helpers), `src/foundation/util/prng.ts`
+  (the corpus's seeded sample is needed by `doctor` in `src`, so the PRNG cannot live only in
+  `test/helpers`), and `test/helpers/architecture.ts` (the checker, reused by the mutation test).
+- (g) The CLI's `CommandSpec`, `OptionSpec`, `ParsedArgs`, `CliIo` and `ExitCode` are frozen in wave 0,
+  because every phase's command lists depend on them; `p1-cli` adds the parser and helpers in wave 1.
+- (h) `GateSpec.tier` accepts `'both'` for the gates architecture §13 marks "ci and real".
+- (i) The exit commands run the real tier before the ci tier, because `g1.provenance` (ci) checks the
+  real gate record once `phase.json.landed` is 1.
+- (j) `npm run lint` runs only the architecture checker (`test/architecture.test.ts` and
+  `test/mutation/phase1/architecture.test.ts`), so the phase exit commands can name lint without a
+  separate linter (D5 stands: the checker is the lint, and `npm test` still runs it).
+
+The architecture checker reads a dynamic `import()` whose specifier's type is a string literal or a
+union of string literals as one edge per literal, so `test/gates/gate.ts` can load the four entry points
+without naming files that do not exist yet in a partial tree; any other non-literal specifier fails
+outside the PoC loaders.
+
+**Consequences.** Every component typechecks alone against merged code only; the encoder's author
+also owns its external proof; the lead's files stay small and frozen early. Roadmap 1.0–1.D remains
+the description of what phase 1 delivers; the "As executed" table is who built which part.
+
+**Rejected.** Running 1.D against stubs of 1.B's exports (stubs are what "nothing is stubbed early"
+forbids, and they would hide interface drift). Keeping the corpus with the CLI (the CLI author would
+prove an encoder they did not write). Putting the PRNG in `test/helpers` only (`doctor` in `src` could
+not import it). One gate component for all six phases (too large to finish in one wave).
+
+## D55. Phase-1 review: one corpus run, one verdict, one digest
+
+**Context.** The first review of phase 1 (docs/phase-1.md, "Review") found the doctor and corpus
+verdict decided in three layers (foundation hard-coded the phase-1 threshold, the shell set
+`report.ok`, the CLI recomputed it from the statuses); the corpus pipeline copied between the shell
+doctor and the corpus driver; two incompatible definitions of the summary's `inputsDigest`; a digest
+that left out modules the corpus imports, so `npm run corpus -- --reuse` accepted stale summaries;
+test-harness files inside `foundation/isa` beyond what D54 (c) admitted, behind an injection seam no
+test used; a frozen `ParsedInsn` that could not hold a reading per candidate; a `Flow` that called a
+pc load through a base register `mov-pc`; a `CommandSpec` without positional arity; and the term
+"engine family", which the naming rule forbids.
+
+**Decision.**
+
+- (a) **The corpus has its own directory**, `src/foundation/corpus/` (`corpus.ts` the entry,
+  `types.ts`, `cases.ts`, `layout.ts`, `compare.ts`, `parse-summary.ts`), outside `foundation/isa`, so
+  nothing of it ships beside `romlift/isa`. It imports the isa functions directly: the `CorpusIsa`
+  seam is removed, because no test injected an isa (the mutation test flips assembled bytes). The
+  corpus produces **counts only** (`CorpusCounts`); `corpusSummary(head, counts, ok)` builds the
+  persisted `romlift/corpus-summary@1`, whose shape and key order are unchanged, and
+  `parseCorpusSummary` reads one back field by field.
+- (b) **The policy is one pure module**, `src/core/workflow/doctor.ts`, live from phase 1:
+  `DOCTOR_CHECK_IDS`, `DOCTOR_REQUIRED`, the corpus threshold `corpusOk(counts, options)` (no
+  disagreement; at least 0x10000 Thumb and bl cases and the ARM sample; every ARM row covered; both
+  alignments; an extreme) and `doctorVerdict(checks)` → `ok | unusable | disagrees`. The shell
+  calls them and decides nothing; `DoctorReport.ok` is replaced by `verdict`, and the CLI maps the
+  verdict to an exit code (0, 1, 3) without reading the statuses.
+- (c) **One corpus run**, `runCorpus` in `src/shell/toolchain/corpus.ts` (bounded concurrency, file
+  order kept, an `onFile` hook), used by `doctor` and by `test/corpus/generate.ts`.
+- (d) **One inputs digest**, `corpusInputsDigest` in `src/shell/toolchain/corpus-inputs.ts`: sha256 over
+  every repository file reached by the relative imports of `src/foundation/corpus/corpus.ts`,
+  `src/core/workflow/doctor.ts`, `src/shell/toolchain/corpus.ts`, `corpus-inputs.ts` itself and
+  `test/corpus/generate.ts`, plus the `as --version` line and the options. A module the corpus starts
+  to import is covered from that commit; a unit test proves the closure equals the one the TypeScript
+  compiler resolves. `doctor` never persists a summary and computes no digest. `test/corpus/**`
+  joins the source digest (architecture §8.6). The digest, `runCorpus`, `corpusOk`, the summary
+  helpers and `runDoctorWith` (the doctor with explicit corpus options, which the tests use) are
+  exported through `romlift/internal` (`src/api/corpus.ts`), not `romlift/node`; `DoctorOptions` no
+  longer has `armSample`.
+- (e) **The corpus driver** imports only the four entry points and the bench's argument parser
+  (`bench/src/args.ts`); `test/corpus/**` is scanned by the architecture checker with that edge row.
+- (f) **`ParsedInsn.candidates`** is `readonly ParsedCandidate[]`, each `{specId, operands}`: every row
+  that accepts a text keeps its own reading, so `assemble` can no longer lose a row with a better
+  `asPriority` whose reading conflicted with an earlier one. **`Flow`** gains `via: 'load-pc'` for pc
+  loaded through a base register other than sp (ldr/ldm; base 15 is a pc-relative table read), and
+  `pool-load` with `rd` 15 is documented as a transfer of control the walker must check (the PoC
+  classifies `ldr pc, [pc, #imm]` the same way, so parity is kept). `roundtrip.ts` exports
+  `printing(insn, resolver)`, the rule run once with its text and encoding, which `rawReason` and
+  the corpus use.
+- (g) **`CommandSpec.positionals`** (`readonly {name, optional?}[]`): the parser rejects an extra or a
+  missing positional with exit 2. `romlift doctor extra` is a usage error.
+- (h) **The `romlift/isa` surface** is the roadmap 1.A list plus `formatRaw`, `rawReason`,
+  `RAW_REASONS` and the types `Assembled`, `ParsedInsn`, `ParsedCandidate`, `FieldKind` and
+  `Dialect`, which the corpus, the doctor and gba-kit's printer need; they are public from phase 1.
+- (i) **Codebase family** replaces "engine family" for `Dataset.family` (architecture §8.2, §8.4,
+  §12, docs/benchmark-roms.md); D53's rule is unchanged.
+- (j) **Phase branches and the marker as practised.** The phase branch is `phase-<n>`, its components
+  `phase-<n>-<component>` (a flat name; `phase/<n>-<name>` with `phase/<n>/<component>` also works, the
+  roadmap's names never clashed, and either is acceptable). `test/gates/phase.json` is raised on the
+  phase branch before the closing real-tier run, because it is part of the source digest that run
+  records; the merge to `main` carries it. AGENTS.md and roadmap "How a phase runs" say so.
+- (k) **Smaller rules**: `elfFunctions` takes an order (`address`, or `symbol-table` for the PoC's
+  false-entry owners), and the bench's truth is built on it; the bench's toolchain versions come from
+  `romlift/node`'s `binutilsVersions`; `bench gates --tier real` keeps the committed gate record when a
+  real-tier gate of a landed phase (or of phase ≤ `--require`) is `unavailable`; `bench dataset-check`
+  pins the unsealed datasets to the ROMs of the PoC baseline; `bench poc-check` recomputes the stored
+  analysis's digest; export-poc strips every nested `seconds`; `g1.runtime-deps` reads the production
+  tree from the lock file, cross-checked with `npm ls --json`, never from paths npm prints.
+
+**Consequences.** One function decides each verdict and one defines the digest; the CLI, the doctor
+and the driver cannot drift apart. A corpus change anywhere in its import closure regenerates the
+summary. The doctor's NDJSON is unchanged. Phase 2 starts from a `ParsedInsn` and a `Flow` that
+carry what the walker needs.
+
+**Rejected.** Keeping `ok` decided inside foundation (policy in the layer that knows no project).
+Making `inputsDigest` optional for doctor (a frozen field would lose its meaning in one producer).
+A fixed directory list for the digest (it already missed `foundation/util`, `foundation/rom`,
+`foundation/diagnostics` and the shell runner). Keeping the `CorpusIsa` seam documented (it had no
+user). Rewriting the pool-load into an indirect Flow (it would lose the pool address the walker needs
+and break PoC parity).
 
 ---
 

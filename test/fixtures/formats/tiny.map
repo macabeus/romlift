@@ -1,0 +1,79 @@
+Archive member included to satisfy reference by file (symbol)
+
+libtiny.a(libpart.o)          tiny.o (lib_helper)
+
+Discarded input sections
+
+ .ARM.attributes
+                0x00000000       0x20 tiny.o
+ .ARM.attributes
+                0x00000000       0x20 libtiny.a(libpart.o)
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0x08000000                        . = 0x8000000
+
+.text           0x08000000       0x20
+ tiny.o(.text)
+ .text          0x08000000       0x18 tiny.o
+                0x08000000                arm_entry
+                0x08000008                thumb_one
+                0x0800000e                thumb_two
+ *(.text)
+ .text          0x08000018        0x4 libtiny.a(libpart.o)
+                0x08000018                lib_helper
+                0x08000020                        . = ALIGN (0x10)
+ *fill*         0x0800001c        0x4 
+
+.glue_7         0x08000020        0x0
+ .glue_7        0x08000020        0x0 linker stubs
+
+.glue_7t        0x08000020        0x0
+ .glue_7t       0x08000020        0x0 linker stubs
+
+.vfp11_veneer   0x08000020        0x0
+ .vfp11_veneer  0x08000020        0x0 linker stubs
+
+.v4_bx          0x08000020        0x0
+ .v4_bx         0x08000020        0x0 linker stubs
+
+.iplt           0x08000020        0x0
+ .iplt          0x08000020        0x0 tiny.o
+
+.rodata         0x08000020        0x8
+ *(.rodata*)
+ .rodata.tiny_section_with_a_long_name
+                0x08000020        0x8 tiny.o
+                0x08000020                tiny_table
+                0x08000028                        __data_load = .
+
+.rel.dyn        0x08000028        0x0
+ .rel.iplt      0x08000028        0x0 tiny.o
+
+.data           0x03000000        0x4 load address 0x08000028
+ *(.data)
+ .data          0x03000000        0x4 tiny.o
+                0x03000000                tiny_counter
+ .data          0x03000004        0x0 libtiny.a(libpart.o)
+                [!provide]                        PROVIDE (tiny_rom_end = (__data_load + SIZEOF (.data)))
+                0x00000001                        ASSERT ((SIZEOF (.text) > 0x0), tiny.ld: empty .text)
+
+.igot.plt       0x03000004        0x0 load address 0x0800002c
+ .igot.plt      0x03000004        0x0 tiny.o
+
+.bss            0x03000004        0x0 load address 0x0800002c
+ .bss           0x03000004        0x0 tiny.o
+ .bss           0x03000004        0x0 libtiny.a(libpart.o)
+
+/DISCARD/
+ *(.ARM.attributes)
+ *(.comment)
+LOAD tiny.o
+LOAD libtiny.a
+OUTPUT(tiny.elf elf32-littlearm)
+LOAD linker stubs
