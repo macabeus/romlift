@@ -34,11 +34,13 @@ test("a Thumb function's add rd, pc targets are not proposed", () => {
   assert.equal(adr.meta.origin, 'adr');
 });
 
-test('declined (D60 g): a label inside the own extent, a claimed word, words that do not read as ARM code', () => {
+test('declined (D60 g): a claimed word (a label inside the own extent is code it claims), words that do not read as ARM code', () => {
   const rom = romWith([...armEverywhere(F, F + 0x40), { at: F + 0x40, bytes: new Uint8Array(8).fill(0xff) }]);
   const fact = (adrs: number[], end = F + 0x10) => factOf(readingOf(rom, { entry: F, mode: 'arm' }), { adrs, extent: { start: F, end } });
-  assert.deepEqual(adr.queue(fact([F + 8]), viewWith({ rom })), [], 'inside [entry, extent end): a return label');
-  assert.deepEqual(adr.queue(fact([F + 0x10]), viewWith({ rom }))?.map((p) => p.entry), [F + 0x10], 'the extent end itself opens the next function');
+  // The accepted function's extent is claimed as code when its queue rules run: a return label inside it is a claimed word.
+  const own = viewWith({ rom, claims: [{ span: { start: F, end: F + 0x10 }, kind: Claim.code }] });
+  assert.deepEqual(adr.queue(fact([F + 8]), own), [], 'inside [entry, extent end): a return label, claimed as code');
+  assert.deepEqual(adr.queue(fact([F + 0x10]), own)?.map((p) => p.entry), [F + 0x10], 'the extent end itself opens the next function');
   assert.deepEqual(adr.queue(fact([F + 0x18]), viewWith({ rom, claims: [{ span: { start: F + 0x18, end: F + 0x1c }, kind: Claim.pool }] })), [], 'a claimed word');
   assert.deepEqual(adr.queue(fact([F + 0x40]), viewWith({ rom })), [], 'undefined ARM words');
 });

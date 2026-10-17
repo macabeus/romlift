@@ -1718,11 +1718,19 @@ of generality until a sealed ROM of a fresh family passes (D53).
   the word − 1 a function): a literal pool word, not code; the skip slot steps over it. Fixture
   `pointer-word-in-gap`. Counter-check: declines 6 words, all in one pointer table of tmc's copied block:
   single-instance (part of the (e) chain).
-- (g) **`seed.adr` proposes only past the function's extent, unclaimed words that read as ARM code**: an
-  adr into the own extent is a local label (a return address, a table of its own), one onto claimed or
-  undecodable words names data. Fixture `adr-label-and-data` (negative). Counter-check: the condition
-  holds on all six ROMs; on the five it keeps every adr target (fe7j 2, klonoa 1, pokeemerald 2, sa2 1,
-  sa3 1: the interrupt handlers), and it declines 5 targets on tmc only, in the copied block.
+- (g) **`seed.adr` proposes only unclaimed words that read as ARM code**: an adr onto claimed words (code,
+  the function's own extent included, since an accepted function's code is claimed when its queue rules
+  run: a return address, a table of its own; a pool or a table) names a label or data, and one onto
+  undecodable words names data. Fix round 2 (overfitting-r1-6) removed the separate own-extent clause of
+  `72e97d8`: deleting it changed no fixture and no row on the eight ROMs, because the claim test already
+  declines those targets. Fixture `adr-label-and-data` (negative). Counter-check, per sub-condition: the
+  claim test declines the startup code's adr onto the interrupt handler on all six ROMs, a target that is
+  already a function (no decision), and 2 targets on tmc inside their own function's extent (0x080B2440,
+  0x080B286C, claimed as that function's code); the decode test declines 3 targets on tmc (0x080B1D8C, 0x080B1FEC,
+  0x080B1FFC), the only declines that move rows (without it tmc gains 15 false entries, 3 unlisted, review
+  of `f802822`). On the five the rule keeps every adr target (fe7j 2, klonoa 1, pokeemerald 2, sa2 1, sa3
+  1: the interrupt handlers). Its decisive effect is on tmc only, inside the block (e) brings into the
+  code: single-instance.
 - (h) **`accept.prologue-and-calls-accepted`** (new accept rule, after `accept.pointer-table-run`): a
   valid data-pointer candidate with a word-aligned prologue, a return and at least one call, every call on
   an accepted function, is taken: three independent signs of a function that bytes of data do not show by
