@@ -27,8 +27,27 @@ export const FAMILIES = {
 
 export type Family = keyof typeof FAMILIES;
 
-/** The per-ROM families a phase-1 `bench run` measures, from the PoC's dumps. */
+/** The per-ROM families a phase-1 `bench run` measured, from the PoC's dumps. */
 export const PHASE1_ROM_FAMILIES: readonly Family[] = ['code-end', 'entries', 'extents', 'scaffold'];
+
+/** What one phase-2 `bench run` of a tuning ROM measured, besides the entries, extents and code end it always scores. */
+export interface RomEvidence {
+  /** The two runs gave one analysis digest. */
+  readonly deterministic: boolean;
+  /** bench/baseline/speed.json holds the ROM, so the speed ratchet has a reference. */
+  readonly speedBaseline: boolean;
+  /** The PoC's dump held a scaffold verdict (until phase 3). */
+  readonly scaffold: boolean;
+}
+
+/** The per-ROM families a phase-2 `bench run` records for one tuning ROM, in name order. */
+export function phase2RomFamilies(e: RomEvidence): Family[] {
+  const families: Family[] = ['code-end', 'entries', 'extents'];
+  if (e.deterministic) families.push('determinism');
+  if (e.scaffold) families.push('scaffold');
+  if (e.speedBaseline) families.push('speed');
+  return families.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
 
 export function familySpec(family: Family): FamilySpec {
   return FAMILIES[family];

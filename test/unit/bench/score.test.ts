@@ -4,9 +4,12 @@ import { test } from 'node:test';
 
 import { parseElf } from 'romlift';
 
-import { extentAgrees, insideFoundFunction, scoreRun } from '../../../bench/src/score.ts';
+import type { MissDiagnosis } from 'romlift/internal';
+
+import { missQueries } from '../../../bench/src/analysis-run.ts';
+import { dumpFunctions, extentAgrees, insideFoundFunction, scoreAnalysis, scoreRun, staleExceptions } from '../../../bench/src/score.ts';
 import { elfTruth } from '../../../bench/src/truth.ts';
-import { dataset, dump, elfFile, fn } from './fixtures.ts';
+import { analysisResult, dataset, dump, elfFile, fact, fn } from './fixtures.ts';
 
 // Table order matters: `big` precedes `outer`, which also contains 0x08000310.
 const ELF = elfFile([
@@ -137,9 +140,70 @@ test('scoreRun refuses a dump without a diagnosis for a miss or with an unknown 
 });
 
 test('insideFoundFunction: strictly inside a found extent and not itself an entry', () => {
-  assert.ok(insideFoundFunction(DUMP, 0x0800_0204));
-  assert.ok(!insideFoundFunction(DUMP, 0x0800_0200));
-  assert.ok(!insideFoundFunction(DUMP, 0x0800_0310));
-  assert.ok(!insideFoundFunction(DUMP, 0x0800_0222));
-  assert.ok(!insideFoundFunction(DUMP, 0x0800_0900));
+  const found = dumpFunctions(DUMP, 'tiny');
+  assert.ok(insideFoundFunction(found, 0x0800_0204));
+  assert.ok(!insideFoundFunction(found, 0x0800_0200));
+  assert.ok(!insideFoundFunction(found, 0x0800_0310));
+  assert.ok(!insideFoundFunction(found, 0x0800_0222));
+  assert.ok(!insideFoundFunction(found, 0x0800_0900));
+});
+
+// The same run as DUMP, as romlift's own AnalysisResult with its miss diagnoses.
+const RESULT = analysisResult(
+  [
+    fact(0x0800_0000, 0x0800_00b0, 'rom-entry', 'arm'),
+    fact(0x0800_00c0, 0x0800_0100, 'adr', 'arm'),
+    fact(0x0800_0200, 0x0800_0222),
+    fact(0x0800_0280, 0x0800_0380, 'pool-pointer'),
+    fact(0x0800_0300, 0x0800_0330),
+    fact(0x0800_0310, 0x0800_0318, 'gap-scan'),
+    fact(0x0800_0700, 0x0800_0710, 'data-pointer', 'arm'),
+  ],
+  { end: 0x0800_0100, entries: [0x0800_0000, 0x0800_00c0] },
+  0x0800_0710,
+);
+const DIAGNOSES: readonly MissDiagnosis[] = [
+  { addr: 0x0800_0400, mode: 'thumb', reason: 'inside-code', claim: 1, owner: 0x0800_0380, detail: 'inside code' },
+  { addr: 0x0800_0500, mode: 'thumb', reason: 'unanchored', detail: 'valid but not accepted' },
+];
+
+test("scoreAnalysis scores romlift's result exactly as scoreRun scores the same PoC run", () => {
+  const truth = elfTruth(ELF, ROM_SIZE);
+  const row = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth, dataset: DATASET, sha1: 'f'.repeat(40), deterministic: true, scaffold: { ok: true } });
+  assert.deepEqual(row, scoreRun({ dump: DUMP, truth, dataset: DATASET, sha1: 'f'.repeat(40) }));
+  // Counted from the startup end; the owner of a false entry is the first containing ELF function in table order.
+  assert.equal(row.entries, 5);
+  assert.equal(row.tp, 3);
+  assert.equal(row.falseEntries[0]?.owner, 'big');
+  assert.deepEqual(row.misses.map((m) => [m.addr, m.reason]), [['0x08000400', 'inside-code'], ['0x08000500', 'unanchored']]);
+  // Without a dump the row has no scaffold verdict; a second run that differs is recorded.
+  const bare = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth, dataset: DATASET, sha1: '', deterministic: false });
+  assert.equal(bare.scaffold, undefined);
+  assert.ok(!('scaffold' in bare));
+  assert.equal(bare.deterministic, false);
+});
+
+test('scoreAnalysis refuses a miss without a diagnosis', () => {
+  assert.throws(() => scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES.slice(1), truth: elfTruth(ELF, ROM_SIZE), dataset: DATASET, sha1: '', deterministic: true }), /no miss diagnosis for 0x08000400 missed/);
+});
+
+test('missQueries asks about the ELF functions from the startup end the run did not report, with their modes', () => {
+  assert.deepEqual(missQueries(RESULT, elfTruth(ELF, ROM_SIZE)), [
+    { addr: 0x0800_0400, mode: 'thumb' },
+    { addr: 0x0800_0500, mode: 'thumb' },
+  ]);
+});
+
+test('staleExceptions lists the labels the run no longer misses and the untyped rows it no longer reports', () => {
+  const truth = elfTruth(ELF, ROM_SIZE);
+  const row = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth, dataset: DATASET, sha1: '', deterministic: true });
+  assert.deepEqual(staleExceptions(DATASET, row), []);
+  const grown = dataset({
+    labels: [...DATASET.labels, { addr: '0x08000200', name: 'main', category: 'loop-label', note: 'n' }],
+    untyped: [...DATASET.untyped, { addr: '0x08000318', category: 'veneer', note: 'n' }],
+  });
+  assert.deepEqual(staleExceptions(grown, row), [
+    { list: 'labels', addr: '0x08000200' },
+    { list: 'untyped', addr: '0x08000318' },
+  ]);
 });
