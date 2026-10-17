@@ -31,8 +31,8 @@
     gap.arm-scan: an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference
       rests on: hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps
       recovers: heap, OAM and map routines in ARM that no accepted code refers to
-    seed.adr: word-aligned ROM addresses an ARM function names with adr above its entry are ARM functions
-      rests on: hand-written ARM startup code stores handler addresses computed with adr (the interrupt vector)
+    seed.adr: word-aligned ROM addresses past its extent that an ARM function names with adr, unclaimed and read as ARM code, are ARM functions
+      rests on: hand-written ARM startup code stores handler addresses computed with adr (the interrupt vector); an adr into the function's own extent is a local label, and one onto words that are claimed or do not decode names data
       recovers: the interrupt entry and the ARM helpers the startup code installs
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
