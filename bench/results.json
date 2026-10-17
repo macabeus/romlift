@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "1cd57acf3a6b481b0e84547ad8e761367fef3a87",
+    "commit": "d963df8dfbee7ced7f162da0e7ff39af33719ed2",
     "dirty": true,
-    "sourceDigest": "1fe5bf9c459dfa6172594fa17b462289304caa94b751825eb0179d9d945297ef",
+    "sourceDigest": "73fb32aedf00c320c73b3cae8bde93c0c107c755f5eec5e04761b49644477762",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -89,6 +89,1785 @@
     },
     "source": "romlift",
     "profile": "agbcc"
+  },
+  "printer": {
+    "schema": "romlift/corpus-summary@1",
+    "inputsDigest": "9c092dd01c5568f3618edb8ab06fc6b20f6e7be2171c84e9c2962c0cbe22f3c8",
+    "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
+    "options": {
+      "seed": 539365399,
+      "armSample": 1048576,
+      "blSample": 65536
+    },
+    "sections": {
+      "thumb": {
+        "cases": 75332,
+        "mnemonic": 64730,
+        "raw": 10602,
+        "agree": 75332,
+        "disagree": 0,
+        "rawByReason": {
+          "undefined": 9216,
+          "unpredictable": 1138,
+          "sbz-set": 112,
+          "as-alias": 136,
+          "no-roundtrip": 0
+        },
+        "examples": []
+      },
+      "bl": {
+        "cases": 77828,
+        "mnemonic": 77828,
+        "raw": 0,
+        "agree": 77828,
+        "disagree": 0,
+        "rawByReason": {
+          "undefined": 0,
+          "unpredictable": 0,
+          "sbz-set": 0,
+          "as-alias": 0,
+          "no-roundtrip": 0
+        },
+        "examples": []
+      },
+      "arm": {
+        "cases": 1089342,
+        "mnemonic": 579700,
+        "raw": 509642,
+        "agree": 1089342,
+        "disagree": 0,
+        "rawByReason": {
+          "undefined": 275530,
+          "unpredictable": 157967,
+          "sbz-set": 75720,
+          "as-alias": 267,
+          "no-roundtrip": 158
+        },
+        "examples": [],
+        "coverage": {
+          "arm.adc_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.adc_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.adc_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.adc_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.adc_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.adc_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.add_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.add_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.add_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.add_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.add_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.add_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.adr_add": {
+            "exhaustive": [
+              "cond",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.adr_sub": {
+            "exhaustive": [
+              "cond",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.and_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.and_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.and_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.and_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.and_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.and_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.b": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": [
+              "off"
+            ]
+          },
+          "arm.bic_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.bic_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.bic_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.bic_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.bic_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.bic_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.bl": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": [
+              "off"
+            ]
+          },
+          "arm.bx": {
+            "exhaustive": [
+              "cond",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.bx_sbo": {
+            "exhaustive": [
+              "cond",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.cmn_imm": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.cmn_ims": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.cmn_rs": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.cmp_imm": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.cmp_ims": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.cmp_rs": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.coprocessor": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.coprocessor_transfer": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.eor_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.eor_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.eor_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.eor_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.eor_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.eor_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.ldm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "user",
+              "w",
+              "rn"
+            ],
+            "sampled": [
+              "list"
+            ]
+          },
+          "arm.ldm_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "user",
+              "w",
+              "rn"
+            ],
+            "sampled": [
+              "list"
+            ]
+          },
+          "arm.ldr_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldr_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldr_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldr_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldr_reg_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrb_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrb_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrb_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrb_reg_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrbt_imm": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrbt_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrbt_reg": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrbt_reg_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrd_strd": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.ldrh_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "immh",
+              "imml"
+            ],
+            "sampled": []
+          },
+          "arm.ldrh_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.ldrsb_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "immh",
+              "imml"
+            ],
+            "sampled": []
+          },
+          "arm.ldrsb_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.ldrsh_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "immh",
+              "imml"
+            ],
+            "sampled": []
+          },
+          "arm.ldrsh_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.ldrt_imm": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrt_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrt_reg": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrt_reg_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.media_undefined": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.misc_undefined": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.mla": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rd",
+              "rn",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mov_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.mov_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.mov_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.mov_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.mov_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mov_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mrs": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "rd"
+            ],
+            "sampled": []
+          },
+          "arm.mrs_sbo": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "rd",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.msr_imm": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "mask"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.msr_imm_sbo": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.msr_reg": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "mask",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.msr_reg_sbo": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "rd",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mul": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rd",
+              "sbz",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mul_undefined": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.mvn_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.mvn_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.mvn_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.mvn_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.mvn_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mvn_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.nv": {
+            "exhaustive": [],
+            "sampled": []
+          },
+          "arm.orr_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.orr_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.orr_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.orr_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.orr_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.orr_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.rsb_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.rsb_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.rsb_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.rsb_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.rsb_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.rsb_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.rsc_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.rsc_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.rsc_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.rsc_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.rsc_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.rsc_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.sbc_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.sbc_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.sbc_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sbc_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sbc_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.sbc_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.smlal": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rdhi",
+              "rdlo",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.smull": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rdhi",
+              "rdlo",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.stm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "user",
+              "w",
+              "rn"
+            ],
+            "sampled": [
+              "list"
+            ]
+          },
+          "arm.str_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.str_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.strb_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.strb_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.strbt_imm": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.strbt_reg": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.strh_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "immh",
+              "imml"
+            ],
+            "sampled": []
+          },
+          "arm.strh_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.strt_imm": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.strt_reg": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sub_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.sub_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.sub_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sub_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sub_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.sub_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.swi": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.swp": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.swp_undefined": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.swpb": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.teq_imm": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.teq_ims": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.teq_rs": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.tst_imm": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.tst_ims": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.tst_rs": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.umlal": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rdhi",
+              "rdlo",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.umull": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rdhi",
+              "rdlo",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.undefined": {
+            "exhaustive": [],
+            "sampled": []
+          }
+        }
+      }
+    },
+    "encoderAgrees": {
+      "checked": 722336,
+      "disagree": 0,
+      "examples": []
+    },
+    "context": {
+      "checked": 221898,
+      "disagree": 0,
+      "alignments": [
+        "0-mod-4",
+        "2-mod-4"
+      ],
+      "extremes": 156,
+      "examples": []
+    },
+    "ok": true
   },
   "gates": {
     "real": []
@@ -294,7 +2073,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "c25609a10d88a6efeebbab44adfd66801054ab250a8ff12cc33318eb05791089",
+      "analysisDigest": "a9d1fbfa0017d1cc2ea97cf1d388621e4e3f9f2c222e4e39c9d09a2d482ec4ea",
       "poc": {
         "tp": 7724
       },
@@ -375,7 +2154,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "980f3fe98147d5c869fb404f606110fc812c8c372410c89ae163107e62b48e83",
+      "analysisDigest": "eacfc4b9946001b18bb3777531fd1614ae4f5c34fcd951963c7ad6198f304a09",
       "poc": {
         "tp": 556
       },
@@ -497,7 +2276,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "f92864e4f8dc5127157a1e1a71424fe63e3845932bbf1a86433e5be42d02df35",
+      "analysisDigest": "f7bbbde7688e3fe42f6370af4e35e721f71b4e3d959cd5dd7193240ee8c5689b",
       "poc": {
         "tp": 15856
       },
@@ -613,7 +2392,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "f0eff9cd98cbfb4871fa153b779851436031ec830e28445a7fb2ad12183bf27a",
+      "analysisDigest": "077956222cbd1955ba1152014c8afb87b140a38d00cab5c9919a70b208edb267",
       "poc": {
         "tp": 2892
       },
@@ -729,7 +2508,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "99e2124143587a131cb2b181364181c5b075c519c4e66a255c65676d7e6b7dc5",
+      "analysisDigest": "0a946826dbd9c08fbbfd83af381bec0db64246ac4f89c35995f7c445fb9c1439",
       "poc": {
         "tp": 4693
       },

@@ -12,11 +12,28 @@ import type { AnalysisOptions, Candidate, Seed } from '../types.ts';
 import { whyInvalid } from './validity.ts';
 import type { DriverState } from './view.ts';
 
-/** The listed entries of a confirm run, by entry; empty in discover mode. */
+/** Code-unit order of two strings. */
+export function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** A total order of seeds: entry, mode (Thumb first), rule, then name, size and label. */
+export function compareSeeds(a: Seed, b: Seed): number {
+  if (a.entry !== b.entry) return a.entry - b.entry;
+  if (a.mode !== b.mode) return a.mode === 'thumb' ? -1 : 1;
+  return (
+    compareText(a.rule, b.rule) ||
+    compareText(a.name ?? '', b.name ?? '') ||
+    (a.size ?? -1) - (b.size ?? -1) ||
+    Number(a.label === true) - Number(b.label === true)
+  );
+}
+
+/** The listed entries of a confirm run, by entry (the first of an entry's seeds in seed order); empty in discover mode. */
 export function listedSeeds(options: AnalysisOptions): ReadonlyMap<Addr, Seed> {
   const listed = new Map<Addr, Seed>();
   if (options.mode !== 'confirm') return listed;
-  for (const seed of options.seeds) if (seed.rule === 'seed.listed' && !listed.has(seed.entry)) listed.set(seed.entry, seed);
+  for (const seed of [...options.seeds].sort(compareSeeds)) if (seed.rule === 'seed.listed' && !listed.has(seed.entry)) listed.set(seed.entry, seed);
   return listed;
 }
 

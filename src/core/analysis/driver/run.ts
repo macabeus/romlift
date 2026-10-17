@@ -25,7 +25,7 @@ import type {
   StartupRegion,
 } from '../types.ts';
 import { accept, write } from './accept.ts';
-import { listedSeeds } from './confirm.ts';
+import { compareSeeds, compareText, listedSeeds } from './confirm.ts';
 import { fillGaps } from './fill-gaps.ts';
 import { grow } from './grow.ts';
 import { resolveRules, RULES } from './rules.ts';
@@ -35,8 +35,8 @@ import { valid, whyInvalid } from './validity.ts';
 import { emit, extentEndOf, factOf, makeView, markEntry, ownerOf } from './view.ts';
 import type { DriverState } from './view.ts';
 
-/** The tuning `analyze` runs with: the PoC's LIFO until milestone M4, epoch caching, nothing disabled. */
-export const DEFAULT_TUNING: AnalysisTuning = { worklist: 'poc-lifo', cache: 'epoch', disabled: [] };
+/** The tuning `analyze` runs with: the ascending worklist (milestone M4, D10), epoch caching, nothing disabled. */
+export const DEFAULT_TUNING: AnalysisTuning = { worklist: 'ascending', cache: 'epoch', disabled: [] };
 
 /** A fresh driver state for one run. */
 export function createDriver(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, tuning: AnalysisTuning, registry: RuleRegistry, sink?: TrailSink): DriverState {
@@ -142,8 +142,10 @@ function claimRuns(s: DriverState, functions: readonly FunctionFact[]): readonly
   return runs;
 }
 
+/** The options as the result records them: seeds and overrides in a total order, so the order the project lists them in never reaches the result. */
 function optionsRecord(o: AnalysisOptions): AnalysisOptionsRecord {
-  return { mode: o.mode, seeds: o.seeds, overrides: o.overrides, trail: o.trail, ...(o.trailFilter === undefined ? {} : { trailFilter: o.trailFilter }) };
+  const overrides = [...o.overrides].sort((a, b) => a.span.start - b.span.start || a.span.end - b.span.end || compareText(a.kind, b.kind) || compareText(a.mode ?? '', b.mode ?? '') || (a.runsAt ?? -1) - (b.runsAt ?? -1));
+  return { mode: o.mode, seeds: [...o.seeds].sort(compareSeeds), overrides, trail: o.trail, ...(o.trailFilter === undefined ? {} : { trailFilter: o.trailFilter }) };
 }
 
 /** The result of a finished run. */

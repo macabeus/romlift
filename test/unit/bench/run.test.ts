@@ -99,7 +99,7 @@ test('--json prints the frozen bench-run line, writes no results.json, and passe
     await assert.rejects(readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8'), /ENOENT/);
     assert.ok((await readFile(join(cx.repoRoot, 'bench', 'timings.json'), 'utf8')).includes('generatedAt'));
     // The tuning is refused where it would reach the committed artifact, and a bad value is a usage error.
-    assert.equal(await main(['run', '--worklist', 'ascending'], cx, capture(), deps), 1);
+    assert.equal(await main(['run', '--disable', 'valid.dense'], cx, capture(), deps), 1);
     assert.equal(await main(['run', '--json', '--worklist', 'lifo'], cx, capture(), deps), 2);
     assert.equal(await main(['run', '--json', '--disable', 'not-a-rule'], cx, capture(), deps), 2);
     assert.equal(await main(['run', '--json', '--disable'], cx, capture(), deps), 2);
@@ -199,8 +199,12 @@ test('a parity run records the evidence; later runs keep it; --only and a disabl
     const digest = resultParityDigest(tinyResult());
     await writeFile(join(cx.repoRoot, 'bench', 'baseline', 'poc-digests.json'), JSON.stringify({ schema: 'romlift-bench/poc-digests@1', pocSourceDigest: pocSourceDigest({}), roms: { tiny: digest } }));
     const lifo = { worklist: 'poc-lifo' as const, disabled: [] };
+    // Under a non-default worklist the parity run writes only the parity member of an existing artifact.
+    await assert.rejects(benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, lockstep: followingLockstep(digest) }), /bench\/results.json must exist/);
+    const before = await benchRun(cx, { runner: RUNNER });
     const first = await benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, lockstep: followingLockstep(digest) });
     assert.deepEqual(first.parityProblems, []);
+    assert.deepEqual(first.results?.roms, before.results?.roms, 'the rows of the default run are kept');
     const evidence = first.results?.parity;
     assert.equal(evidence?.worklist, 'poc-lifo');
     assert.deepEqual(evidence?.roms['tiny']?.lockstep.map((s) => s.set), LOCKSTEP_SETS.map((s) => s.name));
