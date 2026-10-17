@@ -1,16 +1,21 @@
 // A whole synthetic real tier in a temporary directory: a repository with one dataset, its PoC dump,
 // the PoC pins and a baseline row, and a benchmark root holding a self-made 48-byte "ROM" and the
-// committed tiny.elf fixture. The bench commands run against it exactly as against the real tier.
+// committed tiny.elf fixture, plus the hand-built romlift analysis of that ROM (tinyResult) and a runner
+// that serves it (TINY_DEPS). The bench commands run against it exactly as against the real tier.
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { sha1Of, sha256Of } from 'romlift/node';
 
+import type { AnalysisResult, MissReason } from 'romlift';
+
+import { resultDigest } from '../../../bench/src/analysis-run.ts';
 import { stripSeconds } from '../../../bench/src/baseline.ts';
+import type { BenchDeps } from '../../../bench/src/cli.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import type { ScoredRun } from '../../../bench/src/scored-run.ts';
-import { dataset, dump, fn } from './fixtures.ts';
+import { analysisResult, dataset, dump, fact, fixedRunner, fn, type FixedRunnerOptions } from './fixtures.ts';
 
 export const TINY_ELF = new URL('../../fixtures/formats/tiny.elf', import.meta.url);
 export const ROM_BYTES = Uint8Array.from({ length: 0x30 }, (_, i) => (i * 7) & 0xff);
@@ -34,6 +39,36 @@ export const EXPECTED_ROW = {
   codeEnd: { found: '0x0800001C', elf: '0x0800001C', delta: 0 },
   deterministic: true,
   scaffold: { ok: true },
+} as const;
+
+/** romlift's analysis of the synthetic ROM: the functions of tinyDump, minus `drop`. */
+export function tinyResult(drop: readonly number[] = []): AnalysisResult {
+  const functions = [fact(0x0800_0000, 0x0800_0008, 'rom-entry', 'arm'), fact(0x0800_0008, 0x0800_000e), fact(0x0800_0010, 0x0800_0014, 'gap-scan'), fact(0x0800_0018, 0x0800_001c)];
+  return analysisResult(
+    functions.filter((f) => !drop.includes(f.entry)),
+    { end: 0x0800_0008, entries: [0x0800_0000] },
+    0x0800_001c,
+  );
+}
+
+/** The reasons the synthetic run gives its misses. */
+export const TINY_REASONS: ReadonlyMap<number, MissReason> = new Map([[0x0800_000e, 'unanchored']]);
+
+export function tinyDeps(result: AnalysisResult = tinyResult(), options: FixedRunnerOptions = {}): BenchDeps {
+  return { runner: fixedRunner(result, { reasons: TINY_REASONS, ...options }), now: () => '2026-10-17T00:00:00.000Z' };
+}
+
+/** The bench's dependencies on the synthetic tier: tinyResult, served whatever is asked. */
+export const TINY_DEPS: BenchDeps = tinyDeps();
+
+/** The row `bench run` scores from tinyResult: EXPECTED_ROW and the phase-2 fields. */
+export const EXPECTED_ROMLIFT_ROW = {
+  ...EXPECTED_ROW,
+  extents: { ...EXPECTED_ROW.extents, lost: [] },
+  analysisDigest: resultDigest(tinyResult()),
+  poc: { tp: 2 },
+  staleExceptions: [],
+  baselineRows: { diffs: [], unaccepted: [], staleAccepted: [] },
 } as const;
 
 const POC_ROW = { ...EXPECTED_ROW, seconds: 0.1, scaffold: { ok: true, seconds: 0.2, summary: 'built' }, signatures: { functions: 0, seconds: 0 }, datasetProblems: [] };

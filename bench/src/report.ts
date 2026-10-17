@@ -13,7 +13,7 @@ export function summaryLine(r: BenchRow): string {
     `  precision ${pct(r.precision)}  recall ${pct(r.recall)}` +
     `  misses ${r.misses.length} (${unlistedMisses} unlisted)  false ${r.falseEntries.length} (${unlistedFalse} unlisted)` +
     `  extents ${r.extents.agree}/${r.extents.sized}  code end ${r.codeEnd.delta >= 0 ? '+' : ''}${r.codeEnd.delta}` +
-    `${r.deterministic ? '' : '  NOT DETERMINISTIC'}  make ${r.scaffold.ok ? 'OK' : 'FAILED'}`
+    `${r.deterministic ? '' : '  NOT DETERMINISTIC'}  make ${r.scaffold === undefined ? 'n/a' : r.scaffold.ok ? 'OK' : 'FAILED'}`
   );
 }
 

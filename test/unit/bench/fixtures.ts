@@ -1,12 +1,15 @@
-// Builders for the bench tests: in-memory ELF files, datasets, PoC dumps, rows and artifacts, and
-// temporary directories. Nothing here is derived from a ROM.
+// Builders for the bench tests: in-memory ELF files, datasets, PoC dumps, hand-built analysis results and
+// a runner that serves them, rows and artifacts, and temporary directories. Nothing here is derived from
+// a ROM.
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ElfFile, ElfSymbol } from 'romlift';
+import type { AnalysisResult, ElfFile, ElfSymbol, FunctionFact, MissReason, Mode, Origin, TrailEvent } from 'romlift';
+import type { MissDiagnosis } from 'romlift/internal';
 
 import { armCoverage, corpusSummary, summarizeCorpus, type CorpusSummary } from '../../../src/foundation/corpus/corpus.ts';
+import type { AnalysisRunner } from '../../../bench/src/analysis-run.ts';
 import type { Results, ResultsMeta } from '../../../bench/src/artifact.ts';
 import type { Dataset } from '../../../bench/src/dataset.ts';
 import type { BenchRow } from '../../../bench/src/row.ts';
@@ -136,4 +139,84 @@ export async function withTempDir<T>(prefix: string, body: (dir: string) => Prom
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/** A function fact with only its entry, extent, mode and origin set; every other list empty. */
+export function fact(entry: number, end: number, origin: Origin = 'call', mode: Mode = 'thumb', overrides: Partial<FunctionFact> = {}): FunctionFact {
+  return {
+    entry,
+    mode,
+    extent: { start: entry, end },
+    codeEnd: end,
+    code: [{ start: entry, end }],
+    dead: [],
+    pools: [],
+    farPools: [],
+    tables: [],
+    calls: [],
+    blVerdicts: [],
+    exits: [],
+    branchTargets: [],
+    adrs: [],
+    veneers: [],
+    absorbed: [],
+    holes: [],
+    origin,
+    accepted: { rule: 'seed.call', round: 0, cites: [] },
+    also: [],
+    ...overrides,
+  };
+}
+
+/** A discover result holding `functions`, the startup region [0x08000000, startupEnd) and `codeEnd`. */
+export function analysisResult(functions: readonly FunctionFact[], startup: { readonly end: number; readonly entries: readonly number[] }, codeEnd: number): AnalysisResult {
+  return {
+    schema: 'romlift/analysis@1',
+    mode: 'discover',
+    rom: { sha1: '0'.repeat(40), end: 0x0800_1000 },
+    profile: 'agbcc',
+    options: { mode: 'discover', seeds: [], overrides: [], trail: 'off' },
+    functions: [...functions].sort((a, b) => a.entry - b.entry),
+    claims: [],
+    startup: { span: { start: 0x0800_0000, end: startup.end }, entries: startup.entries },
+    codeEnd,
+    rejections: [],
+    diagnostics: [],
+  };
+}
+
+export interface FixedRunnerOptions {
+  /** The reason diagnoseMisses gives each address; 'inside-code' for the others. */
+  readonly reasons?: ReadonlyMap<number, MissReason>;
+  /** The result of the second run (diagnoseMisses), to fake a non-deterministic analysis. */
+  readonly second?: AnalysisResult;
+  /** Called with every analyze call, to see what the bench asked for. */
+  readonly onAnalyze?: (call: { readonly trail: string; readonly disabled: readonly string[]; readonly filter?: { readonly start: number; readonly end: number } }) => void;
+  /** Trail events streamed to the sink of every analyze call that passes one. */
+  readonly events?: readonly TrailEvent[];
+  /** The result when a rule is disabled. */
+  readonly ablated?: (disabled: readonly string[]) => AnalysisResult | undefined;
+}
+
+/** A runner that serves `result` whatever the ROM, and diagnoses misses from `reasons`. */
+export function fixedRunner(result: AnalysisResult, options: FixedRunnerOptions = {}): AnalysisRunner {
+  return {
+    analyze(_rom, _profile, opts, tuning, sink) {
+      options.onAnalyze?.({ trail: opts.trail, disabled: tuning.disabled, ...(opts.trailFilter === undefined ? {} : { filter: opts.trailFilter }) });
+      if (sink !== undefined) for (const e of options.events ?? []) sink.event(e);
+      return (tuning.disabled.length > 0 ? options.ablated?.(tuning.disabled) : undefined) ?? result;
+    },
+    diagnose(_rom, _profile, _opts, _tuning, misses) {
+      const diagnoses: MissDiagnosis[] = misses.map((m) => ({ addr: m.addr, mode: m.mode, reason: options.reasons?.get(m.addr) ?? 'inside-code', detail: 'test' }));
+      return { result: options.second ?? result, diagnoses };
+    },
+  };
+}
+
+/** A runner whose analysis throws, as analyze does while a pipeline rule has no implementation. */
+export function failingRunner(message = 'profile agbcc: pipeline rule seed.rom-entry has no implementation'): AnalysisRunner {
+  const fail = (): never => {
+    throw new Error(message);
+  };
+  return { analyze: fail, diagnose: fail };
 }

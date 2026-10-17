@@ -7,7 +7,7 @@ import { doctorReal, toolchainChecks } from '../../../bench/src/doctor-real.ts';
 import { benchRun } from '../../../bench/src/run.ts';
 import { apiResults } from '../../../bench/src/serve.ts';
 import { withTempDir } from './fixtures.ts';
-import { syntheticTier } from './harness.ts';
+import { syntheticTier, TINY_DEPS } from './harness.ts';
 
 test('toolchainChecks names a missing tool and a version that differs from the artifact', () => {
   const found = { as: 'as 2', ld: null, objcopy: 'objcopy 1' };
@@ -39,7 +39,7 @@ test('the web report endpoint serves the artifact, its base, the verdict and the
   await withTempDir('romlift-web-', async (root) => {
     const cx = await syntheticTier(root);
     assert.equal((await apiResults(cx, join(root, 'none.json'))).status, 404);
-    await benchRun(cx);
+    await benchRun(cx, { runner: TINY_DEPS.runner });
     const artifact = join(cx.repoRoot, 'bench', 'results.json');
     const { status, body } = await apiResults(cx, artifact);
     assert.equal(status, 200);

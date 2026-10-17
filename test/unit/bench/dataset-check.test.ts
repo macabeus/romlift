@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { checkDatasetAgainstRun, checkTuningSet } from '../../../bench/src/dataset-check.ts';
-import { scoreRun } from '../../../bench/src/score.ts';
+// The dataset check against romlift's own run (a hand-built analysis and its miss diagnoses), the
+// command end to end on the synthetic tier, and the tuning-set pin.
+import { checkDatasetAgainstRun, checkTuningSet, datasetCheck } from '../../../bench/src/dataset-check.ts';
+import { analysisFunctions, scoreAnalysis } from '../../../bench/src/score.ts';
 import { elfTruth } from '../../../bench/src/truth.ts';
-import { dataset, dump, elfFile, fn } from './fixtures.ts';
+import { analysisResult, dataset, elfFile, fact, failingRunner, fixedRunner, withTempDir } from './fixtures.ts';
+import { syntheticTier, TINY_DEPS, tinyDeps, tinyResult } from './harness.ts';
 
 const ELF = elfFile([
   { name: 'host', value: 0x0800_0101, size: 0x40 },
@@ -12,25 +15,19 @@ const ELF = elfFile([
   { name: 'free', value: 0x0800_0301, size: 8 },
 ]);
 const TRUTH = elfTruth(ELF, 0x1000);
-const DUMP = dump({
-  analysis: {
-    functions: [fn('0x08000100', '0x08000140'), fn('0x08000200', '0x08000210', 'gap scan')],
-    startup: { end: '0x08000000', entries: [] },
-    codeRange: ['0x08000100', '0x08000210'],
-  },
-  misses: [
-    { addr: '0x08000120', reason: 'inside code of the accepted function at 08000100' },
-    { addr: '0x08000300', reason: 'valid but not accepted: nothing points at it' },
-  ],
-});
+const RESULT = analysisResult([fact(0x0800_0100, 0x0800_0140), fact(0x0800_0200, 0x0800_0210, 'gap-scan')], { end: 0x0800_0000, entries: [] }, 0x0800_0210);
+const DIAGNOSES = [
+  { addr: 0x0800_0120, mode: 'thumb' as const, reason: 'inside-code' as const, detail: 'inside code' },
+  { addr: 0x0800_0300, mode: 'thumb' as const, reason: 'unanchored' as const, detail: 'valid but not accepted' },
+];
 
 function problems(labels: readonly string[], untyped: readonly string[]): string[] {
   const d = dataset({
     labels: labels.map((addr) => ({ addr, name: `sub_${addr}`, category: 'loop-label', note: 'n' })),
     untyped: untyped.map((addr) => ({ addr, category: 'unreviewed', note: 'n' })),
   });
-  const row = scoreRun({ dump: DUMP, truth: TRUTH, dataset: d, sha1: '' });
-  return checkDatasetAgainstRun(d, TRUTH, DUMP, row).map((p) => `${p.list} ${p.addr} ${p.problem}`);
+  const row = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth: TRUTH, dataset: d, sha1: '', deterministic: true });
+  return checkDatasetAgainstRun(d, TRUTH, analysisFunctions(RESULT), row).map((p) => `${p.list} ${p.addr} ${p.problem}`);
 }
 
 test('a label that is a FUNC inside a found function and still missed, and a needed untyped row, pass', () => {
@@ -64,4 +61,24 @@ test('the tuning set is pinned to the baseline names: a missing or an extra unse
   assert.deepEqual(flipped.map((p) => [p.dataset, p.problem]), [['klonoa', 'tuning-set']]);
   const extra = checkTuningSet([...names, 'tmc'].map((name) => ({ name })), names);
   assert.deepEqual(extra.map((p) => [p.dataset, p.problem]), [['tmc', 'tuning-set']]);
+});
+
+test("dataset-check runs romlift's analysis: the synthetic tier passes, a row the run no longer needs is stale", async () => {
+  await withTempDir('romlift-dscheck-', async (root) => {
+    const cx = await syntheticTier(root);
+    assert.deepEqual(await datasetCheck(cx, TINY_DEPS.runner), { ok: true, problems: [] });
+    // The PoC dump is not read: dropping the false entry from romlift's run makes its untyped row stale.
+    const stale = await datasetCheck(cx, tinyDeps(tinyResult([0x0800_0010])).runner);
+    assert.deepEqual(stale.problems.map((p) => [p.list, p.addr, p.problem]), [['untyped', '0x08000010', 'stale-exception']]);
+    // An analysis that throws is reported for its dataset, not raised.
+    const failed = await datasetCheck(cx, failingRunner());
+    assert.deepEqual(failed.problems.map((p) => [p.dataset, p.problem]), [['tiny', 'input-unavailable']]);
+    assert.match(failed.problems[0]?.detail ?? '', /the analysis failed: profile agbcc: pipeline rule/);
+    // A single run diagnoses every ELF function of the ROM.
+    const asked: number[] = [];
+    const runner = fixedRunner(tinyResult(), { reasons: new Map([[0x0800_000e, 'unanchored']]) });
+    const counting = { ...runner, diagnose: ((...args: Parameters<typeof runner.diagnose>) => (asked.push(args[4].length), runner.diagnose(...args))) as typeof runner.diagnose };
+    assert.equal((await datasetCheck(cx, counting)).ok, true);
+    assert.deepEqual(asked, [4]);
+  });
 });

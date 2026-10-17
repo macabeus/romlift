@@ -1,11 +1,13 @@
 // bench/results.json (architecture §8.2): provenance in `meta`, the optional printer summary, the
-// real-tier gate record and one row per tuning ROM sorted by name. It holds no timestamp and no
-// machine data; those go to bench/timings.json.
+// real-tier gate record, one row per tuning ROM sorted by name, the counts and verdict of every sealed
+// held-out ROM (never a row, D25), and the PoC-parity evidence once milestone M1 records it. It holds no
+// timestamp and no machine data; those go to bench/timings.json.
 import { compareCodeUnits, isMissReason, isOrigin } from 'romlift';
 import { parseCorpusSummary, type CorpusSummary } from 'romlift/internal';
 
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
-import type { BenchRow, ExtentRow, FalseRow, MissRow } from './row.ts';
+import type { BaselineRows, BenchRow, ExtentRow, FalseRow, MissRow, RowDiff, StaleException } from './row.ts';
+import { assertCountsOnly, type SealedCounts } from './seal.ts';
 import { isExceptionCategory, type ExceptionCategory } from './vocabulary.ts';
 
 export interface RomInputs {
@@ -30,9 +32,14 @@ export interface ResultsMeta {
   readonly toolchain: Toolchain;
   /** Per ROM, the metric families that ran, sorted. */
   readonly families: Readonly<Record<string, readonly string[]>>;
-  /** Where the rows come from: the PoC's dumps in phase 1. */
-  readonly source: 'poc';
+  /** Where the rows come from: the PoC's dumps in phase 1, romlift's own analysis from phase 2. */
+  readonly source: 'poc' | 'romlift';
+  /** The analysis profile the rows were scored with (romlift rows). */
+  readonly profile?: string;
 }
+
+/** One sealed held-out ROM in results.json: its counts and whether it passes (D25); never an address or a name. */
+export type SealedEntry = SealedCounts & { readonly pass: boolean };
 
 /** One real-tier gate verdict, as `bench gates --tier real` records it. */
 export interface GateEntry {
@@ -48,6 +55,10 @@ export interface Results {
   readonly printer?: CorpusSummary;
   readonly gates: { readonly real: readonly GateEntry[] };
   readonly roms: readonly BenchRow[];
+  /** The sealed held-out ROMs, counts and verdicts only. */
+  readonly sealed?: readonly SealedEntry[];
+  /** The PoC-parity evidence (milestone M1, g2.poc-parity), kept as written once the run cannot recompute it. */
+  readonly parity?: Readonly<Record<string, unknown>>;
 }
 
 function fail(where: string, what: string): never {
@@ -113,6 +124,33 @@ function extentRow(value: unknown, at: string): ExtentRow {
   return { addr: str(r['addr'], `${at}.addr`), name: str(r['name'], `${at}.name`), elf: num(r['elf'], `${at}.elf`), found: num(r['found'], `${at}.found`) };
 }
 
+function staleRow(value: unknown, at: string): StaleException {
+  const r = rec(value, at);
+  const list = str(r['list'], `${at}.list`);
+  if (list !== 'labels' && list !== 'untyped') fail(`${at}.list`, 'must be labels or untyped');
+  return { list, addr: str(r['addr'], `${at}.addr`) };
+}
+
+function diffRow(value: unknown, at: string): RowDiff {
+  const r = rec(value, at);
+  return { kind: str(r['kind'], `${at}.kind`), addr: str(r['addr'], `${at}.addr`) };
+}
+
+function baselineRows(value: unknown, at: string): BaselineRows {
+  const r = rec(value, at);
+  return { diffs: list(r['diffs'], `${at}.diffs`, diffRow), unaccepted: list(r['unaccepted'], `${at}.unaccepted`, diffRow), staleAccepted: list(r['staleAccepted'], `${at}.staleAccepted`, diffRow) };
+}
+
+/** The optional phase-2 fields of a romlift row; a PoC-sourced row has none. */
+function romliftFields(r: Readonly<Record<string, unknown>>, at: string): Partial<Pick<BenchRow, 'analysisDigest' | 'poc' | 'staleExceptions' | 'baselineRows'>> {
+  return {
+    ...(r['analysisDigest'] === undefined ? {} : { analysisDigest: str(r['analysisDigest'], `${at}.analysisDigest`) }),
+    ...(r['poc'] === undefined ? {} : { poc: { tp: num(rec(r['poc'], `${at}.poc`)['tp'], `${at}.poc.tp`) } }),
+    ...(r['staleExceptions'] === undefined ? {} : { staleExceptions: list(r['staleExceptions'], `${at}.staleExceptions`, staleRow) }),
+    ...(r['baselineRows'] === undefined ? {} : { baselineRows: baselineRows(r['baselineRows'], `${at}.baselineRows`) }),
+  };
+}
+
 /** One row of results.json, every field checked against BenchRow. */
 export function parseRow(value: unknown, where: string): BenchRow {
   const r = rec(value, where);
@@ -120,7 +158,7 @@ export function parseRow(value: unknown, where: string): BenchRow {
   const startup = rec(r['startup'], `${at}.startup`);
   const extents = rec(r['extents'], `${at}.extents`);
   const codeEnd = rec(r['codeEnd'], `${at}.codeEnd`);
-  const scaffold = rec(r['scaffold'], `${at}.scaffold`);
+  const scaffold = r['scaffold'] === undefined ? undefined : rec(r['scaffold'], `${at}.scaffold`);
   return {
     name: str(r['name'], `${at}.name`),
     sha1: str(r['sha1'], `${at}.sha1`),
@@ -135,10 +173,16 @@ export function parseRow(value: unknown, where: string): BenchRow {
     recall: num(r['recall'], `${at}.recall`),
     misses: list(r['misses'], `${at}.misses`, missRow),
     falseEntries: list(r['falseEntries'], `${at}.falseEntries`, falseRow),
-    extents: { sized: num(extents['sized'], `${at}.extents.sized`), agree: num(extents['agree'], `${at}.extents.agree`), mismatches: list(extents['mismatches'], `${at}.extents.mismatches`, extentRow) },
+    extents: {
+      sized: num(extents['sized'], `${at}.extents.sized`),
+      agree: num(extents['agree'], `${at}.extents.agree`),
+      mismatches: list(extents['mismatches'], `${at}.extents.mismatches`, extentRow),
+      ...(extents['lost'] === undefined ? {} : { lost: list(extents['lost'], `${at}.extents.lost`, extentRow) }),
+    },
     codeEnd: { found: str(codeEnd['found'], `${at}.codeEnd.found`), elf: str(codeEnd['elf'], `${at}.codeEnd.elf`), delta: num(codeEnd['delta'], `${at}.codeEnd.delta`) },
     deterministic: bool(r['deterministic'], `${at}.deterministic`),
-    scaffold: { ok: bool(scaffold['ok'], `${at}.scaffold.ok`) },
+    ...(scaffold === undefined ? {} : { scaffold: { ok: bool(scaffold['ok'], `${at}.scaffold.ok`) } }),
+    ...romliftFields(r, at),
   };
 }
 
@@ -159,6 +203,35 @@ function parsePrinter(value: unknown, where: string): CorpusSummary {
   const parsed = parseCorpusSummary(value);
   if (!parsed.ok) fail(`${where}: printer`, parsed.error);
   return parsed.value;
+}
+
+/** One sealed entry: counts only (assertCountsOnly) with every count and the verdict present. */
+function parseSealed(value: unknown, at: string): SealedEntry {
+  try {
+    assertCountsOnly(value);
+  } catch (error) {
+    fail(at, error instanceof Error ? error.message : String(error));
+  }
+  const r = rec(value, at);
+  const falseEntries = rec(r['falseEntries'], `${at}.falseEntries`);
+  const extents = rec(r['extents'], `${at}.extents`);
+  return {
+    name: str(r['name'], `${at}.name`),
+    entries: num(r['entries'], `${at}.entries`),
+    elfFunctions: num(r['elfFunctions'], `${at}.elfFunctions`),
+    tp: num(r['tp'], `${at}.tp`),
+    glued: num(r['glued'], `${at}.glued`),
+    labelCandidates: num(r['labelCandidates'], `${at}.labelCandidates`),
+    falseEntries: {
+      startup: num(falseEntries['startup'], `${at}.falseEntries.startup`),
+      veneer: num(falseEntries['veneer'], `${at}.falseEntries.veneer`),
+      adrCallback: num(falseEntries['adrCallback'], `${at}.falseEntries.adrCallback`),
+      insideElfFunction: num(falseEntries['insideElfFunction'], `${at}.falseEntries.insideElfFunction`),
+    },
+    extents: { sized: num(extents['sized'], `${at}.extents.sized`), agree: num(extents['agree'], `${at}.extents.agree`) },
+    codeEnd: { delta: num(rec(r['codeEnd'], `${at}.codeEnd`)['delta'], `${at}.codeEnd.delta`) },
+    pass: bool(r['pass'], `${at}.pass`),
+  };
 }
 
 function parseGateEntry(value: unknown, where: string): GateEntry {
@@ -186,6 +259,9 @@ export function parseResults(value: unknown, where: string): Results {
   const real = isRecord(gates) && Array.isArray(gates['real']) ? gates['real'] : [];
   const roms = value['roms'];
   if (!Array.isArray(roms)) fail(where, 'roms must be an array');
+  const source = meta['source'] === 'romlift' ? 'romlift' : 'poc';
+  const parity = value['parity'];
+  if (parity !== undefined && !isRecord(parity)) fail(where, 'parity must be an object');
   return {
     meta: {
       commit: typeof meta['commit'] === 'string' ? meta['commit'] : null,
@@ -196,11 +272,14 @@ export function parseResults(value: unknown, where: string): Results {
       inputs: parseInputs(meta['inputs'], `${where}: meta.inputs`),
       toolchain: { as: tool('as'), ld: tool('ld'), objcopy: tool('objcopy') },
       families,
-      source: 'poc',
+      source,
+      ...(typeof meta['profile'] === 'string' ? { profile: meta['profile'] } : {}),
     },
     ...(value['printer'] === undefined ? {} : { printer: parsePrinter(value['printer'], where) }),
     gates: { real: real.map((g, i) => parseGateEntry(g, `${where}: gates.real[${i}]`)) },
     roms: roms.map((r, i) => parseRow(r, `${where}: roms[${i}]`)),
+    ...(value['sealed'] === undefined ? {} : { sealed: list(value['sealed'], `${where}: sealed`, parseSealed) }),
+    ...(parity === undefined ? {} : { parity }),
   };
 }
 
@@ -219,13 +298,15 @@ export function parseResultsText(text: string, where: string): Results {
   return parseResults(value, where);
 }
 
-/** The artifact text: rows by name and gate records by id, two-space JSON. */
+/** The artifact text: rows and sealed entries by name, gate records by id, two-space JSON. */
 export function resultsText(results: Results): string {
   const sorted: Results = {
     meta: results.meta,
     ...(results.printer === undefined ? {} : { printer: results.printer }),
     gates: { real: [...results.gates.real].sort((a, b) => compareCodeUnits(a.id, b.id)) },
     roms: [...results.roms].sort((a, b) => compareCodeUnits(a.name, b.name)),
+    ...(results.sealed === undefined ? {} : { sealed: [...results.sealed].sort((a, b) => compareCodeUnits(a.name, b.name)) }),
+    ...(results.parity === undefined ? {} : { parity: results.parity }),
   };
   return prettyJson(sorted);
 }

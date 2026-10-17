@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import type { BenchContext } from '../../../bench/src/context.ts';
 import { main, type BenchIo } from '../../../bench/src/cli.ts';
 import { printerSummary, withTempDir } from '../../unit/bench/fixtures.ts';
-import { syntheticTier } from '../../unit/bench/harness.ts';
+import { syntheticTier, TINY_DEPS } from '../../unit/bench/harness.ts';
 
 interface Check {
   readonly id: string;
@@ -31,7 +31,7 @@ async function withRunTier(name: string, body: (cx: BenchContext) => Promise<voi
   await withTempDir(`romlift-mut-prov-${name}-`, async (root) => {
     const cx = await syntheticTier(join(root, 't'));
     if (before) await before(cx);
-    assert.equal(await main(['run'], cx, quiet), 0);
+    assert.equal(await main(['run'], cx, quiet, TINY_DEPS), 0);
     await body(cx);
   });
 }
