@@ -1,0 +1,2559 @@
+{
+  "meta": {
+    "commit": "340acda637c45716848cc1e61fc5da04845737cd",
+    "dirty": false,
+    "sourceDigest": "627c26ae68a8c447298606f6f41d81335c3e0c8b4a23eb118baa8689e7684818",
+    "nodeMajor": 24,
+    "romliftVersion": "0.0.0",
+    "inputs": {
+      "fe7j": {
+        "sha1": "037702b1febd5c9535262165bf030551d153de81",
+        "elfSha256": "32b35ebe4ddf5ffa0b1fa438713fad213ea009c36cfae62ae10a9e82f44f983b"
+      },
+      "klonoa": {
+        "sha1": "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b",
+        "elfSha256": "5d57d920b5c48761d885a16c3b8d0c2bd8bdc45f33b9f97d1257d9396638224c"
+      },
+      "pokeemerald": {
+        "sha1": "f3ae088181bf583e55daf962a92bb46f4f1d07b7",
+        "elfSha256": "cb78c9d660f1cc9e5e2bd1897b1c09f63ffcb43c0ddb958f33c9b5efc28be65f"
+      },
+      "sa2": {
+        "sha1": "7bcd6a07af7c894746fa28073fe0c0e34408022d",
+        "elfSha256": "34c0c9c5fd817b7d77502235ba3127cd83f023ee6eb15cdfe4bbd18d026ff265"
+      },
+      "sa3": {
+        "sha1": "685af3a2dc0f1b3f8922e73ec42c1dc92e210e39",
+        "elfSha256": "1c1efc591beab3a95cc5c9d9bab2e520ea96c5e8a53f3925d7c134b58755d2d9"
+      },
+      "pocSourceDigest": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345"
+    },
+    "toolchain": {
+      "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
+      "ld": "GNU ld (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
+      "objcopy": "GNU objcopy (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126"
+    },
+    "families": {
+      "fe7j": [
+        "code-end",
+        "entries",
+        "extents",
+        "scaffold"
+      ],
+      "klonoa": [
+        "code-end",
+        "entries",
+        "extents",
+        "scaffold"
+      ],
+      "pokeemerald": [
+        "code-end",
+        "entries",
+        "extents",
+        "scaffold"
+      ],
+      "sa2": [
+        "code-end",
+        "entries",
+        "extents",
+        "scaffold"
+      ],
+      "sa3": [
+        "code-end",
+        "entries",
+        "extents",
+        "scaffold"
+      ]
+    },
+    "source": "poc"
+  },
+  "printer": {
+    "schema": "romlift/corpus-summary@1",
+    "inputsDigest": "f709d82bb38f3c3071ecf2b9b97fd6bcdf0c618dca22e05cde2e8be004f3155d",
+    "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
+    "options": {
+      "seed": 539365399,
+      "armSample": 1048576,
+      "blSample": 65536
+    },
+    "sections": {
+      "thumb": {
+        "cases": 75332,
+        "mnemonic": 64730,
+        "raw": 10602,
+        "agree": 75332,
+        "disagree": 0,
+        "rawByReason": {
+          "undefined": 9216,
+          "unpredictable": 1138,
+          "sbz-set": 112,
+          "as-alias": 136,
+          "no-roundtrip": 0
+        },
+        "examples": []
+      },
+      "bl": {
+        "cases": 77828,
+        "mnemonic": 77828,
+        "raw": 0,
+        "agree": 77828,
+        "disagree": 0,
+        "rawByReason": {
+          "undefined": 0,
+          "unpredictable": 0,
+          "sbz-set": 0,
+          "as-alias": 0,
+          "no-roundtrip": 0
+        },
+        "examples": []
+      },
+      "arm": {
+        "cases": 1089342,
+        "mnemonic": 579700,
+        "raw": 509642,
+        "agree": 1089342,
+        "disagree": 0,
+        "rawByReason": {
+          "undefined": 275530,
+          "unpredictable": 157967,
+          "sbz-set": 75720,
+          "as-alias": 267,
+          "no-roundtrip": 158
+        },
+        "examples": [],
+        "coverage": {
+          "arm.adc_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.adc_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.adc_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.adc_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.adc_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.adc_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.add_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.add_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.add_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.add_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.add_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.add_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.adr_add": {
+            "exhaustive": [
+              "cond",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.adr_sub": {
+            "exhaustive": [
+              "cond",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.and_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.and_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.and_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.and_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.and_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.and_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.b": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": [
+              "off"
+            ]
+          },
+          "arm.bic_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.bic_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.bic_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.bic_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.bic_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.bic_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.bl": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": [
+              "off"
+            ]
+          },
+          "arm.bx": {
+            "exhaustive": [
+              "cond",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.bx_sbo": {
+            "exhaustive": [
+              "cond",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.cmn_imm": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.cmn_ims": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.cmn_rs": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.cmp_imm": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.cmp_ims": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.cmp_rs": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.coprocessor": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.coprocessor_transfer": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.eor_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.eor_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.eor_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.eor_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.eor_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.eor_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.ldm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "user",
+              "w",
+              "rn"
+            ],
+            "sampled": [
+              "list"
+            ]
+          },
+          "arm.ldm_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "user",
+              "w",
+              "rn"
+            ],
+            "sampled": [
+              "list"
+            ]
+          },
+          "arm.ldr_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldr_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldr_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldr_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldr_reg_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrb_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrb_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrb_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrb_reg_pc": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrbt_imm": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrbt_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrbt_reg": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrbt_reg_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrd_strd": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.ldrh_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "immh",
+              "imml"
+            ],
+            "sampled": []
+          },
+          "arm.ldrh_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.ldrsb_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "immh",
+              "imml"
+            ],
+            "sampled": []
+          },
+          "arm.ldrsb_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.ldrsh_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "immh",
+              "imml"
+            ],
+            "sampled": []
+          },
+          "arm.ldrsh_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.ldrt_imm": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrt_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.ldrt_reg": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.ldrt_reg_pc": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.media_undefined": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.misc_undefined": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.mla": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rd",
+              "rn",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mov_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.mov_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.mov_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.mov_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.mov_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mov_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mrs": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "rd"
+            ],
+            "sampled": []
+          },
+          "arm.mrs_sbo": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "rd",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.msr_imm": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "mask"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.msr_imm_sbo": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.msr_reg": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "mask",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.msr_reg_sbo": {
+            "exhaustive": [
+              "cond",
+              "r",
+              "rd",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mul": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rd",
+              "sbz",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mul_undefined": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.mvn_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.mvn_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.mvn_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.mvn_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.mvn_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.mvn_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.nv": {
+            "exhaustive": [],
+            "sampled": []
+          },
+          "arm.orr_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.orr_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.orr_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.orr_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.orr_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.orr_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.rsb_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.rsb_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.rsb_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.rsb_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.rsb_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.rsb_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.rsc_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.rsc_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.rsc_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.rsc_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.rsc_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.rsc_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.sbc_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.sbc_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.sbc_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sbc_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sbc_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.sbc_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.smlal": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rdhi",
+              "rdlo",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.smull": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rdhi",
+              "rdlo",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.stm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "user",
+              "w",
+              "rn"
+            ],
+            "sampled": [
+              "list"
+            ]
+          },
+          "arm.str_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.str_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.strb_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.strb_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "w",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.strbt_imm": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.strbt_reg": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.strh_imm": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "immh",
+              "imml"
+            ],
+            "sampled": []
+          },
+          "arm.strh_reg": {
+            "exhaustive": [
+              "cond",
+              "p",
+              "u",
+              "w",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.strt_imm": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.strt_reg": {
+            "exhaustive": [
+              "cond",
+              "u",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sub_imm": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.sub_imm_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.sub_ims": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sub_ims_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.sub_rs": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.sub_rs_pc": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.swi": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": [
+              "imm"
+            ]
+          },
+          "arm.swp": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.swp_undefined": {
+            "exhaustive": [
+              "cond"
+            ],
+            "sampled": []
+          },
+          "arm.swpb": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "sbz",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.teq_imm": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.teq_ims": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.teq_rs": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.tst_imm": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd"
+            ],
+            "sampled": [
+              "imm12"
+            ]
+          },
+          "arm.tst_ims": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "stype",
+              "rm"
+            ],
+            "sampled": [
+              "samt"
+            ]
+          },
+          "arm.tst_rs": {
+            "exhaustive": [
+              "cond",
+              "rn",
+              "rd",
+              "rs",
+              "stype",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.umlal": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rdhi",
+              "rdlo",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.umull": {
+            "exhaustive": [
+              "cond",
+              "s",
+              "rdhi",
+              "rdlo",
+              "rs",
+              "rm"
+            ],
+            "sampled": []
+          },
+          "arm.undefined": {
+            "exhaustive": [],
+            "sampled": []
+          }
+        }
+      }
+    },
+    "encoderAgrees": {
+      "checked": 722336,
+      "disagree": 0,
+      "examples": []
+    },
+    "context": {
+      "checked": 221898,
+      "disagree": 0,
+      "alignments": [
+        "0-mod-4",
+        "2-mod-4"
+      ],
+      "extremes": 156,
+      "examples": []
+    },
+    "ok": true
+  },
+  "gates": {
+    "real": [
+      {
+        "id": "g1.bench-harness",
+        "verdict": "pass",
+        "inputs": {
+          "elfs": "70cabe8ed36c31f82d238c81a223c089a9ebefc0e11981471bcbf74ab56d8546",
+          "poc": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345",
+          "roms": "dc7adfe48a5f0fc0493337f6c436d420c7ce504a600f40d30f32ca2091a08b66",
+          "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
+        },
+        "detail": "5 tuning ROMs: rows equal the baseline, PoC rows equal, scaffold SHA-1 ok, deterministic, PoC source pinned"
+      },
+      {
+        "id": "g1.dataset-elf",
+        "verdict": "pass",
+        "inputs": {
+          "elfs": "70cabe8ed36c31f82d238c81a223c089a9ebefc0e11981471bcbf74ab56d8546",
+          "poc": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345",
+          "roms": "dc7adfe48a5f0fc0493337f6c436d420c7ce504a600f40d30f32ca2091a08b66"
+        },
+        "detail": "labels and untyped rows of 5 tuning datasets agree with their ELFs"
+      },
+      {
+        "id": "g2.baseline-rows",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyze, discover"
+      },
+      {
+        "id": "g2.code-end",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyze, discover"
+      },
+      {
+        "id": "g2.confirm-equals-discover",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: profileById, analyze"
+      },
+      {
+        "id": "g2.determinism",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyze, discover"
+      },
+      {
+        "id": "g2.entries",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyze, discover"
+      },
+      {
+        "id": "g2.extents",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyze, discover"
+      },
+      {
+        "id": "g2.held-out",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyze, discover"
+      },
+      {
+        "id": "g2.no-unreviewed",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyze, explain"
+      },
+      {
+        "id": "g2.poc-parity",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyzeTuned, encodeAnalysis"
+      },
+      {
+        "id": "g2.speed",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: analyze"
+      },
+      {
+        "id": "g3.link",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildModel, emitTree, linkCheck"
+      },
+      {
+        "id": "g3.objdiff",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildModel, emitTree, linkCheck"
+      },
+      {
+        "id": "g3.raw-link",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildModel, emitTree, linkCheck"
+      },
+      {
+        "id": "g3.readability",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildModel, emitTree, printChunk"
+      },
+      {
+        "id": "g3.self-check",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildModel, verifyModel, configFromDiscover"
+      },
+      {
+        "id": "g3.speed-budget",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildModel, emitTree, planWrites"
+      },
+      {
+        "id": "g3.text-layout",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildModel, emitTree, checkEntry"
+      },
+      {
+        "id": "g3.tree-determinism",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: profileById, analyze, configFromDiscover, buildModel, emitTree"
+      }
+    ]
+  },
+  "roms": [
+    {
+      "name": "fe7j",
+      "sha1": "037702b1febd5c9535262165bf030551d153de81",
+      "elfCommit": "f27a029",
+      "elfFunctions": 7735,
+      "entries": 7735,
+      "startup": {
+        "end": "0x0800021C",
+        "pieces": 4,
+        "elfFunctions": 1
+      },
+      "thumb": 7713,
+      "arm": 22,
+      "tp": 7724,
+      "precision": 0.9985778926955398,
+      "recall": 0.9985778926955398,
+      "misses": [
+        {
+          "addr": "0x0800D484",
+          "name": "sub_800D484",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x0800D4AC",
+          "name": "sub_800D4AC",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x0800D840",
+          "name": "sub_800D840",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x0800D864",
+          "name": "sub_800D864",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x08010DC4",
+          "name": "sub_8010DC4",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "loop-label"
+        },
+        {
+          "addr": "0x0804D13C",
+          "name": "sub_804D13C",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x08064AD0",
+          "name": "sub_8064AD0",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x080BE488",
+          "name": "sub_80BE488",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080BE4B6",
+          "name": "sub_80BE4B6",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080BE7A8",
+          "name": "sub_80BE7A8",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080BE9F0",
+          "name": "sub_80BE9F0",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        }
+      ],
+      "falseEntries": [
+        {
+          "addr": "0x080889FC",
+          "origin": "call",
+          "size": 34,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080BE7C6",
+          "origin": "call",
+          "size": 2,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080BE804",
+          "origin": "data-pointer",
+          "size": 46,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080BE84E",
+          "origin": "call",
+          "size": 26,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080BE874",
+          "origin": "data-pointer",
+          "size": 32,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080C0C24",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C2C",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C34",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C3C",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C44",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C4C",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        }
+      ],
+      "extents": {
+        "sized": 1471,
+        "agree": 1471,
+        "mismatches": []
+      },
+      "codeEnd": {
+        "found": "0x080C0C50",
+        "elf": "0x080C0C48",
+        "delta": 8
+      },
+      "deterministic": true,
+      "scaffold": {
+        "ok": true
+      }
+    },
+    {
+      "name": "klonoa",
+      "sha1": "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b",
+      "elfCommit": "a57c1f0",
+      "elfFunctions": 559,
+      "entries": 557,
+      "startup": {
+        "end": "0x080001D0",
+        "pieces": 3,
+        "elfFunctions": 3
+      },
+      "thumb": 539,
+      "arm": 18,
+      "tp": 556,
+      "precision": 0.9982046678635548,
+      "recall": 0.9946332737030411,
+      "misses": [
+        {
+          "addr": "0x0804F378",
+          "name": "sub_0804F378",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x0804F3A6",
+          "name": "sub_0804F3A6",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x0804F698",
+          "name": "sub_0804F698",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        }
+      ],
+      "falseEntries": [
+        {
+          "addr": "0x0804F73E",
+          "origin": "call",
+          "size": 26,
+          "listed": true,
+          "category": "unreviewed"
+        }
+      ],
+      "extents": {
+        "sized": 485,
+        "agree": 485,
+        "mismatches": []
+      },
+      "codeEnd": {
+        "found": "0x08051BD4",
+        "elf": "0x08051BD0",
+        "delta": 4
+      },
+      "deterministic": true,
+      "scaffold": {
+        "ok": true
+      }
+    },
+    {
+      "name": "pokeemerald",
+      "sha1": "f3ae088181bf583e55daf962a92bb46f4f1d07b7",
+      "elfCommit": "731ad5bfd",
+      "elfFunctions": 15856,
+      "entries": 15862,
+      "startup": {
+        "end": "0x0800039C",
+        "pieces": 4,
+        "elfFunctions": 0
+      },
+      "thumb": 15847,
+      "arm": 15,
+      "tp": 15856,
+      "precision": 0.9996217374858152,
+      "recall": 1,
+      "misses": [],
+      "falseEntries": [
+        {
+          "addr": "0x082DF050",
+          "origin": "arm-gap-scan",
+          "size": 12,
+          "owner": "umul3232H32",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x082DF0EC",
+          "origin": "arm-gap-scan",
+          "size": 84,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x082DF27C",
+          "origin": "arm-gap-scan",
+          "size": 508,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x082DF496",
+          "origin": "call",
+          "size": 2,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x082DF882",
+          "origin": "call",
+          "size": 8,
+          "owner": "ld_r3_tp_adr_i",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x082DFCB4",
+          "origin": "call",
+          "size": 2,
+          "owner": "MPlayMain",
+          "listed": true,
+          "category": "local-subroutine"
+        }
+      ],
+      "extents": {
+        "sized": 15853,
+        "agree": 15849,
+        "mismatches": [
+          {
+            "addr": "0x082DED84",
+            "name": "GameCubeMultiBoot_Main",
+            "elf": 244,
+            "found": 350
+          },
+          {
+            "addr": "0x082DF012",
+            "name": "GameCubeMultiBoot_Quit",
+            "elf": 34,
+            "found": 46
+          },
+          {
+            "addr": "0x082DF04C",
+            "name": "umul3232H32",
+            "elf": 16,
+            "found": 4
+          },
+          {
+            "addr": "0x082DF880",
+            "name": "ld_r3_tp_adr_i",
+            "elf": 1826,
+            "found": 10
+          }
+        ]
+      },
+      "codeEnd": {
+        "found": "0x082E952E",
+        "elf": "0x082E952E",
+        "delta": 0
+      },
+      "deterministic": true,
+      "scaffold": {
+        "ok": true
+      }
+    },
+    {
+      "name": "sa2",
+      "sha1": "7bcd6a07af7c894746fa28073fe0c0e34408022d",
+      "elfCommit": "393357f7c",
+      "elfFunctions": 2892,
+      "entries": 2898,
+      "startup": {
+        "end": "0x080001CC",
+        "pieces": 3,
+        "elfFunctions": 1
+      },
+      "thumb": 2893,
+      "arm": 5,
+      "tp": 2892,
+      "precision": 0.9979296066252588,
+      "recall": 1,
+      "misses": [],
+      "falseEntries": [
+        {
+          "addr": "0x080945EC",
+          "origin": "arm-gap-scan",
+          "size": 12,
+          "owner": "umul3232H32",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x08094688",
+          "origin": "arm-gap-scan",
+          "size": 84,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x08094814",
+          "origin": "arm-gap-scan",
+          "size": 488,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x08094A1A",
+          "origin": "call",
+          "size": 2,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x08094ABE",
+          "origin": "call",
+          "size": 8,
+          "owner": "ld_r3_tp_adr_i",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x08094EF0",
+          "origin": "call",
+          "size": 2,
+          "owner": "MP2KPlayerMain",
+          "listed": true,
+          "category": "local-subroutine"
+        }
+      ],
+      "extents": {
+        "sized": 2889,
+        "agree": 2886,
+        "mismatches": [
+          {
+            "addr": "0x0800020C",
+            "name": "MultiSioIntr",
+            "elf": 280,
+            "found": 288
+          },
+          {
+            "addr": "0x080945E8",
+            "name": "umul3232H32",
+            "elf": 16,
+            "found": 4
+          },
+          {
+            "addr": "0x08094ABC",
+            "name": "ld_r3_tp_adr_i",
+            "elf": 1822,
+            "found": 10
+          }
+        ]
+      },
+      "codeEnd": {
+        "found": "0x080979F6",
+        "elf": "0x080979F6",
+        "delta": 0
+      },
+      "deterministic": true,
+      "scaffold": {
+        "ok": true
+      }
+    },
+    {
+      "name": "sa3",
+      "sha1": "685af3a2dc0f1b3f8922e73ec42c1dc92e210e39",
+      "elfCommit": "59df6083",
+      "elfFunctions": 4693,
+      "entries": 4699,
+      "startup": {
+        "end": "0x080001CC",
+        "pieces": 3,
+        "elfFunctions": 1
+      },
+      "thumb": 4694,
+      "arm": 5,
+      "tp": 4693,
+      "precision": 0.9987231325814003,
+      "recall": 1,
+      "misses": [],
+      "falseEntries": [
+        {
+          "addr": "0x080B983C",
+          "origin": "arm-gap-scan",
+          "size": 12,
+          "owner": "umul3232H32",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080B98D8",
+          "origin": "arm-gap-scan",
+          "size": 84,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080B9A64",
+          "origin": "arm-gap-scan",
+          "size": 488,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080B9C6A",
+          "origin": "call",
+          "size": 2,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x080B9D0E",
+          "origin": "call",
+          "size": 8,
+          "owner": "ld_r3_tp_adr_i",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x080BA140",
+          "origin": "call",
+          "size": 2,
+          "owner": "ld_r3_tp_adr_i",
+          "listed": true,
+          "category": "local-subroutine"
+        }
+      ],
+      "extents": {
+        "sized": 4307,
+        "agree": 4304,
+        "mismatches": [
+          {
+            "addr": "0x080B9838",
+            "name": "umul3232H32",
+            "elf": 16,
+            "found": 4
+          },
+          {
+            "addr": "0x080B9D0C",
+            "name": "ld_r3_tp_adr_i",
+            "elf": 1822,
+            "found": 10
+          },
+          {
+            "addr": "0x080C69A4",
+            "name": "MultiSioIntr",
+            "elf": 280,
+            "found": 288
+          }
+        ]
+      },
+      "codeEnd": {
+        "found": "0x080CE438",
+        "elf": "0x080CE438",
+        "delta": 0
+      },
+      "deterministic": true,
+      "scaffold": {
+        "ok": true
+      }
+    }
+  ]
+}
