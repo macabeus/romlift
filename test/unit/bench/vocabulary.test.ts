@@ -64,7 +64,7 @@ test('the vocabularies are exported from romlift and their guards accept only de
   assert.ok(!isOrigin('constructor'));
 });
 
-test('the exception categories: the PoC eight less two, plus the four of milestone M5 and the one of D60, each defined', () => {
+test('the exception categories: the PoC eight less two, plus the four of milestone M5 and the two of D60, each defined', () => {
   assert.deepEqual(Object.keys(EXCEPTION_CATEGORIES), [
     'loop-label',
     'mixer-internal',
@@ -77,6 +77,7 @@ test('the exception categories: the PoC eight less two, plus the four of milesto
     'split-after-returning-call',
     'disassembler-split',
     'unreached-tail',
+    'pointer-entry',
   ]);
   assertDefined('EXCEPTION_CATEGORIES', EXCEPTION_CATEGORIES);
   assert.ok(isExceptionCategory('second-entry'));

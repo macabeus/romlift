@@ -86,17 +86,17 @@
     },
     {
       "addr": "0x080B1AA8",
-      "category": "second-entry",
+      "category": "pointer-entry",
       "note": "arm_GetActTileAtEntity (a local label): an entry of the collision chain after `b arm_GetActTileAtWorldCoords` at 0x080B1AA4 in arm_GetActTileRelativeToEntity (0x080B1A8C), reached by the veneer at 0x080002B8 through IWRAM 0x0300581C; origin ram-copy, 72 bytes"
     },
     {
       "addr": "0x080B1B0C",
-      "category": "second-entry",
+      "category": "pointer-entry",
       "note": "arm_GetCollisionDataAtEntity (a local label): after `b arm_GetCollisionDataAtWorldCoords` at 0x080B1B08 in arm_GetCollisionDataRelativeTo (0x080B1AF0), reached by the veneer at 0x080002D0 through IWRAM 0x03005880; origin ram-copy, 72 bytes"
     },
     {
       "addr": "0x080B21B0",
-      "category": "second-entry",
+      "category": "pointer-entry",
       "note": "arm_ClearAndUpdateEntities (a local label): an entry that falls into arm_UpdateEntities (0x080B21CC), after a pool word, reached through its IWRAM address 0x03005F24 by code at 0x0805E780; origin arm-gap-scan, 28 bytes"
     },
     {
