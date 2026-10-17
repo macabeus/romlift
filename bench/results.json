@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "bb91cbe9219a167b0a514d557f0bbc197f17f61a",
+    "commit": "22cbc771b21b9bc34d900f5f4900d49eaf9c2de1",
     "dirty": false,
-    "sourceDigest": "1b4b8d879a83ba28b24a116d79769db2ea5bd799be33bd154422c8f1f56d21e9",
+    "sourceDigest": "45377b905e9d6ce3671f2760c0cdd1addb9d0471a82331a95b21d1e77793e421",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -1977,7 +1977,7 @@
         "inputs": {
           "roms": "27587a6b17e00737966c0d7055c673959dc5965dfa2b6028b66dd73b23503ea1"
         },
-        "detail": "calibration ratio 1.032; CPU/limit: fe7j 8390/13640 ms, klonoa 218/329 ms, pokeemerald 2976/4534 ms, sa2 549/841 ms, sa3 1004/1604 ms"
+        "detail": "calibration ratio 0.977; CPU/limit: fe7j 8631/12917 ms, klonoa 207/312 ms, pokeemerald 2949/4294 ms, sa2 566/797 ms, sa3 1004/1519 ms"
       },
       {
         "id": "g3.link",

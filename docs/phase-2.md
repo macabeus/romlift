@@ -12,7 +12,19 @@ still failed after wave 3 (`g2.rule-coverage`, `g1.provenance`) on `phase-2` (`6
 and re-ran the whole closing list there. The adversarial review of `4a24486` was answered by fix
 round 1 (`8676557` to `6260b95`, D59; "Review", below), which re-ran the whole closing list at
 `6260b95`. The re-review of `825f662` was answered by fix round 2 (`5306f1f` to `bb91cbe`, D59 (j) to
-(p)), which re-ran the whole closing list at `bb91cbe` ("The closing gate", below).
+(p)), which re-ran the whole closing list at `bb91cbe`. The re-review of `e151012` was answered by fix round 3
+(`4628c1e` to `22cbc77`, D59 (m) revised, (q) to (t)), which re-ran the whole closing list at `22cbc77` in
+a fresh `git worktree` with no local caches ("The closing gate", below).
+
+**Verdict (after fix round 3).** Phase 2 still does **not** land, for the same single reason: every
+command of the closing list exits 0 except `bench gates --require 2 --tier real`, whose only failing
+gate is `g2.held-out` (tmc: recall 99.37%, 51 glued, code end -4,130; pokefirered and pokeruby pass but
+are both `pret-gen3`). The round fixed the other blocker (a clean checkout's `bench run` dropped the
+printer member, so the ci tier and `bench provenance` failed: the closing run below is from a fresh
+worktree without the corpus pre-step and both pass), the major (the candidate budget is now run-wide,
+so a flood's rejections are bounded by it) and every minor. Nothing was tuned on a held-out ROM; the
+analysis digests of the five tuning ROMs are unchanged; `test/gates/phase.json` stays
+`{ "landed": 1 }`; nothing is merged or pushed.
 
 **Verdict (after fix round 2).** Phase 2 still does **not** land, for the same single reason: every
 command of the closing list exits 0 except `bench gates --require 2 --tier real`, whose only failing
@@ -64,7 +76,8 @@ then the integrator.
 | 3 | `p2-milestones` | this record: milestones M1 to M7 (below) |
 | — | integrator | D58: the trail cites walk steps, acceptance rules and the gap's prefer and skip slots; the `recursive-far-call` and `inline-arm-switch` fixtures |
 | — | fix round 1 | D59: the review's findings ("Review"); the closing run below |
-| — | fix round 2 | D59 (j) to (p): the re-review's findings ("Review", "Fix round 2"); the closing run below |
+| — | fix round 2 | D59 (j) to (p): the re-review's findings ("Review", "Fix round 2") |
+| — | fix round 3 | D59 (m) revised, (q) to (t): the second re-review's findings ("Review", "Fix round 3"); the closing run below |
 
 ### Commands and formats
 
@@ -240,7 +253,7 @@ The counts were the same at every milestone except that `walk.inline-arm-switch`
 extent to pokefirered and pokeruby. `g2.held-out` itself reported `pending` here (it needs `discover`,
 which `p2-commands` exports); from the counts it fails as the Verdict above says.
 
-## Per tuning ROM, at `bb91cbe`
+## Per tuning ROM, at `22cbc77`
 
 | ROM | ELF functions | Entries | TP | PoC TP | Raw precision | Raw recall | Misses | False entries | Extents agreeing | Code end | Baseline diffs | Analysis digest | Parity digest |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -260,8 +273,10 @@ they were fe7j `83b9ad13…`, klonoa `96084b76…`, pokeemerald `ec7a5a6a…`, s
 `44a1d109…`, sa3 `bc38155a…`. In fix round 2: claimed harvest targets are now rejected by
 `valid.in-rom-unclaimed` (klonoa +61 rejections, sa2 +169), the unanchored detail names the accept
 rules, and accept vetoes are rejections; functions with their provenance, extents and claims are equal
-(compared entry by entry on klonoa and sa2 against `825f662`). `results.json` meta: commit `bb91cbe`,
-dirty false, source digest `1b4b8d87…`, Node 24.
+(compared entry by entry on klonoa and sa2 against `825f662`). Fix round 3 moved no analysis digest
+(no tuning run reaches a budget, passes a malformed seed or is truncated). `results.json` meta: commit
+`22cbc77`, dirty false, source digest `45377b90…`, Node 24; the printer member is the one kept from the
+previous artifact (inputs digest `144770c8…`, still current, D59 t).
 
 ## Deviations from the roadmap
 
@@ -391,59 +406,82 @@ failure, raised by both reviewers), four majors and nine minors. Fix round 2 ran
 | correctness-r1-3 | major | Fixed with architecture-r1-2. The reviewer's repro (adr-handler-block, confirm with 0x08000104 omitted) raised `W_FIXPOINT_LIMIT` at `825f662` (checked) and raises only the two `W_UNLISTED_FUNCTION` now; it is a unit test (`confirm.test.ts`). |
 | architecture-r1-3 | major | Fixed (`5306f1f`). `grow` drops only targets that are already functions and asks `valid()` about the rest, claimed ones included (`valid.in-rom-unclaimed`'s `checkEntry` rejects them before any reading, so no walk is added); the unanchored detail names the accept rules that declined instead of the driver reading `isPrologue`. Tests: a claimed target is rejected by `valid.in-rom-unclaimed` with no reading taken; with that rule disabled the claimed target is accepted. |
 | correctness-r1-2 | major | Fixed (`1bf529c`). `failureDetail` appends the notes a gate wrote to its failure message, so `g2.held-out`'s record and console line now carry each sealed ROM's counts (the closing run below); unit test in `gate.test.ts`. |
-| correctness-r1-4 | major | Fixed (`d84f4f0`). `LIMITS.candidateBudget` (262,144; tuning maximum 13,612) binds: a grow round judges that many and raises `W_CANDIDATE_BUDGET`. `LIMITS.epochReadingBytes` (256 MiB by `readingBytes`' estimate; tuning maximum about 105 MB): past it the held candidate readings are dropped, verdicts kept, and `W_READING_BUDGET` (new) is raised once. The reviewer's input (klonoa plus a self-referencing Thumb pointer flood): +8 MiB ran out of heap before; now `analyze` alone peaks at 2.2 GB RSS (1.07 GB heap live, 2.1 M rejections) under the default heap. A unit test analyses a 32 MiB image whose last 28 MiB are such pointers under a 512 MiB V8 heap in a child process (`pointer-flood-rom.test.ts`, about 12 s); with both budgets lifted it runs out of heap. No tuning ROM reaches either budget (no new diagnostic; functions unchanged). |
+| correctness-r1-4 | major | Fixed (`d84f4f0`). `LIMITS.candidateBudget` (262,144; tuning maximum 13,612) binds: a grow round judges that many and raises `W_CANDIDATE_BUDGET`. `LIMITS.epochReadingBytes` (256 MiB by `readingBytes`' estimate; tuning maximum about 105 MB): past it the held candidate readings are dropped, verdicts kept, and `W_READING_BUDGET` (new) is raised once. The reviewer's input (klonoa plus a self-referencing Thumb pointer flood): +8 MiB ran out of heap before. Corrected in fix round 3 (correctness-r2-4) with the re-review's measurement at `e151012`, library `analyze()`, default heap: 1,802,581 rejections, 1.12 GB heap live, 1.65 to 1.74 GB peak RSS (the CLI with `--json` peaked at 4.23 GB); the figures first recorded here (2.2 GB, 2.1 M rejections) were not reproducible. A unit test analysed a 32 MiB image whose last 28 MiB are such pointers under a 512 MiB V8 heap in a child process (`pointer-flood-rom.test.ts`, about 15 s; moved to `test:local` in fix round 3); with both budgets lifted it runs out of heap. No tuning ROM reaches either budget (no new diagnostic; functions unchanged). |
 | architecture-r1-4 | minor | Fixed in part (`5306f1f`), the rest rejected with its reason. Fixed: the zero-halfword retry (and the claimed-halfword step) moved into `gap.adr-block-absorb`, which now owns every absorb position; gap positions are bus addresses; the forward slot is `{ thumb, arm, after }` with the ranks of the old list (a test resolves an ARM-only slot and finds no Thumb proposer). Rejected: moving the header skip and the claimed-byte step into slots. The first is a fact of the cartridge format, like `contains(rom, …)`, which the driver also applies without a rule; disabling it could only make the scan read the 192 header bytes as code, and phase 3 claims the header (correctness-6), which removes the line. The second moves the cursor past bytes a claim rule already decided (and cited); it decides nothing. Both are documented as traversal and format in architecture §4.2 and D59 (l). |
 | architecture-r1-5 | minor | Fixed (`5306f1f`): `AnalysisTuning.worklist` and its writers are gone; architecture §3.3 says the worklist is always ascending. |
 | architecture-r1-6 | minor | **Rejected.** `export-poc --mode queries` is one of the commands of this phase's closing list as the orchestrator runs it (it is in the gate list this round was given, and it passed below), so deleting the mode and `poc-log.ts` would make a required command fail. It is not circular in effect: it is the only command that re-runs the pinned PoC's instrumented query path and checks that the PoC still reaches the committed parity digest through it. Its removal belongs with the closing list's next revision (D59 a). |
 | architecture-r1-7 | minor | Fixed (`31a86ef`): `isConditional` (the row's `cond` field) and `thumbWordAt` in `foundation/isa/decode.ts` replace the hand decoding in `walk/arm.ts`, `gap.arm-scan`, `walk/thumb.ts` and `accept.tiny-anchored-at-start`. Only `arm.nv` and `arm.undefined` lack a cond field, both `invalid`, so no reading changes. |
 | architecture-r1-8 | minor | Fixed (`31a86ef`): `effectOf` throws `RomliftInvariantError` for an operand name the row lacks; a table test checks every `writes`, `list` and `from` name of every Thumb and ARM row against its `toOps` keys. |
 | architecture-r1-9 | minor | Fixed (`5306f1f`): a veto calls `reject()` with the veto's id and `reason` (and the proposal's cites); `diagnoseMiss` names the veto of a vetoed miss. Two explain goldens changed (false-stub-2byte, mixer-tiled-hole). |
-| architecture-r1-10 | minor | Fixed (`d84f4f0`, `31a86ef`, `5306f1f`): unit tests for the ARM walk limit, the ARM 'table' and 'switch-mode' steps (the latter conditional and not), and a mid-gap absorb resume. |
+| architecture-r1-10 | minor | Fixed (`d84f4f0`, `31a86ef`, `5306f1f`): unit tests for the ARM 'table' and 'switch-mode' steps (the latter conditional and not) and a mid-gap absorb resume. Corrected in fix round 3 (architecture-r2-4): the ARM walk-limit test reached only the copy of the limit check on the no-decode path; `75b5481` makes it one check above the split, which the test now covers (walk/arm.ts 100% lines and branches). |
 | architecture-r1-11 | minor | Fixed (`1bf529c`): `gluedWhere` in `classify.ts` uses labelClause's function filter (ELF entry, strictly inside); `seal.ts` calls it; three-way unit tests. tmc's split is now 2 / 15 / 34 (one miss lies in a false entry's extent). |
+
+### Fix round 3
+
+The re-review of `e151012` (17 October 2026) raised 13 findings: three blockers (the held-out failure,
+raised by both reviewers, and the printer member a clean checkout dropped), one major and nine minors.
+Fix round 3 ran on `phase-2` from `e151012` to `22cbc77` (four commits, then this record).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| architecture-r2-1 | blocker | **Not fixable; recorded.** `g2.held-out` fails at `22cbc77` exactly as before (the closing run below). D53's routes are unchanged: an owner-supplied sealed reserve pair from a family absent from the tuning set (the reserve candidates, Kirby & the Amazing Mirror and Pokémon Pinball, are not on this machine), or the owner's answer to architecture §12 item 4, whose safe default (D53) is that phase 2 does not land. Not merged, not pushed; `phase.json` stays `{ "landed": 1 }`. |
+| correctness-r2-1 | blocker | Same as architecture-r2-1; deviation 10 says why no rule can be validated for tmc on the tuning set. |
+| correctness-r2-2 | blocker | Fixed (`4628c1e`). `bench run` records the local corpus summary when current, else the previous artifact's `printer` member while its inputs digest still equals `corpusInputsDigest`, else refuses to write and says to run `npm run corpus` (D59 t; unit test in `printer.test.ts`). The roadmap's phase-2 exit list runs `npm run corpus` before `bench run`. The closing run below is from a fresh worktree of `22cbc77` (`npm ci`, no `bench/.local`), running the orchestrator's list, which has no corpus step: `bench run` kept the member, and the ci tier and `bench provenance` pass. |
+| correctness-r2-3 | major | Fixed (`6a421c1`): the text was right that it was false. `LIMITS.candidateBudget` now binds the distinct targets grow judges in a whole run (`DriverState.judged`); a target judged before is judged again, a fresh one past the budget never is; `W_CANDIDATE_BUDGET` is raised once. The tuning ROMs judge at most 13,431 (pokeemerald). Measured with the library `analyze()` on the reviewer's inputs (`test/helpers/pointer-flood-rom.ts`, default heap): fe7j + 16 MiB 261,475 rejections (was 4,204,100), 160 s (was 256 s), 1.98 GB peak RSS (was 3.14 GB), 7,739 functions; sa3 + 16 MiB 260,923 rejections, 23.5 s, 1.84 GB; klonoa + 8 MiB 262,089 rejections, 8.3 s, 1.23 GB, 560 functions. Time still grows with the grow rounds, because each round's harvest enumerates the flood (Known limitations, D59 m). Tests: a multi-round grow test with a budget of 3 (`grow.test.ts`) and `test/local/pointer-flood.test.ts` (klonoa + 8 MiB, several rounds, rejections ≤ budget + klonoa's own). |
+| architecture-r2-2 | minor | Fixed (`75b5481`): `ruleFor` loses the veto lookup; `rejectionKey` is exported by `trail.ts` and used by `reject` and `diagnoseMiss`, which takes the reason from the recorded rejection. |
+| architecture-r2-3 | minor | Fixed (`6a421c1`): `forget(s, entry, 'carry' \| 'drop')` in epoch.ts is the only way a candidate reading leaves `settled`; settle records the facts before `hold`. Unit test: `hold` past the budget under `'epoch-reuse'` leaves no facts and carries nothing for the evicted entries (it fails on the old code). |
+| architecture-r2-4 | minor | Fixed (`75b5481`): one limit check above the decode split; `walk/arm.ts` 100% lines and branches over `test/unit` and `test/golden`. The architecture-r1-10 row above is corrected. |
+| architecture-r2-5 | minor | Fixed (`6a421c1`): the flood cases are a stress tier in `test:local`; the budget logic has unit tests with an injectable budget (`grow(s, budget)`, `hold(s, …, budget)`). `npm test` takes about 12 s (was 23 s). `W_CANDIDATE_BUDGET` is once per run; the labelled-break concern is gone with the per-round loop. |
+| architecture-r2-6 | minor | Fixed by the second option (`75b5481`): `restsOn` and `recovers` state the retry, zero only, because the assembler aligns such a block with zero fill, not with the `mov r8, r8` the profile's padding idiom also accepts; `isPadding` would change what the rule absorbs. The adr-handler-block explain goldens were regenerated. |
+| architecture-r2-7 | minor | Fixed (`75b5481`): comments cite D59 (l), (m), (q) and D42. |
+| correctness-r2-4 | minor | Fixed: the correctness-r1-4 row above now gives the re-review's measured figures and names the measurement. |
+| correctness-r2-5 | minor | Fixed (`6a421c1`): `driver/seeds.ts` leaves out a seed whose entry is not a non-negative safe integer, whose mode is unknown, or whose size is not a positive integer that fits the ROM, with `W_SEED_MALFORMED` (new, D59 r); the result's options record only the seeds used. `confirm.test.ts` runs NaN, 1.5, sizes -8, 0, 0.5 and 0x4000000: each is reported once, no extent misses its entry, and a fitting size is kept. |
+| correctness-r2-6 | minor | Fixed (`6a421c1`): `seed.rom-entry` proposes the startup target only when its first ARM word is wholly in the ROM (D59 s). `romlift analyze` on the first 194 bytes of klonoa now finds one function, `0x08000000 arm 0x08000000..0x08000004`. No diagnostic: a seed rule cannot raise one, and the single function says what was found. Unit test on a header-plus-halfword image. |
 
 The orchestrator also asked to correct docs/benchmark-roms.md where it said tmc has no ELF: it already
 records `tmc/tmc.elf` and `tmc/build/USA/tmc.map` (since `f4b5c20`), so no change was needed.
 
 ## The closing gate
 
-Fix round 2's run on `phase-2` at `bb91cbe` (working tree clean but for the `bench/results.json` the run
-itself rewrites), every command from the repository root with
+Fix round 3's run at `22cbc77`, in a fresh worktree (`git worktree add --detach`, so no `node_modules`,
+no `bench/.local`: no corpus summary, no PoC dumps), working tree clean but for the `bench/results.json`
+the run itself rewrites, every command from the worktree root with
 `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
-`ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`, in this order (the real tier before the
-ci tier). `npm run corpus` was run first (exit 0, inputs digest `144770c8…`), because the round changed
-`foundation/isa`, which is in the corpus's import closure. `test/gates/phase.json` stays
-`{ "landed": 1 }`.
+`ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`, in the orchestrator's order (the real tier
+before the ci tier). `npm run corpus` was **not** run (the orchestrator's list has no corpus step); the
+artifact's printer member was kept because its inputs digest is still current (D59 t).
+`test/gates/phase.json` stays `{ "landed": 1 }`.
 
 | Command | Exit | Output |
 | --- | --- | --- |
 | `npm ci` | 0 | 8 packages, 0 vulnerabilities |
 | `npm run typecheck` | 0 | |
 | `npm run lint` | 0 | 21 tests, 21 pass |
-| `npm test` | 0 | 904 tests, 904 pass |
+| `npm test` | 0 | 908 tests, 908 pass (22 s) |
 | `npm run fixtures -- check` | 0 | 31 of 31 fixtures agree (agbcc commit not named, the bytes decide) |
 | `npm run bench -- doctor-real` | 0 | every ROM, ELF, PoC file and toolchain matches its digest |
 | `npm run export-poc -- --mode scored` | 0 | five dumps, PoC scaffold OK, deterministic (215 s) |
-| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical (77 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical (75 s) |
 | `npm run export-poc -- --mode queries` | 0 | five lockstep logs re-read, parity matches the committed digest (50 s) |
-| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 16 tests, 16 pass |
-| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | binutils, corpus and JUMP11 ok; agbcc and old_agbcc reported missing (not required) |
-| `npm run bench -- run` | 0 | five rows (the per-ROM table above); sealed: pokefirered pass, pokeruby pass, tmc FAIL (the M7 table); `results.json` written at `bb91cbe`, gate record cleared |
-| `npm run bench -- speed` | 0 | calibration ratio 0.972; fe7j 8,390 ms (limit 12,850), klonoa 190 (310), pokeemerald 2,866 (4,271), sa2 551 (793), sa3 1,009 (1,511) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 18 tests, 18 pass (the two flood cases included) |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | binutils, corpus and JUMP11 ok |
+| `npm run bench -- run` | 0 | five rows (the per-ROM table above, analysis digests unchanged); sealed: pokefirered pass, pokeruby pass, tmc FAIL (the M7 table); `results.json` written at `22cbc77`, printer member kept, gate record cleared |
+| `npm run bench -- speed` | 0 | calibration ratio 0.936; fe7j 8,649 ms (limit 12,374), klonoa 192 (299), pokeemerald 2,902 (4,113), sa2 550 (763), sa3 1,004 (1,455) |
 | `npm run bench -- regression` | 0 | no regression against `92bf7ce` (the PoC-sourced main) |
 | `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
 | `npm run bench -- poc-check` | 0 | five ROMs: rows equal, PoC row equal, scaffold OK, deterministic, PoC source pinned |
-| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end (fe7j 8, klonoa 4, others 0), g2.confirm-equals-discover, g2.determinism, g2.entries, g2.extents, g2.no-unreviewed, g2.poc-parity (evidence of `e867dae`, an ancestor of HEAD), g2.speed (ratio 1.032; fe7j 8,390 of 13,640 ms, klonoa 218 of 329); **fail: g2.held-out** ("the passing ROMs span 1 codebase families, at least two must; no passing ROM is from a family absent from the tuning set", now followed by the three sealed ROMs' counts: tmc "fail (recall 99.37% < 99.46%; 51 glued; code end -4130 bytes off)"); g3 to g6 pending (228 s) |
-| `npm run bench -- gates --require 2 --tier ci` | 0 | every g1 gate passes (g1.provenance current, source digest `1b4b8d87…`); g2.checks-fail (4 files, 19 tests), g2.determinism, g2.regression, g2.rule-coverage (49 of 57 rules on 31 fixtures, 8 kept by D57), g2.rule-registry (57 rules), g2.second-profile (31 fixtures, 188 functions), g2.synthetic-analysis (31 fixtures, no extra entries allowed in 31), g2.vocabulary-emitted pass; g3 to g6 pending (56 s) |
-| `npm run bench -- provenance` | 0 | source digest `1b4b8d87…` current; gate record, families (scaffold, printer), dataset and held-out rows ok |
+| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end (fe7j 8, klonoa 4, others 0), g2.confirm-equals-discover, g2.determinism, g2.entries, g2.extents, g2.no-unreviewed, g2.poc-parity (evidence of `e867dae`, an ancestor of HEAD), g2.speed (ratio 0.977; fe7j 8,631 of 12,917 ms); **fail: g2.held-out** ("the passing ROMs span 1 codebase families, at least two must; no passing ROM is from a family absent from the tuning set", then pokefirered and pokeruby pass and tmc "fail (recall 99.37% < 99.46%; 51 glued; code end -4130 bytes off)"); g3 to g6 pending (229 s) |
+| `npm run bench -- gates --require 2 --tier ci` | 0 | every g1 gate passes (g1.provenance current, source digest `45377b90…`); g2.checks-fail (4 files, 19 tests), g2.determinism, g2.regression, g2.rule-coverage (49 of 57 rules on 31 fixtures, 8 kept by D57), g2.rule-registry (57 rules), g2.second-profile (31 fixtures, 188 functions), g2.synthetic-analysis (31 fixtures), g2.vocabulary-emitted pass; g3 to g6 pending (60 s) |
+| `npm run bench -- provenance` | 0 | source digest `45377b90…` current; gate record, families (scaffold, printer), dataset and held-out rows ok |
 | `npm run bench -- stale-check` | 0 | the artifact is current |
 
 Not run, because `g2.held-out` fails and the safe default of D53 (architecture §12, item 4, not waited
 on) is that phase 2 does not land: raising `test/gates/phase.json` to 2, the closing real-tier run under
-the raised marker, pushing `phase-2`, the pull request to `main` and its CI workflows, and the merge.
+the raised marker, pushing `phase-2`, the pull request to `main` and its CI workflows, the merge, the tag.
 
-Fix round 1's run at `6260b95` and the wave-3 integrator's at `b2742a3` had the same verdicts (every
-command 0 but the real tier, failing on `g2.held-out` only); their numbers are in the Git history of
-this file (`825f662`, `4a24486`).
+The runs of fix round 2 at `bb91cbe`, fix round 1 at `6260b95` and the wave-3 integrator at `b2742a3` had
+the same verdicts (every command 0 but the real tier, failing on `g2.held-out` only); their numbers are
+in the Git history of this file (`e151012`, `825f662`, `4a24486`).
 
 ## Known limitations
 
@@ -464,9 +502,11 @@ this file (`825f662`, `4a24486`).
   `explain` reports header bytes as owned by it; confirm mode agrees (M6). Bounding it changes an extent
   on every ROM and belongs with the header's emission in phase 3 (a claimed header region no extent may
   cover).
-- **Past the analysis budgets the result is partial, by design** (D59 m): a grow round judges at most
-  262,144 candidates and the rest of its snapshot waits for a later round that never reaches them; past
-  256 MiB of held readings a dropped reading is walked again, possibly against later facts. Both raise a
-  warning; no tuning ROM comes within an order of magnitude of either.
+- **Past the analysis budgets the result is partial, by design** (D59 m): grow judges at most 262,144
+  distinct candidates in a run, and fresh candidates past that are never judged; past 256 MiB of held
+  readings a dropped reading is walked again, possibly against later facts. Each raises a warning once;
+  no tuning ROM comes within an order of magnitude of either (13,431 distinct candidates at most). A
+  flood's rejections and memory are bounded by the budgets, but its time is not: every grow round's
+  harvest still enumerates the flood (fe7j plus a 16 MiB flood: 160 s, 1.98 GB peak RSS).
 - Extent mismatches left: MultiSioIntr on sa2 and sa3, ld_r3_tp_adr_i on sa2, sa3 and pokeemerald,
   GameCubeMultiBoot_Main and GameCubeMultiBoot_Quit on pokeemerald.
