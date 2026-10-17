@@ -1,0 +1,52 @@
+{
+  "name": "sa3",
+  "rom": "sa3/sa3.gba",
+  "elf": "sa3/sa3.elf",
+  "map": "sa3/sa3.map",
+  "sha1": "685af3a2dc0f1b3f8922e73ec42c1dc92e210e39",
+  "elfCommit": "59df6083",
+  "elfSha256": "1c1efc591beab3a95cc5c9d9bab2e520ea96c5e8a53f3925d7c134b58755d2d9",
+  "family": "sat-r",
+  "buildNote": "sa2 and sa3 tool builds need Apple's ar first in PATH (Homebrew binutils makes archives Apple's ld rejects); satr-agbcc/build.sh fails on old_agbcc with gcc-13, but the main agbcc builds",
+  "heldout": false,
+  "revealed": [],
+  "labels": [],
+  "untyped": [
+    {
+      "addr": "0x080B983C",
+      "name": "inside umul3232H32",
+      "category": "mixer-internal",
+      "note": "adopted from a run on 2026-10-16; via arm-gap-scan, 12 bytes"
+    },
+    {
+      "addr": "0x080B98D8",
+      "name": "inside SoundMainRAM",
+      "category": "mixer-internal",
+      "note": "adopted from a run on 2026-10-16; via arm-gap-scan, 84 bytes"
+    },
+    {
+      "addr": "0x080B9A64",
+      "name": "inside SoundMainRAM",
+      "category": "mixer-internal",
+      "note": "adopted from a run on 2026-10-16; via arm-gap-scan, 488 bytes"
+    },
+    {
+      "addr": "0x080B9C6A",
+      "name": "inside SoundMainRAM",
+      "category": "local-subroutine",
+      "note": "adopted from a run on 2026-10-16; via call, 2 bytes"
+    },
+    {
+      "addr": "0x080B9D0E",
+      "name": "inside ld_r3_tp_adr_i",
+      "category": "local-subroutine",
+      "note": "adopted from a run on 2026-10-16; via call, 8 bytes"
+    },
+    {
+      "addr": "0x080BA140",
+      "name": "inside ld_r3_tp_adr_i",
+      "category": "local-subroutine",
+      "note": "adopted from a run on 2026-10-16; via call, 2 bytes"
+    }
+  ]
+}

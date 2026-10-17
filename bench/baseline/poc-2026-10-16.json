@@ -1,0 +1,1523 @@
+{
+  "meta": {
+    "generatedAt": "2026-10-16T22:53:36.684Z",
+    "commit": null,
+    "dirty": true,
+    "node": "v24.15.0",
+    "benchRoot": "/Users/macabeus/ApenasMeu/decompiler"
+  },
+  "roms": [
+    {
+      "name": "fe7j",
+      "sha1": "037702b1febd5c9535262165bf030551d153de81",
+      "elfCommit": "f27a029",
+      "elfFunctions": 7735,
+      "entries": 7735,
+      "startup": {
+        "end": "0x0800021C",
+        "pieces": 4,
+        "elfFunctions": 1
+      },
+      "thumb": 7713,
+      "arm": 22,
+      "tp": 7724,
+      "precision": 0.9985778926955398,
+      "recall": 0.9985778926955398,
+      "misses": [
+        {
+          "addr": "0x0800D484",
+          "name": "sub_800D484",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x0800D4AC",
+          "name": "sub_800D4AC",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x0800D840",
+          "name": "sub_800D840",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x0800D864",
+          "name": "sub_800D864",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x08010DC4",
+          "name": "sub_8010DC4",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "loop-label"
+        },
+        {
+          "addr": "0x0804D13C",
+          "name": "sub_804D13C",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x08064AD0",
+          "name": "sub_8064AD0",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "continuation-after-noreturn-call"
+        },
+        {
+          "addr": "0x080BE488",
+          "name": "sub_80BE488",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080BE4B6",
+          "name": "sub_80BE4B6",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080BE7A8",
+          "name": "sub_80BE7A8",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080BE9F0",
+          "name": "sub_80BE9F0",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        }
+      ],
+      "falseEntries": [
+        {
+          "addr": "0x080889FC",
+          "origin": "call",
+          "size": 34,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080BE7C6",
+          "origin": "call",
+          "size": 2,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080BE804",
+          "origin": "data-pointer",
+          "size": 46,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080BE84E",
+          "origin": "call",
+          "size": 26,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080BE874",
+          "origin": "data-pointer",
+          "size": 32,
+          "listed": true,
+          "category": "unreviewed"
+        },
+        {
+          "addr": "0x080C0C24",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C2C",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C34",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C3C",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C44",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        },
+        {
+          "addr": "0x080C0C4C",
+          "origin": "veneer",
+          "size": 4,
+          "listed": true,
+          "category": "veneer"
+        }
+      ],
+      "extents": {
+        "sized": 1471,
+        "agree": 1471,
+        "mismatches": []
+      },
+      "codeEnd": {
+        "found": "0x080C0C50",
+        "elf": "0x080C0C48",
+        "delta": 8
+      },
+      "deterministic": true,
+      "signatures": {
+        "versions": [
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "functions": 18,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "functions": 22,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2001",
+            "functions": 94,
+            "objects": 10
+          }
+        ],
+        "modules": [
+          {
+            "library": "m4a",
+            "version": "2001",
+            "kind": "code",
+            "start": "0x080BE394",
+            "end": "0x080C0546",
+            "functions": 94,
+            "objects": 0
+          },
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "kind": "code",
+            "start": "0x080C0548",
+            "end": "0x080C05B6",
+            "functions": 18,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "kind": "code",
+            "start": "0x080C075C",
+            "end": "0x080C0ADC",
+            "functions": 22,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2001",
+            "kind": "data",
+            "start": "0x086C4560",
+            "end": "0x086C4838",
+            "functions": 0,
+            "objects": 10
+          }
+        ],
+        "functions": 134,
+        "objects": 10,
+        "entries": {
+          "agree": 131,
+          "untyped": 3,
+          "wrong": []
+        },
+        "names": {
+          "agree": 67,
+          "differ": [
+            {
+              "addr": "0x080BE394",
+              "name": "umul3232H32",
+              "elf": "MulByQ32",
+              "size": 16,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE7E4",
+              "name": "MP2KClearChain",
+              "elf": "ClearChain",
+              "size": 32,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE834",
+              "name": "MPlayJumpTableCopy",
+              "elf": "MPlyJmpTblCopy",
+              "size": 22,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE894",
+              "name": "MP2K_event_patt",
+              "elf": "ply_patt",
+              "size": 26,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE8B0",
+              "name": "MP2K_event_pend",
+              "elf": "ply_pend",
+              "size": 20,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE8C4",
+              "name": "MP2K_event_rept",
+              "elf": "ply_rept",
+              "size": 46,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE8F4",
+              "name": "MP2K_event_prio",
+              "elf": "ply_prio",
+              "size": 10,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE900",
+              "name": "MP2K_event_tempo",
+              "elf": "ply_tempo",
+              "size": 20,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE914",
+              "name": "MP2K_event_keysh",
+              "elf": "ply_keysh",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE928",
+              "name": "MP2K_event_voice",
+              "elf": "ply_voice",
+              "size": 46,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE958",
+              "name": "MP2K_event_vol",
+              "elf": "ply_vol",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE96C",
+              "name": "MP2K_event_pan",
+              "elf": "ply_pan",
+              "size": 20,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE980",
+              "name": "MP2K_event_bend",
+              "elf": "ply_bend",
+              "size": 20,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE994",
+              "name": "MP2K_event_bendr",
+              "elf": "ply_bendr",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE9A8",
+              "name": "MP2K_event_lfodl",
+              "elf": "ply_lfodl",
+              "size": 10,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE9B4",
+              "name": "MP2K_event_modt",
+              "elf": "ply_modt",
+              "size": 24,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE9CC",
+              "name": "MP2K_event_tune",
+              "elf": "ply_tune",
+              "size": 20,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BE9E0",
+              "name": "MP2K_event_port",
+              "elf": "ply_port",
+              "size": 24,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BEA44",
+              "name": "MP2KPlayerMain",
+              "elf": "MPlayMain",
+              "size": 616,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BECAC",
+              "name": "TrackStop",
+              "elf": "TrackStop_rev01",
+              "size": 68,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BED20",
+              "name": "MP2K_event_nxx",
+              "elf": "ply_note_rev01",
+              "size": 512,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BEF20",
+              "name": "MP2K_event_endtie",
+              "elf": "ply_endtie_rev01",
+              "size": 64,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BEF7C",
+              "name": "ld_r3_tp_adr_i_unchecked",
+              "elf": "ld_r3_tp_adr_i_rev",
+              "size": 12,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BEF88",
+              "name": "MP2K_event_lfos",
+              "elf": "ply_lfos_rev01",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BEF9C",
+              "name": "MP2K_event_mod",
+              "elf": "ply_mod_rev01",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BEFB0",
+              "name": "MidiKeyToFreq",
+              "elf": "MidiKey2fr",
+              "size": 100,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF014",
+              "name": "UnusedFunc",
+              "elf": "DummyFunc",
+              "size": 2,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF280",
+              "name": "m4aMPlayFadeOutTemporarily",
+              "elf": "m4aMPlayFadeOutPause",
+              "size": 32,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF2A0",
+              "name": "m4aMPlayFadeIn",
+              "elf": "m4aMPlayFadeInContinue",
+              "size": 40,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF42C",
+              "name": "ClearChain",
+              "elf": "ClearChain_rev",
+              "size": 20,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF440",
+              "name": "Clear64byte",
+              "elf": "Clear64byte_rev",
+              "size": 20,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF454",
+              "name": "SoundInit",
+              "elf": "SoundInit_rev01",
+              "size": 248,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF54C",
+              "name": "SampleFreqSet",
+              "elf": "SampFreqSet_rev01",
+              "size": 164,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF5F0",
+              "name": "m4aSoundMode",
+              "elf": "SoundMode_rev01",
+              "size": 152,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF688",
+              "name": "SoundClear",
+              "elf": "SoundClear_rev01",
+              "size": 84,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF6DC",
+              "name": "m4aSoundVSyncOff",
+              "elf": "SoundVSyncOff_rev01",
+              "size": 124,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF758",
+              "name": "m4aSoundVSyncOn",
+              "elf": "SoundVSyncOn_rev01",
+              "size": 60,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF794",
+              "name": "MPlayOpen",
+              "elf": "MPlayOpen_rev01",
+              "size": 120,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF80C",
+              "name": "MPlayStart",
+              "elf": "MPlayStart_rev01",
+              "size": 228,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF8F0",
+              "name": "MPlayStop",
+              "elf": "MPlayStop_rev01",
+              "size": 64,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF930",
+              "name": "FadeOutBody",
+              "elf": "FadeOutBody_rev01",
+              "size": 200,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BF9F8",
+              "name": "TrkVolPitSet",
+              "elf": "TrkVolPitSet_rev01",
+              "size": 180,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080BFAAC",
+              "name": "MidiKeyToCgbFreq",
+              "elf": "MidiKey2CgbFr",
+              "size": 168,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0058",
+              "name": "m4aMPlayTempoControl",
+              "elf": "MPlayTempoControl",
+              "size": 40,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0080",
+              "name": "m4aMPlayVolumeControl",
+              "elf": "MPlayVolumeControl",
+              "size": 104,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C00E8",
+              "name": "m4aMPlayPitchControl",
+              "elf": "MPlayPitchControl",
+              "size": 116,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C015C",
+              "name": "m4aMPlayPanpotControl",
+              "elf": "MPlayPanpotControl",
+              "size": 104,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C01C4",
+              "name": "ClearModM",
+              "elf": "MP_clear_modM",
+              "size": 30,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C01E4",
+              "name": "m4aMPlayModDepthSet",
+              "elf": "MPlayModDepthSet",
+              "size": 116,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0258",
+              "name": "m4aMPlayLFOSpeedSet",
+              "elf": "MPlayLFOSpeedSet",
+              "size": 116,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C02CC",
+              "name": "MP2K_event_memacc",
+              "elf": "ply_memacc",
+              "size": 344,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0424",
+              "name": "MP2K_event_xcmd",
+              "elf": "ply_xcmd",
+              "size": 32,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0444",
+              "name": "MP2K_event_xxx",
+              "elf": "ply_xxx",
+              "size": 20,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0458",
+              "name": "MP2K_event_xwave",
+              "elf": "ply_xwave",
+              "size": 72,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C04A0",
+              "name": "MP2K_event_xtype",
+              "elf": "ply_xtype",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C04B4",
+              "name": "MP2K_event_xatta",
+              "elf": "ply_xatta",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C04C8",
+              "name": "MP2K_event_xdeca",
+              "elf": "ply_xdeca",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C04DC",
+              "name": "MP2K_event_xsust",
+              "elf": "ply_xsust",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C04F0",
+              "name": "MP2K_event_xrele",
+              "elf": "ply_xrele",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0504",
+              "name": "MP2K_event_xiecv",
+              "elf": "ply_xiecv",
+              "size": 12,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0510",
+              "name": "MP2K_event_xiecl",
+              "elf": "ply_xiecl",
+              "size": 12,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C051C",
+              "name": "MP2K_event_xleng",
+              "elf": "ply_xleng",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0530",
+              "name": "MP2K_event_xswee",
+              "elf": "ply_xswee",
+              "size": 18,
+              "elfSize": 0
+            },
+            {
+              "addr": "0x080C0544",
+              "name": "MP2K_event_null",
+              "elf": "DummyFunc_rev",
+              "size": 2,
+              "elfSize": 0
+            }
+          ],
+          "unnamedInElf": 0
+        },
+        "extents": {
+          "agree": 22,
+          "differ": []
+        },
+        "data": {
+          "agree": 0,
+          "untyped": 10,
+          "wrong": []
+        },
+        "seconds": 0.7
+      },
+      "datasetProblems": [],
+      "scaffold": {
+        "ok": true,
+        "summary": "3 pieces in asm/crt0.s, 7729 functions and 1538 gaps in 6 code module(s) (m4a: 94 functions, version 2001; libagbsyscall: 18 functions, version agb; libgcc: 22 functions, version agbcc), 10 data symbols, data from 080C0C50; 6 entries inside another function's extent were folded into it; regenerated: 3 pieces in asm/crt0.s, 7729 functions and 1538 gaps in 6 code module(s) (m4a: 94 functions, version 2001; libagbsyscall: 18 functions, version agb; libgcc: 22 functions, version agbcc), 10 data symbols, data from 080C0C50; 6 entries inside another function's extent were folded into it"
+      }
+    },
+    {
+      "name": "klonoa",
+      "sha1": "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b",
+      "elfCommit": "a57c1f0",
+      "elfFunctions": 559,
+      "entries": 557,
+      "startup": {
+        "end": "0x080001D0",
+        "pieces": 3,
+        "elfFunctions": 3
+      },
+      "thumb": 539,
+      "arm": 18,
+      "tp": 556,
+      "precision": 0.9982046678635548,
+      "recall": 0.9946332737030411,
+      "misses": [
+        {
+          "addr": "0x0804F378",
+          "name": "sub_0804F378",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x0804F3A6",
+          "name": "sub_0804F3A6",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x0804F698",
+          "name": "sub_0804F698",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        }
+      ],
+      "falseEntries": [
+        {
+          "addr": "0x0804F73E",
+          "origin": "call",
+          "size": 26,
+          "listed": true,
+          "category": "unreviewed"
+        }
+      ],
+      "extents": {
+        "sized": 485,
+        "agree": 485,
+        "mismatches": []
+      },
+      "codeEnd": {
+        "found": "0x08051BD4",
+        "elf": "0x08051BD0",
+        "delta": 4
+      },
+      "deterministic": true,
+      "signatures": {
+        "versions": [
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "functions": 6,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "functions": 20,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2001",
+            "functions": 94,
+            "objects": 10
+          }
+        ],
+        "modules": [
+          {
+            "library": "m4a",
+            "version": "2001",
+            "kind": "code",
+            "start": "0x0804F284",
+            "end": "0x08051436",
+            "functions": 94,
+            "objects": 0
+          },
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "kind": "code",
+            "start": "0x08051438",
+            "end": "0x0805146C",
+            "functions": 6,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "kind": "code",
+            "start": "0x08051868",
+            "end": "0x08051B44",
+            "functions": 20,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2001",
+            "kind": "data",
+            "start": "0x081179E4",
+            "end": "0x08117CBC",
+            "functions": 0,
+            "objects": 10
+          }
+        ],
+        "functions": 120,
+        "objects": 10,
+        "entries": {
+          "agree": 119,
+          "untyped": 1,
+          "wrong": []
+        },
+        "names": {
+          "agree": 116,
+          "differ": [],
+          "unnamedInElf": 3
+        },
+        "extents": {
+          "agree": 78,
+          "differ": []
+        },
+        "data": {
+          "agree": 10,
+          "untyped": 0,
+          "wrong": []
+        },
+        "seconds": 0.2
+      },
+      "datasetProblems": [],
+      "scaffold": {
+        "ok": true,
+        "summary": "2 pieces in asm/crt0.s, 551 functions and 70 gaps in 6 code module(s) (m4a: 94 functions, version 2001; libagbsyscall: 6 functions, version agb; libgcc: 20 functions, version agbcc), 10 data symbols, data from 08051BD4; 6 entries inside another function's extent were folded into it; regenerated: 2 pieces in asm/crt0.s, 551 functions and 70 gaps in 6 code module(s) (m4a: 94 functions, version 2001; libagbsyscall: 6 functions, version agb; libgcc: 20 functions, version agbcc), 10 data symbols, data from 08051BD4; 6 entries inside another function's extent were folded into it"
+      }
+    },
+    {
+      "name": "pokeemerald",
+      "sha1": "f3ae088181bf583e55daf962a92bb46f4f1d07b7",
+      "elfCommit": "731ad5bfd",
+      "elfFunctions": 15856,
+      "entries": 15862,
+      "startup": {
+        "end": "0x0800039C",
+        "pieces": 4,
+        "elfFunctions": 0
+      },
+      "thumb": 15847,
+      "arm": 15,
+      "tp": 15856,
+      "precision": 0.9996217374858152,
+      "recall": 1,
+      "misses": [],
+      "falseEntries": [
+        {
+          "addr": "0x082DF050",
+          "origin": "arm-gap-scan",
+          "size": 12,
+          "owner": "umul3232H32",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x082DF0EC",
+          "origin": "arm-gap-scan",
+          "size": 84,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x082DF27C",
+          "origin": "arm-gap-scan",
+          "size": 508,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x082DF496",
+          "origin": "call",
+          "size": 2,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x082DF882",
+          "origin": "call",
+          "size": 8,
+          "owner": "ld_r3_tp_adr_i",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x082DFCB4",
+          "origin": "call",
+          "size": 2,
+          "owner": "MPlayMain",
+          "listed": true,
+          "category": "local-subroutine"
+        }
+      ],
+      "extents": {
+        "sized": 15853,
+        "agree": 15849,
+        "mismatches": [
+          {
+            "addr": "0x082DED84",
+            "name": "GameCubeMultiBoot_Main",
+            "elf": 244,
+            "found": 350
+          },
+          {
+            "addr": "0x082DF012",
+            "name": "GameCubeMultiBoot_Quit",
+            "elf": 34,
+            "found": 46
+          },
+          {
+            "addr": "0x082DF04C",
+            "name": "umul3232H32",
+            "elf": 16,
+            "found": 4
+          },
+          {
+            "addr": "0x082DF880",
+            "name": "ld_r3_tp_adr_i",
+            "elf": 1826,
+            "found": 10
+          }
+        ]
+      },
+      "codeEnd": {
+        "found": "0x082E952E",
+        "elf": "0x082E952E",
+        "delta": 0
+      },
+      "deterministic": true,
+      "signatures": {
+        "versions": [
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "functions": 15,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "functions": 67,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2004",
+            "functions": 109,
+            "objects": 10
+          }
+        ],
+        "modules": [
+          {
+            "library": "m4a",
+            "version": "2004",
+            "kind": "code",
+            "start": "0x082DF04C",
+            "end": "0x082E185C",
+            "functions": 109,
+            "objects": 0
+          },
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "kind": "code",
+            "start": "0x082E7078",
+            "end": "0x082E70CE",
+            "functions": 15,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "kind": "code",
+            "start": "0x082E70D0",
+            "end": "0x082E93D2",
+            "functions": 67,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2004",
+            "kind": "data",
+            "start": "0x086759E0",
+            "end": "0x08675D04",
+            "functions": 0,
+            "objects": 10
+          }
+        ],
+        "functions": 191,
+        "objects": 10,
+        "entries": {
+          "agree": 191,
+          "untyped": 0,
+          "wrong": []
+        },
+        "names": {
+          "agree": 189,
+          "differ": [
+            {
+              "addr": "0x082E8B70",
+              "name": "_fpadd_parts_2",
+              "elf": "_fpadd_parts",
+              "size": 378,
+              "elfSize": 378
+            }
+          ],
+          "unnamedInElf": 1
+        },
+        "extents": {
+          "agree": 187,
+          "differ": [
+            {
+              "addr": "0x082DF880",
+              "name": "ld_r3_tp_adr_i",
+              "elf": "ld_r3_tp_adr_i",
+              "size": 12,
+              "elfSize": 1826
+            }
+          ]
+        },
+        "data": {
+          "agree": 10,
+          "untyped": 0,
+          "wrong": []
+        },
+        "seconds": 0.5
+      },
+      "datasetProblems": [],
+      "scaffold": {
+        "ok": true,
+        "summary": "4 pieces in asm/crt0.s, 15856 functions and 3205 gaps in 6 code module(s) (m4a: 109 functions, version 2004; libagbsyscall: 15 functions, version agb; libgcc: 67 functions, version agbcc), 10 data symbols, data from 082E9530; 6 entries inside another function's extent were folded into it; regenerated: 4 pieces in asm/crt0.s, 15856 functions and 3205 gaps in 6 code module(s) (m4a: 109 functions, version 2004; libagbsyscall: 15 functions, version agb; libgcc: 67 functions, version agbcc), 10 data symbols, data from 082E9530; 6 entries inside another function's extent were folded into it"
+      }
+    },
+    {
+      "name": "sa2",
+      "sha1": "7bcd6a07af7c894746fa28073fe0c0e34408022d",
+      "elfCommit": "393357f7c",
+      "elfFunctions": 2892,
+      "entries": 2898,
+      "startup": {
+        "end": "0x080001CC",
+        "pieces": 3,
+        "elfFunctions": 1
+      },
+      "thumb": 2893,
+      "arm": 5,
+      "tp": 2892,
+      "precision": 0.9979296066252588,
+      "recall": 1,
+      "misses": [],
+      "falseEntries": [
+        {
+          "addr": "0x080945EC",
+          "origin": "arm-gap-scan",
+          "size": 12,
+          "owner": "umul3232H32",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x08094688",
+          "origin": "arm-gap-scan",
+          "size": 84,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x08094814",
+          "origin": "arm-gap-scan",
+          "size": 488,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x08094A1A",
+          "origin": "call",
+          "size": 2,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x08094ABE",
+          "origin": "call",
+          "size": 8,
+          "owner": "ld_r3_tp_adr_i",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x08094EF0",
+          "origin": "call",
+          "size": 2,
+          "owner": "MP2KPlayerMain",
+          "listed": true,
+          "category": "local-subroutine"
+        }
+      ],
+      "extents": {
+        "sized": 2889,
+        "agree": 2886,
+        "mismatches": [
+          {
+            "addr": "0x0800020C",
+            "name": "MultiSioIntr",
+            "elf": 280,
+            "found": 288
+          },
+          {
+            "addr": "0x080945E8",
+            "name": "umul3232H32",
+            "elf": 16,
+            "found": 4
+          },
+          {
+            "addr": "0x08094ABC",
+            "name": "ld_r3_tp_adr_i",
+            "elf": 1822,
+            "found": 10
+          }
+        ]
+      },
+      "codeEnd": {
+        "found": "0x080979F6",
+        "elf": "0x080979F6",
+        "delta": 0
+      },
+      "deterministic": true,
+      "signatures": {
+        "versions": [
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "functions": 12,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "functions": 24,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2001",
+            "functions": 94,
+            "objects": 10
+          }
+        ],
+        "modules": [
+          {
+            "library": "m4a",
+            "version": "2001",
+            "kind": "code",
+            "start": "0x080945E8",
+            "end": "0x0809679A",
+            "functions": 94,
+            "objects": 0
+          },
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "kind": "code",
+            "start": "0x0809710C",
+            "end": "0x08097178",
+            "functions": 12,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "kind": "code",
+            "start": "0x08097178",
+            "end": "0x08097944",
+            "functions": 24,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2001",
+            "kind": "data",
+            "start": "0x08ACDC78",
+            "end": "0x08ACDF50",
+            "functions": 0,
+            "objects": 10
+          }
+        ],
+        "functions": 130,
+        "objects": 10,
+        "entries": {
+          "agree": 130,
+          "untyped": 0,
+          "wrong": []
+        },
+        "names": {
+          "agree": 130,
+          "differ": [],
+          "unnamedInElf": 0
+        },
+        "extents": {
+          "agree": 126,
+          "differ": [
+            {
+              "addr": "0x08094ABC",
+              "name": "ld_r3_tp_adr_i",
+              "elf": "ld_r3_tp_adr_i",
+              "size": 12,
+              "elfSize": 1822
+            }
+          ]
+        },
+        "data": {
+          "agree": 10,
+          "untyped": 0,
+          "wrong": []
+        },
+        "seconds": 0.4
+      },
+      "datasetProblems": [],
+      "scaffold": {
+        "ok": true,
+        "summary": "2 pieces in asm/crt0.s, 2892 functions and 447 gaps in 6 code module(s) (m4a: 94 functions, version 2001; libagbsyscall: 12 functions, version agb; libgcc: 24 functions, version agbcc), 10 data symbols, data from 080979F8; 6 entries inside another function's extent were folded into it; regenerated: 2 pieces in asm/crt0.s, 2892 functions and 447 gaps in 6 code module(s) (m4a: 94 functions, version 2001; libagbsyscall: 12 functions, version agb; libgcc: 24 functions, version agbcc), 10 data symbols, data from 080979F8; 6 entries inside another function's extent were folded into it"
+      }
+    },
+    {
+      "name": "sa3",
+      "sha1": "685af3a2dc0f1b3f8922e73ec42c1dc92e210e39",
+      "elfCommit": "59df6083",
+      "elfFunctions": 4693,
+      "entries": 4699,
+      "startup": {
+        "end": "0x080001CC",
+        "pieces": 3,
+        "elfFunctions": 1
+      },
+      "thumb": 4694,
+      "arm": 5,
+      "tp": 4693,
+      "precision": 0.9987231325814003,
+      "recall": 1,
+      "misses": [],
+      "falseEntries": [
+        {
+          "addr": "0x080B983C",
+          "origin": "arm-gap-scan",
+          "size": 12,
+          "owner": "umul3232H32",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080B98D8",
+          "origin": "arm-gap-scan",
+          "size": 84,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080B9A64",
+          "origin": "arm-gap-scan",
+          "size": 488,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080B9C6A",
+          "origin": "call",
+          "size": 2,
+          "owner": "SoundMainRAM",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x080B9D0E",
+          "origin": "call",
+          "size": 8,
+          "owner": "ld_r3_tp_adr_i",
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x080BA140",
+          "origin": "call",
+          "size": 2,
+          "owner": "ld_r3_tp_adr_i",
+          "listed": true,
+          "category": "local-subroutine"
+        }
+      ],
+      "extents": {
+        "sized": 4307,
+        "agree": 4304,
+        "mismatches": [
+          {
+            "addr": "0x080B9838",
+            "name": "umul3232H32",
+            "elf": 16,
+            "found": 4
+          },
+          {
+            "addr": "0x080B9D0C",
+            "name": "ld_r3_tp_adr_i",
+            "elf": 1822,
+            "found": 10
+          },
+          {
+            "addr": "0x080C69A4",
+            "name": "MultiSioIntr",
+            "elf": 280,
+            "found": 288
+          }
+        ]
+      },
+      "codeEnd": {
+        "found": "0x080CE438",
+        "elf": "0x080CE438",
+        "delta": 0
+      },
+      "deterministic": true,
+      "signatures": {
+        "versions": [
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "functions": 13,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "functions": 65,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2001",
+            "functions": 94,
+            "objects": 10
+          }
+        ],
+        "modules": [
+          {
+            "library": "m4a",
+            "version": "2001",
+            "kind": "code",
+            "start": "0x080B9838",
+            "end": "0x080BB9EA",
+            "functions": 94,
+            "objects": 0
+          },
+          {
+            "library": "libagbsyscall",
+            "version": "agb",
+            "kind": "code",
+            "start": "0x080C7518",
+            "end": "0x080C7572",
+            "functions": 13,
+            "objects": 0
+          },
+          {
+            "library": "libgcc",
+            "version": "agbcc",
+            "kind": "code",
+            "start": "0x080C84BC",
+            "end": "0x080CA3A2",
+            "functions": 65,
+            "objects": 0
+          },
+          {
+            "library": "m4a",
+            "version": "2001",
+            "kind": "data",
+            "start": "0x080E3338",
+            "end": "0x080E3610",
+            "functions": 0,
+            "objects": 10
+          }
+        ],
+        "functions": 172,
+        "objects": 10,
+        "entries": {
+          "agree": 172,
+          "untyped": 0,
+          "wrong": []
+        },
+        "names": {
+          "agree": 169,
+          "differ": [
+            {
+              "addr": "0x080C7528",
+              "name": "DivRem",
+              "elf": "Mod",
+              "size": 8,
+              "elfSize": 6
+            },
+            {
+              "addr": "0x080C9B58",
+              "name": "_fpadd_parts_2",
+              "elf": "_fpadd_parts",
+              "size": 378,
+              "elfSize": 378
+            }
+          ],
+          "unnamedInElf": 1
+        },
+        "extents": {
+          "agree": 165,
+          "differ": [
+            {
+              "addr": "0x080B9D0C",
+              "name": "ld_r3_tp_adr_i",
+              "elf": "ld_r3_tp_adr_i",
+              "size": 12,
+              "elfSize": 1822
+            },
+            {
+              "addr": "0x080C7528",
+              "name": "DivRem",
+              "elf": "Mod",
+              "size": 8,
+              "elfSize": 6
+            },
+            {
+              "addr": "0x080C7558",
+              "name": "SoundBiasReset",
+              "elf": "SoundBiasReset",
+              "size": 8,
+              "elfSize": 6
+            },
+            {
+              "addr": "0x080C7560",
+              "name": "SoundBiasSet",
+              "elf": "SoundBiasSet",
+              "size": 8,
+              "elfSize": 6
+            }
+          ]
+        },
+        "data": {
+          "agree": 10,
+          "untyped": 0,
+          "wrong": []
+        },
+        "seconds": 0.5
+      },
+      "datasetProblems": [],
+      "scaffold": {
+        "ok": true,
+        "summary": "2 pieces in asm/crt0.s, 4693 functions and 862 gaps in 7 code module(s) (m4a: 94 functions, version 2001; libagbsyscall: 13 functions, version agb; libgcc: 65 functions, version agbcc), 10 data symbols, data from 080CE438; 6 entries inside another function's extent were folded into it; regenerated: 2 pieces in asm/crt0.s, 4693 functions and 862 gaps in 7 code module(s) (m4a: 94 functions, version 2001; libagbsyscall: 13 functions, version agb; libgcc: 65 functions, version agbcc), 10 data symbols, data from 080CE438; 6 entries inside another function's extent were folded into it"
+      }
+    }
+  ]
+}

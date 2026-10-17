@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>romlift benchmark</title>
+<style>
+  :root { --bg: #ffffff; --fg: #1a1a1a; --muted: #5f6368; --line: #e3e3e3; --card: #f7f7f8; --ok: #1b7f3b; --bad: #b3261e; --warn: #9a6700; --accent: #2b5cff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111214; --fg: #e8e8e8; --muted: #9aa0a6; --line: #2a2c30; --card: #1a1c20; --ok: #4ccb6a; --bad: #ff7b72; --warn: #e3b341; --accent: #7ba2ff; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 17px; margin: 32px 0 8px; } h3 { font-size: 14px; margin: 16px 0 6px; color: var(--muted); font-weight: 600; }
+  .meta { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .gate { margin: 16px 0; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); }
+  .gate.ok { border-color: var(--ok); } .gate.bad { border-color: var(--bad); }
+  .gate b { display: block; margin-bottom: 4px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  td.num, th.num { text-align: right; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  .tag { display: inline-block; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+  .tag.unreviewed { border-color: var(--warn); color: var(--warn); } .tag.missing { border-color: var(--bad); color: var(--bad); }
+  details { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 10px 0; background: var(--card); }
+  summary { cursor: pointer; font-weight: 600; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; width: 120px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .delta { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+  <h1>romlift benchmark</h1>
+  <div class="meta" id="meta">loading…</div>
+  <div id="gate"></div>
+  <h2>Per ROM</h2>
+  <div id="summary" class="scroll"></div>
+  <div id="diff"></div>
+  <h2>Real-tier gate record</h2>
+  <div id="gates" class="scroll"></div>
+  <h2>Rows</h2>
+  <div id="roms"></div>
+  <h2>Vocabulary</h2>
+  <div id="vocab"></div>
+</main>
+<script>
+const pct = (x) => (100 * x).toFixed(2) + '%';
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const tag = (row) => row.listed
+  ? `<span class="tag ${row.category === 'unreviewed' ? 'unreviewed' : ''}">${esc(row.category)}</span>`
+  : `<span class="tag missing">not listed</span>`;
+const bar = (x) => `<span class="bar"><i style="width:${(100 * x).toFixed(1)}%"></i></span>${pct(x)}`;
+const dl = (a, b, fmt = (v) => v) => a === b ? '' : `<span class="delta">${esc(fmt(a))} → </span>`;
+const table = (cols, rows) => `<table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+
+async function main() {
+  const res = await fetch('/api/results');
+  const data = await res.json();
+  if (data.error) { document.getElementById('meta').textContent = data.error; return; }
+  const { results, base, gate, notes, diff, datasets, vocab } = data;
+  const m = results.meta;
+  document.getElementById('meta').innerHTML = `Artifact at commit <code>${esc(m.commit ?? 'none')}</code>${m.dirty ? ' <span class="warn">(dirty tree)</span>' : ''}` +
+    ` · rows from <b>${esc(m.source)}</b> · Node ${esc(m.nodeMajor)} · source digest <code>${esc(m.sourceDigest.slice(0, 16))}</code>` +
+    ` · printer ${results.printer ? '<span class="ok">corpus summary current</span>' : '<span class="meta">no current corpus summary</span>'}` +
+    (base ? ` · compared with <code>${esc(base.ref)}</code> (commit <code>${esc(base.meta.commit ?? 'none')}</code>)` : ' · no base artifact to compare with') +
+    (notes.length ? `<div>${notes.map(esc).join('<br>')}</div>` : '');
+  const g = document.getElementById('gate');
+  g.className = 'gate ' + (gate.length ? 'bad' : 'ok');
+  g.innerHTML = gate.length
+    ? `<b class="bad">Regression: ${gate.length} failure${gate.length > 1 ? 's' : ''}</b>` + gate.map((f) => `<div class="mono">${esc(f)}</div>`).join('')
+    : `<b class="ok">Regression: passing</b>every miss and false entry is listed with a category, extents and code ends hold, and both runs agree`;
+
+  const byName = (name) => diff?.find((d) => d.name === name);
+  document.getElementById('summary').innerHTML = table(
+    ['ROM', '<span class="num">ELF functions</span>', 'Entries', 'Precision', 'Recall', 'Misses', 'False', 'Extents equal', 'Code end Δ', 'Checks'],
+    results.roms.map((r) => {
+      const d = byName(r.name);
+      const um = r.misses.filter((x) => !x.listed).length, uf = r.falseEntries.filter((x) => !x.listed).length;
+      return `<tr>
+        <td><b>${esc(r.name)}</b><div class="meta mono">${esc(r.sha1.slice(0, 10))}${r.elfCommit ? ' · ELF ' + esc(r.elfCommit) : ''}</div></td>
+        <td class="num">${r.elfFunctions}</td>
+        <td class="num">${r.entries} <div class="meta">${r.thumb} Thumb, ${r.arm} ARM</div></td>
+        <td>${d ? dl(d.precision[0], d.precision[1], pct) : ''}${bar(r.precision)}</td>
+        <td>${d ? dl(d.recall[0], d.recall[1], pct) : ''}${bar(r.recall)}</td>
+        <td class="num">${r.misses.length}${um ? ` <span class="bad">(${um} unlisted)</span>` : ''}</td>
+        <td class="num">${r.falseEntries.length}${uf ? ` <span class="bad">(${uf} unlisted)</span>` : ''}</td>
+        <td class="num">${d ? dl(d.extents[0], d.extents[1]) : ''}${r.extents.agree} / ${r.extents.sized}</td>
+        <td class="num ${Math.abs(r.codeEnd.delta) > 16 ? 'bad' : ''}">${r.codeEnd.delta >= 0 ? '+' : ''}${r.codeEnd.delta}</td>
+        <td>${r.deterministic ? '<span class="ok">deterministic</span>' : '<span class="bad">not deterministic</span>'} · ${r.scaffold.ok ? '<span class="ok">make OK</span>' : '<span class="bad">make failed</span>'}
+          <div class="meta">${esc((m.families[r.name] ?? []).join(', '))}</div></td>
+      </tr>`;
+    }));
+
+  if (diff) {
+    const moved = diff.filter((d) => [d.newMisses, d.newFalse, d.newMismatches, d.resolvedMisses, d.resolvedFalse, d.resolvedMismatches].some((x) => x.length));
+    document.getElementById('diff').innerHTML = `<h3>Rows that moved against ${esc(base.ref)}</h3>` + (moved.length ? moved.map((d) => `<details open><summary>${esc(d.name)}</summary>` +
+      [['Newly missed', d.newMisses, 'bad'], ['Newly false', d.newFalse, 'bad'], ['New extent mismatches', d.newMismatches, 'bad'],
+       ['Resolved misses', d.resolvedMisses, 'ok'], ['Resolved false entries', d.resolvedFalse, 'ok'], ['Resolved extent mismatches', d.resolvedMismatches, 'ok']]
+        .filter(([, rows]) => rows.length).map(([label, rows, cls]) => `<div><b class="${cls}">${label}: ${rows.length}</b>${rows.map((x) => `<div class="mono">${esc(x)}</div>`).join('')}</div>`).join('') + '</details>').join('')
+      : '<div class="empty">no row moved</div>');
+  }
+
+  document.getElementById('gates').innerHTML = results.gates.real.length
+    ? table(['Gate', 'Verdict', 'Detail', 'Inputs'], results.gates.real.map((g) => `<tr><td class="mono">${esc(g.id)}</td>` +
+        `<td class="${g.verdict === 'pass' || g.verdict === 'historical' ? 'ok' : 'bad'}">${esc(g.verdict)}</td><td>${esc(g.detail)}</td>` +
+        `<td class="mono">${Object.entries(g.inputs).map(([k, v]) => `${esc(k)}=${esc(String(v).slice(0, 12))}`).join('<br>')}</td></tr>`))
+    : '<div class="empty">no real-tier gate record (run npm run bench -- gates --tier real)</div>';
+
+  document.getElementById('roms').innerHTML = results.roms.map((r) => {
+    const ds = datasets.find((d) => d.name === r.name);
+    const rows = (title, list, cols, render) => `<h3>${title} (${list.length})</h3>` + (list.length ? `<div class="scroll">${table(cols, list.map(render))}</div>` : '<div class="empty">none</div>');
+    return `<details><summary>${esc(r.name)} — ${r.misses.length} misses, ${r.falseEntries.length} false entries, ${r.extents.mismatches.length} extent mismatches</summary>` +
+      rows('Misses (ELF functions not found)', r.misses, ['Address', 'Symbol', 'Size', 'Reason', 'Exception list'],
+        (x) => `<tr><td class="mono">${esc(x.addr)}</td><td class="mono">${esc(x.name)}</td><td class="num">${x.size}</td><td><span class="tag">${esc(x.reason)}</span> <span class="meta">${esc(vocab.missReasons[x.reason] ?? '')}</span></td><td>${tag(x)}</td></tr>`) +
+      rows('False entries (found, not an ELF function)', r.falseEntries, ['Address', 'Origin', 'Size', 'Inside', 'Exception list'],
+        (x) => `<tr><td class="mono">${esc(x.addr)}</td><td><span class="tag">${esc(x.origin)}</span></td><td class="num">${x.size}</td><td class="mono">${esc(x.owner ?? '')}</td><td>${tag(x)}</td></tr>`) +
+      rows('Extent mismatches', r.extents.mismatches, ['Address', 'Symbol', 'ELF size', 'Found'],
+        (x) => `<tr><td class="mono">${esc(x.addr)}</td><td class="mono">${esc(x.name)}</td><td class="num">${x.elf}</td><td class="num">${x.found}</td></tr>`) +
+      (ds ? `<div class="meta" style="margin-top:10px">dataset: ${ds.labels.length} labels, ${ds.untyped.length} untyped · family ${esc(ds.family)} · ROM <code>${esc(ds.rom)}</code> · ELF <code>${esc(ds.elf)}</code> (${esc(ds.elfSha256.slice(0, 12))}) · build: ${esc(ds.buildNote)}</div>` : '') +
+      '</details>';
+  }).join('');
+
+  const vt = (title, obj) => `<h3>${title}</h3><table><tbody>${Object.entries(obj).map(([k, v]) => `<tr><td><span class="tag">${esc(k)}</span></td><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('vocab').innerHTML = vt('Miss reasons', vocab.missReasons) + vt('Origins', vocab.origins) + vt('Exception categories', vocab.categories);
+}
+main().catch((e) => { document.getElementById('meta').textContent = String(e); });
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# Provenance of the committed real-tier artifact (architecture §8.6, D27). ROMs never reach CI, so CI
+# cannot re-run the real tier; it checks that bench/results.json was produced from exactly these
+# sources (the source digest, recomputed with the artifact's recorded Node major), that every real-tier
+# gate of a landed phase passed, that every live family ran, that every tuning dataset has a row and
+# that no sealed dataset has one. A digest mismatch fails with "re-run the real tier".
+name: provenance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install exactly the lock file
+        run: npm ci --ignore-scripts
+      - name: Check the artifact's provenance
+        run: npm run bench -- provenance
