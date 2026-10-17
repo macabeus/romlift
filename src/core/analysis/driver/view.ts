@@ -103,11 +103,21 @@ export function claimAt(s: DriverState, a: Addr): ClaimKind {
   return k >= 0 && k < s.claims.length ? ((s.claims[k] ?? 0) as ClaimKind) : Claim.free;
 }
 
-/** discover: accepted; confirm: listed or accepted. */
+/**
+ * discover: accepted; confirm: accepted, or listed and not a label. A `label = true` entry lies inside
+ * another listed function, so until it is taken a walk passes through it, as discover's walk of the
+ * function around it did.
+ */
 export function isFunction(s: DriverState, a: Addr): boolean {
   const k = a - s.rom.base;
   if (k >= 0 && k < s.claims.length && Number.isInteger(k)) return ((s.entryBits[k >>> 3] ?? 0) & (1 << (k & 7))) !== 0;
-  return s.funcs.has(a) || s.listed.has(a);
+  return s.funcs.has(a) || isListedBoundary(s, a);
+}
+
+/** A listed entry that is not a label (confirm mode). */
+export function isListedBoundary(s: Pick<DriverState, 'listed'>, a: Addr): boolean {
+  const seed = s.listed.get(a);
+  return seed !== undefined && seed.label !== true;
 }
 
 /** Records that a function starts at `a` in isFunction's index (accepted or listed entries only). */

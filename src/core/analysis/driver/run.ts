@@ -32,7 +32,7 @@ import { resolveRules, RULES } from './rules.ts';
 import { reuseState } from './reuse.ts';
 import { read } from './settle.ts';
 import { valid, whyInvalid } from './validity.ts';
-import { emit, extentEndOf, factOf, makeView, markEntry, ownerOf } from './view.ts';
+import { emit, extentEndOf, factOf, isListedBoundary, makeView, markEntry, ownerOf } from './view.ts';
 import type { DriverState } from './view.ts';
 
 /** The tuning `analyze` runs with: the ascending worklist (milestone M4, D10), epoch caching, nothing disabled. */
@@ -86,7 +86,7 @@ export function createDriver(rom: Rom, profile: CompilerProfile, options: Analys
     view,
     walkEnv: { view, policies: rules.walk, extentEnd: (shape) => rules.extentEnd(shape, profile) },
   };
-  for (const entry of state.listedOrder) markEntry(state, entry);
+  for (const entry of state.listedOrder) if (isListedBoundary(state, entry)) markEntry(state, entry);
   return state;
 }
 
