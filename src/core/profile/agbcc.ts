@@ -171,9 +171,13 @@ export const AGBCC: CompilerProfile = {
   pointerWords: { minPointers: 4, minShare: 0.25 },
   anchorSlack: 3,
   extentPoolGap: 8,
-  // seed.ram-copy (D60 e): the copy's arguments and the jump after a pointer load lie within 12
-  // instructions of the call or the load; a copied code block is at most 64 KiB (IWRAM is 32 KiB).
-  ramCopy: { argInsns: 12, maxBytes: 0x10000 },
+  // seed.ram-copy (D60 e): agbcc builds each of a call's three argument registers in at most two
+  // instructions (a pool load, then one copy, add, subtract, shift or mask), and guards a call made only
+  // for a non-zero size with one `cmp; beq` pair: 3 x 2 + 2 = 8. Measured, the longest argument setup of
+  // a copy call on the six tuning ROMs is 7 (tmc's InitOverlays: ldr; ldr; subs; cmp; beq; ldr; adds);
+  // the m4aSoundInit CpuSet of the other five is 6 (ldr; movs; negs; ands; ldr; ldr). The same window
+  // bounds the jump after an IWRAM pointer load.
+  ramCopy: { argInsns: 8 },
   gapScan: {
     backwardWindow: 4096,
     fillSlack: 3,

@@ -1,23 +1,41 @@
 // seed.ram-copy (D60 e): code that is copied from the ROM to IWRAM before it runs, found at its load
-// address. Accepted Thumb code that calls a routine with a ROM address S in r0, an IWRAM address D in r1
-// and a byte count L in r2, each built from pool literals (a memcpy(S, D, L) of its own block), names
-// [S, S + L) as the load image of code that runs at D. An IWRAM pointer P in [D, D + L) that accepted
-// code loads from its pool and jumps through (`bx`, `mov pc`, or `bl` to a `bx rN` stub of the same
-// register, libgcc's `_call_via_rN`) names the entry S + (P - D) of that image: Thumb when P is odd, ARM
-// otherwise. A pointer equal to D names the start of the block, which the copy itself already names:
-// it is no evidence of an entry the gap scan cannot reach once the block is inside the code, so it
-// proposes nothing.
+// address. Accepted Thumb code that calls a copy names [S, S + L) as the load image of code that runs at
+// D, where the copy is recognised by what the callee does, never by a fixed argument order:
+//
+//   - a BIOS copy (foundation/rom/bios.ts): an inline `swi 0x0B` (CpuSet) or `swi 0x0C` (CpuFastSet), or a
+//     `bl` to a library stub that is one followed by a return; r0 is the source, r1 the destination and
+//     r2 the control word, whose count and unit give L (a fill copies nothing);
+//   - a copy loop: a `bl` to Thumb code that loads through a register derived from one argument register
+//     and stores through a register derived from another (the source and the destination, whatever
+//     their order: a copy(source, dest, size) and memcpy(dest, src, n) alike). The third argument is the
+//     size: in bytes when it is added to a copy pointer (an end pointer), else the store width over the
+//     amount it is decremented by each iteration, in bytes per unit; any other shape declines.
+//
+// S, D and L are the argument values in the straight-line run before the call: pool literals, `movs`,
+// register copies, `adds`/`subs` with an immediate or a register, `negs`, `ands`, `orrs` and shifts of
+// known values. D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB), and [S, S + L) in
+// the ROM. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
+// (`bx`, `mov pc`, or `bl` to a `bx rN` stub of the same register, libgcc's `_call_via_rN`) names the
+// entry S + (P - D) of that image: Thumb when P is odd, ARM otherwise. A pointer equal to D names the
+// start of the block, which the copy itself already names: it is no evidence of an entry the gap scan
+// cannot reach once the block is inside the code, so it proposes nothing.
+//
+// An entry inside the block opens a function only when the instruction before it is an unconditional
+// exit: a pointer into code that falls through names a second entry, which the code before it holds.
 //
 // The rule is a queue rule and keeps no state: when the copying function is accepted it maps the jumps
 // of every accepted function; when a function that jumps through an IWRAM pointer is accepted it maps
 // that jump against the copies of every accepted function; each pair is proposed when the later of the
 // two is accepted. Targets are proposed ascending, and a target inside the code of a lower one is not
-// proposed (the validity a trusted queue skips); a claimed target, an ARM target that does not decode
-// or never returns, and an invalid Thumb target are not proposed either.
+// proposed (the validity a trusted queue skips); a claimed target, an ARM target that does not decode or
+// never returns, and an invalid Thumb target are not proposed either.
+import { popcount } from '../../../../foundation/isa/bits.ts';
 import { decode, isConditional, thumbWordAt } from '../../../../foundation/isa/decode.ts';
+import { pcOf, thumbPoolBase } from '../../../../foundation/isa/pc-relative.ts';
 import { registerEffect } from '../../../../foundation/isa/registers.ts';
 import type { Insn } from '../../../../foundation/isa/types.ts';
-import { regionOf } from '../../../../foundation/rom/memory-map.ts';
+import { BIOS_COPY_ARGS, biosCopyBytes } from '../../../../foundation/rom/bios.ts';
+import { MEMORY_REGIONS, regionOf } from '../../../../foundation/rom/memory-map.ts';
 import { contains, u16, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../../foundation/rom/span.ts';
 import { compareNumbers, sortedKeys } from '../../../../foundation/util/sorted.ts';
@@ -25,7 +43,7 @@ import type { AnalysisView, Proposal, Reading } from '../../types.ts';
 import { Claim } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
 
-/** One copy of a code block from the ROM to IWRAM, by the call at `site` of the accepted function `by`. */
+/** One copy of a code block from the ROM to IWRAM, by a call of the accepted function `by`. */
 interface Copy {
   readonly by: Addr;
   readonly source: Addr;
@@ -39,13 +57,46 @@ interface Jump {
   readonly pointer: number;
 }
 
+/** How a call copies: the argument registers of the source and the destination, and its size in bytes from the argument values. */
+interface CopyCall {
+  readonly source: number;
+  readonly dest: number;
+  bytes(args: readonly (number | undefined)[]): number | undefined;
+}
+
+const IWRAM = MEMORY_REGIONS.find((r) => r.name === 'iwram');
+
 function inIwram(a: number): boolean {
   return regionOf(a)?.name === 'iwram';
 }
 
+// Raw-bit pre-filters for the instructions the rule looks for, so a reading's other instructions are never
+// decoded (the rule reads only the instructions it needs).
+/** Thumb `ldr rd, [pc, #imm]` (format 6). */
+const THUMB_LDR_PC = { mask: 0xf800, match: 0x4800 } as const;
+/** ARM `ldr rd, [pc, #±imm]`: a word load, pre-indexed, base pc, no writeback, any condition. */
+const ARM_LDR_PC = { mask: 0x0f7f0000, match: 0x051f0000 } as const;
+/** The U bit of an ARM single data transfer: the offset is added. */
+const ARM_OFFSET_UP = 0x0080_0000;
+/** Thumb `bx rm`, `mov pc, rm`, and the first half of a `bl`: what can end a jump search. */
+const THUMB_BX = { mask: 0xff87, match: 0x4700 } as const;
+const THUMB_MOV_PC = { mask: 0xff87, match: 0x4687 } as const;
+const THUMB_BL_PREFIX = { mask: 0xf800, match: 0xf000 } as const;
+/** Thumb `swi imm8`. */
+const THUMB_SWI = { mask: 0xff00, match: 0xdf00 } as const;
+
+function matches(bits: number, p: { readonly mask: number; readonly match: number }): boolean {
+  return (bits & p.mask) >>> 0 === p.match;
+}
+
 /** The instruction of reading `r` at `a` (one of its instructions), decoded. */
 function insnAt(r: Reading, a: Addr, v: AnalysisView): Insn {
-  return r.mode === 'thumb' ? decode('thumb', thumbWordAt(v.rom, a), a) : decode('arm', u32(v.rom, a), a);
+  return decodedAt(a, r.mode, v);
+}
+
+/** The instruction at `a` in `mode`, decoded from the ROM. */
+function decodedAt(a: Addr, mode: Mode, v: AnalysisView): Insn {
+  return mode === 'arm' ? decode('arm', u32(v.rom, a), a) : decode('thumb', thumbWordAt(v.rom, a), a);
 }
 
 /** The instruction of `r` right before `a` in the straight line (it ends at `a`), or undefined. */
@@ -61,16 +112,16 @@ function following(r: Reading, a: Addr): Addr | undefined {
   return len !== undefined && r.insnAt.has(a + len) ? a + len : undefined;
 }
 
-/** The literal a Thumb `ldr rd, [pc, #imm]` or ARM `ldr rd, [pc, #+-imm]` at `a` loads, read from the raw bits without a decode; undefined for anything else. */
+/** The literal a Thumb `ldr rd, [pc, #imm]` or ARM `ldr rd, [pc, #±imm]` at `a` loads, from the raw bits; undefined for anything else. */
 function pcLoadLiteral(a: Addr, mode: Mode, v: AnalysisView): Addr | undefined {
   if (mode === 'thumb') {
     const h = u16(v.rom, a);
-    return (h & 0xf800) === 0x4800 ? ((a + 4) & ~3) + (h & 0xff) * 4 : undefined;
+    return matches(h, THUMB_LDR_PC) ? thumbPoolBase(a) + (h & 0xff) * 4 : undefined;
   }
   const w = u32(v.rom, a);
-  if ((w & 0x0f7f0000) !== 0x051f0000) return undefined;
+  if (!matches(w, ARM_LDR_PC)) return undefined;
   const off = w & 0xfff;
-  return a + 8 + ((w & 0x00800000) !== 0 ? off : -off);
+  return pcOf(a, 'arm') + ((w & ARM_OFFSET_UP) !== 0 ? off : -off);
 }
 
 /** Rows that copy one register into another unchanged. */
@@ -86,10 +137,46 @@ function writtenRegister(insn: Insn): number | undefined {
   return w !== 0 && (w & (w - 1)) === 0 ? 31 - Math.clz32(w) : undefined;
 }
 
+/** The value a Thumb row computes into the one register it writes, from known register values; undefined otherwise. */
+function computed(insn: Insn, regs: readonly (number | undefined)[]): number | undefined {
+  const f = insn.fields;
+  const reg = (name: string): number | undefined => regs[f[name] ?? 16];
+  const both = (x: number | undefined, y: number | undefined, op: (a: number, b: number) => number): number | undefined =>
+    x === undefined || y === undefined ? undefined : op(x, y) >>> 0;
+  switch (insn.specId) {
+    case 'thumb.mov_imm':
+      return f['imm'];
+    case 'thumb.add_imm3':
+      return both(reg('rn'), f['imm'], (a, b) => a + b);
+    case 'thumb.sub_imm3':
+      return both(reg('rn'), f['imm'], (a, b) => a - b);
+    case 'thumb.add_imm8':
+      return both(reg('rd'), f['imm'], (a, b) => a + b);
+    case 'thumb.sub_imm8':
+      return both(reg('rd'), f['imm'], (a, b) => a - b);
+    case 'thumb.add_reg':
+      return both(reg('rn'), reg('rm'), (a, b) => a + b);
+    case 'thumb.sub_reg':
+      return both(reg('rn'), reg('rm'), (a, b) => a - b);
+    case 'thumb.neg':
+      return both(0, reg('rm'), (a, b) => a - b);
+    case 'thumb.and':
+      return both(reg('rd'), reg('rm'), (a, b) => a & b);
+    case 'thumb.orr':
+      return both(reg('rd'), reg('rm'), (a, b) => a | b);
+    case 'thumb.lsl_imm':
+      return both(reg('rm'), f['imm'], (a, b) => a << b);
+    case 'thumb.lsr_imm':
+      return both(reg('rm'), f['imm5'] === 0 ? 32 : f['imm5'], (a, b) => (b >= 32 ? 0 : a >>> b));
+    default:
+      return undefined;
+  }
+}
+
 /**
  * The constant values of r0..r15 before the instruction at `at`, from the straight-line run of at most
- * `window` instructions before it: pool literals, `movs rd, #imm`, register copies, `adds rd, rn, #imm`
- * and `subs rd, rn, rm` of known values; any other write forgets the register.
+ * `window` instructions before it: pool literals, register copies and the arithmetic of `computed`; any
+ * other write forgets the register.
  */
 function constantsBefore(r: Reading, at: Addr, window: number, v: AnalysisView): (number | undefined)[] {
   const run: Addr[] = [];
@@ -104,43 +191,231 @@ function constantsBefore(r: Reading, at: Addr, window: number, v: AnalysisView):
     }
     const rd = writtenRegister(insn);
     const from = movedFrom(insn);
-    if (rd !== undefined && from !== undefined) regs[rd] = regs[from];
-    else if (rd !== undefined && insn.specId === 'thumb.mov_imm') regs[rd] = insn.fields['imm'];
-    else if (rd !== undefined && insn.specId === 'thumb.add_imm3') {
-      const base = regs[insn.fields['rn'] ?? 16];
-      regs[rd] = base === undefined ? undefined : (base + (insn.fields['imm'] ?? 0)) >>> 0;
-    } else if (rd !== undefined && insn.specId === 'thumb.sub_reg') {
-      const x = regs[insn.fields['rn'] ?? 16];
-      const y = regs[insn.fields['rm'] ?? 16];
-      regs[rd] = x === undefined || y === undefined ? undefined : (x - y) >>> 0;
-    } else {
-      const writes = registerEffect(insn).writes;
-      for (let k = 0; k < 16; k++) if ((writes & (1 << k)) !== 0) regs[k] = undefined;
-    }
+    const value = rd === undefined ? undefined : from !== undefined ? regs[from] : computed(insn, regs);
+    const writes = registerEffect(insn).writes;
+    for (let k = 0; k < 16; k++) if ((writes & (1 << k)) !== 0) regs[k] = undefined;
+    if (rd !== undefined) regs[rd] = value;
   }
   return regs;
 }
 
-/** The copies of a Thumb reading: calls whose r0, r1 and r2 hold a ROM source, an IWRAM destination and a size. */
+/** A BIOS copy call by number: the BIOS's argument registers, the bytes from its control word; undefined for another number. */
+function biosCall(swi: number): CopyCall | undefined {
+  if (biosCopyBytes(swi, 0) === undefined) return undefined;
+  return {
+    source: BIOS_COPY_ARGS.source,
+    dest: BIOS_COPY_ARGS.dest,
+    bytes: (args) => {
+      const control = args[BIOS_COPY_ARGS.control];
+      return control === undefined ? undefined : biosCopyBytes(swi, control);
+    },
+  };
+}
+
+/** The number of a Thumb `swi` of a BIOS copy call at `a`, from the raw halfword; undefined for anything else. */
+function biosSwiAt(a: Addr, v: AnalysisView): number | undefined {
+  if (!contains(v.rom, a, 2)) return undefined;
+  const h = u16(v.rom, a);
+  return matches(h, THUMB_SWI) && biosCall(h & 0xff) !== undefined ? h & 0xff : undefined;
+}
+
+const LOADS: ReadonlySet<string> = new Set(['thumb.ldr_imm', 'thumb.ldrb_imm', 'thumb.ldrh_imm', 'thumb.ldr_reg', 'thumb.ldrb_reg', 'thumb.ldrh_reg', 'thumb.ldrsb_reg', 'thumb.ldrsh_reg', 'thumb.ldmia']);
+const STORE_WIDTH: ReadonlyMap<string, number> = new Map([
+  ['thumb.str_imm', 4],
+  ['thumb.str_reg', 4],
+  ['thumb.strh_imm', 2],
+  ['thumb.strh_reg', 2],
+  ['thumb.strb_imm', 1],
+  ['thumb.strb_reg', 1],
+]);
+
+function pairKey(x: number, y: number): string {
+  return `${Math.min(x, y)},${Math.max(x, y)}`;
+}
+
+/** The argument (0, 1 or 2) each register holds at an instruction: null when it holds none, or different ones on different paths. */
+type Tags = readonly (number | null)[];
+
+/**
+ * What one instruction does to the argument tags: a register copy carries its source's tag, a pointer or a
+ * count stepped in place (`adds`/`subs rd, #imm`, `subs rd, rn, #imm`, the base of `ldmia`/`stmia`) keeps
+ * its tag, and any other write clears the registers it writes.
+ */
+function transfer(insn: Insn, s: Tags): (number | null)[] {
+  const out = [...s];
+  const f = insn.fields;
+  const rd = f['rd'];
+  const base = f['rn'];
+  if ((insn.specId === 'thumb.add_imm8' || insn.specId === 'thumb.sub_imm8') && rd !== undefined && s[rd] !== null) return out;
+  if (insn.specId === 'thumb.sub_imm3' && rd !== undefined && base !== undefined && s[base] !== null) {
+    out[rd] = s[base] ?? null;
+    return out;
+  }
+  const from = movedFrom(insn);
+  const written = writtenRegister(insn);
+  const stepped = (insn.specId === 'thumb.ldmia' || insn.specId === 'thumb.stmia') && base !== undefined && ((f['rlist'] ?? 0) & (1 << base)) === 0 ? base : undefined;
+  const writes = registerEffect(insn).writes;
+  for (let k = 0; k < 16; k++) if ((writes & (1 << k)) !== 0) out[k] = null;
+  if (written !== undefined && from !== undefined) out[written] = s[from] ?? null;
+  if (stepped !== undefined) out[stepped] = s[stepped] ?? null;
+  return out;
+}
+
+/** The instructions control reaches from `insn` inside the reading. */
+function successors(insn: Insn, r: Reading): Addr[] {
+  const next = insn.addr + insn.size;
+  const f = insn.flow;
+  const out: Addr[] = [];
+  if (f.kind === 'branch') {
+    out.push(f.target);
+    if (f.conditional) out.push(next);
+  } else if (f.kind === 'next' || f.kind === 'bl' || f.kind === 'pool-load' || f.kind === 'adr' || f.kind === 'swi') out.push(next);
+  return out.filter((a) => r.insnAt.has(a));
+}
+
+/**
+ * The argument tags at each instruction of a Thumb reading, by forward data flow from its entry (r0, r1,
+ * r2 hold arguments 0, 1, 2): where two paths disagree on a register, it holds none.
+ */
+function argumentTags(r: Reading, v: AnalysisView): ReadonlyMap<Addr, { readonly insn: Insn; readonly tags: Tags }> {
+  const at = new Map<Addr, { readonly insn: Insn; tags: (number | null)[] }>();
+  const entry: (number | null)[] = new Array<number | null>(16).fill(null);
+  entry[0] = 0;
+  entry[1] = 1;
+  entry[2] = 2;
+  at.set(r.entry, { insn: insnAt(r, r.entry, v), tags: entry });
+  const work: Addr[] = [r.entry];
+  while (work.length > 0) {
+    const a = work.pop() ?? r.entry;
+    const here = at.get(a);
+    if (here === undefined) continue;
+    const out = transfer(here.insn, here.tags);
+    for (const b of successors(here.insn, r)) {
+      const there = at.get(b);
+      if (there === undefined) {
+        at.set(b, { insn: insnAt(r, b, v), tags: [...out] });
+        work.push(b);
+        continue;
+      }
+      let changed = false;
+      for (let k = 0; k < 16; k++) {
+        if (there.tags[k] !== null && there.tags[k] !== out[k]) {
+          there.tags[k] = null;
+          changed = true;
+        }
+      }
+      if (changed) work.push(b);
+    }
+  }
+  return at;
+}
+
+/**
+ * How a Thumb callee copies, from what it does with its argument registers r0, r1 and r2 (argumentTags):
+ * a load through a base holding an argument marks that argument a source, a store a destination. Exactly
+ * one source and one destination, distinct, are needed; the third argument is the size, in bytes when it
+ * is added to one of them (an end pointer), else the store width over the one amount it is decremented by.
+ * Undefined otherwise.
+ */
+function loopCall(callee: Reading, v: AnalysisView): CopyCall | undefined {
+  if (callee.mode !== 'thumb' || callee.errors.length > 0) return undefined;
+  const loads = new Set<number>();
+  const stores = new Map<number, number>();
+  const steps = new Map<number, Set<number>>();
+  const ends = new Set<string>();
+  const step = (arg: number, by: number): void => {
+    const set = steps.get(arg) ?? new Set<number>();
+    set.add(by);
+    steps.set(arg, set);
+  };
+  const flow = argumentTags(callee, v);
+  for (const a of sortedKeys(flow)) {
+    const here = flow.get(a);
+    if (here === undefined) continue;
+    const { insn, tags } = here;
+    const f = insn.fields;
+    const tagOf = (name: string): number | null => tags[f[name] ?? 16] ?? null;
+    const base = tagOf('rn');
+    if (LOADS.has(insn.specId) && base !== null) loads.add(base);
+    const width = insn.specId === 'thumb.stmia' ? 4 * popcount(f['rlist'] ?? 0) : STORE_WIDTH.get(insn.specId);
+    if (width !== undefined && base !== null) stores.set(base, Math.max(width, stores.get(base) ?? 0));
+    const counted = insn.specId === 'thumb.sub_imm8' ? tagOf('rd') : insn.specId === 'thumb.sub_imm3' ? base : null;
+    if (counted !== null) step(counted, f['imm'] ?? 0);
+    if (insn.specId === 'thumb.add_reg') {
+      const x = tagOf('rn');
+      const y = tagOf('rm');
+      if (x !== null && y !== null && x !== y) ends.add(pairKey(x, y));
+    }
+  }
+  const sources = sortedKeys(loads).filter((a) => !stores.has(a));
+  const dests = sortedKeys(stores).filter((a) => !loads.has(a));
+  const source = sources.length === 1 ? sources[0] : undefined;
+  const dest = dests.length === 1 ? dests[0] : undefined;
+  if (source === undefined || dest === undefined) return undefined;
+  const size = [0, 1, 2].find((a) => a !== source && a !== dest);
+  if (size === undefined) return undefined;
+  const width = stores.get(dest) ?? 0;
+  let unit: number | undefined;
+  if (ends.has(pairKey(source, size)) || ends.has(pairKey(dest, size))) unit = 1;
+  else {
+    const by = sortedKeys(steps.get(size) ?? new Set<number>());
+    const k = by.length === 1 ? (by[0] ?? 0) : 0;
+    if (k > 0 && width % k === 0) unit = width / k;
+  }
+  if (unit === undefined) return undefined;
+  const perUnit = unit;
+  return {
+    source,
+    dest,
+    bytes: (args) => {
+      const n = args[size];
+      return n === undefined ? undefined : n * perUnit;
+    },
+  };
+}
+
+/** How the call to `target` copies: a BIOS stub (the `swi` of a copy call, then a return) or a copy loop. */
+function calleeCall(target: Addr, v: AnalysisView): CopyCall | undefined {
+  const swi = biosSwiAt(target, v);
+  if (swi !== undefined) return contains(v.rom, target + 2, 2) && decodedAt(target + 2, 'thumb', v).flow.kind === 'return' ? biosCall(swi) : undefined;
+  return loopCall(v.read(target, 'thumb'), v);
+}
+
+/** The copies of a Thumb reading: BIOS copy calls and calls of copy loops whose destination lies in IWRAM. */
 function copiesOf(by: Addr, r: Reading, v: AnalysisView): Copy[] {
-  if (r.mode !== 'thumb' || r.blSites.length === 0) return [];
+  if (r.mode !== 'thumb' || IWRAM === undefined) return [];
   const iwram = new Set(r.pools.filter((p) => inIwram(p.value)).map((p) => p.addr));
   if (iwram.size === 0 || !r.pools.some((p) => contains(v.rom, p.value & ~1))) return [];
-  const { argInsns, maxBytes } = v.profile.ramCopy;
+  const { argInsns } = v.profile.ramCopy;
+  const sites: { readonly at: Addr; readonly call: () => CopyCall | undefined }[] = [];
+  for (const site of r.blSites) sites.push({ at: site.site, call: () => calleeCall(site.target, v) });
+  for (const span of r.insns) {
+    const swi = span.len === 2 ? biosSwiAt(span.addr, v) : undefined;
+    if (swi !== undefined) sites.push({ at: span.addr, call: () => biosCall(swi) });
+  }
   const out: Copy[] = [];
-  for (const site of [...r.blSites].sort((a, b) => compareNumbers(a.site, b.site))) {
+  for (const site of sites.sort((a, b) => compareNumbers(a.at, b.at))) {
     // The destination is an IWRAM pool literal loaded in the window: without one there is nothing to decode.
     let loadsIwram = false;
     let steps = 0;
-    for (let a = previous(r, site.site); a !== undefined && steps < argInsns && !loadsIwram; a = previous(r, a), steps++) {
+    for (let a = previous(r, site.at); a !== undefined && steps < argInsns && !loadsIwram; a = previous(r, a), steps++) {
       const literal = pcLoadLiteral(a, 'thumb', v);
       loadsIwram = literal !== undefined && iwram.has(literal);
     }
     if (!loadsIwram) continue;
-    const [source, dest, bytes] = constantsBefore(r, site.site, argInsns, v);
+    // Only a call with an IWRAM address, a ROM address and a third known value among r0..r2 can copy code
+    // to IWRAM: the callee is read only then.
+    const args = constantsBefore(r, site.at, argInsns, v);
+    const known = [args[0], args[1], args[2]];
+    if (!known.some((x) => x !== undefined && inIwram(x)) || !known.some((x) => x !== undefined && contains(v.rom, x & ~1)) || known.includes(undefined)) continue;
+    const call = site.call();
+    if (call === undefined) continue;
+    const source = args[call.source];
+    const dest = args[call.dest];
+    const bytes = call.bytes(args);
     if (source === undefined || dest === undefined || bytes === undefined) continue;
     const start = source & ~1;
-    if (!inIwram(dest) || bytes <= 0 || bytes > maxBytes || !contains(v.rom, start, bytes)) continue;
+    if (!inIwram(dest) || bytes <= 0 || dest + bytes > IWRAM.start + IWRAM.size || !contains(v.rom, start, bytes)) continue;
     out.push({ by, source: start, dest, bytes });
   }
   return out;
@@ -149,13 +424,13 @@ function copiesOf(by: Addr, r: Reading, v: AnalysisView): Copy[] {
 /** The register `bl target` jumps through when the target is a `bx rN` stub (libgcc's `_call_via_rN`). */
 function stubRegister(target: Addr, v: AnalysisView): number | undefined {
   if (!contains(v.rom, target, 2)) return undefined;
-  const f = decode('thumb', thumbWordAt(v.rom, target), target).flow;
+  const f = decodedAt(target, 'thumb', v).flow;
   return f.kind === 'indirect' && f.via === 'bx' ? f.reg : undefined;
 }
 
 /** Thumb `bx rN`, `mov pc, rN` or the first half of a `bl`, from the raw halfword: what can end a jump search. */
 function mayJump(h: number): boolean {
-  return (h & 0xff87) === 0x4700 || (h & 0xff87) === 0x4687 || (h & 0xf800) === 0xf000;
+  return matches(h, THUMB_BX) || matches(h, THUMB_MOV_PC) || matches(h, THUMB_BL_PREFIX);
 }
 
 /** Whether the value loaded into `rd` at `load` is jumped through within `argInsns` straight-line instructions. */
@@ -234,23 +509,24 @@ function opensFunction(entry: Addr, mode: Mode, copy: Copy, v: AnalysisView): bo
   const size = mode === 'arm' ? 4 : 2;
   const prev = entry - size;
   if (entry === copy.source || prev < copy.source) return true;
-  if (!contains(v.rom, prev, size)) return false;
-  return exits(mode === 'arm' ? decode('arm', u32(v.rom, prev), prev) : decode('thumb', u16(v.rom, prev), prev));
+  return contains(v.rom, prev, size) && exits(decodedAt(prev, mode, v));
 }
 
-/** The entry a jump names in a copied block, or undefined when it names none. */
-function entryOf(copy: Copy, jump: Jump, v: AnalysisView): Proposal | undefined {
+/** The entry a jump names in a copied block, and its mode; undefined when it names none. */
+function namedEntry(copy: Copy, jump: Jump): { readonly entry: Addr; readonly mode: Mode } | undefined {
   const run = jump.pointer & ~1;
   if (run <= copy.dest || run >= copy.dest + copy.bytes) return undefined;
   const mode: Mode = (jump.pointer & 1) === 1 ? 'thumb' : 'arm';
   const entry = copy.source + (run - copy.dest);
   if (mode === 'arm' && (entry & 3) !== 0) return undefined;
-  if (v.isFunction(entry) || v.claimAt(entry) !== Claim.free || !opensFunction(entry, mode, copy, v)) return undefined;
-  if (mode === 'arm') {
-    const r = v.read(entry, 'arm');
-    if (r.insns.length === 0 || r.errors.length > 0 || r.returns === 0) return undefined;
-  } else if (!v.valid(entry)) return undefined;
-  return { entry, mode, cites: [jump.by, copy.by] };
+  return { entry, mode };
+}
+
+/** Whether the code at `entry` reads as a function: an ARM reading that decodes and returns, or a valid Thumb entry. */
+function readsAsFunction(entry: Addr, mode: Mode, v: AnalysisView): boolean {
+  if (mode === 'thumb') return v.valid(entry);
+  const r = v.read(entry, 'arm');
+  return r.insns.length > 0 && r.errors.length === 0 && r.returns > 0;
 }
 
 export default defineRule({
@@ -258,7 +534,7 @@ export default defineRule({
     id: 'seed.ram-copy',
     summary: 'the entries of a code block copied from the ROM to IWRAM, at the load addresses of the IWRAM pointers accepted code jumps through',
     restsOn:
-      'code that runs from IWRAM is copied there from its load image in the ROM by a call naming the source, the destination and the size, and the rest of the program reaches it only by jumping through its IWRAM addresses',
+      'code that runs from IWRAM is copied there from its load image in the ROM by a call naming the source, the destination and the size (a BIOS CpuSet or CpuFastSet, or a routine that loads through one argument and stores through another), and the rest of the program reaches it only by jumping through its IWRAM addresses',
     recovers: 'functions that run from IWRAM, linked at their load address, which no ROM address names (past the code end, or between unreferenced data)',
     reads: ['function-set', 'readings', 'rom', 'claims', 'validity'],
     adds: ['candidates'],
@@ -274,17 +550,19 @@ export default defineRule({
     const pairs: [Copy, Jump][] = [];
     if (own.length > 0) for (const j of allJumps(v)) for (const c of own) pairs.push([c, j]);
     if (jumps.length > 0) for (const c of allCopies(v)) if (c.by !== f.entry) for (const j of jumps) pairs.push([c, j]);
-    const byEntry = new Map<Addr, Proposal>();
+    const named = new Map<Addr, { readonly mode: Mode; readonly copy: Copy; readonly cites: readonly Addr[] }>();
     for (const [c, j] of pairs) {
-      const p = entryOf(c, j, v);
-      if (p !== undefined && !byEntry.has(p.entry)) byEntry.set(p.entry, p);
+      const e = namedEntry(c, j);
+      if (e !== undefined && !named.has(e.entry)) named.set(e.entry, { mode: e.mode, copy: c, cites: [j.by, c.by] });
     }
     const out: Proposal[] = [];
+    // The instructions of the entries proposed so far, ascending: a higher entry inside them is not proposed.
     const covered = new Set<Addr>();
-    for (const entry of sortedKeys(byEntry)) {
-      const p = byEntry.get(entry);
-      if (p === undefined || covered.has(entry)) continue;
-      out.push(p);
+    for (const entry of sortedKeys(named)) {
+      const p = named.get(entry);
+      if (p === undefined || covered.has(entry) || v.isFunction(entry) || v.claimAt(entry) !== Claim.free) continue;
+      if (!opensFunction(entry, p.mode, p.copy, v) || !readsAsFunction(entry, p.mode, v)) continue;
+      out.push({ entry, mode: p.mode, cites: p.cites });
       for (const i of v.read(entry, p.mode).insns) if (i.addr !== entry) covered.add(i.addr);
     }
     return out;

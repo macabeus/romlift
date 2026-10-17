@@ -52,7 +52,7 @@
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function
     seed.ram-copy: the entries of a code block copied from the ROM to IWRAM, at the load addresses of the IWRAM pointers accepted code jumps through
-      rests on: code that runs from IWRAM is copied there from its load image in the ROM by a call naming the source, the destination and the size, and the rest of the program reaches it only by jumping through its IWRAM addresses
+      rests on: code that runs from IWRAM is copied there from its load image in the ROM by a call naming the source, the destination and the size (a BIOS CpuSet or CpuFastSet, or a routine that loads through one argument and stores through another), and the rest of the program reaches it only by jumping through its IWRAM addresses
       recovers: functions that run from IWRAM, linked at their load address, which no ROM address names (past the code end, or between unreferenced data)
     valid.decodes: the walk from the entry decodes at least one instruction and hits no decode error
       rests on: every path of a compiled function decodes until it returns or jumps away

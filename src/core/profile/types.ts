@@ -96,10 +96,10 @@ export interface CompilerProfile {
   readonly extentPoolGap: number;
   /**
    * Code copied to IWRAM (seed.ram-copy): the arguments of a copy call and the jump after an IWRAM
-   * pointer load are looked for within argInsns straight-line instructions; a copy of more than maxBytes
-   * is not a code block.
+   * pointer load are looked for within argInsns straight-line instructions. (The size bound of a copy is
+   * the hardware's: IWRAM's 32 KiB, from the memory map.)
    */
-  readonly ramCopy: { readonly argInsns: number; readonly maxBytes: number };
+  readonly ramCopy: { readonly argInsns: number };
   readonly gapScan: {
     /** How far below a gap's end the end-anchor scan looks. */
     readonly backwardWindow: number;

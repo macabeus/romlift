@@ -104,7 +104,7 @@ romlift/
     index.ts, node.ts, isa.ts, internal.ts   barrels: only `export * from './api/<component>.ts'` lines
     api/                            one barrel per component, created empty by its phase's component 0 (D43)
     foundation/                     no project knowledge; imports nothing outside foundation/
-      rom/                          span.ts, rom.ts, header.ts, memory-map.ts, codes.ts
+      rom/                          span.ts, rom.ts, header.ts, memory-map.ts, bios.ts, codes.ts
       isa/                          types.ts, thumb-table.ts, arm-table.ts, decode.ts, encode.ts, format.ts,
                                     parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59)
       corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
@@ -905,7 +905,7 @@ export interface CompilerProfile {
   readonly gapScan: { readonly backwardWindow: number; readonly fillSlack: number;
                       readonly armFrontPoolWords: number; readonly armMinInsnsForSkip: number;
                       readonly prologueDistance: number };
-  readonly ramCopy: { readonly argInsns: number; readonly maxBytes: number };   // seed.ram-copy (D60 e): 12, 64 KiB
+  readonly ramCopy: { readonly argInsns: number };   // seed.ram-copy (D60 e): 8; a copy fits IWRAM (the memory map)
   readonly alignment: { readonly thumbFunction: number; readonly armFunction: number; readonly cFunction: number;
                         readonly pool: number; readonly object: number };
   // misfitThreshold returns with the first raiser of W_PROFILE_MISFIT (D59)

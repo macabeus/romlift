@@ -79,6 +79,8 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 | `unreferenced-leaf` | positive | an unreferenced leaf after a called one (C); the suppressed split: without the rule, `Leaf` is missed, lies in no found extent and has no prologue, so the held-out classifier must call it `glued` | `gap.forward-chain` |
 | `data-named-between-data` | positive | a function named only by one word of a command table, between two blocks of data, calling an accepted function | `accept.prologue-and-calls-accepted` |
 | `ram-code-entries` | positive | ARM routines copied to IWRAM and linked at their load address, past every other function, reached only through veneers that name their IWRAM addresses | `seed.ram-copy` |
+| `ram-copy-memcpy` | rule-specific | the `ram-code-entries` block copied by `CopyBytes(dest, src, n)` (agbcc C, memcpy's argument order): the copy's roles come from what the callee does | `seed.ram-copy` (callee roles; a fixed source-first order loses the block) |
+| `ram-copy-bios` | rule-specific | two ARM blocks copied to IWRAM by CpuSet (32-bit units) and CpuFastSet through `swi; bx lr` stubs | `seed.ram-copy` (the BIOS control word; a byte count in r2 loses both blocks) |
 | `local-subroutine` | rule-specific | a helper inside its caller's extent, called with `bl` | `bl.near-is-call` |
 | `pops-unpushed-frame` | rule-specific | far `bl` to the caller's own epilogue past a 1.6 KiB table; callees before the entry, with a prologue, and already accepted | `bl.target-pops-unpushed-frame`, `bl.target-before-entry`, `bl.target-has-prologue`, `bl.target-beyond-callee` |
 | `mov-lr-pc-bx` | rule-specific | ARM `mov lr, pc; bx r1` to an `adr`-named routine | `walk.mov-lr-pc-bx-is-call`, `seed.adr` |
