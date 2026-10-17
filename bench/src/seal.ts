@@ -1,8 +1,8 @@
 // The sealed held-out tier (architecture §8.4 "Held-out runs", D25, D53): the counts a sealed run keeps,
-// the per-ROM thresholds, the verdict across sealed ROMs, the guard that keeps addresses and names out
+// the per-ROM thresholds (the verdict across sealed ROMs and the D60 waiver are
+// test/gates/held-out-verdict.ts, which g2.held-out calls), the guard that keeps addresses and names out
 // of a sealed entry, the append-only reveal log, `adopt`'s refusal and the shape of a dataset created
 // sealed. Pure: plain data in, plain data out; the bench commands do the reading and the printing.
-import { compareCodeUnits } from 'romlift';
 
 import type { Dataset, Reveal } from './dataset.ts';
 import { classifier, classifyFalseEntry, classifyMiss, gluedWhere as whereGlued, type ClassifyInput } from './classify.ts';
@@ -149,71 +149,6 @@ export function sealedPasses(counts: SealedCounts): SealedVerdict {
   if (share(counts.extents.agree, counts.extents.sized) < t.minExtents) failures.push('extents');
   if (Math.abs(counts.codeEnd.delta) > t.maxCodeEndDelta) failures.push('code-end');
   return { pass: failures.length === 0, failures };
-}
-
-export interface SealedResult {
-  readonly name: string;
-  readonly family: string;
-  readonly pass: boolean;
-}
-
-/**
- * The owner's waiver of the family conditions of D53 (D60): recorded when no sealed ROM of a family
- * absent from the tuning set remains. It names when and by whom it was decided.
- */
-export interface FamilyWaiver {
-  readonly decided: string;
-  readonly by: string;
-  readonly decision: string;
-}
-
-/**
- * The waiver of 17 October 2026: the owner moved tmc, the only sealed ROM of a family absent from the
- * tuning set, into the tuning set ("Tune on tmc, no new ROM", architecture section 12 item 4), so the
- * held-out gate is recorded as having no held-out ROM of such a family.
- */
-export const FAMILY_WAIVER: FamilyWaiver = { decided: '2026-10-17', by: 'the owner, Bruno Macabeus (architecture section 12 item 4)', decision: 'D60' };
-
-export interface HeldOutVerdict {
-  readonly pass: boolean;
-  /** The passing datasets, in input order. */
-  readonly passing: readonly string[];
-  /** The families of the passing datasets, sorted. */
-  readonly families: readonly string[];
-  /** Those of `families` absent from the tuning set. */
-  readonly freshFamilies: readonly string[];
-  readonly problems: readonly string[];
-  /** The family conditions the waiver covered (they would have failed), when it applied. */
-  readonly waived?: readonly string[];
-}
-
-/**
- * At least two sealed ROMs pass, from at least two families, one of them absent from the tuning set
- * (D53). With `waiver` (D60), and only while no sealed ROM at all is of a family absent from the tuning
- * set, the two family conditions are reported as waived instead of failing; the count of passing ROMs
- * and every per-ROM threshold still decide.
- */
-export function heldOutVerdict(results: readonly SealedResult[], tuningFamilies: readonly string[], waiver?: FamilyWaiver): HeldOutVerdict {
-  const tuning = new Set(tuningFamilies);
-  const passed = results.filter((r) => r.pass);
-  const families = [...new Set(passed.map((r) => r.family).filter((f) => f !== ''))].sort(compareCodeUnits);
-  const freshFamilies = families.filter((f) => !tuning.has(f));
-  const problems: string[] = [];
-  const familyProblems: string[] = [];
-  if (passed.length < 2) problems.push(`${passed.length} of ${results.length} sealed ROMs pass, at least two must`);
-  if (families.length < 2) familyProblems.push(`the passing ROMs span ${families.length} codebase families, at least two must`);
-  if (freshFamilies.length === 0) familyProblems.push('no passing ROM is from a family absent from the tuning set');
-  const anyFresh = results.some((r) => r.family !== '' && !tuning.has(r.family));
-  const waives = waiver !== undefined && !anyFresh && familyProblems.length > 0;
-  if (!waives) problems.push(...familyProblems);
-  return {
-    pass: problems.length === 0,
-    passing: passed.map((r) => r.name),
-    families,
-    freshFamilies,
-    problems,
-    ...(waives ? { waived: familyProblems.map((p) => `${p}: waived by ${waiver.by} on ${waiver.decided} (${waiver.decision})`) } : {}),
-  };
 }
 
 /** The lowest address of the GBA map (EWRAM): a number this large in a sealed entry is an address, not a count. */

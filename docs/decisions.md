@@ -1607,11 +1607,16 @@ tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeu
   misses are fixed with general rules and its remaining rows are classified like those of the other five
   tuning datasets. pokefirered and pokeruby stay sealed and must keep passing. `g2.held-out` is recorded as
   having no held-out ROM of a family absent from the tuning set: its two family conditions (the passing
-  ROMs span two codebase families, one of them absent from the tuning set) are waived while no sealed
-  dataset at all is of such a family, and the gate prints each waived condition (`WAIVED: …, by the owner
-  … on 2026-10-17 (D60)`); every per-ROM threshold, the seal and "at least two sealed ROMs pass" still
-  decide (`test/gates/g2.held-out.test.ts`, `bench/src/seal.ts` `FAMILY_WAIVER`). This is the only gate
-  change the decision authorises. A sealed pair of a fresh family is still needed before release 1 claims
+  ROMs span two codebase families, one of them absent from the tuning set) are waived, and the gate prints
+  each waived condition with its grounds (`WAIVED: …, by the owner … on 2026-10-17 (D60; …)`). The owner's
+  words cover the fresh-family condition; the two-families condition is waived by inference (pokefirered
+  and pokeruby, both `pret-gen3`, must pass and phase 2 then lands), and the owner is asked to confirm it
+  (phase-2.md, "Owner questions"). The waiver is bound to the facts it was decided on: the sealed datasets
+  pokefirered and pokeruby by name, ROM SHA-1 and ELF SHA-256, and the tuning families fe-gba, kleod,
+  pret-gen3, sat-r and zeldaret-tmc; any change to either ends it and needs a new decision. Every per-ROM
+  threshold, the seal and "at least two sealed ROMs pass" still decide. The verdict is one function,
+  `heldOutVerdict` in `test/gates/held-out-verdict.ts`, which the gate calls and the unit tests cover. This
+  is the only gate change the decision authorises. A sealed pair of a fresh family is still needed before release 1 claims
   generality (D53).
 - (a) **The gap scan resumes through the profile** (fill-gaps.ts `resume`): after a reading, at the
   halfword where it ends when `alignment.thumbFunction` allows a Thumb function there and the halfword is
