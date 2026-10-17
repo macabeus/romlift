@@ -14,7 +14,8 @@ Four principles drive it:
 - **Every gate is an executable test from the first commit.** A gate reports one of five verdicts:
   `pass`, `fail`, `pending` (its exports are not public yet), `unavailable` (a local input such as a
   ROM, an ELF or the PoC checkout is missing; the input is named) and `historical` (a PoC-parity gate
-  frozen after phase 2 lands, its evidence committed). A phase lands when every gate of that phase and
+  frozen after phase 2 lands, its evidence committed; its `historicalCheck`, when it has one, still runs
+  and fails the gate when the evidence does not cover what the gate covered). A phase lands when every gate of that phase and
   of all earlier phases is `pass` or `historical` on both tiers (D29, D50).
 - **Nothing ships before its phase.** A command, a TOML key or a writer appears in the phase that
   gates it. Nothing is stubbed early.
@@ -1019,7 +1020,9 @@ listed in `accepted-diffs.json`.
 
 `'poc-lifo'` was deleted by the phase-2 integration and the oracle in its fix round (D59); `g2.poc-parity`
 checks the committed evidence (the digests and the lockstep summary in `results.json`, tied to the commit
-it names) and becomes `historical` when phase 2 lands. It is never re-run.
+it names) and becomes `historical` when phase 2 lands. It is never re-run; once historical it still checks
+that the committed evidence covers every tuning dataset (`test/gates/poc-parity-coverage.ts`), so raising
+`phase.json` cannot freeze a fail (D60, gate-honesty-r1-3).
 
 ## 5. The printer
 
@@ -1898,6 +1901,7 @@ export interface GateSpec {
   readonly needs: readonly string[];      // public exports the gate calls, e.g. ['analyze', 'explain']
   readonly inputs?: readonly ('roms' | 'elfs' | 'objects' | 'poc' | 'toolchain' | 'klonoa')[];
   readonly historicalAfter?: 2;           // PoC-parity gates: frozen once that phase lands
+  historicalCheck?(cx: GateContext): Promise<void>; // still runs once frozen; throws on failure
   run(cx: GateContext): Promise<void>;    // throws on failure
 }
 export type Verdict = 'pass' | 'fail' | 'pending' | 'unavailable' | 'historical';
@@ -2001,7 +2005,7 @@ one is missing.
 | `g1.dataset-elf` | real | every `labels` row is an ELF `FUNC` inside a found function, every `untyped` row is not a `FUNC` |
 | `g1.provenance` | ci | the source digest, gate record, family and held-out checks of §8.6 run and agree with the committed artifact |
 | `g1.checks-fail` | ci | mutation tests of the phase-1 checkers (architecture, corpus comparator, dataset check, provenance) |
-| `g2.poc-parity` | real (historical after phase 2) | M1: parity-view digests equal `poc-digests.json`; rows equal the PoC baseline |
+| `g2.poc-parity` | real (historical after phase 2) | M1: parity-view digests equal `poc-digests.json`; rows equal the PoC baseline; once historical, the evidence covers every tuning dataset |
 | `g2.baseline-rows` | real | rows equal the baseline except the improvements in `accepted-diffs.json`; no stale improvement |
 | `g2.entries` | real | the entries family of §8.4 |
 | `g2.extents` | real | the extents family |

@@ -5,7 +5,9 @@
 // deleted, as the `parity` member of bench/results.json (romlift-bench/parity-evidence@1); this gate
 // checks that committed evidence, ties it to the commit it names (an ancestor of HEAD, so the evidence
 // was recorded on this branch's history), and is historical once phase 2 lands. Nothing re-runs the
-// lockstep: the oracle that replayed the PoC's log was deleted in the fix round of phase 2 (D59).
+// lockstep: the oracle that replayed the PoC's log was deleted in the fix round of phase 2 (D59). Once
+// historical, it still checks that the committed evidence covers every tuning dataset
+// (poc-parity-coverage.ts), so raising phase.json cannot freeze a fail into `historical`.
 //
 // Per tuning ROM in `parity.roms` it reads: digest and expected (the run's parity digest and the PoC's),
 // rowDiffs (rows that differed from the PoC baseline), and lockstep[] ({set, queries, matched, skipped,
@@ -13,7 +15,8 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { gate } from './gate.ts';
+import { gate, type GateContext } from './gate.ts';
+import { parityCoverageProblems, SCOPED_OUT } from './poc-parity-coverage.ts';
 
 interface LockstepSet {
   readonly set: string;
@@ -35,6 +38,12 @@ interface Evidence {
 
 const SETS = ['driver', 'walk+bl+claim', 'seed+valid+accept', 'gap+region', 'all'];
 
+async function committed(cx: GateContext): Promise<{ readonly evidence: Evidence | undefined; readonly digests: { readonly pocSourceDigest: string; readonly roms: Readonly<Record<string, string>> } }> {
+  const results = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'results.json'), 'utf8')) as { readonly parity?: Evidence };
+  const digests = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as { readonly pocSourceDigest: string; readonly roms: Readonly<Record<string, string>> };
+  return { evidence: results.parity, digests };
+}
+
 gate({
   id: 'g2.poc-parity',
   phase: 2,
@@ -42,10 +51,18 @@ gate({
   inputs: [],
   historicalAfter: 2,
   needs: [],
+  async historicalCheck(cx) {
+    const { evidence, digests } = await committed(cx);
+    const problems = parityCoverageProblems(
+      { evidenceRoms: Object.keys(evidence?.roms ?? {}), digestRoms: Object.keys(digests.roms) },
+      cx.datasets.map((d) => d.name),
+      SCOPED_OUT,
+    );
+    if (problems.length > 0) throw new Error(`historical, but the committed M1 evidence does not cover every tuning ROM: ${problems.join('; ')}`);
+    cx.note(`the committed M1 evidence covers all ${cx.datasets.length} tuning ROMs`);
+  },
   async run(cx) {
-    const results = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'results.json'), 'utf8')) as { readonly parity?: Evidence };
-    const digests = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as { readonly pocSourceDigest: string; readonly roms: Readonly<Record<string, string>> };
-    const e = results.parity;
+    const { evidence: e, digests } = await committed(cx);
     if (e === undefined) throw new Error('bench/results.json holds no parity evidence');
     if (e.schema !== 'romlift-bench/parity-evidence@1' || e.worklist !== 'poc-lifo') throw new Error(`the parity evidence is ${e.schema} under ${e.worklist}`);
     const problems: string[] = [];

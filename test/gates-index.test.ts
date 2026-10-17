@@ -51,7 +51,7 @@ const GATE_FILE = /^g\d.*\.test\.ts$/;
 const ROW = /^\| `(g([1-6])\.[a-z0-9-]+)` \| ([^|]+?) \| (.+) \|$/;
 const TIER_TEXT = /^(ci and real|ci|real)(?: \((?:historical after phase ([1-6])|(sealed))\))?$/;
 const GATE_INPUTS: ReadonlySet<string> = new Set(['roms', 'elfs', 'objects', 'poc', 'toolchain', 'klonoa']);
-const SPEC_KEYS: ReadonlySet<string> = new Set(['id', 'phase', 'tier', 'needs', 'inputs', 'realInputs', 'historicalAfter', 'run']);
+const SPEC_KEYS: ReadonlySet<string> = new Set(['id', 'phase', 'tier', 'needs', 'inputs', 'realInputs', 'historicalAfter', 'historicalCheck', 'run']);
 
 function architecture(): string {
   return readFileSync(path.join(repoRoot, 'docs', 'architecture.md'), 'utf8');
@@ -201,6 +201,8 @@ test('every gate file loads and declares the gate() spec §13 gives it', () => {
     assert.equal(spec.tier, row.tier, `${name}: tier (§13 '${row.tier}')`);
     assert.equal(spec.historicalAfter, row.historicalAfter, `${name}: historicalAfter`);
     assert.ok(spec.hasRun, `${name}: run is not a function`);
+    // A historical gate keeps checking that its evidence covers what it covered (D60, gate-honesty-r1-3).
+    assert.equal(spec.keys.includes('historicalCheck'), spec.historicalAfter !== undefined, `${name}: historicalCheck exactly when historicalAfter`);
     assert.ok(isStringArray(spec.needs), `${name}: needs is not a string array`);
     for (const key of ['inputs', 'realInputs'] as const) {
       const value = spec[key];

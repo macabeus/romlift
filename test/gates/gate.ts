@@ -1,7 +1,8 @@
 // The gate framework (architecture §10, D29, D50). Every `test/gates/gN.<name>.test.ts` calls `gate()`
 // once; `gate()` registers one node:test test named by the gate id and decides its verdict:
 //
-//   historical   a PoC-parity gate once phase.json.landed >= historicalAfter
+//   historical   a PoC-parity gate once phase.json.landed >= historicalAfter; when the gate has a
+//                `historicalCheck`, that check still runs and its failure makes the verdict `fail`
 //   pending      a name in `needs` is exported by none of romlift, romlift/node, romlift/isa, romlift/internal
 //   unavailable  a declared local input (`inputs`, plus `realInputs` on the real tier) is missing or its
 //                digest differs from the recorded one
@@ -39,6 +40,12 @@ export interface GateSpec {
   readonly realInputs?: readonly GateInput[];
   /** PoC-parity gates: frozen as `historical` once this phase has landed. */
   readonly historicalAfter?: 2;
+  /**
+   * What a historical gate still checks once frozen (throws on failure, which records `fail`): that its
+   * committed evidence covers what the gate covered when it judged, so landing cannot freeze a gate that
+   * was failing (D60, gate-honesty-r1-3).
+   */
+  historicalCheck?(cx: GateContext): Promise<void>;
   /** Throws on failure. */
   run(cx: GateContext): Promise<void>;
 }
@@ -818,7 +825,9 @@ export function gate(spec: GateSpec): void {
       throw error;
     }
 
-    if (precondition !== undefined) {
+    // A historical gate with a check runs that check instead of `run`, and records `historical` when it holds.
+    const check = precondition?.verdict === 'historical' ? spec.historicalCheck : undefined;
+    if (precondition !== undefined && check === undefined) {
       const missing = precondition.verdict === 'historical' ? [] : precondition.missing;
       const outcome = testOutcome(record(precondition.verdict, precondition.detail, missing), precondition.detail);
       if (outcome.kind === 'skip') t.skip(outcome.message);
@@ -862,13 +871,14 @@ export function gate(spec: GateSpec): void {
       },
     };
     try {
-      await spec.run(cx);
+      await (check === undefined ? spec.run(cx) : check.call(spec, cx));
     } catch (error) {
       record('fail', failureDetail(message(error), notes), []);
       throw error;
     } finally {
       for (const dir of temporary) await rm(dir, { recursive: true, force: true });
     }
-    record('pass', notes.join('; '), []);
+    if (check !== undefined && precondition !== undefined) record('historical', [precondition.detail, ...notes].join('; '), []);
+    else record('pass', notes.join('; '), []);
   });
 }
