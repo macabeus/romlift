@@ -11,7 +11,16 @@ only their counts and verdicts were read (D25). The integrator then fixed the tw
 still failed after wave 3 (`g2.rule-coverage`, `g1.provenance`) on `phase-2` (`6a74f3d`, `b2742a3`)
 and re-ran the whole closing list there. The adversarial review of `4a24486` was answered by fix
 round 1 (`8676557` to `6260b95`, D59; "Review", below), which re-ran the whole closing list at
-`6260b95` ("The closing gate", below).
+`6260b95`. The re-review of `825f662` was answered by fix round 2 (`5306f1f` to `bb91cbe`, D59 (j) to
+(p)), which re-ran the whole closing list at `bb91cbe` ("The closing gate", below).
+
+**Verdict (after fix round 2).** Phase 2 still does **not** land, for the same single reason: every
+command of the closing list exits 0 except `bench gates --require 2 --tier real`, whose only failing
+gate is `g2.held-out` (tmc: recall 99.37%, 51 glued, code end -4,130). The round fixed every major
+finding (the confirm-mode fixpoint spin, the remaining inline predicate of `grow`, the lost gate notes,
+the analysis memory that grew with the number of candidates) and every minor but one, which is rejected
+with its reason; the failing gate's record now carries the per-ROM counts. Nothing was tuned on a
+held-out ROM; `test/gates/phase.json` stays `{ "landed": 1 }`, nothing is merged or pushed.
 
 **Verdict (after fix round 1).** Phase 2 still does **not** land, for the same single reason: every
 command of the closing list exits 0 except `bench gates --require 2 --tier real`, whose only failing
@@ -55,6 +64,7 @@ then the integrator.
 | 3 | `p2-milestones` | this record: milestones M1 to M7 (below) |
 | — | integrator | D58: the trail cites walk steps, acceptance rules and the gap's prefer and skip slots; the `recursive-far-call` and `inline-arm-switch` fixtures |
 | — | fix round 1 | D59: the review's findings ("Review"); the closing run below |
+| — | fix round 2 | D59 (j) to (p): the re-review's findings ("Review", "Fix round 2"); the closing run below |
 
 ### Commands and formats
 
@@ -217,9 +227,12 @@ labels), klonoa 560 (7), pokeemerald 15,866 (9), sa2 2,901 (7), sa3 4,702 (7), 0
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | pokefirered | pret-gen3 | 12,395 | 12,389 | 12,389 | 99.95% | 100.00% | 0 (0, 0, 0) | 0 | 12,383 / 12,386 | 0 | 4, 0, 0, 6, 0 | pass |
 | pokeruby | pret-gen3 | 11,461 | 11,455 | 11,455 | 99.95% | 100.00% | 0 (0, 0, 0) | 0 | 11,449 / 11,452 | 0 | 4, 0, 0, 6, 0 | pass |
-| tmc | zeldaret-tmc | 8,589 | 8,636 | 8,582 | 99.92% | 99.37% | 51 (3, 14, 34) | 3 | 8,388 / 8,388 | -4,130 | 1, 0, 0, 0, 7 | fail |
+| tmc | zeldaret-tmc | 8,589 | 8,636 | 8,582 | 99.92% | 99.37% | 51 (2, 15, 34) | 3 | 8,388 / 8,388 | -4,130 | 1, 0, 0, 0, 7 | fail |
 
-Fix round 1 measured the `other` false entries (the counts before it dropped them, correctness-3) and
+Fix round 2 changed only how the glued misses split (architecture-r1-11): a miss counts as inside an
+extent only inside the extent of a found function with an ELF entry, as the label classifier reads it,
+so one of fix round 1's 3 moved to "outside every extent" (it lies in a false entry's extent). Every
+other count is unchanged by fix round 2. Fix round 1 measured the `other` false entries (the counts before it dropped them, correctness-3) and
 the split of the glued misses (correctness-4, delivery-4) at `6260b95`; every other count is unchanged
 by the round.
 
@@ -227,24 +240,28 @@ The counts were the same at every milestone except that `walk.inline-arm-switch`
 extent to pokefirered and pokeruby. `g2.held-out` itself reported `pending` here (it needs `discover`,
 which `p2-commands` exports); from the counts it fails as the Verdict above says.
 
-## Per tuning ROM, at `6260b95`
+## Per tuning ROM, at `bb91cbe`
 
 | ROM | ELF functions | Entries | TP | PoC TP | Raw precision | Raw recall | Misses | False entries | Extents agreeing | Code end | Baseline diffs | Analysis digest | Parity digest |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| fe7j | 7,735 | 7,735 | 7,724 | 7,724 | 99.86% | 99.86% | 11 | 11 | 1,471 / 1,471 (100.000%) | +8 | 0 | `28423de7…` | `963fa373…` |
-| klonoa | 559 | 557 | 556 | 556 | 99.82% | 99.46% | 3 | 1 | 485 / 485 (100.000%) | +4 | 0 | `7e4ecde3…` | `3211e557…` |
-| pokeemerald | 15,856 | 15,862 | 15,856 | 15,856 | 99.96% | 100.00% | 0 | 6 | 15,850 / 15,853 (99.981%) | +0 | 1 (accepted) | `7b323125…` | `e7722357…` |
-| sa2 | 2,892 | 2,898 | 2,892 | 2,892 | 99.79% | 100.00% | 0 | 6 | 2,887 / 2,889 (99.931%) | +0 | 1 (accepted) | `44a1d109…` | `ccde8068…` |
-| sa3 | 4,693 | 4,699 | 4,693 | 4,693 | 99.87% | 100.00% | 0 | 6 | 4,305 / 4,307 (99.954%) | +0 | 1 (accepted) | `bc38155a…` | `4adee160…` |
+| fe7j | 7,735 | 7,735 | 7,724 | 7,724 | 99.86% | 99.86% | 11 | 11 | 1,471 / 1,471 (100.000%) | +8 | 0 | `58bfa5f4…` | `963fa373…` |
+| klonoa | 559 | 557 | 556 | 556 | 99.82% | 99.46% | 3 | 1 | 485 / 485 (100.000%) | +4 | 0 | `765bb825…` | `3211e557…` |
+| pokeemerald | 15,856 | 15,862 | 15,856 | 15,856 | 99.96% | 100.00% | 0 | 6 | 15,850 / 15,853 (99.981%) | +0 | 1 (accepted) | `97485ab6…` | `e7722357…` |
+| sa2 | 2,892 | 2,898 | 2,892 | 2,892 | 99.79% | 100.00% | 0 | 6 | 2,887 / 2,889 (99.931%) | +0 | 1 (accepted) | `eaa56e03…` | `ccde8068…` |
+| sa3 | 4,693 | 4,699 | 4,693 | 4,693 | 99.87% | 100.00% | 0 | 6 | 4,305 / 4,307 (99.954%) | +0 | 1 (accepted) | `3d7de6e3…` | `4adee160…` |
 
 Every miss is in `labels` and every false entry in `untyped`, with no stale row and no unreviewed row;
 raw precision ≥ 99.7%, true positives equal the PoC's, extents ≥ 99.9% with no agreeing extent lost,
 code end within 16 bytes, two runs deterministic. The parity digests no longer equal the PoC's since
-`a47de80` (the umul3232H32 extents) and are unchanged by fix round 1; the analysis digests moved in
-fix round 1 through rejections only (rule ids, zero-run and walk-limit details): at `a3ce9b0` they
-were fe7j `83b9ad13…`, klonoa `96084b76…`, pokeemerald `ec7a5a6a…`, sa2 `0e918184…`, sa3 `c88bd265…`,
-and functions, extents and claims are equal. `results.json` meta: commit `6260b95`, dirty false,
-source digest `1999257a…`, Node 24.
+`a47de80` (the umul3232H32 extents) and are unchanged by fix rounds 1 and 2. The analysis digests
+moved through rejections only. In fix round 1 (rule ids, zero-run and walk-limit details): at `a3ce9b0`
+they were fe7j `83b9ad13…`, klonoa `96084b76…`, pokeemerald `ec7a5a6a…`, sa2 `0e918184…`, sa3
+`c88bd265…`; at `6260b95` fe7j `28423de7…`, klonoa `7e4ecde3…`, pokeemerald `7b323125…`, sa2
+`44a1d109…`, sa3 `bc38155a…`. In fix round 2: claimed harvest targets are now rejected by
+`valid.in-rom-unclaimed` (klonoa +61 rejections, sa2 +169), the unanchored detail names the accept
+rules, and accept vetoes are rejections; functions with their provenance, extents and claims are equal
+(compared entry by entry on klonoa and sa2 against `825f662`). `results.json` meta: commit `bb91cbe`,
+dirty false, source digest `1b4b8d87…`, Node 24.
 
 ## Deviations from the roadmap
 
@@ -314,6 +331,8 @@ source digest `1999257a…`, Node 24.
 
 ## Review
 
+### Fix round 1
+
 The adversarial review of phase 2 at `4a24486` (17 October 2026) raised 35 findings: two blockers, ten
 majors and twenty-three minors. Fix round 1 ran on `phase-2` from `4a24486` to `6260b95` (nine commits,
 then this record; the decisions are D59). Every major is fixed (delivery-3 in part, with the reason); the two blockers are the held-out
@@ -358,52 +377,79 @@ rejected with its reason.
 | delivery-10 | minor | Fixed (`153d648`): `defineRule` stays in `romlift/internal`; D59 (h) and roadmap 2.0 say why. |
 | delivery-11 | minor | Run: `npm run bench -- regression --base 55ecf36` on a worktree of `6a74f3d` after its own `bench run` prints "no regression against 55ecf36" (exit 0); its rows equal those of the closing run at `b2742a3`. |
 
+### Fix round 2
+
+The re-review of `825f662` (17 October 2026) raised 15 findings: two blockers (the same held-out
+failure, raised by both reviewers), four majors and nine minors. Fix round 2 ran on `phase-2` from
+`825f662` to `bb91cbe` (five commits, then this record; the decisions are D59 (j) to (p)).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| architecture-r1-1 | blocker | **Not fixable in this round; recorded.** `g2.held-out` fails at `bb91cbe` exactly as before (tmc recall 99.37%, 51 glued, code end -4,130; pokefirered and pokeruby pass but are both `pret-gen3`). D53's routes are unchanged: an owner-supplied reserve pair from a family absent from the tuning set (none is on this machine), or the owner's answer to architecture §12 item 4. Not merged, not pushed; `phase.json` stays `{ "landed": 1 }`. |
+| correctness-r1-1 | blocker | Same as architecture-r1-1. The third route (a rule whose `restsOn` is validated on the tuning set alone) is not available for the reason in deviation 10: no tuning ROM shows the behaviour, so no rule can be validated on it, and writing one from tmc's misses is tuning on a held-out ROM. |
+| architecture-r1-2 | major | Fixed (`5306f1f`). The mid-gap hole head goes through `acceptHead` (accepted under the head rule wherever it is taken, as both PoC call sites say 'tiled hole') and its count is added; `absorb` returns `acceptQueued`'s count into `added`. Tests: a mid-gap head is accepted under `gap.tiled-hole` and counted once (`fill-gaps.test.ts`); in confirm mode an unlisted mid-gap head adds 0 and `runAnalysis` raises no `W_FIXPOINT_LIMIT`; a mid-gap absorbed block's callee is counted. |
+| correctness-r1-3 | major | Fixed with architecture-r1-2. The reviewer's repro (adr-handler-block, confirm with 0x08000104 omitted) raised `W_FIXPOINT_LIMIT` at `825f662` (checked) and raises only the two `W_UNLISTED_FUNCTION` now; it is a unit test (`confirm.test.ts`). |
+| architecture-r1-3 | major | Fixed (`5306f1f`). `grow` drops only targets that are already functions and asks `valid()` about the rest, claimed ones included (`valid.in-rom-unclaimed`'s `checkEntry` rejects them before any reading, so no walk is added); the unanchored detail names the accept rules that declined instead of the driver reading `isPrologue`. Tests: a claimed target is rejected by `valid.in-rom-unclaimed` with no reading taken; with that rule disabled the claimed target is accepted. |
+| correctness-r1-2 | major | Fixed (`1bf529c`). `failureDetail` appends the notes a gate wrote to its failure message, so `g2.held-out`'s record and console line now carry each sealed ROM's counts (the closing run below); unit test in `gate.test.ts`. |
+| correctness-r1-4 | major | Fixed (`d84f4f0`). `LIMITS.candidateBudget` (262,144; tuning maximum 13,612) binds: a grow round judges that many and raises `W_CANDIDATE_BUDGET`. `LIMITS.epochReadingBytes` (256 MiB by `readingBytes`' estimate; tuning maximum about 105 MB): past it the held candidate readings are dropped, verdicts kept, and `W_READING_BUDGET` (new) is raised once. The reviewer's input (klonoa plus a self-referencing Thumb pointer flood): +8 MiB ran out of heap before; now `analyze` alone peaks at 2.2 GB RSS (1.07 GB heap live, 2.1 M rejections) under the default heap. A unit test analyses a 32 MiB image whose last 28 MiB are such pointers under a 512 MiB V8 heap in a child process (`pointer-flood-rom.test.ts`, about 12 s); with both budgets lifted it runs out of heap. No tuning ROM reaches either budget (no new diagnostic; functions unchanged). |
+| architecture-r1-4 | minor | Fixed in part (`5306f1f`), the rest rejected with its reason. Fixed: the zero-halfword retry (and the claimed-halfword step) moved into `gap.adr-block-absorb`, which now owns every absorb position; gap positions are bus addresses; the forward slot is `{ thumb, arm, after }` with the ranks of the old list (a test resolves an ARM-only slot and finds no Thumb proposer). Rejected: moving the header skip and the claimed-byte step into slots. The first is a fact of the cartridge format, like `contains(rom, …)`, which the driver also applies without a rule; disabling it could only make the scan read the 192 header bytes as code, and phase 3 claims the header (correctness-6), which removes the line. The second moves the cursor past bytes a claim rule already decided (and cited); it decides nothing. Both are documented as traversal and format in architecture §4.2 and D59 (l). |
+| architecture-r1-5 | minor | Fixed (`5306f1f`): `AnalysisTuning.worklist` and its writers are gone; architecture §3.3 says the worklist is always ascending. |
+| architecture-r1-6 | minor | **Rejected.** `export-poc --mode queries` is one of the commands of this phase's closing list as the orchestrator runs it (it is in the gate list this round was given, and it passed below), so deleting the mode and `poc-log.ts` would make a required command fail. It is not circular in effect: it is the only command that re-runs the pinned PoC's instrumented query path and checks that the PoC still reaches the committed parity digest through it. Its removal belongs with the closing list's next revision (D59 a). |
+| architecture-r1-7 | minor | Fixed (`31a86ef`): `isConditional` (the row's `cond` field) and `thumbWordAt` in `foundation/isa/decode.ts` replace the hand decoding in `walk/arm.ts`, `gap.arm-scan`, `walk/thumb.ts` and `accept.tiny-anchored-at-start`. Only `arm.nv` and `arm.undefined` lack a cond field, both `invalid`, so no reading changes. |
+| architecture-r1-8 | minor | Fixed (`31a86ef`): `effectOf` throws `RomliftInvariantError` for an operand name the row lacks; a table test checks every `writes`, `list` and `from` name of every Thumb and ARM row against its `toOps` keys. |
+| architecture-r1-9 | minor | Fixed (`5306f1f`): a veto calls `reject()` with the veto's id and `reason` (and the proposal's cites); `diagnoseMiss` names the veto of a vetoed miss. Two explain goldens changed (false-stub-2byte, mixer-tiled-hole). |
+| architecture-r1-10 | minor | Fixed (`d84f4f0`, `31a86ef`, `5306f1f`): unit tests for the ARM walk limit, the ARM 'table' and 'switch-mode' steps (the latter conditional and not), and a mid-gap absorb resume. |
+| architecture-r1-11 | minor | Fixed (`1bf529c`): `gluedWhere` in `classify.ts` uses labelClause's function filter (ELF entry, strictly inside); `seal.ts` calls it; three-way unit tests. tmc's split is now 2 / 15 / 34 (one miss lies in a false entry's extent). |
+
+The orchestrator also asked to correct docs/benchmark-roms.md where it said tmc has no ELF: it already
+records `tmc/tmc.elf` and `tmc/build/USA/tmc.map` (since `f4b5c20`), so no change was needed.
+
 ## The closing gate
 
-Fix round 1's run on `phase-2` at `6260b95` (working tree clean but for the `bench/results.json` the run
+Fix round 2's run on `phase-2` at `bb91cbe` (working tree clean but for the `bench/results.json` the run
 itself rewrites), every command from the repository root with
 `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`, in this order (the real tier before the
-ci tier). `npm run corpus` was run before it: the round changed the ISA tables, so the cached corpus
-summary was stale and `bench run` left the `printer` family out of the artifact, which `g1.provenance`
-refused in a first run at `6b8a1f1` (that run also found `g2.rule-registry` still looking for rule tests
-in the old directories, fixed by `6260b95`). `test/gates/phase.json` stays `{ "landed": 1 }`.
+ci tier). `npm run corpus` was run first (exit 0, inputs digest `144770c8…`), because the round changed
+`foundation/isa`, which is in the corpus's import closure. `test/gates/phase.json` stays
+`{ "landed": 1 }`.
 
 | Command | Exit | Output |
 | --- | --- | --- |
 | `npm ci` | 0 | 8 packages, 0 vulnerabilities |
 | `npm run typecheck` | 0 | |
 | `npm run lint` | 0 | 21 tests, 21 pass |
-| `npm test` | 0 | 884 tests, 884 pass |
+| `npm test` | 0 | 904 tests, 904 pass |
 | `npm run fixtures -- check` | 0 | 31 of 31 fixtures agree (agbcc commit not named, the bytes decide) |
 | `npm run bench -- doctor-real` | 0 | every ROM, ELF, PoC file and toolchain matches its digest |
-| `npm run export-poc -- --mode scored` | 0 | five dumps, PoC scaffold OK, deterministic (221 s) |
+| `npm run export-poc -- --mode scored` | 0 | five dumps, PoC scaffold OK, deterministic (215 s) |
 | `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical (77 s) |
 | `npm run export-poc -- --mode queries` | 0 | five lockstep logs re-read, parity matches the committed digest (50 s) |
 | `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 16 tests, 16 pass |
 | `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | binutils, corpus and JUMP11 ok; agbcc and old_agbcc reported missing (not required) |
-| `npm run bench -- run` | 0 | five rows (the per-ROM table above); sealed: pokefirered pass, pokeruby pass, tmc FAIL (the M7 table); `results.json` written at `6260b95`, gate record cleared |
-| `npm run bench -- speed` | 0 | calibration ratio 0.980; fe7j 8,435 ms (limit 12,956), klonoa 194 (313), pokeemerald 2,810 (4,307), sa2 543 (799), sa3 1,008 (1,523) |
+| `npm run bench -- run` | 0 | five rows (the per-ROM table above); sealed: pokefirered pass, pokeruby pass, tmc FAIL (the M7 table); `results.json` written at `bb91cbe`, gate record cleared |
+| `npm run bench -- speed` | 0 | calibration ratio 0.972; fe7j 8,390 ms (limit 12,850), klonoa 190 (310), pokeemerald 2,866 (4,271), sa2 551 (793), sa3 1,009 (1,511) |
 | `npm run bench -- regression` | 0 | no regression against `92bf7ce` (the PoC-sourced main) |
 | `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
 | `npm run bench -- poc-check` | 0 | five ROMs: rows equal, PoC row equal, scaffold OK, deterministic, PoC source pinned |
-| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end (fe7j 8, klonoa 4, others 0), g2.confirm-equals-discover, g2.determinism, g2.entries, g2.extents, g2.no-unreviewed, g2.poc-parity (evidence of `e867dae`, an ancestor of HEAD), g2.speed (ratio 1.032; fe7j 8,322 of 13,636 ms, klonoa 204 of 329); **fail: g2.held-out** ("the passing ROMs span 1 codebase families, at least two must; no passing ROM is from a family absent from the tuning set"); g3 to g6 pending |
-| `npm run bench -- gates --require 2 --tier ci` | 0 | every g1 gate passes (g1.provenance current); g2.checks-fail (4 files, 19 tests), g2.determinism, g2.regression, g2.rule-coverage (49 of 57 rules on 31 fixtures, 8 kept by D57), g2.rule-registry (57 rules), g2.second-profile (31 fixtures, 188 functions), g2.synthetic-analysis (31 fixtures, no extra entries allowed in 31), g2.vocabulary-emitted pass; g3 to g6 pending |
-| `npm run bench -- provenance` | 0 | source digest `1999257a…` current; gate record, families (scaffold, printer), dataset and held-out rows ok |
+| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end (fe7j 8, klonoa 4, others 0), g2.confirm-equals-discover, g2.determinism, g2.entries, g2.extents, g2.no-unreviewed, g2.poc-parity (evidence of `e867dae`, an ancestor of HEAD), g2.speed (ratio 1.032; fe7j 8,390 of 13,640 ms, klonoa 218 of 329); **fail: g2.held-out** ("the passing ROMs span 1 codebase families, at least two must; no passing ROM is from a family absent from the tuning set", now followed by the three sealed ROMs' counts: tmc "fail (recall 99.37% < 99.46%; 51 glued; code end -4130 bytes off)"); g3 to g6 pending (228 s) |
+| `npm run bench -- gates --require 2 --tier ci` | 0 | every g1 gate passes (g1.provenance current, source digest `1b4b8d87…`); g2.checks-fail (4 files, 19 tests), g2.determinism, g2.regression, g2.rule-coverage (49 of 57 rules on 31 fixtures, 8 kept by D57), g2.rule-registry (57 rules), g2.second-profile (31 fixtures, 188 functions), g2.synthetic-analysis (31 fixtures, no extra entries allowed in 31), g2.vocabulary-emitted pass; g3 to g6 pending (56 s) |
+| `npm run bench -- provenance` | 0 | source digest `1b4b8d87…` current; gate record, families (scaffold, printer), dataset and held-out rows ok |
 | `npm run bench -- stale-check` | 0 | the artifact is current |
 
 Not run, because `g2.held-out` fails and the safe default of D53 (architecture §12, item 4, not waited
 on) is that phase 2 does not land: raising `test/gates/phase.json` to 2, the closing real-tier run under
 the raised marker, pushing `phase-2`, the pull request to `main` and its CI workflows, and the merge.
 
-The wave-3 integrator's run at `b2742a3` had the same verdicts (every command 0 but the real tier,
-failing on `g2.held-out` only); its numbers are in Git history of this file (`4a24486`).
+Fix round 1's run at `6260b95` and the wave-3 integrator's at `b2742a3` had the same verdicts (every
+command 0 but the real tier, failing on `g2.held-out` only); their numbers are in the Git history of
+this file (`825f662`, `4a24486`).
 
 ## Known limitations
 
-- **tmc fails sealed** (M7), so `g2.held-out` fails and phase 2 does not land. Of its 51 glued misses, 3
-  lie inside a found extent, 14 in gaps below the code end and 34 past it (the code end is 4,130 bytes
-  short). A fix must rest on a rule's `restsOn` and be validated on the tuning set alone (deviation 10
+- **tmc fails sealed** (M7), so `g2.held-out` fails and phase 2 does not land. Of its 51 glued misses, 2
+  lie inside the extent of a found function with an ELF entry, 15 in no such extent below the code end
+  and 34 past it (the code end is 4,130 bytes short). A fix must rest on a rule's `restsOn` and be validated on the tuning set alone (deviation 10
   and the Review say why none was written); then a fresh sealed pair from the reserve pool is needed
   before release 1 claims generality. The owner's answer to architecture §12 item 4 (land with the
   failure recorded) or an admitted reserve pair of a family absent from the tuning set would unblock
@@ -418,5 +464,9 @@ failing on `g2.held-out` only); its numbers are in Git history of this file (`4a
   `explain` reports header bytes as owned by it; confirm mode agrees (M6). Bounding it changes an extent
   on every ROM and belongs with the header's emission in phase 3 (a claimed header region no extent may
   cover).
+- **Past the analysis budgets the result is partial, by design** (D59 m): a grow round judges at most
+  262,144 candidates and the rest of its snapshot waits for a later round that never reaches them; past
+  256 MiB of held readings a dropped reading is walked again, possibly against later facts. Both raise a
+  warning; no tuning ROM comes within an order of magnitude of either.
 - Extent mismatches left: MultiSioIntr on sa2 and sa3, ld_r3_tp_adr_i on sa2, sa3 and pokeemerald,
   GameCubeMultiBoot_Main and GameCubeMultiBoot_Quit on pokeemerald.

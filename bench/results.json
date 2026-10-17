@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "6260b95d81c1e312e780dce04fa8de1d2187a6c2",
+    "commit": "bb91cbe9219a167b0a514d557f0bbc197f17f61a",
     "dirty": false,
-    "sourceDigest": "1999257a3b3fb6ba74bbd7d6dc9de6a2201117600f3b433e01e82d4a22d6b999",
+    "sourceDigest": "1b4b8d879a83ba28b24a116d79769db2ea5bd799be33bd154422c8f1f56d21e9",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -92,7 +92,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "706b707591a5854ac2858aac57b35401324e7a5742cd47d191185ed9cfb72e43",
+    "inputsDigest": "144770c8c6991f023ff403d92fa25b0b58e19897871c8f2060b52a5030f0158a",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1924,7 +1924,7 @@
         "inputs": {
           "roms": "27587a6b17e00737966c0d7055c673959dc5965dfa2b6028b66dd73b23503ea1"
         },
-        "detail": "adr-handler-block analysis ef613b6620a178402aaffbc77a11b297283825dbcb0a5032f173a1dcfd8fde88; arm-pools-in-front analysis 68249e12fbb9b9ad66a6e5ecbc912be6b694282093f0138f352bac0f2ed335a7; bx-lr-stub-chain analysis 7a5597c9ed8a64bcd2ab7e4836409ba6871e71d1616a64b63fee6f8f7c42a3ed; bx-pc-veneer analysis 07c3c1ea09cf5e56f65ba139fbac835380b1610148a5eccd2b1ce9c2846d0bc9; code-copied-to-ram analysis 07ab2215be00ad9e3151e6b3657657a67dc13e39fef00d99868b4d101f222266; code-end-data-decodes analysis b4036ed17f4e196f60b443cc97d787423a47cf3246acfaaac067097977856976; computed-jump-callback analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; data-table-between-functions analysis 9b499f33f5faf3637c95a2b91bfd6654cc9c80c234d57e5d2d6704a1621ca955; data-thumb-push-pop analysis 1d15a57b1928a3cc2f7ef7df4a2d8519cec15399de47dc28d98651560d448bbc; dead-code-in-extent analysis 18171b6c6c33d3225932391dde7ac551fe85ecd2c67bb9a28a8ade3ad4a0d1ab; false-stub-2byte analysis 21d4b90d70fa127dc4b001a44151f6fc70a463d798e82624e43df983a28e7530; far-jump analysis 4e50937ca8c537db1abbd8308919668334570eed4de2d59fa6be6093c55015ea; handwritten-2mod4 analysis 2d104964e6a1adbc6a83de34dfcced3379c2224175d3e1be9d6fd4c2ca1cae77; inline-arm-switch analysis d8727d12635915a90c01a0236173db1a4ca1d5f66b71875622caf5fdd92c757a; large-data-referenced analysis ec16106f49eab822ee2f1ca0d00a5360bd5da248ef2432c3053737145c7fa40f; leaf-handler-pointer-table analysis 067d6172056cb75d8c8dddea8d9834dbd8b2aa691c24fc15dcb61cf3d48a4501; local-subroutine analysis a11a501053a4cb9da888945ebee59f328e42f4c78005ab2b54c129dabec64658; mixer-tiled-hole analysis 13fe67dc57564fc96556b55bd5a981b55a408e48056ed88747bf07f4b1c8c425; mov-lr-pc-bx analysis 3cfc147086867f9d7979616d4814eff8b6e2a0dee56a918d70773dd2bcbc0fb8; noreturn-call-then-next analysis 35f2752004414edbbccf089f99024729aea1a682ef6710df9f02bf6ef61a4d5b; pointer-table-before-leaf analysis 667f386801afd2e8394e824f3d6b02c1b9e974e0585757b46d60151fdcca4029; pool-padded-46c0 analysis 8bcf3e0fdd683104a501fe7a90a30f9b78acd20d8ab6ccade235f0e0c89986ea; pool-word-push-lr analysis 3507d529de1e5e588c66b10c0f63b89723a2114a2e523e1731d29cd5afcec0d6; pops-unpushed-frame analysis 203a9e54a3ddcb3e5fd646a018339d4c8027d942f3c5f765f4fd895fcd97f3e8; prologueless-thumb-over-arm analysis 2cd1b2c2fa6a8835695a2443e7f2fe0a1b74cd3f4a5a8942e7b2b59323146672; recursive-far-call analysis 40a9b3e12322d99f3fea1e95d1657fa8f4fa70e848a371c091b706e1b45d1ac0; shared-tail analysis fef3171278edb3593775309f2c085ae78fe98bac2259c01c517a915332426626; swi-reset analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; table-jump-hoisted analysis 588bbb98973ee3e2dc2b2b6b4edfd00c2c369af0ed6ccb6d2ddae9caf19ccb4c; thumb-pointer-run analysis 97535043a45077de76713453e06364d1f71e5ff03a0e4169b859f53ded08a27c; unreferenced-leaf analysis 364407a31586fd13bd6cfc324f682426c1e773555cbca4151efdf6dc7f456714; fe7j analysis 8be6c0224108982fb4aee50b291f9ecc5205f55a7fc9853b691e7c87aa87b3cd; klonoa analysis 306c1d6bc14263bde57162dc49e8dadfb219eefdbffe9168348037286af4ad61; pokeemerald analysis 7a2c1a760f9f424395c407efcdf3df9dde8e4220fa390998661f9894676167d2; sa2 analysis fe72f0bad0c8fd0ca6da1ad49ed5097b7d890042a320bb1f5daf4ba835cae224; sa3 analysis 605a11e88ee5934860b511f955fbe68b8ca9cf241555e854b54d5cc6d8f029c2; 36 analyses identical across cwd, project path, TZ and locale"
+        "detail": "adr-handler-block analysis ef613b6620a178402aaffbc77a11b297283825dbcb0a5032f173a1dcfd8fde88; arm-pools-in-front analysis 68249e12fbb9b9ad66a6e5ecbc912be6b694282093f0138f352bac0f2ed335a7; bx-lr-stub-chain analysis 7a5597c9ed8a64bcd2ab7e4836409ba6871e71d1616a64b63fee6f8f7c42a3ed; bx-pc-veneer analysis 07c3c1ea09cf5e56f65ba139fbac835380b1610148a5eccd2b1ce9c2846d0bc9; code-copied-to-ram analysis 07ab2215be00ad9e3151e6b3657657a67dc13e39fef00d99868b4d101f222266; code-end-data-decodes analysis b4036ed17f4e196f60b443cc97d787423a47cf3246acfaaac067097977856976; computed-jump-callback analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; data-table-between-functions analysis 9b499f33f5faf3637c95a2b91bfd6654cc9c80c234d57e5d2d6704a1621ca955; data-thumb-push-pop analysis 1d15a57b1928a3cc2f7ef7df4a2d8519cec15399de47dc28d98651560d448bbc; dead-code-in-extent analysis 18171b6c6c33d3225932391dde7ac551fe85ecd2c67bb9a28a8ade3ad4a0d1ab; false-stub-2byte analysis f2c7ee9c63fb6481c5de2a4e697b67667f30e7887a53e41378e98260f6fb5d68; far-jump analysis 4e50937ca8c537db1abbd8308919668334570eed4de2d59fa6be6093c55015ea; handwritten-2mod4 analysis 2d104964e6a1adbc6a83de34dfcced3379c2224175d3e1be9d6fd4c2ca1cae77; inline-arm-switch analysis d8727d12635915a90c01a0236173db1a4ca1d5f66b71875622caf5fdd92c757a; large-data-referenced analysis ec16106f49eab822ee2f1ca0d00a5360bd5da248ef2432c3053737145c7fa40f; leaf-handler-pointer-table analysis 067d6172056cb75d8c8dddea8d9834dbd8b2aa691c24fc15dcb61cf3d48a4501; local-subroutine analysis a11a501053a4cb9da888945ebee59f328e42f4c78005ab2b54c129dabec64658; mixer-tiled-hole analysis 9071fb40528be44c1984ee407ae660fb11203b9c11820ab54488c0ea277a5c43; mov-lr-pc-bx analysis 3cfc147086867f9d7979616d4814eff8b6e2a0dee56a918d70773dd2bcbc0fb8; noreturn-call-then-next analysis 35f2752004414edbbccf089f99024729aea1a682ef6710df9f02bf6ef61a4d5b; pointer-table-before-leaf analysis 667f386801afd2e8394e824f3d6b02c1b9e974e0585757b46d60151fdcca4029; pool-padded-46c0 analysis 8bcf3e0fdd683104a501fe7a90a30f9b78acd20d8ab6ccade235f0e0c89986ea; pool-word-push-lr analysis 3507d529de1e5e588c66b10c0f63b89723a2114a2e523e1731d29cd5afcec0d6; pops-unpushed-frame analysis 203a9e54a3ddcb3e5fd646a018339d4c8027d942f3c5f765f4fd895fcd97f3e8; prologueless-thumb-over-arm analysis 2cd1b2c2fa6a8835695a2443e7f2fe0a1b74cd3f4a5a8942e7b2b59323146672; recursive-far-call analysis 40a9b3e12322d99f3fea1e95d1657fa8f4fa70e848a371c091b706e1b45d1ac0; shared-tail analysis fef3171278edb3593775309f2c085ae78fe98bac2259c01c517a915332426626; swi-reset analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; table-jump-hoisted analysis 588bbb98973ee3e2dc2b2b6b4edfd00c2c369af0ed6ccb6d2ddae9caf19ccb4c; thumb-pointer-run analysis 97535043a45077de76713453e06364d1f71e5ff03a0e4169b859f53ded08a27c; unreferenced-leaf analysis 364407a31586fd13bd6cfc324f682426c1e773555cbca4151efdf6dc7f456714; fe7j analysis 7a26d285022b5d86fb65eedab8227f559927dda7c7d1f24afe2710a2d2dac0dc; klonoa analysis 7e0643e4b780b5684f4394502441e1617cd11d5e27c22b7b97b344f44ba4870a; pokeemerald analysis 5ceb2d79818ea8dddfcfbb5396824eda1d9a21a7373f6fabe6bccf9ed8b96cf2; sa2 analysis 936800e361c994cc2e4bdeddb85a8b63805e0722477486afb07f7d1d1e5b3cb2; sa3 analysis bca94b225d9739efb8800a1eb801a4a6669e68cbdac4a66f196b2b803cc7bd66; 36 analyses identical across cwd, project path, TZ and locale"
       },
       {
         "id": "g2.entries",
@@ -1951,7 +1951,7 @@
           "elfs": "b74ff6a18c19e8dd2f1dbb9d09eac6c0f3faab4b0bb1df8386ab3fa7de8a48e0",
           "roms": "27587a6b17e00737966c0d7055c673959dc5965dfa2b6028b66dd73b23503ea1"
         },
-        "detail": "held-out: the passing ROMs span 1 codebase families, at least two must; no passing ROM is from a family absent from the tuning set"
+        "detail": "held-out: the passing ROMs span 1 codebase families, at least two must; no passing ROM is from a family absent from the tuning set; pokefirered [pret-gen3] pass: precision 99.95%, recall 100.00%, glued 0 (inside an extent 0, outside every extent 0, past the code end 0), label candidates 0, extents 99.976%, code end 0, false entries adrCallback 0, insideElfFunction 6, other 0, startup 4, veneer 0; pokeruby [pret-gen3] pass: precision 99.95%, recall 100.00%, glued 0 (inside an extent 0, outside every extent 0, past the code end 0), label candidates 0, extents 99.974%, code end 0, false entries adrCallback 0, insideElfFunction 6, other 0, startup 4, veneer 0; tmc [zeldaret-tmc] fail (recall 99.37% < 99.46%; 51 glued; code end -4130 bytes off): precision 99.92%, recall 99.37%, glued 51 (inside an extent 2, outside every extent 15, past the code end 34), label candidates 3, extents 100.000%, code end -4130, false entries adrCallback 0, insideElfFunction 0, other 7, startup 1, veneer 0"
       },
       {
         "id": "g2.no-unreviewed",
@@ -1977,7 +1977,7 @@
         "inputs": {
           "roms": "27587a6b17e00737966c0d7055c673959dc5965dfa2b6028b66dd73b23503ea1"
         },
-        "detail": "calibration ratio 1.032; CPU/limit: fe7j 8322/13636 ms, klonoa 204/329 ms, pokeemerald 2874/4533 ms, sa2 551/841 ms, sa3 1025/1603 ms"
+        "detail": "calibration ratio 1.032; CPU/limit: fe7j 8390/13640 ms, klonoa 218/329 ms, pokeemerald 2976/4534 ms, sa2 549/841 ms, sa3 1004/1604 ms"
       },
       {
         "id": "g3.link",
@@ -2308,7 +2308,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "28423de7ca508bee0ccf60e45442f9c5c7cae4983d3e4fd45a916082604be169",
+      "analysisDigest": "58bfa5f4f4dc9a165cda9622892b92df7e5f5bb9f5ac0d0f72317751bcec321c",
       "poc": {
         "tp": 7724
       },
@@ -2389,7 +2389,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "7e4ecde3968afa0b056cf3599b17dc34cce154da0b772f67c96adf07927057e7",
+      "analysisDigest": "765bb8251ed81dcdf9cb39a013c7718450528e77ebefc768b02e833ba6d5e353",
       "poc": {
         "tp": 556
       },
@@ -2505,7 +2505,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "7b3231257ea59d51d3dcd0098ad6768c980278e9e7703fc1debb290cdf6d3418",
+      "analysisDigest": "97485ab6ac7416205b697a47ddb5f4b345975711ac2d25af21ed5e4dd68c1323",
       "poc": {
         "tp": 15856
       },
@@ -2620,7 +2620,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "44a1d109ea3a8c1c1c2728d764aa2f8c2ec1dfb675f91e4a4e0a97e0cd597f92",
+      "analysisDigest": "eaa56e032571856fe8d8d797f0eb016c525e1de8b6a654572bb511fa906d15d8",
       "poc": {
         "tp": 2892
       },
@@ -2735,7 +2735,7 @@
       "scaffold": {
         "ok": true
       },
-      "analysisDigest": "bc38155a8c60368e6b61866a2fc16502b30aec9f23b68f078a8b90bc75b47743",
+      "analysisDigest": "3d7de6e39eb7b39e3ff881e6547fb395fb98f3077f0de4e008347ba554c63f6b",
       "poc": {
         "tp": 4693
       },
@@ -2820,8 +2820,8 @@
       "tp": 8582,
       "glued": 51,
       "gluedWhere": {
-        "insideExtent": 3,
-        "outsideExtents": 14,
+        "insideExtent": 2,
+        "outsideExtents": 15,
         "pastCodeEnd": 34
       },
       "labelCandidates": 3,
