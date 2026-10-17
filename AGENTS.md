@@ -26,8 +26,9 @@ and the exit commands of each phase). Follow them; a decision changes only throu
 | `npm run bench -- explain <rom> <addr>` | what the discover run decided about one address of a tuning ROM or a fixture |
 | `npm run bench -- adopt <rom>` | seeds a new tuning dataset's lists as `unreviewed` placeholders to classify (refuses a sealed dataset) |
 | `npm run corpus` | generates the `as` round-trip corpus into `bench/.local/corpus/` and assembles it with the system `arm-none-eabi-as` (romlift's `runCorpus`, the run `doctor` makes); exits 0 only at 100% round-trip; `--reuse` prints the cached summary while its inputs digest (the corpus's import closure, D55) is current |
+| `bench/tools/replay-regression.sh <from> <to> <out>` | replays the per-commit bench evidence of a range: per commit a worktree's `bench run` artifact and `bench regression` against the commit before, with a summary table |
 | `npm run fixtures -- rebuild\|check [--only <name>]` | builds the synthetic fixtures with agbcc and binutils; `check` compares them with the committed builds (D28) |
-| `npm run export-poc -- --mode scored\|parity\|queries` | runs the read-only PoC from `ROMLIFT_POC` and dumps into `bench/.local/poc/<rom>/`: `scored.json` (its scored run and scaffold verdict), `parity.json` (its parity view, and the digests into `bench/baseline/poc-digests.json`), `queries.ndjson` and `readings.ndjson` (the lockstep log, archived and re-read by its validating reader; nothing replays it since D59) (architecture §4.5) |
+| `npm run export-poc -- --mode scored\|parity\|queries` | runs the read-only PoC from `ROMLIFT_POC` and dumps into `bench/.local/poc/<rom>/`: `scored.json` (its scored run and scaffold verdict; every tuning ROM, tmc from romlift's dataset), `parity.json` (its parity view, and the digests into `bench/baseline/poc-digests.json`), `queries.ndjson` and `readings.ndjson` (the lockstep log, archived and re-read by its validating reader; nothing replays it since D59) (architecture §4.5) |
 | `node --conditions=source src/cli/main.ts <command>` | runs the `romlift` CLI from source: `doctor [--json] [--full]` (exit 0 when binutils, the corpus through the user's `as` and the JUMP11 probe are ok), and from phase 2 `analyze <rom> [--json] [--disable <rule>...]` and `explain <addr> --rom <rom> [--json]` |
 | `npm run build` | emits `dist/` for publishing only; development never builds |
 
@@ -91,7 +92,8 @@ cfg); **accept** names the acceptance rules (D6). Functions, modules, pools, tab
 - **Benchmark checkouts** live under `ROMLIFT_BENCH_ROOT`, default the parent directory of the
   repository root; on the owner's machine that is `/Users/macabeus/ApenasMeu/decompiler`. Tuning set:
   `kleod/` (klonoa), `sa2/`, `sa3/`, `FireEmblem7J/` (fe7j), `pokeemerald/`, and `tmc/` (revealed by the
-  owner's decision of 17 October 2026, D60; the PoC never ran on it), each with its ROM, ELF and map
+  owner's decision of 17 October 2026, D60; the pinned PoC's results never covered it, and `export-poc
+  --mode scored` runs the pinned PoC on it), each with its ROM, ELF and map
   (table in docs/benchmark-roms.md). agbcc builds: `pokeemerald/tools/agbcc` and `agbcc/` under the same root.
 - **The proof of concept** is at `ROMLIFT_POC` (`/Users/macabeus/ApenasMeu/decompiler/romlift-poc`). It
   is read-only: never modify it. Its numbers are the acceptance bar, pinned by content (D50).

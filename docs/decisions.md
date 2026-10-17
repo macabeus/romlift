@@ -1594,6 +1594,15 @@ no tuning run reaches either budget, passes a malformed seed or is truncated.
 
 ## D60. The owner's answer to §12 item 4: tune on tmc, with the rules and conventions it needed
 
+**Status (fix round 1, 17 October 2026).** The adversarial review of `74ec273` found that the landing at
+`808513f` rested on three gate changes the owner had not authorised (a `g2.poc-parity` fail frozen by
+raising `phase.json`, the `scaffold` family not asked of tmc, a confirm mode that made
+`g2.confirm-equals-discover` pass by construction) and on rules whose generality was asserted, not
+measured. The fix round reverted the unauthorised changes ((k), (l), `phase.json` back to 1), measured the
+PoC on tmc, made the code-end convention uniform (j), rewrote `seed.ram-copy`'s copy recognition (e),
+added one fixture per rule branch and recorded each rule's counter-check below. Phase 2 does not land
+until the owner answers the questions of phase-2.md ("Owner questions").
+
 **Context.** Phase 2 did not land because `g2.held-out` failed on tmc (zeldaret-tmc, the only sealed ROM
 of a codebase family absent from the tuning set): raw recall 99.37% below 99.46%, 51 `glued` misses (2
 inside a found extent, 15 outside every extent, 34 past the code end), 3 label candidates, and a code end
@@ -1618,48 +1627,90 @@ tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeu
   `heldOutVerdict` in `test/gates/held-out-verdict.ts`, which the gate calls and the unit tests cover. This
   is the only gate change the decision authorises. A sealed pair of a fresh family is still needed before release 1 claims
   generality (D53).
+Each rule below names its fixture (each `expect.json` fails with the branch reverted, checked by forcing
+the branch's condition off) and its counter-check: where on the six tuning ROMs its condition holds, and
+what it does there. Generality is claimed only where the counter-check shows the condition on more than
+tmc; a rule whose condition holds once is marked single-instance, and tmc's after-numbers are not evidence
+of generality until a sealed ROM of a fresh family passes (D53).
+
 - (a) **The gap scan resumes through the profile** (fill-gaps.ts `resume`): after a reading, at the
   halfword where it ends when `alignment.thumbFunction` allows a Thumb function there and the halfword is
   not padding (`idioms.isPadding` on both bytes), else at the next `alignment.cFunction` boundary. The PoC
   always took the next word, so libgcc's `_call_via_r8` … `_call_via_lr` (2-byte stubs at 2 mod 4) and an
   alternative entry `movs r3, #1; b …` right after a function were never candidates. Traversal, not a rule
-  (D59 l): the profile decides where a function may start, the proposers what starts there.
+  (D59 l): the profile decides where a function may start, the proposers what starts there. Fixture
+  `gap-resume-2mod4`. Counter-check: fires once on pokeemerald (0x082DF012, found without it too) and 9
+  times on tmc (8 entries recovered).
 - (b) **`gap.end-anchor` takes a veneer-array element**: a two-instruction `ldr rN, [pc, #k]; bx rN` whose
   code ends exactly where an accepted stub of the same shape starts counts without `gapScan.minInsns` and
-  without filling the hole (its pool lies after the array).
-- (c) **`gap.end-anchor` tries the halfword between two words** first when the profile lets Thumb
-  functions sit there and it opens with `push {.., lr}` (`idioms.opensWithPushLr`), ranked as a prologue.
+  without filling the hole (its pool lies after the array). Fixture `veneer-array`. Counter-check: 5
+  times, all on tmc, in one array: single-instance.
+- (c) **`gap.end-anchor` takes the halfword between two words** as a candidate when the profile lets Thumb
+  functions sit there and it opens with `push {.., lr}` (`idioms.opensWithPushLr`), ranked as a prologue
+  with the word candidates by the end anchor's one rule (fix round 1: it no longer skips the word
+  candidate). Fixture `push-lr-2mod4` (both readings valid). Counter-check: once, on tmc (0x08007DCE):
+  single-instance.
 - (d) **`claim.dead-code-in-extent` leaves an unreached copy of the reading's own entry stub free**: when
   the reading opens with `movs rX, #k; b T`, an unreached `movs rX, #k'; b T` (same register, same target)
-  inside its extent is another entry of a stub table that shares one tail, not dead code.
-- (e) **`seed.ram-copy`** (new queue rule, origin `ram-copy`, profile field `ramCopy: { argInsns: 12,
-  maxBytes: 0x10000 }`): a `bl` of accepted Thumb code whose r0, r1 and r2 hold a ROM address S, an
-  IWRAM address D and a size L (pool literals, `movs`, register copies, `adds #imm`, `subs` of known
-  values in the straight-line run before it) marks [S, S + L) as code that runs at D; an IWRAM pointer P
-  in (D, D + L) that accepted code loads from its pool and jumps through (`bx`, `mov pc`, `bl` to a `bx rN`
-  stub of that register) names the entry S + (P − D), Thumb when P is odd. A pointer whose instruction
-  before it is not an unconditional exit names a second entry of code that falls into it and is not
-  proposed (proposed first, such tails made the ARM readings of their heads overflow and the gap scan read
-  ARM as Thumb). A pointer equal to D is not used: the copy names the block's start already, and mapping a
-  block from its start is phase 6's `runs_at` (architecture §6.7; the `code-copied-to-ram` fixture keeps
-  its expectation). IWRAM only and jumps only: EWRAM copies and stored pointers gave false entries on
-  pokeemerald and fe7j in the measurement. Stateless: each (copy, jump) pair is proposed when the later
-  of its two functions is accepted. The rule reads the instructions it needs through `Reading.insnAt`.
+  inside its extent is another entry of a stub table that shares one tail, not dead code. Fixture
+  `entry-stub-table`. Counter-check: once, on tmc (CreateSwampDrownFx): single-instance.
+- (e) **`seed.ram-copy`** (new queue rule, origin `ram-copy`, profile field `ramCopy: { argInsns: 8 }`;
+  copy recognition rewritten in fix round 1, `f39242a`): accepted Thumb code that calls a copy names
+  [S, S + L) as the load image of code that runs at D. The copy is recognised by what the callee does,
+  never by a fixed argument order: a BIOS CpuSet or CpuFastSet (an inline `swi 0x0B/0x0C`, or a `bl` to a
+  stub that is the swi and a return; `foundation/rom/bios.ts`: r0 source, r1 destination, r2 a control
+  word whose count and unit give L, a fill copying nothing), or a copy loop (forward data flow over the
+  callee tags the argument registers; a load through one argument's register makes it the source, a
+  store through another's the destination, and the third is the size, in bytes when added to a pointer,
+  else the store width over the one amount it is decremented by). S, D and L are the argument values in
+  the straight-line run before the call (pool literals, `movs`, register copies, `adds`/`subs`, `negs`,
+  `ands`, `orrs`, shifts); D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB, replacing
+  the profile's `maxBytes` 64 KiB). `argInsns` 8: three arguments of at most two instructions each in
+  agbcc's output plus one `cmp; beq` guard; the longest measured setup is 7 (tmc's InitOverlays), the m4a
+  CpuSet's 6. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
+  (`bx`, `mov pc`, `bl` to a `bx rN` stub of that register) names the entry S + (P − D), Thumb when P is
+  odd, when the instruction before it is an unconditional exit. A pointer equal to D is not used: the copy
+  names the block's start already, and mapping a block from its start is phase 6's `runs_at` (§6.7).
+  IWRAM only and jumps only: EWRAM copies and stored pointers gave false entries on pokeemerald and fe7j.
+  Stateless: each (copy, jump) pair is proposed when the later of its two functions is accepted; a callee
+  is read only for a call whose r0..r2 hold an IWRAM address, a ROM address and a third known value.
+  Fixtures `ram-code-entries` (a source-first copy routine), `ram-copy-memcpy` (agbcc C `CopyBytes(dest,
+  src, n)`), `ram-copy-bios` (CpuSet in 32-bit units and CpuFastSet). Counter-check: the condition holds on
+  all six ROMs; the copies recognised are fe7j 2, klonoa 1, pokeemerald 1, sa2 3, sa3 5 (the m4a
+  SoundMainRAM CpuSet on all five, plus game copies to IWRAM), naming 0 entries there (every jump points
+  at its block's start), and tmc 3 (MemCopy of the 4,956-byte block, the m4a CpuSet, one more), naming 38
+  entries, 11 accepted. Its own count on tmc: of those 11 proposals 2 are labels the ELF does not type
+  (0x080B1AA8, 0x080B1B0C, `pointer-entry`: genuine entries reached through veneers); disabled, tmc loses
+  33 true positives and 6 false entries (those two and four that other rules find inside the block it
+  brings into the code). (e), (f) and (g) form one chain: (f) and (g) decline words and labels inside the
+  same copied block of the same ROM, which only (e) brings into the code.
 - (f) **`gap.forward-chain` declines a word holding an accepted Thumb function + 1** (word-aligned, odd,
-  the word − 1 a function): a literal pool word, not code; the skip slot steps over it.
+  the word − 1 a function): a literal pool word, not code; the skip slot steps over it. Fixture
+  `pointer-word-in-gap`. Counter-check: declines 6 words, all in one pointer table of tmc's copied block:
+  single-instance (part of the (e) chain).
 - (g) **`seed.adr` proposes only past the function's extent, unclaimed words that read as ARM code**: an
   adr into the own extent is a local label (a return address, a table of its own), one onto claimed or
-  undecodable words names data.
+  undecodable words names data. Fixture `adr-label-and-data` (negative). Counter-check: the condition
+  holds on all six ROMs; on the five it keeps every adr target (fe7j 2, klonoa 1, pokeemerald 2, sa2 1,
+  sa3 1: the interrupt handlers), and it declines 5 targets on tmc only, in the copied block.
 - (h) **`accept.prologue-and-calls-accepted`** (new accept rule, after `accept.pointer-table-run`): a
   valid data-pointer candidate with a word-aligned prologue, a return and at least one call, every call on
   an accepted function, is taken: three independent signs of a function that bytes of data do not show by
-  chance.
+  chance. Measured false-acceptance rate (the review asked for at least two calls, or this): the rule
+  holds for 967 candidates on the six ROMs (fe7j 392, klonoa 5, pokeemerald 288, sa2 98, sa3 98, tmc 86),
+  346 of them with exactly one call, and every one is an ELF function; so one call is kept. Its side
+  effect on the five: those 881 candidates were functions of the result already, taken later by other
+  rules; the rule takes them in an earlier grow round, which moves the origins of their callees (fe7j
+  2,122 functions, pokeemerald 1,234, sa3 202, sa2 149, klonoa 13) and shortens fe7j's grow (8.6 s → 1.2
+  s), with no row change. Fixture `data-named-between-data`. Decisive for one tmc function.
 - (i) **Categories.** `unreached-tail` (code after a hand-written function's return that nothing reaches,
-  folded into that function by the ELF) is new (`unsized-last-function`, the category of the withdrawn
-  `codeEnd` row, is gone with it); `second-entry`
-  (reached by its own bl, a veneer or a code pointer), `untyped-leaf` (directly or through
+  folded into that function by the ELF) and `pointer-entry` (another entry point of hand-written code,
+  reached by a jump through its address, a veneer or a stored function pointer, which the ELF only labels;
+  fix round 1) are new; `second-entry` keeps its M5 definition (bl-reached helpers: fix round 1 reverted
+  the widening that covered `seed.ram-copy`'s own false entries); `untyped-leaf` (directly or through
   `bl _call_via_rN`) and `split-after-returning-call` (a bl to a returning helper, or `mov lr, pc; bx rN`)
-  are widened to what tmc's rows show.
+  are widened to what tmc's rows show. (`unsized-last-function`, the category of the withdrawn `codeEnd`
+  row, is gone with it.)
 - (j) **One code-end convention for every ROM, in the scorer** (fix round 1 of D60, replacing the dataset
   `codeEnd` row of `80762ff`, which only tmc carried while klonoa and fe7j have the same ELF shape):
   `bench/src/truth.ts` `elfCodeEnd` ends a sized function at addr + size (agbcc's `.size`, its literal pool
@@ -1702,28 +1753,39 @@ tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeu
   `g2.poc-parity`, still cover the five: their evidence is the M1 lockstep at a commit that predates tmc's
   reveal, and `g2.poc-parity` fails on tmc at `landed` 1 (phase-2.md, "Owner questions").
 - (m) **`bench/baseline/speed.json` holds tmc**, measured in the baseline's calibration.
+- (n) **tmc's improvements over the PoC's own run are accepted diffs** (fix round 1): 49 misses removed
+  and 2 false entries removed, each with its commit and reason in `bench/baseline/accepted-diffs.json`.
+  The other 8 differences (7 false entries the PoC did not have, one miss whose reason changed) are not
+  improvements and cannot be accepted, so `g2.baseline-rows` fails on tmc (phase-2.md, "Owner questions").
 
 **Consequences.** tmc at `d645160` (sealed): 8,589 entries for 8,636 ELF functions, tp 8,582, recall
-99.37%, 51 glued, 3 label candidates, 8 false entries, code end −4,130. After (a) to (m): 8,643 entries,
+99.37%, 51 glued, 3 label candidates, 8 false entries, code end −4,130. After (a) to (n): 8,643 entries,
 tp 8,631, precision 99.86%, recall 99.94%, 5 misses (`labels`), 12 false entries (`untyped`), extents
-8,388/8,388, code end 0 (+148 without the `codeEnd` row). On fe7j, klonoa, pokeemerald, sa2 and sa3 every
-bench row is unchanged (entries, true positives, misses, false entries with their origins, extents, code
-end); analysis digests move only through (c) (two rejections on pokeemerald) and (h) (origins: fe7j 2,122
-functions, pokeemerald 1,234, sa3 202, sa2 149, klonoa 13), and fe7j's analysis takes about 1.2 s instead
-of 8.6 s. pokefirered and pokeruby still pass sealed with unchanged counts. 59 rules, 33 fixtures (two
-new: `ram-code-entries`, `data-named-between-data`). Known limitation: tmc's `arm_sub_080B1FE4`, a
-two-instruction ARM leaf after an ARM function, is read as Thumb (the ARM gap scan needs three
-instructions; the bench scores addresses, not modes).
+8,388/8,388, code end 0. The pinned PoC's own run of tmc: tp 8,582, 54 misses, 7 false entries, extents
+8,388/8,388, scaffold OK. On fe7j, klonoa, pokeemerald, sa2 and sa3 every bench row is unchanged (entries,
+true positives, misses, false entries with their origins, extents) but the code end of klonoa (+4 → 0) and
+fe7j (+8 → 0) under (j); analysis digests move only through (c) (two rejections on pokeemerald) and (h)
+(origins). pokefirered and pokeruby still pass sealed with unchanged counts. 59 rules, 41 fixtures.
+Known limitation: tmc's `arm_sub_080B1FE4`, a two-instruction ARM leaf after an ARM function, is read as
+Thumb (the ARM gap scan needs three instructions; the bench scores addresses, not modes). Gates the
+decision does not cover: `g2.poc-parity` (no M1 evidence for tmc), `g2.baseline-rows` (8 rows tmc has and
+the PoC's run of it does not), `g2.confirm-equals-discover` (6 functions on tmc); phase 2 does not land
+until the owner answers them.
 
-**Rejected.** A general scorer convention for unsized functions (a size-0 FUNC ends at the next `$d` or
-typed symbol): it would also move klonoa's and fe7j's code ends (+4 and +8 to 0), whose rows are rescored
-against the PoC baseline that g1.bench-harness requires equal. Mapping a pointer equal to the copy's
-destination (changes the `code-copied-to-ram` fixture's expectation without sign-off). Trusting every
+**Rejected.** A per-dataset `codeEnd` row (`80762ff`; a switch only tmc carried, replaced by (j)).
+Confirm mode taking the listed entries after the passes (`747293f`; it made the gate hold by
+construction, replaced by D8 again, (k)). Not asking the `scaffold` family of tmc, and a vacuous PoC floor
+for it (`72e6049`; replaced by the PoC's own run of tmc, (l)). Narrowing the roadmap's PoC thresholds to
+the five ROMs (`28b9005`; not authorised; the thresholds apply to all six). Raising `phase.json` while
+`g2.poc-parity` fails on tmc at `landed` 1 (`808513f`; it froze a fail). Mapping a pointer equal to the
+copy's destination (changes the `code-copied-to-ram` fixture's expectation without sign-off). Trusting every
 mapped pointer (the measured prototype: second entries accepted before their heads, three Thumb readings
-of ARM code at 0x080B19CC..0x080B19D4). Pre-settling every listed seed in confirm mode (10 differences on
-tmc), and deferring the listed seeds while keeping them functions from round 0 (11 differences). Scoping
-`g2.poc-parity` to the PoC's ROMs (it becomes historical when phase 2 lands; the decision authorises no
-other gate change).
+of ARM code at 0x080B19CC..0x080B19D4). Declining a mapped entry whose previous `b` jumps into its own
+straight line, or whose straight line falls into code a lower entry holds (measured in fix round 1: the
+gap scan then finds 0x080B1AA8 and 0x080B1B0C in Thumb mode, the wrong mode, with the same counts).
+Requiring two calls in (h) (its measured false-acceptance rate is 0 of 967). Pre-settling every listed
+seed in confirm mode (10 differences on tmc), and deferring the listed seeds while keeping them functions
+from round 0 (11 differences).
 
 ---
 
