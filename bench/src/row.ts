@@ -7,7 +7,7 @@
 import type { MissReason, Origin } from 'romlift';
 
 import type { ListName } from './dataset.ts';
-import type { ExceptionCategory } from './vocabulary.ts';
+import type { ArtifactCategory } from './vocabulary.ts';
 
 export interface MissRow {
   readonly addr: string;
@@ -15,7 +15,7 @@ export interface MissRow {
   readonly size: number;
   readonly reason: MissReason;
   readonly listed: boolean;
-  readonly category?: ExceptionCategory;
+  readonly category?: ArtifactCategory;
 }
 
 export interface FalseRow {
@@ -25,7 +25,7 @@ export interface FalseRow {
   /** The ELF function whose extent contains the false entry. */
   readonly owner?: string;
   readonly listed: boolean;
-  readonly category?: ExceptionCategory;
+  readonly category?: ArtifactCategory;
 }
 
 export interface ExtentRow {

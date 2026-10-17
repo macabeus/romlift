@@ -9,7 +9,7 @@ import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from '.
 import { parseParityEvidence, type ParityEvidence } from './parity-evidence.ts';
 import type { BaselineRows, BenchRow, ExtentRow, FalseRow, MissRow, RowDiff, StaleException } from './row.ts';
 import { assertCountsOnly, type SealedCounts } from './seal.ts';
-import { isExceptionCategory, type ExceptionCategory } from './vocabulary.ts';
+import { isArtifactCategory, type ArtifactCategory } from './vocabulary.ts';
 
 export interface RomInputs {
   readonly sha1: string;
@@ -92,10 +92,10 @@ function list<T>(value: unknown, at: string, item: (v: unknown, at: string) => T
   return value.map((v, i) => item(v, `${at}[${i}]`));
 }
 
-function category(r: Readonly<Record<string, unknown>>, at: string): { readonly category?: ExceptionCategory } {
+function category(r: Readonly<Record<string, unknown>>, at: string): { readonly category?: ArtifactCategory } {
   if (r['category'] === undefined) return {};
   const id = str(r['category'], `${at}.category`);
-  if (!isExceptionCategory(id)) fail(`${at}.category`, `'${id}' is not an exception category`);
+  if (!isArtifactCategory(id)) fail(`${at}.category`, `'${id}' is not an exception category`);
   return { category: id };
 }
 

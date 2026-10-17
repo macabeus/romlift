@@ -92,3 +92,10 @@ test('the loader reads only real/*.json, in code-unit order', async () => {
     assert.deepEqual(problems.map((p) => [p.dataset, p.problem]), [['broken', 'unreadable']]);
   });
 });
+
+test('a retired category is an unknown category, except when reading an older commit (retired)', () => {
+  const old = { ...dataset(), labels: [{ ...row, category: 'continuation-after-noreturn-call' }] };
+  assert.deepEqual(problemsOf(old), ['unknown-category']);
+  assert.deepEqual(parseDataset(old, 'x.json', { retired: true }).problems, []);
+  assert.deepEqual(problemsOf({ ...dataset(), labels: [{ ...row, category: 'unreviewed' }] }), [], 'the adopt placeholder parses; g2.no-unreviewed refuses it');
+});

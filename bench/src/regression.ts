@@ -182,7 +182,7 @@ export async function regression(cx: BenchContext, options: RegressionOptions = 
     for (const d of datasets) {
       const text = await gitShow(cx.repoRoot, ref, `bench/dataset/real/${d.name}.json`);
       if (text === null) continue;
-      const parsed = parseDataset(JSON.parse(text) as unknown, `${ref}:bench/dataset/real/${d.name}.json`);
+      const parsed = parseDataset(JSON.parse(text) as unknown, `${ref}:bench/dataset/real/${d.name}.json`, { retired: true });
       if (parsed.dataset !== undefined) baseDatasets.set(d.name, parsed.dataset);
     }
     trailers = parseTrailers(await gitMessagesSince(cx.repoRoot, ref));
