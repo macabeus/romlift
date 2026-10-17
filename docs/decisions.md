@@ -1841,8 +1841,8 @@ sealed ROM of a fresh family passes.
 **Consequences.** tmc at `d645160` (sealed): 8,589 entries for 8,636 ELF functions, tp 8,582, recall
 99.37%, 51 glued, 3 label candidates, 8 false entries, code end −4,130. After (a) to (n) and fix round 2:
 8,643 entries, tp 8,631, precision 99.86%, recall 99.94%, 5 misses (`labels`), 12 false entries
-(`untyped`), extents 8,388/8,388, code end +148 under the convention of phase 1 (the found code end is
-the ELF's last instruction plus its shared pool; Q5). The pinned PoC's own run of tmc: tp 8,582, 54
+(`untyped`), extents 8,388/8,388, code end +148 under the convention of phase 1 (romlift's code end is
+where the unsized last function's instructions stop, the convention ends it where it starts; Q5). The pinned PoC's own run of tmc: tp 8,582, 54
 misses, 7 false entries, extents 8,388/8,388, scaffold OK, pinned by content in
 `bench/baseline/poc-dump-rows.json`. On fe7j, klonoa, pokeemerald, sa2 and sa3 every bench row is
 unchanged (entries, true positives, misses, false entries with their origins, extents, code end: klonoa
