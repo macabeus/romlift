@@ -26,6 +26,16 @@ export interface UntypedRow {
   readonly note: string;
 }
 
+/**
+ * The code end of a dataset whose ELF gives its last function no size (D60 j): the end the ELF implies,
+ * the first code-ending symbol after that function, which dataset-check recomputes from the ELF.
+ */
+export interface CodeEndRow {
+  readonly addr: string;
+  readonly category: ArtifactCategory;
+  readonly note: string;
+}
+
 export interface Reveal {
   readonly at: string;
   readonly commit: string;
@@ -54,6 +64,8 @@ export interface Dataset {
   readonly revealed: readonly Reveal[];
   readonly labels: readonly LabelRow[];
   readonly untyped: readonly UntypedRow[];
+  /** Optional: the ELF's code end when its last function is unsized. */
+  readonly codeEnd?: CodeEndRow;
 }
 
 export type ListName = 'labels' | 'untyped';
@@ -70,7 +82,8 @@ export type DatasetProblemId =
   | 'is-a-func'
   | 'stale-exception'
   | 'input-unavailable'
-  | 'tuning-set';
+  | 'tuning-set'
+  | 'code-end';
 
 export interface DatasetProblem {
   readonly dataset: string;
@@ -207,6 +220,17 @@ export function parseDataset(value: unknown, file: string, options: { readonly r
       }
     }
   }
+  let codeEnd: CodeEndRow | undefined;
+  const rawEnd = value['codeEnd'];
+  if (rawEnd !== undefined) {
+    const addr = isRecord(rawEnd) ? rawEnd['addr'] : undefined;
+    const category = isRecord(rawEnd) ? rawEnd['category'] : undefined;
+    const note = isRecord(rawEnd) ? rawEnd['note'] : undefined;
+    if (typeof addr !== 'string' || !ADDR.test(addr)) fileProblem(`${file}: 'codeEnd' needs an 'addr' of 0x plus eight upper-case hex digits`, 'malformed-address');
+    else if (typeof category !== 'string' || !known(category)) problems.push({ dataset: name, list: 'dataset', addr, problem: 'unknown-category', detail: `${name}.codeEnd: unknown category ${String(category)}` });
+    else if (typeof note !== 'string') fileProblem(`${file}: 'codeEnd' has no 'note' string`);
+    else codeEnd = { addr, category, note };
+  }
   if (problems.length > 0 || typeof heldout !== 'boolean') return { problems };
   const { name: n, rom, elf, sha1, elfCommit, elfSha256, family, buildNote } = fields;
   if (n === undefined || rom === undefined || elf === undefined || sha1 === undefined || elfCommit === undefined || elfSha256 === undefined || family === undefined || buildNote === undefined) {
@@ -228,6 +252,7 @@ export function parseDataset(value: unknown, file: string, options: { readonly r
     revealed: reveals,
     labels: lists.labels,
     untyped: lists.untyped,
+    ...(codeEnd === undefined ? {} : { codeEnd }),
   };
   return { dataset, problems };
 }

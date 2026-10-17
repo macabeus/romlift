@@ -1,14 +1,15 @@
 // `bench dataset-check [--json]` (g1.dataset-elf, a precondition of g2.entries, architecture §8.3): the
 // datasets against their ELFs and against romlift's own discover run (D24). Every `labels` address must
 // be an ELF FUNC inside a function the run found (inside a found extent, not itself an entry), every
-// `untyped` address must not be a FUNC, and every listed row must still be needed by the run (a label it
+// `untyped` address must not be a FUNC, a `codeEnd` row must be the first data mapping or typed symbol
+// after an unsized last function (D60 j), and every listed row must still be needed by the run (a label it
 // still misses, an untyped address it still reports), so the lists stay exact. Structural problems of
 // the files are reported too, and the tuning set itself is pinned: the unsealed datasets must be exactly
 // the ROMs of the PoC baseline plus the held-out datasets whose `revealed` log is not empty
 // (docs/benchmark-roms.md; a reveal is the one recorded way a held-out ROM becomes tuning data, D25), so a
 // tuning dataset flipped to `heldout`, or a held-out one unsealed without a reveal, fails instead of
 // changing the set. Sealed datasets are never run here.
-import { compareCodeUnits } from 'romlift';
+import { compareCodeUnits, hexAddr } from 'romlift';
 
 import { DEFAULT_RUN_TUNING, diagnosedRun, readRealInputs, type AnalysisRunner } from './analysis-run.ts';
 import { readBaseline } from './baseline.ts';
@@ -17,7 +18,7 @@ import { loadDatasets, rowAddr, tuningDatasets, type Dataset, type DatasetProble
 import { BenchError } from './files.ts';
 import type { BenchRow } from './row.ts';
 import { analysisFunctions, insideFoundFunction, scoreAnalysis, staleExceptions, type FoundFunction } from './score.ts';
-import type { Truth } from './truth.ts';
+import { unsizedCodeEnd, type Truth } from './truth.ts';
 
 export interface DatasetCheckReport {
   readonly ok: boolean;
@@ -37,6 +38,15 @@ export function checkDatasetAgainstRun(d: Dataset, truth: Truth, found: readonly
     }
     if (stale.has(`labels ${e.addr}`)) {
       problems.push({ dataset: d.name, list: 'labels', addr: e.addr, problem: 'stale-exception', detail: `labels: ${e.addr} is not missed any more; remove it from the list` });
+    }
+  }
+  if (d.codeEnd !== undefined) {
+    // D60 j: the row is the ELF's own code end for an unsized last function, recomputed here.
+    const want = unsizedCodeEnd(truth);
+    if (want === undefined) {
+      problems.push({ dataset: d.name, list: 'dataset', addr: d.codeEnd.addr, problem: 'code-end', detail: `codeEnd: the ELF's last function is sized or no data mapping or typed symbol follows it; ${d.codeEnd.addr} is not needed` });
+    } else if (rowAddr(d.codeEnd.addr) !== want) {
+      problems.push({ dataset: d.name, list: 'dataset', addr: d.codeEnd.addr, problem: 'code-end', detail: `codeEnd: the first data mapping or typed symbol after the unsized last function is ${hexAddr(want)}, not ${d.codeEnd.addr}` });
     }
   }
   for (const e of d.untyped) {

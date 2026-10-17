@@ -99,3 +99,12 @@ test('a retired category is an unknown category, except when reading an older co
   assert.deepEqual(parseDataset(old, 'x.json', { retired: true }).problems, []);
   assert.deepEqual(problemsOf({ ...dataset(), labels: [{ ...row, category: 'unreviewed' }] }), [], 'the adopt placeholder parses; g2.no-unreviewed refuses it');
 });
+
+test('an optional codeEnd row (D60 j) parses; a malformed one is reported', () => {
+  const end = { addr: '0x08000230', category: 'unsized-last-function', note: 'n' };
+  assert.deepEqual(parseDataset({ ...dataset(), codeEnd: end }, 'x.json').dataset?.codeEnd, end);
+  assert.equal(parseDataset(dataset(), 'x.json').dataset?.codeEnd, undefined);
+  assert.deepEqual(problemsOf({ ...dataset(), codeEnd: { ...end, addr: '0x8000230' } }), ['malformed-address']);
+  assert.deepEqual(problemsOf({ ...dataset(), codeEnd: { ...end, category: 'nope' } }), ['unknown-category']);
+  assert.deepEqual(problemsOf({ ...dataset(), codeEnd: { addr: end.addr, category: end.category } }), ['missing-field']);
+});

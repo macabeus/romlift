@@ -95,3 +95,30 @@ test("dataset-check runs romlift's analysis: the synthetic tier passes, a row th
     assert.deepEqual(asked, [4]);
   });
 });
+
+test('a codeEnd row (D60 j) is the first data mapping or typed symbol after an unsized last function', () => {
+  const elf = elfFile([
+    { name: 'host', value: 0x0800_0101, size: 0x40 },
+    { name: 'last', value: 0x0800_0200, size: 0 },
+    { name: 'label', value: 0x0800_0220, size: 0, type: 'notype' },
+    { name: '$d', value: 0x0800_0230, size: 0, type: 'notype' },
+    { name: 'table', value: 0x0800_0240, size: 8, type: 'object' },
+  ]);
+  const truth = elfTruth(elf, 0x1000);
+  const result = analysisResult([fact(0x0800_0100, 0x0800_0140), fact(0x0800_0200, 0x0800_0230, 'call')], { end: 0x0800_0000, entries: [] }, 0x0800_0230);
+  const check = (addr: string, t = truth) => {
+    const d = dataset({ codeEnd: { addr, category: 'unsized-last-function', note: 'n' } });
+    const row = scoreAnalysis({ result, diagnoses: [], truth: t, dataset: d, sha1: '', deterministic: true });
+    return { problems: checkDatasetAgainstRun(d, t, analysisFunctions(result), row).map((p) => `${p.addr} ${p.problem}`), row };
+  };
+  const ok = check('0x08000230');
+  assert.deepEqual(ok.problems, []);
+  assert.deepEqual(ok.row.codeEnd, { found: '0x08000230', elf: '0x08000230', delta: 0 }, 'the row is the ELF code end the scorer uses');
+  assert.deepEqual(check('0x08000220').problems, ['0x08000220 code-end'], 'a code label does not end the function');
+  // Without the row the last FUNC ends where it starts.
+  const plain = scoreAnalysis({ result, diagnoses: [], truth, dataset: dataset(), sha1: '', deterministic: true });
+  assert.deepEqual(plain.codeEnd, { found: '0x08000230', elf: '0x08000200', delta: 48 });
+  // A sized last function needs no row.
+  const sized = elfTruth(elfFile([{ name: 'host', value: 0x0800_0101, size: 0x40 }, { name: 'last', value: 0x0800_0200, size: 0x30 }, { name: '$d', value: 0x0800_0230, size: 0, type: 'notype' }]), 0x1000);
+  assert.deepEqual(check('0x08000230', sized).problems, ['0x08000230 code-end']);
+});

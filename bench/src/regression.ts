@@ -118,6 +118,11 @@ export function regressionProblems(input: RegressionInput): RegressionProblem[] 
           }
         }
       }
+      // A codeEnd row (D60 j) is an exception row too.
+      const end = d.codeEnd?.addr;
+      if (end !== undefined && was?.codeEnd?.addr !== end && !allowed.has(`${d.name} ${end}`)) {
+        problems.push({ kind: 'untrailered-row', rom: d.name, detail: `codeEnd row ${end} was added without a 'Bench-Exception: ${d.name} ${end} <reason>' trailer` });
+      }
     }
   }
   return problems;

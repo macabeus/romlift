@@ -7,11 +7,11 @@
 import { compareCodeUnits, compareNumbers, hexAddr, type AnalysisResult, type MissReason, type Mode, type Origin } from 'romlift';
 import type { MissDiagnosis } from 'romlift/internal';
 
-import type { Dataset } from './dataset.ts';
+import { rowAddr, type Dataset } from './dataset.ts';
 import { BenchError } from './files.ts';
 import type { BenchRow, ExtentRow, FalseRow, MissRow, StaleException } from './row.ts';
 import { dumpAddr, missReasonId, originId, type ScoredRun } from './scored-run.ts';
-import type { Truth } from './truth.ts';
+import { elfCodeEnd, type Truth } from './truth.ts';
 
 /** An extent agrees when the ELF size equals it, or equals it padded to a multiple of 4. */
 export function extentAgrees(elfSize: number, extent: number): boolean {
@@ -105,7 +105,8 @@ export function scoreParts(run: RunParts, { truth, dataset, sha1 }: ScoreContext
     if (!extentAgrees(t.size, extent)) mismatches.push({ addr: hexAddr(t.addr), name: t.name, elf: t.size, found: extent });
   }
 
-  const elfEnd = truth.functions.reduce((e, t) => Math.max(e, t.addr + t.size), 0);
+  // A dataset's codeEnd row gives the end of an unsized last function (D60 j); dataset-check proves it.
+  const elfEnd = dataset.codeEnd === undefined ? elfCodeEnd(truth) : rowAddr(dataset.codeEnd.addr);
   return {
     name: dataset.name,
     sha1,
