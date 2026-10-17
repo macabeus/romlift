@@ -187,7 +187,8 @@ romlift/
     mutation/                       fault injection into every checker (§10)
     gates/                          g1.*.test.ts … g6.*.test.ts, gate.ts, phase.json, and the pure helpers the
                                     gates call and test/unit/gates tests: held-out-verdict.ts (g2.held-out's
-                                    cross-ROM verdict and the D60 waiver), poc-parity-coverage.ts
+                                    cross-ROM verdict and the D60 waiver), poc-parity-check.ts
+                                    (g2.poc-parity's one check, run before and after landing)
     local/                          tests that need local ROMs or the PoC; report `unavailable` when absent
     fixtures/                       tiny self-authored files for parser tests (an ELF, a map, legacy files)
     helpers/                        thumb`` / arm`` byte builders, prng.ts, temp dirs, fixture loader, dummy profile,
@@ -1023,9 +1024,13 @@ listed in `accepted-diffs.json`.
 
 `'poc-lifo'` was deleted by the phase-2 integration and the oracle in its fix round (D59); `g2.poc-parity`
 checks the committed evidence (the digests and the lockstep summary in `results.json`, tied to the commit
-it names) and becomes `historical` when phase 2 lands. It is never re-run; once historical it still checks
-that the committed evidence covers every tuning dataset (`test/gates/poc-parity-coverage.ts`), so raising
-`phase.json` cannot freeze a fail (D60, gate-honesty-r1-3).
+it names) and becomes `historical` when phase 2 lands. It is never re-run. One check
+(`test/gates/poc-parity-check.ts` `parityCheck`) decides it before and after landing: once historical the
+harness runs the gate's own check as its `historicalCheck` and records `historical` only when it passes, so
+raising `phase.json` cannot freeze a fail (D60, gate-honesty-r1-3, r2-1). Its scope is the five ROMs of the
+M1 evidence: the owner's answer to Q1 of phase-2.md (D61 c), "Keep tmc as 99.94%. It's a benchmark row that
+we can improve later", scopes tmc out (its M1 evidence cannot exist: the lockstep ran under `poc-lifo`
+before tmc was revealed), and the gate prints "tmc: not applicable, no M1 lockstep run".
 
 ## 5. The printer
 

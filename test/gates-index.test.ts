@@ -36,6 +36,7 @@ interface LoadedSpec {
   readonly realInputs: unknown;
   readonly historicalAfter: unknown;
   readonly hasRun: boolean;
+  readonly checkIsRun: boolean;
   readonly keys: readonly string[];
 }
 
@@ -130,7 +131,7 @@ for (const file of JSON.parse(process.env.ROMLIFT_INDEX_FILES)) {
     await import(pathToFileURL(file).href);
     const specs = globalThis.__romliftGateSpecs.slice(before).map((s) => ({
       id: s.id, phase: s.phase, tier: s.tier, needs: s.needs, inputs: s.inputs, realInputs: s.realInputs,
-      historicalAfter: s.historicalAfter, hasRun: typeof s.run === 'function', keys: Object.keys(s).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+      historicalAfter: s.historicalAfter, hasRun: typeof s.run === 'function', checkIsRun: s.historicalCheck === s.run, keys: Object.keys(s).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
     }));
     out.push({ file, specs });
   } catch (error) {
@@ -201,8 +202,10 @@ test('every gate file loads and declares the gate() spec §13 gives it', () => {
     assert.equal(spec.tier, row.tier, `${name}: tier (§13 '${row.tier}')`);
     assert.equal(spec.historicalAfter, row.historicalAfter, `${name}: historicalAfter`);
     assert.ok(spec.hasRun, `${name}: run is not a function`);
-    // A historical gate keeps checking that its evidence covers what it covered (D60, gate-honesty-r1-3).
+    // A historical gate keeps running its own check once frozen (D60, gate-honesty-r1-3, gate-honesty-r2-1):
+    // its historicalCheck is its run, so raising phase.json cannot freeze a gate whose check fails.
     assert.equal(spec.keys.includes('historicalCheck'), spec.historicalAfter !== undefined, `${name}: historicalCheck exactly when historicalAfter`);
+    if (spec.historicalAfter !== undefined) assert.ok(spec.checkIsRun, `${name}: historicalCheck must be the gate's own run`);
     assert.ok(isStringArray(spec.needs), `${name}: needs is not a string array`);
     for (const key of ['inputs', 'realInputs'] as const) {
       const value = spec[key];

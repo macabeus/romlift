@@ -1918,6 +1918,15 @@ skipped or removed.
   SHA-1 and ELF SHA-256, and the tuning families of D60) is unchanged, and the count of passing sealed ROMs
   (at least two) and every per-ROM threshold still decide. Measured: `g2.held-out` passes, pokefirered and
   pokeruby pass sealed with unchanged counts.
+- (c) **Q1, `g2.poc-parity`** (`test/gates/poc-parity-check.ts`). `SCOPED_OUT` holds tmc with the owner's
+  words; the gate judges the five ROMs of the M1 evidence exactly as before (parity digest, rows, every
+  lockstep set, the commit an ancestor of HEAD, the pinned PoC source) and prints "tmc: not applicable, no
+  M1 lockstep run". With the review of `8fba183` (gate-honesty-r2-1) the gate's `historicalCheck` is its own
+  check (`parityCheck`, the same function as `run`), not a coverage test, so once `phase.json` is raised it
+  is `historical` only when that check passes on its scope; `test/gates-index.test.ts` holds every
+  historical gate to `historicalCheck === run`, and `test/unit/gates/poc-parity-check.test.ts` runs the
+  harness at `landed` 2 on a gate whose check throws (`fail`) and one whose check returns (`historical`;
+  code-quality-r2-6). A scoped-out name that is no tuning dataset fails as stale.
 
 **Consequences.** See each item; phase-2.md records the closing run under these answers.
 
