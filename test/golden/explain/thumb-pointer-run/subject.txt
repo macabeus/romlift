@@ -63,8 +63,8 @@
     claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
       rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
-    gap.forward-chain: a valid Thumb reading at the cursor, first word nonzero, extent inside [gap start, end), chained forward from the gap start
-      rests on: compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment
+    gap.forward-chain: a valid Thumb reading at the cursor, first word nonzero and no pointer to an accepted function, extent inside [gap start, end), chained forward from the gap start
+      rests on: compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment; a literal pool word holding an accepted Thumb function + 1 is that function's address, not code
       recovers: functions reached only through computed addresses or not at all (dead code, callbacks named in data the harvest missed)
     gap.skip-padding-and-pointers: the forward chain steps 4 bytes over a zero word or an odd word pointing into the ROM, and stops at anything else
       rests on: between compiled functions sit only alignment zeros and small tables of Thumb code pointers; other bytes are data

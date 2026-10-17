@@ -33,3 +33,18 @@ test('declined: an extent past the current end, or a cursor below the gap start'
   assert.equal(rule.propose(gapCursor(P, P + 4, P), viewWith({ rom })), undefined);
   assert.equal(rule.propose(gapCursor(P + 2, END, P), viewWith({ rom })), undefined);
 });
+
+test('declined: a word-aligned word holding an accepted Thumb function + 1 is its address, not code (D60 f)', () => {
+  const F = 0x0800_0300;
+  const pointers = romWith([
+    { at: P, bytes: words(F + 1) },
+    { at: P + 4, bytes: thumbAt(P + 4)`bx lr` },
+    { at: F, bytes: thumbAt(F)`bx lr` },
+  ]);
+  assert.equal(rule.propose(gapCursor(P, END, P), viewWith({ rom: pointers, functions: [F] })), undefined);
+  // Not a function yet: the word may still be read as code.
+  assert.equal(rule.propose(gapCursor(P, END, P), viewWith({ rom: pointers }))?.entry, P);
+  // An even word, or a cursor at 2 mod 4, is never such a pointer.
+  const even = romWith([{ at: P, bytes: words(F) }, { at: P + 4, bytes: thumbAt(P + 4)`bx lr` }]);
+  assert.equal(rule.propose(gapCursor(P, END, P), viewWith({ rom: even, functions: [F] }))?.entry, P);
+});

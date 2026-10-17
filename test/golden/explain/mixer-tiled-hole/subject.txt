@@ -63,8 +63,8 @@
     gap.arm-scan: an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference
       rests on: hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps
       recovers: heap, OAM and map routines in ARM that no accepted code refers to
-    gap.forward-chain: a valid Thumb reading at the cursor, first word nonzero, extent inside [gap start, end), chained forward from the gap start
-      rests on: compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment
+    gap.forward-chain: a valid Thumb reading at the cursor, first word nonzero and no pointer to an accepted function, extent inside [gap start, end), chained forward from the gap start
+      rests on: compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment; a literal pool word holding an accepted Thumb function + 1 is that function's address, not code
       recovers: functions reached only through computed addresses or not at all (dead code, callbacks named in data the harvest missed)
     gap.tiled-hole: a gap's head reads as a function failing at most density or stack balance, with at least gapScan.minInsns instructions, its code inside the gap
       rests on: hand-written mixers keep ARM blocks and tables inside a Thumb function, so their extent has holes and their paths may not balance the stack
