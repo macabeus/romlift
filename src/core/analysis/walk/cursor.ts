@@ -22,6 +22,7 @@ import type {
   Reading,
   ReadingError,
   ReadingShape,
+  WalkDecision,
   WalkPolicy,
   WalkStep,
 } from '../types.ts';
@@ -102,6 +103,8 @@ export interface WalkEnv {
   readonly view: AnalysisView;
   readonly policies: readonly ResolvedPolicy[];
   readonly extentEnd: (shape: ReadingShape) => Addr;
+  /** Record the walk slot's answers in Reading.steps (a trail is on); off, the walk records none. */
+  readonly trace?: boolean;
 }
 
 /** The cursor a walker fills in place before each ask; `run` is built only when a rule reads it. */
@@ -177,14 +180,22 @@ export class WalkRecord {
   readonly exits: Exit[] = [];
   readonly branchTargets: Addr[] = [];
   readonly armTails: Span[] = [];
+  readonly steps: WalkDecision[] = [];
   readonly entry: Addr;
   readonly mode: Mode;
+  private readonly trace: boolean;
   returns = 0;
   tailExits = 0;
 
-  constructor(entry: Addr, mode: Mode) {
+  constructor(entry: Addr, mode: Mode, trace = false) {
     this.entry = entry;
     this.mode = mode;
+    this.trace = trace;
+  }
+
+  /** Records a walk-slot answer the walk applies at `at` (only when traced). */
+  step(at: Addr, rule: RuleId, step: WalkStep): void {
+    if (this.trace) this.steps.push({ at, rule, step: step.step });
   }
 
   /** Records an instruction. */
@@ -252,6 +263,7 @@ export class WalkRecord {
         exits: this.exits,
         branchTargets: this.branchTargets,
         armTails: this.armTails,
+        steps: this.steps,
         ...extra,
         end: env.extentEnd(shape),
       },

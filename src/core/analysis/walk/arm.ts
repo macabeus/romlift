@@ -86,7 +86,7 @@ function exitHere(rec: WalkRecord, insn: Insn, conditional: boolean, kind: 'retu
 export function walkArm(env: WalkEnv, entry: Addr): Reading {
   const { view } = env;
   const rom = view.rom;
-  const rec = new WalkRecord(entry, 'arm');
+  const rec = new WalkRecord(entry, 'arm', env.trace === true);
   const work: Addr[] = [entry];
   const isFunction = (a: Addr): boolean => view.isFunction(a);
   const runs = { current: [] as Addr[] };
@@ -135,6 +135,7 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
 }
 
 function apply(rec: WalkRecord, insn: Insn, conditional: boolean, id: RuleId, step: WalkStep, work: Addr[], isFunction: (a: Addr) => boolean, env: WalkEnv): boolean {
+  rec.step(insn.addr, id, step);
   switch (step.step) {
     case 'pool':
       if (contains(env.view.rom, step.addr, 4)) rec.pool(step.addr, u32(env.view.rom, step.addr));

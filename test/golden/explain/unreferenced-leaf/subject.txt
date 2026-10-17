@@ -14,7 +14,7 @@
   rejections (2):
     0x08000110 valid.decodes round 4 cites 0x08000110: decode-error: decodes to nothing
     0x08000114 valid.decodes round 4 cites 0x08000114: decode-error: decodes to nothing
-  bl verdicts (2):
+  verdicts (2):
     0x080000F8 bl.near-is-call round 0 cites 0x080000F8, 0x08000104: call
     0x080000FC bl.near-is-call round 0 cites 0x080000FC, 0x08000118: call
   waits (1):

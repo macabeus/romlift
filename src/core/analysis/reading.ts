@@ -6,7 +6,7 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import type { BlSite } from '../profile/types.ts';
-import type { BlVerdictRecord, CallSite, Exit, InsnLookup, InsnSpan, JumpTable, PoolWord, Reading, ReadingError } from './types.ts';
+import type { BlVerdictRecord, CallSite, Exit, InsnLookup, InsnSpan, JumpTable, PoolWord, Reading, ReadingError, WalkDecision } from './types.ts';
 
 /** Everything a reading is built from; `end` comes from the extent rule (claim.adjacent-pools). */
 export interface ReadingParts {
@@ -35,6 +35,8 @@ export interface ReadingParts {
   readonly exits?: readonly Exit[];
   readonly branchTargets?: readonly Addr[];
   readonly armTails?: readonly Span[];
+  /** Walk order. */
+  readonly steps?: readonly WalkDecision[];
   readonly end: Addr;
 }
 
@@ -206,6 +208,7 @@ export function makeReading(parts: ReadingParts, rom: Rom, insnAt?: InsnLookup):
     exits: [...(parts.exits ?? [])].sort((a, b) => a.at - b.at || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0)),
     branchTargets: sortedUnique(parts.branchTargets ?? []),
     armTails: [...(parts.armTails ?? [])].sort((a, b) => a.start - b.start || a.end - b.end),
+    steps: parts.steps ?? [],
     codeEnd,
     end,
     holes: holes.holes,
@@ -237,6 +240,7 @@ export function partsOf(r: Reading): ReadingParts {
     exits: r.exits,
     branchTargets: r.branchTargets,
     armTails: r.armTails,
+    steps: r.steps,
     end: r.end,
   };
 }

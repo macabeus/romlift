@@ -84,7 +84,7 @@ export function createDriver(rom: Rom, profile: CompilerProfile, options: Analys
       whyInvalid: (entry) => whyInvalid(get(), entry),
     },
     view,
-    walkEnv: { view, policies: rules.walk, extentEnd: (shape) => rules.extentEnd(shape, profile) },
+    walkEnv: { view, policies: rules.walk, extentEnd: (shape) => rules.extentEnd(shape, profile), trace: sink !== undefined && options.trail !== 'off' },
   };
   for (const entry of state.listedOrder) if (isListedBoundary(state, entry)) markEntry(state, entry);
   return state;

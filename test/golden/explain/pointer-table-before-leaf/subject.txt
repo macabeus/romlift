@@ -24,13 +24,25 @@
     0x08000130 valid.returns-or-prologue round 2 cites 0x08000130: no-return-no-prologue: no return and no push {.., lr}
     0x08000134 valid.returns-or-prologue round 2 cites 0x08000134: no-return-no-prologue: no return and no push {.., lr}
     0x08000138 valid.returns-or-prologue round 2 cites 0x08000138: no-return-no-prologue: no return and no push {.., lr}
-  bl verdicts (6):
+  verdicts (18):
     0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x0800011C: call
     0x080000FA bl.near-is-call round 0 cites 0x080000FA, 0x08000120: call
     0x080000FE bl.near-is-call round 0 cites 0x080000FE, 0x08000124: call
     0x08000102 bl.near-is-call round 0 cites 0x08000102, 0x08000128: call
     0x08000106 bl.near-is-call round 0 cites 0x08000106, 0x08000144: call
     0x08000112 bl.near-is-call round 2 cites 0x08000112, 0x0800013C: call
+    0x0800012C gap.skip-padding-and-pointers round 2 cites 0x0800012C, 0x08000130: skips to 0x08000130
+    0x08000130 gap.skip-padding-and-pointers round 2 cites 0x08000130, 0x08000134: skips to 0x08000134
+    0x08000134 gap.skip-padding-and-pointers round 2 cites 0x08000134, 0x08000138: skips to 0x08000138
+    0x08000138 gap.skip-padding-and-pointers round 2 cites 0x08000138, 0x0800013C: skips to 0x0800013C
+    0x0800012C gap.skip-padding-and-pointers round 4 cites 0x0800012C, 0x08000130: skips to 0x08000130
+    0x08000130 gap.skip-padding-and-pointers round 4 cites 0x08000130, 0x08000134: skips to 0x08000134
+    0x08000134 gap.skip-padding-and-pointers round 4 cites 0x08000134, 0x08000138: skips to 0x08000138
+    0x08000138 gap.skip-padding-and-pointers round 4 cites 0x08000138, 0x0800013C: skips to 0x0800013C
+    0x0800012C gap.skip-padding-and-pointers round 6 cites 0x0800012C, 0x08000130: skips to 0x08000130
+    0x08000130 gap.skip-padding-and-pointers round 6 cites 0x08000130, 0x08000134: skips to 0x08000134
+    0x08000134 gap.skip-padding-and-pointers round 6 cites 0x08000134, 0x08000138: skips to 0x08000138
+    0x08000138 gap.skip-padding-and-pointers round 6 cites 0x08000138, 0x0800013C: skips to 0x0800013C
   waits: none
   claims (7):
     0x0800011C claim.dead-code-in-extent round 0 cites 0x0800011C: 1 edits
@@ -40,13 +52,16 @@
     0x08000144 claim.dead-code-in-extent round 0 cites 0x08000144: 1 edits
     0x08000110 claim.dead-code-in-extent round 2 cites 0x08000110: 1 edits
     0x0800013C claim.dead-code-in-extent round 2 cites 0x0800013C: 1 edits
-  rules (6):
+  rules (7):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
     claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code
       rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    gap.skip-padding-and-pointers: the forward chain steps 4 bytes over a zero word or an odd word pointing into the ROM, and stops at anything else
+      rests on: between compiled functions sit only alignment zeros and small tables of Thumb code pointers; other bytes are data
+      recovers: functions after padding or a callback table inside a gap, without walking through data that would chain false entries
     gap.tiled-hole: a gap's head reads as a function failing at most density or stack balance, with at least gapScan.minInsns instructions, its code inside the gap
       rests on: hand-written mixers keep ARM blocks and tables inside a Thumb function, so their extent has holes and their paths may not balance the stack
       recovers: SoundMainRAM and other mixers on all five tuning ROMs

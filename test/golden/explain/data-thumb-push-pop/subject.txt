@@ -31,7 +31,7 @@
     0x08000110 valid.calls-code round 4 cites 0x08000110: calls-non-code: calls 0x0800011A, which is not code
     0x0800013C valid.dense round 4 cites 0x0800013C: not-dense: not dense: holes inside its extent (14 bytes in 20)
     0x08000150 valid.decodes round 4 cites 0x08000150: decode-error: decodes to nothing
-  bl verdicts (8):
+  verdicts (8):
     0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000120: call
     0x080000FA bl.near-is-call round 0 cites 0x080000FA, 0x08000134: call
     0x080000FE bl.near-is-call round 0 cites 0x080000FE, 0x08000154: call

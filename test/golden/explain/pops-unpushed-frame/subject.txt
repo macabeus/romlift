@@ -57,7 +57,7 @@
     0x08000D08 valid.decodes round 2 cites 0x08000D08: decode-error: decodes to nothing
     0x08000D04 valid.decodes round 2 cites 0x08000D04: decode-error: decodes to nothing
     0x08000D00 valid.decodes round 2 cites 0x08000D00: decode-error: decodes to nothing
-  bl verdicts (5):
+  verdicts (5):
     0x080000FC bl.target-has-prologue round 0 cites 0x080000FC, 0x08000DC8: call
     0x08000756 bl.target-has-prologue round 0 cites 0x08000756, 0x08000DB8: call
     0x0800075E bl.target-beyond-callee round 0 cites 0x0800075E, 0x08000DC4: call

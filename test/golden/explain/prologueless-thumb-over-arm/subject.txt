@@ -10,19 +10,23 @@
     0x08000114 seed.call round 0 cites 0x080000F6
     0x08000100 gap.arm-scan round 2 cites 0x08000100
   rejections: none
-  bl verdicts (1):
+  verdicts (2):
     0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000114: call
+    0x08000100 gap.arm-over-prologueless-thumb round 2 cites 0x08000100: arm over thumb
   waits: none
   claims (2):
     0x08000114 claim.dead-code-in-extent round 0 cites 0x08000114: 1 edits
     0x08000100 claim.dead-code-in-extent round 2 cites 0x08000100: 1 edits
-  rules (4):
+  rules (5):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
     claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code
       rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    gap.arm-over-prologueless-thumb: Thumb with a prologue wins the cursor; otherwise ARM wins unless it starts at the same entry and its code ends within the Thumb extent
+      rests on: ARM words decode as plausible Thumb pairs, but a compiled Thumb function opens with push {.., lr} on a word boundary
+      recovers: 14-byte Thumb stubs read in front of ARM functions, and ARM heap, OAM and map routines lost to them
     gap.arm-scan: an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference
       rests on: hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps
       recovers: heap, OAM and map routines in ARM that no accepted code refers to

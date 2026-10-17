@@ -9,10 +9,11 @@
     0x0800011C seed.pool-pointer round 1 cites 0x0800011C: thumb
     0x08000130 gap.end-anchor round 3 cites 0x08000130, 0x08000138: thumb
     0x08000148 gap.backward-prologue-chain round 3 cites 0x08000148, 0x0800014C: thumb
-  accepts (5):
+  accepts (6):
     0x08000138 seed.call round 0 cites 0x080000FC
     0x0800014C seed.call round 0 cites 0x08000100
     0x0800011C seed.pool-pointer round 1 cites 0x0800011C: accepted by accept.prologue-and-loaded
+    0x0800011C accept.prologue-and-loaded round 1 cites 0x0800011C: takes the seed.pool-pointer candidate
     0x08000130 gap.end-anchor round 3 cites 0x08000130, 0x08000138
     0x08000148 gap.backward-prologue-chain round 3 cites 0x08000148, 0x0800014C
   rejections (7):
@@ -23,7 +24,7 @@
     0x0800012C valid.decodes round 3 cites 0x0800012C: decode-error: decodes to nothing
     0x08000140 valid.decodes round 3 cites 0x08000140: decode-error: decodes to nothing
     0x08000144 valid.decodes round 3 cites 0x08000144: decode-error: decodes to nothing
-  bl verdicts (2):
+  verdicts (2):
     0x080000FC bl.near-is-call round 0 cites 0x080000FC, 0x08000138: call
     0x08000100 bl.near-is-call round 0 cites 0x08000100, 0x0800014C: call
   waits: none
@@ -33,7 +34,10 @@
     0x0800011C claim.dead-code-in-extent round 1 cites 0x0800011C: 1 edits
     0x08000130 claim.dead-code-in-extent round 3 cites 0x08000130: 1 edits
     0x08000148 claim.dead-code-in-extent round 3 cites 0x08000148: 1 edits
-  rules (8):
+  rules (9):
+    accept.prologue-and-loaded: a valid candidate with a prologue that accepted code loads as a pointer is a function
+      rests on: agbcc opens every non-leaf function with push {.., lr} on a word boundary, and code takes a function address from a pool
+      recovers: callbacks and handlers that accepted code installs by pointer
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller

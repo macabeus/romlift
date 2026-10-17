@@ -64,7 +64,7 @@ test('explain text: claim, owner and provenance, the always-shown groups, the ru
   const out = await run(['explain', '0x08000104', '--rom', ROM]);
   assert.equal(out.code, ExitCode.ok);
   assert.match(out.stdout, /^0x08000104\n {2}claim: code\n {2}owner: 0x08000104 \(origin call\)\n {2}provenance:\n/);
-  for (const label of ['rejections', 'bl verdicts', 'waits']) assert.match(out.stdout, new RegExp(`\\n {2}${label}(: none| \\(\\d+\\):)\\n`));
+  for (const label of ['rejections', 'verdicts', 'waits']) assert.match(out.stdout, new RegExp(`\\n {2}${label}(: none| \\(\\d+\\):)\\n`));
   assert.match(out.stdout, /\n {6}rests on: /);
   assert.match(out.stdout, /\n {6}recovers: /);
   assert.match(out.stdout, /\nexplain: ok \(exit 0\)\n$/);

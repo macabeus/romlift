@@ -12,7 +12,7 @@ import { accept } from './accept.ts';
 import { beginEpoch } from './epoch.ts';
 import { settle } from './settle.ts';
 import { valid } from './validity.ts';
-import { claimAt, reject } from './view.ts';
+import { claimAt, emit, reject } from './view.ts';
 import type { DriverState } from './view.ts';
 
 /** The PoC's pointerCandidates(): one list per harvest slot, each sorted, from one snapshot. */
@@ -67,8 +67,12 @@ export function grow(s: DriverState): number {
         const r = settle(s, t);
         const c: Candidate = { entry: t, mode: 'thumb', proposedBy, cites: [t] };
         const taken = acceptable(s, c, r, index);
-        if (taken !== undefined) added += accept(s, c, `accepted by ${taken.rule}`);
-        else {
+        if (taken !== undefined) {
+          const n = accept(s, c, `accepted by ${taken.rule}`);
+          // The accept rule decided: the accept event above names the proposer, this one the rule that took it.
+          if (n > 0 && taken.rule !== proposedBy) emit(s, 'accept', t, taken.rule, taken.cites, `takes the ${proposedBy} candidate`);
+          added += n;
+        } else {
           const prologue = s.profile.idioms.isPrologue(s.rom, t, 'thumb');
           const last = s.rules.accept[s.rules.accept.length - 1]?.id ?? proposedBy;
           reject(s, t, 'thumb', last, 'unanchored', false, `valid, referenced by ${proposedBy}, but no anchor${prologue ? '' : ' and no push {.., lr}'}`);

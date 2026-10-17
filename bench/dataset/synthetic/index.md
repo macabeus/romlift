@@ -86,6 +86,8 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 | `mixer-tiled-hole` | rule-specific | Thumb mixers with ARM routines inside, filling holes | `gap.tiled-hole`, `gap.tiled-hole-inner` |
 | `computed-jump-callback` | rule-specific | a callback trampoline ending in `mov pc, r1`, found only through validity (`seed.pool-pointer`, `accept.tiles-after-accepted`) | `walk.mov-pc-without-table` |
 | `large-data-referenced` | rule-specific | a 4.2 KiB function with a prologue, named only from data, data before it and a callee after it: its entry lies beyond the 4,096-byte windows of the end-anchor and backward scans | `accept.prologue-and-end-anchored` |
+| `inline-arm-switch` | rule-specific | a called Thumb entry whose body is the ARM code right after `add r2, pc, #0; bx r2` (m4a's umul3232H32); the ARM body is a FUNC of its own too | `walk.inline-arm-switch` |
+| `recursive-far-call` | rule-specific | a recursive function (C) whose `bl` to itself lies 2.4 KiB past its entry, after a guard calling a never-returning `Fatal`; its only return follows that call | `bl.self-or-accepted` |
 | `data-thumb-push-pop` | negative | five push/pop-shaped data records | `valid.calls-code`, `valid.decodes`, `valid.dense`, `valid.pool-not-code`, `valid.balanced-stack` |
 | `thumb-pointer-run` | negative | four Thumb pointers decoding as shifts; a zero word before an unreferenced leaf | `gap.skip-padding-and-pointers`, `valid.returns-or-prologue` |
 | `pointer-table-before-leaf` | negative | a Thumb-tagged pointer to a table of four Thumb pointers that reads as shifts into an unclaimed leaf, which returns | `valid.not-pointer-table` |
@@ -95,24 +97,17 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 | `false-stub-2byte` | negative | a lone `b` fragment after a jump table's cases | `accept.tiny-anchored-at-start` (its not-a-branch condition), `walk.table-by-register` |
 
 `seed.rom-entry`, `seed.call` and `walk.pc-load-is-pool` move outcomes in every fixture,
-`claim.adjacent-pools` in fifteen.
+`claim.adjacent-pools` in most.
 
 **Exempt** (D57): `bl.noreturn-before-noncode`, `region.startup`, `region.padding`,
 `region.data-after-code`, `seed.listed`, `seed.override`, `seed.evidence-hint` and
 `valid.in-rom-unclaimed` move no entry, extent or code end of a seedless discover run on any ROM; D57
 says why for each, and the coverage test asserts that disabling them moves no fixture outcome.
 
-**No fixture yet.** `bl.self-or-accepted` and `walk.inline-arm-switch` move no fixture outcome.
-`pops-unpushed-frame` was built for `bl.self-or-accepted`, but under M4's ascending worklist
-`bl.target-beyond-callee` decides that far `bl` first (docs/phase-2.md, deviation 3);
-`walk.inline-arm-switch` came with the umul3232H32 extents of the tuning set and has no fixture. They
-are neither covered nor exempt, and `g2.rule-coverage` fails on them until a fixture makes each
-load-bearing; the coverage test lists them as `UNCOVERED` and asserts they move nothing.
-
-**Not yet cited by the trail.** `g2.rule-coverage` also requires a decision event of the trail
-(accept, reject, verdict, claim, absorb) to name the rule. Fifteen load-bearing rules are named by none:
-the four acceptance rules other than the tiny-candidate veto (the driver emits the acceptance under the
-proposing rule and names the acceptance rule only in its note), the gap slots prefer and skip
-(`gap.arm-over-prologueless-thumb`, `gap.skip-padding-and-pointers`), and the nine walk rules, whose
-steps produce no event. The coverage test marks them `cited: false`; the gate passes for them once the
-driver cites them.
+**Cited by the trail.** `g2.rule-coverage` also requires a decision event of the trail (accept, reject,
+verdict, claim, absorb) to name each covered rule, and every one is named: an acceptance rule by the
+`accept` event the driver emits beside the proposer's (`grow`), a walk rule by a `verdict` event for
+each walk-slot answer of an accepted or absorbed reading (`Reading.steps`, recorded only while a trail
+is on, and kept across the settle rounds, since an earlier round's `noreturn-call` or `padding` answer
+decides a verdict that the last walk only applies), and the gap slots prefer and skip by a `verdict`
+event at the cursor (`fillGaps`).

@@ -62,16 +62,19 @@ function stopAt(path: Path, pc: Addr, sp: number, stop: 'invalid' | 'pool'): voi
     const last = decodeThumbAt(path.env, at);
     const answer = askWalk(path.env, last, cursorFor(path, last, sp, 'stop', pc, stop));
     if (answer?.step.step === 'padding') {
+      rec.step(last.addr, answer.id, answer.step);
       rec.drop(last.addr);
       run.pop();
       continue;
     }
     if (answer?.step.step === 'end-path' && answer.step.exit === 'noreturn-call') {
+      rec.step(last.addr, answer.id, answer.step);
       rec.deadEnd.push(last.addr);
       rec.exit(last.addr, 'noreturn-call', answer.id);
       return;
     }
     if (answer?.step.step === 'end-path' && answer.step.exit === 'swi-end') {
+      rec.step(last.addr, answer.id, answer.step);
       rec.returns += 1;
       rec.exit(last.addr, 'swi-end', answer.id);
       return;
@@ -100,6 +103,7 @@ function exitHere(path: Path, insn: Insn, sp: number, kind: 'return' | 'tail' | 
 function apply(path: Path, insn: Insn, sp: number, id: RuleId, step: WalkStep): boolean {
   const { rec, env } = path;
   const rom = env.view.rom;
+  rec.step(insn.addr, id, step);
   switch (step.step) {
     case 'pool':
       if (!contains(rom, step.addr, 4)) {
@@ -176,7 +180,7 @@ function call(path: Path, insn: Insn, sp: number, target: Addr, far: ReadonlySet
 export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, noret: ReadonlyMap<Addr, RuleId>): Reading {
   const { view } = env;
   const rom = view.rom;
-  const rec = new WalkRecord(entry, 'thumb');
+  const rec = new WalkRecord(entry, 'thumb', env.trace === true);
   const work: [Addr, number][] = [[entry, 0]];
   const runs = { current: [] as Addr[] };
   const cursor = walkCursor(view, entry, 'thumb', (a) => rec.insns.has(a), () => runs.current, (a) => decodeThumbAt(env, a));

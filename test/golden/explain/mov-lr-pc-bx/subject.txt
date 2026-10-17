@@ -13,14 +13,15 @@
     0x08000120 seed.adr round 2 cites 0x08000100
   rejections (1):
     0x08000100 valid.decodes round 2 cites 0x08000100: decode-error: decode error not-code at 0x08000102
-  bl verdicts (1):
+  verdicts (2):
     0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000128: call
+    0x08000110 walk.mov-lr-pc-bx-is-call round 2 cites 0x08000100, 0x08000110: continue
   waits: none
   claims (3):
     0x08000128 claim.dead-code-in-extent round 0 cites 0x08000128: 1 edits
     0x08000100 claim.dead-code-in-extent round 2 cites 0x08000100: 1 edits
     0x08000120 claim.dead-code-in-extent round 2 cites 0x08000120: 1 edits
-  rules (6):
+  rules (7):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
@@ -39,4 +40,7 @@
     valid.decodes: the walk from the entry decodes at least one instruction and hits no decode error
       rests on: every path of a compiled function decodes until it returns or jumps away
       recovers: data and text decoded as code
+    walk.mov-lr-pc-bx-is-call: ARM `mov lr, pc` then `bx rN` is a call through a register: the path goes on after the bx
+      rests on: ARMv4T has no blx; hand-written ARM and interworking code call through a register with `mov lr, pc; bx rN`
+      recovers: the code after an indirect call, which an exit at the bx would leave unreached
 explain: ok (exit 0)

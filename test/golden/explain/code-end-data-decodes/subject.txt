@@ -8,7 +8,7 @@
   accepts (1):
     0x08000100 seed.call round 0 cites 0x080000F6
   rejections: none
-  bl verdicts (1):
+  verdicts (1):
     0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000100: call
   waits: none
   claims (1):

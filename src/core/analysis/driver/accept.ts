@@ -34,6 +34,11 @@ export function write(s: DriverState, e: ClaimEdit): void {
   } else for (let k = lo; k < hi; k++) if (s.claims[k] === Claim.free) s.claims[k] = e.kind;
 }
 
+/** A 'verdict' event for every walk-slot answer the reading applied (Reading.steps; recorded only when a trail is on). */
+function citeSteps(s: DriverState, r: Reading): void {
+  for (const st of r.steps) emit(s, 'verdict', st.at, st.rule, [r.entry, st.at], st.step);
+}
+
 /** The PoC's claim(f): the instruction bytes as code, then the claim slot in order. `owner` is the accepted function `r` belongs to. */
 export function claim(s: DriverState, owner: Addr, r: Reading): void {
   s.tuning.oracle?.marker({ kind: 'claim', entry: r.entry, mode: r.mode });
@@ -69,6 +74,7 @@ function take(s: DriverState, c: Candidate, r: Reading, note?: string): readonly
   claim(s, c.entry, r);
   if (c.mode === 'thumb') for (const a of r.adrs) s.adrOwner.set(a, c.entry);
   emit(s, 'accept', c.entry, c.proposedBy, c.cites, note);
+  citeSteps(s, r);
   const fact = factOf(s, c.entry);
   if (fact === undefined) return [];
   return s.rules.queue.flatMap(({ rule }) => rule.queue(fact, s.view));
@@ -118,7 +124,7 @@ export function mergeReadings(s: DriverState, g: Reading, f: Reading): Reading {
   const armTails = [...g.armTails, ...f.armTails];
   const shape = { entry: g.entry, codeEnd: Math.max(g.codeEnd, f.codeEnd), pools: addrs, tables, armTails };
   return makeReading(
-    { ...parts, insns, pools, tables, armTails, adrs: [...g.adrs, ...f.adrs], calls: [...g.calls, ...f.calls], end: s.rules.extentEnd(shape, s.profile) },
+    { ...parts, insns, pools, tables, armTails, adrs: [...g.adrs, ...f.adrs], calls: [...g.calls, ...f.calls], steps: [...g.steps, ...f.steps], end: s.rules.extentEnd(shape, s.profile) },
     s.rom,
   );
 }
@@ -137,5 +143,6 @@ export function absorb(s: DriverState, into: Addr, block: Reading): void {
   for (const a of block.adrs) s.adrOwner.set(a, into);
   claim(s, into, block);
   emit(s, 'absorb', block.entry, s.profile.pipeline.gap.absorb, [into, block.entry]);
+  citeSteps(s, block);
   acceptCalls(s, block);
 }

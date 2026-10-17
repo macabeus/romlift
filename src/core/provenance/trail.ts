@@ -1,5 +1,6 @@
 // The decision trail (architecture §9.2): what the analysis proposed, accepted, rejected, waited on,
-// absorbed, decided for a bl, claimed, or (phase 6) placed. Core has no logger; it streams events to an
+// absorbed, decided ('verdict': a bl site, a walk-slot answer of an accepted reading, the gap's
+// Thumb/ARM choice or skip), claimed, or (phase 6) placed. Core has no logger; it streams events to an
 // optional sink when the trail level is not 'off'.
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import type { RuleId } from './rule-id.ts';

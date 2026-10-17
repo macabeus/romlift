@@ -6,7 +6,7 @@ import { sortedEntries, sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { LIMITS, settleLimit } from '../limits.ts';
 import { consult } from '../oracle.ts';
-import type { BlSite, BlVerdict, BlVerdictRecord, Reading } from '../types.ts';
+import type { BlSite, BlVerdict, BlVerdictRecord, Reading, WalkDecision } from '../types.ts';
 import { walkArm } from '../walk/arm.ts';
 import { walkThumb } from '../walk/thumb.ts';
 import { beginReading, endReading, readReading, takeCarried } from './reuse.ts';
@@ -71,10 +71,26 @@ function settleNow(s: DriverState, entry: Addr): Reading {
     verdicts.set(site.site, { site: site.site, target: site.target, verdict, rule });
     emit(s, 'verdict', site.site, rule, [site.site, site.target], verdict);
   };
+  // Traced, the walk-slot answers of every round are kept: an earlier round's answer (a noreturn call
+  // before non-code, the padding dropped before it) decides a verdict that the last walk only applies.
+  const steps: WalkDecision[] = [];
+  const seen = new Set<string>();
+  const keepSteps = (walked: Reading): void => {
+    for (const st of walked.steps) {
+      const key = `${st.at}:${st.rule}:${st.step}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      steps.push(st);
+    }
+  };
   let r = walkThumb(s.walkEnv, entry, far, noret);
+  keepSteps(r);
   let settled = false;
   for (let round = 0; round < LIMITS.settleRounds; round++) {
-    if (round > 0) r = walkThumb(s.walkEnv, entry, far, noret);
+    if (round > 0) {
+      r = walkThumb(s.walkEnv, entry, far, noret);
+      keepSteps(r);
+    }
     let changed = false;
     const deadEnd = new Set(r.deadEnd);
     for (const site of r.blSites) {
@@ -113,6 +129,7 @@ function settleNow(s: DriverState, entry: Addr): Reading {
     far: sortedKeys(far),
     noret: sortedKeys(noret),
     blVerdicts: sortedEntries(verdicts).map(([, v]) => v),
+    steps: steps.length === 0 ? r.steps : steps,
   };
   s.settled.set(entry, final);
   if (s.reuse !== undefined) endReading(s.reuse, entry);

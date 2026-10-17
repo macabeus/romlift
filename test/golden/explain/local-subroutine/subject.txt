@@ -11,7 +11,7 @@
     0x08000100 seed.call round 0 cites 0x080000F8
     0x08000108 seed.call round 0 cites 0x08000102
   rejections: none
-  bl verdicts (3):
+  verdicts (3):
     0x080000F8 bl.near-is-call round 0 cites 0x080000F8, 0x08000100: call
     0x08000102 bl.near-is-call round 0 cites 0x08000102, 0x08000108: call
     0x0800010C bl.near-is-call round 0 cites 0x0800010C, 0x08000108: call

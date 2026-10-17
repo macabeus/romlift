@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -1389,6 +1389,45 @@ bench run with seeds) fails until its exemption is replaced by a fixture.
 then count, which says nothing about the entries the gate protects). Ablating with TOML seeds or
 options (the bench scores a seedless run by D24; the seed rules have their own gates). Fixtures that
 reach `valid.in-rom-unclaimed` through confirm mode (ablation runs discover only).
+
+
+## D58. The trail cites every decision a rule makes, walk steps included
+
+**Context.** g2.rule-coverage requires a decision event of the trail (accept, reject, verdict, claim,
+absorb) to name each rule that moves a fixture outcome. After wave 3, fifteen load-bearing rules were
+named by none: the driver emitted an acceptance under the proposing rule and named the acceptance rule
+only in its note; the gap slots prefer and skip emitted nothing; and a walk-slot answer left no trace
+but an exit record, with no rule at all for a pool, a table, an indirect call or dropped padding. D57
+says such a rule is a defect of the trail to fix in the driver, never a reason for an exemption.
+
+**Decision.**
+
+- (a) In grow, when an acceptance rule takes a harvested candidate, the driver emits a second 'accept'
+  event under that rule beside the proposer's (detail: which proposer's candidate it took).
+- (b) The prefer slot's Thumb/ARM choice at a cursor and the skip slot's next cursor are 'verdict' events
+  (fill-gaps.ts, `preferred`, `skip`).
+- (c) `Reading.steps` (frozen type `WalkDecision {at, rule, step}`) lists the walk-slot answers a walk
+  applied, in walk order. The walkers record them only when `WalkEnv.trace` is set, which the driver sets
+  when a trail sink is given and the level is not 'off', so a normal run walks and allocates exactly as
+  before and no digest moves (FunctionFact and the codec do not carry steps). The settle loop keeps the
+  answers of every round, deduplicated: an earlier round's noreturn-call or padding answer decides the
+  bl verdict that the last walk only applies. The driver emits one 'verdict' event per step when it
+  takes or absorbs a reading, so only the readings that became functions are cited.
+- (d) 'verdict' now means a rule's decision at one instruction or cursor: a bl site, a walk step, the
+  Thumb/ARM choice or a gap skip. `romlift explain` prints them under "verdicts" (it said "bl
+  verdicts").
+- (e) Two fixtures make the last two uncovered rules load-bearing: inline-arm-switch (m4a's
+  umul3232H32 shape) and recursive-far-call (agbcc C: a recursive call 2.4 KiB past the entry after a
+  guard that calls a never-returning function, so the only return follows the call).
+
+**Consequences.** Every rule of RULES is either cited and load-bearing on a named fixture or exempted
+by D57; the explain goldens grew by the walk and gap verdicts of their 256-byte buckets.
+
+**Rejected.** Renaming the acceptance event to the acceptance rule (the seed and harvest rules would
+lose their citation). Emitting walk events from inside every walk (the readings of rejected candidates
+and every settle round would flood a 'decisions' trail with answers that changed nothing). Recording
+steps unconditionally (it costs the walk an allocation per pool load with no reader when the trail is
+off).
 
 ---
 

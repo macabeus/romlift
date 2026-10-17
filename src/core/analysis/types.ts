@@ -266,6 +266,8 @@ export interface Reading {
   readonly branchTargets: readonly Addr[];
   /** ARM code the Thumb walk switches into inline (walk.inline-arm-switch): each [target, end of its ARM reading), sorted. */
   readonly armTails: readonly Span[];
+  /** The walk slot's answers the walk applied, in walk order; empty unless the walk was traced (WalkEnv.trace: a trail is on). */
+  readonly steps: readonly WalkDecision[];
   /** One past the last instruction byte (the entry when there is none). */
   readonly codeEnd: Addr;
   /** The extent's end: code plus adjacent pools and tables (claim.adjacent-pools' extentEnd). */
@@ -380,6 +382,13 @@ export interface QueueRule {
  * An end-path answer on a conditional instruction (Thumb bcc, ARM cond ≠ AL) counts the exit and the
  * path goes on. `continue` and `padding` are D56 additions.
  */
+/** One walk-slot answer a walk applied: the rule, the instruction it answered for, and the step it gave (a 'verdict' trail event). */
+export interface WalkDecision {
+  readonly at: Addr;
+  readonly rule: RuleId;
+  readonly step: WalkStep['step'];
+}
+
 export type WalkStep =
   /** Control leaves here. At a stop: noreturn-call marks the last bl, swi-end counts a return. */
   | { readonly step: 'end-path'; readonly exit: Exit['kind'] }

@@ -6,17 +6,22 @@
   proposals (2):
     0x08000110 seed.call round 0 cites 0x080000F8: thumb
     0x08000120 seed.pool-pointer round 1 cites 0x08000120: thumb
-  accepts (2):
+  accepts (3):
     0x08000110 seed.call round 0 cites 0x080000F8
     0x08000120 seed.pool-pointer round 1 cites 0x08000120: accepted by accept.tiles-after-accepted
+    0x08000120 accept.tiles-after-accepted round 1 cites 0x08000120: takes the seed.pool-pointer candidate
   rejections: none
-  bl verdicts (1):
+  verdicts (2):
     0x080000F8 bl.near-is-call round 0 cites 0x080000F8, 0x08000110: call
+    0x08000124 walk.branch-into-function round 1 cites 0x08000120, 0x08000124: end-path
   waits: none
   claims (2):
     0x08000110 claim.dead-code-in-extent round 0 cites 0x08000110: 1 edits
     0x08000120 claim.dead-code-in-extent round 1 cites 0x08000120: 1 edits
-  rules (4):
+  rules (6):
+    accept.tiles-after-accepted: a valid candidate that starts where claimed bytes end, give or take padding, is a function
+      rests on: the linker lays compiled functions out back to back, each aligned with zero or nop padding
+      recovers: functions referenced only by pointers whose neighbour below is already known
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
@@ -29,4 +34,7 @@
     seed.pool-pointer: Thumb pointers loaded from the pools of accepted functions are candidate functions
       rests on: compiled code takes the address of a Thumb function as a pool word holding func+1 (callbacks, tables of handlers)
       recovers: functions reached only through a pointer that accepted code loads
+    walk.branch-into-function: a branch into another function or claimed code (ARM: or below the entry) is a tail exit
+      rests on: a function never jumps into another function except as a tail call; agbcc and hand-written code share epilogues only by tail branches
+      recovers: two functions glued into one by a tail branch, and claims of another function's code
 explain: ok (exit 0)

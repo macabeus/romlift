@@ -22,7 +22,7 @@ export interface AnalysisExplanation {
   readonly claim: ClaimKind;
   /** The innermost function whose extent covers `addr`: its entry, origin and every provenance record. */
   readonly owner?: { readonly entry: Addr; readonly origin: Origin; readonly provenance: readonly Provenance[] };
-  /** Proposals, rejections with their miss reason, bl verdicts, waits, claims: in trail order. */
+  /** Proposals, rejections with their miss reason, verdicts (bl, walk steps, gap prefer and skip), waits, claims: in trail order. */
   readonly events: readonly TrailEvent[];
   /** The metadata of every rule id named above, sorted by id; ids without metadata are left out. */
   readonly rules: readonly RuleMeta[];

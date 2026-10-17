@@ -1,10 +1,11 @@
 // `romlift explain <addr> --rom <rom> [--json]` (architecture §2.1, §9.2, D35): what the discover
 // analysis decided about one address of a bare ROM. In phase 2 `--rom` is required (finding the project's
 // ROM through decomp.yaml arrives with the projects). Text: the claim, the owner with its provenance, the
-// trail events grouped by kind (rejections with their miss reason, bl verdicts and waits always shown),
-// then the summary, restsOn and recovers of every rule that appears, and the summary line; diagnostics on
-// stderr. --json: one {"type":"explain"} line holding the report (addresses as hexAddr strings, the
-// claim by name), the diagnostics, then the summary line. Exit codes: 0 ok, 1 an error diagnostic, 2 usage.
+// trail events grouped by kind (rejections with their miss reason, verdicts of bl sites, walk steps and
+// the gap's prefer and skip slots, and waits always shown), then the summary, restsOn and recovers of
+// every rule that appears, and the summary line; diagnostics on stderr. --json: one {"type":"explain"}
+// line holding the report (addresses as hexAddr strings, the claim by name), the diagnostics, then the
+// summary line. Exit codes: 0 ok, 1 an error diagnostic, 2 usage.
 import { Claim } from '../../api/analysis.ts';
 import type { ClaimKind } from '../../api/analysis.ts';
 import type { RuleMeta, TrailEvent, TrailKind } from '../../api/profile.ts';
@@ -67,7 +68,7 @@ const GROUPS: readonly { readonly kind: TrailKind; readonly label: string; reado
   { kind: 'propose', label: 'proposals', always: false },
   { kind: 'accept', label: 'accepts', always: false },
   { kind: 'reject', label: 'rejections', always: true },
-  { kind: 'verdict', label: 'bl verdicts', always: true },
+  { kind: 'verdict', label: 'verdicts', always: true },
   { kind: 'wait', label: 'waits', always: true },
   { kind: 'absorb', label: 'absorbs', always: false },
   { kind: 'claim', label: 'claims', always: false },

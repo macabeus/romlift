@@ -5,7 +5,8 @@
 // prologues. The patient pass skips a whole gap whose head is not anchored yet. Offsets below are ROM
 // offsets, as in the PoC; the cursors the rules see carry bus addresses.
 import { contains, u16 } from '../../../foundation/rom/rom.ts';
-import type { Span } from '../../../foundation/rom/span.ts';
+import type { Addr, Span } from '../../../foundation/rom/span.ts';
+import { hexAddr } from '../../../foundation/util/hex.ts';
 import { sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { consult } from '../oracle.ts';
@@ -168,6 +169,23 @@ function tiledHole(s: DriverState, g: Gap, p: number, end: number): Reading | nu
   );
 }
 
+/** The prefer slot's choice between the Thumb and the ARM reading at one cursor ('thumb' without the slot), cited as a verdict. */
+function preferred(s: DriverState, thumb: Reading, arm: Reading): 'thumb' | 'arm' {
+  const slot = s.rules.gap.prefer;
+  if (slot === undefined) return 'thumb';
+  const choice = slot.rule.prefer(thumb, arm, s.view);
+  emit(s, 'verdict', choice === 'thumb' ? thumb.entry : arm.entry, slot.id, [thumb.entry, arm.entry], `${choice} over ${choice === 'thumb' ? 'arm' : 'thumb'}`);
+  return choice;
+}
+
+/** The skip slot's next cursor when nothing starts at `p`, cited as a verdict; undefined stops the chain. */
+function skip(s: DriverState, g: Gap, p: number, end: number): Addr | undefined {
+  const slot = s.rules.gap.skip;
+  const next = slot?.rule.skip(cursor(s, g, p, end), s.view);
+  if (slot !== undefined && next !== undefined) emit(s, 'verdict', s.rom.base + p, slot.id, [s.rom.base + p, next], `skips to ${hexAddr(next)}`);
+  return next;
+}
+
 /** One proposal of the end-anchor or backward loop; only a candidate below the current end shrinks it. */
 function shrink(s: DriverState, slot: 'endAnchor' | 'backward', g: Gap, p: number, end: number, head: Reading | null): Candidate | undefined {
   const found = s.rules.gap[slot]?.rule.propose(cursor(s, g, p, end, head ?? undefined), s.view);
@@ -224,8 +242,7 @@ export function fillGaps(s: DriverState, pass: 'patient' | 'impatient'): number 
         continue;
       }
       const { thumb, thumbR, arm, armR } = pair(s, g, p, end);
-      const prefer = s.rules.gap.prefer?.rule;
-      if (thumb !== undefined && thumbR !== null && (armR === null || prefer === undefined || prefer.prefer(thumbR, armR, s.view) === 'thumb')) {
+      if (thumb !== undefined && thumbR !== null && (armR === null || preferred(s, thumbR, armR) === 'thumb')) {
         added += accept(s, thumb);
         p = align4(thumbR.end - B);
         continue;
@@ -241,7 +258,7 @@ export function fillGaps(s: DriverState, pass: 'patient' | 'impatient'): number 
         p = align4(tiled.end - B);
         continue;
       }
-      const next = s.rules.gap.skip?.rule.skip(cursor(s, g, p, end), s.view);
+      const next = skip(s, g, p, end);
       if (next === undefined || next - B <= p) break;
       p = next - B;
     }
