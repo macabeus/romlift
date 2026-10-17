@@ -58,8 +58,8 @@ export interface Pipeline {
   readonly gap: {
     readonly absorb: RuleId;
     readonly head: RuleId;
-    /** forward[0] and forward[1] are the pair asked at the same cursor; the rest in order. */
-    readonly forward: readonly RuleId[];
+    /** The forward chain: the pair asked at the same cursor (`thumb`, `arm`), then `after` in order (the hole head's proposers). */
+    readonly forward: { readonly thumb: RuleId; readonly arm: RuleId; readonly after: readonly RuleId[] };
     readonly prefer: RuleId;
     readonly skip: RuleId;
     readonly endAnchor: RuleId;

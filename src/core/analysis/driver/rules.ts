@@ -54,8 +54,8 @@ export interface ResolvedRules {
   readonly gap: {
     readonly absorb?: Resolved<GapAbsorb>;
     readonly head?: Resolved<GapHead>;
-    /** Positional: forward[0] and forward[1] are the pair; undefined where a rule is disabled. */
-    readonly forward: readonly (Resolved<GapProposer> | undefined)[];
+    /** The forward pair (absent where disabled) and the proposers after it, in order. */
+    readonly forward: { readonly thumb?: Resolved<GapProposer>; readonly arm?: Resolved<GapProposer>; readonly after: readonly Resolved<GapProposer>[] };
     readonly prefer?: Resolved<GapPrefer>;
     readonly skip?: Resolved<GapSkip>;
     readonly endAnchor?: Resolved<GapProposer>;
@@ -112,6 +112,13 @@ export function resolveRules(profile: CompilerProfile, registry: RuleRegistry, t
   const endAnchor = one(p.gap.endAnchor, kinds('gap'), 0);
   const backward = one(p.gap.backward, kinds('gap'), 0);
   const walk = many(p.walk, kinds('walk'));
+  const thumb = one(p.gap.forward.thumb, kinds('gap'), 0);
+  const arm = one(p.gap.forward.arm, kinds('gap'), 1);
+  // The proposers after the pair rank after it, as they did when the slot was one list.
+  const after = p.gap.forward.after.flatMap((id, i) => {
+    const r = one(id, kinds('gap'), i + 2);
+    return r === undefined ? [] : [r];
+  });
   return {
     seed: many(p.seed, kinds('seed')),
     harvest: many(p.harvest, kinds('harvest')),
@@ -127,7 +134,7 @@ export function resolveRules(profile: CompilerProfile, registry: RuleRegistry, t
     gap: {
       ...(absorb === undefined ? {} : { absorb }),
       ...(head === undefined ? {} : { head }),
-      forward: p.gap.forward.map((id, i) => one(id, kinds('gap'), i)),
+      forward: { ...(thumb === undefined ? {} : { thumb }), ...(arm === undefined ? {} : { arm }), after },
       ...(prefer === undefined ? {} : { prefer }),
       ...(skip === undefined ? {} : { skip }),
       ...(endAnchor === undefined ? {} : { endAnchor }),

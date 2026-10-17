@@ -68,7 +68,7 @@ test('the orders reproduce the PoC call order', () => {
   assert.deepEqual(AGBCC_PIPELINE.harvest, ['seed.pool-pointer', 'seed.data-pointer']);
   assert.deepEqual(AGBCC_PIPELINE.queue, ['seed.call', 'seed.veneer', 'seed.adr']);
   assert.deepEqual(AGBCC_PIPELINE.seed.slice(0, 2), ['seed.rom-entry', 'seed.startup-pointer']);
-  assert.deepEqual(AGBCC_PIPELINE.gap.forward, ['gap.forward-chain', 'gap.arm-scan', 'gap.tiled-hole-inner']);
+  assert.deepEqual(AGBCC_PIPELINE.gap.forward, { thumb: 'gap.forward-chain', arm: 'gap.arm-scan', after: ['gap.tiled-hole-inner'] });
   assert.equal(AGBCC_PIPELINE.bl[AGBCC_PIPELINE.bl.length - 1], 'bl.noreturn-before-noncode');
   assert.equal(AGBCC_PIPELINE.accept[AGBCC_PIPELINE.accept.length - 1], 'accept.tiny-anchored-at-start');
   const walk = AGBCC_PIPELINE.walk;

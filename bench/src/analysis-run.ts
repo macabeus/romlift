@@ -88,7 +88,7 @@ export function isDefaultTuning(t: RunTuning): boolean {
 }
 
 export function analysisTuning(t: RunTuning): AnalysisTuning {
-  return { worklist: DEFAULT_TUNING.worklist, cache: 'epoch', disabled: [...t.disabled] };
+  return { ...DEFAULT_TUNING, disabled: [...t.disabled] };
 }
 
 /** The seedless discover run the bench scores (D24): no TOML, signature or evidence seeds. */

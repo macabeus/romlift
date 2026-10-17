@@ -94,13 +94,13 @@ export function testProfile(pipeline: Partial<Pipeline> = {}): CompilerProfile {
 /** Every rule id a pipeline names. */
 export function pipelineIds(p: Pipeline): readonly RuleId[] {
   const g = p.gap;
-  return [...p.seed, ...p.harvest, ...p.queue, ...p.walk, ...p.bl, ...p.validity, ...p.accept, ...p.claim, g.absorb, g.head, ...g.forward, g.prefer, g.skip, g.endAnchor, g.backward, ...p.region];
+  return [...p.seed, ...p.harvest, ...p.queue, ...p.walk, ...p.bl, ...p.validity, ...p.accept, ...p.claim, g.absorb, g.head, g.forward.thumb, g.forward.arm, ...g.forward.after, g.prefer, g.skip, g.endAnchor, g.backward, ...p.region];
 }
 
 /** Tuning that disables every pipeline id `registry` lacks, plus `extra.disabled`. */
 export function tuningFor(profile: CompilerProfile, registry: RuleRegistry, extra: Partial<AnalysisTuning> = {}): AnalysisTuning {
   const missing = pipelineIds(profile.pipeline).filter((id) => !Object.hasOwn(registry, id));
-  return { worklist: 'ascending', cache: 'epoch', ...extra, disabled: [...missing, ...(extra.disabled ?? [])] };
+  return { cache: 'epoch', ...extra, disabled: [...missing, ...(extra.disabled ?? [])] };
 }
 
 /** A fake rule: `contract` with complete test metadata. */

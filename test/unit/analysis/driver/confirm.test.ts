@@ -1,9 +1,13 @@
 // Confirm mode: the listed entries are functions from round 0; a listed entry that fails validity is
 // kept and reported; a discovery beyond the list is reported and claims nothing; extents are cut.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-import { runAnalysis } from '../../../../src/core/analysis/driver/run.ts';
+import { analyze, runAnalysis } from '../../../../src/core/analysis/driver/run.ts';
+import { AGBCC } from '../../../../src/core/profile/agbcc.ts';
+import { romFromBytes } from '../../../../src/foundation/rom/rom.ts';
 import { Claim } from '../../../../src/core/analysis/types.ts';
 import type { OverrideFact, Seed } from '../../../../src/core/analysis/types.ts';
 import { compareOverrides, compareSeeds } from '../../../../src/core/analysis/driver/confirm.ts';
@@ -121,4 +125,25 @@ test('compareOverrides is a total order: span, kind, mode, then run address', ()
   for (let i = 0; i < ordered.length; i++) {
     for (let j = 0; j < ordered.length; j++) assert.equal(Math.sign(compareOverrides(ordered[i] as OverrideFact, ordered[j] as OverrideFact)), Math.sign(i - j), `${i} vs ${j}`);
   }
+});
+
+test('confirm on a fixture with one listed function deleted reaches its fixpoint: the unlisted callee and the tiled hole after it are reported once each', () => {
+  // The edit g4.toml-mutations makes. Before fix round 2 the unlisted hole head counted as an added
+  // function in every fillGaps call, and the impatient pass ran to W_FIXPOINT_LIMIT (10,000 rounds).
+  const file = fileURLToPath(new URL('../../../../bench/dataset/synthetic/adr-handler-block/build/adr-handler-block.gba', import.meta.url));
+  const rom = romFromBytes(new Uint8Array(readFileSync(file)), 'adr-handler-block');
+  const options = { mode: 'discover' as const, seeds: [], overrides: [], trail: 'off' as const };
+  const discovered = analyze(rom, AGBCC, options);
+  const omitted = 0x0800_0104;
+  assert.ok(discovered.functions.some((f) => f.entry === omitted));
+  const seeds: Seed[] = discovered.functions.filter((f) => f.entry !== omitted).map((f) => ({ entry: f.entry, mode: f.mode, rule: 'seed.listed' }));
+  const confirmed = analyze(rom, AGBCC, { ...options, mode: 'confirm', seeds });
+  assert.deepEqual(confirmed.diagnostics.filter((d) => d.code === 'W_FIXPOINT_LIMIT'), []);
+  assert.deepEqual(
+    confirmed.diagnostics.map((d) => [d.code, d.addr]),
+    [
+      ['W_UNLISTED_FUNCTION', omitted],
+      ['W_UNLISTED_FUNCTION', 0x0800_0118],
+    ],
+  );
 });

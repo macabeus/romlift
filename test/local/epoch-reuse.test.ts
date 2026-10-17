@@ -33,7 +33,7 @@ for (const rom of TUNING) {
     const sha1 = sha1Of(bytes);
     assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
     const r = romFromBytes(bytes, sha1);
-    const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(r, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { worklist: 'ascending', cache, disabled: [] }));
+    const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(r, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { cache, disabled: [] }));
     const epoch = run('epoch');
     t.diagnostic(`${rom}: ${epoch}`);
     assert.equal(run('epoch-reuse'), epoch, rom);

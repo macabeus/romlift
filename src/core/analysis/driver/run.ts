@@ -30,8 +30,8 @@ import { RULES } from './rules.ts';
 import { createDriver } from './state.ts';
 import type { DriverState } from './state.ts';
 
-/** The tuning `analyze` runs with: the ascending worklist (milestone M4, D10), epoch caching, nothing disabled. */
-export const DEFAULT_TUNING: AnalysisTuning = { worklist: 'ascending', cache: 'epoch', disabled: [] };
+/** The tuning `analyze` runs with: epoch caching, nothing disabled (the worklist is always ascending, D10, D59). */
+export const DEFAULT_TUNING: AnalysisTuning = { cache: 'epoch', disabled: [] };
 
 /** Runs the seeds, the passes and the regions on `s`; returns the startup region. */
 export function runDriver(s: DriverState): StartupRegion {

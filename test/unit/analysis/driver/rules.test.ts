@@ -9,7 +9,7 @@ import { analyze } from '../../../../src/core/analysis/driver/run.ts';
 import { fakeRule, pipelineIds, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { calls, extent, romEntry } from './fakes.ts';
 
-const TUNING = { worklist: 'ascending', cache: 'epoch', disabled: [] } as const;
+const TUNING = { cache: 'epoch', disabled: [] } as const;
 
 test('RULES holds only well-formed ids, each registered under its meta.id, and implements every agbcc pipeline id', () => {
   for (const [id, rule] of Object.entries(RULES)) {
@@ -25,14 +25,19 @@ test('a pipeline id without an implementation throws RomliftInvariantError', () 
   assert.throws(() => analyze(romWith([]), testProfile({ seed: ['seed.unimplemented'] }), { mode: 'discover', seeds: [], overrides: [], trail: 'off' }), /has no implementation/);
 });
 
-test('a disabled id is skipped, and the forward slot keeps its positions', () => {
+test('a disabled id is skipped, and the forward slot keeps its pair by name', () => {
   const profile = testProfile({ seed: ['seed.rom-entry'], queue: ['seed.call'] });
   const reg = registry(calls);
-  const gapIds = Object.values(profile.pipeline.gap).flat();
+  const g = profile.pipeline.gap;
+  const gapIds = [g.absorb, g.head, g.forward.thumb, g.forward.arm, ...g.forward.after, g.prefer, g.skip, g.endAnchor, g.backward];
   const off = resolveRules(profile, reg, { ...TUNING, disabled: ['seed.rom-entry', ...gapIds] });
   assert.deepEqual(off.seed, []);
   assert.deepEqual(off.queue.map((q) => q.id), ['seed.call']);
-  assert.deepEqual(off.gap.forward, [undefined, undefined, undefined], 'the forward slot keeps its positions');
+  assert.deepEqual(off.gap.forward, { after: [] }, 'a disabled pair member is absent, not shifted');
+  assert.deepEqual([off.rank.get(g.forward.thumb), off.rank.get(g.forward.arm), off.rank.get(g.forward.after[0] ?? 'gap.tiled-hole-inner')], [0, 1, 2], 'the ranks are those of one list');
+  const armOnly = resolveRules(profile, registry(calls, fakeRule('gap.arm-scan', { kind: 'gap', propose: () => undefined })), { ...TUNING, disabled: ['seed.rom-entry', ...gapIds.filter((id) => id !== 'gap.arm-scan')] });
+  assert.equal(armOnly.gap.forward.arm?.id, 'gap.arm-scan', 'the ARM proposer is never taken for the Thumb one');
+  assert.equal(armOnly.gap.forward.thumb, undefined);
 });
 
 test('a rule of the wrong kind for its slot throws; bl rules split into verdicts and refinements', () => {

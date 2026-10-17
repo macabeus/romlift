@@ -63,7 +63,7 @@ export const AGBCC_PIPELINE: Pipeline = {
   gap: {
     absorb: 'gap.adr-block-absorb',
     head: 'gap.tiled-hole',
-    forward: ['gap.forward-chain', 'gap.arm-scan', 'gap.tiled-hole-inner'],
+    forward: { thumb: 'gap.forward-chain', arm: 'gap.arm-scan', after: ['gap.tiled-hole-inner'] },
     prefer: 'gap.arm-over-prologueless-thumb',
     skip: 'gap.skip-padding-and-pointers',
     endAnchor: 'gap.end-anchor',

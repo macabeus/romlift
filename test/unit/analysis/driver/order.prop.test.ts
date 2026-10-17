@@ -32,8 +32,8 @@ function shuffle<T>(items: readonly T[], state: number): { readonly items: T[]; 
 
 const digest = (r: AnalysisResult): string => Array.from(canonicalJson(r as unknown as JsonValue)).join('');
 
-test('the default tuning is the ascending worklist with the epoch cache', () => {
-  assert.deepEqual(DEFAULT_TUNING, { worklist: 'ascending', cache: 'epoch', disabled: [] });
+test('the default tuning is the epoch cache with nothing disabled (the worklist is always ascending)', () => {
+  assert.deepEqual(DEFAULT_TUNING, { cache: 'epoch', disabled: [] });
 });
 
 test('permuting the seeds and the overrides gives one analysis on every synthetic fixture, in both modes', () => {

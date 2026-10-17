@@ -52,7 +52,10 @@ const CLAIMED_AS: Readonly<Record<ClaimKind, string>> = {
 function ruleFor(s: DriverState, reason: MissReason): RuleId | undefined {
   const valid = s.rules.validity.find((v) => v.rule.reason === reason);
   if (valid !== undefined) return valid.id;
-  return s.rules.gap.forward.find((g) => g?.rule.reason === reason)?.id;
+  const { thumb, arm, after } = s.rules.gap.forward;
+  const gap = [thumb, arm, ...after].find((g) => g?.rule.reason === reason);
+  if (gap !== undefined) return gap.id;
+  return s.rules.veto.find((v) => v.rule.reason === reason)?.id;
 }
 
 /** The diagnosis of one miss at the final state of `s`. */
@@ -88,6 +91,10 @@ export function diagnoseMiss(s: DriverState, miss: MissQuery): MissDiagnosis {
     anchoredAtEnd(r, s.view) ? 'anchored at end' : 'not anchored at end',
     refs > 0 ? `${refs} data word(s) point at it` : 'nothing points at it',
   ];
+  // A gap candidate an accept veto rejected names that veto (its rejection is recorded under the veto's id).
+  const vetoed = s.rejections.get(`${addr}:${mode}`);
+  const veto = vetoed !== undefined && s.rules.veto.some((v) => v.id === vetoed.rule) ? vetoed : undefined;
+  if (veto !== undefined) return { ...base, reason: 'unanchored', rule: veto.rule, detail: `valid but vetoed by ${veto.rule}: ${veto.detail}; ${evidence.join(', ')}` };
   return { ...base, reason: 'unanchored', detail: `valid but not accepted: ${evidence.join(', ')}` };
 }
 

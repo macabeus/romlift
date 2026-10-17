@@ -1,18 +1,19 @@
 // grow() (the PoC's grow): its own until-stable loop; each round is an epoch, takes one snapshot of the
 // harvest slot (pointerCandidates), and accepts the candidates that are valid and that an accept rule
-// takes (acceptable). A valid candidate no accept rule takes is rejected as 'unanchored' under the rule
-// that proposed it: the accept slot holds a rule's decision only when one of its rules took it.
+// takes (acceptable). Every target that is not already a function is judged by the validity slot, claimed
+// ones included (valid.in-rom-unclaimed rejects them; the driver repeats no rule's predicate, D59 b). A
+// valid candidate no accept rule takes is rejected as 'unanchored' under the rule that proposed it,
+// naming the accept rules that declined it: the accept slot holds a decision only when one of its rules
+// took it.
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { provenance } from '../../provenance/provenance.ts';
 import type { Provenance } from '../../provenance/provenance.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { candidateBudget, fixpointLimit, LIMITS } from '../limits.ts';
-import { Claim } from '../types.ts';
 import type { Candidate, Reading } from '../types.ts';
 import { accept } from './accept.ts';
 import { beginEpoch } from './epoch.ts';
 import { settle } from './settle.ts';
-import { claimAt } from './state.ts';
 import { emit, reject } from './trail.ts';
 import type { DriverState } from './state.ts';
 import { valid } from './validity.ts';
@@ -56,9 +57,12 @@ export function grow(s: DriverState): number {
     const count = lists.reduce((n, l) => n + l.targets.length, 0);
     if (count > LIMITS.candidateBudget) s.diagnostics.push(candidateBudget(s.round, count, LIMITS.candidateBudget));
     let added = 0;
+    let judged = 0;
     for (const { id: proposedBy, targets } of lists) {
       for (const t of targets) {
-        if (s.funcs.has(t) || claimAt(s, t) !== Claim.free || !valid(s, t)) continue;
+        if (judged === LIMITS.candidateBudget) break;
+        judged += 1;
+        if (s.funcs.has(t) || !valid(s, t)) continue;
         const r = settle(s, t);
         const c: Candidate = { entry: t, mode: 'thumb', proposedBy, cites: [t] };
         const taken = acceptable(s, c, r);
@@ -68,8 +72,7 @@ export function grow(s: DriverState): number {
           if (n > 0 && taken.rule !== proposedBy) emit(s, 'accept', t, taken.rule, taken.cites, `takes the ${proposedBy} candidate`);
           added += n;
         } else {
-          const prologue = s.profile.idioms.isPrologue(s.rom, t, 'thumb');
-          reject(s, t, 'thumb', proposedBy, 'unanchored', false, `valid, referenced by ${proposedBy}, but no accept rule takes it: no anchor${prologue ? '' : ' and no push {.., lr}'}`);
+          reject(s, t, 'thumb', proposedBy, 'unanchored', false, `valid, referenced by ${proposedBy}, but no accept rule takes it (${s.rules.accept.map((a) => a.id).join(', ')})`);
         }
       }
     }

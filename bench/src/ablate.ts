@@ -52,7 +52,7 @@ export function outcomeOf(result: Pick<AnalysisResult, 'functions' | 'codeEnd'>)
 /** Every rule id the profile's pipeline names. */
 export function pipelineIds(p: Pipeline): RuleId[] {
   const g = p.gap;
-  return [...p.seed, ...p.harvest, ...p.queue, ...p.walk, ...p.bl, ...p.validity, ...p.accept, ...p.claim, g.absorb, g.head, ...g.forward, g.prefer, g.skip, g.endAnchor, g.backward, ...p.region];
+  return [...p.seed, ...p.harvest, ...p.queue, ...p.walk, ...p.bl, ...p.validity, ...p.accept, ...p.claim, g.absorb, g.head, g.forward.thumb, g.forward.arm, ...g.forward.after, g.prefer, g.skip, g.endAnchor, g.backward, ...p.region];
 }
 
 /** Whether `rule` is one ablation can disable: a registered rule or one the profile's pipeline names. */

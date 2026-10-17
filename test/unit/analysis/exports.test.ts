@@ -16,5 +16,5 @@ test('romlift/internal exports the tuned analysis, the registry, the diagnosis a
   for (const name of ['analyzeTuned', 'runAnalysis', 'DEFAULT_TUNING', 'RULES', 'resolveRules', 'diagnoseMisses', 'diagnoseMiss', 'makeReading', 'defineRule', 'buildPointerIndex', 'LIMITS']) {
     assert.ok(name in internal, name);
   }
-  assert.deepEqual(internal.DEFAULT_TUNING, { worklist: 'ascending', cache: 'epoch', disabled: [] });
+  assert.deepEqual(internal.DEFAULT_TUNING, { cache: 'epoch', disabled: [] });
 });

@@ -119,7 +119,7 @@ test("'epoch-reuse' gives the analysis 'epoch' gives on every synthetic fixture"
   for (const f of fixtures) {
     const bytes = new Uint8Array(readFileSync(f.rom));
     const rom = romFromBytes(bytes, sha1Of(bytes));
-    const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { worklist: 'ascending', cache, disabled: [] }));
+    const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { cache, disabled: [] }));
     assert.equal(run('epoch-reuse'), run('epoch'), f.name);
   }
 });

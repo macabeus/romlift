@@ -48,7 +48,6 @@ test('declined: the block opens with a prologue, decodes past the end, or the cu
   assert.equal(rule.absorb(gapCursor(G + 6, END, H), setup(thumbAt(H)`push {lr}; b _08000202`).v), undefined, 'a prologue');
   const { v } = setup(thumbAt(H)`movs r2, #1; b _08000202`);
   assert.equal(rule.absorb(gapCursor(G + 6, H + 2, H, { end: H + 2 }), v), undefined, 'its code ends past the gap end');
-  assert.equal(rule.absorb(gapCursor(G + 6, END, G + 6), v), undefined, 'a zero halfword (the driver retries 2 bytes on)');
   assert.equal(rule.absorb(gapCursor(G + 6, END, H), { ...v, claimAt: (a) => (a === H ? Claim.pool : v.claimAt(a)) }), undefined, 'claimed');
 });
 
@@ -61,4 +60,14 @@ test('the owner must end within anchorSlack of the gap start and start before it
   assert.notEqual(rule.absorb(gapCursor(G + 6 + 1, END, H), dummy), undefined, 'dummy: 1 byte of slack');
   assert.equal(rule.absorb(gapCursor(G + 6 + 2, END, H), dummy), undefined, 'dummy: 2 bytes is too far');
   assert.equal(rule.absorb(gapCursor(G, END, H), agbcc), undefined, 'the owner starts at the gap start');
+});
+
+test('the block may start a halfword on: past one zero halfword, or past a claimed halfword', () => {
+  const { v } = setup(thumbAt(H)`movs r2, #1; b _08000202`);
+  const merged = { into: G, span: { start: H, end: H + 4 } };
+  assert.deepEqual(rule.absorb(gapCursor(G + 6, END, G + 6), v), merged, 'a zero halfword of alignment before the block');
+  const claimedHalf: AnalysisView = { ...v, claimAt: (a) => (a === G + 6 || a === G + 7 ? Claim.pool : v.claimAt(a)) };
+  assert.deepEqual(rule.absorb(gapCursor(G + 6, END, G + 6), claimedHalf), merged, 'a claimed halfword before the block');
+  const twoZeros = setup(new Uint8Array([0, 0, ...thumbAt(H + 2)`movs r2, #1; b _08000202`])).v;
+  assert.equal(rule.absorb(gapCursor(G + 6, END, G + 6), twoZeros), undefined, 'one zero halfword only: the block two halfwords on is not named');
 });

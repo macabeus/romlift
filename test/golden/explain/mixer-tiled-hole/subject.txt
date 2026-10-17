@@ -10,9 +10,9 @@
     0x08000110 gap.tiled-hole round 2 cites 0x08000110: thumb
     0x08000120 gap.arm-scan round 4 cites 0x08000120: arm
     0x08000140 gap.forward-chain round 8 cites 0x08000140, 0x08000146: thumb
-    0x08000148 gap.tiled-hole-inner round 8 cites 0x08000148, 0x08000162, 0x08000164: thumb
+    0x08000148 gap.tiled-hole round 8 cites 0x08000148: thumb
     0x08000150 gap.arm-scan round 10 cites 0x08000150: arm
-  accepts (9):
+  accepts (10):
     0x08000108 seed.call round 0 cites 0x080000F6
     0x08000138 seed.call round 0 cites 0x080000FA
     0x08000164 seed.call round 0 cites 0x080000FE
@@ -20,7 +20,8 @@
     0x08000110 gap.tiled-hole-inner round 2 cites 0x08000110, 0x08000138: takes the gap.tiled-hole head
     0x08000120 gap.arm-scan round 4 cites 0x08000120
     0x08000140 gap.forward-chain round 8 cites 0x08000140, 0x08000146
-    0x08000148 gap.tiled-hole-inner round 8 cites 0x08000148, 0x08000162, 0x08000164
+    0x08000148 gap.tiled-hole round 8 cites 0x08000148
+    0x08000148 gap.tiled-hole-inner round 8 cites 0x08000148, 0x08000162, 0x08000164: takes the gap.tiled-hole head
     0x08000150 gap.arm-scan round 10 cites 0x08000150
   rejections (3):
     0x08000120 valid.decodes round 4 cites 0x08000120: decode-error: decode error out-of-rom at 0x07FFFB64

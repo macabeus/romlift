@@ -183,8 +183,6 @@ export type AnalysisOptionsRecord = AnalysisOptions;
 
 /** Internal (romlift/internal, outside semver, D37). */
 export interface AnalysisTuning {
-  /** The ascending worklist (D10); the PoC's 'poc-lifo' was deleted by the phase-2 integration (c608a33). */
-  readonly worklist: 'ascending';
   /** §4.2, D13 */
   readonly cache: 'epoch' | 'epoch-reuse';
   /** `analyze --disable`, `bench ablate`: these rules are skipped. */
@@ -499,7 +497,7 @@ export interface AcceptRule {
  * The tiny-candidate veto of thumbCandidate() (D56), applied to the candidates of the forward proposers.
  * accept.tiny-anchored-at-start: a candidate of origin gap-scan (gap.forward-chain's) with fewer than
  * tinyFunctionInsns instructions is vetoed unless it is anchored at start and does not open with b, bcc
- * or bl.
+ * or bl. A veto is recorded as a rejection under the veto's id, with its `reason`.
  */
 export interface AcceptVeto {
   readonly kind: 'accept-veto';
@@ -554,7 +552,7 @@ export interface GapCursor {
   readonly pass: 'patient' | 'impatient';
 }
 
-/** absorbBlock(): gap.adr-block-absorb (origin gap-scan). The block at `at` is merged into `into`. */
+/** absorbBlock(): gap.adr-block-absorb (origin gap-scan). The block at `at`, or a halfword on (past a claimed halfword or one zero halfword), is merged into `into`. */
 export interface GapAbsorb {
   readonly kind: 'gap-absorb';
   absorb(c: GapCursor, v: AnalysisView): { readonly into: Addr; readonly span: Span } | undefined;

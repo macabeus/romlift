@@ -43,6 +43,6 @@ test('each gap rule fills the slot both profiles name it in', () => {
     assert.equal(GAP_RULES[g.head as keyof typeof GAP_RULES]?.kind, 'gap-head');
     assert.equal(GAP_RULES[g.prefer as keyof typeof GAP_RULES]?.kind, 'gap-prefer');
     assert.equal(GAP_RULES[g.skip as keyof typeof GAP_RULES]?.kind, 'gap-skip');
-    for (const id of [...g.forward, g.endAnchor, g.backward]) assert.equal(GAP_RULES[id as keyof typeof GAP_RULES]?.kind, 'gap', id);
+    for (const id of [g.forward.thumb, g.forward.arm, ...g.forward.after, g.endAnchor, g.backward]) assert.equal(GAP_RULES[id as keyof typeof GAP_RULES]?.kind, 'gap', id);
   }
 });

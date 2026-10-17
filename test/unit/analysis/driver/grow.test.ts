@@ -11,14 +11,15 @@ import { runAnalysis } from '../../../../src/core/analysis/driver/run.ts';
 import type { RuleId } from '../../../../src/core/provenance/rule-id.ts';
 import type { TrailEvent } from '../../../../src/core/provenance/trail.ts';
 import type { Addr } from '../../../../src/foundation/rom/span.ts';
-import { fakeRule, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
+import { Claim } from '../../../../src/core/analysis/types.ts';
+import { BASE, fakeRule, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 import { decodes, extent, inRom, tiles, walk } from './fakes.ts';
 
 const F = 0x0800_0200;
 const G = 0x0800_0204;
 
-function setup(accepting: boolean) {
+function setup(accepting: boolean, disabled: readonly RuleId[] = []) {
   const rom = romWith([{ at: F, bytes: thumbAt(F)`bx lr; bx lr; bx lr` }]);
   const snapshots: (readonly Addr[])[] = [];
   let validityChecks = 0;
@@ -47,7 +48,7 @@ function setup(accepting: boolean) {
   const profile = testProfile({ harvest: ['seed.pool-pointer'], validity: ['valid.in-rom-unclaimed', 'valid.decodes'], accept: ['accept.prologue-and-loaded'], claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
   const reg = registry(harvest, always, inRom, counted, extent, tiles, ...walk);
   const events: TrailEvent[] = [];
-  const s = createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'full' }, tuningFor(profile, reg), reg, { event: (e) => events.push(e) });
+  const s = createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'full' }, tuningFor(profile, reg, { disabled }), reg, { event: (e) => events.push(e) });
   return { s, snapshots, events, checks: () => validityChecks };
 }
 
@@ -79,12 +80,25 @@ test('a valid candidate no accept rule takes is rejected as unanchored, under th
   assert.equal(r?.intrinsic, false);
 });
 
-test('a candidate already accepted or claimed is skipped without asking validity', () => {
+test('an accepted candidate is skipped; a claimed one is rejected by valid.in-rom-unclaimed before any reading', () => {
   const { s, checks } = setup(true);
   accept(s, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
+  s.claims.fill(Claim.pool, G - BASE, G - BASE + 4);
   const before = checks();
-  grow(s);
-  assert.equal(checks() - before, 1, 'only G');
+  assert.equal(grow(s), 0);
+  assert.equal(checks() - before, 0, 'no reading is taken: valid.in-rom-unclaimed judges the entry alone');
+  const r = s.rejections.get(`${G}:thumb`);
+  assert.equal(r?.rule, 'valid.in-rom-unclaimed');
+  assert.equal(r?.reason, 'inside-code');
+  assert.equal(s.funcs.has(G), false);
+});
+
+test('with valid.in-rom-unclaimed disabled, grow no longer drops a claimed candidate: the driver repeats no rule predicate', () => {
+  const { s } = setup(true, ['valid.in-rom-unclaimed']);
+  accept(s, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
+  s.claims.fill(Claim.pool, G - BASE, G - BASE + 4);
+  assert.equal(grow(s), 1);
+  assert.equal(s.funcs.has(G), true);
 });
 
 test('pointerCandidates gives one list per harvest rule of the slot, in slot order; a profile with three harvest rules and no seed.call loses none', () => {

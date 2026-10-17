@@ -137,10 +137,10 @@ export function mergeReadings(s: DriverState, g: Reading, f: Reading): Reading {
   );
 }
 
-/** Merges the block `block` into the accepted function `into`, claims it and accepts its calls. */
-export function absorb(s: DriverState, into: Addr, block: Reading): void {
+/** Merges the block `block` into the accepted function `into`, claims it and accepts its calls; returns how many functions those calls added. */
+export function absorb(s: DriverState, into: Addr, block: Reading): number {
   const g = s.funcs.get(into);
-  if (g === undefined) return;
+  if (g === undefined) return 0;
   const merged = mergeReadings(s, g.reading, block);
   g.reading = merged;
   if (s.reuse !== undefined) touch(s.reuse, into, into + 1);
@@ -152,5 +152,5 @@ export function absorb(s: DriverState, into: Addr, block: Reading): void {
   claim(s, into, block);
   emit(s, 'absorb', block.entry, s.profile.pipeline.gap.absorb, [into, block.entry]);
   citeSteps(s, block);
-  acceptQueued(s, into, block);
+  return acceptQueued(s, into, block);
 }
