@@ -2,8 +2,9 @@
 // gitignored bench/.local/poc/<rom>/: queries.ndjson, every rule-level call the PoC's Analyzer made
 // in one run, and readings.ndjson, every distinct Func those calls returned. This module freezes both
 // formats, gives the type of every record and result, and reads them line by line, validating each
-// record and resolving its reading keys. p2-lockstep's oracle consumes it; the method names and
-// argument units are the PoC's own, which romlift's RuleOracle uses too.
+// record and resolving its reading keys. The lockstep oracle that replayed it was deleted in the fix
+// round of phase 2 (D59); `export-poc --mode queries` still re-reads every log it writes through this
+// reader, so the archived logs stay well formed. The method names and argument units are the PoC's own.
 //
 // queries.ndjson
 //   line 1   {schema: 'romlift-bench/poc-queries@1', rom, sha1, pocSourceDigest, readings: 'readings.ndjson'}

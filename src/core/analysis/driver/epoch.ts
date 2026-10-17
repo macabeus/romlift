@@ -5,12 +5,11 @@
 // M2, reuse.ts) a dropped Thumb reading is carried, to be served again while its facts still hold.
 import { sortedKeys } from '../../../foundation/util/sorted.ts';
 import { carry } from './reuse.ts';
-import type { DriverState } from './view.ts';
+import type { DriverState } from './state.ts';
 
 /** Starts a new epoch. */
 export function beginEpoch(s: DriverState): void {
   s.epoch += 1;
-  s.tuning.oracle?.marker({ kind: 'forgetCandidates', epoch: s.epoch });
   s.validMemo = new Map();
   for (const entry of sortedKeys(s.settled)) {
     if (s.funcs.has(entry)) continue;

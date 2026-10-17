@@ -13,11 +13,12 @@ import { Claim } from '../types.ts';
 import type { AnalysisOptions, AnalysisResult, AnalysisTuning, ClaimKind, RuleRegistry } from '../types.ts';
 import { anchoredAtEnd, anchoredAtStart } from '../walk/cursor.ts';
 import { RULES } from './rules.ts';
-import { createDriver, resultOf, runDriver } from './run.ts';
+import { ownerOf } from './facts.ts';
+import { resultOf, runDriver } from './run.ts';
 import { settle } from './settle.ts';
+import { claimAt, createDriver } from './state.ts';
+import type { DriverState } from './state.ts';
 import { whyInvalid } from './validity.ts';
-import { claimAt, ownerOf } from './view.ts';
-import type { DriverState } from './view.ts';
 
 /** A function the run missed, as the caller knows it (from an ELF). */
 export interface MissQuery {

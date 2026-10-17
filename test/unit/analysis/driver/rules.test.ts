@@ -6,10 +6,8 @@ import { AGBCC } from '../../../../src/core/profile/agbcc.ts';
 import { isRuleId } from '../../../../src/core/provenance/rule-id.ts';
 import { resolveRules, RULES } from '../../../../src/core/analysis/driver/rules.ts';
 import { analyze } from '../../../../src/core/analysis/driver/run.ts';
-import type { RuleOracle } from '../../../../src/core/analysis/oracle.ts';
 import { fakeRule, pipelineIds, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { calls, extent, romEntry } from './fakes.ts';
-import { lifo } from './recorder.ts';
 
 const TUNING = { worklist: 'ascending', cache: 'epoch', disabled: [] } as const;
 
@@ -27,17 +25,14 @@ test('a pipeline id without an implementation throws RomliftInvariantError', () 
   assert.throws(() => analyze(romWith([]), testProfile({ seed: ['seed.unimplemented'] }), { mode: 'discover', seeds: [], overrides: [], trail: 'off' }), /has no implementation/);
 });
 
-test('a disabled id is skipped, and a family the oracle answers needs no implementation', () => {
+test('a disabled id is skipped, and the forward slot keeps its positions', () => {
   const profile = testProfile({ seed: ['seed.rom-entry'], queue: ['seed.call'] });
   const reg = registry(calls);
   const gapIds = Object.values(profile.pipeline.gap).flat();
   const off = resolveRules(profile, reg, { ...TUNING, disabled: ['seed.rom-entry', ...gapIds] });
   assert.deepEqual(off.seed, []);
   assert.deepEqual(off.queue.map((q) => q.id), ['seed.call']);
-  const oracle: RuleOracle = { worklist: lifo, answered: ['seed', 'gap'], ask: () => undefined, check: () => undefined, marker: () => undefined };
-  const answered = resolveRules(profile, reg, { ...TUNING, oracle });
-  assert.deepEqual(answered.seed, []);
-  assert.deepEqual(answered.gap.forward, [undefined, undefined, undefined], 'the forward slot keeps its positions');
+  assert.deepEqual(off.gap.forward, [undefined, undefined, undefined], 'the forward slot keeps its positions');
 });
 
 test('a rule of the wrong kind for its slot throws; bl rules split into verdicts and refinements', () => {

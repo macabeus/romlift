@@ -33,7 +33,8 @@ export interface Rom {
   readonly header: CartridgeHeader;
 }
 
-const HEADER_END = 0xc0;
+/** The cartridge header is the first 0xC0 bytes of the image (never code). */
+export const HEADER_END = 0xc0;
 const FIXED_BYTE_OFFSET = 0xb2;
 const FIXED_BYTE = 0x96;
 const COMPLEMENT_FIRST = 0xa0;

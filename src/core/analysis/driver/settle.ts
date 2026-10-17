@@ -1,24 +1,22 @@
 // Readings (the PoC's settle() and analyzeArm()): a Thumb entry is walked until its bl verdicts are a
-// fixpoint, memoised for the epoch; an ARM entry is walked afresh at every read, as the PoC does. Every
-// read is a PoC call site, so it goes through the oracle (oracle.ts).
+// fixpoint, memoised for the epoch; an ARM entry is walked afresh at every read, as the PoC does.
 import type { Addr, Mode } from '../../../foundation/rom/span.ts';
 import { sortedEntries, sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { LIMITS, settleLimit } from '../limits.ts';
-import { consult } from '../oracle.ts';
 import type { BlSite, BlVerdict, BlVerdictRecord, Reading, WalkDecision } from '../types.ts';
 import { walkArm } from '../walk/arm.ts';
 import { walkThumb } from '../walk/thumb.ts';
 import { beginReading, endReading, readReading, takeCarried } from './reuse.ts';
-import { emit } from './view.ts';
-import type { DriverState } from './view.ts';
+import type { DriverState } from './state.ts';
+import { emit } from './trail.ts';
 
 /** The reading of `entry` in `mode`, as the view serves it. */
 export function read(s: DriverState, entry: Addr, mode: Mode): Reading {
   return mode === 'thumb' ? settle(s, entry) : analyzeArm(s, entry);
 }
 
-/** The reading last computed for (entry, mode), without walking or asking the oracle (D56). */
+/** The reading last computed for (entry, mode), without walking (D56). */
 export function peek(s: DriverState, entry: Addr, mode: Mode): Reading | undefined {
   if (mode === 'arm') return s.lastArm.get(entry) ?? s.funcs.get(entry)?.reading;
   return s.settled.get(entry) ?? s.funcs.get(entry)?.reading;
@@ -26,16 +24,14 @@ export function peek(s: DriverState, entry: Addr, mode: Mode): Reading | undefin
 
 /** The PoC's analyzeArm(entry): a fresh walk. */
 export function analyzeArm(s: DriverState, entry: Addr): Reading {
-  const r = consult(s.tuning.oracle, { method: 'analyzeArm', entry }, () => walkArm(s.walkEnv, entry));
+  const r = walkArm(s.walkEnv, entry);
   s.lastArm.set(entry, r);
   return r;
 }
 
 /** The PoC's settle(entry).f. */
 export function settle(s: DriverState, entry: Addr): Reading {
-  const r = consult(s.tuning.oracle, { method: 'settle', entry }, () => settleNow(s, entry));
-  if (!s.settled.has(entry)) s.settled.set(entry, r);
-  return r;
+  return settleNow(s, entry);
 }
 
 /** The first verdict rule's answer for a site. */

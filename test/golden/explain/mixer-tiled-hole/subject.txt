@@ -12,11 +12,12 @@
     0x08000140 gap.forward-chain round 8 cites 0x08000140, 0x08000146: thumb
     0x08000148 gap.tiled-hole-inner round 8 cites 0x08000148, 0x08000162, 0x08000164: thumb
     0x08000150 gap.arm-scan round 10 cites 0x08000150: arm
-  accepts (8):
+  accepts (9):
     0x08000108 seed.call round 0 cites 0x080000F6
     0x08000138 seed.call round 0 cites 0x080000FA
     0x08000164 seed.call round 0 cites 0x080000FE
     0x08000110 gap.tiled-hole round 2 cites 0x08000110
+    0x08000110 gap.tiled-hole-inner round 2 cites 0x08000110, 0x08000138: takes the gap.tiled-hole head
     0x08000120 gap.arm-scan round 4 cites 0x08000120
     0x08000140 gap.forward-chain round 8 cites 0x08000140, 0x08000146
     0x08000148 gap.tiled-hole-inner round 8 cites 0x08000148, 0x08000162, 0x08000164
@@ -33,9 +34,9 @@
     0x08000120 walk.pc-load-is-pool round 4 cites 0x08000120: pool
     0x0800014E walk.inline-arm-switch round 8 cites 0x08000148, 0x0800014E: arm-tail
   waits (3):
-    0x08000140 gap.tiled-hole round 2 cites 0x08000140, 0x08000146: its end is not anchored yet
-    0x08000140 gap.tiled-hole round 4 cites 0x08000140, 0x08000146: its end is not anchored yet
-    0x08000140 gap.tiled-hole round 6 cites 0x08000140, 0x08000146: its end is not anchored yet
+    0x08000140 gap.tiled-hole round 2 cites 0x08000140, 0x08000146: no proposer takes it yet: its end is not anchored
+    0x08000140 gap.tiled-hole round 4 cites 0x08000140, 0x08000146: no proposer takes it yet: its end is not anchored
+    0x08000140 gap.tiled-hole round 6 cites 0x08000140, 0x08000146: no proposer takes it yet: its end is not anchored
   claims (8):
     0x08000108 claim.dead-code-in-extent round 0 cites 0x08000108: 1 edits
     0x08000138 claim.dead-code-in-extent round 0 cites 0x08000138: 1 edits

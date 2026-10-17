@@ -5,27 +5,34 @@
 import { diagnostic } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
+import { compareCodeUnits } from '../../../foundation/util/sorted.ts';
 import { provenance } from '../../provenance/provenance.ts';
 import type { Origin } from '../../provenance/vocabulary.ts';
 import { AnalysisCodes } from '../codes.ts';
-import type { AnalysisOptions, Candidate, Seed } from '../types.ts';
+import type { AnalysisOptions, Candidate, OverrideFact, Seed } from '../types.ts';
 import { whyInvalid } from './validity.ts';
-import type { DriverState } from './view.ts';
-
-/** Code-unit order of two strings. */
-export function compareText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
+import type { DriverState } from './state.ts';
 
 /** A total order of seeds: entry, mode (Thumb first), rule, then name, size and label. */
 export function compareSeeds(a: Seed, b: Seed): number {
   if (a.entry !== b.entry) return a.entry - b.entry;
   if (a.mode !== b.mode) return a.mode === 'thumb' ? -1 : 1;
   return (
-    compareText(a.rule, b.rule) ||
-    compareText(a.name ?? '', b.name ?? '') ||
+    compareCodeUnits(a.rule, b.rule) ||
+    compareCodeUnits(a.name ?? '', b.name ?? '') ||
     (a.size ?? -1) - (b.size ?? -1) ||
     Number(a.label === true) - Number(b.label === true)
+  );
+}
+
+/** A total order of overrides: span, kind, mode, then run address. */
+export function compareOverrides(a: OverrideFact, b: OverrideFact): number {
+  return (
+    a.span.start - b.span.start ||
+    a.span.end - b.span.end ||
+    compareCodeUnits(a.kind, b.kind) ||
+    compareCodeUnits(a.mode ?? '', b.mode ?? '') ||
+    (a.runsAt ?? -1) - (b.runsAt ?? -1)
   );
 }
 

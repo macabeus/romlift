@@ -2,16 +2,13 @@
 // and fillGaps until neither adds a function, then the region slot; then the result is built from the
 // final state. The rule registry is injected (runAnalysis) so driver tests run with fake rules; analyze
 // and analyzeTuned bind RULES.
-import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { compareNumbers, sortedEntries, sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { CompilerProfile } from '../../profile/types.ts';
 import { compareRejections } from '../../provenance/provenance.ts';
 import type { TrailSink } from '../../provenance/trail.ts';
-import { addressMap } from '../address-map.ts';
 import { fixpointLimit, LIMITS } from '../limits.ts';
-import { buildPointerIndex } from '../pointers.ts';
 import { Claim } from '../types.ts';
 import type {
   AnalysisOptions,
@@ -25,78 +22,22 @@ import type {
   StartupRegion,
 } from '../types.ts';
 import { accept, write } from './accept.ts';
-import { compareSeeds, compareText, listedSeeds } from './confirm.ts';
+import { compareOverrides, compareSeeds } from './confirm.ts';
+import { extentEndOf, factOf, ownerOf } from './facts.ts';
 import { fillGaps } from './fill-gaps.ts';
 import { grow } from './grow.ts';
-import { resolveRules, RULES } from './rules.ts';
-import { reuseState } from './reuse.ts';
-import { read } from './settle.ts';
-import { valid, whyInvalid } from './validity.ts';
-import { emit, extentEndOf, factOf, isListedBoundary, makeView, markEntry, ownerOf } from './view.ts';
-import type { DriverState } from './view.ts';
+import { RULES } from './rules.ts';
+import { createDriver } from './state.ts';
+import type { DriverState } from './state.ts';
 
 /** The tuning `analyze` runs with: the ascending worklist (milestone M4, D10), epoch caching, nothing disabled. */
 export const DEFAULT_TUNING: AnalysisTuning = { worklist: 'ascending', cache: 'epoch', disabled: [] };
 
-/** A fresh driver state for one run. */
-export function createDriver(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, tuning: AnalysisTuning, registry: RuleRegistry, sink?: TrailSink): DriverState {
-  const rules = resolveRules(profile, registry, tuning);
-  const listed = listedSeeds(options);
-  let state: DriverState | undefined;
-  const get = (): DriverState => {
-    if (state === undefined) throw new RomliftInvariantError('the analysis view was used before the driver state was built');
-    return state;
-  };
-  const view = makeView(get);
-  state = {
-    rom,
-    profile,
-    options,
-    tuning,
-    rules,
-    addresses: addressMap(options.overrides),
-    pointers: buildPointerIndex(rom),
-    ...(sink === undefined ? {} : { sink }),
-    claims: new Uint8Array(rom.bytes.length),
-    funcs: new Map(),
-    entryBits: new Uint8Array((rom.bytes.length + 7) >>> 3),
-    ...(tuning.cache === 'epoch-reuse' && options.trail === 'off' && tuning.oracle === undefined ? { reuse: reuseState(rom.base, rom.bytes.length) } : {}),
-    order: [],
-    settled: new Map(),
-    lastArm: new Map(),
-    inProgress: new Set(),
-    validMemo: new Map(),
-    neverValid: new Set(),
-    rejections: new Map(),
-    adrOwner: new Map(),
-    listed,
-    listedOrder: sortedKeys(listed),
-    unlisted: new Map(),
-    listedInvalid: new Map(),
-    diagnostics: [],
-    round: 0,
-    epoch: 0,
-    seq: 0,
-    ownerIndex: undefined,
-    services: {
-      read: (entry, mode) => read(get(), entry, mode),
-      valid: (entry) => valid(get(), entry),
-      whyInvalid: (entry) => whyInvalid(get(), entry),
-    },
-    view,
-    walkEnv: { view, policies: rules.walk, extentEnd: (shape) => rules.extentEnd(shape, profile), trace: sink !== undefined && options.trail !== 'off' },
-  };
-  for (const entry of state.listedOrder) if (isListedBoundary(state, entry)) markEntry(state, entry);
-  return state;
-}
-
 /** Runs the seeds, the passes and the regions on `s`; returns the startup region. */
 export function runDriver(s: DriverState): StartupRegion {
   for (const { id, rule } of s.rules.seed) {
-    for (const c of rule.seeds(s.view)) {
-      emit(s, 'propose', c.entry, id, c.cites, c.mode);
-      accept(s, c);
-    }
+    // accept() emits the 'propose' event of each seed as it queues it.
+    for (const c of rule.seeds(s.view)) accept(s, { ...c, proposedBy: id });
   }
   for (const pass of s.profile.pipeline.passes) {
     for (let rounds = 0; ; rounds++) {
@@ -144,8 +85,7 @@ function claimRuns(s: DriverState, functions: readonly FunctionFact[]): readonly
 
 /** The options as the result records them: seeds and overrides in a total order, so the order the project lists them in never reaches the result. */
 function optionsRecord(o: AnalysisOptions): AnalysisOptionsRecord {
-  const overrides = [...o.overrides].sort((a, b) => a.span.start - b.span.start || a.span.end - b.span.end || compareText(a.kind, b.kind) || compareText(a.mode ?? '', b.mode ?? '') || (a.runsAt ?? -1) - (b.runsAt ?? -1));
-  return { mode: o.mode, seeds: [...o.seeds].sort(compareSeeds), overrides, trail: o.trail, ...(o.trailFilter === undefined ? {} : { trailFilter: o.trailFilter }) };
+  return { mode: o.mode, seeds: [...o.seeds].sort(compareSeeds), overrides: [...o.overrides].sort(compareOverrides), trail: o.trail, ...(o.trailFilter === undefined ? {} : { trailFilter: o.trailFilter }) };
 }
 
 /** The result of a finished run. */

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createDriver } from '../../../../src/core/analysis/driver/run.ts';
+import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
 import { valid, whyInvalid } from '../../../../src/core/analysis/driver/validity.ts';
 import { beginEpoch } from '../../../../src/core/analysis/driver/epoch.ts';
 import { accept } from '../../../../src/core/analysis/driver/accept.ts';
@@ -12,19 +12,18 @@ import type { RegisteredRule } from '../../../../src/core/analysis/types.ts';
 import { fakeRule, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 import { decodes, extent, failing, inRom, walk } from './fakes.ts';
-import { recorder } from './recorder.ts';
 
 const F = 0x0800_0200;
 const G = 0x0800_0240;
 
-function driver(rules: readonly RegisteredRule[], oracle = recorder()) {
+function driver(rules: readonly RegisteredRule[]) {
   const rom = romWith([
     { at: F, bytes: thumbAt(F)`push {lr}; bl _08000240; pop {pc}` },
     { at: G, bytes: thumbAt(G)`push {lr}; bl _08000200; pop {pc}` },
   ]);
   const profile = testProfile({ validity: rules.map((r) => r.meta.id), claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
   const reg = registry(...rules, extent, ...walk);
-  return { s: createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg, { oracle }), reg), oracle };
+  return { s: createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg) };
 }
 
 test('the memo is optimistic while the callees are checked, so mutual recursion terminates', () => {
@@ -67,13 +66,14 @@ test('an intrinsic failure is kept across epochs; a calls-non-code failure only 
   assert.equal(intrinsic.view.neverValid(F), true);
 });
 
-test('an entry outside the ROM, odd or claimed is never valid and asks no reading; a function is always valid', () => {
-  const { s, oracle } = driver([inRom, decodes]);
+test('an entry outside the ROM, odd or claimed is never valid, rejected by the rule that judges it, and asks no reading; a function is always valid', () => {
+  const { s } = driver([inRom, decodes]);
   assert.equal(valid(s, F + 1), false);
   assert.equal(s.neverValid.has(F + 1), true);
-  assert.equal(oracle.log.includes('settle'), false);
+  assert.equal(s.settled.size, 0, 'checkEntry needs no reading');
+  assert.equal(s.rejections.get(`${F + 1}:thumb`)?.rule, 'valid.in-rom-unclaimed');
   assert.deepEqual(whyInvalid(s, 0x0900_0000), { rule: 'valid.in-rom-unclaimed', reason: 'inside-code', intrinsic: true, detail: 'outside the ROM' });
-  assert.equal(oracle.log.includes('settle'), false, 'checkEntry needs no reading');
+  assert.equal(s.settled.size, 0, 'checkEntry needs no reading');
   accept(s, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
   assert.equal(valid(s, F), true);
   assert.equal(whyInvalid(s, F + 2)?.detail, 'inside claimed bytes');
@@ -90,4 +90,14 @@ test('the epoch drops readings of entries not accepted and the memo, and keeps a
   assert.equal(s.settled.has(F), true);
   assert.equal(s.settled.has(G), false);
   assert.equal(s.validMemo.size, 0);
+});
+
+test('valid() judges an entry outside the ROM, odd or claimed only through the slot: without valid.in-rom-unclaimed the reading rules decide', () => {
+  const on = driver([inRom, decodes]).s;
+  accept(on, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
+  assert.equal(valid(on, F + 2), false, 'inside the claimed code of F');
+  assert.equal(on.rejections.get(`${F + 2}:thumb`)?.rule, 'valid.in-rom-unclaimed');
+  const off = driver([decodes]).s;
+  accept(off, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
+  assert.equal(valid(off, F + 2), true, 'the bl and pop at F + 2 decode');
 });

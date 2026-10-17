@@ -18,7 +18,7 @@
     0x080000F8 bl.near-is-call round 0 cites 0x080000F8, 0x08000104: call
     0x080000FC bl.near-is-call round 0 cites 0x080000FC, 0x08000118: call
   waits (1):
-    0x08000108 gap.tiled-hole round 2 cites 0x08000108, 0x0800010E: its end is not anchored yet
+    0x08000108 gap.tiled-hole round 2 cites 0x08000108, 0x0800010E: no proposer takes it yet: its end is not anchored
   claims (3):
     0x08000104 claim.dead-code-in-extent round 0 cites 0x08000104: 1 edits
     0x08000118 claim.dead-code-in-extent round 0 cites 0x08000118: 1 edits

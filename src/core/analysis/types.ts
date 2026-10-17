@@ -13,7 +13,6 @@ import type { RuleId, RuleMeta } from '../provenance/rule-id.ts';
 import type { TrailLevel } from '../provenance/trail.ts';
 import type { MissReason, Origin } from '../provenance/vocabulary.ts';
 import type { AddressMap } from './address-map.ts';
-import type { RuleOracle } from './oracle.ts';
 import type { PointerIndex } from './pointers.ts';
 import type { WalkCursor } from './walk/cursor.ts';
 
@@ -169,25 +168,17 @@ export interface AnalysisOptions {
   readonly trailFilter?: Span;
 }
 
-/** The options as the result records them: the public options, never the tuning. */
-export interface AnalysisOptionsRecord {
-  readonly mode: 'discover' | 'confirm';
-  readonly seeds: readonly Seed[];
-  readonly overrides: readonly OverrideFact[];
-  readonly trail: TrailLevel;
-  readonly trailFilter?: Span;
-}
+/** The options as the result records them (seeds and overrides in a total order): the public options, never the tuning. */
+export type AnalysisOptionsRecord = AnalysisOptions;
 
 /** Internal (romlift/internal, outside semver, D37). */
 export interface AnalysisTuning {
-  /** The ascending worklist (D10); the PoC's 'poc-lifo' was deleted when phase 2 landed. */
+  /** The ascending worklist (D10); the PoC's 'poc-lifo' was deleted by the phase-2 integration (c608a33). */
   readonly worklist: 'ascending';
   /** §4.2, D13 */
   readonly cache: 'epoch' | 'epoch-reuse';
   /** `analyze --disable`, `bench ablate`: these rules are skipped. */
   readonly disabled: readonly RuleId[];
-  /** Lockstep against the PoC's recorded answers (§4.5). */
-  readonly oracle?: RuleOracle;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -363,7 +354,7 @@ export interface HarvestRule {
 }
 
 /**
- * At accept, in pipeline.queue order, pushed onto the LIFO worklist. seed.call (origin call): every
+ * At accept, in pipeline.queue order, pushed onto the worklist; the calls of an absorbed block too. seed.call (origin call): every
  * call of the function in `calls` order. seed.veneer (origin veneer): every veneer, ascending, as ARM.
  * seed.adr (origin adr): for an ARM function, every adr target in the ROM, word-aligned and above the
  * entry, ascending, as ARM.
@@ -373,15 +364,6 @@ export interface QueueRule {
   queue(f: FunctionFact, v: AnalysisView): readonly Candidate[];
 }
 
-/**
- * What one walk step does when a policy answers (first answer wins). Without an answer the walker
- * follows the decoder's Flow: next, adr, swi and an unanswered pool load continue; a branch is followed
- * (and ends the path when unconditional); bl follows the settle verdicts; a return ends the path as a
- * return (DECODER_FLOW); `bx rN` ends it as a reg-jump (DECODER_FLOW); any other indirect jump (mov, add,
- * ldr or ldm to pc) and invalid stop the walk as not code.
- * An end-path answer on a conditional instruction (Thumb bcc, ARM cond ≠ AL) counts the exit and the
- * path goes on. `continue` and `padding` are D56 additions.
- */
 /** One walk-slot answer a walk applied: the rule, the instruction it answered for, and the step it gave (a 'verdict' trail event). */
 export interface WalkDecision {
   readonly at: Addr;
@@ -389,6 +371,15 @@ export interface WalkDecision {
   readonly step: WalkStep['step'];
 }
 
+/**
+ * What one walk step does when a policy answers (first answer wins). Without an answer the walker
+ * follows the decoder's Flow: next, adr, swi and an unanswered pool load continue; a branch is followed
+ * (and ends the path when unconditional); bl follows the settle verdicts; a return ends the path as a
+ * return (DECODER_FLOW); `bx rN` ends it as a reg-jump (DECODER_FLOW); any other indirect jump (mov, add,
+ * ldr or ldm to pc) and invalid stop the walk as not code.
+ * An end-path answer on a conditional instruction (Thumb bcc, ARM cond ≠ AL) counts the exit and the
+ * path goes on. `continue` and `padding` are D56 additions, `arm-tail` a D59 one.
+ */
 export type WalkStep =
   /** Control leaves here. At a stop: noreturn-call marks the last bl, swi-end counts a return. */
   | { readonly step: 'end-path'; readonly exit: Exit['kind'] }

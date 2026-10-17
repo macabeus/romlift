@@ -2,7 +2,7 @@
 // registered walk, bl and claim rules, and read back the claim of each byte of a span.
 import type { Addr, Mode } from '../../../../src/foundation/rom/span.ts';
 import { accept } from '../../../../src/core/analysis/driver/accept.ts';
-import type { DriverState } from '../../../../src/core/analysis/driver/view.ts';
+import type { DriverState } from '../../../../src/core/analysis/driver/state.ts';
 import type { ClaimKind, FunctionFact, Reading } from '../../../../src/core/analysis/types.ts';
 
 /** Accepts `entry` as a listed seed would be. */

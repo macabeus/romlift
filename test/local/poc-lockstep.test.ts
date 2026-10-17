@@ -3,8 +3,9 @@
 // against the PoC's log (`export-poc --mode queries`) in the `parity` member of bench/results.json: the
 // driver alone with every family answered, each wave-1 component's families computed with the rest
 // answered, and every family computed. Each followed the log with no divergence, matched or skipped
-// every record, and ended at the committed PoC digest. The lockstep is not repeated (its order is the
-// PoC's LIFO, which only a lockstep oracle still supplies); this checks what it recorded.
+// every record, and ended at the committed PoC digest. The lockstep is not repeated: its order is the
+// PoC's LIFO, and the oracle that supplied it was deleted in the fix round of phase 2 (D59); this checks
+// what it recorded.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

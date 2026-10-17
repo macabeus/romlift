@@ -218,7 +218,7 @@ async function exportQueries(cx: BenchContext, d: Dataset, pocSourceDigest: stri
   const path = queriesPath(cx, d.name);
   const run = queriesFromChild(await runChild(cx, d, ['queries', dirname(path), sha1, pocSourceDigest]), d.name);
   checkCommittedDigest(d.name, parityDigest(run.view), committed, pocSourceDigest);
-  // Re-read the whole log through the validating reader: what the oracle will read is well formed.
+  // Re-read the whole log through the validating reader: the archived log is well formed.
   const started = process.hrtime.bigint();
   const log = await openPocLog(path);
   let records = 0;

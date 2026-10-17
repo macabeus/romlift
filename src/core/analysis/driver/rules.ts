@@ -1,14 +1,12 @@
 // The rule registry as the driver sees it (architecture §2: only driver/ imports rules/index.ts): RULES
 // re-exported for the barrels, and the profile's pipeline resolved against a registry once per run.
-// A pipeline id without an implementation throws RomliftInvariantError unless its family is answered
-// by the tuning's oracle; a disabled id is skipped.
+// A pipeline id without an implementation throws RomliftInvariantError; a disabled id is skipped.
 import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
+import { compareCodeUnits } from '../../../foundation/util/sorted.ts';
 import type { CompilerProfile, Pipeline } from '../../profile/types.ts';
-import { familyOf } from '../../provenance/rule-id.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import type { Origin } from '../../provenance/vocabulary.ts';
-import { answers } from '../oracle.ts';
 import type {
   AcceptRule,
   AcceptVeto,
@@ -56,7 +54,7 @@ export interface ResolvedRules {
   readonly gap: {
     readonly absorb?: Resolved<GapAbsorb>;
     readonly head?: Resolved<GapHead>;
-    /** Positional: forward[0] and forward[1] are the pair; undefined where a rule is disabled or oracle-answered. */
+    /** Positional: forward[0] and forward[1] are the pair; undefined where a rule is disabled. */
     readonly forward: readonly (Resolved<GapProposer> | undefined)[];
     readonly prefer?: Resolved<GapPrefer>;
     readonly skip?: Resolved<GapSkip>;
@@ -66,40 +64,13 @@ export interface ResolvedRules {
   readonly region: readonly Resolved<RegionRule>[];
   /** Each slot's index of every id, for the worklist's rule rank. */
   readonly rank: ReadonlyMap<RuleId, number>;
-  /** The origin of every proposing rule: its meta.origin, else ORACLE_ORIGINS for a family the oracle answers. */
+  /** The origin of every proposing rule: its meta.origin. */
   readonly origin: ReadonlyMap<RuleId, Origin>;
 }
 
-/**
- * The origins of the PoC's proposers (architecture §3.1), used only for a rule that is absent because the
- * oracle answers its family; a registered rule's origin is always its own meta.origin.
- */
-export const ORACLE_ORIGINS: Readonly<Record<string, Origin>> = {
-  'seed.rom-entry': 'rom-entry',
-  'seed.startup-pointer': 'startup-pointer',
-  'seed.pool-pointer': 'pool-pointer',
-  'seed.data-pointer': 'data-pointer',
-  'seed.call': 'call',
-  'seed.veneer': 'veneer',
-  'seed.adr': 'adr',
-  'seed.listed': 'listed',
-  'seed.override': 'override',
-  'seed.evidence-hint': 'evidence',
-  'gap.adr-block-absorb': 'gap-scan',
-  'gap.tiled-hole': 'tiled-hole',
-  'gap.tiled-hole-inner': 'tiled-hole',
-  'gap.forward-chain': 'gap-scan',
-  'gap.arm-scan': 'arm-gap-scan',
-  'gap.end-anchor': 'gap-scan',
-  'gap.backward-prologue-chain': 'gap-scan',
-  'gap.arm-over-prologueless-thumb': 'arm-gap-scan',
-  'gap.skip-padding-and-pointers': 'gap-scan',
-};
-
 function originsOf(registry: RuleRegistry): ReadonlyMap<RuleId, Origin> {
   const out = new Map<RuleId, Origin>();
-  for (const [id, origin] of Object.entries(ORACLE_ORIGINS)) out.set(id as RuleId, origin);
-  for (const id of Object.keys(registry).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)) as RuleId[]) {
+  for (const id of (Object.keys(registry) as RuleId[]).sort(compareCodeUnits)) {
     const origin = registry[id]?.meta.origin;
     if (origin !== undefined) out.set(id, origin);
   }
@@ -110,7 +81,7 @@ function kinds<K extends RuleKind>(...k: K[]): readonly K[] {
   return k;
 }
 
-/** Resolves the profile's pipeline against `registry`, honouring tuning.disabled and the oracle's families. */
+/** Resolves the profile's pipeline against `registry`, honouring tuning.disabled. */
 export function resolveRules(profile: CompilerProfile, registry: RuleRegistry, tuning: AnalysisTuning): ResolvedRules {
   const disabled = new Set<RuleId>(tuning.disabled);
   const rank = new Map<RuleId, number>();
@@ -118,10 +89,7 @@ export function resolveRules(profile: CompilerProfile, registry: RuleRegistry, t
     rank.set(id, index);
     if (disabled.has(id)) return undefined;
     const rule = Object.hasOwn(registry, id) ? registry[id] : undefined;
-    if (rule === undefined) {
-      if (answers(tuning.oracle, familyOf(id))) return undefined;
-      throw new RomliftInvariantError(`profile ${profile.id}: pipeline rule ${id} has no implementation`);
-    }
+    if (rule === undefined) throw new RomliftInvariantError(`profile ${profile.id}: pipeline rule ${id} has no implementation`);
     if (!(allowed as readonly string[]).includes(rule.kind)) {
       throw new RomliftInvariantError(`profile ${profile.id}: rule ${id} is a '${rule.kind}' rule, not one of ${allowed.join(', ')}`);
     }

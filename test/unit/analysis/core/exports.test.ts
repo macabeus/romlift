@@ -13,7 +13,7 @@ test('romlift exports the profiles, analyze and the address map', () => {
 });
 
 test('romlift/internal exports the tuned analysis, the registry, the diagnosis and the reading builder', () => {
-  for (const name of ['analyzeTuned', 'runAnalysis', 'DEFAULT_TUNING', 'RULES', 'resolveRules', 'diagnoseMisses', 'diagnoseMiss', 'makeReading', 'consult', 'ORACLE_FAMILY', 'defineRule', 'buildPointerIndex', 'LIMITS']) {
+  for (const name of ['analyzeTuned', 'runAnalysis', 'DEFAULT_TUNING', 'RULES', 'resolveRules', 'diagnoseMisses', 'diagnoseMiss', 'makeReading', 'defineRule', 'buildPointerIndex', 'LIMITS']) {
     assert.ok(name in internal, name);
   }
   assert.deepEqual(internal.DEFAULT_TUNING, { worklist: 'ascending', cache: 'epoch', disabled: [] });

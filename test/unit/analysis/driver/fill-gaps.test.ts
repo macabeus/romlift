@@ -5,8 +5,9 @@ import { test } from 'node:test';
 
 import { accept } from '../../../../src/core/analysis/driver/accept.ts';
 import { fillGaps } from '../../../../src/core/analysis/driver/fill-gaps.ts';
-import { createDriver } from '../../../../src/core/analysis/driver/run.ts';
-import type { GapCursor, Reading } from '../../../../src/core/analysis/types.ts';
+import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
+import type { GapCursor, Reading, RegisteredRule } from '../../../../src/core/analysis/types.ts';
+import type { RuleId } from '../../../../src/core/provenance/rule-id.ts';
 import { BASE, fakeRule, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 import { extent, walk } from './fakes.ts';
@@ -20,6 +21,9 @@ interface Options {
   readonly forward?: (c: GapCursor, read: (a: number) => Reading) => boolean;
   /** Code at the start of the gap. */
   readonly code?: Uint8Array;
+  /** Rules that replace the logging fakes of the same id. */
+  readonly extra?: readonly RegisteredRule[];
+  readonly disabled?: readonly RuleId[];
 }
 
 function setup(o: Options = {}) {
@@ -55,8 +59,8 @@ function setup(o: Options = {}) {
     { at: H, bytes: thumbAt(H)`bx lr` },
   ]);
   const profile = testProfile({ claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
-  const reg = registry(...gap, extent, ...walk);
-  const s = createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'full' }, tuningFor(profile, reg), reg);
+  const reg = registry(...gap, ...(o.extra ?? []), extent, ...walk);
+  const s = createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'full' }, tuningFor(profile, reg, { disabled: o.disabled ?? [] }), reg);
   accept(s, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
   accept(s, { entry: H, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
   return { s, log };
@@ -79,10 +83,22 @@ test('the patient pass waits on a head whose end is not anchored; the impatient 
   const head = (c: GapCursor, read: (a: number) => Reading): Reading | undefined => (c.at === F + 4 ? read(F + 4) : undefined);
   const patient = setup({ head });
   fillGaps(patient.s, 'patient');
-  assert.deepEqual(patient.log, ['absorb@+204', 'head@+204']);
+  assert.deepEqual(patient.log, ['absorb@+204', 'head@+204', 'tiled(head +204)@+204'], 'the head is offered to the proposers after the pair, which decline it');
   const impatient = setup({ head });
   fillGaps(impatient.s, 'impatient');
   assert.ok(impatient.log.length > 2);
+});
+
+test('the gap head is accepted only through the proposers after the pair: disabled, the head stays a candidate', () => {
+  const head = (c: GapCursor, read: (a: number) => Reading): Reading | undefined => (c.at === F + 4 ? read(F + 4) : undefined);
+  const taking = fakeRule('gap.tiled-hole-inner', { kind: 'gap', propose: (c) => (c.head === undefined ? undefined : { entry: c.head.entry, mode: 'thumb', proposedBy: 'gap.tiled-hole-inner', cites: [c.head.entry] }) }, 'tiled-hole');
+  const code = thumbAt(F + 4)`movs r1, #1; movs r1, #1; bx lr`;
+  const on = setup({ head, code, extra: [taking] });
+  fillGaps(on.s, 'patient');
+  assert.equal(on.s.funcs.get(F + 4)?.accepted.rule, 'gap.tiled-hole');
+  const off = setup({ head, code, extra: [taking], disabled: ['gap.tiled-hole-inner'] });
+  fillGaps(off.s, 'patient');
+  assert.equal(off.s.funcs.has(F + 4), false);
 });
 
 test('a forward proposal is accepted with its rule and origin, and the scan resumes after its extent', () => {

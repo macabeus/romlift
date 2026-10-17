@@ -5,8 +5,6 @@ export { diagnoseMiss, diagnoseMisses } from '../core/analysis/driver/diagnose.t
 export type { MissDiagnosis, MissQuery } from '../core/analysis/driver/diagnose.ts';
 export { codeEndOf, compareCalls, makeReading, partsOf } from '../core/analysis/reading.ts';
 export type { ReadingParts } from '../core/analysis/reading.ts';
-export { answers, consult, ORACLE_FAMILY } from '../core/analysis/oracle.ts';
-export type { OracleAnswer, OracleMarker, OracleMethod, OracleQueries, OracleQuery, RuleOracle } from '../core/analysis/oracle.ts';
 export { buildPointerIndex, isPointedAt, isThumbPointer, pointersTo, pointerTargets } from '../core/analysis/pointers.ts';
 export type { PointerIndex } from '../core/analysis/pointers.ts';
 export { LIMITS } from '../core/analysis/limits.ts';

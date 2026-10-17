@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createDriver } from '../../../../src/core/analysis/driver/run.ts';
+import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
 import { settle } from '../../../../src/core/analysis/driver/settle.ts';
 import type { BlVerdict, RegisteredRule } from '../../../../src/core/analysis/types.ts';
 import { fakeRule, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';

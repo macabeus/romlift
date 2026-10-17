@@ -1,7 +1,6 @@
 // Acceptance (the PoC's accept() and claim()): an accepted entry is read, recorded, claimed, and its
 // callees, veneers and ARM adr targets are queued through the queue slot onto the worklist, which pops
-// ascending (or in the order of a lockstep oracle's log). Callees of an accepted function are trusted: they are accepted
-// without validity, as in the PoC.
+// ascending. Callees of an accepted function are trusted: they are accepted without validity, as in the PoC.
 import { contains } from '../../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../../foundation/rom/span.ts';
 import { provenance } from '../../provenance/provenance.ts';
@@ -9,13 +8,16 @@ import type { RuleId } from '../../provenance/rule-id.ts';
 import type { Origin } from '../../provenance/vocabulary.ts';
 import { makeReading, partsOf } from '../reading.ts';
 import { Claim } from '../types.ts';
-import type { Candidate, ClaimEdit, Reading } from '../types.ts';
+import type { Candidate, ClaimEdit, FunctionFact, Reading } from '../types.ts';
 import { checkListed, isUnlisted, recordUnlisted } from './confirm.ts';
-import { analyzeArm, settle } from './settle.ts';
-import { also, emit, factOf, markEntry } from './view.ts';
-import type { DriverState } from './view.ts';
+import { factOf, factOfBlock } from './facts.ts';
 import { touch } from './reuse.ts';
+import { analyzeArm, settle } from './settle.ts';
+import { markEntry } from './state.ts';
+import type { DriverState } from './state.ts';
+import { also, emit } from './trail.ts';
 import { ascending } from './worklist.ts';
+import type { Worklist } from './worklist.ts';
 
 /** The origin a proposing rule gives what it proposes (its meta.origin). */
 export function originOf(s: DriverState, rule: RuleId): Origin {
@@ -41,7 +43,6 @@ function citeSteps(s: DriverState, r: Reading): void {
 
 /** The PoC's claim(f): the instruction bytes as code, then the claim slot in order. `owner` is the accepted function `r` belongs to. */
 export function claim(s: DriverState, owner: Addr, r: Reading): void {
-  s.tuning.oracle?.marker({ kind: 'claim', entry: r.entry, mode: r.mode });
   for (const i of r.insns) write(s, { span: { start: i.addr, end: i.addr + i.len }, kind: Claim.code, when: 'always' });
   const fact = factOf(s, owner);
   if (fact === undefined) return;
@@ -52,7 +53,7 @@ export function claim(s: DriverState, owner: Addr, r: Reading): void {
   }
 }
 
-function enqueue(s: DriverState, work: { push(c: Candidate): void }, c: Candidate): void {
+function enqueue(s: DriverState, work: Worklist, c: Candidate): void {
   emit(s, 'propose', c.entry, c.proposedBy, c.cites, c.mode);
   work.push(c);
 }
@@ -76,8 +77,12 @@ function take(s: DriverState, c: Candidate, r: Reading, note?: string): readonly
   emit(s, 'accept', c.entry, c.proposedBy, c.cites, note);
   citeSteps(s, r);
   const fact = factOf(s, c.entry);
-  if (fact === undefined) return [];
-  return s.rules.queue.flatMap(({ rule }) => rule.queue(fact, s.view));
+  return fact === undefined ? [] : queued(s, fact);
+}
+
+/** The queue slot's proposals for an accepted function or an absorbed block, in slot order. */
+function queued(s: DriverState, fact: FunctionFact): readonly Candidate[] {
+  return s.rules.queue.flatMap(({ id, rule }) => rule.queue(fact, s.view).map((p) => ({ ...p, proposedBy: id })));
 }
 
 /**
@@ -85,7 +90,7 @@ function take(s: DriverState, c: Candidate, r: Reading, note?: string): readonly
  * functions were added (0 when `first` was already a function, or, in confirm mode, is not listed).
  */
 export function accept(s: DriverState, first: Candidate, note?: string): number {
-  const work = s.tuning.oracle?.worklist() ?? ascending(s.rules.rank, () => (s.seq += 1));
+  const work = ascending(s.rules.rank, () => (s.seq += 1));
   enqueue(s, work, first);
   let added = 0;
   for (let c = work.pop(); c !== undefined; c = work.pop()) {
@@ -106,11 +111,14 @@ export function accept(s: DriverState, first: Candidate, note?: string): number 
   return added;
 }
 
-/** The calls of an absorbed block, each accepted with its own worklist as a seed.call proposal (the PoC's absorbBlock). */
-export function acceptCalls(s: DriverState, r: Reading): number {
-  if (s.tuning.disabled.includes('seed.call')) return 0;
+/**
+ * The queue slot's proposals for an absorbed block, as the block is when it is absorbed, each accepted
+ * with its own worklist (the PoC's absorbBlock accepts the block's calls one by one).
+ */
+export function acceptQueued(s: DriverState, into: Addr, block: Reading): number {
+  const fact = factOfBlock(s, into, block);
   let added = 0;
-  for (const c of r.calls) added += accept(s, { entry: c.target, mode: c.mode, proposedBy: 'seed.call', cites: [c.site] });
+  if (fact !== undefined) for (const c of queued(s, fact)) added += accept(s, c);
   return added;
 }
 
@@ -144,5 +152,5 @@ export function absorb(s: DriverState, into: Addr, block: Reading): void {
   claim(s, into, block);
   emit(s, 'absorb', block.entry, s.profile.pipeline.gap.absorb, [into, block.entry]);
   citeSteps(s, block);
-  acceptCalls(s, block);
+  acceptQueued(s, into, block);
 }

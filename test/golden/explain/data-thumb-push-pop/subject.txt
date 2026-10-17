@@ -41,7 +41,7 @@
     0x08000114 bl.near-is-call round 2 cites 0x08000114, 0x0800011A: call
     0x08000114 bl.near-is-call round 4 cites 0x08000114, 0x0800011A: call
   waits (1):
-    0x0800013C gap.tiled-hole round 2 cites 0x0800013C, 0x08000150: its end is not anchored yet
+    0x0800013C gap.tiled-hole round 2 cites 0x0800013C, 0x08000150: no proposer takes it yet: its end is not anchored
   claims (5):
     0x08000120 claim.dead-code-in-extent round 0 cites 0x08000120: 1 edits
     0x08000134 claim.dead-code-in-extent round 0 cites 0x08000134: 1 edits

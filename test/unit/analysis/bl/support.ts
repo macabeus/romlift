@@ -3,8 +3,8 @@
 // them, and a direct call of one bl rule.
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import type { RuleId } from '../../../../src/core/provenance/rule-id.ts';
-import { createDriver } from '../../../../src/core/analysis/driver/run.ts';
-import type { DriverState } from '../../../../src/core/analysis/driver/view.ts';
+import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
+import type { DriverState } from '../../../../src/core/analysis/driver/state.ts';
 import { BL_RULES } from '../../../../src/core/analysis/rules/bl/index.ts';
 import { CLAIM_RULES } from '../../../../src/core/analysis/rules/claim/index.ts';
 import { WALK_RULES } from '../../../../src/core/analysis/rules/walk/index.ts';
