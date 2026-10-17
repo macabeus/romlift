@@ -18,15 +18,15 @@ Phase 1 of 6 (Decoder) has landed ([docs/phase-1.md](docs/phase-1.md)): the Thum
 table with its decoder, encoder, formatter and parser round-trips 100% of printed mnemonics through GNU
 `as`, `romlift doctor` checks the user's toolchain, and the bench harness rescores the proof of concept.
 
-Phase 2 (Analysis) passes its closing gate on the `phase-2` branch and waits for its pull request and
-merge ([docs/phase-2.md](docs/phase-2.md)): romlift's own function-boundary analysis reproduces the proof
-of concept's results on the five ROMs the PoC was tuned on (parity digests and the lockstep of every rule
-family), then switches to an order-independent worklist, register-tracked jump tables and a few measured
-improvements, with every tuning threshold met and every rule cited and load-bearing on a synthetic fixture
-or exempted by a decision. The sealed held-out gate failed on The Minish Cap; the owner decided to tune on
-it ("Tune on tmc, no new ROM", D60), so it is the sixth tuning ROM (recall 99.37% to 99.94%, 51 glued
-misses to none, its code end now exact, IWRAM code included), the two Pokémon held-out ROMs still pass
-sealed, and the gate records that no held-out ROM of a family absent from the tuning set remains. The
+Phase 2 (Analysis) is built but has not landed ([docs/phase-2.md](docs/phase-2.md)): romlift's own
+function-boundary analysis reproduces the proof of concept's results on the five ROMs the PoC was tuned on
+(parity digests and the lockstep of every rule family), then switches to an order-independent worklist,
+register-tracked jump tables and a few measured improvements, with every rule cited and load-bearing on a
+synthetic fixture or exempted by a decision. The sealed held-out gate failed on The Minish Cap; the owner
+decided to tune on it ("Tune on tmc, no new ROM", D60), so it is the sixth tuning ROM (recall 99.37% to
+99.94%, its code end now exact, IWRAM code included) and the two Pokémon held-out ROMs still pass sealed.
+Three gates the decision does not cover fail on The Minish Cap (PoC parity, rows against the PoC's own run
+of it, confirm equals discover), and the phase waits for the owner's answers. The
 commands so far are `doctor`, `analyze` and `explain`.
 
 | Phase | Delivers |
