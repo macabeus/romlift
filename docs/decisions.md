@@ -1752,12 +1752,22 @@ of generality until a sealed ROM of a fresh family passes (D53).
   (CreateDustFromScript): single-instance.
 - (i) **Categories.** `unreached-tail` (code after a hand-written function's return that nothing reaches,
   folded into that function by the ELF) and `pointer-entry` (another entry point of hand-written code,
-  reached by a jump through its address, a veneer or a stored function pointer, which the ELF only labels;
-  fix round 1) are new; `second-entry` keeps its M5 definition (bl-reached helpers: fix round 1 reverted
-  the widening that covered `seed.ram-copy`'s own false entries); `untyped-leaf` (directly or through
-  `bl _call_via_rN`) and `split-after-returning-call` (a bl to a returning helper, or `mov lr, pc; bx rN`)
-  are widened to what tmc's rows show. (`unsized-last-function`, the category of the withdrawn `codeEnd`
-  row, is gone with it.)
+  reached by a jump through its address: a veneer, `bl _call_via_rN` with its address, or a stored
+  function pointer, which the ELF only labels; fix round 1) are new, and both are carried by tmc's rows
+  only (unreached-tail 2, pointer-entry 4): they are categories of one ROM, shown on no other tuning ROM and
+  in no fixture. `second-entry` keeps its M5 definition (bl-reached helpers: fix round 1 reverted the
+  widening that covered `seed.ram-copy`'s own false entries), and so, since fix round 2, does
+  `untyped-leaf` (a leaf reached by `bl`; gate-honesty-r1-8): its widening to "through `bl _call_via_rN`"
+  covered tmc's 0x080B197C, which no `bl` reaches at its ROM address (code reaches its IWRAM address
+  through `bl _call_via_r4`), so that row is `pointer-entry`. `split-after-returning-call` keeps its
+  widening from "after `bl _call_via_rN`" to any call whose callee returns (a `bl` to a returning helper,
+  or `mov lr, pc; bx rN`), recorded here as different from the reverted ones: it names the same split of
+  the truth's disassembler by another call instruction, and the rows it covers on tmc (0x080AF900,
+  0x080B20AC) are misses the pinned PoC's own run of tmc has too, not entries a D60 rule added. The cost of
+  (e) to (g) in false entries is reported, not hidden by the categories (overfitting-r1-8): tmc's false
+  entries went from 8 at `d645160` (the PoC's own run: 7) to 12, precision 99.92% to 99.86%; all 12 are
+  listed, 6 of them inside or reached from the block (e) brings into the code. (`unsized-last-function`,
+  the category of the withdrawn `codeEnd` row, is gone with it.)
 - (j) **Withdrawn (fix round 2 of D60): the code-end convention stays the one of phase 1.** Fix round 1
   replaced the dataset `codeEnd` row of `80762ff` with a scorer convention, `elfCodeEnd` in
   `bench/src/truth.ts`, that ended an unsized function (hand-written asm without `.size`) at the first data

@@ -70,8 +70,7 @@ export type DatasetProblemId =
   | 'is-a-func'
   | 'stale-exception'
   | 'input-unavailable'
-  | 'tuning-set'
-  | 'code-end';
+  | 'tuning-set';
 
 export interface DatasetProblem {
   readonly dataset: string;
@@ -267,9 +266,10 @@ export function tuningDatasets(all: readonly Dataset[], only?: string): Dataset[
 }
 
 /**
- * The tuning datasets the proof of concept ran on: those its baseline names (`pocNames`, the ROMs of
- * bench/baseline/poc-2026-10-16.json). A dataset that became tuning data later by a reveal (tmc, D60) has
- * no PoC run, dump or baseline row, so the PoC commands (export-poc, poc-check) skip it.
+ * The tuning datasets of the pinned PoC baseline: those it names (`pocNames`, the ROMs of
+ * bench/baseline/poc-2026-10-16.json). Only the PoC's parity and queries modes use it (their evidence is
+ * the M1 lockstep of those ROMs); a dataset revealed later (tmc, D60) has no baseline row or parity digest,
+ * but export-poc's scored mode and poc-check run it like every tuning dataset.
  */
 export function pocDatasets(all: readonly Dataset[], pocNames: readonly string[], only?: string): Dataset[] {
   return tuningDatasets(all, only).filter((d) => pocNames.includes(d.name));

@@ -102,13 +102,13 @@ export interface BenchRow {
   readonly parity?: RowParity;
 }
 
-/** The row of a scored romlift run: every phase-2 field present (what `bench run --json` prints). */
 /**
  * Where a row's PoC reference comes from: the pinned baseline, the PoC's own dump of a ROM revealed after
  * the baseline was pinned (D60), or nowhere (the PoC thresholds are not applicable).
  */
 export type PocSource = 'baseline' | 'dump' | 'none';
 
+/** The row of a scored romlift run: every phase-2 field present (what `bench run --json` prints). */
 export type RomliftRow = BenchRow & {
   readonly extents: BenchRow['extents'] & { readonly lost: readonly ExtentRow[] };
   readonly analysisDigest: string;

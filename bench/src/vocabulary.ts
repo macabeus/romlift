@@ -6,9 +6,10 @@
 // added second-entry, untyped-leaf and split-after-returning-call (which replaces the misnamed
 // continuation-after-noreturn-call), and disassembler-split for the one FE7J row that follows no call.
 // The owner decision of 17 October 2026 (D60) added unreached-tail and pointer-entry for tmc's rows, and
-// widened untyped-leaf and split-after-returning-call to the call stubs and indirect calls tmc's rows show.
-// second-entry keeps its M5 definition (bl-reached helpers): the entries reached through a veneer or a
-// stored pointer have their own category, defined by how the program reaches them.
+// widened split-after-returning-call to the indirect call `mov lr, pc; bx rN` (the same split after a
+// call that returns, by another call instruction). second-entry and untyped-leaf keep their M5
+// definitions (bl-reached helpers and leaves): code reached through its address (a veneer, `bl
+// _call_via_rN` with its address, a stored pointer) is pointer-entry, defined by how the program reaches it.
 //
 // `unreviewed` is not a category: it is the placeholder `bench adopt` writes for a row nobody has
 // classified yet, which g2.no-unreviewed refuses at landing.
@@ -21,11 +22,11 @@ export const EXCEPTION_CATEGORIES = {
   'local-subroutine': 'a bl target inside hand-written code, folded into its parent by the ELF',
   'adr-callback': 'a handler reached through adr and stored as a callback',
   'second-entry': 'a second entry point of a hand-written helper, a few bytes after its first, reached by its own bl',
-  'untyped-leaf': 'a whole leaf function reached by bl (directly or through bl _call_via_rN) that the ELF only labels, typing no FUNC there',
+  'untyped-leaf': 'a whole leaf function reached by bl that the ELF only labels, typing no FUNC there',
   'split-after-returning-call': "the truth's own disassembler split right after a call whose callee returns (bl _call_via_rN, a bl to a returning helper, or mov lr, pc; bx rN)",
   'disassembler-split': "the truth's own disassembler split inside straight-line code that no call, branch or pointer reaches",
   'unreached-tail': "code right after a hand-written function's return that nothing reaches, which the ELF folds into that function",
-  'pointer-entry': 'another entry point of hand-written code, reached by a jump through its address (a load-and-jump veneer or a stored function pointer), which the ELF only labels',
+  'pointer-entry': 'another entry point of hand-written code, reached by a jump through its address (a load-and-jump veneer, bl _call_via_rN with its address, or a stored function pointer), which the ELF only labels',
 } as const;
 export type ExceptionCategory = keyof typeof EXCEPTION_CATEGORIES;
 

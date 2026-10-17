@@ -81,7 +81,7 @@
     },
     {
       "addr": "0x080B197C",
-      "category": "untyped-leaf",
+      "category": "pointer-entry",
       "note": "sub_080B197C (NOTYPE, RAMFUNCS_BASE): the Thumb leaf at the start of the block InitOverlays copies to IWRAM 0x030056F0, reached by `bl _call_via_r4` with r4 = its IWRAM address; found by the gap scan once seed.ram-copy put the block inside the code; 80 bytes"
     },
     {
