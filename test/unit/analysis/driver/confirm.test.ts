@@ -1,5 +1,6 @@
-// Confirm mode: the listed entries are functions from round 0; a listed entry that fails validity is
-// kept and reported; a discovery beyond the list is reported and claims nothing; extents are cut.
+// Confirm mode: every listed entry becomes a function, the ones the rules reach in discover's order and the
+// rest after the passes (D60 k); a listed entry that fails validity is kept and reported; a discovery
+// beyond the list is reported and claims nothing; extents are cut.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -54,6 +55,45 @@ test('listed entries are the functions; an unlisted callee is reported and claim
   assert.deepEqual(result.diagnostics.map((d) => [d.code, d.addr]).sort((x, y) => (x[0]! < y[0]! ? -1 : 1)), [
     ['W_LISTED_INVALID', B],
     ['W_UNLISTED_FUNCTION', C],
+  ]);
+});
+
+test('the rules take the listed entries they reach first; the rest of the list is taken after the passes (D60 k)', () => {
+  // A startup pointer names A, which loads C + 1 from its pool; a harvest rule proposes C and an accept
+  // rule takes it. Listed with A and D, C is taken by the harvest, as discover takes it, and D, which no
+  // rule reaches, by seed.listed.
+  const D = 0x0800_02c0;
+  const rom = romWith([
+    { at: A, bytes: thumbAt(A)`ldr r0, _08000204; bx lr` },
+    { at: A + 4, bytes: words(C + 1) },
+    { at: C, bytes: thumbAt(C)`bx lr` },
+    { at: D, bytes: thumbAt(D)`bx lr` },
+  ]);
+  const harvest = fakeRule('seed.pool-pointer', { kind: 'harvest', harvest: (v) => (v.isFunction(A) && !v.isFunction(C) ? [C] : []) }, 'pool-pointer');
+  const take = fakeRule('accept.prologue-and-loaded', { kind: 'accept', reason: 'unanchored', holds: (c) => ({ cites: [c.entry], note: 'taken' }) });
+  const startup = fakeRule('seed.startup-pointer', { kind: 'seed', seeds: () => [{ entry: A, mode: 'thumb', proposedBy: 'seed.startup-pointer', cites: [A] }] }, 'startup-pointer');
+  const profile = testProfile({ seed: ['seed.startup-pointer', 'seed.listed'], harvest: ['seed.pool-pointer'], accept: ['accept.prologue-and-loaded'], validity: ['valid.in-rom-unclaimed', 'valid.decodes'], claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
+  const reg = registry(startup, listed, harvest, take, inRom, decodes, extent, ...walk);
+  const result = runAnalysis(rom, profile, { mode: 'confirm', seeds: [seed(A), seed(C), seed(D)], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);
+  assert.deepEqual(result.functions.map((f) => [f.entry, f.origin]), [
+    [A, 'startup-pointer'],
+    [C, 'pool-pointer'],
+    [D, 'listed'],
+  ]);
+  assert.equal(result.mode === 'confirm' ? result.unlisted.length : -1, 0);
+});
+
+test('a listed entry not taken yet is no walk boundary: a walk passes through it as discover\'s does (D60 k)', () => {
+  // F falls through into G; listed as a label, G is no boundary for F's walk, and is still a function.
+  const F = 0x0800_0300;
+  const G = 0x0800_0304;
+  const rom = romWith([{ at: F, bytes: thumbAt(F)`movs r0, #0; movs r1, #1; movs r2, #2; bx lr` }]);
+  const profile = testProfile({ seed: ['seed.listed'], validity: ['valid.in-rom-unclaimed', 'valid.decodes'], claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
+  const reg = registry(listed, inRom, decodes, extent, ...walk);
+  const result = runAnalysis(rom, profile, { mode: 'confirm', seeds: [seed(F), seed(G, { label: true })], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);
+  assert.deepEqual(result.functions.map((f) => [f.entry, f.extent.start, f.extent.end]), [
+    [F, F, F + 8],
+    [G, G, G + 4],
   ]);
 });
 
