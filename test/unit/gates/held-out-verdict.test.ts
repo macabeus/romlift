@@ -36,18 +36,27 @@ test('heldOutVerdict: pret-gen3 and zeldaret-tmc passing pass the gate', () => {
   assert.deepEqual(v, { pass: true, passing: ['pokefirered', 'tmc'], families: ['pret-gen3', 'zeldaret-tmc'], freshFamilies: ['zeldaret-tmc'], problems: [] });
 });
 
-test('heldOutVerdict with the D60 waiver: the two bound pret-gen3 ROMs passing pass, each waived condition printed with its grounds', () => {
+test('heldOutVerdict with the D60 waiver: only the fresh-family condition is waived; two pret-gen3 ROMs still fail on two families (Q4)', () => {
   const sealed = [
     { name: 'pokefirered', family: 'pret-gen3', pass: true },
     { name: 'pokeruby', family: 'pret-gen3', pass: true },
   ];
   const v = heldOutVerdict(sealed, AT_D60, WAIVER);
-  assert.equal(v.pass, true);
-  assert.deepEqual(v.problems, []);
+  assert.equal(v.pass, false);
   assert.equal(v.waiverRefused, undefined);
-  assert.equal(v.waived?.length, 2);
-  assert.match(v.waived?.[0] ?? '', /^the passing ROMs span 1 codebase families, at least two must: waived by the owner, Bruno Macabeus .* on 2026-10-17 \(D60; inferred from/);
-  assert.match(v.waived?.[1] ?? '', /^no passing ROM is from a family absent from the tuning set: waived by .* \(D60; the owner's words/);
+  assert.equal(v.waived?.length, 1);
+  assert.match(v.waived?.[0] ?? '', /^no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus .* on 2026-10-17 \(D60; the owner's words/);
+  assert.equal(v.problems.length, 1);
+  assert.match(v.problems[0] ?? '', /^the passing ROMs span 1 codebase families, at least two must \(not waived: .*owner question Q4/);
+  // With two families passing, the fresh-family waiver alone lets the gate pass.
+  const two = heldOutVerdict([sealed[0]!, { name: 'pokeruby', family: 'sat-r', pass: true }], AT_D60, WAIVER);
+  assert.equal(two.pass, true);
+  assert.deepEqual(two.problems, []);
+  assert.equal(two.waived?.length, 1);
+  // A waiver with grounds for both conditions waives both (the shape an owner's confirmation of Q4 takes).
+  const both = heldOutVerdict(sealed, AT_D60, { waiver: { ...FAMILY_WAIVER, grounds: { ...FAMILY_WAIVER.grounds, twoFamilies: 'confirmed' } }, sealed: SEALED });
+  assert.equal(both.pass, true);
+  assert.equal(both.waived?.length, 2);
   // The waiver never covers a ROM that fails, or fewer than two passing ROMs.
   const one = heldOutVerdict([sealed[0]!, { ...sealed[1]!, pass: false }], AT_D60, WAIVER);
   assert.equal(one.pass, false);
@@ -72,6 +81,7 @@ test('heldOutVerdict: the D60 waiver ends on any change to the sealed set or the
     assert.equal(v.waived, undefined, what);
     assert.match(v.waiverRefused ?? '', /the D60 waiver does not apply: .*a new owner decision is needed$/, what);
     assert.ok(v.problems.includes('no passing ROM is from a family absent from the tuning set'), what);
+    assert.ok(v.problems.includes('the passing ROMs span 1 codebase families, at least two must'), what);
   }
   assert.equal(waiverMismatch(FAMILY_WAIVER, [...SEALED].reverse(), [...AT_D60].reverse()), undefined);
 });

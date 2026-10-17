@@ -1615,12 +1615,14 @@ tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeu
 - **The owner's decision.** tmc is revealed (`bench run --reveal tmc`, `306eaf2`) and is tuning data; its
   misses are fixed with general rules and its remaining rows are classified like those of the other five
   tuning datasets. pokefirered and pokeruby stay sealed and must keep passing. `g2.held-out` is recorded as
-  having no held-out ROM of a family absent from the tuning set: its two family conditions (the passing
-  ROMs span two codebase families, one of them absent from the tuning set) are waived, and the gate prints
-  each waived condition with its grounds (`WAIVED: …, by the owner … on 2026-10-17 (D60; …)`). The owner's
-  words cover the fresh-family condition; the two-families condition is waived by inference (pokefirered
-  and pokeruby, both `pret-gen3`, must pass and phase 2 then lands), and the owner is asked to confirm it
-  (phase-2.md, "Owner questions"). The waiver is bound to the facts it was decided on: the sealed datasets
+  having no held-out ROM of a family absent from the tuning set: that waives its fresh-family condition
+  (one passing ROM from a family absent from the tuning set), and the gate prints the waived condition with
+  its grounds (`WAIVED: …, by the owner … on 2026-10-17 (D60; the owner's words …)`). The two-families
+  condition (the passing ROMs span two codebase families) is not in the owner's words: fix round 1 waived
+  it by inference (pokefirered and pokeruby, both `pret-gen3`, must pass and phase 2 then lands), and fix
+  round 2 withdrew that (gate-honesty-r1-2, code-quality-r1-2), so the condition still applies and the gate
+  fails on it, printing that it waits for owner question Q4 (phase-2.md, "Owner questions"). Once the
+  owner confirms, the waiver's `grounds` gain the answer and the condition is waived with it. The waiver is bound to the facts it was decided on: the sealed datasets
   pokefirered and pokeruby by name, ROM SHA-1 and ELF SHA-256, and the tuning families fe-gba, kleod,
   pret-gen3, sat-r and zeldaret-tmc; any change to either ends it and needs a new decision. Every per-ROM
   threshold, the seal and "at least two sealed ROMs pass" still decide. The verdict is one function,

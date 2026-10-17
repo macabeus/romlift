@@ -29,9 +29,17 @@ export interface FamilyWaiver {
   readonly decision: string;
   readonly sealed: readonly SealedBinding[];
   readonly tuningFamilies: readonly string[];
-  /** Why each family condition is waived: the owner's words, or what was inferred from them. */
-  readonly grounds: { readonly twoFamilies: string; readonly freshFamily: string };
+  /**
+   * The owner's words for each family condition the waiver covers. A condition without grounds is not
+   * waived: it fails as without a waiver, its problem carrying the `pending` text when there is one.
+   */
+  readonly grounds: Readonly<Partial<Record<FamilyCondition, string>>>;
+  /** Why a condition the waiver does not cover is still open (an owner question), printed with its failure. */
+  readonly pending?: Readonly<Partial<Record<FamilyCondition, string>>>;
 }
+
+/** The two family conditions of D53: the passing ROMs span two families; one of them is absent from the tuning set. */
+export type FamilyCondition = 'twoFamilies' | 'freshFamily';
 
 /**
  * The waiver of 17 October 2026 (D60): "Tune on tmc, no new ROM" moved tmc, the only sealed ROM of a family
@@ -48,7 +56,10 @@ export const FAMILY_WAIVER: FamilyWaiver = {
   tuningFamilies: ['fe-gba', 'kleod', 'pret-gen3', 'sat-r', 'zeldaret-tmc'],
   grounds: {
     freshFamily: "the owner's words: the gate is recorded as having no held-out ROM from a family absent from the tuning set",
-    twoFamilies: "inferred from the owner's words (pokefirered and pokeruby, both pret-gen3, must pass and phase 2 then lands); confirmation requested (phase-2.md, Owner questions)",
+  },
+  pending: {
+    twoFamilies:
+      "not waived: the D60 decision does not state it (a waiver was only inferred from 'pokefirered and pokeruby must keep passing' and 'phase 2 then lands'); owner question Q4 of phase-2.md",
   },
 };
 
@@ -93,9 +104,10 @@ export function waiverMismatch(waiver: FamilyWaiver, sealed: readonly SealedBind
 
 /**
  * At least two sealed ROMs pass, from at least two families, one of them absent from the tuning set
- * (D53). With `waiver` (D60) the two family conditions are reported as waived instead of failing, only
- * while the sealed datasets and the tuning families are exactly those it is bound to; the count of passing
- * ROMs and every per-ROM threshold still decide.
+ * (D53). With `waiver` (D60) a family condition the waiver has grounds for is reported as waived instead
+ * of failing, only while the sealed datasets and the tuning families are exactly those it is bound to; a
+ * condition without grounds still fails (with the waiver's `pending` text), and the count of passing ROMs
+ * and every per-ROM threshold still decide.
  */
 export function heldOutVerdict(
   results: readonly SealedResult[],
@@ -107,22 +119,29 @@ export function heldOutVerdict(
   const families = [...new Set(passed.map((r) => r.family).filter((f) => f !== ''))].sort(byCodeUnit);
   const freshFamilies = families.filter((f) => !tuning.has(f));
   const problems: string[] = [];
-  const familyProblems: { readonly text: string; readonly ground: 'twoFamilies' | 'freshFamily' }[] = [];
+  const familyProblems: { readonly text: string; readonly ground: FamilyCondition }[] = [];
   if (passed.length < 2) problems.push(`${passed.length} of ${results.length} sealed ROMs pass, at least two must`);
   if (families.length < 2) familyProblems.push({ text: `the passing ROMs span ${families.length} codebase families, at least two must`, ground: 'twoFamilies' });
   if (freshFamilies.length === 0) familyProblems.push({ text: 'no passing ROM is from a family absent from the tuning set', ground: 'freshFamily' });
   const refused = waiver === undefined || familyProblems.length === 0 ? undefined : waiverMismatch(waiver.waiver, waiver.sealed, tuningFamilies);
-  const waives = waiver !== undefined && familyProblems.length > 0 && refused === undefined;
-  if (!waives) problems.push(...familyProblems.map((p) => p.text));
+  const w = waiver !== undefined && refused === undefined ? waiver.waiver : undefined;
+  const waived: string[] = [];
+  for (const p of familyProblems) {
+    const ground = w?.grounds[p.ground];
+    if (w !== undefined && ground !== undefined) {
+      waived.push(`${p.text}: waived by ${w.by} on ${w.decided} (${w.decision}; ${ground})`);
+      continue;
+    }
+    const pending = w?.pending?.[p.ground];
+    problems.push(pending === undefined ? p.text : `${p.text} (${pending})`);
+  }
   return {
     pass: problems.length === 0,
     passing: passed.map((r) => r.name),
     families,
     freshFamilies,
     problems,
-    ...(waives
-      ? { waived: familyProblems.map((p) => `${p.text}: waived by ${waiver.waiver.by} on ${waiver.waiver.decided} (${waiver.waiver.decision}; ${waiver.waiver.grounds[p.ground]})`) }
-      : {}),
+    ...(waived.length > 0 ? { waived } : {}),
     ...(refused === undefined ? {} : { waiverRefused: refused }),
   };
 }

@@ -5,13 +5,15 @@
 // tuning set. Only counts and verdicts are read and printed: never an address or a name, and never the
 // bench's raw output.
 //
-// The family conditions are waived by the owner's decision of 17 October 2026 (Bruno Macabeus, architecture
-// §12 item 4, D60): "Tune on tmc, no new ROM" moved tmc, the only sealed ROM of a family absent from the
-// tuning set, into the tuning set, and the gate is recorded as having no held-out ROM of such a family.
-// The verdict is held-out-verdict.ts's heldOutVerdict, the unit-tested function: the waiver is bound to
-// the sealed datasets (name, ROM SHA-1, ELF SHA-256) and the tuning families it was decided on, and any
-// change to either ends it. It is printed in the gate's note every time it applies, with its grounds, and
-// it never covers a per-ROM threshold or the count of passing ROMs (at least two).
+// The owner's decision of 17 October 2026 (Bruno Macabeus, architecture §12 item 4, D60), "Tune on tmc, no
+// new ROM", moved tmc, the only sealed ROM of a family absent from the tuning set, into the tuning set, and
+// records the gate as having no held-out ROM of such a family: that waives the fresh-family condition. The
+// two-families condition is not in the owner's words (it was only inferred, owner question Q4 of
+// phase-2.md), so it still fails, with that reason printed. The verdict is held-out-verdict.ts's
+// heldOutVerdict, the unit-tested function: the waiver is bound to the sealed datasets (name, ROM SHA-1,
+// ELF SHA-256) and the tuning families it was decided on, and any change to either ends it. It is printed
+// in the gate's note every time it applies, with its grounds, and it never covers a per-ROM threshold or the
+// count of passing ROMs (at least two).
 //
 // Expected output, for the phase-2 lead to align (architecture §8.5):
 //   npm run bench -- run --only <sealed dataset> --json   exit 0; the last stdout line is romlift/bench-run@1
@@ -112,8 +114,8 @@ gate({
     const sealed = cx.sealed.map((d) => ({ name: d.name, sha1: d.sha1, elfSha256: d.elfSha256 ?? '' }));
     const verdict = heldOutVerdict(results, tuningFamilies, { waiver: FAMILY_WAIVER, sealed });
     if (verdict.waiverRefused !== undefined) cx.note(verdict.waiverRefused);
-    if (!verdict.pass) throw new Error(`held-out: ${verdict.problems.join('; ')}`);
     for (const w of verdict.waived ?? []) cx.note(`WAIVED: ${w}`);
+    if (!verdict.pass) throw new Error(`held-out: ${verdict.problems.join('; ')}`);
     cx.note(`${verdict.passing.length} sealed ROMs pass, families ${verdict.families.join(', ')} (absent from tuning: ${verdict.freshFamilies.length === 0 ? 'none' : verdict.freshFamilies.join(', ')})`);
   },
 });

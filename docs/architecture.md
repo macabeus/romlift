@@ -1667,7 +1667,7 @@ message states the reason, as the working rule requires.
 | Entries (tuning) | dataset-against-ELF check passes; every miss in `labels`, every false entry in `untyped`; raw precision ≥ 99.7% on every ROM; raw true-positive count never drops; lists only shrink; zero `unreviewed` | 2 |
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
 | Code end | within 16 bytes of the ELF's code end, the largest addr + size of its functions (`bench/src/truth.ts` `elfCodeEnd`; an unsized function ends where it starts), one convention for every ROM, tuning and sealed, and for the rescoring of the PoC's dumps; a change of it is owner question Q5 (D60 j) | 2 |
-| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (the family conditions waived by the owner for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else, D60) | 2 |
+| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (the fresh-family condition waived by the owner's decision for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else; the two-families condition is not in the owner's words and still applies until the owner answers Q4, D60) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
@@ -1717,10 +1717,13 @@ held-out dataset. If `g2.held-out` fails, phase 2 does not land unless the owner
 accepts the failure (§12); the failure is then fixed by a rule change justified by its `restsOn` and
 validated on the tuning set alone, and a fresh sealed pair from the reserve pool is needed before any
 claim of generality (D53). The owner answered §12 item 4 on 17 October 2026 (D60): tmc is revealed and
-tuned on, and the gate waives its two family conditions for the sealed pokefirered and pokeruby (bound
-by name, ROM SHA-1 and ELF SHA-256) and the tuning families of D60, printing each waiver with its
-grounds; any change to either needs a new decision, and the per-ROM thresholds and "at least two sealed
-ROMs pass" still decide.
+tuned on, and the owner's words record the gate as having no held-out ROM of a family absent from the
+tuning set, so `g2.held-out` (through `test/gates/held-out-verdict.ts`) waives the fresh-family condition
+for the sealed pokefirered and pokeruby (bound by name, ROM SHA-1 and ELF SHA-256) and the tuning families
+of D60, printing the waiver with its grounds; any change to either needs a new decision. Waiving the
+two-families condition as well was only inferred from the decision, not stated by the owner, so that
+condition still applies (both sealed ROMs are `pret-gen3`) and the gate fails on it until the owner answers
+Q4 of phase-2.md; the per-ROM thresholds and "at least two sealed ROMs pass" still decide.
 
 ### 8.5 Commands
 
@@ -1961,12 +1964,15 @@ in roadmap.md pass. The gates per phase are those of §1.
 4. If `g2.held-out` fails, may phase 2 land with the failure recorded, while release 1 stays blocked until
    a fresh sealed pair passes (D53)? **Answered by the owner on 17 October 2026: "Tune on tmc, no new
    ROM"** (D60). tmc is revealed and tuned on with general rules; pokefirered and pokeruby stay sealed and
-   pass; `g2.held-out` is recorded as having no held-out ROM of a family absent from the tuning set (its
-   family conditions waived and printed as such, bound to the sealed pair and the tuning families of the
-   decision). Release 1 still needs a fresh sealed pair of such a family before it claims generality
+   pass; `g2.held-out` is recorded as having no held-out ROM of a family absent from the tuning set (the
+   fresh-family condition waived and printed as such, bound to the sealed pair and the tuning families of
+   the decision; whether the two-families condition is waived too is the owner's open question Q4).
+   Release 1 still needs a fresh sealed pair of such a family before it claims generality
    (D53). Phase 2 has not landed on it: fix round 1 of D60 found three gates the decision did not cover
-   (`g2.poc-parity` and `g2.baseline-rows` on tmc, `g2.confirm-equals-discover` on tmc), which are
-   further owner questions (phase-2.md, "Owner questions").
+   (`g2.poc-parity` and `g2.baseline-rows` on tmc, `g2.confirm-equals-discover` on tmc), and fix round 2
+   withdrew two readings it had made without the owner (the code-end convention, which leaves
+   `g2.code-end` failing on tmc, and the two-families waiver, which leaves `g2.held-out` failing); all
+   five are owner questions (phase-2.md, "Owner questions", Q1 to Q5).
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
    about 16,000 lines).
 6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export.
