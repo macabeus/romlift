@@ -67,7 +67,9 @@ function sectionLine(name: string, s: CorpusSectionSummary): string {
 
 function human(summary: CorpusSummary, seconds: number | undefined): string {
   const { thumb, bl, arm } = summary.sections;
-  const printed = (s: CorpusSectionSummary): string => percent(s.mnemonic - Math.min(s.mnemonic, s.disagree), s.mnemonic);
+  // Exact when nothing disagrees; otherwise a lower bound (every disagreeing case counted as a mnemonic).
+  const printed = (s: CorpusSectionSummary): string =>
+    `${s.disagree === 0 ? '' : 'at least '}${percent(s.mnemonic - Math.min(s.mnemonic, s.disagree), s.mnemonic)}`;
   return [
     `corpus (${summary.as}; seed ${summary.options.seed}, ARM sample ${count(summary.options.armSample)}, bl sample ${count(summary.options.blSample)})`,
     sectionLine('thumb', thumb),

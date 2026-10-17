@@ -114,7 +114,7 @@ const alu: Row[] = ALU.map(([name, mnemonic, first, second], op) =>
 
 const HI_FIELDS = [flag('hd', 7), flag('hm', 6), reg('rm3', 3), reg('rd3', 0)];
 
-/** The hi-register texts as rejects: two low registers, and cmp with pc. */
+/** The hi-register texts GNU as rejects: two low registers, and cmp with pc. */
 function hiRefused(op: number, f: Fields): boolean {
   if (v(f, 'hd') === 0 && v(f, 'hm') === 0) return true;
   return op === 1 && (((v(f, 'hd') << 3) | v(f, 'rd3')) === 15 || ((v(f, 'hm') << 3) | v(f, 'rm3')) === 15);
