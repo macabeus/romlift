@@ -54,6 +54,7 @@ const COVERAGE: Readonly<Record<RuleId, Coverage>> = {
   'seed.call': { fixture: 'local-subroutine', cited: true },
   'seed.data-pointer': { fixture: 'leaf-handler-pointer-table', cited: true },
   'seed.pool-pointer': { fixture: 'data-table-between-functions', cited: true },
+  'seed.ram-copy': { fixture: 'ram-code-entries', cited: true },
   'seed.rom-entry': { fixture: 'swi-reset', cited: true },
   'seed.startup-pointer': { fixture: 'code-end-data-decodes', cited: true },
   'seed.veneer': { fixture: 'bx-pc-veneer', cited: true },

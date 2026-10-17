@@ -13,8 +13,8 @@ export const AGBCC_PIPELINE: Pipeline = {
   seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint'],
   // pointerCandidates(): the pool list, then the data list filtered by it.
   harvest: ['seed.pool-pointer', 'seed.data-pointer'],
-  // accept(): calls, then veneers, then ARM adr targets, in push order.
-  queue: ['seed.call', 'seed.veneer', 'seed.adr'],
+  // accept(): calls, then veneers, then ARM adr targets, in push order; then the entries of code copied to IWRAM (D60 e).
+  queue: ['seed.call', 'seed.veneer', 'seed.adr', 'seed.ram-copy'],
   walk: [
     'walk.pc-load-is-pool',
     'walk.table-by-register',
@@ -170,6 +170,9 @@ export const AGBCC: CompilerProfile = {
   pointerWords: { minPointers: 4, minShare: 0.25 },
   anchorSlack: 3,
   extentPoolGap: 8,
+  // seed.ram-copy (D60 e): the copy's arguments and the jump after a pointer load lie within 12
+  // instructions of the call or the load; a copied code block is at most 64 KiB (IWRAM is 32 KiB).
+  ramCopy: { argInsns: 12, maxBytes: 0x10000 },
   gapScan: {
     backwardWindow: 4096,
     fillSlack: 3,

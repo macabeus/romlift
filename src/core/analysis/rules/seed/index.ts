@@ -11,6 +11,7 @@ import override from './override.ts';
 import poolPointer from './pool-pointer.ts';
 import romEntry from './rom-entry.ts';
 import startupPointer from './startup-pointer.ts';
+import ramCopy from './ram-copy.ts';
 import veneer from './veneer.ts';
 
 export const SEED_RULES = {
@@ -24,4 +25,5 @@ export const SEED_RULES = {
   'seed.call': call,
   'seed.veneer': veneer,
   'seed.adr': adr,
+  'seed.ram-copy': ramCopy,
 } as const satisfies Readonly<Record<RuleId, FamilyRule<'seed'>>>;

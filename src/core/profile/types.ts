@@ -94,6 +94,12 @@ export interface CompilerProfile {
   readonly anchorSlack: number;
   /** A pool or table belongs to the extent when it starts within this many bytes of the extent's end. */
   readonly extentPoolGap: number;
+  /**
+   * Code copied to IWRAM (seed.ram-copy): the arguments of a copy call and the jump after an IWRAM
+   * pointer load are looked for within argInsns straight-line instructions; a copy of more than maxBytes
+   * is not a code block.
+   */
+  readonly ramCopy: { readonly argInsns: number; readonly maxBytes: number };
   readonly gapScan: {
     /** How far below a gap's end the end-anchor scan looks. */
     readonly backwardWindow: number;

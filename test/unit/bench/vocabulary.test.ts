@@ -33,7 +33,7 @@ test('the miss reasons are the PoC ten, each defined', () => {
   assertDefined('MISS_REASONS', MISS_REASONS);
 });
 
-test('the origins are the PoC ten plus listed, override and evidence, each defined', () => {
+test('the origins are the PoC ten plus ram-copy (D60), listed, override and evidence, each defined', () => {
   assert.deepEqual(Object.keys(ORIGINS), [
     'rom-entry',
     'startup-pointer',
@@ -45,6 +45,7 @@ test('the origins are the PoC ten plus listed, override and evidence, each defin
     'gap-scan',
     'arm-gap-scan',
     'tiled-hole',
+    'ram-copy',
     'listed',
     'override',
     'evidence',

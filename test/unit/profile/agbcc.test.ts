@@ -7,9 +7,9 @@ import { PROFILES, profileById } from '../../../src/core/profile/registry.ts';
 import { pipelineIds, romWith, words } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
 
-/** Every analysis rule id of architecture §4.1, by family, with the rules the phase-2 milestones added (walk.inline-arm-switch, bl.target-beyond-callee). */
+/** Every analysis rule id of architecture §4.1, by family, with the rules the phase-2 milestones added (walk.inline-arm-switch, bl.target-beyond-callee) and the owner decision's tmc tuning added (seed.ram-copy, D60). */
 const SECTION_4_1 = {
-  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr'],
+  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr', 'seed.ram-copy'],
   walk: [
     'walk.pc-load-is-pool',
     'walk.table-by-register',
@@ -53,20 +53,20 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 test('every rule id of §4.1 sits in exactly one pipeline slot, and the pipeline names no other', () => {
   const expected = Object.values(SECTION_4_1).flat();
-  assert.equal(expected.length, 57);
+  assert.equal(expected.length, 58);
   const named = pipelineIds(AGBCC_PIPELINE);
   const counts = new Map<string, number>();
   for (const id of named) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const id of expected) assert.equal(counts.get(id), 1, `${id} in ${counts.get(id) ?? 0} slots`);
   assert.deepEqual([...counts.keys()].sort(byCodeUnit), [...expected].sort(byCodeUnit));
-  assert.equal(AGBCC_PIPELINE.seed.length + AGBCC_PIPELINE.harvest.length + AGBCC_PIPELINE.queue.length, 10);
+  assert.equal(AGBCC_PIPELINE.seed.length + AGBCC_PIPELINE.harvest.length + AGBCC_PIPELINE.queue.length, 11);
   assert.deepEqual(AGBCC_PIPELINE.passes, ['patient', 'impatient']);
 });
 
 test('the orders reproduce the PoC call order', () => {
   assert.deepEqual(AGBCC_PIPELINE.validity, SECTION_4_1.valid, 'whyInvalid order');
   assert.deepEqual(AGBCC_PIPELINE.harvest, ['seed.pool-pointer', 'seed.data-pointer']);
-  assert.deepEqual(AGBCC_PIPELINE.queue, ['seed.call', 'seed.veneer', 'seed.adr']);
+  assert.deepEqual(AGBCC_PIPELINE.queue, ['seed.call', 'seed.veneer', 'seed.adr', 'seed.ram-copy']);
   assert.deepEqual(AGBCC_PIPELINE.seed.slice(0, 2), ['seed.rom-entry', 'seed.startup-pointer']);
   assert.deepEqual(AGBCC_PIPELINE.gap.forward, { thumb: 'gap.forward-chain', arm: 'gap.arm-scan', after: ['gap.tiled-hole-inner'] });
   assert.equal(AGBCC_PIPELINE.bl[AGBCC_PIPELINE.bl.length - 1], 'bl.noreturn-before-noncode');
