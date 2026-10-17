@@ -1,0 +1,28 @@
+{
+  "entries": [
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x08000104"
+      }
+    },
+    {
+      "addr": "0x08000104",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000104",
+        "end": "0x08000AA4"
+      }
+    },
+    {
+      "addr": "0x08000AA4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000AA4",
+        "end": "0x08000AB4"
+      }
+    }
+  ]
+}

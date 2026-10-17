@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x080000FE"
+      }
+    },
+    {
+      "addr": "0x08000100",
+      "mode": "arm",
+      "extent": {
+        "start": "0x08000100",
+        "end": "0x08000120"
+      }
+    },
+    {
+      "addr": "0x08000120",
+      "mode": "arm",
+      "extent": {
+        "start": "0x08000120",
+        "end": "0x08000128"
+      }
+    },
+    {
+      "addr": "0x08000128",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000128",
+        "end": "0x0800012E"
+      }
+    }
+  ]
+}

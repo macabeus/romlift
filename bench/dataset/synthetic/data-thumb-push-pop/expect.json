@@ -1,0 +1,53 @@
+{
+  "negative": true,
+  "entries": [
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x0800010E"
+      }
+    },
+    {
+      "addr": "0x08000120",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000120",
+        "end": "0x08000126"
+      }
+    },
+    {
+      "addr": "0x08000134",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000134",
+        "end": "0x0800013A"
+      }
+    },
+    {
+      "addr": "0x08000154",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000154",
+        "end": "0x0800015A"
+      }
+    },
+    {
+      "addr": "0x08000168",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000168",
+        "end": "0x0800016E"
+      }
+    },
+    {
+      "addr": "0x0800017C",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x0800017C",
+        "end": "0x08000182"
+      }
+    }
+  ]
+}

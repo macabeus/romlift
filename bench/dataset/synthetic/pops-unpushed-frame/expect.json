@@ -1,0 +1,52 @@
+{
+  "entries": [
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x08000104"
+      }
+    },
+    {
+      "addr": "0x08000108",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000108",
+        "end": "0x0800010C"
+      }
+    },
+    {
+      "addr": "0x0800074C",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x0800074C",
+        "end": "0x08000DB6"
+      }
+    },
+    {
+      "addr": "0x08000DB8",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000DB8",
+        "end": "0x08000DC2"
+      }
+    },
+    {
+      "addr": "0x08000DC4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000DC4",
+        "end": "0x08000DC8"
+      }
+    },
+    {
+      "addr": "0x08000DC8",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000DC8",
+        "end": "0x08000DD4"
+      }
+    }
+  ]
+}
