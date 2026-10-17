@@ -1,0 +1,48 @@
+0x08000124
+  claim: code
+  owner: 0x08000124 (origin call)
+  provenance:
+    seed.call round 0 cites 0x080000FC
+  proposals (4):
+    0x08000124 seed.call round 0 cites 0x080000FC: thumb
+    0x08000118 seed.data-pointer round 1 cites 0x08000118: thumb
+    0x0800011C seed.data-pointer round 1 cites 0x0800011C: thumb
+    0x08000120 seed.data-pointer round 1 cites 0x08000120: thumb
+  accepts (4):
+    0x08000124 seed.call round 0 cites 0x080000FC
+    0x08000118 seed.data-pointer round 1 cites 0x08000118: accepted by accept.pointer-table-run
+    0x0800011C seed.data-pointer round 1 cites 0x0800011C: accepted by accept.tiles-after-accepted
+    0x08000120 seed.data-pointer round 1 cites 0x08000120: accepted by accept.tiles-after-accepted
+  rejections (3):
+    0x0800010C valid.returns-or-prologue round 3 cites 0x0800010C: no-return-no-prologue: no return and no push {.., lr}
+    0x08000110 valid.returns-or-prologue round 3 cites 0x08000110: no-return-no-prologue: no return and no push {.., lr}
+    0x08000114 valid.returns-or-prologue round 3 cites 0x08000114: no-return-no-prologue: no return and no push {.., lr}
+  bl verdicts (1):
+    0x080000FC bl.near-is-call round 0 cites 0x080000FC, 0x08000124: call
+  waits: none
+  claims (5):
+    0x08000124 claim.adjacent-pools round 0 cites 0x08000124: 1 edits
+    0x08000124 claim.dead-code-in-extent round 0 cites 0x08000124: 1 edits
+    0x08000118 claim.dead-code-in-extent round 1 cites 0x08000118: 1 edits
+    0x0800011C claim.dead-code-in-extent round 1 cites 0x0800011C: 1 edits
+    0x08000120 claim.dead-code-in-extent round 1 cites 0x08000120: 1 edits
+  rules (6):
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    claim.adjacent-pools: the extent is the code plus the pools and tables right after it; claim those pools and every table
+      rests on: agbcc emits a function's literal pool and switch tables right after its code, separated only by alignment
+      recovers: pools and tables that would be free bytes for the gap scan to misread as functions
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    seed.data-pointer: Thumb pointers in words outside code are candidate functions
+      rests on: tables of handlers and callbacks in data hold func+1 for every Thumb function they name
+      recovers: functions named only from data, such as the entries of a command or state table
+    valid.returns-or-prologue: the reading returns somewhere, or opens with push {.., lr}
+      rests on: a compiled function either returns or pushes lr before calling what never returns
+      recovers: runs of data that decode without ever returning
+explain: ok (exit 0)

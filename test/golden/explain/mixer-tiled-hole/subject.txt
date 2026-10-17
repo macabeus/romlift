@@ -1,0 +1,79 @@
+0x08000164
+  claim: code
+  owner: 0x08000164 (origin call)
+  provenance:
+    seed.call round 0 cites 0x080000FE
+  proposals (8):
+    0x08000108 seed.call round 0 cites 0x080000F6: thumb
+    0x08000138 seed.call round 0 cites 0x080000FA: thumb
+    0x08000164 seed.call round 0 cites 0x080000FE: thumb
+    0x08000110 gap.tiled-hole round 2 cites 0x08000110: thumb
+    0x08000120 gap.arm-scan round 4 cites 0x08000120: arm
+    0x08000140 gap.forward-chain round 8 cites 0x08000140, 0x08000146: thumb
+    0x08000148 gap.tiled-hole-inner round 8 cites 0x08000148, 0x08000162, 0x08000164: thumb
+    0x08000150 gap.arm-scan round 10 cites 0x08000150: arm
+  accepts (8):
+    0x08000164 seed.call round 0 cites 0x080000FE
+    0x08000138 seed.call round 0 cites 0x080000FA
+    0x08000108 seed.call round 0 cites 0x080000F6
+    0x08000110 gap.tiled-hole round 2 cites 0x08000110
+    0x08000120 gap.arm-scan round 4 cites 0x08000120
+    0x08000140 gap.forward-chain round 8 cites 0x08000140, 0x08000146
+    0x08000148 gap.tiled-hole-inner round 8 cites 0x08000148, 0x08000162, 0x08000164
+    0x08000150 gap.arm-scan round 10 cites 0x08000150
+  rejections (3):
+    0x08000120 valid.decodes round 4 cites 0x08000120: decode-error: decode error out-of-rom at 0x07FFFB64
+    0x08000148 valid.dense round 8 cites 0x08000148: not-dense: not dense: holes inside its extent (12 bytes in 26)
+    0x08000150 valid.decodes round 10 cites 0x08000150: decode-error: decode error out-of-rom at 0x08000256
+  bl verdicts (3):
+    0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000108: call
+    0x080000FA bl.near-is-call round 0 cites 0x080000FA, 0x08000138: call
+    0x080000FE bl.near-is-call round 0 cites 0x080000FE, 0x08000164: call
+  waits (3):
+    0x08000140 gap.tiled-hole round 2 cites 0x08000140, 0x08000146: its end is not anchored yet
+    0x08000140 gap.tiled-hole round 4 cites 0x08000140, 0x08000146: its end is not anchored yet
+    0x08000140 gap.tiled-hole round 6 cites 0x08000140, 0x08000146: its end is not anchored yet
+  claims (8):
+    0x08000164 claim.dead-code-in-extent round 0 cites 0x08000164: 1 edits
+    0x08000138 claim.dead-code-in-extent round 0 cites 0x08000138: 1 edits
+    0x08000108 claim.dead-code-in-extent round 0 cites 0x08000108: 1 edits
+    0x08000110 claim.adjacent-pools round 2 cites 0x08000110: 1 edits
+    0x08000120 claim.far-pools round 4 cites 0x08000120: 1 edits
+    0x08000120 claim.dead-code-in-extent round 4 cites 0x08000120: 1 edits
+    0x08000140 claim.dead-code-in-extent round 8 cites 0x08000140: 1 edits
+    0x08000150 claim.dead-code-in-extent round 10 cites 0x08000150: 1 edits
+  rules (11):
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    claim.adjacent-pools: the extent is the code plus the pools and tables right after it; claim those pools and every table
+      rests on: agbcc emits a function's literal pool and switch tables right after its code, separated only by alignment
+      recovers: pools and tables that would be free bytes for the gap scan to misread as functions
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    claim.far-pools: pool words loaded from outside the extent are claimed as pool unless already claimed
+      rests on: a word loaded with `ldr rd, [pc, #imm]` is data wherever it sits; hand-written code shares pools across functions
+      recovers: far pool words that the gap scan would misread as code or as the start of a function
+    gap.arm-scan: an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference
+      rests on: hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps
+      recovers: heap, OAM and map routines in ARM that no accepted code refers to
+    gap.forward-chain: a valid Thumb reading at the cursor, first word nonzero, extent inside [gap start, end), chained forward from the gap start
+      rests on: compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment
+      recovers: functions reached only through computed addresses or not at all (dead code, callbacks named in data the harvest missed)
+    gap.tiled-hole: a gap's head reads as a function failing at most density or stack balance, with at least gapScan.minInsns instructions, its code inside the gap
+      rests on: hand-written mixers keep ARM blocks and tables inside a Thumb function, so their extent has holes and their paths may not balance the stack
+      recovers: SoundMainRAM and other mixers on all five tuning ROMs
+    gap.tiled-hole-inner: the hole head at a forward-chain cursor is accepted when it ends within fillSlack of the gap end or is anchored at its end
+      rests on: compiled and hand-written code tiles the ROM: a reading that ends where the next function starts is that hole's function, dense or not
+      recovers: mixers and table-carrying functions in the middle of a gap, after the forward chain has taken the functions before them
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    valid.decodes: the walk from the entry decodes at least one instruction and hits no decode error
+      rests on: every path of a compiled function decodes until it returns or jumps away
+      recovers: data and text decoded as code
+    valid.dense: holes inside the extent stay within max(minHoles, extent >> holeShift)
+      rests on: a compiled function is one contiguous run of code, pools and tables
+      recovers: data decoded as code, whose walk skips over bytes it never reaches
+explain: ok (exit 0)
