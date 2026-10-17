@@ -19,10 +19,11 @@ export function isThumbPointer(rom: Rom, v: number): boolean {
 /** Scans every aligned word of the ROM. */
 export function buildPointerIndex(rom: Rom): PointerIndex {
   const b = rom.bytes;
+  const words = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const targets: number[] = [];
   const offsets: number[] = [];
   for (let off = 0; off + 4 <= b.length; off += 4) {
-    const v = ((b[off] ?? 0) | ((b[off + 1] ?? 0) << 8) | ((b[off + 2] ?? 0) << 16) | ((b[off + 3] ?? 0) << 24)) >>> 0;
+    const v = words.getUint32(off, true);
     if (isThumbPointer(rom, v)) {
       targets.push(v - 1);
       offsets.push(off);
