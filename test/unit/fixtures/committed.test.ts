@@ -24,7 +24,7 @@ const FIXTURES = listSyntheticFixtures();
 const POSITIVE = [
   'arm-pools-in-front', 'bx-lr-stub-chain', 'bx-pc-veneer', 'code-copied-to-ram', 'data-table-between-functions',
   'far-jump', 'handwritten-2mod4', 'leaf-handler-pointer-table', 'noreturn-call-then-next', 'shared-tail',
-  'swi-reset', 'table-jump-hoisted', 'unreferenced-leaf', 'ram-code-entries',
+  'swi-reset', 'table-jump-hoisted', 'unreferenced-leaf', 'ram-code-entries', 'data-named-between-data',
 ];
 const RULE_SPECIFIC = [
   'adr-handler-block', 'dead-code-in-extent', 'local-subroutine', 'mixer-tiled-hole', 'mov-lr-pc-bx',
@@ -78,7 +78,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
-test('the 32 fixtures are committed, and common/ is not one', () => {
+test('the 33 fixtures are committed, and common/ is not one', () => {
   const names = FIXTURES.map((f) => f.name);
   assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE].sort(byCodeUnit));
   assert.ok(!names.includes('common'));

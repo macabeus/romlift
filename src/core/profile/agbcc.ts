@@ -56,6 +56,7 @@ export const AGBCC_PIPELINE: Pipeline = {
     'accept.prologue-and-loaded',
     'accept.prologue-and-end-anchored',
     'accept.pointer-table-run',
+    'accept.prologue-and-calls-accepted',
     'accept.tiny-anchored-at-start',
   ],
   // claim(): pools in the extent, pools beyond it, then the dead bytes of a dense extent.

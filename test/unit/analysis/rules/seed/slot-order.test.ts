@@ -1,5 +1,5 @@
 // The seed family: each rule in the agbcc slot its contract names, with the origin assigned in
-// core/analysis/types.ts; and RULES carries the 25 seed, validity and acceptance rules with complete
+// core/analysis/types.ts; and RULES carries the 26 seed, validity and acceptance rules with complete
 // metadata.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -44,7 +44,7 @@ test('each seed rule sits in its agbcc slot, in the PoC order, with its contract
 
 test('RULES carries the seed, validity and acceptance rules with complete metadata', () => {
   const ids = Object.keys(RULES).filter((id) => /^(seed|valid|accept)\./.test(id));
-  assert.equal(ids.length, 25);
+  assert.equal(ids.length, 26);
   for (const id of ids) {
     const meta = RULES[id as keyof typeof RULES]?.meta;
     assert.ok(meta !== undefined, id);

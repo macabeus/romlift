@@ -7,7 +7,7 @@ import { PROFILES, profileById } from '../../../src/core/profile/registry.ts';
 import { pipelineIds, romWith, words } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
 
-/** Every analysis rule id of architecture §4.1, by family, with the rules the phase-2 milestones added (walk.inline-arm-switch, bl.target-beyond-callee) and the owner decision's tmc tuning added (seed.ram-copy, D60). */
+/** Every analysis rule id of architecture §4.1, by family, with the rules the phase-2 milestones added (walk.inline-arm-switch, bl.target-beyond-callee) and the owner decision's tmc tuning added (seed.ram-copy, accept.prologue-and-calls-accepted, D60). */
 const SECTION_4_1 = {
   seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr', 'seed.ram-copy'],
   walk: [
@@ -33,7 +33,7 @@ const SECTION_4_1 = {
     'bl.noreturn-before-noncode',
   ],
   valid: ['valid.in-rom-unclaimed', 'valid.decodes', 'valid.balanced-stack', 'valid.returns-or-prologue', 'valid.no-claimed-code', 'valid.pool-not-code', 'valid.not-pointer-table', 'valid.dense', 'valid.calls-code'],
-  accept: ['accept.tiles-after-accepted', 'accept.prologue-and-loaded', 'accept.prologue-and-end-anchored', 'accept.pointer-table-run', 'accept.tiny-anchored-at-start'],
+  accept: ['accept.tiles-after-accepted', 'accept.prologue-and-loaded', 'accept.prologue-and-end-anchored', 'accept.pointer-table-run', 'accept.prologue-and-calls-accepted', 'accept.tiny-anchored-at-start'],
   gap: [
     'gap.adr-block-absorb',
     'gap.tiled-hole',
@@ -53,7 +53,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 test('every rule id of §4.1 sits in exactly one pipeline slot, and the pipeline names no other', () => {
   const expected = Object.values(SECTION_4_1).flat();
-  assert.equal(expected.length, 58);
+  assert.equal(expected.length, 59);
   const named = pipelineIds(AGBCC_PIPELINE);
   const counts = new Map<string, number>();
   for (const id of named) counts.set(id, (counts.get(id) ?? 0) + 1);

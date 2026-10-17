@@ -27,6 +27,7 @@ interface Coverage {
 
 const COVERAGE: Readonly<Record<RuleId, Coverage>> = {
   'accept.pointer-table-run': { fixture: 'leaf-handler-pointer-table', cited: true },
+  'accept.prologue-and-calls-accepted': { fixture: 'data-named-between-data', cited: true },
   'accept.prologue-and-end-anchored': { fixture: 'large-data-referenced', cited: true },
   'accept.prologue-and-loaded': { fixture: 'data-table-between-functions', cited: true },
   'accept.tiles-after-accepted': { fixture: 'handwritten-2mod4', cited: true },
