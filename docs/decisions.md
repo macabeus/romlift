@@ -1785,7 +1785,7 @@ sealed ROM of a fresh family passes.
   entries went from 8 at `d645160` (the PoC's own run: 7) to 12, precision 99.92% to 99.86%; all 12 are
   listed, 6 of them inside or reached from the block (e) brings into the code. (`unsized-last-function`,
   the category of the withdrawn `codeEnd` row, is gone with it.)
-- (j) **Withdrawn (fix round 2 of D60): the code-end convention stays the one of phase 1.** Fix round 1
+- (j) **Restored by the owner's answer to Q5 (18 October 2026, D61 a: "Use $d for every ROM"); the record of its withdrawal follows.** Withdrawn (fix round 2 of D60): the code-end convention stays the one of phase 1. Fix round 1
   replaced the dataset `codeEnd` row of `80762ff` with a scorer convention, `elfCodeEnd` in
   `bench/src/truth.ts`, that ended an unsized function (hand-written asm without `.size`) at the first data
   mapping (`$d`) or typed symbol after it, in the tuning and the sealed scorer. The review of `f802822`
@@ -1871,6 +1871,47 @@ gap scan then finds 0x080B1AA8 and 0x080B1B0C in Thumb mode, the wrong mode, wit
 Requiring two calls in (h) (its measured false-acceptance rate is 0 of 967). Pre-settling every listed
 seed in confirm mode (10 differences on tmc), and deferring the listed seeds while keeping them functions
 from round 0 (11 differences).
+
+
+## D61. The owner's answers of 18 October 2026 to the phase-2 owner questions
+
+**Context.** Fix rounds 1 and 2 of D60 withdrew every gate change the owner had not authorised, and left
+five owner questions (phase-2.md, "Owner questions", Q1 to Q5): four gates failed on tmc and `g2.held-out`
+on its two-families condition. On 18 October 2026 the owner, Bruno Macabeus, answered them. His words,
+verbatim, and the meaning applied:
+
+- **Q1 and Q2** (`g2.poc-parity` and `g2.baseline-rows` on tmc): **"Keep tmc as 99.94%. It's a benchmark
+  row that we can improve later"**. Meaning applied: tmc is a benchmark row at its current numbers, not
+  held to the PoC-comparison gates. `g2.poc-parity` is scoped to the five ROMs of the M1 evidence and
+  prints "tmc: not applicable, no M1 lockstep run"; `g2.baseline-rows` accepts tmc's rows that are listed
+  with a category (the PoC never ran tmc when it was pinned), and tmc's current row (tp 8,631, recall
+  99.94%) is the baseline later work must not regress. The five original ROMs stay exactly as strict.
+- **Q3** (`g2.confirm-equals-discover` on tmc), the option chosen: **"Build resettle, else accept"**. D8's
+  `resettle` stage is built as the architecture designs it; if it changes any row, extent or code end on
+  the other tuning ROMs or the sealed pair, it is reverted and the 6 tmc differences are recorded as a
+  known phase-2 limitation that the gate reports explicitly (not a silent pass), scoped to tmc only.
+- **Q4** (`g2.held-out`'s family conditions), the option chosen: **"Waive both"**. Both family conditions
+  are waived with these grounds; pokefirered and pokeruby must still pass sealed, and the gate prints the
+  waiver.
+- **Q5** (the code-end convention), the option chosen: **"Use $d for every ROM"**. The ELF's code end ends
+  an unsized function at the next `$d` mapping symbol (or typed symbol), for every ROM, tuning and sealed.
+
+These are the only gate changes the answers authorise; no other gate, threshold or check is weakened,
+skipped or removed.
+
+**Decision.**
+
+- (a) **Q5, the code end** (`bench/src/truth.ts` `elfCodeEnd`). An unsized function (hand-written asm
+  without `.size`) ends at the first data mapping symbol (`$d`, `$d.*`) or typed symbol (FUNC with the
+  Thumb bit cleared, OBJECT, SECTION) after it; a sized one at addr + size. One convention for every ROM,
+  tuning and sealed, in the tuning scorer (`score.ts`) and the sealed scorer (`seal.ts` through
+  `analysis-run.ts`): D60 (j) as fix round 1 built it, now authorised. The rescoring of the PoC's own dumps
+  (`bench poc-check`, `g1.bench-harness`) keeps the PoC's convention (`pocCodeEnd`), because its check is
+  that the harness reproduces the PoC's pinned rows field for field; that check is unchanged. Measured
+  (`bench run`, against `8fba183`): tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3,
+  pokefirered and pokeruby 0 → 0; no other count and no analysis digest moves.
+
+**Consequences.** See each item; phase-2.md records the closing run under these answers.
 
 ---
 

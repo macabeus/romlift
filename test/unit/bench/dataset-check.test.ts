@@ -5,7 +5,7 @@ import { test } from 'node:test';
 // command end to end on the synthetic tier, and the tuning-set pin.
 import { checkDatasetAgainstRun, checkTuningSet, datasetCheck, expectedTuningSet } from '../../../bench/src/dataset-check.ts';
 import { analysisFunctions, scoreAnalysis } from '../../../bench/src/score.ts';
-import { elfCodeEnd, elfTruth } from '../../../bench/src/truth.ts';
+import { elfCodeEnd, elfTruth, pocCodeEnd } from '../../../bench/src/truth.ts';
 import { analysisResult, dataset, elfFile, fact, failingRunner, fixedRunner, withTempDir } from './fixtures.ts';
 import { syntheticTier, TINY_DEPS, tinyDeps, tinyResult } from './harness.ts';
 
@@ -96,7 +96,7 @@ test("dataset-check runs romlift's analysis: the synthetic tier passes, a row th
   });
 });
 
-test('the ELF code end: the largest addr + size, an unsized function ending where it starts (Q5 pending)', () => {
+test('the ELF code end (D60 j): a sized function at addr + size, an unsized one at the first data mapping or typed symbol after it', () => {
   const elf = elfFile([
     { name: 'host', value: 0x0800_0101, size: 0x40 },
     { name: 'last', value: 0x0800_0200, size: 0 },
@@ -105,13 +105,17 @@ test('the ELF code end: the largest addr + size, an unsized function ending wher
     { name: 'table', value: 0x0800_0240, size: 8, type: 'object' },
   ]);
   const truth = elfTruth(elf, 0x1000);
-  assert.equal(elfCodeEnd(truth), 0x0800_0200, 'neither a $d nor a typed symbol after an unsized function moves the end');
+  assert.equal(elfCodeEnd(truth), 0x0800_0230, 'a code label does not end the function; the $d does');
+  assert.equal(pocCodeEnd(truth), 0x0800_0200, "the PoC's convention ends it where it starts");
   const result = analysisResult([fact(0x0800_0100, 0x0800_0140), fact(0x0800_0200, 0x0800_0230, 'call')], { end: 0x0800_0000, entries: [] }, 0x0800_0230);
   const row = scoreAnalysis({ result, diagnoses: [], truth, dataset: dataset(), sha1: '', deterministic: true });
-  assert.deepEqual(row.codeEnd, { found: '0x08000230', elf: '0x08000200', delta: 0x30 }, 'the scorer uses the one convention, no dataset row');
+  assert.deepEqual(row.codeEnd, { found: '0x08000230', elf: '0x08000230', delta: 0 }, 'the scorer uses the one convention, no dataset row');
+  // A Thumb FUNC symbol after an unsized function ends it at its address with the Thumb bit cleared.
+  const thumbNext = elfTruth(elfFile([{ name: 'a', value: 0x0800_0301, size: 0 }, { name: 'b', value: 0x0800_0309, size: 0 }, { name: 'o', value: 0x0800_0310, size: 4, type: 'object' }]), 0x1000);
+  assert.equal(elfCodeEnd(thumbNext), 0x0800_0310);
   // A sized last function ends at addr + size, its pool included.
   const sized = elfTruth(elfFile([{ name: 'host', value: 0x0800_0101, size: 0x40 }, { name: 'last', value: 0x0800_0200, size: 0x30 }, { name: '$d', value: 0x0800_0220, size: 0, type: 'notype' }]), 0x1000);
   assert.equal(elfCodeEnd(sized), 0x0800_0230);
-  // A sized function that ends past an unsized later one decides.
-  assert.equal(elfCodeEnd(elfTruth(elfFile([{ name: 'big', value: 0x0800_0101, size: 0x400 }, { name: 'only', value: 0x0800_0400, size: 0 }]), 0x1000)), 0x0800_0500);
+  // An unsized function with nothing after it ends where it starts.
+  assert.equal(elfCodeEnd(elfTruth(elfFile([{ name: 'only', value: 0x0800_0400, size: 0 }]), 0x1000)), 0x0800_0400);
 });

@@ -44,7 +44,7 @@ export interface SealedInput extends ClassifyInput {
   readonly name: string;
   /** The code end the run reported. */
   readonly codeEnd: number;
-  /** The ELF's code end (truth.ts elfCodeEnd, the convention every ROM is scored with). */
+  /** The ELF's code end (truth.ts elfCodeEnd, the convention every ROM is scored with, D60 j). */
   readonly elfCodeEnd: number;
 }
 

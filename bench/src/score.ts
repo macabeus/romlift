@@ -11,7 +11,7 @@ import type { Dataset } from './dataset.ts';
 import { BenchError } from './files.ts';
 import type { BenchRow, ExtentRow, FalseRow, MissRow, StaleException } from './row.ts';
 import { dumpAddr, missReasonId, originId, type ScoredRun } from './scored-run.ts';
-import { elfCodeEnd, type Truth } from './truth.ts';
+import { elfCodeEnd, pocCodeEnd, type Truth } from './truth.ts';
 
 /** An extent agrees when the ELF size equals it, or equals it padded to a multiple of 4. */
 export function extentAgrees(elfSize: number, extent: number): boolean {
@@ -46,9 +46,8 @@ export interface ScoreContext {
 
 const byAddrText = (x: { readonly addr: string }, y: { readonly addr: string }): number => compareCodeUnits(x.addr, y.addr);
 
-/** The row of one run. */
-export function scoreParts(run: RunParts, { truth, dataset, sha1 }: ScoreContext): BenchRow {
-  const elfEnd = elfCodeEnd(truth);
+/** The row of one run; `elfEnd` is the ELF's code end under the convention of the run's scorer. */
+export function scoreParts(run: RunParts, { truth, dataset, sha1 }: ScoreContext, elfEnd: number = elfCodeEnd(truth)): BenchRow {
   const startupEnd = run.startup.end;
   const all = [...run.functions].sort((a, b) => compareNumbers(a.entry, b.entry));
   const byEntry = new Map(all.map((f) => [f.entry, f]));
@@ -178,7 +177,7 @@ export interface ScoreInput extends ScoreContext {
   readonly dump: ScoredRun;
 }
 
-/** The row of a PoC dump (poc-check, g1.bench-harness). */
+/** The row of a PoC dump (poc-check, g1.bench-harness), under the PoC's code-end convention (pocCodeEnd). */
 export function scoreRun({ dump, truth, dataset, sha1 }: ScoreInput): BenchRow {
   const reasons = new Map(dump.misses.map((m) => [dumpAddr(m.addr), missReasonId(m.reason)]));
   return scoreParts(
@@ -191,6 +190,7 @@ export function scoreRun({ dump, truth, dataset, sha1 }: ScoreInput): BenchRow {
       scaffold: { ok: dump.scaffold.ok },
     },
     { truth, dataset, sha1 },
+    pocCodeEnd(truth),
   );
 }
 
