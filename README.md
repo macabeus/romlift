@@ -14,9 +14,9 @@ and needs only Node.js and the GBA toolchain.
 
 ## Status
 
-Phase 1 of 6 (Decoder) is complete ([docs/phase-1.md](docs/phase-1.md)): the Thumb and ARM instruction
-table with its decoder, encoder, formatter and parser round-trips 100% of printed mnemonics through GNU
-`as`, `romlift doctor` checks the user's toolchain, and the bench harness rescores the proof of concept on
+Phase 1 of 6 (Decoder) passes its local gate, with its CI run and the merge to `main` pending
+([docs/phase-1.md](docs/phase-1.md)): the Thumb and ARM instruction table with its decoder, encoder,
+formatter and parser round-trips 100% of printed mnemonics through GNU `as`, `romlift doctor` checks the user's toolchain, and the bench harness rescores the proof of concept on
 the five tuning ROMs. `doctor` is the only command so far; phase 2 (Analysis) is next.
 
 | Phase | Delivers |

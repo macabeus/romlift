@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "deccfccf131de796e46d5423b924b5f25fb784ca",
+    "commit": "d31025a55b24c4316123a9893f26c7556845516b",
     "dirty": false,
-    "sourceDigest": "5020f30b14baed4e5e2be7116d82f20455fcb6be9878cc75b2edaa5b07cce02c",
+    "sourceDigest": "7ae8457bbbe0d80f4fd883c93e46e196b5a770dbc694071d79b87a993bcbb868",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -69,7 +69,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "f709d82bb38f3c3071ecf2b9b97fd6bcdf0c618dca22e05cde2e8be004f3155d",
+    "inputsDigest": "9c092dd01c5568f3618edb8ab06fc6b20f6e7be2171c84e9c2962c0cbe22f3c8",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
