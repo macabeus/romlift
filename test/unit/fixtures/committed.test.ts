@@ -34,7 +34,7 @@ const RULE_SPECIFIC = [
 ];
 const NEGATIVE = [
   'code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pointer-table-before-leaf', 'pool-padded-46c0',
-  'pool-word-push-lr', 'thumb-pointer-run', 'adr-label-and-data',
+  'pool-word-push-lr', 'thumb-pointer-run', 'adr-label-and-data', 'data-frame-not-function',
 ];
 
 /** The startup region of common/crt0.s: these FUNC symbols, both ARM, which every expect.json lists first. */
@@ -79,7 +79,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
-test('the 44 fixtures are committed, and common/ is not one', () => {
+test('the 45 fixtures are committed, and common/ is not one', () => {
   const names = FIXTURES.map((f) => f.name);
   assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE].sort(byCodeUnit));
   assert.ok(!names.includes('common'));

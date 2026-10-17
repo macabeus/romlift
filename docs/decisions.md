@@ -1726,13 +1726,22 @@ of generality until a sealed ROM of a fresh family passes (D53).
 - (h) **`accept.prologue-and-calls-accepted`** (new accept rule, after `accept.pointer-table-run`): a
   valid data-pointer candidate with a word-aligned prologue, a return and at least one call, every call on
   an accepted function, is taken: three independent signs of a function that bytes of data do not show by
-  chance. Measured false-acceptance rate (the review asked for at least two calls, or this): the rule
-  holds for 967 candidates on the six ROMs (fe7j 392, klonoa 5, pokeemerald 288, sa2 98, sa3 98, tmc 86),
-  346 of them with exactly one call, and every one is an ELF function; so one call is kept. Its side
-  effect on the five: those 881 candidates were functions of the result already, taken later by other
-  rules; the rule takes them in an earlier grow round, which moves the origins of their callees (fe7j
-  2,122 functions, pokeemerald 1,234, sa3 202, sa2 149, klonoa 13) and shortens fe7j's grow (8.6 s → 1.2
-  s), with no row change. Fixture `data-named-between-data`. Decisive for one tmc function.
+  chance. Fixtures: `data-named-between-data` (positive: disabling the rule loses ScriptCallback) and,
+  since fix round 2 (overfitting-r1-4), `data-frame-not-function` (negative: three blocks of data named by
+  a command table that decode as a word-aligned `push {lr}` frame; dropping the call clause takes the one
+  without a call, `some` instead of `every` takes the one calling the middle of a function, dropping the
+  return clause takes the one that spins). Counter-check (where each condition decides, measured by
+  disabling it on the six tuning ROMs): the prologue clause decides on the real ROMs (without it fe7j has tp
+  7,720 instead of 7,724, pokeemerald 15,855 instead of 15,856, and a sealed ROM fails; review of `f802822`); the call and return clauses decide no bench row
+  on any of the six (without both, rows identical, only origins move), so the measured false-acceptance
+  rate below (967 candidates on the six ROMs: fe7j 392, klonoa 5, pokeemerald 288, sa2 98, sa3 98, tmc 86,
+  346 with exactly one call, every one an ELF function) is a measure of "data-pointer origin plus a
+  word-aligned prologue" on real code, and the call and return clauses rest on the negative fixture
+  alone. Its side effect on the five: those 881 candidates were functions of the result already, taken
+  later by other rules; the rule takes them in an earlier grow round, which moves the origins of their
+  callees (fe7j 2,122 functions, pokeemerald 1,234, sa3 202, sa2 149, klonoa 13) and shortens fe7j's grow
+  (8.6 s → 1.2 s), with no row change. Its decisive effect on a row is one tmc function
+  (CreateDustFromScript): single-instance.
 - (i) **Categories.** `unreached-tail` (code after a hand-written function's return that nothing reaches,
   folded into that function by the ELF) and `pointer-entry` (another entry point of hand-written code,
   reached by a jump through its address, a veneer or a stored function pointer, which the ELF only labels;
