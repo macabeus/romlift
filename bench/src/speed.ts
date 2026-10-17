@@ -51,7 +51,7 @@ export function median(values: readonly number[]): number {
 }
 
 /** A fixed, deterministic CPU workload (xorshift fills and numeric sorts); returns a checksum so it is never elided. */
-export function calibrationWorkload(size = 200_000, rounds = 20): number {
+export function calibrationWorkload(size = 200_000, rounds = 4): number {
   const values = new Uint32Array(size);
   let x = 0x9e3779b9;
   let checksum = 0;
