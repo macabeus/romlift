@@ -1,0 +1,22 @@
+{
+  "negative": true,
+  "entries": [
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x08000100"
+      }
+    },
+    {
+      "addr": "0x08000100",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000100",
+        "end": "0x08000106"
+      }
+    }
+  ],
+  "codeEnd": "0x08000106"
+}
