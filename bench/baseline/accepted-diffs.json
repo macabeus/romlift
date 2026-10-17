@@ -1,4 +1,26 @@
 {
   "schema": "romlift-bench/accepted-diffs@1",
-  "improvements": []
+  "improvements": [
+    {
+      "rom": "pokeemerald",
+      "kind": "extent-agrees",
+      "addr": "0x082DF04C",
+      "commit": "a47de80",
+      "reason": "walk.inline-arm-switch: umul3232H32's ARM body after `add r2, pc, #0; bx r2` is inside its extent, 16 bytes as the ELF types it"
+    },
+    {
+      "rom": "sa2",
+      "kind": "extent-agrees",
+      "addr": "0x080945E8",
+      "commit": "a47de80",
+      "reason": "walk.inline-arm-switch: umul3232H32's ARM body after `add r2, pc, #0; bx r2` is inside its extent, 16 bytes as the ELF types it"
+    },
+    {
+      "rom": "sa3",
+      "kind": "extent-agrees",
+      "addr": "0x080B9838",
+      "commit": "a47de80",
+      "reason": "walk.inline-arm-switch: umul3232H32's ARM body after `add r2, pc, #0; bx r2` is inside its extent, 16 bytes as the ELF types it"
+    }
+  ]
 }

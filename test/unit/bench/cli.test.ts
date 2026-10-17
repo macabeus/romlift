@@ -41,7 +41,6 @@ test('a bad option or value is a usage error: exit 2 with the message and the us
     [['run', 'extra'], 'unexpected argument extra'],
     [['baseline'], 'baseline needs a ROM name'],
     [['web', '--port', '-1'], '--port must be a non-negative integer'],
-    [['run', '--worklist', 'fifo'], '--worklist must be poc-lifo or ascending'],
     [['run', '--disable', 'dense'], '--disable dense is not a rule id'],
     [['run', '--reveal', 'tmc'], '--reveal needs --reason <text>'],
     [['run', '--reason', 'why'], '--reason goes with --reveal <rom>'],

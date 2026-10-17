@@ -9,6 +9,7 @@ import { consult } from '../oracle.ts';
 import type { BlSite, BlVerdict, BlVerdictRecord, Reading } from '../types.ts';
 import { walkArm } from '../walk/arm.ts';
 import { walkThumb } from '../walk/thumb.ts';
+import { beginReading, endReading, readReading, takeCarried } from './reuse.ts';
 import { emit } from './view.ts';
 import type { DriverState } from './view.ts';
 
@@ -54,8 +55,12 @@ function refinement(s: DriverState, site: BlSite, caller: Reading): RuleId | und
 
 /** The per-function bl fixpoint, with `inProgress` guarding recursion through callees. */
 function settleNow(s: DriverState, entry: Addr): Reading {
-  const got = s.settled.get(entry);
-  if (got !== undefined) return got;
+  const got = s.settled.get(entry) ?? carried(s, entry);
+  if (got !== undefined) {
+    if (s.reuse !== undefined) readReading(s.reuse, entry, s.funcs.has(entry));
+    return got;
+  }
+  if (s.reuse !== undefined) beginReading(s.reuse);
   s.inProgress.add(entry);
   const far = new Set<Addr>();
   const noret = new Map<Addr, RuleId>();
@@ -71,6 +76,7 @@ function settleNow(s: DriverState, entry: Addr): Reading {
   for (let round = 0; round < LIMITS.settleRounds; round++) {
     if (round > 0) r = walkThumb(s.walkEnv, entry, far, noret);
     let changed = false;
+    const deadEnd = new Set(r.deadEnd);
     for (const site of r.blSites) {
       // A call stays a call (its record, possibly refined to noreturn, is kept).
       const { verdict, rule } = calls.has(site.site) ? { verdict: 'call' as const, rule: undefined } : verdictOf(s, site, r);
@@ -84,7 +90,7 @@ function settleNow(s: DriverState, entry: Addr): Reading {
         calls.add(site.site);
         record(site, 'call', rule);
       } else if (verdict === 'defer' && rule !== undefined && !verdicts.has(site.site)) record(site, 'call', rule);
-      if (r.deadEnd.includes(site.site) && !noret.has(site.site)) {
+      if (deadEnd.has(site.site) && !noret.has(site.site)) {
         const refined = refinement(s, site, r);
         if (refined !== undefined) {
           noret.set(site.site, refined);
@@ -109,5 +115,14 @@ function settleNow(s: DriverState, entry: Addr): Reading {
     blVerdicts: sortedEntries(verdicts).map(([, v]) => v),
   };
   s.settled.set(entry, final);
+  if (s.reuse !== undefined) endReading(s.reuse, entry);
   return final;
+}
+
+/** 'epoch-reuse': the reading carried over an epoch boundary, when every fact it read still holds. */
+function carried(s: DriverState, entry: Addr): Reading | undefined {
+  if (s.reuse === undefined) return undefined;
+  const r = takeCarried(s.reuse, entry, s.inProgress);
+  if (r !== undefined) s.settled.set(entry, r);
+  return r;
 }

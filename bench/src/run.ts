@@ -1,4 +1,4 @@
-// `bench run [--only <rom>] [--json] [--worklist poc-lifo|ascending] [--disable <rule>...] [--cpu-prof]
+// `bench run [--only <rom>] [--json] [--disable <rule>...] [--cpu-prof]
 // [--reveal <rom> --reason <text>]` (architecture §8.2–8.5, D24, D25, D41, D43): scores romlift's own
 // seedless discover run of every tuning dataset against its ELF (analysis-run.ts, score.ts) and the PoC
 // baseline (baseline-rows.ts, accepted-diffs.ts), and runs the sealed held-out datasets through the
@@ -14,10 +14,10 @@
 //   --reveal appends {at, commit, reason} to a held-out dataset's `revealed` log, which makes it tuning
 //            data, and prints its rows to stdout; rows are never written to results.json (D25).
 //
-// The row's `parity` member (the parity-view digest against bench/baseline/poc-digests.json, read by
-// g2.poc-parity) is not produced here: it needs bench/src/parity.ts, which p2-lockstep delivers, and
-// p2-milestones wires it into this file at milestone M1. Until then a written results.json keeps the
-// previous artifact's `parity` evidence member unchanged.
+// Each row carries `parity: {digest, expected}`: the parity-view digest of the run (bench/src/parity.ts)
+// and the PoC's committed one (bench/baseline/poc-digests.json). The PoC-parity evidence of milestone M1,
+// the `parity` member of results.json (parity-evidence.ts), was recorded by a run under the PoC's LIFO
+// worklist before 'poc-lifo' was deleted; every lead run keeps it unchanged.
 import { arch, cpus, platform } from 'node:os';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -36,6 +36,8 @@ import { currentNodeMajor, sourceDigest } from './digest.ts';
 import { phase2RomFamilies } from './families.ts';
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
 import { gitDirty, gitHead } from './git.ts';
+import { resultParityDigest } from './parity.ts';
+import { parsePocDigests, pocDigestsPath, type PocDigests } from './parity-view.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 import { currentPrinterSummary } from './printer.ts';
 import { readDump } from './rescore.ts';
@@ -95,11 +97,21 @@ export interface TuningContext {
   readonly baseline: Baseline;
   readonly accepted: AcceptedDiffs;
   readonly pinnedPocDigest: string;
+  /** bench/baseline/poc-digests.json, when committed. */
+  readonly pocDigests?: PocDigests;
 }
 
 export async function tuningContext(cx: BenchContext): Promise<TuningContext> {
-  return { baseline: await readBaseline(cx), accepted: await readAcceptedDiffs(cx), pinnedPocDigest: (await readPinnedPocSource(cx)).digest };
+  const digestsPath = pocDigestsPath(cx);
+  const pocDigests = (await exists(digestsPath)) ? parsePocDigests(await readJson(digestsPath), digestsPath) : undefined;
+  return {
+    baseline: await readBaseline(cx),
+    accepted: await readAcceptedDiffs(cx),
+    pinnedPocDigest: (await readPinnedPocSource(cx)).digest,
+    ...(pocDigests === undefined ? {} : { pocDigests }),
+  };
 }
+
 
 /** The PoC's scaffold verdict for `d`, from its dump (until phase 3); refused when the dump is of another PoC source. */
 async function scaffoldOf(cx: BenchContext, d: Dataset, pinned: string): Promise<{ readonly ok: boolean } | undefined> {
@@ -134,6 +146,7 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
     poc: comparison.poc,
     staleExceptions: staleExceptions(d, row),
     baselineRows: comparison.baselineRows,
+    parity: { digest: resultParityDigest(analysis.result), expected: tc.pocDigests?.roms[d.name] ?? '' },
   };
 }
 
@@ -170,7 +183,7 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
   const log = options.log ?? (() => {});
   const tuning = options.tuning ?? DEFAULT_RUN_TUNING;
   const writing = options.json !== true;
-  if (writing && !isDefaultTuning(tuning)) throw new BenchError('bench/results.json is written only with the default tuning: add --json to run with --worklist or --disable');
+  if (writing && !isDefaultTuning(tuning)) throw new BenchError('bench/results.json is written only with the default tuning: add --json to run with --disable');
   const { datasets, problems } = await loadDatasets(cx);
   if (problems.length > 0) throw new BenchError(`malformed datasets: ${problems.map((p) => p.detail).join('; ')}`);
   const chosen = datasets.filter((d) => (options.only === undefined ? !isSealed(d) || writing : d.name === options.only));
@@ -254,7 +267,10 @@ async function writeArtifact(
     source: 'romlift',
     profile: benchProfile().id,
   };
-  const previous = await readResultsFile(resultsPath(cx)).catch(() => undefined);
+  // The previous artifact holds what a run cannot recompute (the parity evidence): refuse to drop it.
+  const previous = await readResultsFile(resultsPath(cx)).catch((error: unknown) => {
+    throw new BenchError(`refusing to overwrite bench/results.json: it does not parse (${error instanceof Error ? error.message : String(error)})`);
+  });
   const gates = keptGates(previous, meta);
   const printer = await currentPrinterSummary(cx, toolchain.as);
   const results: Results = {

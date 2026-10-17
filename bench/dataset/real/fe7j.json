@@ -14,26 +14,26 @@
     {
       "addr": "0x0800D484",
       "name": "sub_800D484",
-      "category": "continuation-after-noreturn-call",
-      "note": "adopted from a run on 2026-10-16; reason inside-code"
+      "category": "split-after-returning-call",
+      "note": "reviewed in M5 (bench explain): right after bl _call_via_r0 at 0x0800D480 inside the function at 0x0800D478; _call_via_r0 is `bx r0` and returns, so the split is the truth disassembler's"
     },
     {
       "addr": "0x0800D4AC",
       "name": "sub_800D4AC",
-      "category": "continuation-after-noreturn-call",
-      "note": "adopted from a run on 2026-10-16; reason inside-code"
+      "category": "split-after-returning-call",
+      "note": "reviewed in M5 (bench explain): right after bl _call_via_r0 at 0x0800D4A8 inside the function at 0x0800D4A0; _call_via_r0 returns"
     },
     {
       "addr": "0x0800D840",
       "name": "sub_800D840",
-      "category": "continuation-after-noreturn-call",
-      "note": "adopted from a run on 2026-10-16; reason inside-code"
+      "category": "split-after-returning-call",
+      "note": "reviewed in M5 (bench explain): right after bl _call_via_r0 at 0x0800D83C inside the function at 0x0800D834; _call_via_r0 returns"
     },
     {
       "addr": "0x0800D864",
       "name": "sub_800D864",
-      "category": "continuation-after-noreturn-call",
-      "note": "adopted from a run on 2026-10-16; reason inside-code"
+      "category": "split-after-returning-call",
+      "note": "reviewed in M5 (bench explain): right after bl _call_via_r0 at 0x0800D860 inside the function at 0x0800D858; _call_via_r0 returns"
     },
     {
       "addr": "0x08010DC4",
@@ -44,14 +44,14 @@
     {
       "addr": "0x0804D13C",
       "name": "sub_804D13C",
-      "category": "continuation-after-noreturn-call",
-      "note": "adopted from a run on 2026-10-16; reason inside-code"
+      "category": "disassembler-split",
+      "note": "reviewed in M5 (bench explain): inside the function at 0x0804CD2C after `lsls r0, r7, #16` (asm/banim-ekrgauge.s), not after a bl; no call, branch or pointer reaches it: FE7J's disassembler split there"
     },
     {
       "addr": "0x08064AD0",
       "name": "sub_8064AD0",
-      "category": "continuation-after-noreturn-call",
-      "note": "adopted from a run on 2026-10-16; reason inside-code"
+      "category": "split-after-returning-call",
+      "note": "reviewed in M5 (bench explain): right after bl _call_via_r0 at 0x08064ACC inside the function at 0x08064A94; _call_via_r0 returns"
     },
     {
       "addr": "0x080BE488",
@@ -81,28 +81,28 @@
   "untyped": [
     {
       "addr": "0x080889FC",
-      "category": "unreviewed",
-      "note": "adopted from a run on 2026-10-16; via call, 34 bytes"
+      "category": "untyped-leaf",
+      "note": "reviewed in M5 (bench explain): the ELF only labels _080889FC; a whole 34-byte leaf (it returns with bx lr) reached by bl.near-is-call from 0x080885B2 and 0x080886A0"
     },
     {
       "addr": "0x080BE7C6",
-      "category": "unreviewed",
-      "note": "adopted from a run on 2026-10-16; via call, 2 bytes"
+      "category": "mixer-internal",
+      "note": "reviewed in M5 (bench explain): m4a_1.s local label _080BE7C6 (`bx r3` at the end of the mixer), a bl target from SoundMain at 0x080BE3E0 and 0x080BE3E8; 2 bytes"
     },
     {
       "addr": "0x080BE804",
-      "category": "unreviewed",
-      "note": "adopted from a run on 2026-10-16; via data-pointer, 46 bytes"
+      "category": "mixer-internal",
+      "note": "reviewed in M5 (bench explain): m4a_1.s local label _080BE804, the hand-written routine right after ClearChain's bx lr, reached by ply_patt's `b _080BE804` and proposed by seed.data-pointer; 46 bytes"
     },
     {
       "addr": "0x080BE84E",
-      "category": "unreviewed",
-      "note": "adopted from a run on 2026-10-16; via call, 26 bytes"
+      "category": "second-entry",
+      "note": "reviewed in M5 (bench explain): ldrb_r3_r2 + 2, the second entry of the m4a helper, reached by bl.near-is-call from MPlyJmpTblCopy at 0x080BE83C; 26 bytes"
     },
     {
       "addr": "0x080BE874",
-      "category": "unreviewed",
-      "note": "adopted from a run on 2026-10-16; via data-pointer, 32 bytes"
+      "category": "mixer-internal",
+      "note": "reviewed in M5 (bench explain): m4a_1.s local label _080BE874 after sub_80BE86A, reached by ply_patt's `b _080BE874` and proposed by seed.data-pointer; 32 bytes"
     },
     {
       "addr": "0x080C0C24",

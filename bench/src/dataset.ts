@@ -7,13 +7,13 @@ import { parseHexAddr } from 'romlift';
 
 import { datasetDir, type BenchContext } from './context.ts';
 import { isDirectory, isRecord, listFiles, readJson } from './files.ts';
-import { isExceptionCategory, type ExceptionCategory } from './vocabulary.ts';
+import { isArtifactCategory, isRowCategory, type ArtifactCategory } from './vocabulary.ts';
 
 /** A FUNC symbol that is not a function start: a miss of it is expected. */
 export interface LabelRow {
   readonly addr: string;
   readonly name: string;
-  readonly category: ExceptionCategory;
+  readonly category: ArtifactCategory;
   readonly note: string;
 }
 
@@ -22,7 +22,7 @@ export interface UntypedRow {
   readonly addr: string;
   /** The PoC's lists name the ELF function the entry is inside, when there is one. */
   readonly name?: string;
-  readonly category: ExceptionCategory;
+  readonly category: ArtifactCategory;
   readonly note: string;
 }
 
@@ -102,9 +102,11 @@ interface Parsed {
 /**
  * Checks the structure of one dataset value: required fields and their types, `heldout` a boolean,
  * `revealed` an array, every address 0x plus eight upper-case hex digits and listed once per list,
- * every category defined. Returns the dataset when nothing is wrong.
+ * every category defined. Returns the dataset when nothing is wrong. `retired` reads a dataset of an
+ * older commit, whose rows may still carry a category milestone M5 retired (regression's base).
  */
-export function parseDataset(value: unknown, file: string): Parsed {
+export function parseDataset(value: unknown, file: string, options: { readonly retired?: boolean } = {}): Parsed {
+  const known = options.retired === true ? isArtifactCategory : isRowCategory;
   const fallbackName = file.replace(/^.*\//, '').replace(/\.json$/, '');
   const problems: DatasetProblem[] = [];
   let name = fallbackName;
@@ -180,7 +182,7 @@ export function parseDataset(value: unknown, file: string): Parsed {
       }
       seen.add(addr);
       const category = row['category'];
-      if (typeof category !== 'string' || !isExceptionCategory(category)) {
+      if (typeof category !== 'string' || !known(category)) {
         rowProblem(addr, 'unknown-category', `${name}.${list}: ${addr} has unknown category ${String(category)}`);
         continue;
       }

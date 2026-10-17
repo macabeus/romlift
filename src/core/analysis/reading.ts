@@ -6,7 +6,7 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import type { BlSite } from '../profile/types.ts';
-import type { BlVerdictRecord, CallSite, Exit, InsnSpan, JumpTable, PoolWord, Reading, ReadingError } from './types.ts';
+import type { BlVerdictRecord, CallSite, Exit, InsnLookup, InsnSpan, JumpTable, PoolWord, Reading, ReadingError } from './types.ts';
 
 /** Everything a reading is built from; `end` comes from the extent rule (claim.adjacent-pools). */
 export interface ReadingParts {
@@ -34,6 +34,7 @@ export interface ReadingParts {
   readonly blVerdicts?: readonly BlVerdictRecord[];
   readonly exits?: readonly Exit[];
   readonly branchTargets?: readonly Addr[];
+  readonly armTails?: readonly Span[];
   readonly end: Addr;
 }
 
@@ -56,7 +57,7 @@ function sortedUnique(list: readonly Addr[]): readonly Addr[] {
   return out.filter((a, i) => i === 0 || out[i - 1] !== a);
 }
 
-function uniqueInsns(insns: readonly InsnSpan[], prepared?: ReadonlyMap<Addr, number>): { list: readonly InsnSpan[]; at: ReadonlyMap<Addr, number> } {
+function uniqueInsns(insns: readonly InsnSpan[], prepared?: InsnLookup): { list: readonly InsnSpan[]; at: InsnLookup } {
   if (prepared !== undefined && prepared.size === insns.length) return { list: insns, at: prepared };
   const at = new Map<Addr, number>();
   let sorted = true;
@@ -98,25 +99,34 @@ function uniqueCalls(calls: readonly CallSite[]): readonly CallSite[] {
 
 /** The covered byte ranges of [entry, end), merged and sorted: instructions, pools and tables inside it. */
 function covered(entry: Addr, end: Addr, insns: readonly InsnSpan[], pools: readonly PoolWord[], tables: readonly JumpTable[]): Span[] {
-  const spans: Span[] = [];
-  const add = (a: Addr, n: number): void => {
-    if (a >= entry && a + n <= end && n > 0) spans.push({ start: a, end: a + n });
-  };
-  for (const i of insns) add(i.addr, i.len);
   const extra: Span[] = [];
   for (const p of pools) if (p.addr >= entry && p.addr + 4 <= end) extra.push({ start: p.addr, end: p.addr + 4 });
   for (const t of tables) {
     const n = 4 * t.targets.length;
     if (t.base >= entry && t.base + n <= end && n > 0) extra.push({ start: t.base, end: t.base + n });
   }
-  const all = extra.length === 0 ? spans : [...spans, ...extra].sort((a, b) => a.start - b.start);
+  extra.sort((a, b) => a.start - b.start);
+  // `insns` is sorted by address: merge it with the sorted extras in one pass.
   const merged: Span[] = [];
-  for (const s of all) {
-    const last = merged[merged.length - 1];
-    if (last !== undefined && s.start <= last.end) {
-      if (s.end > last.end) merged[merged.length - 1] = { start: last.start, end: s.end };
-    } else merged.push(s);
+  let start = 0;
+  let stop = -1;
+  const add = (a: Addr, b: Addr): void => {
+    if (stop >= 0 && a <= stop) {
+      if (b > stop) stop = b;
+      return;
+    }
+    if (stop >= 0) merged.push({ start, end: stop });
+    start = a;
+    stop = b;
+  };
+  let j = 0;
+  for (const i of insns) {
+    if (i.len <= 0 || i.addr < entry || i.addr + i.len > end) continue;
+    for (let x = extra[j]; x !== undefined && x.start < i.addr; x = extra[++j]) add(x.start, x.end);
+    add(i.addr, i.addr + i.len);
   }
+  for (let x = extra[j]; x !== undefined; x = extra[++j]) add(x.start, x.end);
+  if (stop >= 0) merged.push({ start, end: stop });
   return merged;
 }
 
@@ -165,7 +175,7 @@ function holesOf(rom: Rom, entry: Addr, end: Addr, insns: readonly InsnSpan[], p
  * Builds the immutable reading of `parts`. `insnAt` may hand over a lookup the caller already holds for
  * exactly `parts.insns`, sorted and unique (the walker's record); it is then not rebuilt.
  */
-export function makeReading(parts: ReadingParts, rom: Rom, insnAt?: ReadonlyMap<Addr, number>): Reading {
+export function makeReading(parts: ReadingParts, rom: Rom, insnAt?: InsnLookup): Reading {
   const insns = uniqueInsns(parts.insns, insnAt);
   const pools = uniquePools(parts.pools);
   const tables = uniqueTables(parts.tables);
@@ -195,6 +205,7 @@ export function makeReading(parts: ReadingParts, rom: Rom, insnAt?: ReadonlyMap<
     blVerdicts: [...(parts.blVerdicts ?? [])].sort((a, b) => a.site - b.site),
     exits: [...(parts.exits ?? [])].sort((a, b) => a.at - b.at || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0)),
     branchTargets: sortedUnique(parts.branchTargets ?? []),
+    armTails: [...(parts.armTails ?? [])].sort((a, b) => a.start - b.start || a.end - b.end),
     codeEnd,
     end,
     holes: holes.holes,
@@ -225,6 +236,7 @@ export function partsOf(r: Reading): ReadingParts {
     blVerdicts: r.blVerdicts,
     exits: r.exits,
     branchTargets: r.branchTargets,
+    armTails: r.armTails,
     end: r.end,
   };
 }

@@ -16,6 +16,7 @@ import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from '.
 import type { BenchRow } from './row.ts';
 import { scoreAnalysis } from './score.ts';
 import { adoptRefusal } from './seal.ts';
+import { UNREVIEWED } from './vocabulary.ts';
 
 export interface AdoptedLists {
   readonly labels: readonly LabelRow[];
@@ -28,10 +29,10 @@ export interface AdoptedLists {
 export function adoptLists(dataset: Pick<Dataset, 'labels' | 'untyped'>, row: Pick<BenchRow, 'misses' | 'falseEntries'>, commit: string): AdoptedLists {
   const newLabels: LabelRow[] = row.misses
     .filter((m) => !m.listed)
-    .map((m) => ({ addr: m.addr, name: m.name, category: 'unreviewed', note: `adopted at ${commit}: missed (${m.reason}); classify with bench explain` }));
+    .map((m) => ({ addr: m.addr, name: m.name, category: UNREVIEWED, note: `adopted at ${commit}: missed (${m.reason}); classify with bench explain` }));
   const newUntyped: UntypedRow[] = row.falseEntries
     .filter((f) => !f.listed)
-    .map((f) => ({ addr: f.addr, ...(f.owner === undefined ? {} : { name: f.owner }), category: 'unreviewed', note: `adopted at ${commit}: reported via ${f.origin}, ${f.size} bytes; classify with bench explain` }));
+    .map((f) => ({ addr: f.addr, ...(f.owner === undefined ? {} : { name: f.owner }), category: UNREVIEWED, note: `adopted at ${commit}: reported via ${f.origin}, ${f.size} bytes; classify with bench explain` }));
   const byAddr = (a: { readonly addr: string }, b: { readonly addr: string }): number => compareCodeUnits(a.addr, b.addr);
   return {
     labels: [...dataset.labels, ...newLabels].sort(byAddr),

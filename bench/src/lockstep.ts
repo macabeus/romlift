@@ -524,6 +524,11 @@ export function logOracle(records: readonly PocQuery[], families: readonly Analy
   };
 
   return {
+    // The PoC's work.pop(): the log was recorded in its order.
+    worklist: () => {
+      const items: Candidate[] = [];
+      return { push: (c) => void items.push(c), pop: () => items.pop() };
+    },
     answered,
     ask<M extends OracleMethod>(query: OracleQuery<M>): OracleAnswer<M> | undefined {
       const q = query as OracleQuery;
@@ -856,7 +861,7 @@ export function runLockstep(rom: Rom, records: readonly PocQuery[], families: re
   if (missing.length > 0) throw new BenchError(`the computed families lack rules: ${missing.join(', ')}`);
   const oracle = logOracle(records, answered, rom);
   const options: AnalysisOptions = { mode: 'discover', seeds: [], overrides: [], trail: 'off' };
-  const tuning: AnalysisTuning = { worklist: 'poc-lifo', cache: 'epoch', disabled: [], oracle };
+  const tuning: AnalysisTuning = { worklist: 'ascending', cache: 'epoch', disabled: [], oracle };
   try {
     const result = runAnalysis(rom, profile, options, tuning, rules);
     const divergence = oracle.finish();
@@ -873,8 +878,16 @@ export interface RomLockstep extends LockstepResult {
   readonly expectedDigest: string;
 }
 
-/** Reads one tuning ROM and its log, then runs runLockstep; refuses a ROM or log that is not the dataset's or the pinned PoC's. */
-export async function lockstep(cx: BenchContext, name: string, families: readonly AnalysisFamily[]): Promise<RomLockstep> {
+/** One tuning ROM's bytes and log, checked against its dataset, the pinned PoC and the committed digests. */
+interface LoadedLog {
+  readonly rom: Rom;
+  readonly records: readonly PocQuery[];
+  readonly expectedDigest: string;
+  readonly profile: CompilerProfile;
+}
+
+/** Reads one tuning ROM and its log; refuses a ROM or log that is not the dataset's or the pinned PoC's. */
+async function loadLog(cx: BenchContext, name: string): Promise<LoadedLog> {
   const { datasets } = await loadDatasets(cx);
   const d = tuningDatasets(datasets, name)[0];
   if (d === undefined) throw new BenchError(`no tuning dataset named ${name}`);
@@ -896,5 +909,11 @@ export async function lockstep(cx: BenchContext, name: string, families: readonl
   if (expectedDigest === undefined) throw new BenchError(`${pocDigestsPath(cx)} has no digest for ${name}`);
   const profile = profileById('agbcc');
   if (profile === undefined) throw new BenchError('the agbcc profile is not registered');
-  return { rom: name, expectedDigest, ...runLockstep(romFromBytes(bytes, sha1), records, families, profile) };
+  return { rom: romFromBytes(bytes, sha1), records, expectedDigest, profile };
+}
+
+/** Reads one tuning ROM and its log, then runs runLockstep with `families` answered. */
+export async function lockstep(cx: BenchContext, name: string, families: readonly AnalysisFamily[]): Promise<RomLockstep> {
+  const loaded = await loadLog(cx, name);
+  return { rom: name, expectedDigest: loaded.expectedDigest, ...runLockstep(loaded.rom, loaded.records, families, loaded.profile) };
 }

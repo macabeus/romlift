@@ -90,7 +90,7 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
   const work: Addr[] = [entry];
   const isFunction = (a: Addr): boolean => view.isFunction(a);
   const runs = { current: [] as Addr[] };
-  const cursor = walkCursor(view, entry, 'arm', (a) => rec.insns.has(a), () => runs.current.map((a) => decodeArmAt(env, a)));
+  const cursor = walkCursor(view, entry, 'arm', (a) => rec.insns.has(a), () => runs.current, (a) => decodeArmAt(env, a));
   for (let next = work.pop(); next !== undefined; next = work.pop()) {
     let pc = next;
     const run: Addr[] = [];
@@ -148,6 +148,7 @@ function apply(rec: WalkRecord, insn: Insn, conditional: boolean, id: RuleId, st
       return exitHere(rec, insn, conditional, 'return', id, isFunction);
     case 'continue':
     case 'padding':
+    case 'arm-tail':
       return false;
     case 'end-path':
       return exitHere(rec, insn, conditional, step.exit === 'tail' || step.exit === 'reg-jump' ? step.exit : 'return', id, isFunction);

@@ -13,6 +13,9 @@ import { pocCheck } from '../../../bench/src/poc-check.ts';
 import { provenanceChecks, provenanceInputs } from '../../../bench/src/provenance.ts';
 import { cpuProfPath, topSelfTime } from '../../../bench/src/cpu-prof.ts';
 import { benchRun } from '../../../bench/src/run.ts';
+import { resultParityDigest } from '../../../bench/src/parity.ts';
+import { LOCKSTEP_SETS, PARITY_EVIDENCE_SCHEMA } from '../../../bench/src/parity-evidence.ts';
+import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import { assertCountsOnly } from '../../../bench/src/seal.ts';
 import { failingRunner, withTempDir } from './fixtures.ts';
 import { EXPECTED_ROMLIFT_ROW, syntheticTier, TINY_DEPS, tinyDeps, tinyDump, tinyResult } from './harness.ts';
@@ -86,7 +89,7 @@ test('--json prints the frozen bench-run line, writes no results.json, and passe
     const calls: { trail: string; disabled: readonly string[] }[] = [];
     const deps = tinyDeps(tinyResult(), { onAnalyze: (c) => calls.push(c) });
     const io = capture();
-    assert.equal(await main(['run', '--json', '--worklist', 'ascending', '--disable', 'valid.dense', '--disable', 'bl.near-is-call,gap.arm-scan'], cx, io, deps), 0);
+    assert.equal(await main(['run', '--json', '--disable', 'valid.dense', '--disable', 'bl.near-is-call,gap.arm-scan'], cx, io, deps), 0);
     const line = JSON.parse(io.lines.at(-1) ?? '') as Record<string, unknown>;
     assert.deepEqual(Object.keys(line), ['schema', 'roms', 'sealed', 'failed']);
     assert.equal(line['schema'], 'romlift/bench-run@1');
@@ -96,8 +99,8 @@ test('--json prints the frozen bench-run line, writes no results.json, and passe
     await assert.rejects(readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8'), /ENOENT/);
     assert.ok((await readFile(join(cx.repoRoot, 'bench', 'timings.json'), 'utf8')).includes('generatedAt'));
     // The tuning is refused where it would reach the committed artifact, and a bad value is a usage error.
-    assert.equal(await main(['run', '--worklist', 'ascending'], cx, capture(), deps), 1);
-    assert.equal(await main(['run', '--json', '--worklist', 'lifo'], cx, capture(), deps), 2);
+    assert.equal(await main(['run', '--disable', 'valid.dense'], cx, capture(), deps), 1);
+    assert.equal(await main(['run', '--json', '--worklist', 'poc-lifo'], cx, capture(), deps), 2, "'poc-lifo' is deleted");
     assert.equal(await main(['run', '--json', '--disable', 'not-a-rule'], cx, capture(), deps), 2);
     assert.equal(await main(['run', '--json', '--disable'], cx, capture(), deps), 2);
   });
@@ -183,15 +186,25 @@ test('--reveal appends to the revealed log, prints the rows, and writes no rows 
   });
 });
 
-test('a written artifact keeps the previous parity evidence', async () => {
+test('a written artifact keeps the PoC-parity evidence an earlier run recorded', async () => {
   await withTempDir('romlift-run-parity-', async (root) => {
     const cx = await syntheticTier(root);
     await benchRun(cx, { runner: RUNNER });
     const path = join(cx.repoRoot, 'bench', 'results.json');
     const value = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
-    await writeFile(path, JSON.stringify({ ...value, parity: { lockstep: { queries: 3 } } }));
+    const digest = resultParityDigest(tinyResult());
+    const evidence = {
+      schema: PARITY_EVIDENCE_SCHEMA,
+      commit: 'c'.repeat(40),
+      dirty: false,
+      worklist: 'poc-lifo',
+      pocSourceDigest: pocSourceDigest({}),
+      roms: { tiny: { digest, expected: digest, rowDiffs: 0, lockstep: LOCKSTEP_SETS.map((s) => ({ set: s.name, real: [...s.real], queries: 4, matched: 3, answered: 1, compared: 2, markers: 1, skipped: 1, recalled: 0, parityDigest: digest, divergence: null })) } },
+    };
+    await writeFile(path, JSON.stringify({ ...value, parity: evidence }));
     const { results } = await benchRun(cx, { runner: RUNNER });
-    assert.deepEqual(results?.parity, { lockstep: { queries: 3 } });
+    assert.deepEqual(results?.parity, evidence);
+    assert.deepEqual(results?.roms[0]?.parity, { digest, expected: '' });
   });
 });
 

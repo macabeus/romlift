@@ -3,12 +3,13 @@
 // the PoC's dense(), anchoredAtStart(), anchoredAtEnd() and popsCallersFrame() live here once.
 import type { Flow, Insn } from '../../../foundation/isa/types.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
-import type { Addr, Mode } from '../../../foundation/rom/span.ts';
+import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
 import type { BlSite, CompilerProfile, ReadingSummary } from '../../profile/types.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { toLoad } from '../address-map.ts';
 import type { AddressMap } from '../address-map.ts';
 import { codeEndOf, makeReading } from '../reading.ts';
+import { InsnIndex } from './insn-index.ts';
 import type { ReadingParts } from '../reading.ts';
 import { Claim } from '../types.ts';
 import type {
@@ -38,8 +39,10 @@ export interface WalkCursor {
   readonly at: Addr;
   /** Thumb: the stack delta after the instruction (push negative, pop positive); ARM: 0. */
   readonly sp: number;
-  /** The current path's straight-line run of instructions, the one asked about last. */
+  /** The current path's straight-line run of instructions, the one asked about last (decoded when read). */
   readonly run: readonly Insn[];
+  /** The k-th instruction before the last of the run (0: the last), decoding only that one. */
+  back(k: number): Insn | undefined;
   /** Thumb bcc, or an ARM condition other than AL. */
   readonly conditional: boolean;
   /** Whether `a` was already walked as an instruction of this reading. */
@@ -102,10 +105,10 @@ export interface WalkEnv {
 }
 
 /** The cursor a walker fills in place before each ask; `run` is built only when a rule reads it. */
-export type MutableCursor = { -readonly [K in Exclude<keyof WalkCursor, 'run'>]: WalkCursor[K] } & { readonly run: readonly Insn[] };
+export type MutableCursor = { -readonly [K in Exclude<keyof WalkCursor, 'run' | 'back'>]: WalkCursor[K] } & Pick<WalkCursor, 'run' | 'back'>;
 
-/** A cursor for one walk of `entry`; `run` decodes the current path's run on demand. */
-export function walkCursor(view: AnalysisView, entry: Addr, mode: Mode, walked: (a: Addr) => boolean, run: () => readonly Insn[]): MutableCursor {
+/** A cursor for one walk of `entry`; `run` and `back` decode the current path's run (its addresses, `runAddrs()`) on demand. */
+export function walkCursor(view: AnalysisView, entry: Addr, mode: Mode, walked: (a: Addr) => boolean, runAddrs: () => readonly Addr[], decodeAt: (a: Addr) => Insn): MutableCursor {
   return {
     entry,
     mode,
@@ -117,7 +120,12 @@ export function walkCursor(view: AnalysisView, entry: Addr, mode: Mode, walked: 
     conditional: false,
     walked,
     get run(): readonly Insn[] {
-      return run();
+      return runAddrs().map(decodeAt);
+    },
+    back(k) {
+      const addrs = runAddrs();
+      const a = addrs[addrs.length - 1 - k];
+      return a === undefined ? undefined : decodeAt(a);
     },
   };
 }
@@ -149,9 +157,12 @@ export function toLoadInsn(insn: Insn, addresses: AddressMap, load: Addr): Insn 
 
 /** The mutable record of one walk, turned into a Reading by finish(). */
 export class WalkRecord {
-  /** Instruction length by address; `order` lists the addresses as they were first walked. */
-  readonly insns = new Map<Addr, number>();
+  /** Instruction length by address; `order` and `lens` list the addresses and lengths as they were first walked. */
+  readonly insns = new InsnIndex();
   private readonly order: Addr[] = [];
+  private readonly lens: number[] = [];
+  /** Whether an instruction was dropped (trailing padding): `order` may then name addresses `insns` lacks. */
+  private dropped = false;
   readonly pools = new Map<Addr, number>();
   readonly poolOrder: PoolWord[] = [];
   readonly tables: JumpTable[] = [];
@@ -165,6 +176,7 @@ export class WalkRecord {
   readonly tails: Addr[] = [];
   readonly exits: Exit[] = [];
   readonly branchTargets: Addr[] = [];
+  readonly armTails: Span[] = [];
   readonly entry: Addr;
   readonly mode: Mode;
   returns = 0;
@@ -179,11 +191,23 @@ export class WalkRecord {
   insn(addr: Addr, len: number): void {
     this.insns.set(addr, len);
     this.order.push(addr);
+    this.lens.push(len);
+  }
+
+  /** Drops a recorded instruction (trailing padding at a stop). */
+  drop(addr: Addr): void {
+    this.insns.delete(addr);
+    this.dropped = true;
   }
 
   /** The instructions still recorded (padding may have been dropped), sorted by address. */
   private sortedInsns(): InsnSpan[] {
-    const addrs = this.order.filter((a) => this.insns.has(a)).sort((a, b) => a - b);
+    const order = this.order;
+    let ascending = !this.dropped;
+    for (let i = 1; ascending && i < order.length; i++) if ((order[i] as Addr) <= (order[i - 1] as Addr)) ascending = false;
+    // A single straight path walks in ascending order with nothing dropped: the walk order is the answer.
+    if (ascending) return order.map((addr, i) => ({ addr, len: this.lens[i] ?? 0 }));
+    const addrs = order.filter((a) => this.insns.has(a)).sort((a, b) => a - b);
     const out: InsnSpan[] = [];
     for (let i = 0; i < addrs.length; i++) {
       const addr = addrs[i] as Addr;
@@ -207,7 +231,7 @@ export class WalkRecord {
   /** The immutable reading; `extra` adds what the settle loop decided. */
   finish(env: WalkEnv, extra: Pick<ReadingParts, 'far' | 'noret' | 'blVerdicts'> = {}): Reading {
     const insns = this.sortedInsns();
-    const shape: ReadingShape = { entry: this.entry, codeEnd: codeEndOf(this.entry, insns), pools: this.poolOrder.map((p) => p.addr), tables: this.tables };
+    const shape: ReadingShape = { entry: this.entry, codeEnd: codeEndOf(this.entry, insns), pools: this.poolOrder.map((p) => p.addr), tables: this.tables, armTails: this.armTails };
     return makeReading(
       {
         entry: this.entry,
@@ -227,6 +251,7 @@ export class WalkRecord {
         tailExits: this.tailExits,
         exits: this.exits,
         branchTargets: this.branchTargets,
+        armTails: this.armTails,
         ...extra,
         end: env.extentEnd(shape),
       },

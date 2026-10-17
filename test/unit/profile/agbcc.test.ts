@@ -7,21 +7,31 @@ import { PROFILES, profileById } from '../../../src/core/profile/registry.ts';
 import { pipelineIds, romWith, words } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
 
-/** Every analysis rule id of architecture §4.1, by family. */
+/** Every analysis rule id of architecture §4.1, by family, with the rules the phase-2 milestones added (walk.inline-arm-switch, bl.target-beyond-callee). */
 const SECTION_4_1 = {
   seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr'],
   walk: [
     'walk.pc-load-is-pool',
-    'walk.table-nearest-pool-load',
+    'walk.table-by-register',
     'walk.mov-lr-pc-bx-is-call',
     'walk.noreturn-call-before-noncode',
     'walk.swi-before-noncode',
     'walk.mov-pc-without-table',
     'walk.branch-into-function',
     'walk.bx-pc-veneer',
+    'walk.inline-arm-switch',
     'walk.trailing-zero-padding',
   ],
-  bl: ['bl.self-or-accepted', 'bl.target-before-entry', 'bl.near-is-call', 'bl.target-inside-caller', 'bl.target-has-prologue', 'bl.target-pops-unpushed-frame', 'bl.noreturn-before-noncode'],
+  bl: [
+    'bl.self-or-accepted',
+    'bl.target-before-entry',
+    'bl.near-is-call',
+    'bl.target-inside-caller',
+    'bl.target-has-prologue',
+    'bl.target-beyond-callee',
+    'bl.target-pops-unpushed-frame',
+    'bl.noreturn-before-noncode',
+  ],
   valid: ['valid.in-rom-unclaimed', 'valid.decodes', 'valid.balanced-stack', 'valid.returns-or-prologue', 'valid.no-claimed-code', 'valid.pool-not-code', 'valid.not-pointer-table', 'valid.dense', 'valid.calls-code'],
   accept: ['accept.tiles-after-accepted', 'accept.prologue-and-loaded', 'accept.prologue-and-end-anchored', 'accept.pointer-table-run', 'accept.tiny-anchored-at-start'],
   gap: [
@@ -43,7 +53,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 test('every rule id of §4.1 sits in exactly one pipeline slot, and the pipeline names no other', () => {
   const expected = Object.values(SECTION_4_1).flat();
-  assert.equal(expected.length, 55);
+  assert.equal(expected.length, 57);
   const named = pipelineIds(AGBCC_PIPELINE);
   const counts = new Map<string, number>();
   for (const id of named) counts.set(id, (counts.get(id) ?? 0) + 1);
@@ -62,13 +72,13 @@ test('the orders reproduce the PoC call order', () => {
   assert.equal(AGBCC_PIPELINE.bl[AGBCC_PIPELINE.bl.length - 1], 'bl.noreturn-before-noncode');
   assert.equal(AGBCC_PIPELINE.accept[AGBCC_PIPELINE.accept.length - 1], 'accept.tiny-anchored-at-start');
   const walk = AGBCC_PIPELINE.walk;
-  assert.ok(walk.indexOf('walk.table-nearest-pool-load') < walk.indexOf('walk.mov-pc-without-table'));
+  assert.ok(walk.indexOf('walk.table-by-register') < walk.indexOf('walk.mov-pc-without-table'));
   assert.ok(walk.indexOf('walk.mov-lr-pc-bx-is-call') < walk.indexOf('walk.mov-pc-without-table'));
 });
 
 test("agbcc holds the PoC's numbers", () => {
   assert.deepEqual(AGBCC.farJump, { minDistance: 1536, requiresPushedLr: false });
-  assert.deepEqual(AGBCC.tableJump, { maxBaseDistance: 0x400, maxEntries: 2048, maxTargetSpan: 0x10000, lookBehindInsns: 40 });
+  assert.deepEqual(AGBCC.tableJump, { maxBaseDistance: 0x400, maxEntries: 2048, maxTargetSpan: 0x10000 });
   assert.deepEqual(AGBCC.density, { minHoles: 8, holeShift: 4 });
   assert.equal(AGBCC.pointerTableRun, 3);
   assert.equal(AGBCC.tinyFunctionInsns, 3);
@@ -106,7 +116,7 @@ test('padding is a zero byte or a byte of mov r8, r8', () => {
   assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0203, undefined), false);
 });
 
-test('matchTableJump: the nearest qualifying pool load names the base; slots stop below the lowest target', () => {
+test('matchTableJump: the pool load the jump register comes from names the base; slots stop below the lowest target', () => {
   const at = 0x0800_0200;
   const code = thumbAt(at)`ldr r1, _0800020C; ldr r0, [r1, r0]; mov pc, r0`;
   const rom = romWith([

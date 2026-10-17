@@ -1,6 +1,8 @@
 // The driver's state and the AnalysisView over it (architecture §4.1, §4.2). The driver owns every
 // mutable structure here; rules see only the view. The view's read, valid and whyInvalid are the
 // driver's services (settle.ts, validity.ts), injected so this module imports none of them.
+import { readAddr, readInProgress, readOpaque } from './reuse.ts';
+import type { ReuseState } from './reuse.ts';
 import type { Diagnostic } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
@@ -65,6 +67,10 @@ export interface DriverState extends DriverInputs {
   /** One claim kind per ROM byte. */
   readonly claims: Uint8Array;
   readonly funcs: Map<Addr, Accepted>;
+  /** One bit per ROM byte: an accepted or listed entry starts there (isFunction's index, kept by markEntry). */
+  readonly entryBits: Uint8Array;
+  /** The 'epoch-reuse' cache (reuse.ts); absent in 'epoch' mode, with a trail or with an oracle. */
+  readonly reuse?: ReuseState;
   /** Accepted entries in acceptance order. */
   readonly order: Addr[];
   /** Thumb readings of the epoch (accepted ones for good). */
@@ -97,9 +103,27 @@ export function claimAt(s: DriverState, a: Addr): ClaimKind {
   return k >= 0 && k < s.claims.length ? ((s.claims[k] ?? 0) as ClaimKind) : Claim.free;
 }
 
-/** discover: accepted; confirm: listed or accepted. */
+/**
+ * discover: accepted; confirm: accepted, or listed and not a label. A `label = true` entry lies inside
+ * another listed function, so until it is taken a walk passes through it, as discover's walk of the
+ * function around it did.
+ */
 export function isFunction(s: DriverState, a: Addr): boolean {
-  return s.funcs.has(a) || s.listed.has(a);
+  const k = a - s.rom.base;
+  if (k >= 0 && k < s.claims.length && Number.isInteger(k)) return ((s.entryBits[k >>> 3] ?? 0) & (1 << (k & 7))) !== 0;
+  return s.funcs.has(a) || isListedBoundary(s, a);
+}
+
+/** A listed entry that is not a label (confirm mode). */
+export function isListedBoundary(s: Pick<DriverState, 'listed'>, a: Addr): boolean {
+  const seed = s.listed.get(a);
+  return seed !== undefined && seed.label !== true;
+}
+
+/** Records that a function starts at `a` in isFunction's index (accepted or listed entries only). */
+export function markEntry(s: Pick<DriverState, 'rom' | 'claims' | 'entryBits'>, a: Addr): void {
+  const k = a - s.rom.base;
+  if (k >= 0 && k < s.claims.length && Number.isInteger(k)) s.entryBits[k >>> 3] = (s.entryBits[k >>> 3] ?? 0) | (1 << (k & 7));
 }
 
 /** The FunctionFact of an accepted entry under the current claims. */
@@ -201,6 +225,12 @@ export function also(s: DriverState, c: Candidate): void {
   f.also.push({ rule: c.proposedBy, round: s.round, cites: capCites(c.cites) });
 }
 
+/** A view query the 'epoch-reuse' cache does not track: the reading being computed, if any, is never carried. */
+function opaque(s: DriverState): DriverState {
+  if (s.reuse !== undefined) readOpaque(s.reuse);
+  return s;
+}
+
 /** The view rules read, over the live state; `get` returns the driver state once it is built. */
 export function makeView(get: () => DriverState): AnalysisView {
   return {
@@ -228,20 +258,34 @@ export function makeView(get: () => DriverState): AnalysisView {
     get pointers(): PointerIndex {
       return get().pointers;
     },
-    claimAt: (a) => claimAt(get(), a),
+    claimAt: (a) => {
+      const s = get();
+      if (s.reuse !== undefined) readAddr(s.reuse, a);
+      return claimAt(s, a);
+    },
     owner: (a) => {
       const s = get();
+      opaque(s);
       const e = ownerOf(s, a);
       return e === undefined ? undefined : factOf(s, e);
     },
-    isFunction: (a) => isFunction(get(), a),
-    functions: () => get().order.slice(),
-    accepted: (entry) => get().funcs.get(entry)?.reading,
+    isFunction: (a) => {
+      const s = get();
+      if (s.reuse !== undefined) readAddr(s.reuse, a);
+      return isFunction(s, a);
+    },
+    functions: () => opaque(get()).order.slice(),
+    accepted: (entry) => opaque(get()).funcs.get(entry)?.reading,
     read: (entry, mode) => get().services.read(entry, mode),
-    valid: (entry) => get().services.valid(entry),
-    whyInvalid: (entry) => get().services.whyInvalid(entry),
-    neverValid: (entry) => get().neverValid.has(entry),
-    inProgress: (entry) => get().inProgress.has(entry),
-    adrOwner: (a) => get().adrOwner.get(a),
+    valid: (entry) => opaque(get()).services.valid(entry),
+    whyInvalid: (entry) => opaque(get()).services.whyInvalid(entry),
+    neverValid: (entry) => opaque(get()).neverValid.has(entry),
+    inProgress: (entry) => {
+      const s = get();
+      const answer = s.inProgress.has(entry);
+      if (s.reuse !== undefined) readInProgress(s.reuse, entry, answer);
+      return answer;
+    },
+    adrOwner: (a) => opaque(get()).adrOwner.get(a),
   };
 }

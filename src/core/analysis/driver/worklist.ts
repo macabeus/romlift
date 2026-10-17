@@ -1,21 +1,14 @@
-// The candidate worklist of accept() (architecture §4.4, D10). 'poc-lifo' pops the last pushed candidate,
-// as the PoC's work.pop(); it exists only until milestone M4. 'ascending' pops the least key
-// (addr, Thumb before ARM, the proposing rule's rank in its slot, the proposal counter), a total order.
+// The candidate worklist of accept() (architecture §4.4, D10): 'ascending' pops the least key (addr,
+// Thumb before ARM, the proposing rule's rank in its slot, the proposal counter), a total order. The
+// PoC's LIFO ('poc-lifo') was deleted when phase 2 landed; a lockstep oracle brings the PoC's order with
+// its log (RuleOracle.worklist).
 import { compareWorkKeys, minHeap } from '../../../foundation/util/min-heap.ts';
 import type { WorkKey } from '../../../foundation/util/min-heap.ts';
+import type { CandidateWorklist } from '../oracle.ts';
 import type { Candidate } from '../types.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 
-export interface Worklist {
-  push(c: Candidate): void;
-  pop(): Candidate | undefined;
-}
-
-/** The PoC's LIFO. */
-export function pocLifo(): Worklist {
-  const items: Candidate[] = [];
-  return { push: (c) => void items.push(c), pop: () => items.pop() };
-}
+export type Worklist = CandidateWorklist;
 
 /** The ascending worklist; `rank` is each rule's index in its pipeline slot. */
 export function ascending(rank: ReadonlyMap<RuleId, number>, nextSeq: () => number): Worklist {

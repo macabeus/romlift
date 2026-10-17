@@ -1,6 +1,6 @@
 // Acceptance (the PoC's accept() and claim()): an accepted entry is read, recorded, claimed, and its
 // callees, veneers and ARM adr targets are queued through the queue slot onto the worklist, which pops
-// LIFO ('poc-lifo') or ascending. Callees of an accepted function are trusted: they are accepted
+// ascending (or in the order of a lockstep oracle's log). Callees of an accepted function are trusted: they are accepted
 // without validity, as in the PoC.
 import { contains } from '../../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../../foundation/rom/span.ts';
@@ -12,9 +12,10 @@ import { Claim } from '../types.ts';
 import type { Candidate, ClaimEdit, Reading } from '../types.ts';
 import { checkListed, isUnlisted, recordUnlisted } from './confirm.ts';
 import { analyzeArm, settle } from './settle.ts';
-import { also, emit, factOf } from './view.ts';
+import { also, emit, factOf, markEntry } from './view.ts';
 import type { DriverState } from './view.ts';
-import { ascending, pocLifo } from './worklist.ts';
+import { touch } from './reuse.ts';
+import { ascending } from './worklist.ts';
 
 /** The origin a proposing rule gives what it proposes (its meta.origin). */
 export function originOf(s: DriverState, rule: RuleId): Origin {
@@ -26,6 +27,7 @@ export function write(s: DriverState, e: ClaimEdit): void {
   const lo = Math.max(e.span.start - s.rom.base, 0);
   const hi = Math.min(e.span.end - s.rom.base, s.claims.length);
   if (lo >= hi) return;
+  if (s.reuse !== undefined) touch(s.reuse, s.rom.base + lo, s.rom.base + hi);
   if (e.when === 'always') s.claims.fill(e.kind, lo, hi);
   else if (e.when === 'start-free') {
     if (s.claims[lo] === Claim.free) s.claims.fill(e.kind, lo, hi);
@@ -60,6 +62,8 @@ function take(s: DriverState, c: Candidate, r: Reading, note?: string): readonly
     absorbed: [],
   });
   s.order.push(c.entry);
+  markEntry(s, c.entry);
+  if (s.reuse !== undefined) touch(s.reuse, c.entry, c.entry + 1);
   s.ownerIndex = undefined;
   if (c.mode === 'thumb') s.settled.set(c.entry, r);
   claim(s, c.entry, r);
@@ -75,7 +79,7 @@ function take(s: DriverState, c: Candidate, r: Reading, note?: string): readonly
  * functions were added (0 when `first` was already a function, or, in confirm mode, is not listed).
  */
 export function accept(s: DriverState, first: Candidate, note?: string): number {
-  const work = s.tuning.worklist === 'ascending' ? ascending(s.rules.rank, () => (s.seq += 1)) : pocLifo();
+  const work = s.tuning.oracle?.worklist() ?? ascending(s.rules.rank, () => (s.seq += 1));
   enqueue(s, work, first);
   let added = 0;
   for (let c = work.pop(); c !== undefined; c = work.pop()) {
@@ -111,9 +115,10 @@ export function mergeReadings(s: DriverState, g: Reading, f: Reading): Reading {
   const pools = [...g.pools, ...f.pools];
   const tables = [...g.tables, ...f.tables];
   const addrs = pools.map((p) => p.addr).filter((a, i, all) => all.indexOf(a) === i);
-  const shape = { entry: g.entry, codeEnd: Math.max(g.codeEnd, f.codeEnd), pools: addrs, tables };
+  const armTails = [...g.armTails, ...f.armTails];
+  const shape = { entry: g.entry, codeEnd: Math.max(g.codeEnd, f.codeEnd), pools: addrs, tables, armTails };
   return makeReading(
-    { ...parts, insns, pools, tables, adrs: [...g.adrs, ...f.adrs], calls: [...g.calls, ...f.calls], end: s.rules.extentEnd(shape, s.profile) },
+    { ...parts, insns, pools, tables, armTails, adrs: [...g.adrs, ...f.adrs], calls: [...g.calls, ...f.calls], end: s.rules.extentEnd(shape, s.profile) },
     s.rom,
   );
 }
@@ -124,6 +129,7 @@ export function absorb(s: DriverState, into: Addr, block: Reading): void {
   if (g === undefined) return;
   const merged = mergeReadings(s, g.reading, block);
   g.reading = merged;
+  if (s.reuse !== undefined) touch(s.reuse, into, into + 1);
   if (merged.mode === 'thumb') s.settled.set(into, merged);
   const span: Span = { start: block.entry, end: block.end };
   g.absorbed.push(span);

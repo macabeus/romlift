@@ -1,0 +1,23 @@
+{
+  "schema": "romlift-bench/speed@1",
+  "calibration": {
+    "cpuMs": 192.47
+  },
+  "roms": {
+    "fe7j": {
+      "analysisCpuMs": 7958.65
+    },
+    "klonoa": {
+      "analysisCpuMs": 407.31
+    },
+    "pokeemerald": {
+      "analysisCpuMs": 5201.64
+    },
+    "sa2": {
+      "analysisCpuMs": 774.75
+    },
+    "sa3": {
+      "analysisCpuMs": 1527.52
+    }
+  }
+}

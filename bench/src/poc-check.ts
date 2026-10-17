@@ -2,7 +2,9 @@
 // scored.json with score.ts reproduces bench/baseline/poc-2026-10-16.json field for field, the PoC's
 // own fresh row equals the baseline too, its scaffold rebuilt the ROM, its two analyses have one
 // digest and that digest is the one of the analysis the dump stores, and the dump was made from the
-// pinned PoC source.
+// pinned PoC source. The rescored row is compared without the `category` of its misses and false
+// entries: categories describe the dataset, not the analysis (baseline-rows.ts), and milestone M5
+// reclassified the rows the baseline still names `unreviewed` and `continuation-after-noreturn-call`.
 import { readBaseline, jsonDiffs, withoutPaths, type JsonRecord } from './baseline.ts';
 import type { BenchContext } from './context.ts';
 import { loadDatasets, tuningDatasets } from './dataset.ts';
@@ -41,6 +43,19 @@ export function dumpDeterministic(dump: ScoredRun): boolean {
   return dump.digests[0] === dump.digests[1] && analysisDigest(dump.analysis) === dump.digests[0];
 }
 
+/** The row without the dataset's categories on its misses and false entries. */
+export function withoutCategories(row: JsonRecord): JsonRecord {
+  const strip = (list: unknown): unknown =>
+    Array.isArray(list)
+      ? list.map((item: unknown) => {
+          if (typeof item !== 'object' || item === null || Array.isArray(item)) return item;
+          const { category: _category, ...rest } = item as Record<string, unknown>;
+          return rest;
+        })
+      : list;
+  return { ...row, misses: strip(row['misses']), falseEntries: strip(row['falseEntries']) } as JsonRecord;
+}
+
 /** The verdict of one ROM from its rescored row, its dump and its baseline row. */
 export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseline: JsonRecord | undefined, pinnedDigest: string): PocCheckRom {
   const deterministic = dumpDeterministic(dump);
@@ -48,7 +63,7 @@ export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseli
     return { name, rowsEqual: false, pocRowEqual: false, diffs: [`no baseline row for ${name}`], scaffoldOk: dump.scaffold.ok, deterministic, pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest };
   }
   const rowRecord: JsonRecord = { ...row };
-  const rowDiffs = jsonDiffs(withoutPaths(baseline, ROW_EXCLUDED), withoutPaths(rowRecord, ROW_EXCLUDED), '');
+  const rowDiffs = jsonDiffs(withoutCategories(withoutPaths(baseline, ROW_EXCLUDED)), withoutCategories(withoutPaths(rowRecord, ROW_EXCLUDED)), '');
   const pocDiffs = jsonDiffs(withoutPaths(baseline, POC_ROW_EXCLUDED), withoutPaths(dump.pocRow, POC_ROW_EXCLUDED), '');
   return {
     name,

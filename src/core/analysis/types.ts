@@ -180,8 +180,8 @@ export interface AnalysisOptionsRecord {
 
 /** Internal (romlift/internal, outside semver, D37). */
 export interface AnalysisTuning {
-  /** 'poc-lifo' exists only until phase 2 lands (D10). */
-  readonly worklist: 'poc-lifo' | 'ascending';
+  /** The ascending worklist (D10); the PoC's 'poc-lifo' was deleted when phase 2 landed. */
+  readonly worklist: 'ascending';
   /** §4.2, D13 */
   readonly cache: 'epoch' | 'epoch-reuse';
   /** `analyze --disable`, `bench ablate`: these rules are skipped. */
@@ -211,6 +211,13 @@ export interface ReadingError {
   readonly at: Addr;
 }
 
+/** Instruction length by address: a Map, or the walk's own index (walk/insn-index.ts). */
+export interface InsnLookup {
+  has(a: Addr): boolean;
+  get(a: Addr): number | undefined;
+  readonly size: number;
+}
+
 /**
  * The walk of one entry under the claims and function set at the time it was taken. Immutable;
  * `codeEnd`, `end` and the holes are computed once, when it is built (milestone M2 step (a)).
@@ -221,7 +228,7 @@ export interface Reading {
   /** Every instruction, sorted by address. */
   readonly insns: readonly InsnSpan[];
   /** Instruction length by address. */
-  readonly insnAt: ReadonlyMap<Addr, number>;
+  readonly insnAt: InsnLookup;
   /** Pool words in the order the walk first loaded them (the PoC's Map order). */
   readonly pools: readonly PoolWord[];
   /** Pool value by address. */
@@ -257,6 +264,8 @@ export interface Reading {
   readonly exits: readonly Exit[];
   /** Targets of b/bcc followed inside the function, sorted. */
   readonly branchTargets: readonly Addr[];
+  /** ARM code the Thumb walk switches into inline (walk.inline-arm-switch): each [target, end of its ARM reading), sorted. */
+  readonly armTails: readonly Span[];
   /** One past the last instruction byte (the entry when there is none). */
   readonly codeEnd: Addr;
   /** The extent's end: code plus adjacent pools and tables (claim.adjacent-pools' extentEnd). */
@@ -273,6 +282,8 @@ export interface ReadingShape {
   /** Pool word addresses in walk order. */
   readonly pools: readonly Addr[];
   readonly tables: readonly JumpTable[];
+  /** The inline ARM tails (Reading.armTails). */
+  readonly armTails?: readonly Span[];
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -381,12 +392,14 @@ export type WalkStep =
   /** The instruction does not end the path (an indirect call). */
   | { readonly step: 'continue' }
   /** At a Thumb stop: the last instruction of the run is padding; drop it and ask again. */
-  | { readonly step: 'padding' };
+  | { readonly step: 'padding' }
+  /** Thumb `bx rN` into ARM code right after it: the ARM code at target is this function's tail; the Thumb path ends as a register jump. */
+  | { readonly step: 'arm-tail'; readonly target: Addr };
 
 /**
  * Asked for every decoded instruction (cursor.phase 'insn') and, in Thumb, at a stop on non-code with
  * the last instruction of the run (cursor.phase 'stop'). Assignments: walk.pc-load-is-pool: a pool load
- * → pool (both modes). walk.table-nearest-pool-load: Thumb mov/add pc → table from
+ * → pool (both modes). walk.table-by-register: Thumb mov/add pc → table from
  * profile.idioms.matchTableJump(cursor.run, cursor.run.length - 1). walk.mov-lr-pc-bx-is-call: ARM bx
  * whose previous instruction is `mov lr, pc` → continue. walk.mov-pc-without-table: an indirect jump
  * through mov/add pc (both modes) or ARM ldr/ldm pc → end-path reg-jump. walk.bx-pc-veneer: Thumb `bx

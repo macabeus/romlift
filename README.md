@@ -14,10 +14,16 @@ and needs only Node.js and the GBA toolchain.
 
 ## Status
 
-Phase 1 of 6 (Decoder) passes its local gate, with its CI run and the merge to `main` pending
-([docs/phase-1.md](docs/phase-1.md)): the Thumb and ARM instruction table with its decoder, encoder,
-formatter and parser round-trips 100% of printed mnemonics through GNU `as`, `romlift doctor` checks the user's toolchain, and the bench harness rescores the proof of concept on
-the five tuning ROMs. `doctor` is the only command so far; phase 2 (Analysis) is next.
+Phase 1 of 6 (Decoder) has landed ([docs/phase-1.md](docs/phase-1.md)): the Thumb and ARM instruction
+table with its decoder, encoder, formatter and parser round-trips 100% of printed mnemonics through GNU
+`as`, `romlift doctor` checks the user's toolchain, and the bench harness rescores the proof of concept.
+
+Phase 2 (Analysis) is built but has not landed ([docs/phase-2.md](docs/phase-2.md)): romlift's own
+function-boundary analysis reproduces the proof of concept's results on the five tuning ROMs (parity
+digests and the lockstep of every rule family), then switches to an order-independent worklist,
+register-tracked jump tables and a few measured improvements, with every tuning threshold met; the
+sealed held-out gate fails on The Minish Cap, so the phase waits for a rule fix validated on the tuning
+set and a fresh sealed pair (D53). The commands so far are `doctor`, `analyze` and `explain`.
 
 | Phase | Delivers |
 | --- | --- |
@@ -34,9 +40,10 @@ the five tuning ROMs. `doctor` is the only command so far; phase 2 (Analysis) is
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D54 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D56 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
+| [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: the milestones M1–M7 with their numbers, deviations, and why the phase has not landed |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

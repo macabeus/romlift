@@ -1,5 +1,5 @@
 // bench/baseline/accepted-diffs.json: only improvements may be listed, each once, with a commit and a
-// reason; the committed file is the empty list.
+// reason; the committed file holds improvements only, each naming its commit.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -35,11 +35,12 @@ test('a non-improvement, a duplicate, a bad address or a missing reason is refus
   assert.throws(() => parseAcceptedDiffs({ schema: 'other', improvements: [] }, 'a.json'), /expected \{"schema": "romlift-bench\/accepted-diffs@1"/);
 });
 
-test('the committed file is the empty list; an absent file accepts nothing', async () => {
+test('the committed file holds improvements only, each with its commit; an absent file accepts nothing', async () => {
   const committed = parseAcceptedDiffs(JSON.parse(readFileSync(new URL('../../../bench/baseline/accepted-diffs.json', import.meta.url), 'utf8')), 'committed');
-  assert.deepEqual(committed, { schema: ACCEPTED_DIFFS_SCHEMA, improvements: [] });
+  assert.equal(committed.schema, ACCEPTED_DIFFS_SCHEMA);
+  assert.ok(committed.improvements.every((d) => isImprovement(d.kind) && /^[0-9a-f]{7,40}$/.test(d.commit)));
   assert.deepEqual(await readAcceptedDiffs({ repoRoot: REPO_ROOT, benchRoot: REPO_ROOT, pocRoot: REPO_ROOT }), committed);
   await withTempDir('romlift-accepted-', async (root) => {
-    assert.deepEqual(await readAcceptedDiffs({ repoRoot: root, benchRoot: root, pocRoot: root }), committed);
+    assert.deepEqual(await readAcceptedDiffs({ repoRoot: root, benchRoot: root, pocRoot: root }), { schema: ACCEPTED_DIFFS_SCHEMA, improvements: [] });
   });
 });

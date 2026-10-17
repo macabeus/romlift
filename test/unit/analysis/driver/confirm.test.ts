@@ -73,3 +73,14 @@ test('discover mode lists nothing and accepts what the rules accept', () => {
   assert.deepEqual(result.functions.map((f) => f.entry), [A]);
   assert.equal('unlisted' in result, false);
 });
+
+test('a label is no walk boundary: the function around it reads through it, as discover read it', () => {
+  const rom = romWith([{ at: A, bytes: thumbAt(A)`movs r0, #1; adds r0, #1; bx lr` }]);
+  const profile = testProfile({ seed: ['seed.listed'], validity: ['valid.in-rom-unclaimed', 'valid.decodes'], claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
+  const reg = registry(listed, inRom, decodes, extent, ...walk);
+  const confirm = (seeds: readonly Seed[]) => runAnalysis(rom, profile, { mode: 'confirm', seeds, overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);
+  const ends = (seeds: readonly Seed[]): number[] => confirm(seeds).functions.map((f) => f.extent.end - f.entry);
+  // A + 2 is a second entry inside A: as a label, A's walk passes it; as a function, A stops there.
+  assert.deepEqual(ends([seed(A), seed(A + 2, { label: true })]), [6, 4]);
+  assert.deepEqual(ends([seed(A), seed(A + 2)]), [2, 4]);
+});

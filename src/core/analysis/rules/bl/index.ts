@@ -8,6 +8,7 @@ import selfOrAccepted from './self-or-accepted.ts';
 import targetBeforeEntry from './target-before-entry.ts';
 import targetHasPrologue from './target-has-prologue.ts';
 import targetInsideCaller from './target-inside-caller.ts';
+import targetBeyondCallee from './target-beyond-callee.ts';
 import targetPopsUnpushedFrame from './target-pops-unpushed-frame.ts';
 
 export const BL_RULES = {
@@ -16,6 +17,7 @@ export const BL_RULES = {
   'bl.near-is-call': nearIsCall,
   'bl.target-inside-caller': targetInsideCaller,
   'bl.target-has-prologue': targetHasPrologue,
+  'bl.target-beyond-callee': targetBeyondCallee,
   'bl.target-pops-unpushed-frame': targetPopsUnpushedFrame,
   'bl.noreturn-before-noncode': noreturnBeforeNoncode,
 } as const satisfies Readonly<Record<RuleId, FamilyRule<'bl'>>>;

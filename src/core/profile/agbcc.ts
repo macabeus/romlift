@@ -4,6 +4,7 @@ import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import type { Insn } from '../../foundation/isa/types.ts';
+import { thumbRegisterEffect } from './thumb-registers.ts';
 import type { BlSite, ClaimCode, CompilerProfile, JumpTableMatch, Pipeline, ReadingSummary } from './types.ts';
 
 /** The proof of concept's call order of every rule (§4.1): each analysis rule id in exactly one slot. */
@@ -16,10 +17,11 @@ export const AGBCC_PIPELINE: Pipeline = {
   queue: ['seed.call', 'seed.veneer', 'seed.adr'],
   walk: [
     'walk.pc-load-is-pool',
-    'walk.table-nearest-pool-load',
+    'walk.table-by-register',
     'walk.mov-lr-pc-bx-is-call',
     'walk.mov-pc-without-table',
     'walk.bx-pc-veneer',
+    'walk.inline-arm-switch',
     'walk.branch-into-function',
     'walk.trailing-zero-padding',
     'walk.noreturn-call-before-noncode',
@@ -32,6 +34,7 @@ export const AGBCC_PIPELINE: Pipeline = {
     'bl.near-is-call',
     'bl.target-inside-caller',
     'bl.target-has-prologue',
+    'bl.target-beyond-callee',
     'bl.target-pops-unpushed-frame',
     'bl.noreturn-before-noncode',
   ],
@@ -71,7 +74,7 @@ export const AGBCC_PIPELINE: Pipeline = {
 };
 
 const FAR_JUMP = { minDistance: 1536, requiresPushedLr: false } as const;
-const TABLE_JUMP = { maxBaseDistance: 0x400, maxEntries: 2048, maxTargetSpan: 0x10000, lookBehindInsns: 40 } as const;
+const TABLE_JUMP = { maxBaseDistance: 0x400, maxEntries: 2048, maxTargetSpan: 0x10000 } as const;
 
 /** Thumb `push {.., lr}`: the high byte of the halfword is 0xB5. */
 function pushLr(rom: Rom, a: Addr): boolean {
@@ -94,29 +97,50 @@ function isPadding(rom: Rom, a: Addr, next: ClaimCode | undefined): boolean {
   return contains(rom, even, 2) && b[even - rom.base] === 0xc0 && b[even - rom.base + 1] === 0x46;
 }
 
+/** A word the jump may index: a word-aligned ROM address just ahead of the jump at `pc`. */
+function isTableBase(rom: Rom, v: number, pc: Addr): boolean {
+  return contains(rom, v) && (v & 3) === 0 && v - pc > 0 && v - pc < TABLE_JUMP.maxBaseDistance;
+}
+
 /**
- * The PoC's table look-behind: the nearest pc-relative load among the previous lookBehindInsns - 1
- * instructions whose word is a word-aligned ROM address just ahead of the jump, then the words from
- * that base while each is an even ROM address near the jump and the slot stays below the lowest
- * target past the base.
+ * The register that reaches the jump, followed back through the run: through moves, adds and the word
+ * load of the table slot to the pc-relative loads that set it, nearest first. The first of those loads
+ * whose word is a table base names the table; a register written any other way (a constant, other
+ * arithmetic, a call) is no longer followed, and the search ends when no register is.
+ */
+function tableBase(insns: readonly Insn[], cursor: number, rom: Rom): { readonly base: Addr; readonly load: Addr } | undefined {
+  const jump = insns[cursor];
+  if (jump === undefined || jump.flow.kind !== 'indirect') return undefined;
+  let tracked = 1 << jump.flow.reg;
+  for (let i = cursor - 1; i >= 0 && tracked !== 0; i--) {
+    const insn = insns[i];
+    if (insn === undefined) continue;
+    if (insn.flow.kind === 'pool-load') {
+      const rd = insn.flow.rd;
+      if ((tracked & (1 << rd)) === 0) continue;
+      tracked &= ~(1 << rd);
+      if (contains(rom, insn.flow.pool, 4) && isTableBase(rom, u32(rom, insn.flow.pool), jump.addr)) return { base: u32(rom, insn.flow.pool), load: insn.addr };
+      continue;
+    }
+    const effect = thumbRegisterEffect(insn);
+    if ((effect.writes & tracked) === 0) continue;
+    tracked &= ~effect.writes;
+    for (const r of effect.from) tracked |= 1 << r;
+  }
+  return undefined;
+}
+
+/**
+ * agbcc's switch: the table base the jump register is followed back to (tableBase), then the words from
+ * that base while each is an even ROM address near the jump and the slot stays below the lowest target
+ * past the base.
  */
 function matchTableJump(insns: readonly Insn[], cursor: number, rom: Rom): JumpTableMatch | undefined {
   const jump = insns[cursor];
-  if (jump === undefined) return undefined;
+  const found = tableBase(insns, cursor, rom);
+  if (jump === undefined || found === undefined) return undefined;
+  const { base, load } = found;
   const pc = jump.addr;
-  let base: Addr | undefined;
-  let load: Addr | undefined;
-  for (let i = cursor - 1; i >= Math.max(0, cursor + 1 - TABLE_JUMP.lookBehindInsns); i--) {
-    const insn = insns[i];
-    if (insn === undefined || insn.flow.kind !== 'pool-load' || !contains(rom, insn.flow.pool, 4)) continue;
-    const v = u32(rom, insn.flow.pool);
-    if (contains(rom, v) && (v & 3) === 0 && v - pc > 0 && v - pc < TABLE_JUMP.maxBaseDistance) {
-      base = v;
-      load = insn.addr;
-      break;
-    }
-  }
-  if (base === undefined || load === undefined) return undefined;
   const targets: Addr[] = [];
   let lowest: Addr | undefined;
   while (targets.length < TABLE_JUMP.maxEntries) {

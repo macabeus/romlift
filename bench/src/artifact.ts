@@ -6,9 +6,10 @@ import { compareCodeUnits, isMissReason, isOrigin } from 'romlift';
 import { parseCorpusSummary, type CorpusSummary } from 'romlift/internal';
 
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
+import { parseParityEvidence, type ParityEvidence } from './parity-evidence.ts';
 import type { BaselineRows, BenchRow, ExtentRow, FalseRow, MissRow, RowDiff, StaleException } from './row.ts';
 import { assertCountsOnly, type SealedCounts } from './seal.ts';
-import { isExceptionCategory, type ExceptionCategory } from './vocabulary.ts';
+import { isArtifactCategory, type ArtifactCategory } from './vocabulary.ts';
 
 export interface RomInputs {
   readonly sha1: string;
@@ -58,7 +59,7 @@ export interface Results {
   /** The sealed held-out ROMs, counts and verdicts only. */
   readonly sealed?: readonly SealedEntry[];
   /** The PoC-parity evidence (milestone M1, g2.poc-parity), kept as written once the run cannot recompute it. */
-  readonly parity?: Readonly<Record<string, unknown>>;
+  readonly parity?: ParityEvidence;
 }
 
 function fail(where: string, what: string): never {
@@ -91,10 +92,10 @@ function list<T>(value: unknown, at: string, item: (v: unknown, at: string) => T
   return value.map((v, i) => item(v, `${at}[${i}]`));
 }
 
-function category(r: Readonly<Record<string, unknown>>, at: string): { readonly category?: ExceptionCategory } {
+function category(r: Readonly<Record<string, unknown>>, at: string): { readonly category?: ArtifactCategory } {
   if (r['category'] === undefined) return {};
   const id = str(r['category'], `${at}.category`);
-  if (!isExceptionCategory(id)) fail(`${at}.category`, `'${id}' is not an exception category`);
+  if (!isArtifactCategory(id)) fail(`${at}.category`, `'${id}' is not an exception category`);
   return { category: id };
 }
 
@@ -142,12 +143,14 @@ function baselineRows(value: unknown, at: string): BaselineRows {
 }
 
 /** The optional phase-2 fields of a romlift row; a PoC-sourced row has none. */
-function romliftFields(r: Readonly<Record<string, unknown>>, at: string): Partial<Pick<BenchRow, 'analysisDigest' | 'poc' | 'staleExceptions' | 'baselineRows'>> {
+function romliftFields(r: Readonly<Record<string, unknown>>, at: string): Partial<Pick<BenchRow, 'analysisDigest' | 'poc' | 'staleExceptions' | 'baselineRows' | 'parity'>> {
+  const parity = r['parity'] === undefined ? undefined : rec(r['parity'], `${at}.parity`);
   return {
     ...(r['analysisDigest'] === undefined ? {} : { analysisDigest: str(r['analysisDigest'], `${at}.analysisDigest`) }),
     ...(r['poc'] === undefined ? {} : { poc: { tp: num(rec(r['poc'], `${at}.poc`)['tp'], `${at}.poc.tp`) } }),
     ...(r['staleExceptions'] === undefined ? {} : { staleExceptions: list(r['staleExceptions'], `${at}.staleExceptions`, staleRow) }),
     ...(r['baselineRows'] === undefined ? {} : { baselineRows: baselineRows(r['baselineRows'], `${at}.baselineRows`) }),
+    ...(parity === undefined ? {} : { parity: { digest: str(parity['digest'], `${at}.parity.digest`), expected: str(parity['expected'], `${at}.parity.expected`) } }),
   };
 }
 
@@ -260,8 +263,7 @@ export function parseResults(value: unknown, where: string): Results {
   const roms = value['roms'];
   if (!Array.isArray(roms)) fail(where, 'roms must be an array');
   const source = meta['source'] === 'romlift' ? 'romlift' : 'poc';
-  const parity = value['parity'];
-  if (parity !== undefined && !isRecord(parity)) fail(where, 'parity must be an object');
+  const parity = value['parity'] === undefined ? undefined : parseParityEvidence(value['parity'], `${where}: parity`);
   return {
     meta: {
       commit: typeof meta['commit'] === 'string' ? meta['commit'] : null,
