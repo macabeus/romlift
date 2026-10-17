@@ -1,7 +1,8 @@
 // g2.rule-registry (architecture §4.1, §13, D7): every analysis rule has complete metadata (summary,
 // restsOn, recovers, reads, adds, and origin for seed and gap rules) whose id is its registry key; every
 // rule sits in exactly one pipeline slot of every shipped profile; every pipeline id has an
-// implementation; and every rule has a unit test file test/unit/analysis/<family>/<name>[.*].test.ts.
+// implementation; and every rule has a unit test file test/unit/analysis/rules/<family>/<name>[.*].test.ts (the
+// test tree mirrors src/core/analysis/rules, D59).
 //
 // Expected exports, for the phase-2 lead to align: `RULES` (romlift/internal; the concatenated family
 // records of core/analysis/rules/index.ts, keyed by rule id, re-exported through the driver because only
@@ -110,9 +111,9 @@ gate({
     for (const id of ids) {
       const family = id.split('.')[0] ?? '';
       const name = id.slice(family.length + 1);
-      const files = await testFiles(path.join(cx.repoRoot, 'test', 'unit', 'analysis', family));
+      const files = await testFiles(path.join(cx.repoRoot, 'test', 'unit', 'analysis', 'rules', family));
       if (!files.some((file) => file === `${name}.test.ts` || (file.startsWith(`${name}.`) && file.endsWith('.test.ts')))) {
-        problems.push(`${id}: no unit test test/unit/analysis/${family}/${name}.test.ts`);
+        problems.push(`${id}: no unit test test/unit/analysis/rules/${family}/${name}.test.ts`);
       }
     }
 
