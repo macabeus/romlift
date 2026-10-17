@@ -3,7 +3,7 @@
 import type { Addr, Mode } from '../../../foundation/rom/span.ts';
 import { sortedEntries, sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
-import { LIMITS, settleLimit } from '../limits.ts';
+import { LIMITS, settleLimit, walkLimit } from '../limits.ts';
 import { withVerdicts } from '../reading.ts';
 import type { BlSite, BlVerdict, BlVerdictRecord, Reading, WalkDecision } from '../types.ts';
 import { walkArm } from '../walk/arm.ts';
@@ -26,6 +26,7 @@ export function peek(s: DriverState, entry: Addr, mode: Mode): Reading | undefin
 /** The PoC's analyzeArm(entry): a fresh walk. */
 export function analyzeArm(s: DriverState, entry: Addr): Reading {
   const r = walkArm(s.walkEnv, entry);
+  limited(s, r);
   s.lastArm.set(entry, r);
   return r;
 }
@@ -122,7 +123,15 @@ function settleNow(s: DriverState, entry: Addr): Reading {
   const final = withVerdicts(r, { far: sortedKeys(far), noret: sortedKeys(noret), blVerdicts: sortedEntries(verdicts).map(([, v]) => v), steps });
   s.settled.set(entry, final);
   if (s.reuse !== undefined) endReading(s.reuse, entry);
+  limited(s, final);
   return final;
+}
+
+/** W_WALK_LIMIT, once per entry, for a reading whose walk reached LIMITS.walkInsns. */
+function limited(s: DriverState, r: Reading): void {
+  const at = r.errors.find((e) => e.reason === 'walk-limit')?.at;
+  if (at === undefined) return;
+  if (!s.diagnostics.some((d) => d.code === 'W_WALK_LIMIT' && d.addr === r.entry)) s.diagnostics.push(walkLimit(r.entry, r.mode, at));
 }
 
 /** 'epoch-reuse': the reading carried over an epoch boundary, when every fact it read still holds. */

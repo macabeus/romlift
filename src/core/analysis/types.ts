@@ -207,9 +207,9 @@ export interface PoolWord {
   readonly value: number;
 }
 
-/** Why a walk path stopped as not code (the PoC's error kinds). */
+/** Why a walk path stopped as not code (the PoC's error kinds; 'zero-run' and 'walk-limit': LIMITS.zeroRun and LIMITS.walkInsns). */
 export interface ReadingError {
-  readonly reason: 'out-of-rom' | 'not-code' | 'bl-out-of-rom' | 'pool-out-of-rom';
+  readonly reason: 'out-of-rom' | 'not-code' | 'bl-out-of-rom' | 'pool-out-of-rom' | 'zero-run' | 'walk-limit';
   readonly at: Addr;
 }
 

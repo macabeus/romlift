@@ -11,6 +11,10 @@ export const AnalysisCodes = defineCodes({
     severity: 'warning',
     meaning: 'a grow or gap pass did not reach its fixpoint within the round limit; what was accepted is returned',
   },
+  W_WALK_LIMIT: {
+    severity: 'warning',
+    meaning: 'a walk recorded more instructions than the walk limit; it stops with a decode error, so its entry is not a function',
+  },
   W_CANDIDATE_BUDGET: {
     severity: 'warning',
     meaning: 'one grow round proposed more candidates than the candidate budget',

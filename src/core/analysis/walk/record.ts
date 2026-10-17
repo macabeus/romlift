@@ -2,6 +2,7 @@
 import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
 import type { BlSite } from '../../profile/types.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
+import { LIMITS } from '../limits.ts';
 import { codeEndOf, makeReading } from '../reading.ts';
 import type {
   CallSite,
@@ -56,6 +57,21 @@ export class WalkRecord {
   /** Records a walk-slot answer the walk applies at `at` (only when traced). */
   step(at: Addr, rule: RuleId, step: WalkStep): void {
     if (this.trace) this.steps.push({ at, rule, step: step.step });
+  }
+
+  /**
+   * Whether the walk stops at `at`: a 'zero-run' error when the current path has run over more than
+   * LIMITS.zeroRun consecutive zero instructions (the path ends), a 'walk-limit' error when the walk has
+   * recorded LIMITS.walkInsns instructions (the walk ends).
+   */
+  limited(at: Addr, zeros: number): 'path' | 'walk' | undefined {
+    if (zeros > LIMITS.zeroRun) {
+      this.errors.push({ reason: 'zero-run', at });
+      return 'path';
+    }
+    if (this.order.length < LIMITS.walkInsns) return undefined;
+    this.errors.push({ reason: 'walk-limit', at });
+    return 'walk';
   }
 
   /** Records an instruction. */

@@ -187,6 +187,7 @@ export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, nor
   const cursor = walkCursor(view, entry, 'thumb', (a) => rec.insns.has(a), () => runs.current, (a) => decodeThumbAt(env, a));
   for (let item = work.pop(); item !== undefined; item = work.pop()) {
     let [pc, sp] = item;
+    let zeros = 0;
     const path: Path = { rec, env, run: [], work, cursor };
     runs.current = path.run;
     while (!rec.insns.has(pc)) {
@@ -201,6 +202,12 @@ export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, nor
       const spec = row.spec;
       if (pool || spec.flow === 'invalid') {
         stopAt(path, pc, sp, pool ? 'pool' : 'invalid');
+        break;
+      }
+      zeros = (word & 0xffff) === 0 ? zeros + 1 : 0;
+      const limit = rec.limited(pc, zeros);
+      if (limit !== undefined) {
+        if (limit === 'walk') work.length = 0;
         break;
       }
       rec.insn(pc, spec.size);

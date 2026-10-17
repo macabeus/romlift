@@ -42,6 +42,7 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
   const cursor = walkCursor(view, entry, 'arm', (a) => rec.insns.has(a), () => runs.current, (a) => decodeArmAt(env, a));
   for (let next = work.pop(); next !== undefined; next = work.pop()) {
     let pc = next;
+    let zeros = 0;
     const run: Addr[] = [];
     runs.current = run;
     while (!rec.insns.has(pc)) {
@@ -51,6 +52,12 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
         break;
       }
       const word = u32(rom, pc);
+      zeros = word === 0 ? zeros + 1 : 0;
+      const limit = rec.limited(pc, zeros);
+      if (limit !== undefined) {
+        if (limit === 'walk') work.length = 0;
+        break;
+      }
       if (rowFor('arm', word).spec.flow === 'next') {
         // The row's Flow is next: nothing to ask or record.
         rec.insn(pc, 4);
