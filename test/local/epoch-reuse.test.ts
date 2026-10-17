@@ -1,6 +1,6 @@
 // Milestone M2 step (c) (architecture §4.2, D13): the internal 'epoch-reuse' cache carries a Thumb reading
 // across an epoch boundary only when every fact it read is unchanged, so on each tuning ROM its analysis
-// digest equals the 'epoch' one, under both worklists. A missing ROM makes the ROM's test `unavailable`,
+// digest equals the 'epoch' one (it also held under the PoC's LIFO worklist until 'poc-lifo' was deleted). A missing ROM makes the ROM's test `unavailable`,
 // or fails it when ROMLIFT_REQUIRE_LOCAL=1.
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -33,11 +33,9 @@ for (const rom of TUNING) {
     const sha1 = sha1Of(bytes);
     assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
     const r = romFromBytes(bytes, sha1);
-    for (const worklist of ['poc-lifo', 'ascending'] as const) {
-      const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(r, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { worklist, cache, disabled: [] }));
-      const epoch = run('epoch');
-      t.diagnostic(`${rom} ${worklist}: ${epoch}`);
-      assert.equal(run('epoch-reuse'), epoch, `${rom} (${worklist})`);
-    }
+    const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(r, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { worklist: 'ascending', cache, disabled: [] }));
+    const epoch = run('epoch');
+    t.diagnostic(`${rom}: ${epoch}`);
+    assert.equal(run('epoch-reuse'), epoch, rom);
   });
 }

@@ -1,6 +1,6 @@
 // Acceptance (the PoC's accept() and claim()): an accepted entry is read, recorded, claimed, and its
 // callees, veneers and ARM adr targets are queued through the queue slot onto the worklist, which pops
-// LIFO ('poc-lifo') or ascending. Callees of an accepted function are trusted: they are accepted
+// ascending (or in the order of a lockstep oracle's log). Callees of an accepted function are trusted: they are accepted
 // without validity, as in the PoC.
 import { contains } from '../../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../../foundation/rom/span.ts';
@@ -15,7 +15,7 @@ import { analyzeArm, settle } from './settle.ts';
 import { also, emit, factOf, markEntry } from './view.ts';
 import type { DriverState } from './view.ts';
 import { touch } from './reuse.ts';
-import { ascending, pocLifo } from './worklist.ts';
+import { ascending } from './worklist.ts';
 
 /** The origin a proposing rule gives what it proposes (its meta.origin). */
 export function originOf(s: DriverState, rule: RuleId): Origin {
@@ -79,7 +79,7 @@ function take(s: DriverState, c: Candidate, r: Reading, note?: string): readonly
  * functions were added (0 when `first` was already a function, or, in confirm mode, is not listed).
  */
 export function accept(s: DriverState, first: Candidate, note?: string): number {
-  const work = s.tuning.worklist === 'ascending' ? ascending(s.rules.rank, () => (s.seq += 1)) : pocLifo();
+  const work = s.tuning.oracle?.worklist() ?? ascending(s.rules.rank, () => (s.seq += 1));
   enqueue(s, work, first);
   let added = 0;
   for (let c = work.pop(); c !== undefined; c = work.pop()) {

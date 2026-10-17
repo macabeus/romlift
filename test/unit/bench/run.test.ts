@@ -14,7 +14,7 @@ import { provenanceChecks, provenanceInputs } from '../../../bench/src/provenanc
 import { cpuProfPath, topSelfTime } from '../../../bench/src/cpu-prof.ts';
 import { benchRun } from '../../../bench/src/run.ts';
 import { resultParityDigest } from '../../../bench/src/parity.ts';
-import { LOCKSTEP_SETS } from '../../../bench/src/parity-evidence.ts';
+import { LOCKSTEP_SETS, PARITY_EVIDENCE_SCHEMA } from '../../../bench/src/parity-evidence.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import { assertCountsOnly } from '../../../bench/src/seal.ts';
 import { failingRunner, withTempDir } from './fixtures.ts';
@@ -89,7 +89,7 @@ test('--json prints the frozen bench-run line, writes no results.json, and passe
     const calls: { trail: string; disabled: readonly string[] }[] = [];
     const deps = tinyDeps(tinyResult(), { onAnalyze: (c) => calls.push(c) });
     const io = capture();
-    assert.equal(await main(['run', '--json', '--worklist', 'ascending', '--disable', 'valid.dense', '--disable', 'bl.near-is-call,gap.arm-scan'], cx, io, deps), 0);
+    assert.equal(await main(['run', '--json', '--disable', 'valid.dense', '--disable', 'bl.near-is-call,gap.arm-scan'], cx, io, deps), 0);
     const line = JSON.parse(io.lines.at(-1) ?? '') as Record<string, unknown>;
     assert.deepEqual(Object.keys(line), ['schema', 'roms', 'sealed', 'failed']);
     assert.equal(line['schema'], 'romlift/bench-run@1');
@@ -100,7 +100,7 @@ test('--json prints the frozen bench-run line, writes no results.json, and passe
     assert.ok((await readFile(join(cx.repoRoot, 'bench', 'timings.json'), 'utf8')).includes('generatedAt'));
     // The tuning is refused where it would reach the committed artifact, and a bad value is a usage error.
     assert.equal(await main(['run', '--disable', 'valid.dense'], cx, capture(), deps), 1);
-    assert.equal(await main(['run', '--json', '--worklist', 'lifo'], cx, capture(), deps), 2);
+    assert.equal(await main(['run', '--json', '--worklist', 'poc-lifo'], cx, capture(), deps), 2, "'poc-lifo' is deleted");
     assert.equal(await main(['run', '--json', '--disable', 'not-a-rule'], cx, capture(), deps), 2);
     assert.equal(await main(['run', '--json', '--disable'], cx, capture(), deps), 2);
   });
@@ -186,41 +186,25 @@ test('--reveal appends to the revealed log, prints the rows, and writes no rows 
   });
 });
 
-/** A lockstep that follows the log on every set and ends at `digest`. */
-function followingLockstep(digest: string): NonNullable<Parameters<typeof benchRun>[1]['lockstep']> {
-  return async () => ({
-    sets: LOCKSTEP_SETS.map((s) => ({ set: s.name, real: [...s.real], queries: 4, matched: 3, answered: 1, compared: 2, markers: 1, skipped: 1, recalled: 0, parityDigest: digest, divergence: null })),
-  });
-}
-
-test('a parity run records the evidence; later runs keep it; --only and a disabled rule are refused', async () => {
+test('a written artifact keeps the PoC-parity evidence an earlier run recorded', async () => {
   await withTempDir('romlift-run-parity-', async (root) => {
     const cx = await syntheticTier(root);
+    await benchRun(cx, { runner: RUNNER });
+    const path = join(cx.repoRoot, 'bench', 'results.json');
+    const value = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
     const digest = resultParityDigest(tinyResult());
-    await writeFile(join(cx.repoRoot, 'bench', 'baseline', 'poc-digests.json'), JSON.stringify({ schema: 'romlift-bench/poc-digests@1', pocSourceDigest: pocSourceDigest({}), roms: { tiny: digest } }));
-    const lifo = { worklist: 'poc-lifo' as const, disabled: [] };
-    // Under a non-default worklist the parity run writes only the parity member of an existing artifact.
-    await assert.rejects(benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, lockstep: followingLockstep(digest) }), /bench\/results.json must exist/);
-    const before = await benchRun(cx, { runner: RUNNER });
-    const first = await benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, lockstep: followingLockstep(digest) });
-    assert.deepEqual(first.parityProblems, []);
-    assert.deepEqual(first.results?.roms, before.results?.roms, 'the rows of the default run are kept');
-    const evidence = first.results?.parity;
-    assert.equal(evidence?.worklist, 'poc-lifo');
-    assert.deepEqual(evidence?.roms['tiny']?.lockstep.map((s) => s.set), LOCKSTEP_SETS.map((s) => s.name));
-    assert.equal(evidence?.roms['tiny']?.digest, digest);
-    assert.deepEqual(first.report.roms[0]?.parity, { digest, expected: digest });
-    // A default run keeps the evidence as written.
+    const evidence = {
+      schema: PARITY_EVIDENCE_SCHEMA,
+      commit: 'c'.repeat(40),
+      dirty: false,
+      worklist: 'poc-lifo',
+      pocSourceDigest: pocSourceDigest({}),
+      roms: { tiny: { digest, expected: digest, rowDiffs: 0, lockstep: LOCKSTEP_SETS.map((s) => ({ set: s.name, real: [...s.real], queries: 4, matched: 3, answered: 1, compared: 2, markers: 1, skipped: 1, recalled: 0, parityDigest: digest, divergence: null })) } },
+    };
+    await writeFile(path, JSON.stringify({ ...value, parity: evidence }));
     const { results } = await benchRun(cx, { runner: RUNNER });
     assert.deepEqual(results?.parity, evidence);
-    // A diverging lockstep is recorded and reported.
-    const diverging: NonNullable<Parameters<typeof benchRun>[1]['lockstep']> = async () => ({
-      sets: LOCKSTEP_SETS.map((s) => ({ set: s.name, real: [...s.real], queries: 4, matched: 1, answered: 0, compared: 1, markers: 1, skipped: 0, recalled: 0, parityDigest: null, divergence: { seq: 2, kind: 'answer', epoch: 1, method: 'valid', detail: 'ours true, the PoC false' } })),
-    });
-    const bad = await benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, lockstep: diverging });
-    assert.match(bad.parityProblems?.[0] ?? '', /^tiny: lockstep driver diverges at seq 2 \(answer\)/);
-    await assert.rejects(benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, only: 'tiny', lockstep: diverging }), /drop --only/);
-    await assert.rejects(benchRun(cx, { runner: RUNNER, tuning: { worklist: 'poc-lifo', disabled: ['valid.dense'] }, parityEvidence: true }), /only under --worklist poc-lifo with nothing disabled/);
+    assert.deepEqual(results?.roms[0]?.parity, { digest, expected: '' });
   });
 });
 

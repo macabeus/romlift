@@ -180,8 +180,8 @@ export interface AnalysisOptionsRecord {
 
 /** Internal (romlift/internal, outside semver, D37). */
 export interface AnalysisTuning {
-  /** 'poc-lifo' exists only until phase 2 lands (D10). */
-  readonly worklist: 'poc-lifo' | 'ascending';
+  /** The ascending worklist (D10); the PoC's 'poc-lifo' was deleted when phase 2 landed. */
+  readonly worklist: 'ascending';
   /** §4.2, D13 */
   readonly cache: 'epoch' | 'epoch-reuse';
   /** `analyze --disable`, `bench ablate`: these rules are skipped. */

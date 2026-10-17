@@ -8,7 +8,7 @@ import { isRuleId, type RuleId } from 'romlift';
 
 import { ablate, isAblatable } from './ablate.ts';
 import { benchAdopt } from './adopt.ts';
-import { benchProfile, DEFAULT_RUN_TUNING, ROMLIFT_RUNNER, type AnalysisRunner, type RunTuning } from './analysis-run.ts';
+import { benchProfile, ROMLIFT_RUNNER, type AnalysisRunner, type RunTuning } from './analysis-run.ts';
 import { parseArgs, UsageError, type ArgSpec, type BenchArgs } from './args.ts';
 import { readResultsFile } from './artifact.ts';
 import { contextFromEnv, gatesDir, resultsPath, type BenchContext } from './context.ts';
@@ -77,16 +77,14 @@ export function takeRepeated(argv: readonly string[], names: readonly string[]):
   return { rest, values };
 }
 
-/** The tuning of `--worklist` and `--disable`. */
-function runTuning(args: BenchArgs, disabled: readonly string[]): RunTuning {
-  const worklist = args.options['worklist'] ?? DEFAULT_RUN_TUNING.worklist;
-  if (worklist !== 'poc-lifo' && worklist !== 'ascending') throw new UsageError('--worklist must be poc-lifo or ascending');
+/** The tuning of `--disable`. */
+function runTuning(disabled: readonly string[]): RunTuning {
   const rules: RuleId[] = [];
   for (const id of disabled) {
     if (!isRuleId(id)) throw new UsageError(`--disable ${id} is not a rule id`);
     rules.push(id);
   }
-  return { worklist, disabled: rules };
+  return { disabled: rules };
 }
 
 function printRunReport(io: BenchIo, report: BenchRunReport, asJson: boolean): void {
@@ -97,13 +95,13 @@ function printRunReport(io: BenchIo, report: BenchRunReport, asJson: boolean): v
 export const COMMANDS: Readonly<Record<string, Command>> = {
   run: {
     summary:
-      'run [--only <rom>] [--json] [--worklist poc-lifo|ascending] [--disable <rule>...] [--cpu-prof] [--reveal <rom> --reason <text>]  ' +
-      "score romlift's discover run of every dataset; write bench/results.json (lead only, without --json; --worklist poc-lifo records the parity evidence) and bench/timings.json",
-    args: { options: ['only', 'worklist', 'reveal', 'reason'], flags: ['json', 'cpu-prof'] },
+      'run [--only <rom>] [--json] [--disable <rule>...] [--cpu-prof] [--reveal <rom> --reason <text>]  ' +
+      "score romlift's discover run of every dataset; write bench/results.json (lead only, without --json) and bench/timings.json",
+    args: { options: ['only', 'reveal', 'reason'], flags: ['json', 'cpu-prof'] },
     repeated: ['disable'],
     async run(cx, args, io, deps, repeated) {
       const asJson = args.flags.has('json');
-      const tuning = runTuning(args, repeated['disable'] ?? []);
+      const tuning = runTuning(repeated['disable'] ?? []);
       const reveal = args.options['reveal'];
       const reason = args.options['reason'];
       if (reason !== undefined && reveal === undefined) throw new UsageError('--reason goes with --reveal <rom>');
@@ -122,20 +120,17 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
         json: asJson,
         tuning,
         cpuProf: args.flags.has('cpu-prof'),
-        parityEvidence: !asJson && args.options['worklist'] === 'poc-lifo',
         runner: deps.runner,
         log: io.out,
       });
       printRunReport(io, outcome.report, asJson);
-      for (const p of outcome.parityProblems ?? []) io.err(`parity: ${p}`);
-      if (outcome.parityProblems !== undefined && outcome.parityProblems.length === 0) io.out('the parity evidence proves PoC parity on every tuning ROM');
       const r = outcome.results;
       if (r !== undefined) {
         io.out(
           `wrote bench/results.json (${r.roms.length} rows, ${r.sealed?.length ?? 0} sealed, commit ${r.meta.commit ?? 'none'}${r.meta.dirty ? ', dirty' : ''}; gate record ${outcome.gatesKept ? 'kept' : 'cleared'})`,
         );
       }
-      return outcome.report.failed.length === 0 && (outcome.parityProblems ?? []).length === 0 ? 0 : 1;
+      return outcome.report.failed.length === 0 ? 0 : 1;
     },
   },
   speed: {

@@ -1,5 +1,5 @@
-// seed -> accept -> queue callees, the LIFO and ascending worklists, claims, and the end-to-end run of
-// analyze's driver on a fake registry.
+// seed -> accept -> queue callees, the ascending worklist (and a lockstep oracle's own order), claims,
+// and the end-to-end run of analyze's driver on a fake registry.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
@@ -13,6 +13,7 @@ import type { AnalysisOptions, AnalysisTuning } from '../../../../src/core/analy
 import { BASE, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { armAt } from '../../../helpers/arm.ts';
 import { calls, extent, romEntry } from './fakes.ts';
+import { lifo, recorder } from './recorder.ts';
 
 const INIT = 0x0800_00c0;
 const OPTIONS: AnalysisOptions = { mode: 'discover', seeds: [], overrides: [], trail: 'full' };
@@ -40,7 +41,7 @@ function run(tuning: Partial<AnalysisTuning> = {}): { result: ReturnType<typeof 
 
 const hex = (a: number): string => `0x${a.toString(16)}`;
 
-test('the seeds are accepted, then everything their readings call, LIFO as the PoC', () => {
+test('the seeds are accepted, then everything their readings call, least address first', () => {
   const { result, events } = run();
   assert.deepEqual(result.functions.map((f) => [hex(f.entry), f.mode, f.origin]), [
     ['0x8000000', 'arm', 'rom-entry'],
@@ -49,14 +50,14 @@ test('the seeds are accepted, then everything their readings call, LIFO as the P
     ['0x8000140', 'arm', 'call'],
   ]);
   const accepted = events.filter((e) => e.kind === 'accept').map((e) => hex(e.at));
-  assert.deepEqual(accepted, ['0x8000000', '0x8000140', '0x8000100', '0x80000c0'], 'the entry branch walks into init: its callees pop last-pushed first');
+  assert.deepEqual(accepted, ['0x8000000', '0x8000100', '0x8000140', '0x80000c0'], "the entry branch walks into init: its callees pop by the ascending key");
   assert.equal(result.functions[0]?.accepted.rule, 'seed.rom-entry');
   assert.equal(result.mode, 'discover');
 });
 
-test("'ascending' pops the least address first", () => {
-  const { events } = run({ worklist: 'ascending' });
-  assert.deepEqual(events.filter((e) => e.kind === 'accept').map((e) => hex(e.at)), ['0x8000000', '0x8000100', '0x8000140', '0x80000c0']);
+test("a lockstep oracle's worklist replaces the ascending one: the PoC's LIFO pops last-pushed first", () => {
+  const { events } = run({ oracle: { ...recorder(), worklist: lifo } });
+  assert.deepEqual(events.filter((e) => e.kind === 'accept').map((e) => hex(e.at)), ['0x8000000', '0x8000140', '0x8000100', '0x80000c0']);
 });
 
 test('claims: instruction bytes are code, runs split at extents with the innermost owner', () => {

@@ -1,6 +1,6 @@
 // romlift's own seedless discover run of one dataset (architecture §8.2–8.4, D24, D50): the ROM and the
 // ELF are read and refused when their digests differ from the dataset; the analysis runs with the
-// bench's tuning (worklist, epoch cache, disabled rules) and its CPU time is measured; then
+// bench's tuning (the ascending worklist, the epoch cache, disabled rules) and its CPU time is measured; then
 // diagnoseMisses re-runs it and diagnoses every ELF function the first run missed, and the canonical
 // digests of the two results say whether the analysis is deterministic. The analysis is reached through
 // an AnalysisRunner so the bench tests run it on hand-built results; ROMLIFT_RUNNER is the real one.
@@ -75,21 +75,20 @@ export function benchProfile(): CompilerProfile {
   return profile;
 }
 
-/** The tuning knobs the bench exposes (`--worklist`, `--disable`); the cache is always 'epoch'. */
+/** The tuning knob the bench exposes (`--disable`); the worklist is analyze's, the cache always 'epoch'. */
 export interface RunTuning {
-  readonly worklist: AnalysisTuning['worklist'];
   readonly disabled: readonly RuleId[];
 }
 
-/** analyze's own tuning: its worklist, nothing disabled. */
-export const DEFAULT_RUN_TUNING: RunTuning = { worklist: DEFAULT_TUNING.worklist, disabled: [] };
+/** analyze's own tuning: nothing disabled. */
+export const DEFAULT_RUN_TUNING: RunTuning = { disabled: [] };
 
 export function isDefaultTuning(t: RunTuning): boolean {
-  return t.worklist === DEFAULT_RUN_TUNING.worklist && t.disabled.length === 0;
+  return t.disabled.length === 0;
 }
 
 export function analysisTuning(t: RunTuning): AnalysisTuning {
-  return { worklist: t.worklist, cache: 'epoch', disabled: [...t.disabled] };
+  return { worklist: DEFAULT_TUNING.worklist, cache: 'epoch', disabled: [...t.disabled] };
 }
 
 /** The seedless discover run the bench scores (D24): no TOML, signature or evidence seeds. */

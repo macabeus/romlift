@@ -1,91 +1,57 @@
-// The lockstep gate of the driver (roadmap 2.A, architecture §4.5, D48): with every rule family answered
-// by the PoC's log, romlift's driver alone makes the PoC's calls in the PoC's order on each tuning ROM:
-// no divergence in the queries, the claim markers (the acceptance and absorb sequence) or the epoch
-// boundaries, every logged record matched or skipped as nested, and the parity digest of the run equal
-// to the committed one (bench/baseline/poc-digests.json). The log comes from
-// `npm run export-poc -- --mode queries`. A missing ROM, PoC checkout or dump makes a ROM's test
-// `unavailable` (naming the input), or fails it when ROMLIFT_REQUIRE_LOCAL=1.
-//
-// test/local imports romlift only through its entry points (architecture §2), so the bench's lockstep
-// module is loaded by a non-literal dynamic import and typed by the surface below.
+// The lockstep gate of the driver (roadmap 2.A, architecture §4.5, D48), as committed evidence: before
+// 'poc-lifo' was deleted, the lead's parity run recorded, per tuning ROM, the lockstep of five family sets
+// against the PoC's log (`export-poc --mode queries`) in the `parity` member of bench/results.json: the
+// driver alone with every family answered, each wave-1 component's families computed with the rest
+// answered, and every family computed. Each followed the log with no divergence, matched or skipped
+// every record, and ended at the committed PoC digest. The lockstep is not repeated (its order is the
+// PoC's LIFO, which only a lockstep oracle still supplies); this checks what it recorded.
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
-const BENCH_ENV = process.env['ROMLIFT_BENCH_ROOT'];
-const BENCH_ROOT = BENCH_ENV ? path.resolve(REPO, BENCH_ENV) : path.dirname(REPO);
-const POC_ENV = process.env['ROMLIFT_POC'];
-const POC = POC_ENV ? path.resolve(REPO, POC_ENV) : path.join(BENCH_ROOT, 'romlift-poc');
-const REQUIRE = process.env['ROMLIFT_REQUIRE_LOCAL'] === '1';
 const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-interface Divergence {
-  readonly kind: string;
-  readonly seq: number;
-  readonly epoch: number;
-  readonly method: string;
-  readonly args: readonly unknown[];
-  readonly detail: string;
-  readonly path: readonly unknown[];
-}
-
-interface RomLockstep {
+interface LockstepSummary {
+  readonly set: string;
+  readonly real: readonly string[];
   readonly queries: number;
   readonly matched: number;
   readonly answered: number;
   readonly compared: number;
   readonly markers: number;
   readonly skipped: number;
-  readonly recalled: number;
-  readonly divergence?: Divergence;
-  readonly parityDigest?: string;
-  readonly expectedDigest: string;
-  readonly functions?: number;
+  readonly parityDigest: string | null;
+  readonly divergence: { readonly seq: number; readonly kind: string; readonly detail: string } | null;
 }
 
-interface LockstepModule {
-  readonly ANALYSIS_FAMILIES: readonly string[];
-  lockstep(cx: { readonly repoRoot: string; readonly benchRoot: string; readonly pocRoot: string }, rom: string, families: readonly string[]): Promise<RomLockstep>;
+interface EvidenceModule {
+  readonly LOCKSTEP_SETS: ReadonlyArray<{ readonly name: string; readonly real: readonly string[] }>;
+  parseParityEvidence(value: unknown, where: string): { readonly roms: Readonly<Record<string, { readonly expected: string; readonly lockstep: readonly LockstepSummary[] }>> };
 }
 
-async function benchModule(file: string): Promise<LockstepModule> {
-  const module: unknown = await import(pathToFileURL(path.join(REPO, 'bench', 'src', file)).href);
-  return module as LockstepModule;
-}
+const digests = JSON.parse(readFileSync(path.join(REPO, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as { readonly roms: Readonly<Record<string, string>> };
+const results = JSON.parse(readFileSync(path.join(REPO, 'bench', 'results.json'), 'utf8')) as { readonly parity?: unknown };
 
-/** The tuning ROMs the committed digests cover. */
-function tuningRoms(): readonly string[] {
-  const digests = JSON.parse(readFileSync(path.join(REPO, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as { readonly roms: Readonly<Record<string, string>> };
-  return Object.keys(digests.roms).sort(byCodeUnit);
-}
-
-/** The first missing input of a ROM's lockstep, or undefined. */
-function missingInput(rom: string): string | undefined {
-  const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${rom}.json`), 'utf8')) as { readonly rom: string };
-  const romPath = path.join(BENCH_ROOT, dataset.rom);
-  if (!existsSync(romPath)) return `rom ${romPath}`;
-  if (!existsSync(path.join(POC, 'src', 'analysis.ts'))) return `poc ${POC}`;
-  for (const file of ['queries.ndjson', 'readings.ndjson']) {
-    const dump = path.join(REPO, 'bench', '.local', 'poc', rom, file);
-    if (!existsSync(dump)) return `dump ${dump} (npm run export-poc -- --mode queries)`;
-  }
-  return undefined;
-}
-
-for (const rom of tuningRoms()) {
-  const missing = missingInput(rom);
-  test(`lockstep with every family answered: ${rom}`, { skip: missing !== undefined && !REQUIRE ? `unavailable: ${missing}` : false }, async (t) => {
-    assert.equal(missing, undefined, `unavailable: ${missing ?? ''}`);
-    const { lockstep, ANALYSIS_FAMILIES } = await benchModule('lockstep.ts');
-    const r = await lockstep({ repoRoot: REPO, benchRoot: BENCH_ROOT, pocRoot: POC }, rom, ANALYSIS_FAMILIES);
-    t.diagnostic(`${rom}: ${r.queries} queries, ${r.matched} matched (${r.markers} markers), ${r.answered} answered, ${r.skipped} skipped, ${r.functions ?? 0} functions, digest ${r.parityDigest ?? 'none'}`);
-    assert.equal(r.divergence, undefined, r.divergence === undefined ? '' : `diverges at seq ${r.divergence.seq} (epoch ${r.divergence.epoch}, ${r.divergence.kind}): ${r.divergence.detail}; parents ${JSON.stringify(r.divergence.path)}`);
-    assert.equal(r.compared, 0, 'every family answered: nothing is computed');
-    assert.ok(r.markers > 0);
-    assert.equal(r.matched + r.skipped, r.queries, 'every record of the log is matched, or skipped as nested under an answered query');
-    assert.equal(r.parityDigest, r.expectedDigest, 'the parity digest equals the PoC digest in bench/baseline/poc-digests.json');
+for (const rom of Object.keys(digests.roms).sort(byCodeUnit)) {
+  test(`the committed lockstep of every family set followed the PoC's log: ${rom}`, async (t) => {
+    const module = (await import(pathToFileURL(path.join(REPO, 'bench', 'src', 'parity-evidence.ts')).href)) as EvidenceModule;
+    const evidence = module.parseParityEvidence(results.parity, 'bench/results.json: parity');
+    const r = evidence.roms[rom];
+    assert.ok(r !== undefined, `${rom} has evidence`);
+    assert.deepEqual(r.lockstep.map((s) => s.set), module.LOCKSTEP_SETS.map((s) => s.name));
+    for (const s of r.lockstep) {
+      t.diagnostic(`${rom} ${s.set}: ${s.queries} records, ${s.matched} matched (${s.markers} markers), ${s.answered} answered, ${s.compared} compared, ${s.skipped} skipped`);
+      assert.equal(s.divergence, null, s.divergence === null ? '' : `${s.set} diverges at seq ${s.divergence.seq} (${s.divergence.kind}): ${s.divergence.detail}`);
+      assert.ok(s.markers > 0);
+      assert.equal(s.matched + s.skipped, s.queries, `${s.set}: every record matched, or skipped as nested under an answered query`);
+      assert.equal(s.parityDigest, digests.roms[rom], `${s.set}: the parity digest equals the PoC digest`);
+    }
+    const driver = r.lockstep.find((s) => s.set === 'driver');
+    assert.equal(driver?.compared, 0, 'the driver alone: every family answered, nothing computed');
+    const all = r.lockstep.find((s) => s.set === 'all');
+    assert.equal(all?.answered, 0, 'every family computed: nothing answered');
   });
 }

@@ -18,7 +18,7 @@
 // through the view (settle, valid) are.
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import type { Family } from '../provenance/rule-id.ts';
-import type { Reading, ValidityFailure } from './types.ts';
+import type { Candidate, Reading, ValidityFailure } from './types.ts';
 
 /** Each PoC method the driver asks about, with its arguments (PoC units) and its answer. */
 export interface OracleQueries {
@@ -74,7 +74,18 @@ export type OracleMarker =
   | { readonly kind: 'claim'; readonly entry: Addr; readonly mode: Mode }
   | { readonly kind: 'forgetCandidates'; readonly epoch: number };
 
+/** A candidate worklist: what accept() pushes and pops. */
+export interface CandidateWorklist {
+  push(c: Candidate): void;
+  pop(): Candidate | undefined;
+}
+
 export interface RuleOracle {
+  /**
+   * The worklist of the run the log records, in place of the ascending one: the k-th query of a run is the
+   * PoC's k-th call only in the PoC's own order (its work.pop()).
+   */
+  worklist(): CandidateWorklist;
   /** The families whose queries ask() answers; their rules need no implementation (the walk family covers bl). */
   readonly answered: readonly Family[];
   /** The logged answer when the query's family is answered; undefined when the driver must compute it. */

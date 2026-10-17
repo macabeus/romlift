@@ -82,7 +82,6 @@ import { loadDatasets, tuningDatasets } from './dataset.ts';
 import { BenchError, exists, readFileBytes, readJson } from './files.ts';
 import { resultParityDigest } from './parity.ts';
 import { parsePocDigests, pocDigestsPath } from './parity-view.ts';
-import { answeredBy, LOCKSTEP_SETS, type EvidenceFamily, type LockstepSummary } from './parity-evidence.ts';
 import { openPocLog, queriesPath, type PocQuery, type PocReading, type ReadingRef, type SettledResult } from './poc-log.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 
@@ -525,6 +524,11 @@ export function logOracle(records: readonly PocQuery[], families: readonly Analy
   };
 
   return {
+    // The PoC's work.pop(): the log was recorded in its order.
+    worklist: () => {
+      const items: Candidate[] = [];
+      return { push: (c) => void items.push(c), pop: () => items.pop() };
+    },
     answered,
     ask<M extends OracleMethod>(query: OracleQuery<M>): OracleAnswer<M> | undefined {
       const q = query as OracleQuery;
@@ -857,7 +861,7 @@ export function runLockstep(rom: Rom, records: readonly PocQuery[], families: re
   if (missing.length > 0) throw new BenchError(`the computed families lack rules: ${missing.join(', ')}`);
   const oracle = logOracle(records, answered, rom);
   const options: AnalysisOptions = { mode: 'discover', seeds: [], overrides: [], trail: 'off' };
-  const tuning: AnalysisTuning = { worklist: 'poc-lifo', cache: 'epoch', disabled: [], oracle };
+  const tuning: AnalysisTuning = { worklist: 'ascending', cache: 'epoch', disabled: [], oracle };
   try {
     const result = runAnalysis(rom, profile, options, tuning, rules);
     const divergence = oracle.finish();
@@ -912,29 +916,4 @@ async function loadLog(cx: BenchContext, name: string): Promise<LoadedLog> {
 export async function lockstep(cx: BenchContext, name: string, families: readonly AnalysisFamily[]): Promise<RomLockstep> {
   const loaded = await loadLog(cx, name);
   return { rom: name, expectedDigest: loaded.expectedDigest, ...runLockstep(loaded.rom, loaded.records, families, loaded.profile) };
-}
-
-/** The recorded summary of one lockstep run of the set `set` that computes `real`. */
-export function lockstepSummary(set: string, real: readonly EvidenceFamily[], r: LockstepResult): LockstepSummary {
-  const d = r.divergence;
-  return {
-    set,
-    real: [...real],
-    queries: r.queries,
-    matched: r.matched,
-    answered: r.answered,
-    compared: r.compared,
-    markers: r.markers,
-    skipped: r.skipped,
-    recalled: r.recalled,
-    parityDigest: r.parityDigest ?? null,
-    divergence: d === undefined ? null : { seq: d.seq, kind: d.kind, epoch: d.epoch, method: d.method, detail: d.detail },
-  };
-}
-
-/** Every family set of LOCKSTEP_SETS on one tuning ROM, its log read once; and the committed digest. */
-export async function lockstepSets(cx: BenchContext, name: string): Promise<{ readonly expectedDigest: string; readonly sets: readonly LockstepSummary[] }> {
-  const loaded = await loadLog(cx, name);
-  const sets = LOCKSTEP_SETS.map((s) => lockstepSummary(s.name, s.real, runLockstep(loaded.rom, loaded.records, answeredBy(s.real), loaded.profile)));
-  return { expectedDigest: loaded.expectedDigest, sets };
 }

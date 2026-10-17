@@ -100,7 +100,7 @@ export function pipelineIds(p: Pipeline): readonly RuleId[] {
 /** Tuning that disables every pipeline id `registry` lacks, plus `extra.disabled`. */
 export function tuningFor(profile: CompilerProfile, registry: RuleRegistry, extra: Partial<AnalysisTuning> = {}): AnalysisTuning {
   const missing = pipelineIds(profile.pipeline).filter((id) => !Object.hasOwn(registry, id));
-  return { worklist: 'poc-lifo', cache: 'epoch', ...extra, disabled: [...missing, ...(extra.disabled ?? [])] };
+  return { worklist: 'ascending', cache: 'epoch', ...extra, disabled: [...missing, ...(extra.disabled ?? [])] };
 }
 
 /** A fake rule: `contract` with complete test metadata. */

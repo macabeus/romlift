@@ -111,7 +111,7 @@ test("a callee's facts and its older stamp pass to the caller; an accepted calle
 
 const digest = (r: AnalysisResult): string => Array.from(canonicalJson(r as unknown as JsonValue)).join('');
 
-test("'epoch-reuse' gives the analysis 'epoch' gives on every synthetic fixture, under both worklists", () => {
+test("'epoch-reuse' gives the analysis 'epoch' gives on every synthetic fixture", () => {
   const profile = profileById('agbcc');
   assert.ok(profile !== undefined);
   const fixtures = listSyntheticFixtures();
@@ -119,9 +119,7 @@ test("'epoch-reuse' gives the analysis 'epoch' gives on every synthetic fixture,
   for (const f of fixtures) {
     const bytes = new Uint8Array(readFileSync(f.rom));
     const rom = romFromBytes(bytes, sha1Of(bytes));
-    for (const worklist of ['poc-lifo', 'ascending'] as const) {
-      const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { worklist, cache, disabled: [] }));
-      assert.equal(run('epoch-reuse'), run('epoch'), `${f.name} (${worklist})`);
-    }
+    const run = (cache: 'epoch' | 'epoch-reuse'): string => digest(analyzeTuned(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, { worklist: 'ascending', cache, disabled: [] }));
+    assert.equal(run('epoch-reuse'), run('epoch'), f.name);
   }
 });

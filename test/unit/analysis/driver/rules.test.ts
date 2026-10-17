@@ -9,8 +9,9 @@ import { analyze } from '../../../../src/core/analysis/driver/run.ts';
 import type { RuleOracle } from '../../../../src/core/analysis/oracle.ts';
 import { fakeRule, pipelineIds, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { calls, extent, romEntry } from './fakes.ts';
+import { lifo } from './recorder.ts';
 
-const TUNING = { worklist: 'poc-lifo', cache: 'epoch', disabled: [] } as const;
+const TUNING = { worklist: 'ascending', cache: 'epoch', disabled: [] } as const;
 
 test('RULES holds only well-formed ids, each registered under its meta.id, and implements every agbcc pipeline id', () => {
   for (const [id, rule] of Object.entries(RULES)) {
@@ -33,7 +34,7 @@ test('a disabled id is skipped, and a family the oracle answers needs no impleme
   const off = resolveRules(profile, reg, { ...TUNING, disabled: ['seed.rom-entry', ...gapIds] });
   assert.deepEqual(off.seed, []);
   assert.deepEqual(off.queue.map((q) => q.id), ['seed.call']);
-  const oracle: RuleOracle = { answered: ['seed', 'gap'], ask: () => undefined, check: () => undefined, marker: () => undefined };
+  const oracle: RuleOracle = { worklist: lifo, answered: ['seed', 'gap'], ask: () => undefined, check: () => undefined, marker: () => undefined };
   const answered = resolveRules(profile, reg, { ...TUNING, oracle });
   assert.deepEqual(answered.seed, []);
   assert.deepEqual(answered.gap.forward, [undefined, undefined, undefined], 'the forward slot keeps its positions');
