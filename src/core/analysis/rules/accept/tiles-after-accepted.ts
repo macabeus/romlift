@@ -1,8 +1,7 @@
 // accept.tiles-after-accepted (the PoC's acceptable() and anchoredAtStart()): a valid candidate whose
 // entry follows claimed bytes, give or take anchorSlack bytes of padding, continues the dense tiling
 // of compiled code and is taken on that alone.
-import { provenance } from '../../../provenance/provenance.ts';
-import { anchoredAtStart } from '../../walk/cursor.ts';
+import { anchoredAtStart } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({
@@ -18,6 +17,6 @@ export default defineRule({
   reason: 'unanchored',
   holds(c, r, v) {
     if (!anchoredAtStart(r.entry, v)) return undefined;
-    return provenance('accept.tiles-after-accepted', v.round, [r.entry, ...c.cites], 'anchored at start');
+    return { cites: [r.entry, ...c.cites], note: 'anchored at start' };
   },
 });

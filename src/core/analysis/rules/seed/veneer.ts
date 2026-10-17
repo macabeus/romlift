@@ -1,7 +1,7 @@
 // seed.veneer (the PoC's accept() worklist): the ARM code a function enters with `bx pc` (a Thumb to
 // ARM veneer), every one, ascending, as ARM.
 import { compareNumbers } from '../../../../foundation/util/sorted.ts';
-import type { Candidate } from '../../types.ts';
+import type { Proposal } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({
@@ -16,8 +16,8 @@ export default defineRule({
   },
   kind: 'queue',
   queue(f) {
-    const out: Candidate[] = [];
-    for (const a of [...f.veneers].sort(compareNumbers)) out.push({ entry: a, mode: 'arm', proposedBy: 'seed.veneer', cites: [f.entry] });
+    const out: Proposal[] = [];
+    for (const a of [...f.veneers].sort(compareNumbers)) out.push({ entry: a, mode: 'arm', cites: [f.entry] });
     return out;
   },
 });

@@ -3,7 +3,7 @@
 // interrupt handler and its helpers this way.
 import { contains } from '../../../../foundation/rom/rom.ts';
 import { compareNumbers } from '../../../../foundation/util/sorted.ts';
-import type { Candidate } from '../../types.ts';
+import type { Proposal } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({
@@ -19,9 +19,9 @@ export default defineRule({
   kind: 'queue',
   queue(f, v) {
     if (f.mode !== 'arm') return [];
-    const out: Candidate[] = [];
+    const out: Proposal[] = [];
     for (const a of [...f.adrs].sort(compareNumbers)) {
-      if (contains(v.rom, a) && (a & 3) === 0 && a > f.entry) out.push({ entry: a, mode: 'arm', proposedBy: 'seed.adr', cites: [f.entry] });
+      if (contains(v.rom, a) && (a & 3) === 0 && a > f.entry) out.push({ entry: a, mode: 'arm', cites: [f.entry] });
     }
     return out;
   },

@@ -1,7 +1,7 @@
 // gap.tiled-hole-inner (the PoC's tryTiledHole inside the forward chain): when nothing else starts at the
 // cursor, the head reading there (cursor.head, from gap.tiled-hole) is accepted when it fills the rest of
 // the gap within fillSlack bytes or a function starts right after it.
-import { anchoredAtEnd, fillsTo } from '../../walk/cursor.ts';
+import { anchoredAtEnd, fillsTo } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({
@@ -19,6 +19,6 @@ export default defineRule({
     const head = c.head;
     if (head === undefined) return undefined;
     if (!fillsTo(head, c.end, v.profile.gapScan.fillSlack) && !anchoredAtEnd(head, v)) return undefined;
-    return { entry: head.entry, mode: 'thumb', proposedBy: 'gap.tiled-hole-inner', cites: [head.entry, head.end, c.end] };
+    return { entry: head.entry, mode: 'thumb', cites: [head.entry, head.end, c.end] };
   },
 });

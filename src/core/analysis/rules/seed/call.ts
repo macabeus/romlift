@@ -15,6 +15,6 @@ export default defineRule({
   },
   kind: 'queue',
   queue(f) {
-    return f.calls.map((c) => ({ entry: c.target, mode: c.mode, proposedBy: 'seed.call', cites: [c.site] }));
+    return f.calls.map((c) => ({ entry: c.target, mode: c.mode, cites: [c.site] }));
   },
 });

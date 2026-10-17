@@ -72,5 +72,6 @@ export function makeView(get: () => DriverState): AnalysisView {
       return answer;
     },
     adrOwner: (a) => opaque(get()).adrOwner.get(a),
+    originOf: (rule) => get().rules.origin.get(rule),
   };
 }

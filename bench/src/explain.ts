@@ -4,7 +4,7 @@
 // explainFilter (the 256-byte bucket around the address and those extents), collects the events, and
 // explainAnalysis (romlift/internal) composes them with the rules' metadata. A sealed dataset is never
 // explained: an explanation is made of addresses (D25).
-import { Claim, hexAddr, parseHexAddr, romFromBytes, type ClaimKind, type Rom, type TrailEvent } from 'romlift';
+import { claimName, hexAddr, parseHexAddr, romFromBytes, type Rom, type TrailEvent } from 'romlift';
 import { explainAnalysis, explainFilter, RULES, type AnalysisExplanation } from 'romlift/internal';
 import { sha1Of } from 'romlift/node';
 
@@ -60,12 +60,6 @@ export async function benchExplain(cx: BenchContext, name: string, addr: number,
     if (error instanceof BenchError) throw error;
     throw new BenchError(`${name}: the analysis failed: ${error instanceof Error ? error.message : String(error)}`);
   }
-}
-
-const CLAIM_NAMES: Readonly<Record<number, string>> = Object.fromEntries(Object.entries(Claim).map(([name, kind]) => [kind, name]));
-
-export function claimName(kind: ClaimKind): string {
-  return CLAIM_NAMES[kind] ?? String(kind);
 }
 
 /** The explanation as text lines. */

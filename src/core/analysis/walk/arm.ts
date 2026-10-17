@@ -11,7 +11,8 @@ import type { RuleId } from '../../provenance/rule-id.ts';
 import { toRun } from '../address-map.ts';
 import { DECODER_FLOW } from '../types.ts';
 import type { Reading, WalkStep } from '../types.ts';
-import { askWalk, asksWalk, toLoadInsn, walkCursor, WalkRecord } from './cursor.ts';
+import { askWalk, asksWalk, toLoadInsn, walkCursor } from './cursor.ts';
+import { WalkRecord } from './record.ts';
 import type { WalkEnv } from './cursor.ts';
 
 /** The rows the ARMv4T leaves undefined that the PoC files as `other` or `pc_write`. */

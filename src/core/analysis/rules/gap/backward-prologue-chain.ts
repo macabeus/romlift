@@ -3,7 +3,7 @@
 // function, is valid, and whose reading ends within fillSlack of `end`. One candidate per call: the
 // driver accepts it, shrinks `end` to it and asks again, which restarts the window below it.
 import { defineRule } from '../define-rule.ts';
-import { fillsTo } from '../../walk/cursor.ts';
+import { fillsTo } from '../../walk/predicates.ts';
 
 export default defineRule({
   meta: {
@@ -22,7 +22,7 @@ export default defineRule({
     const floor = Math.max(c.at, end - profile.gapScan.prologueDistance);
     for (let q = (end - 4) & ~3; q >= floor; q -= 4) {
       if (!profile.idioms.opensWithPushLr(rom, q) || v.isFunction(q) || !v.valid(q)) continue;
-      if (fillsTo(v.read(q, 'thumb'), end, profile.gapScan.fillSlack)) return { entry: q, mode: 'thumb', proposedBy: 'gap.backward-prologue-chain', cites: [q, end] };
+      if (fillsTo(v.read(q, 'thumb'), end, profile.gapScan.fillSlack)) return { entry: q, mode: 'thumb', cites: [q, end] };
     }
     return undefined;
   },

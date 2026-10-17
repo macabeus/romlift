@@ -5,7 +5,8 @@ import { test } from 'node:test';
 
 import { runAnalysis } from '../../../../src/core/analysis/driver/run.ts';
 import { Claim } from '../../../../src/core/analysis/types.ts';
-import type { Seed } from '../../../../src/core/analysis/types.ts';
+import type { OverrideFact, Seed } from '../../../../src/core/analysis/types.ts';
+import { compareOverrides, compareSeeds } from '../../../../src/core/analysis/driver/confirm.ts';
 import { fakeRule, registry, romWith, testProfile, tuningFor, words } from '../../../helpers/analysis.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 import { calls, decodes, extent, inRom, listed, walk } from './fakes.ts';
@@ -83,4 +84,41 @@ test('a label is no walk boundary: the function around it reads through it, as d
   // A + 2 is a second entry inside A: as a label, A's walk passes it; as a function, A stops there.
   assert.deepEqual(ends([seed(A), seed(A + 2, { label: true })]), [6, 4]);
   assert.deepEqual(ends([seed(A), seed(A + 2)]), [2, 4]);
+});
+
+test('compareSeeds is a total order: entry, Thumb first, rule, name, size, then label', () => {
+  const base: Seed = { entry: A, mode: 'thumb', rule: 'seed.listed' };
+  const ordered: readonly Seed[] = [
+    base,
+    { ...base, name: 'a' },
+    { ...base, name: 'b' },
+    { ...base, name: 'b', size: 4 },
+    { ...base, name: 'b', size: 8 },
+    { ...base, name: 'b', size: 8, label: true },
+    { ...base, rule: 'seed.override' },
+    { ...base, mode: 'arm' },
+    { ...base, entry: B },
+  ];
+  for (let i = 0; i < ordered.length; i++) {
+    for (let j = 0; j < ordered.length; j++) {
+      const c = compareSeeds(ordered[i] as Seed, ordered[j] as Seed);
+      assert.equal(Math.sign(c), Math.sign(i - j), `${i} vs ${j}`);
+    }
+  }
+});
+
+test('compareOverrides is a total order: span, kind, mode, then run address', () => {
+  const base: OverrideFact = { span: { start: A, end: A + 4 }, kind: 'code' };
+  const ordered: readonly OverrideFact[] = [
+    base,
+    { ...base, mode: 'arm' },
+    { ...base, mode: 'thumb' },
+    { ...base, mode: 'thumb', runsAt: 0x0300_0000 },
+    { ...base, kind: 'data' },
+    { ...base, span: { start: A, end: A + 8 } },
+    { ...base, span: { start: B, end: B + 4 } },
+  ];
+  for (let i = 0; i < ordered.length; i++) {
+    for (let j = 0; j < ordered.length; j++) assert.equal(Math.sign(compareOverrides(ordered[i] as OverrideFact, ordered[j] as OverrideFact)), Math.sign(i - j), `${i} vs ${j}`);
+  }
 });

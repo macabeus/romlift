@@ -185,6 +185,7 @@ export function viewWith(setup: ViewSetup): AnalysisView {
     neverValid: () => false,
     inProgress: () => false,
     adrOwner: () => undefined,
+    originOf: (rule) => (Object.hasOwn(RULES, rule) ? RULES[rule]?.meta.origin : undefined),
     pointers: buildPointerIndex(rom),
   };
   return view;

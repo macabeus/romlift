@@ -2,7 +2,7 @@
 // interrupt dispatcher) through Thumb pointers in its literal pools. For each accepted ARM function, in
 // acceptance order, each pool value of its reading, in walk order, that is a Thumb pointer to a
 // word-aligned ROM address is proposed as Thumb.
-import type { Candidate } from '../../types.ts';
+import type { Proposal } from '../../types.ts';
 import { isThumbPointer } from '../../pointers.ts';
 import { defineRule } from '../define-rule.ts';
 
@@ -18,12 +18,12 @@ export default defineRule({
   },
   kind: 'seed',
   seeds(v) {
-    const out: Candidate[] = [];
+    const out: Proposal[] = [];
     for (const entry of v.functions()) {
       const r = v.accepted(entry);
       if (r === undefined || r.mode !== 'arm') continue;
       for (const p of r.pools) {
-        if (isThumbPointer(v.rom, p.value)) out.push({ entry: p.value - 1, mode: 'thumb', proposedBy: 'seed.startup-pointer', cites: [p.addr, entry] });
+        if (isThumbPointer(v.rom, p.value)) out.push({ entry: p.value - 1, mode: 'thumb', cites: [p.addr, entry] });
       }
     }
     return out;

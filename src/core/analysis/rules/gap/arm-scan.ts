@@ -12,7 +12,7 @@ import { toRun } from '../../address-map.ts';
 import { Claim } from '../../types.ts';
 import type { AnalysisView, Reading } from '../../types.ts';
 import { walkFlow } from '../../walk/arm.ts';
-import { isDense } from '../../walk/cursor.ts';
+import { isDense } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 /** The PoC's armCandidate(entry, hi). */
@@ -50,7 +50,7 @@ export default defineRule({
       const back = (a: Addr): boolean => a >= c.at && a < q;
       const front = r.pools.some((p) => back(p.addr) || back(p.value));
       if (k === 0 || front || (k === 1 && r.insns.length >= v.profile.gapScan.armMinInsnsForSkip)) {
-        return { entry: q, mode: 'arm', proposedBy: 'gap.arm-scan', cites: [q, c.at] };
+        return { entry: q, mode: 'arm', cites: [q, c.at] };
       }
     }
     return undefined;

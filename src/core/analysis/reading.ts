@@ -1,5 +1,6 @@
 // Building a Reading (architecture §3.3, §9.3): the walker's raw results become an immutable reading
-// whose sorted lists, lookups, code end, extent and holes are computed once, here. romlift/internal
+// whose sorted lists, lookups, code end, extent and holes are computed once, here; withVerdicts adds the
+// settle loop's bl verdicts to a built reading. romlift/internal
 // exports makeReading so the bench can rebuild a reading the proof of concept logged.
 import { contains, u16 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
@@ -97,6 +98,10 @@ function uniqueTables(tables: readonly JumpTable[]): readonly JumpTable[] {
 function uniqueCalls(calls: readonly CallSite[]): readonly CallSite[] {
   const out = [...calls].sort(compareCalls);
   return out.filter((c, i) => i === 0 || compareCalls(out[i - 1] as CallSite, c) !== 0);
+}
+
+function sortedVerdicts(verdicts: readonly BlVerdictRecord[]): readonly BlVerdictRecord[] {
+  return [...verdicts].sort((a, b) => a.site - b.site);
 }
 
 /** The covered byte ranges of [entry, end), merged and sorted: instructions, pools and tables inside it. */
@@ -204,7 +209,7 @@ export function makeReading(parts: ReadingParts, rom: Rom, insnAt?: InsnLookup):
     tailExits: parts.tailExits,
     far: sortedUnique(parts.far ?? []),
     noret: sortedUnique(parts.noret ?? []),
-    blVerdicts: [...(parts.blVerdicts ?? [])].sort((a, b) => a.site - b.site),
+    blVerdicts: sortedVerdicts(parts.blVerdicts ?? []),
     exits: [...(parts.exits ?? [])].sort((a, b) => a.at - b.at || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0)),
     branchTargets: sortedUnique(parts.branchTargets ?? []),
     armTails: [...(parts.armTails ?? [])].sort((a, b) => a.start - b.start || a.end - b.end),
@@ -213,6 +218,33 @@ export function makeReading(parts: ReadingParts, rom: Rom, insnAt?: InsnLookup):
     end,
     holes: holes.holes,
     holeBytes: holes.bytes,
+  };
+}
+
+/** What the settle loop decided about a reading's bl sites, and the walk-slot answers of all its rounds. */
+export interface SettleVerdicts {
+  readonly far: readonly Addr[];
+  readonly noret: readonly Addr[];
+  readonly blVerdicts: readonly BlVerdictRecord[];
+  readonly steps: readonly WalkDecision[];
+}
+
+/**
+ * The reading `r` of the last settle round with the loop's verdicts: its calls without the far sites, the
+ * far and never-returning sites and the verdict records sorted as makeReading sorts them, and the steps
+ * of every round (or the walk's own when none). The verdicts change no instruction, pool or table, so the
+ * extent and holes are kept as computed.
+ */
+export function withVerdicts(r: Reading, v: SettleVerdicts): Reading {
+  const far = sortedUnique(v.far);
+  const farSites = new Set(far);
+  return {
+    ...r,
+    calls: farSites.size === 0 ? r.calls : r.calls.filter((c) => !farSites.has(c.site)),
+    far,
+    noret: sortedUnique(v.noret),
+    blVerdicts: sortedVerdicts(v.blVerdicts),
+    steps: v.steps.length === 0 ? r.steps : v.steps,
   };
 }
 

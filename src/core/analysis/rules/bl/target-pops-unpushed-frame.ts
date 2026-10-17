@@ -3,7 +3,7 @@
 // than it pushed (popsCallersFrame), it is the tail of the caller that pushed the frame, so the bl is a
 // far jump; otherwise it is a call. A target whose own bl verdicts are being settled up the stack is
 // deferred (the PoC's `inProgress` → null), and settle() asks again in its next round.
-import { popsCallersFrame } from '../../walk/cursor.ts';
+import { popsCallersFrame } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({

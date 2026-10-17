@@ -5,7 +5,7 @@
 // density.holeShift) bytes (walk/cursor.ts isDense). Only bytes still free are written, after the code,
 // pool and table claims; a reading that is not dense claims nothing here, so its holes stay free for the
 // gap scan (gap.tiled-hole).
-import { isDense } from '../../walk/cursor.ts';
+import { isDense } from '../../walk/predicates.ts';
 import { Claim } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
 

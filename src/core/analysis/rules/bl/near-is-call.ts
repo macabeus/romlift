@@ -2,7 +2,7 @@
 // `Math.abs(target - site) < FAR_MIN`). For agbcc the idiom is the distance: a target fewer than
 // farJump.minDistance (1,536) bytes from the site is in reach of `b`, so agbcc would not have used bl as a
 // jump there; when farJump.requiresPushedLr is set, a caller that does not push lr is ruled out too.
-import { readingSummary } from '../../walk/cursor.ts';
+import { readingSummary } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({

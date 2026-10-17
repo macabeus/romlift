@@ -3,6 +3,7 @@
 // takes (acceptable). A valid candidate no accept rule takes is rejected as 'unanchored' under the rule
 // that proposed it: the accept slot holds a rule's decision only when one of its rules took it.
 import type { Addr } from '../../../foundation/rom/span.ts';
+import { provenance } from '../../provenance/provenance.ts';
 import type { Provenance } from '../../provenance/provenance.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { candidateBudget, fixpointLimit, LIMITS } from '../limits.ts';
@@ -32,11 +33,11 @@ export function pointerCandidates(s: DriverState): readonly Harvest[] {
   });
 }
 
-/** The PoC's acceptable(f, why): the first accept rule that holds, with its provenance. */
+/** The PoC's acceptable(f, why): the first accept rule that holds, as its provenance. */
 export function acceptable(s: DriverState, c: Candidate, r: Reading): Provenance | undefined {
-  for (const { rule } of s.rules.accept) {
+  for (const { id, rule } of s.rules.accept) {
     const taken = rule.holds(c, r, s.view);
-    if (taken !== undefined) return taken;
+    if (taken !== undefined) return provenance(id, s.round, taken.cites, taken.note);
   }
   return undefined;
 }

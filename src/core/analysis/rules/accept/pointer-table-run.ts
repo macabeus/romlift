@@ -1,11 +1,10 @@
-// accept.pointer-table-run (the PoC's acceptable() and inPointerTable()): a valid candidate proposed by
-// seed.data-pointer is taken when a word pointing at it, itself not claimed as code, sits in a run of
+// accept.pointer-table-run (the PoC's acceptable() and inPointerTable()): a valid candidate of origin
+// data-pointer (named from a word in data) is taken when a word pointing at it, itself not claimed as code, sits in a run of
 // at least pointerTableRun consecutive Thumb pointers whose targets are functions or valid (an m4a
 // command table, a callback table). Leaf handlers have no prologue and anchor nothing; they are found
 // together. The run grows below the word, then above it, and stops as soon as it is long enough.
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
-import { provenance } from '../../../provenance/provenance.ts';
 import { isThumbPointer, pointersTo } from '../../pointers.ts';
 import { Claim } from '../../types.ts';
 import type { AnalysisView } from '../../types.ts';
@@ -44,8 +43,8 @@ export default defineRule({
   kind: 'accept',
   reason: 'unanchored',
   holds(c, r, v) {
-    if (c.proposedBy !== 'seed.data-pointer') return undefined;
+    if (v.originOf(c.proposedBy) !== 'data-pointer') return undefined;
     const at = tableWord(r.entry, v);
-    return at === undefined ? undefined : provenance('accept.pointer-table-run', v.round, [r.entry, at, ...c.cites], 'in a pointer table');
+    return at === undefined ? undefined : { cites: [r.entry, at, ...c.cites], note: 'in a pointer table' };
   },
 });

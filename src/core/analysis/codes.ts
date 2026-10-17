@@ -1,5 +1,5 @@
 // Diagnostic codes raised by core/analysis (architecture §9.1, D45). W_PROFILE_MISFIT and
-// W_UNDECODED_GAP land with their first raisers.
+// W_UNDECODED_GAP land with their first raisers, the profile's misfit threshold with W_PROFILE_MISFIT (D59).
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
 export const AnalysisCodes = defineCodes({

@@ -6,8 +6,7 @@
 // every rule that appears, and the summary line; diagnostics on stderr. --json: one {"type":"explain"}
 // line holding the report (addresses as hexAddr strings, the claim by name), the diagnostics, then the
 // summary line. Exit codes: 0 ok, 1 an error diagnostic, 2 usage.
-import { Claim } from '../../api/analysis.ts';
-import type { ClaimKind } from '../../api/analysis.ts';
+import { claimName } from '../../api/analysis.ts';
 import type { RuleMeta, TrailEvent, TrailKind } from '../../api/profile.ts';
 import { hexAddr, parseHexAddr } from '../../api/rom.ts';
 import type { Addr, Diagnostic } from '../../api/rom.ts';
@@ -27,13 +26,6 @@ export function parseAddrArg(text: string): Addr | undefined {
   if (!/^\d{1,10}$/.test(text)) return undefined;
   const n = Number.parseInt(text, 10);
   return n <= 0xffff_ffff ? n : undefined;
-}
-
-const CLAIM_NAMES: ReadonlyMap<number, string> = new Map(Object.entries(Claim).map(([name, kind]) => [kind, name] as const));
-
-/** The name of a claim kind ('code', 'pool', …). */
-export function claimName(kind: ClaimKind): string {
-  return CLAIM_NAMES.get(kind) ?? String(kind);
 }
 
 function eventJson(e: TrailEvent): RecordFields {

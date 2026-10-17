@@ -2,7 +2,7 @@
 // table covers stay within max(density.minHoles, extent >> density.holeShift); a zero halfword right
 // before a covered byte (or the end) is alignment padding, not a hole. The reading counts its holes
 // once, when it is built.
-import { isDense } from '../../walk/cursor.ts';
+import { isDense } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({

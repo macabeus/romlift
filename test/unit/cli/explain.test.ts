@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 
-import { claimName, explainRecord, parseAddrArg } from '../../../src/cli/commands/explain.ts';
+import { claimName } from '../../../src/api/analysis.ts';
+import { explainRecord, parseAddrArg } from '../../../src/cli/commands/explain.ts';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
 import { Claim } from '../../../src/core/analysis/types.ts';

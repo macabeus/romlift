@@ -8,7 +8,8 @@ import { test } from 'node:test';
 import type { TrailEvent } from 'romlift';
 
 import { main, type BenchIo } from '../../../bench/src/cli.ts';
-import { claimName, parseExplainAddr, type ExplainReport } from '../../../bench/src/explain.ts';
+import { claimName } from 'romlift';
+import { parseExplainAddr, type ExplainReport } from '../../../bench/src/explain.ts';
 import { withTempDir } from './fixtures.ts';
 import { syntheticTier, tinyDeps, tinyResult } from './harness.ts';
 

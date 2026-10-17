@@ -1,7 +1,7 @@
 // valid.balanced-stack (the PoC's whyInvalid() and popsCallersFrame()): no return or tail exit of the
 // walk pops more than the function pushed. A reading that does is the tail of another function, a far
 // jump target, or data.
-import { popsCallersFrame } from '../../walk/cursor.ts';
+import { popsCallersFrame } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({

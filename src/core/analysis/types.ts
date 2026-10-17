@@ -21,9 +21,19 @@ export type { BlSite } from '../profile/types.ts';
 // ---------------------------------------------------------------------------------------------------
 // Claims and the facts of one function.
 
-/** What a ROM byte is, once claimed. */
+/** What a ROM byte is, once claimed: the one enumeration of claim kinds (the codec, explain and the profile derive from it). */
 export const Claim = { free: 0, code: 1, pool: 2, table: 3, dead: 4, padding: 5, data: 6 } as const;
 export type ClaimKind = (typeof Claim)[keyof typeof Claim];
+
+/** Every claim kind, ascending. */
+export const CLAIM_KINDS: readonly ClaimKind[] = Object.values(Claim);
+
+const CLAIM_NAMES: ReadonlyMap<ClaimKind, string> = new Map(Object.entries(Claim).map(([name, kind]) => [kind, name] as const));
+
+/** The name of a claim kind ('free', 'code', 'pool', …). */
+export function claimName(kind: ClaimKind): string {
+  return CLAIM_NAMES.get(kind) ?? String(kind);
+}
 
 export interface JumpTable {
   readonly base: Addr;
@@ -182,7 +192,8 @@ export interface AnalysisTuning {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// The reading of one walk (internal to core/analysis; built only by reading.ts's makeReading).
+// The reading of one walk (internal to core/analysis; built only by reading.ts: makeReading, and
+// withVerdicts for the settle loop's verdicts).
 
 /** One decoded instruction: its address and length. */
 export interface InsnSpan {
@@ -313,14 +324,21 @@ export interface AnalysisView {
   inProgress(entry: Addr): boolean;
   /** The accepted Thumb function whose `add rd, pc, #imm` names a (D56). */
   adrOwner(a: Addr): Addr | undefined;
+  /** The origin of what a proposing rule proposes (its meta.origin): accept rules judge a candidate by its origin, never by another rule's id (D59). */
+  originOf(rule: RuleId): Origin | undefined;
   readonly pointers: PointerIndex;
 }
 
-export interface Candidate {
+/** What a proposing rule returns (seed, queue and gap proposers); the driver stamps it with the rule's id. */
+export interface Proposal {
   readonly entry: Addr;
   readonly mode: Mode;
-  readonly proposedBy: RuleId;
   readonly cites: readonly Addr[];
+}
+
+/** A proposal with the id of the rule that made it, stamped by the driver from the slot it called (D59). */
+export interface Candidate extends Proposal {
+  readonly proposedBy: RuleId;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -338,7 +356,7 @@ export interface Candidate {
  */
 export interface SeedRule {
   readonly kind: 'seed';
-  seeds(v: AnalysisView): readonly Candidate[];
+  seeds(v: AnalysisView): readonly Proposal[];
 }
 
 /**
@@ -361,7 +379,7 @@ export interface HarvestRule {
  */
 export interface QueueRule {
   readonly kind: 'queue';
-  queue(f: FunctionFact, v: AnalysisView): readonly Candidate[];
+  queue(f: FunctionFact, v: AnalysisView): readonly Proposal[];
 }
 
 /** One walk-slot answer a walk applied: the rule, the instruction it answered for, and the step it gave (a 'verdict' trail event). */
@@ -457,23 +475,31 @@ export interface ValidityRule {
   checkEntry?(entry: Addr, v: AnalysisView): string | undefined;
 }
 
+/** Why an accept rule takes a candidate; the driver records it as the rule's provenance (its id, the round). */
+export interface AcceptHold {
+  readonly cites: readonly Addr[];
+  readonly note: string;
+}
+
 /**
  * acceptable(), in pipeline.accept order, for a valid harvest candidate (proposedBy names the harvest
- * rule): the first that holds accepts it. accept.tiles-after-accepted: anchored at start.
- * accept.prologue-and-loaded: prologue and proposed by seed.pool-pointer. accept.prologue-and-end-anchored:
- * prologue and anchored at end. accept.pointer-table-run: proposed by seed.data-pointer and in a run of
- * profile.pointerTableRun Thumb pointers to functions or valid entries (inPointerTable).
+ * rule, v.originOf(proposedBy) its origin): the first that holds accepts it. accept.tiles-after-accepted:
+ * anchored at start. accept.prologue-and-loaded: prologue and origin pool-pointer.
+ * accept.prologue-and-end-anchored: prologue and anchored at end. accept.pointer-table-run: origin
+ * data-pointer and in a run of profile.pointerTableRun Thumb pointers to functions or valid entries
+ * (inPointerTable).
  */
 export interface AcceptRule {
   readonly kind: 'accept';
   readonly reason: 'unanchored';
-  holds(c: Candidate, r: Reading, v: AnalysisView): Provenance | undefined;
+  holds(c: Candidate, r: Reading, v: AnalysisView): AcceptHold | undefined;
 }
 
 /**
- * The tiny-candidate veto of thumbCandidate() (D56), applied to the forward pair's candidates.
- * accept.tiny-anchored-at-start: a gap.forward-chain candidate with fewer than tinyFunctionInsns
- * instructions is vetoed unless it is anchored at start and does not open with b, bcc or bl.
+ * The tiny-candidate veto of thumbCandidate() (D56), applied to the candidates of the forward proposers.
+ * accept.tiny-anchored-at-start: a candidate of origin gap-scan (gap.forward-chain's) with fewer than
+ * tinyFunctionInsns instructions is vetoed unless it is anchored at start and does not open with b, bcc
+ * or bl.
  */
 export interface AcceptVeto {
   readonly kind: 'accept-veto';
@@ -551,7 +577,7 @@ export interface GapHead {
 export interface GapProposer {
   readonly kind: 'gap';
   readonly reason?: MissReason;
-  propose(c: GapCursor, v: AnalysisView): Candidate | undefined;
+  propose(c: GapCursor, v: AnalysisView): Proposal | undefined;
 }
 
 /** The comparison of the forward pair: gap.arm-over-prologueless-thumb (origin arm-gap-scan). */

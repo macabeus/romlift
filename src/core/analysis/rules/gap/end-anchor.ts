@@ -6,7 +6,7 @@
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import { Claim } from '../../types.ts';
-import { anchoredAtEnd, fillsTo } from '../../walk/cursor.ts';
+import { anchoredAtEnd, fillsTo } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({
@@ -37,6 +37,6 @@ export default defineRule({
         bestPrologue = prologue;
       } else if (!prologue && !bestPrologue) break;
     }
-    return best === undefined ? undefined : { entry: best, mode: 'thumb', proposedBy: 'gap.end-anchor', cites: [best, end] };
+    return best === undefined ? undefined : { entry: best, mode: 'thumb', cites: [best, end] };
   },
 });

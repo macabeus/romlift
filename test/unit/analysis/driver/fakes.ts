@@ -84,5 +84,5 @@ export const selfOrAccepted = fakeRule('bl.self-or-accepted', { kind: 'bl', deci
 export const tiles = fakeRule('accept.tiles-after-accepted', {
   kind: 'accept',
   reason: 'unanchored',
-  holds: (c, _r, v) => (v.claimAt(c.entry - 1) !== Claim.free ? { rule: 'accept.tiles-after-accepted', round: v.round, cites: [c.entry - 1] } : undefined),
+  holds: (c, _r, v) => (v.claimAt(c.entry - 1) !== Claim.free ? { cites: [c.entry - 1], note: 'anchored at start' } : undefined),
 });

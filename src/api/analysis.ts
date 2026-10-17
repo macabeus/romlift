@@ -3,7 +3,7 @@ export { addressMap, toLoad, toRun } from '../core/analysis/address-map.ts';
 export type { AddressMap } from '../core/analysis/address-map.ts';
 export { AnalysisCodes } from '../core/analysis/codes.ts';
 export type { AnalysisCode } from '../core/analysis/codes.ts';
-export { Claim } from '../core/analysis/types.ts';
+export { Claim, CLAIM_KINDS, claimName } from '../core/analysis/types.ts';
 export type {
   AnalysisOptions,
   AnalysisOptionsRecord,

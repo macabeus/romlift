@@ -1,7 +1,6 @@
 // accept.prologue-and-loaded (the PoC's acceptable()): a valid candidate that opens with a word-aligned
-// `push {.., lr}` and that an accepted function loads from its literal pool (proposed by
-// seed.pool-pointer) is taken: two independent signs of a compiled function.
-import { provenance } from '../../../provenance/provenance.ts';
+// `push {.., lr}` and that an accepted function loads from its literal pool (a candidate of origin
+// pool-pointer) is taken: two independent signs of a compiled function.
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({
@@ -16,7 +15,7 @@ export default defineRule({
   kind: 'accept',
   reason: 'unanchored',
   holds(c, r, v) {
-    if (c.proposedBy !== 'seed.pool-pointer' || !v.profile.idioms.isPrologue(v.rom, r.entry, 'thumb')) return undefined;
-    return provenance('accept.prologue-and-loaded', v.round, [r.entry, ...c.cites], 'prologue, loaded from a pool');
+    if (v.originOf(c.proposedBy) !== 'pool-pointer' || !v.profile.idioms.isPrologue(v.rom, r.entry, 'thumb')) return undefined;
+    return { cites: [r.entry, ...c.cites], note: 'prologue, loaded from a pool' };
   },
 });

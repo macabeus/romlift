@@ -43,7 +43,7 @@ function setup(accepting: boolean) {
       return r.insns.length === 0 || r.errors.length > 0 ? 'decode error' : undefined;
     },
   });
-  const always = fakeRule('accept.prologue-and-loaded', { kind: 'accept', reason: 'unanchored', holds: (c, _r, v) => (accepting ? { rule: 'accept.prologue-and-loaded', round: v.round, cites: [c.entry] } : undefined) });
+  const always = fakeRule('accept.prologue-and-loaded', { kind: 'accept', reason: 'unanchored', holds: (c) => (accepting ? { cites: [c.entry], note: 'always' } : undefined) });
   const profile = testProfile({ harvest: ['seed.pool-pointer'], validity: ['valid.in-rom-unclaimed', 'valid.decodes'], accept: ['accept.prologue-and-loaded'], claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
   const reg = registry(harvest, always, inRom, counted, extent, tiles, ...walk);
   const events: TrailEvent[] = [];
@@ -98,7 +98,7 @@ test('pointerCandidates gives one list per harvest rule of the slot, in slot ord
   const harvesting = (id: RuleId, target: Addr) => fakeRule(id, { kind: 'harvest', harvest: (v, earlier) => (v.isFunction(target) || earlier.has(target) ? [] : [target]) }, 'pool-pointer');
   const ids: readonly RuleId[] = ['seed.harvest-one', 'seed.harvest-two', 'seed.harvest-three'];
   const rules = [harvesting('seed.harvest-one', A), harvesting('seed.harvest-two', B), harvesting('seed.harvest-three', C)];
-  const taking = fakeRule('accept.tiles-after-accepted', { kind: 'accept', reason: 'unanchored', holds: (c, _r, v) => ({ rule: 'accept.tiles-after-accepted', round: v.round, cites: [c.entry] }) });
+  const taking = fakeRule('accept.tiles-after-accepted', { kind: 'accept', reason: 'unanchored', holds: (c) => ({ cites: [c.entry], note: 'always' }) });
   const profile = testProfile({ harvest: ids, validity: ['valid.in-rom-unclaimed', 'valid.decodes'], accept: ['accept.tiles-after-accepted'], claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
   const reg = registry(...rules, taking, inRom, decodes, extent, ...walk);
   const s = createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);

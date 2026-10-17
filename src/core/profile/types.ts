@@ -9,9 +9,6 @@ import type { RuleId } from '../provenance/rule-id.ts';
 /** A registry key of core/profile/registry.ts; 'agbcc' ships. */
 export type ProfileId = string;
 
-/** A claim kind as the claim map stores it (core/analysis/types.ts `Claim`: free 0 … data 6). */
-export type ClaimCode = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-
 /** One `bl` of a caller: the instruction address and its target. */
 export interface BlSite {
   readonly site: Addr;
@@ -118,18 +115,13 @@ export interface CompilerProfile {
     readonly pool: number;
     readonly object: number;
   };
-  /** The rejection rate above which W_PROFILE_MISFIT is raised. */
-  readonly misfitThreshold: number;
   readonly idioms: {
     /** The entry opens with a pushed frame: Thumb `push {.., lr}` on a word boundary, ARM `stmdb sp!, {.., lr}`. */
     isPrologue(rom: Rom, a: Addr, mode: Mode): boolean;
     /** The raw Thumb halfword at `a` is `push {.., lr}`, at any alignment. */
     opensWithPushLr(rom: Rom, a: Addr): boolean;
-    /**
-     * The unclaimed byte at `a` is padding: zero, or a byte of a `mov r8, r8` (0x46C0) halfword. `next` is
-     * the claim kind after the padding run; the caller checks that `a` itself is unclaimed.
-     */
-    isPadding(rom: Rom, a: Addr, next: ClaimCode | undefined): boolean;
+    /** The unclaimed byte at `a` is padding: zero, or a byte of a `mov r8, r8` (0x46C0) halfword; the caller checks that `a` itself is unclaimed. */
+    isPadding(rom: Rom, a: Addr): boolean;
     /** The jump table of the computed jump at insns[cursor], read from the ROM. */
     matchTableJump(insns: readonly Insn[], cursor: number, rom: Rom): JumpTableMatch | undefined;
     /** Whether a `bl` may be a jump (call verdicts aside): its distance and the caller's frame. */

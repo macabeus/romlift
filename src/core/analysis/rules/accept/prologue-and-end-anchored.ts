@@ -1,8 +1,7 @@
 // accept.prologue-and-end-anchored (the PoC's acceptable() and anchoredAtEnd()): a valid candidate that
 // opens with a word-aligned `push {.., lr}` and whose extent ends where an accepted function starts,
 // give or take anchorSlack bytes of padding, is taken.
-import { provenance } from '../../../provenance/provenance.ts';
-import { anchoredAtEnd } from '../../walk/cursor.ts';
+import { anchoredAtEnd } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({
@@ -18,6 +17,6 @@ export default defineRule({
   reason: 'unanchored',
   holds(c, r, v) {
     if (!v.profile.idioms.isPrologue(v.rom, r.entry, 'thumb') || !anchoredAtEnd(r, v)) return undefined;
-    return provenance('accept.prologue-and-end-anchored', v.round, [r.entry, r.end, ...c.cites], 'prologue, anchored at end');
+    return { cites: [r.entry, r.end, ...c.cites], note: 'prologue, anchored at end' };
   },
 });

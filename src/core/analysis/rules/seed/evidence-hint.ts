@@ -24,6 +24,6 @@ export default defineRule({
     return v.seeds
       .filter((s) => s.rule === 'seed.evidence-hint')
       .sort(bySeed)
-      .map((s) => ({ entry: s.entry, mode: s.mode, proposedBy: 'seed.evidence-hint', cites: [s.entry] }));
+      .map((s) => ({ entry: s.entry, mode: s.mode, cites: [s.entry] }));
   },
 });

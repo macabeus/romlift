@@ -21,7 +21,7 @@ function codeEnd(v: AnalysisView): Addr {
 function aligns(v: AnalysisView, start: Addr, stop: Addr, next: ClaimKind): boolean {
   const align = next === Claim.pool || next === Claim.table ? v.profile.alignment.pool : v.profile.alignment.cFunction;
   if (stop - start >= align || (stop - v.rom.base) % align !== 0) return false;
-  for (let a = start; a < stop; a++) if (!v.profile.idioms.isPadding(v.rom, a, next)) return false;
+  for (let a = start; a < stop; a++) if (!v.profile.idioms.isPadding(v.rom, a)) return false;
   return true;
 }
 

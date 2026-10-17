@@ -1,12 +1,12 @@
-// accept.tiny-anchored-at-start (the tiny-candidate veto of the PoC's thumbCandidate()): a forward-chain
-// candidate of fewer than tinyFunctionInsns instructions (a stub: `bx lr`, `bx rN`, `movs; bx lr`) is
+// accept.tiny-anchored-at-start (the tiny-candidate veto of the PoC's thumbCandidate()): a gap-scan
+// candidate (the forward chain's) of fewer than tinyFunctionInsns instructions (a stub: `bx lr`, `bx rN`, `movs; bx lr`) is
 // taken only when it is anchored at start and does not open with b, bcc or bl, which a stray halfword
 // pair in data often does.
 import { decode } from '../../../../foundation/isa/decode.ts';
 import { contains, u16 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import type { AnalysisView } from '../../types.ts';
-import { anchoredAtStart } from '../../walk/cursor.ts';
+import { anchoredAtStart } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
 /** The entry's first Thumb instruction is a branch (b, bcc) or a bl. */
@@ -29,7 +29,7 @@ export default defineRule({
   kind: 'accept-veto',
   reason: 'unanchored',
   vetoes(c, r, v) {
-    if (c.proposedBy !== 'gap.forward-chain' || r.insns.length >= v.profile.tinyFunctionInsns) return undefined;
+    if (v.originOf(c.proposedBy) !== 'gap-scan' || r.insns.length >= v.profile.tinyFunctionInsns) return undefined;
     if (!anchoredAtStart(r.entry, v)) return `a stub of ${r.insns.length} instructions, not anchored at start`;
     if (opensWithBranch(r.entry, v)) return `a stub of ${r.insns.length} instructions that opens with a branch`;
     return undefined;

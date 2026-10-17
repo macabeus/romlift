@@ -20,6 +20,6 @@ export default defineRule({
     if (v.isFunction(at) || !contains(v.rom, at, 4) || u32(v.rom, at) === 0 || !v.valid(at)) return undefined;
     const r = v.read(at, 'thumb');
     if (at < c.gap.start || r.end > c.end) return undefined;
-    return { entry: at, mode: 'thumb', proposedBy: 'gap.forward-chain', cites: [at, r.end] };
+    return { entry: at, mode: 'thumb', cites: [at, r.end] };
   },
 });

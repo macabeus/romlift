@@ -22,8 +22,8 @@ export default defineRule({
     const flow = decode('arm', u32(v.rom, at), at).flow;
     if (flow.kind !== 'branch') return [];
     return [
-      { entry: at, mode: 'arm', proposedBy: 'seed.rom-entry', cites: [at] },
-      { entry: flow.target, mode: 'arm', proposedBy: 'seed.rom-entry', cites: [at] },
+      { entry: at, mode: 'arm', cites: [at] },
+      { entry: flow.target, mode: 'arm', cites: [at] },
     ];
   },
 });

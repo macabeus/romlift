@@ -24,6 +24,6 @@ export default defineRule({
     return v.seeds
       .filter((s) => s.rule === 'seed.override')
       .sort(bySeed)
-      .map((s) => ({ entry: s.entry, mode: s.mode, proposedBy: 'seed.override', cites: [s.entry] }));
+      .map((s) => ({ entry: s.entry, mode: s.mode, cites: [s.entry] }));
   },
 });

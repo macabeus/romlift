@@ -109,11 +109,11 @@ test('the prologue idioms: isPrologue needs a word boundary, opensWithPushLr doe
 
 test('padding is a zero byte or a byte of mov r8, r8', () => {
   const rom = romWith([{ at: 0x0800_0200, bytes: Uint8Array.from([0, 0xc0, 0x46, 0x12, 0xc0, 0x46]) }]);
-  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0200, undefined), true);
-  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0201, undefined), false, '0xC0 at an odd address is not a nop halfword');
-  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0204, undefined), true);
-  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0205, undefined), true);
-  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0203, undefined), false);
+  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0200), true);
+  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0201), false, '0xC0 at an odd address is not a nop halfword');
+  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0204), true);
+  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0205), true);
+  assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0203), false);
 });
 
 test('matchTableJump: the pool load the jump register comes from names the base; slots stop below the lowest target', () => {

@@ -4,6 +4,7 @@ import type { Addr, Mode } from '../../../foundation/rom/span.ts';
 import { sortedEntries, sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { LIMITS, settleLimit } from '../limits.ts';
+import { withVerdicts } from '../reading.ts';
 import type { BlSite, BlVerdict, BlVerdictRecord, Reading, WalkDecision } from '../types.ts';
 import { walkArm } from '../walk/arm.ts';
 import { walkThumb } from '../walk/thumb.ts';
@@ -118,15 +119,7 @@ function settleNow(s: DriverState, entry: Addr): Reading {
   }
   if (!settled && !s.diagnostics.some((d) => d.code === 'W_SETTLE_LIMIT' && d.addr === entry)) s.diagnostics.push(settleLimit(entry, LIMITS.settleRounds));
   s.inProgress.delete(entry);
-  // The verdicts change no instruction, pool or table of the last walk: only its call list and records.
-  const final: Reading = {
-    ...r,
-    calls: far.size === 0 ? r.calls : r.calls.filter((c) => !far.has(c.site)),
-    far: sortedKeys(far),
-    noret: sortedKeys(noret),
-    blVerdicts: sortedEntries(verdicts).map(([, v]) => v),
-    steps: steps.length === 0 ? r.steps : steps,
-  };
+  const final = withVerdicts(r, { far: sortedKeys(far), noret: sortedKeys(noret), blVerdicts: sortedEntries(verdicts).map(([, v]) => v), steps });
   s.settled.set(entry, final);
   if (s.reuse !== undefined) endReading(s.reuse, entry);
   return final;

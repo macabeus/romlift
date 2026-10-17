@@ -11,7 +11,7 @@ import type { MissReason } from '../../provenance/vocabulary.ts';
 import { pointersTo } from '../pointers.ts';
 import { Claim } from '../types.ts';
 import type { AnalysisOptions, AnalysisResult, AnalysisTuning, ClaimKind, RuleRegistry } from '../types.ts';
-import { anchoredAtEnd, anchoredAtStart } from '../walk/cursor.ts';
+import { anchoredAtEnd, anchoredAtStart } from '../walk/predicates.ts';
 import { RULES } from './rules.ts';
 import { ownerOf } from './facts.ts';
 import { resultOf, runDriver } from './run.ts';
@@ -37,7 +37,9 @@ export interface MissDiagnosis {
   readonly detail: string;
 }
 
-const CLAIM_NAMES: Readonly<Record<number, string>> = {
+/** How a diagnosis names the claimed bytes a miss lies in; total over the claim kinds, so a new kind fails to typecheck here. */
+const CLAIMED_AS: Readonly<Record<ClaimKind, string>> = {
+  [Claim.free]: 'free bytes',
   [Claim.code]: 'code',
   [Claim.pool]: 'a literal pool',
   [Claim.table]: 'a jump table',
@@ -70,7 +72,7 @@ export function diagnoseMiss(s: DriverState, miss: MissQuery): MissDiagnosis {
       ...rule('inside-code'),
       claim: c,
       ...(owner === undefined ? {} : { owner }),
-      detail: `inside ${CLAIM_NAMES[c] ?? 'claimed bytes'} of the accepted function at ${owner === undefined ? '?' : hexAddr(owner)}`,
+      detail: owner === undefined ? `inside ${CLAIMED_AS[c]} no accepted function owns` : `inside ${CLAIMED_AS[c]} of the accepted function at ${hexAddr(owner)}`,
     };
   }
   if (mode === 'arm') {

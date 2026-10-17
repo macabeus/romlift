@@ -5,7 +5,7 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import type { Insn } from '../../foundation/isa/types.ts';
 import { thumbRegisterEffect } from './thumb-registers.ts';
-import type { BlSite, ClaimCode, CompilerProfile, JumpTableMatch, Pipeline, ReadingSummary } from './types.ts';
+import type { BlSite, CompilerProfile, JumpTableMatch, Pipeline, ReadingSummary } from './types.ts';
 
 /** The proof of concept's call order of every rule (§4.1): each analysis rule id in exactly one slot. */
 export const AGBCC_PIPELINE: Pipeline = {
@@ -87,8 +87,7 @@ function isPrologue(rom: Rom, a: Addr, mode: Mode): boolean {
 }
 
 /** The proof of concept's padding: a zero byte, or a byte of a 0x46C0 halfword (`mov r8, r8`). */
-function isPadding(rom: Rom, a: Addr, next: ClaimCode | undefined): boolean {
-  void next;
+function isPadding(rom: Rom, a: Addr): boolean {
   if (!contains(rom, a)) return false;
   const even = a - (a & 1);
   const b = rom.bytes;
@@ -181,6 +180,5 @@ export const AGBCC: CompilerProfile = {
   },
   // agbcc emits `.align 2, 0` before every function and literal pool; hand-written Thumb may sit on 2.
   alignment: { thumbFunction: 2, armFunction: 4, cFunction: 4, pool: 4, object: 4 },
-  misfitThreshold: 0.5,
   idioms: { isPrologue, opensWithPushLr: pushLr, isPadding, matchTableJump, matchFarJump },
 };

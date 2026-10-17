@@ -13,7 +13,8 @@ import { toRun } from '../address-map.ts';
 import { DECODER_FLOW } from '../types.ts';
 import type { Reading, WalkStep } from '../types.ts';
 import { walkArm } from './arm.ts';
-import { askWalk, asksWalk, toLoadInsn, walkCursor, WalkRecord } from './cursor.ts';
+import { askWalk, asksWalk, toLoadInsn, walkCursor } from './cursor.ts';
+import { WalkRecord } from './record.ts';
 import type { MutableCursor, WalkCursor, WalkEnv } from './cursor.ts';
 
 /**

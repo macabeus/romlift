@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { thumbRegisterEffect } from '../../../src/core/profile/thumb-registers.ts';
 import { romWith } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
-import { insnAt } from '../analysis/walk/support.ts';
+import { insnAt } from '../analysis/rules/walk/support.ts';
 
 const F = 0x0800_0200;
 

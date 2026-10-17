@@ -17,6 +17,7 @@ import type { TrailLevel } from '../provenance/trail.ts';
 import { isMissReason, isOrigin } from '../provenance/vocabulary.ts';
 import type { MissReason, Origin } from '../provenance/vocabulary.ts';
 import { AnalysisCodes } from './codes.ts';
+import { CLAIM_KINDS } from './types.ts';
 import type {
   AnalysisOptionsRecord,
   AnalysisResult,
@@ -261,7 +262,7 @@ const options = record<AnalysisOptionsRecord>({
   trailFilter: optional(span),
 });
 
-const claimRun = record<ClaimRun>({ span: required(span), kind: required(oneOf<ClaimKind>([0, 1, 2, 3, 4, 5, 6])), owner: optional(addr) });
+const claimRun = record<ClaimRun>({ span: required(span), kind: required(oneOf<ClaimKind>(CLAIM_KINDS)), owner: optional(addr) });
 const startup = record<StartupRegion>({ span: required(span), entries: required(addrs) });
 const unlistedFinding = record<UnlistedFinding>({ entry: required(addr), mode: required(mode), origin: required(origin), provenance: required(provenance) });
 const listedInvalid = record<ListedInvalid>({ entry: required(addr), rejection: required(rejection) });
