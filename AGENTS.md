@@ -90,11 +90,13 @@ cfg); **accept** names the acceptance rules (D6). Functions, modules, pools, tab
   are the self-authored synthetic fixtures under `bench/dataset/synthetic/*/build/` and `test/fixtures/`.
 - **Benchmark checkouts** live under `ROMLIFT_BENCH_ROOT`, default the parent directory of the
   repository root; on the owner's machine that is `/Users/macabeus/ApenasMeu/decompiler`. Tuning set:
-  `kleod/` (klonoa), `sa2/`, `sa3/`, `FireEmblem7J/` (fe7j), `pokeemerald/`, each with its ROM, ELF and
-  map (table in docs/benchmark-roms.md). agbcc builds: `pokeemerald/tools/agbcc` and `agbcc/` under the same root.
+  `kleod/` (klonoa), `sa2/`, `sa3/`, `FireEmblem7J/` (fe7j), `pokeemerald/`, and `tmc/` (revealed by the
+  owner's decision of 17 October 2026, D60; the PoC never ran on it), each with its ROM, ELF and map
+  (table in docs/benchmark-roms.md). agbcc builds: `pokeemerald/tools/agbcc` and `agbcc/` under the same root.
 - **The proof of concept** is at `ROMLIFT_POC` (`/Users/macabeus/ApenasMeu/decompiler/romlift-poc`). It
   is read-only: never modify it. Its numbers are the acceptance bar, pinned by content (D50).
-- **Held-out ROMs** (`pokefirered`, `pokeruby`, `tmc`, and any admitted from the reserve pool) are never
+- **Held-out ROMs** (`pokefirered`, `pokeruby`, and any admitted from the reserve pool; `tmc` until its
+  reveal, D60) are never
   used to tune rules: do not inspect their misses, addresses or names, and never make them signature
   references. They run sealed and report counts and verdicts only. A reveal goes through
   `bench run --reveal <rom> --reason <text>`, is recorded in Git, and the ROM stops counting (D25, D53).

@@ -348,11 +348,14 @@ before the ci tier (AGENTS.md).
 Thresholds: on each tuning ROM, raw precision ≥ 99.7%, every miss in `labels` and every false entry in
 `untyped`, raw true positives ≥ the PoC's, zero `unreviewed`, no agreeing extent lost and ≥ 99.9% of sized
 functions agreeing, code end within 16 bytes; rows equal the PoC baseline except listed improvements;
-confirm equals discover on all five; `bench speed` ≤ 1.5 × `baseline/speed.json` per ROM; on the sealed
+confirm equals discover on every tuning ROM; `bench speed` ≤ 1.5 × `baseline/speed.json` per ROM; on the sealed
 ROMs, at least two pass (raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued`, ≤ 11 label candidates,
 extents ≥ 99.9%, code end ≤ 16 bytes), from two families, one of them absent from the tuning set
 (architecture §8.4, D53); all seventeen
-`g2.*` gates `pass` or `historical`.
+`g2.*` gates `pass` or `historical`. Since the owner's decision of 17 October 2026 (D60) the tuning set is
+six ROMs (tmc revealed), the PoC thresholds (true positives at least the PoC's, rows equal the PoC
+baseline, parity) apply to the five the PoC ran on, and the held-out family conditions are waived while no
+sealed ROM of a family absent from the tuning set remains (printed by `g2.held-out`).
 
 ---
 

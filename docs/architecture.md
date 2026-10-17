@@ -737,7 +737,7 @@ export interface AnalysisView {                       // what a rule may read; t
   readonly round: number; readonly epoch: number;
   claimAt(a: Addr): ClaimKind;
   owner(a: Addr): FunctionFact | undefined;            // innermost extent covering a (§9.3)
-  isFunction(a: Addr): boolean;                        // discover: accepted; confirm: listed (§4.2)
+  isFunction(a: Addr): boolean;                        // accepted, in both modes (§4.2, D60 k)
   read(entry: Addr, mode: Mode): Reading;              // cached for the current epoch (§4.2)
   valid(entry: Addr): boolean;                         // the driver's validity service (driver/validity.ts)
   neverValid(entry: Addr): boolean;                    // intrinsic failures, remembered for the analysis
@@ -784,13 +784,13 @@ The rules, with the PoC source each one is ported from (`romlift-poc/src/analysi
 
 | Family | Rule ids (contract) | PoC call site |
 | --- | --- | --- |
-| seed | `seed.rom-entry`, `seed.startup-pointer`, `seed.listed`, `seed.override`, `seed.evidence-hint` (SeedRule); `seed.pool-pointer`, `seed.data-pointer` (HarvestRule); `seed.call`, `seed.veneer`, `seed.adr` (QueueRule) | `run()`; `pointerCandidates()` (one snapshot per `grow` round, data list filtered by the pool set and `neverValid`); the `accept()` worklist |
+| seed | `seed.rom-entry`, `seed.startup-pointer`, `seed.listed`, `seed.override`, `seed.evidence-hint` (SeedRule); `seed.pool-pointer`, `seed.data-pointer` (HarvestRule); `seed.call`, `seed.veneer`, `seed.adr`, `seed.ram-copy` (QueueRule; `seed.ram-copy` has no PoC counterpart, D60 e) | `run()`; `pointerCandidates()` (one snapshot per `grow` round, data list filtered by the pool set and `neverValid`); the `accept()` worklist; `seed.ram-copy` maps the IWRAM pointers accepted code jumps through to the load image of a block accepted code copies to IWRAM, and `seed.adr` proposes only past the function's extent (D60 g) |
 | walk | `walk.pc-load-is-pool`, `walk.table-nearest-pool-load` (until milestone M3, then `walk.table-by-register`), `walk.mov-lr-pc-bx-is-call`, `walk.noreturn-call-before-noncode`, `walk.swi-before-noncode`, `walk.mov-pc-without-table`, `walk.branch-into-function`, `walk.bx-pc-veneer`, `walk.trailing-zero-padding`; `walk.inline-arm-switch` (no PoC counterpart, D59) | `analyzeThumb`, `analyzeArm`; `walk.inline-arm-switch` answers a Thumb `bx rN` after `add rN, pc, #0` (the walk of the ARM code after it gives the extent, `Reading.armTails`) |
 | bl | `bl.self-or-accepted`, `bl.target-before-entry`, `bl.near-is-call`, `bl.target-inside-caller`, `bl.target-has-prologue`, `bl.target-beyond-callee` (no PoC counterpart, D59), `bl.target-pops-unpushed-frame`, `bl.noreturn-before-noncode` | `settle()`; `bl.target-beyond-callee` sits before the frame check: a far `bl` past the entry of another function the caller calls is a call |
 | valid | `valid.in-rom-unclaimed`, `valid.decodes`, `valid.balanced-stack`, `valid.returns-or-prologue`, `valid.no-claimed-code`, `valid.pool-not-code`, `valid.not-pointer-table`, `valid.dense`, `valid.calls-code` | `whyInvalid()` in this order; `dense()`, `looksLikePointerTable()`, `couldBeCode()` |
-| accept | `accept.tiles-after-accepted`, `accept.prologue-and-loaded`, `accept.prologue-and-end-anchored`, `accept.pointer-table-run`, `accept.tiny-anchored-at-start` | `acceptable()`, `inPointerTable()`, `thumbCandidate()` |
-| gap | `gap.adr-block-absorb` (GapAbsorb), `gap.tiled-hole` (GapHead), `gap.tiled-hole-inner`, `gap.forward-chain`, `gap.arm-scan`, `gap.end-anchor`, `gap.backward-prologue-chain` (GapProposer), `gap.arm-over-prologueless-thumb` (GapPrefer), `gap.skip-padding-and-pointers` (GapSkip) | `fillGaps()`: `absorbRun`, `holeHead`, `tryTiledHole` and the head acceptance (both through the proposers after the pair, `gap.tiled-hole-inner`, D59), `thumbCandidate`, `armAhead`, the comparison at the same cursor, the end-anchor loop, the backward prologue chain, the padding and pointer-word step |
-| claim | `claim.adjacent-pools`, `claim.far-pools`, `claim.dead-code-in-extent` | `claim()`, `Func.end` |
+| accept | `accept.tiles-after-accepted`, `accept.prologue-and-loaded`, `accept.prologue-and-end-anchored`, `accept.pointer-table-run`, `accept.prologue-and-calls-accepted` (no PoC counterpart, D60 h), `accept.tiny-anchored-at-start` | `acceptable()`, `inPointerTable()`, `thumbCandidate()`; `accept.prologue-and-calls-accepted` takes a data-named candidate with a prologue, a return and calls only to accepted functions |
+| gap | `gap.adr-block-absorb` (GapAbsorb), `gap.tiled-hole` (GapHead), `gap.tiled-hole-inner`, `gap.forward-chain`, `gap.arm-scan`, `gap.end-anchor`, `gap.backward-prologue-chain` (GapProposer), `gap.arm-over-prologueless-thumb` (GapPrefer), `gap.skip-padding-and-pointers` (GapSkip) | `fillGaps()`: `absorbRun`, `holeHead`, `tryTiledHole` and the head acceptance (both through the proposers after the pair, `gap.tiled-hole-inner`, D59), `thumbCandidate`, `armAhead`, the comparison at the same cursor, the end-anchor loop, the backward prologue chain, the padding and pointer-word step; since D60 `gap.end-anchor` also takes a veneer-array element and a `push {.., lr}` on 2 mod 4, and `gap.forward-chain` declines a word holding an accepted function's address |
+| claim | `claim.adjacent-pools`, `claim.far-pools`, `claim.dead-code-in-extent` | `claim()`, `Func.end`; `claim.dead-code-in-extent` leaves an unreached copy of the reading's own `movs rX, #k; b T` entry stub free (D60 d) |
 | region | `region.startup`, `region.padding`, `region.data-after-code` | `startup` getter, classification |
 | sig (§7) | `sig.unique-fit`, `sig.link-order-run`, `sig.neighbour-spacing`, `sig.pinned-both-sides`, `sig.short-member-window` | `signatures/apply.ts`; their own registry in `core/signatures/rules/` |
 
@@ -808,7 +808,9 @@ the gap start and at every forward-chain position, the Thumb/ARM choice at the s
 backward end-anchor loop that shrinks `end`, the late head acceptance, and the patient pass skipping a
 whole gap; positions are bus addresses, the hole head is accepted under the head rule wherever a
 proposer after the pair takes it, and the count it returns is what `accept()` reports, absorbed blocks'
-calls included, so a confirm run whose candidates are unlisted reaches its fixpoint), `accept.ts` (`accept()` and `claim()`), `settle.ts` (the per-function `bl` fixpoint),
+calls included, so a confirm run whose candidates are unlisted reaches its fixpoint; after a reading the scan
+resumes on the halfword where it ends when `alignment.thumbFunction` allows a Thumb function there and that
+halfword is not padding, else on the next `alignment.cFunction` boundary, D60 a), `accept.ts` (`accept()` and `claim()`), `settle.ts` (the per-function `bl` fixpoint),
 `validity.ts` (`valid()`: the optimistic memo set before the check, intrinsic failures kept in
 `neverValid`, which also filters harvests), `epoch.ts` and `worklist.ts`; `state.ts` (the state and
 `createDriver`), `facts.ts` (`FunctionFact`, the extent end, the owner), `trail.ts` (events, rejections)
@@ -828,7 +830,7 @@ readings of non-accepted entries and the validity memo are dropped; intrinsic fa
 readings stay. This is the semantics, not an optimisation: `cache: 'epoch'` is the only production
 mode. `cache: 'epoch-reuse'` (internal, built at milestone M2 only if a ROM misses the budget) may carry
 a reading across a boundary when every fact it read is unchanged, and a local test requires its digests
-to equal `'epoch'` on all five tuning ROMs. One bound evicts by capacity, and only on pathological input:
+to equal `'epoch'` on every tuning ROM. One bound evicts by capacity, and only on pathological input:
 the readings an epoch holds for entries not accepted are limited to `epochReadingBytes` (below), past
 which they are dropped (their verdicts stay memoised) and re-walked when asked for.
 
@@ -836,8 +838,10 @@ which they are dropped (their verdicts stay memoised) and re-walked when asked f
 
 - `discover` (used by `analyze`, `init`, `analyze --update` and the bench) accepts what the rules accept.
 - `confirm` (used by `generate`, `model`, `verify` and `explain` inside a project) seeds exactly the
-  TOML's `[functions]` as `seed.listed`, and `isFunction(a)` is true for every listed entry from round
-  0. A listed entry's extent is its TOML `size` when given; otherwise its reading under that fixed
+  TOML's `[functions]` as `seed.listed`. The listed entries the rules reach during the passes are taken
+  then, in discover's order, and the rest of the list after the passes, which then run again (D60 k,
+  revising D8's "functions from round 0": a reading depends on what was taken before it). A listed
+  entry's extent is its TOML `size` when given; otherwise its reading under that fixed
   function set, cut at the next listed entry that is not `label = true` (`ModelFunction.source.extent`
   says which). A listed entry that fails validity is honoured (`W_LISTED_INVALID`, recorded in
   `listedInvalid`). Harvest and gap rules still run, but their acceptances become `UnlistedFinding`s and
@@ -847,7 +851,7 @@ which they are dropped (their verdicts stay memoised) and re-walked when asked f
 
 `g2.confirm-equals-discover` (tier real, phase 2) runs discover, builds the listed set from it (entries,
 modes, `label` for entries inside another found extent, no sizes), runs confirm, and requires the parity
-view (functions, extents, far verdicts, claims) to be equal on all five tuning ROMs. If it fails on a ROM,
+view (functions, extents, far verdicts, claims) to be equal on every tuning ROM. If it fails on a ROM,
 the remedy is a final `resettle` stage in discover that recomputes `bl` verdicts and readings against the
 final function set until stable; it then runs in both modes and lands as its own commit with its bench
 diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on the files.
@@ -903,6 +907,7 @@ export interface CompilerProfile {
   readonly gapScan: { readonly backwardWindow: number; readonly fillSlack: number;
                       readonly armFrontPoolWords: number; readonly armMinInsnsForSkip: number;
                       readonly prologueDistance: number };
+  readonly ramCopy: { readonly argInsns: number; readonly maxBytes: number };   // seed.ram-copy (D60 e): 12, 64 KiB
   readonly alignment: { readonly thumbFunction: number; readonly armFunction: number; readonly cFunction: number;
                         readonly pool: number; readonly object: number };
   // misfitThreshold returns with the first raiser of W_PROFILE_MISFIT (D59)
@@ -1555,8 +1560,8 @@ Emerald). Each version names its references; a library with a single reference h
 | Tier | Inputs | Truth | Runs |
 | --- | --- | --- | --- |
 | Synthetic | `bench/dataset/synthetic/<name>/`: one phenomenon each, built from our C and asm with agbcc, binutils and a shared tiny `crt0.s` | `expect.json` (entries, extents, code end, and for negative fixtures zero extra entries) plus the fixture's ELF | every CI run, from the committed builds (D28) |
-| Real, tuning | the five pairs of benchmark-roms.md under `ROMLIFT_BENCH_ROOT` (default `..`) | ELF `FUNC` symbols counted from the end of the startup region, minus `labels`, plus `untyped` | locally; CI checks the artifact's provenance and its gate record |
-| Real, held-out | pokefirered, pokeruby, tmc (each once its build reproduces its SHA-1), and the reserve pool of benchmark-roms.md | the same ELF symbols, judged by classifiers only (§8.4) | locally, sealed |
+| Real, tuning | the six pairs of benchmark-roms.md under `ROMLIFT_BENCH_ROOT` (default `..`): the PoC's five and tmc, revealed by the owner's decision (D60) | ELF `FUNC` symbols counted from the end of the startup region, minus `labels`, plus `untyped` | locally; CI checks the artifact's provenance and its gate record |
+| Real, held-out | pokefirered, pokeruby (each once its build reproduces its SHA-1; tmc until its reveal, D60), and the reserve pool of benchmark-roms.md | the same ELF symbols, judged by classifiers only (§8.4) | locally, sealed |
 
 **Fixtures.** Each directory holds the sources, `build.mk`, `expect.json` and `build/<name>.gba`,
 `build/<name>.elf` (a few KiB, self-authored, committed; `.gitignore` re-includes exactly
@@ -1604,6 +1609,7 @@ interface Dataset {
   revealed: { at: string; commit: string; reason: string }[];   // append-only; non-empty ⇒ tuning
   labels: { addr: string; name: string; category: ExceptionCategory; note: string }[];   // empty while sealed
   untyped: { addr: string; category: ExceptionCategory; note: string }[];               // empty while sealed
+  codeEnd?: { addr: string; category: 'unsized-last-function'; note: string };          // D60 j: the ELF's code end when its last FUNC is unsized
 }
 ```
 
@@ -1658,7 +1664,7 @@ message states the reason, as the working rule requires.
 | Entries (tuning) | dataset-against-ELF check passes; every miss in `labels`, every false entry in `untyped`; raw precision ≥ 99.7% on every ROM; raw true-positive count never drops; lists only shrink; zero `unreviewed` | 2 |
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
 | Code end | within 16 bytes of the ELF | 2 |
-| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set | 2 |
+| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (the family conditions waived by the owner while no sealed ROM of such a family remains, D60) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on all five tuning ROMs and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and all five tuning ROMs (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
@@ -1707,7 +1713,10 @@ never counts toward `g2.held-out` again. The provenance check fails if `results.
 held-out dataset. If `g2.held-out` fails, phase 2 does not land unless the owner records a decision that
 accepts the failure (§12); the failure is then fixed by a rule change justified by its `restsOn` and
 validated on the tuning set alone, and a fresh sealed pair from the reserve pool is needed before any
-claim of generality (D53).
+claim of generality (D53). The owner answered §12 item 4 on 17 October 2026 (D60): tmc is revealed and
+tuned on, and while no sealed dataset is of a family absent from the tuning set the gate waives its two
+family conditions and prints each waiver; the per-ROM thresholds and "at least two sealed ROMs pass"
+still decide.
 
 ### 8.5 Commands
 
@@ -1946,7 +1955,11 @@ in roadmap.md pass. The gates per phase are those of §1.
    branch is left raw; `init` never produces such a border. Approve the exception, or make such a border
    an error?
 4. If `g2.held-out` fails, may phase 2 land with the failure recorded, while release 1 stays blocked until
-   a fresh sealed pair passes (D53)?
+   a fresh sealed pair passes (D53)? **Answered by the owner on 17 October 2026: "Tune on tmc, no new
+   ROM"** (D60). tmc is revealed and tuned on with general rules; pokefirered and pokeruby stay sealed and
+   pass; `g2.held-out` is recorded as having no held-out ROM of a family absent from the tuning set (its
+   family conditions waived and printed as such). Release 1 still needs a fresh sealed pair of such a
+   family before it claims generality (D53).
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
    about 16,000 lines).
 6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export.

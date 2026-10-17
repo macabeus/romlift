@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -212,6 +212,12 @@ two modes is proven in the phase that builds the driver, not two phases later.
 
 **Rejected.** Config entries as ordinary seeds in one mode (silent split changes). A `settle` stage that
 resumes discovery with seeds (reorders acceptance inside the phase-2 port).
+
+**Revision (17 October 2026, D60 k).** `isFunction` means "taken" in both modes, and confirm mode takes
+the listed entries the rules reach during the passes, in discover's order, and the rest of the list
+after them (then runs the passes again). The split is still exactly the TOML's; the rule "listed entries
+are functions from round 0" made confirm's readings differ from discover's on tmc's hand-written code
+with several entries.
 
 ## D9. One proposal shape; the TOML decides and records the source
 
@@ -1129,6 +1135,11 @@ improvised.
 **Rejected.** Landing automatically on a recorded failure (weakens the plan's gate without the owner).
 Counting siblings of a tuning ROM as independent.
 
+**Revision (17 October 2026, the owner's decision, D60).** The owner answered architecture §12 item 4:
+"Tune on tmc, no new ROM". tmc is revealed and tuned on; while no sealed dataset is of a family absent
+from the tuning set, `g2.held-out` waives its two family conditions and prints each waiver; every other
+condition stands, and a fresh sealed pair is still needed before release 1 claims generality.
+
 ## D54. Phase-1 component boundaries as executed
 
 **Context.** Roadmap 1.0–1.D splits phase 1 into a lead, four parallel components and an integrator.
@@ -1586,6 +1597,112 @@ the 31 fixtures; rejections change (claimed harvest targets, veto rejections, th
 every analysis digest moves in fix round 2; tmc's glued split reads 2 inside an extent, 15 outside, 34
 past the code end (its verdict is unchanged). (q) to (t) change no analysis digest of the tuning ROMs:
 no tuning run reaches either budget, passes a malformed seed or is truncated.
+
+## D60. The owner's answer to §12 item 4: tune on tmc, with the rules and conventions it needed
+
+**Context.** Phase 2 did not land because `g2.held-out` failed on tmc (zeldaret-tmc, the only sealed ROM
+of a codebase family absent from the tuning set): raw recall 99.37% below 99.46%, 51 `glued` misses (2
+inside a found extent, 15 outside every extent, 34 past the code end), 3 label candidates, and a code end
+4,130 bytes before the ELF's; pokefirered and pokeruby passed but are both `pret-gen3`, a family of the
+tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeus, answered architecture
+§12 item 4: **"Tune on tmc, no new ROM."**
+
+**Decision.**
+
+- **The owner's decision.** tmc is revealed (`bench run --reveal tmc`, `306eaf2`) and is tuning data; its
+  misses are fixed with general rules and its remaining rows are classified like those of the other five
+  tuning datasets. pokefirered and pokeruby stay sealed and must keep passing. `g2.held-out` is recorded as
+  having no held-out ROM of a family absent from the tuning set: its two family conditions (the passing
+  ROMs span two codebase families, one of them absent from the tuning set) are waived while no sealed
+  dataset at all is of such a family, and the gate prints each waived condition (`WAIVED: …, by the owner
+  … on 2026-10-17 (D60)`); every per-ROM threshold, the seal and "at least two sealed ROMs pass" still
+  decide (`test/gates/g2.held-out.test.ts`, `bench/src/seal.ts` `FAMILY_WAIVER`). This is the only gate
+  change the decision authorises. A sealed pair of a fresh family is still needed before release 1 claims
+  generality (D53).
+- (a) **The gap scan resumes through the profile** (fill-gaps.ts `resume`): after a reading, at the
+  halfword where it ends when `alignment.thumbFunction` allows a Thumb function there and the halfword is
+  not padding (`idioms.isPadding` on both bytes), else at the next `alignment.cFunction` boundary. The PoC
+  always took the next word, so libgcc's `_call_via_r8` … `_call_via_lr` (2-byte stubs at 2 mod 4) and an
+  alternative entry `movs r3, #1; b …` right after a function were never candidates. Traversal, not a rule
+  (D59 l): the profile decides where a function may start, the proposers what starts there.
+- (b) **`gap.end-anchor` takes a veneer-array element**: a two-instruction `ldr rN, [pc, #k]; bx rN` whose
+  code ends exactly where an accepted stub of the same shape starts counts without `gapScan.minInsns` and
+  without filling the hole (its pool lies after the array).
+- (c) **`gap.end-anchor` tries the halfword between two words** first when the profile lets Thumb
+  functions sit there and it opens with `push {.., lr}` (`idioms.opensWithPushLr`), ranked as a prologue.
+- (d) **`claim.dead-code-in-extent` leaves an unreached copy of the reading's own entry stub free**: when
+  the reading opens with `movs rX, #k; b T`, an unreached `movs rX, #k'; b T` (same register, same target)
+  inside its extent is another entry of a stub table that shares one tail, not dead code.
+- (e) **`seed.ram-copy`** (new queue rule, origin `ram-copy`, profile field `ramCopy: { argInsns: 12,
+  maxBytes: 0x10000 }`): a `bl` of accepted Thumb code whose r0, r1 and r2 hold a ROM address S, an
+  IWRAM address D and a size L (pool literals, `movs`, register copies, `adds #imm`, `subs` of known
+  values in the straight-line run before it) marks [S, S + L) as code that runs at D; an IWRAM pointer P
+  in (D, D + L) that accepted code loads from its pool and jumps through (`bx`, `mov pc`, `bl` to a `bx rN`
+  stub of that register) names the entry S + (P − D), Thumb when P is odd. A pointer whose instruction
+  before it is not an unconditional exit names a second entry of code that falls into it and is not
+  proposed (proposed first, such tails made the ARM readings of their heads overflow and the gap scan read
+  ARM as Thumb). A pointer equal to D is not used: the copy names the block's start already, and mapping a
+  block from its start is phase 6's `runs_at` (architecture §6.7; the `code-copied-to-ram` fixture keeps
+  its expectation). IWRAM only and jumps only: EWRAM copies and stored pointers gave false entries on
+  pokeemerald and fe7j in the measurement. Stateless: each (copy, jump) pair is proposed when the later
+  of its two functions is accepted. The rule reads the instructions it needs through `Reading.insnAt`.
+- (f) **`gap.forward-chain` declines a word holding an accepted Thumb function + 1** (word-aligned, odd,
+  the word − 1 a function): a literal pool word, not code; the skip slot steps over it.
+- (g) **`seed.adr` proposes only past the function's extent, unclaimed words that read as ARM code**: an
+  adr into the own extent is a local label (a return address, a table of its own), one onto claimed or
+  undecodable words names data.
+- (h) **`accept.prologue-and-calls-accepted`** (new accept rule, after `accept.pointer-table-run`): a
+  valid data-pointer candidate with a word-aligned prologue, a return and at least one call, every call on
+  an accepted function, is taken: three independent signs of a function that bytes of data do not show by
+  chance.
+- (i) **Categories.** `unreached-tail` (code after a hand-written function's return that nothing reaches,
+  folded into that function by the ELF) and `unsized-last-function` (below) are new; `second-entry`
+  (reached by its own bl, a veneer or a code pointer), `untyped-leaf` (directly or through
+  `bl _call_via_rN`) and `split-after-returning-call` (a bl to a returning helper, or `mov lr, pc; bx rN`)
+  are widened to what tmc's rows show.
+- (j) **A dataset `codeEnd` row** `{addr, category: 'unsized-last-function', note}` gives the ELF's code
+  end when its last function has no size: the scorer uses it instead of the largest addr + size.
+  dataset-check recomputes it from the ELF (the first `$d`, FUNC, OBJECT or SECTION symbol after the last
+  function, which must be unsized) and reports a wrong or unneeded row; `bench regression` asks a
+  `Bench-Exception` trailer for it as for any row. tmc's last FUNC, `sub_080B299C`, has size 0 and runs
+  to the `$d` at 0x080B2A30.
+- (k) **Confirm mode takes the rest of the list after the passes** (revising D8): the seeds of origin
+  `listed` are taken after the passes, which then run again, and `isFunction` means "taken" in both
+  modes. The rules take, of the listed entries, those they reach in discover's order and with discover's
+  readings (a reading depends on what was taken before it, and an epoch keeps the reading of a candidate
+  from the moment it was first judged); an unlisted acceptance is still only reported, and every listed
+  entry is a function before the run ends, its extent its TOML size or its reading cut at the next listed
+  entry that is not a label. tmc's animation entries, stub tables and IWRAM chains made the two modes
+  differ on six functions before.
+- (l) **The PoC's own measurements cover the ROMs it ran on.** `export-poc` and `bench poc-check` iterate
+  the tuning datasets the PoC baseline names (`pocDatasets`); the `scaffold` family, measured only by the
+  PoC's dumps until phase 3, is asked by the provenance check only of those ROMs until then. tmc has no
+  PoC run (the pinned PoC has no tmc dataset): its PoC true-positive floor in `g2.entries` is vacuous,
+  `g2.baseline-rows` has no row to compare, and `g2.poc-parity` has no evidence for it until it becomes
+  historical when phase 2 lands. Every other gate judges tmc as a tuning ROM.
+- (m) **`bench/baseline/speed.json` holds tmc**, measured in the baseline's calibration.
+
+**Consequences.** tmc at `d645160` (sealed): 8,589 entries for 8,636 ELF functions, tp 8,582, recall
+99.37%, 51 glued, 3 label candidates, 8 false entries, code end −4,130. After (a) to (m): 8,643 entries,
+tp 8,631, precision 99.86%, recall 99.94%, 5 misses (`labels`), 12 false entries (`untyped`), extents
+8,388/8,388, code end 0 (+148 without the `codeEnd` row). On fe7j, klonoa, pokeemerald, sa2 and sa3 every
+bench row is unchanged (entries, true positives, misses, false entries with their origins, extents, code
+end); analysis digests move only through (c) (two rejections on pokeemerald) and (h) (origins: fe7j 2,122
+functions, pokeemerald 1,234, sa3 202, sa2 149, klonoa 13), and fe7j's analysis takes about 1.2 s instead
+of 8.6 s. pokefirered and pokeruby still pass sealed with unchanged counts. 59 rules, 33 fixtures (two
+new: `ram-code-entries`, `data-named-between-data`). Known limitation: tmc's `arm_sub_080B1FE4`, a
+two-instruction ARM leaf after an ARM function, is read as Thumb (the ARM gap scan needs three
+instructions; the bench scores addresses, not modes).
+
+**Rejected.** A general scorer convention for unsized functions (a size-0 FUNC ends at the next `$d` or
+typed symbol): it would also move klonoa's and fe7j's code ends (+4 and +8 to 0), whose rows are rescored
+against the PoC baseline that g1.bench-harness requires equal. Mapping a pointer equal to the copy's
+destination (changes the `code-copied-to-ram` fixture's expectation without sign-off). Trusting every
+mapped pointer (the measured prototype: second entries accepted before their heads, three Thumb readings
+of ARM code at 0x080B19CC..0x080B19D4). Pre-settling every listed seed in confirm mode (10 differences on
+tmc), and deferring the listed seeds while keeping them functions from round 0 (11 differences). Scoping
+`g2.poc-parity` to the PoC's ROMs (it becomes historical when phase 2 lands; the decision authorises no
+other gate change).
 
 ---
 
