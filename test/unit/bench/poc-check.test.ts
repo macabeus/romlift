@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { jsonDiffs, stripSeconds, withoutPaths } from '../../../bench/src/baseline.ts';
-import { checkPocRom, romPasses } from '../../../bench/src/poc-check.ts';
+import { checkPocRom, romPasses, withoutCategories } from '../../../bench/src/poc-check.ts';
 import { dump, row } from './fixtures.ts';
 
 const ROW = row();
@@ -60,4 +60,9 @@ test('withoutPaths and jsonDiffs', () => {
   assert.deepEqual(jsonDiffs({ a: 1 }, { b: 1 }), ['a: expected 1, got absent', 'b: expected absent, got 1']);
   assert.deepEqual(jsonDiffs({ a: null }, { a: null }), []);
   assert.equal(jsonDiffs({ a: Array.from({ length: 50 }, (_, i) => i) }, { a: [] }, '', 5).length, 5);
+});
+
+test('a rescored row is compared without the categories of its misses and false entries (they describe the dataset)', () => {
+  const value = { name: 'x', misses: [{ addr: '0x08000100', category: 'split-after-returning-call', listed: true }], falseEntries: [{ addr: '0x08000200', category: 'second-entry' }], tp: 1 };
+  assert.deepEqual(withoutCategories(value), { name: 'x', misses: [{ addr: '0x08000100', listed: true }], falseEntries: [{ addr: '0x08000200' }], tp: 1 });
 });
