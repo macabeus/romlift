@@ -14,10 +14,14 @@
 //   --reveal appends {at, commit, reason} to a held-out dataset's `revealed` log, which makes it tuning
 //            data, and prints its rows to stdout; rows are never written to results.json (D25).
 //
-// The row's `parity` member (the parity-view digest against bench/baseline/poc-digests.json, read by
-// g2.poc-parity) is not produced here: it needs bench/src/parity.ts, which p2-lockstep delivers, and
-// p2-milestones wires it into this file at milestone M1. Until then a written results.json keeps the
-// previous artifact's `parity` evidence member unchanged.
+// Each row carries `parity: {digest, expected}`: the parity-view digest of the run (bench/src/parity.ts)
+// and the PoC's committed one (bench/baseline/poc-digests.json), which g2.poc-parity compares. A lead run
+// that names `--worklist poc-lifo` (nothing disabled) also records the PoC-parity evidence, the
+// `parity` member of results.json (parity-evidence.ts): per tuning ROM the digests, the number of rows
+// that differ from the PoC baseline and the lockstep summary of every family set (lockstep.ts, which reads
+// the logs of `export-poc --mode queries`). When 'poc-lifo' is the default tuning that run writes the
+// whole artifact; otherwise it replaces only the `parity` member of the committed one. Every other lead
+// run keeps the previous `parity` member unchanged.
 import { arch, cpus, platform } from 'node:os';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -36,6 +40,10 @@ import { currentNodeMajor, sourceDigest } from './digest.ts';
 import { phase2RomFamilies } from './families.ts';
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
 import { gitDirty, gitHead } from './git.ts';
+import { lockstepSets } from './lockstep.ts';
+import { resultParityDigest } from './parity.ts';
+import { evidenceProblems, PARITY_EVIDENCE_SCHEMA, type LockstepSummary, type ParityEvidence, type RomParityEvidence } from './parity-evidence.ts';
+import { parsePocDigests, pocDigestsPath, type PocDigests } from './parity-view.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 import { currentPrinterSummary } from './printer.ts';
 import { readDump } from './rescore.ts';
@@ -67,6 +75,10 @@ export interface RunOptions {
   readonly json?: boolean;
   readonly tuning?: RunTuning;
   readonly cpuProf?: boolean;
+  /** `--worklist poc-lifo` named on a writing run: record the PoC-parity evidence (isParityRun must hold). */
+  readonly parityEvidence?: boolean;
+  /** The lockstep of every family set on one ROM (lockstep.ts's lockstepSets; the tests pass a fixed one). */
+  readonly lockstep?: (cx: BenchContext, rom: string) => Promise<{ readonly sets: readonly LockstepSummary[] }>;
   readonly runner: AnalysisRunner;
   readonly log?: (line: string) => void;
 }
@@ -76,6 +88,8 @@ export interface RunOutcome {
   /** The artifact written, when the run wrote bench/results.json. */
   readonly results?: Results;
   readonly gatesKept: boolean;
+  /** A parity run's evidence problems (parity-evidence.ts), empty when it proves parity; absent for other runs. */
+  readonly parityProblems?: readonly string[];
 }
 
 export async function romliftVersion(repoRoot: string): Promise<string> {
@@ -95,10 +109,24 @@ export interface TuningContext {
   readonly baseline: Baseline;
   readonly accepted: AcceptedDiffs;
   readonly pinnedPocDigest: string;
+  /** bench/baseline/poc-digests.json, when committed. */
+  readonly pocDigests?: PocDigests;
 }
 
 export async function tuningContext(cx: BenchContext): Promise<TuningContext> {
-  return { baseline: await readBaseline(cx), accepted: await readAcceptedDiffs(cx), pinnedPocDigest: (await readPinnedPocSource(cx)).digest };
+  const digestsPath = pocDigestsPath(cx);
+  const pocDigests = (await exists(digestsPath)) ? parsePocDigests(await readJson(digestsPath), digestsPath) : undefined;
+  return {
+    baseline: await readBaseline(cx),
+    accepted: await readAcceptedDiffs(cx),
+    pinnedPocDigest: (await readPinnedPocSource(cx)).digest,
+    ...(pocDigests === undefined ? {} : { pocDigests }),
+  };
+}
+
+/** A lead run that records the PoC-parity evidence: the PoC's LIFO worklist, nothing disabled. */
+export function isParityRun(t: RunTuning): boolean {
+  return t.worklist === 'poc-lifo' && t.disabled.length === 0;
 }
 
 /** The PoC's scaffold verdict for `d`, from its dump (until phase 3); refused when the dump is of another PoC source. */
@@ -134,6 +162,7 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
     poc: comparison.poc,
     staleExceptions: staleExceptions(d, row),
     baselineRows: comparison.baselineRows,
+    parity: { digest: resultParityDigest(analysis.result), expected: tc.pocDigests?.roms[d.name] ?? '' },
   };
 }
 
@@ -170,7 +199,10 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
   const log = options.log ?? (() => {});
   const tuning = options.tuning ?? DEFAULT_RUN_TUNING;
   const writing = options.json !== true;
-  if (writing && !isDefaultTuning(tuning)) throw new BenchError('bench/results.json is written only with the default tuning: add --json to run with --worklist or --disable');
+  if (options.parityEvidence === true && !isParityRun(tuning)) throw new BenchError('the parity evidence is recorded only under --worklist poc-lifo with nothing disabled');
+  const parityRun = writing && options.parityEvidence === true;
+  if (writing && !isDefaultTuning(tuning) && !parityRun) throw new BenchError('bench/results.json is written only with the default tuning or by a parity run (--worklist poc-lifo): add --json to run with --worklist or --disable');
+  if (parityRun && options.only !== undefined) throw new BenchError('a parity run records the evidence of every tuning ROM: drop --only, or add --json');
   const { datasets, problems } = await loadDatasets(cx);
   if (problems.length > 0) throw new BenchError(`malformed datasets: ${problems.map((p) => p.detail).join('; ')}`);
   const chosen = datasets.filter((d) => (options.only === undefined ? !isSealed(d) || writing : d.name === options.only));
@@ -225,8 +257,41 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
   if (!writing || sealedOnly) return { report, gatesKept: false };
   if (failed.length > 0) throw new BenchError(`not writing bench/results.json: the analysis failed on ${failed.map((f) => f.name).join(', ')}`);
   if (tc !== undefined) inputs['pocSourceDigest'] = tc.pinnedPocDigest;
-  const { results, gatesKept } = await writeArtifact(cx, report, inputs, families);
-  return { report, results, gatesKept };
+  if (!parityRun || tc === undefined) {
+    const { results, gatesKept } = await writeArtifact(cx, report, inputs, families);
+    return { report, results, gatesKept };
+  }
+  const evidence = await parityEvidence(cx, report.roms, tc, options.lockstep ?? lockstepSets, log);
+  const parityProblems = tc.pocDigests === undefined ? ['bench/baseline/poc-digests.json is missing'] : evidenceProblems(evidence, tc.pocDigests);
+  if (isDefaultTuning(tuning)) {
+    const { results, gatesKept } = await writeArtifact(cx, report, inputs, families, evidence);
+    return { report, results, gatesKept, parityProblems };
+  }
+  const previous = await readResultsFile(resultsPath(cx));
+  if (previous === undefined) throw new BenchError('a parity run under a non-default tuning records only the parity member: bench/results.json must exist (run bench run first)');
+  const results: Results = { ...previous, parity: evidence };
+  await writeResultsFile(resultsPath(cx), results);
+  log('wrote the parity member of bench/results.json (the rest of the artifact unchanged)');
+  return { report, results, gatesKept: previous.gates.real.length > 0, parityProblems };
+}
+
+/** The PoC-parity evidence of a parity run: each row's digests and baseline diffs, and the lockstep of every family set. */
+async function parityEvidence(
+  cx: BenchContext,
+  rows: readonly RomliftRow[],
+  tc: TuningContext,
+  lockstep: NonNullable<RunOptions['lockstep']>,
+  log: (line: string) => void,
+): Promise<ParityEvidence> {
+  const roms: Record<string, RomParityEvidence> = {};
+  for (const row of rows) {
+    const { sets } = await lockstep(cx, row.name);
+    for (const s of sets) {
+      log(`${row.name.padEnd(12)} lockstep ${s.set.padEnd(18)} ${s.divergence === null ? 'follows the log' : `DIVERGES at seq ${s.divergence.seq}`}: ${s.queries} records, ${s.matched} matched, ${s.answered} answered, ${s.compared} compared, ${s.skipped} skipped, ${s.recalled} recalled`);
+    }
+    roms[row.name] = { digest: row.parity.digest, expected: row.parity.expected, rowDiffs: row.baselineRows.diffs.length, lockstep: sets };
+  }
+  return { schema: PARITY_EVIDENCE_SCHEMA, commit: await gitHead(cx.repoRoot), dirty: await gitDirty(cx.repoRoot), worklist: 'poc-lifo', pocSourceDigest: tc.pinnedPocDigest, roms };
 }
 
 async function writeTimings(cx: BenchContext, roms: Readonly<Record<string, unknown>>): Promise<void> {
@@ -239,6 +304,7 @@ async function writeArtifact(
   report: BenchRunReport,
   inputs: Readonly<Record<string, RomInputs | string>>,
   families: Readonly<Record<string, readonly string[]>>,
+  evidence?: ParityEvidence,
 ): Promise<{ readonly results: Results; readonly gatesKept: boolean }> {
   const nodeMajor = currentNodeMajor();
   const toolchain: Toolchain = await toolchainVersions();
@@ -263,7 +329,7 @@ async function writeArtifact(
     gates: { real: gates },
     roms: report.roms,
     ...(report.sealed.length === 0 ? {} : { sealed: report.sealed }),
-    ...(previous?.parity === undefined ? {} : { parity: previous.parity }),
+    ...(evidence !== undefined ? { parity: evidence } : previous?.parity === undefined ? {} : { parity: previous.parity }),
   };
   await writeResultsFile(resultsPath(cx), results);
   return { results, gatesKept: gates.length > 0 };

@@ -11,6 +11,7 @@ import type { AnalysisResult, MissReason } from 'romlift';
 
 import { resultDigest } from '../../../bench/src/analysis-run.ts';
 import { stripSeconds } from '../../../bench/src/baseline.ts';
+import { resultParityDigest } from '../../../bench/src/parity.ts';
 import type { BenchDeps } from '../../../bench/src/cli.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
@@ -69,6 +70,8 @@ export const EXPECTED_ROMLIFT_ROW = {
   poc: { tp: 2 },
   staleExceptions: [],
   baselineRows: { diffs: [], unaccepted: [], staleAccepted: [] },
+  // The synthetic tier commits no poc-digests.json, so nothing is expected.
+  parity: { digest: resultParityDigest(tinyResult()), expected: '' },
 } as const;
 
 const POC_ROW = { ...EXPECTED_ROW, seconds: 0.1, scaffold: { ok: true, seconds: 0.2, summary: 'built' }, signatures: { functions: 0, seconds: 0 }, datasetProblems: [] };

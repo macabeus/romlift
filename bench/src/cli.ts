@@ -98,7 +98,7 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
   run: {
     summary:
       'run [--only <rom>] [--json] [--worklist poc-lifo|ascending] [--disable <rule>...] [--cpu-prof] [--reveal <rom> --reason <text>]  ' +
-      "score romlift's discover run of every dataset; write bench/results.json (lead only, without --json) and bench/timings.json",
+      "score romlift's discover run of every dataset; write bench/results.json (lead only, without --json; --worklist poc-lifo records the parity evidence) and bench/timings.json",
     args: { options: ['only', 'worklist', 'reveal', 'reason'], flags: ['json', 'cpu-prof'] },
     repeated: ['disable'],
     async run(cx, args, io, deps, repeated) {
@@ -122,17 +122,20 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
         json: asJson,
         tuning,
         cpuProf: args.flags.has('cpu-prof'),
+        parityEvidence: !asJson && args.options['worklist'] === 'poc-lifo',
         runner: deps.runner,
         log: io.out,
       });
       printRunReport(io, outcome.report, asJson);
+      for (const p of outcome.parityProblems ?? []) io.err(`parity: ${p}`);
+      if (outcome.parityProblems !== undefined && outcome.parityProblems.length === 0) io.out('the parity evidence proves PoC parity on every tuning ROM');
       const r = outcome.results;
       if (r !== undefined) {
         io.out(
           `wrote bench/results.json (${r.roms.length} rows, ${r.sealed?.length ?? 0} sealed, commit ${r.meta.commit ?? 'none'}${r.meta.dirty ? ', dirty' : ''}; gate record ${outcome.gatesKept ? 'kept' : 'cleared'})`,
         );
       }
-      return outcome.report.failed.length === 0 ? 0 : 1;
+      return outcome.report.failed.length === 0 && (outcome.parityProblems ?? []).length === 0 ? 0 : 1;
     },
   },
   speed: {

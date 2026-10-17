@@ -13,6 +13,9 @@ import { pocCheck } from '../../../bench/src/poc-check.ts';
 import { provenanceChecks, provenanceInputs } from '../../../bench/src/provenance.ts';
 import { cpuProfPath, topSelfTime } from '../../../bench/src/cpu-prof.ts';
 import { benchRun } from '../../../bench/src/run.ts';
+import { resultParityDigest } from '../../../bench/src/parity.ts';
+import { LOCKSTEP_SETS } from '../../../bench/src/parity-evidence.ts';
+import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import { assertCountsOnly } from '../../../bench/src/seal.ts';
 import { failingRunner, withTempDir } from './fixtures.ts';
 import { EXPECTED_ROMLIFT_ROW, syntheticTier, TINY_DEPS, tinyDeps, tinyDump, tinyResult } from './harness.ts';
@@ -183,15 +186,37 @@ test('--reveal appends to the revealed log, prints the rows, and writes no rows 
   });
 });
 
-test('a written artifact keeps the previous parity evidence', async () => {
+/** A lockstep that follows the log on every set and ends at `digest`. */
+function followingLockstep(digest: string): NonNullable<Parameters<typeof benchRun>[1]['lockstep']> {
+  return async () => ({
+    sets: LOCKSTEP_SETS.map((s) => ({ set: s.name, real: [...s.real], queries: 4, matched: 3, answered: 1, compared: 2, markers: 1, skipped: 1, recalled: 0, parityDigest: digest, divergence: null })),
+  });
+}
+
+test('a parity run records the evidence; later runs keep it; --only and a disabled rule are refused', async () => {
   await withTempDir('romlift-run-parity-', async (root) => {
     const cx = await syntheticTier(root);
-    await benchRun(cx, { runner: RUNNER });
-    const path = join(cx.repoRoot, 'bench', 'results.json');
-    const value = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
-    await writeFile(path, JSON.stringify({ ...value, parity: { lockstep: { queries: 3 } } }));
+    const digest = resultParityDigest(tinyResult());
+    await writeFile(join(cx.repoRoot, 'bench', 'baseline', 'poc-digests.json'), JSON.stringify({ schema: 'romlift-bench/poc-digests@1', pocSourceDigest: pocSourceDigest({}), roms: { tiny: digest } }));
+    const lifo = { worklist: 'poc-lifo' as const, disabled: [] };
+    const first = await benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, lockstep: followingLockstep(digest) });
+    assert.deepEqual(first.parityProblems, []);
+    const evidence = first.results?.parity;
+    assert.equal(evidence?.worklist, 'poc-lifo');
+    assert.deepEqual(evidence?.roms['tiny']?.lockstep.map((s) => s.set), LOCKSTEP_SETS.map((s) => s.name));
+    assert.equal(evidence?.roms['tiny']?.digest, digest);
+    assert.deepEqual(first.report.roms[0]?.parity, { digest, expected: digest });
+    // A default run keeps the evidence as written.
     const { results } = await benchRun(cx, { runner: RUNNER });
-    assert.deepEqual(results?.parity, { lockstep: { queries: 3 } });
+    assert.deepEqual(results?.parity, evidence);
+    // A diverging lockstep is recorded and reported.
+    const diverging: NonNullable<Parameters<typeof benchRun>[1]['lockstep']> = async () => ({
+      sets: LOCKSTEP_SETS.map((s) => ({ set: s.name, real: [...s.real], queries: 4, matched: 1, answered: 0, compared: 1, markers: 1, skipped: 0, recalled: 0, parityDigest: null, divergence: { seq: 2, kind: 'answer', epoch: 1, method: 'valid', detail: 'ours true, the PoC false' } })),
+    });
+    const bad = await benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, lockstep: diverging });
+    assert.match(bad.parityProblems?.[0] ?? '', /^tiny: lockstep driver diverges at seq 2 \(answer\)/);
+    await assert.rejects(benchRun(cx, { runner: RUNNER, tuning: lifo, parityEvidence: true, only: 'tiny', lockstep: diverging }), /drop --only/);
+    await assert.rejects(benchRun(cx, { runner: RUNNER, tuning: { worklist: 'poc-lifo', disabled: ['valid.dense'] }, parityEvidence: true }), /only under --worklist poc-lifo with nothing disabled/);
   });
 });
 

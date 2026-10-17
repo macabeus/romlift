@@ -59,6 +59,12 @@ export interface BaselineRows {
   readonly staleAccepted: readonly RowDiff[];
 }
 
+/** The parity digest of a romlift run and the PoC's committed one (bench/baseline/poc-digests.json; '' when it holds none). */
+export interface RowParity {
+  readonly digest: string;
+  readonly expected: string;
+}
+
 export interface BenchRow {
   readonly name: string;
   readonly sha1: string;
@@ -92,6 +98,8 @@ export interface BenchRow {
   readonly poc?: { readonly tp: number };
   readonly staleExceptions?: readonly StaleException[];
   readonly baselineRows?: BaselineRows;
+  /** The parity digest of the run against the PoC's (romlift rows only; g2.poc-parity). */
+  readonly parity?: RowParity;
 }
 
 /** The row of a scored romlift run: every phase-2 field present (what `bench run --json` prints). */
@@ -101,4 +109,5 @@ export type RomliftRow = BenchRow & {
   readonly poc: { readonly tp: number };
   readonly staleExceptions: readonly StaleException[];
   readonly baselineRows: BaselineRows;
+  readonly parity: RowParity;
 };

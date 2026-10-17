@@ -82,6 +82,7 @@ import { loadDatasets, tuningDatasets } from './dataset.ts';
 import { BenchError, exists, readFileBytes, readJson } from './files.ts';
 import { resultParityDigest } from './parity.ts';
 import { parsePocDigests, pocDigestsPath } from './parity-view.ts';
+import { answeredBy, LOCKSTEP_SETS, type EvidenceFamily, type LockstepSummary } from './parity-evidence.ts';
 import { openPocLog, queriesPath, type PocQuery, type PocReading, type ReadingRef, type SettledResult } from './poc-log.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 
@@ -873,8 +874,16 @@ export interface RomLockstep extends LockstepResult {
   readonly expectedDigest: string;
 }
 
-/** Reads one tuning ROM and its log, then runs runLockstep; refuses a ROM or log that is not the dataset's or the pinned PoC's. */
-export async function lockstep(cx: BenchContext, name: string, families: readonly AnalysisFamily[]): Promise<RomLockstep> {
+/** One tuning ROM's bytes and log, checked against its dataset, the pinned PoC and the committed digests. */
+interface LoadedLog {
+  readonly rom: Rom;
+  readonly records: readonly PocQuery[];
+  readonly expectedDigest: string;
+  readonly profile: CompilerProfile;
+}
+
+/** Reads one tuning ROM and its log; refuses a ROM or log that is not the dataset's or the pinned PoC's. */
+async function loadLog(cx: BenchContext, name: string): Promise<LoadedLog> {
   const { datasets } = await loadDatasets(cx);
   const d = tuningDatasets(datasets, name)[0];
   if (d === undefined) throw new BenchError(`no tuning dataset named ${name}`);
@@ -896,5 +905,36 @@ export async function lockstep(cx: BenchContext, name: string, families: readonl
   if (expectedDigest === undefined) throw new BenchError(`${pocDigestsPath(cx)} has no digest for ${name}`);
   const profile = profileById('agbcc');
   if (profile === undefined) throw new BenchError('the agbcc profile is not registered');
-  return { rom: name, expectedDigest, ...runLockstep(romFromBytes(bytes, sha1), records, families, profile) };
+  return { rom: romFromBytes(bytes, sha1), records, expectedDigest, profile };
+}
+
+/** Reads one tuning ROM and its log, then runs runLockstep with `families` answered. */
+export async function lockstep(cx: BenchContext, name: string, families: readonly AnalysisFamily[]): Promise<RomLockstep> {
+  const loaded = await loadLog(cx, name);
+  return { rom: name, expectedDigest: loaded.expectedDigest, ...runLockstep(loaded.rom, loaded.records, families, loaded.profile) };
+}
+
+/** The recorded summary of one lockstep run of the set `set` that computes `real`. */
+export function lockstepSummary(set: string, real: readonly EvidenceFamily[], r: LockstepResult): LockstepSummary {
+  const d = r.divergence;
+  return {
+    set,
+    real: [...real],
+    queries: r.queries,
+    matched: r.matched,
+    answered: r.answered,
+    compared: r.compared,
+    markers: r.markers,
+    skipped: r.skipped,
+    recalled: r.recalled,
+    parityDigest: r.parityDigest ?? null,
+    divergence: d === undefined ? null : { seq: d.seq, kind: d.kind, epoch: d.epoch, method: d.method, detail: d.detail },
+  };
+}
+
+/** Every family set of LOCKSTEP_SETS on one tuning ROM, its log read once; and the committed digest. */
+export async function lockstepSets(cx: BenchContext, name: string): Promise<{ readonly expectedDigest: string; readonly sets: readonly LockstepSummary[] }> {
+  const loaded = await loadLog(cx, name);
+  const sets = LOCKSTEP_SETS.map((s) => lockstepSummary(s.name, s.real, runLockstep(loaded.rom, loaded.records, answeredBy(s.real), loaded.profile)));
+  return { expectedDigest: loaded.expectedDigest, sets };
 }
