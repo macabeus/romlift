@@ -21,7 +21,7 @@ The rules of the proof of concept (`/Users/macabeus/ApenasMeu/decompiler/romlift
 | `pokeemerald` | Pokémon Emerald | `pokeemerald/pokeemerald.gba` | `pokeemerald/pokeemerald.elf` | `pokeemerald/pokeemerald.map` | pret/pokeemerald | `731ad5bfd` | `f3ae088181bf583e55daf962a92bb46f4f1d07b7` | 15,856 |
 | `tmc` (revealed, D60) | The Legend of Zelda: The Minish Cap | `tmc/tmc.gba` | `tmc/tmc.elf` | `tmc/build/USA/tmc.map` | zeldaret/tmc | `6fb6dfb` | `b4bd50e4131b027c334547b4524e2dbbd4227130` | 8,636 |
 
-ROM and ELF paths, SHA-1s and ELF commits of the five are those recorded in the PoC's `bench/dataset/real/*.json` and `bench/results.json` (generated 2026-10-16). ELF function counts are the PoC's scored truth after its startup-region rule (tmc's: romlift's scorer, same rule). tmc's, klonoa's and fe7j's ELFs give their last function no size; the scorer ends an unsized function at the first data mapping or typed symbol after it, for every ROM (D60 j).
+ROM and ELF paths, SHA-1s and ELF commits of the five are those recorded in the PoC's `bench/dataset/real/*.json` and `bench/results.json` (generated 2026-10-16). ELF function counts are the PoC's scored truth after its startup-region rule (tmc's: romlift's scorer, same rule). tmc's, klonoa's and fe7j's ELFs give their last function no size; the scorer ends an unsized function where it starts (the largest addr + size), for every ROM, so tmc's code end is +148 (D60 j, owner question Q5).
 
 ## Held-out set: two unseen ROMs (three until tmc's reveal)
 

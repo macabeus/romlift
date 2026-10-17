@@ -114,6 +114,20 @@ it does not land while a gate fails).
    no held-out ROM of a fresh family remains (the fresh-family condition); the waiver of "the passing ROMs
    span two codebase families" is inferred from "pokefirered and pokeruby must keep passing" and "phase 2
    then lands". **Does the decision waive both conditions?**
+5. **The code-end convention of the scorer** (gate-honesty-r1-1, overfitting-r1-7; new in fix round 2 of
+   D60). The ELF's code end is the largest addr + size of its functions, the PoC's convention and every
+   scorer's since phase 1, under which an unsized function (hand-written asm without `.size`) ends where it
+   starts. Fix round 1 changed it, for every ROM, tuning and sealed, to end an unsized function at the first
+   data mapping (`$d`) or typed symbol after it; fix round 2 withdrew that, because it is a gate input the
+   owner did not authorise and the only reading under which tmc passes. romlift's analysis of tmc is the
+   same under every reading (digest `d8aac78c…`, code end 0x080B2A30); only the ruler moves. Facts for the
+   answer, per reading (phase-1 / `$d` / pool-inclusive, the next typed symbol ignoring `$d`): tmc +148 /
+   0 / −64 (its last FUNC `sub_080B299C` has size 0; `$d` at 0x080B2A30 starts the pool `intr.s`'s
+   functions share, the next typed symbol is at 0x080B2A70); klonoa +4 / 0; fe7j +8 / 0; pokeemerald, sa2,
+   sa3, pokefirered and pokeruby 0 under each (their last function is sized). The gate limit is 16 bytes.
+   With the phase-1 reading `g2.code-end` and `bench regression` fail on tmc (+148). **May the code-end
+   convention change for every ROM, tuning and sealed, to the `$d` reading, or must tmc's +148 stand as a
+   failure (or a recorded limitation)?**
 
 ## What phase 2 delivered
 
@@ -724,9 +738,8 @@ extents 12,383 / 12,386, code end 0), pokeruby pass (99.95%, 100.00%, 0, 0, 11,4
   #21]; bx lr`) is found at the right address in the wrong mode, because the ARM gap scan needs three
   instructions; the bench scores addresses, not modes. The scaffold of phase 3 decides whether that
   matters (its bytes print either way).
-- **The code end of an unsized last function** ends at the first `$d` or typed symbol after it, for every
-  ROM (D60 j); a trailing pool shared by hand-written functions is left outside, unlike a sized function's
-  own pool.
+- **The code end of an unsized last function** ends where it starts (the largest addr + size, every ROM):
+  tmc's code end is +148 and fails `g2.code-end` until the owner answers Q5 (D60 j).
 - **Single-instance rules**: D60 (b), (c), (d) and (f) hold once each, on tmc; their fixtures are
   self-authored. Generality needs a sealed ROM of a fresh family (D53).
 - **3 s CPU.** Every tuning ROM's analysis is now under phase 3's budget under `epoch` (fe7j about 1.2 s since

@@ -1711,22 +1711,22 @@ of generality until a sealed ROM of a fresh family passes (D53).
   `bl _call_via_rN`) and `split-after-returning-call` (a bl to a returning helper, or `mov lr, pc; bx rN`)
   are widened to what tmc's rows show. (`unsized-last-function`, the category of the withdrawn `codeEnd`
   row, is gone with it.)
-- (j) **One code-end convention for every ROM, in the scorer** (fix round 1 of D60, replacing the dataset
-  `codeEnd` row of `80762ff`, which only tmc carried while klonoa and fe7j have the same ELF shape):
-  `bench/src/truth.ts` `elfCodeEnd` ends a sized function at addr + size (agbcc's `.size`, its literal pool
-  included) and an unsized one (hand-written asm without `.size`) at the first data mapping (`$d`) or typed
-  (FUNC, OBJECT, SECTION) symbol after it, where the assembler stopped emitting its instructions. The tuning
-  scorer and the sealed scorer both use it. A trailing literal pool of hand-written asm is data its file's
-  functions share (tmc's `_080B2A30`..`_080B2A6C` in `intr.s`), so it is not given to the last of them: the
-  asymmetry with a sized function, whose `.size` covers its own pool, is a known limitation of a convention
-  for symbols that carry no size. Effect: klonoa +4 → 0 (`sub_08051BD0`, SECTION at 0x08051BD4), fe7j +8 →
-  0 (`Checksum32_thm`, `$d` at 0x080C0C50), tmc +148 → 0 (`sub_080B299C`, `$d` at 0x080B2A30); the other
-  rows are unchanged; pokefirered and pokeruby still pass sealed. The rescoring of the PoC's own dumps
-  against its baseline (`bench poc-check`, `g1.bench-harness`) keeps the PoC's convention (`pocCodeEnd`,
-  the largest addr + size), because it checks that the harness reproduces the PoC's scoring; that is the
-  recorded decision the review asked for. The pool-inclusive alternative (an unsized function ends at the
-  next typed symbol, ignoring `$d`) puts tmc's ELF end at 0x080B2A70, 64 bytes past every reading of the
-  shared pool's last user; it is rejected rather than tuned around.
+- (j) **Withdrawn (fix round 2 of D60): the code-end convention stays the one of phase 1.** Fix round 1
+  replaced the dataset `codeEnd` row of `80762ff` with a scorer convention, `elfCodeEnd` in
+  `bench/src/truth.ts`, that ended an unsized function (hand-written asm without `.size`) at the first data
+  mapping (`$d`) or typed symbol after it, in the tuning and the sealed scorer. The review of `f802822`
+  (gate-honesty-r1-1, a blocker) found that this changed the ruler of `g2.code-end` and of the sealed
+  verdict without the owner: romlift's tmc output is the same under every reading (analysis digest
+  `d8aac78c…`), and only the `$d` reading lets tmc pass. Measured on tmc (`sub_080B299C`, FUNC size 0 at
+  0x080B299C, `$d` at 0x080B2A30, the next typed symbol at 0x080B2A70): +148 under the phase-1 convention
+  (fail), −64 under the pool-inclusive one (fail), 0 under the `$d` one (pass); klonoa +4 and fe7j +8
+  under the phase-1 convention, 0 under the `$d` one; pokefirered and pokeruby 0 under both. So
+  `elfCodeEnd` is again the largest addr + size of the ELF's functions (an unsized function ends where it
+  starts), the PoC's convention and that of every scorer since phase 1, and `g2.code-end` and `bench
+  regression` fail on tmc at +148. Whether the convention may change for every ROM, tuning and sealed, is
+  owner question Q5 (phase-2.md); the rejected reasons of fix round 1 (the pool-inclusive reading puts the
+  end 64 bytes past every reading of the shared pool's last user) are facts for that answer, not a choice
+  made here.
 - (k) **Withdrawn (fix round 1 of D60).** `747293f` made confirm mode take the listed entries after the
   passes, in discover's order, revising D8 without the owner; with the gate's listed set being discover's
   own output, confirm then replayed discover step for step and `g2.confirm-equals-discover` held by
@@ -1763,8 +1763,7 @@ of generality until a sealed ROM of a fresh family passes (D53).
 tp 8,631, precision 99.86%, recall 99.94%, 5 misses (`labels`), 12 false entries (`untyped`), extents
 8,388/8,388, code end 0. The pinned PoC's own run of tmc: tp 8,582, 54 misses, 7 false entries, extents
 8,388/8,388, scaffold OK. On fe7j, klonoa, pokeemerald, sa2 and sa3 every bench row is unchanged (entries,
-true positives, misses, false entries with their origins, extents) but the code end of klonoa (+4 → 0) and
-fe7j (+8 → 0) under (j); analysis digests move only through (c) (two rejections on pokeemerald) and (h)
+true positives, misses, false entries with their origins, extents, code end: klonoa +4, fe7j +8); analysis digests move only through (c) (two rejections on pokeemerald) and (h)
 (origins). pokefirered and pokeruby still pass sealed with unchanged counts. 59 rules, 41 fixtures.
 Known limitation: tmc's `arm_sub_080B1FE4`, a two-instruction ARM leaf after an ARM function, is read as
 Thumb (the ARM gap scan needs three instructions; the bench scores addresses, not modes). Gates the
