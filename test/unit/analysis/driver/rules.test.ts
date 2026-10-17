@@ -7,22 +7,23 @@ import { isRuleId } from '../../../../src/core/provenance/rule-id.ts';
 import { resolveRules, RULES } from '../../../../src/core/analysis/driver/rules.ts';
 import { analyze } from '../../../../src/core/analysis/driver/run.ts';
 import type { RuleOracle } from '../../../../src/core/analysis/oracle.ts';
-import { fakeRule, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
+import { fakeRule, pipelineIds, registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
 import { calls, extent, romEntry } from './fakes.ts';
 
 const TUNING = { worklist: 'poc-lifo', cache: 'epoch', disabled: [] } as const;
 
-test('RULES holds only well-formed ids, each registered under its meta.id (empty until the wave-1 rules land)', () => {
+test('RULES holds only well-formed ids, each registered under its meta.id, and implements every agbcc pipeline id', () => {
   for (const [id, rule] of Object.entries(RULES)) {
     assert.ok(isRuleId(id), id);
     assert.equal(rule.meta.id, id);
   }
+  assert.deepEqual(pipelineIds(AGBCC.pipeline).filter((id) => !Object.hasOwn(RULES, id)), []);
 });
 
 test('a pipeline id without an implementation throws RomliftInvariantError', () => {
   const profile = testProfile({ seed: ['seed.rom-entry'] });
   assert.throws(() => resolveRules(profile, registry(), TUNING), RomliftInvariantError);
-  assert.throws(() => analyze(romWith([]), AGBCC, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }), /has no implementation/);
+  assert.throws(() => analyze(romWith([]), testProfile({ seed: ['seed.unimplemented'] }), { mode: 'discover', seeds: [], overrides: [], trail: 'off' }), /has no implementation/);
 });
 
 test('a disabled id is skipped, and a family the oracle answers needs no implementation', () => {

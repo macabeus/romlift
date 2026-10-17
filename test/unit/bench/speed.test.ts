@@ -5,6 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+import type { AnalysisRunner } from '../../../bench/src/analysis-run.ts';
 import { main, type BenchIo } from '../../../bench/src/cli.ts';
 import {
   calibrationRatio,
@@ -90,7 +91,15 @@ test('bench speed --json prints the frozen shape, never writes speed.json, and t
     assert.equal(passing.roms[0]?.baselineCpuMs, 1e6);
     assert.ok(passing.calibration.ratio > 0);
     await writeFile(path, JSON.stringify({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 1e6 }, roms: { tiny: { analysisCpuMs: 1e-6 } } }));
-    assert.equal(await main(['speed', '--json'], cx, (io = capture()), deps), 1);
+    // The fixed runner can measure 0 ms, which no limit fails; this one always spends some CPU.
+    const busy: AnalysisRunner = {
+      analyze: (...args) => {
+        calibrationWorkload(20_000, 1);
+        return deps.runner.analyze(...args);
+      },
+      diagnose: (...args) => deps.runner.diagnose(...args),
+    };
+    assert.equal(await main(['speed', '--json'], cx, (io = capture()), { ...deps, runner: busy }), 1);
     // A failing analysis and an unknown ROM are refused.
     assert.equal(await main(['speed'], cx, capture(), { ...deps, runner: failingRunner() }), 1);
     assert.equal(await main(['speed', '--only', 'nope'], cx, capture(), deps), 1);

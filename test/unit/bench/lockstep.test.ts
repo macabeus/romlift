@@ -20,7 +20,7 @@ import {
   type Divergence,
 } from '../../../bench/src/lockstep.ts';
 import type { PocQuery, PocReading, ReadingRef } from '../../../bench/src/poc-log.ts';
-import { romWith, testProfile } from '../../helpers/analysis.ts';
+import { registry, romWith, testProfile } from '../../helpers/analysis.ts';
 import { AGBCC } from '../../../src/core/profile/agbcc.ts';
 
 const B = 0x0800_0000;
@@ -244,5 +244,5 @@ test('a whole run with every family answered reproduces a hand-written log and i
 });
 
 test('a computed family without rules is refused before the run', () => {
-  assert.throws(() => runLockstep(rom, [], ['seed'], testProfile({ walk: ['walk.pc-load-is-pool'] })), /the computed families lack rules: walk.pc-load-is-pool/);
+  assert.throws(() => runLockstep(rom, [], ['seed'], testProfile({ walk: ['walk.pc-load-is-pool'] }), registry()), /the computed families lack rules: walk.pc-load-is-pool/);
 });
