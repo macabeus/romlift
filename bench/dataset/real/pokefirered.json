@@ -1,0 +1,15 @@
+{
+  "name": "pokefirered",
+  "rom": "pokefirered/pokefirered.gba",
+  "elf": "pokefirered/pokefirered.elf",
+  "map": "pokefirered/pokefirered.map",
+  "sha1": "41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc",
+  "elfCommit": "037335f",
+  "elfSha256": "bbe723fd5723f311f45b1d5db7a71e9f0284dd54f57ab0f700162d7a88346b5e",
+  "family": "pret-gen3",
+  "buildNote": "unchanged",
+  "heldout": true,
+  "revealed": [],
+  "labels": [],
+  "untyped": []
+}

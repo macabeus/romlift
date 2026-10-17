@@ -1,0 +1,15 @@
+{
+  "name": "pokeruby",
+  "rom": "pokeruby/pokeruby.gba",
+  "elf": "pokeruby/pokeruby.elf",
+  "map": "pokeruby/pokeruby.map",
+  "sha1": "f28b6ffc97847e94a6c21a63cacf633ee5c8df1e",
+  "elfCommit": "5784633",
+  "elfSha256": "51cfc8cf2654880e0cd6e20f3801e8c816624dc202c67d0cce8cdc6915128dde",
+  "family": "pret-gen3",
+  "buildNote": "unchanged",
+  "heldout": true,
+  "revealed": [],
+  "labels": [],
+  "untyped": []
+}

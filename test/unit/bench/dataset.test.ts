@@ -16,8 +16,10 @@ const TUNING = {
 } as const;
 
 test('the five committed tuning datasets are well formed and record their digests and family', async () => {
-  const { datasets, problems } = await loadDatasets(contextFromEnv({}));
-  assert.deepEqual(problems, []);
+  const loaded = await loadDatasets(contextFromEnv({}));
+  assert.deepEqual(loaded.problems, []);
+  // The sealed held-out datasets beside them are checked by seal.test.ts.
+  const datasets = loaded.datasets.filter((d) => !d.heldout);
   assert.deepEqual(
     datasets.map((d) => d.name),
     ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3'],
