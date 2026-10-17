@@ -1656,36 +1656,64 @@ of generality until a sealed ROM of a fresh family passes (D53).
   the reading opens with `movs rX, #k; b T`, an unreached `movs rX, #k'; b T` (same register, same target)
   inside its extent is another entry of a stub table that shares one tail, not dead code. Fixture
   `entry-stub-table`. Counter-check: once, on tmc (CreateSwampDrownFx): single-instance.
-- (e) **`seed.ram-copy`** (new queue rule, origin `ram-copy`, profile field `ramCopy: { argInsns: 8 }`;
-  copy recognition rewritten in fix round 1, `f39242a`): accepted Thumb code that calls a copy names
-  [S, S + L) as the load image of code that runs at D. The copy is recognised by what the callee does,
-  never by a fixed argument order: a BIOS CpuSet or CpuFastSet (an inline `swi 0x0B/0x0C`, or a `bl` to a
-  stub that is the swi and a return; `foundation/rom/bios.ts`: r0 source, r1 destination, r2 a control
-  word whose count and unit give L, a fill copying nothing), or a copy loop (forward data flow over the
-  callee tags the argument registers; a load through one argument's register makes it the source, a
-  store through another's the destination, and the third is the size, in bytes when added to a pointer,
-  else the store width over the one amount it is decremented by). S, D and L are the argument values in
-  the straight-line run before the call (pool literals, `movs`, register copies, `adds`/`subs`, `negs`,
-  `ands`, `orrs`, shifts); D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB, replacing
-  the profile's `maxBytes` 64 KiB). `argInsns` 8: three arguments of at most two instructions each in
-  agbcc's output plus one `cmp; beq` guard; the longest measured setup is 7 (tmc's InitOverlays), the m4a
-  CpuSet's 6. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
-  (`bx`, `mov pc`, `bl` to a `bx rN` stub of that register) names the entry S + (P − D), Thumb when P is
-  odd, when the instruction before it is an unconditional exit. A pointer equal to D is not used: the copy
-  names the block's start already, and mapping a block from its start is phase 6's `runs_at` (§6.7).
-  IWRAM only and jumps only: EWRAM copies and stored pointers gave false entries on pokeemerald and fe7j.
-  Stateless: each (copy, jump) pair is proposed when the later of its two functions is accepted; a callee
-  is read only for a call whose r0..r2 hold an IWRAM address, a ROM address and a third known value.
-  Fixtures `ram-code-entries` (a source-first copy routine), `ram-copy-memcpy` (agbcc C `CopyBytes(dest,
-  src, n)`), `ram-copy-bios` (CpuSet in 32-bit units and CpuFastSet). Counter-check: the condition holds on
-  all six ROMs; the copies recognised are fe7j 2, klonoa 1, pokeemerald 1, sa2 3, sa3 5 (the m4a
-  SoundMainRAM CpuSet on all five, plus game copies to IWRAM), naming 0 entries there (every jump points
-  at its block's start), and tmc 3 (MemCopy of the 4,956-byte block, the m4a CpuSet, one more), naming 38
-  entries, 11 accepted. Its own count on tmc: of those 11 proposals 2 are labels the ELF does not type
-  (0x080B1AA8, 0x080B1B0C, `pointer-entry`: genuine entries reached through veneers); disabled, tmc loses
-  33 true positives and 6 false entries (those two and four that other rules find inside the block it
-  brings into the code). (e), (f) and (g) form one chain: (f) and (g) decline words and labels inside the
-  same copied block of the same ROM, which only (e) brings into the code.
+- (e) **`seed.ram-copy`** (new queue rule, origin `ram-copy`, profile field `ramCopy: { argInsns: 12,
+  jumpInsns: 8 }`; copy recognition rewritten in fix round 1, `f39242a`, and widened in fix round 2):
+  accepted Thumb code that calls a copy names [S, S + L) as the load image of code that runs at D. The
+  copy is recognised by what the callee does, never by a fixed argument order: a BIOS CpuSet or
+  CpuFastSet (an inline `swi 0x0B/0x0C`, or a `bl` to a stub that is the swi and a return;
+  `foundation/rom/bios.ts`: r0 source, r1 destination, r2 a control word whose count and unit give L,
+  CpuFastSet's count rounded up to a multiple of 8 words as the BIOS moves it, a fill copying nothing), or
+  a copy loop (forward data flow over the callee tags the argument registers; a load through one
+  argument's register makes it the source, a store through another's the destination, and the third is
+  the size: in bytes when added to a pointer; the end itself when a copy pointer is compared with it,
+  `cmp`, so L = end − that pointer's argument (fix round 2, overfitting-r1-3: `CopyWords(src, dest, end)`
+  of the `code-copied-to-ram` fixture was declined before); else the store width over the one amount it
+  is decremented by). S, D and L are the argument values in the straight-line run of at most `argInsns`
+  instructions before the call (pool literals, `movs`, register copies, `adds`/`subs`, `negs`, `ands`,
+  `orrs`, shifts); D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB). **The windows are
+  set from the tuning set's distribution with a stated margin, not derived from codegen** (fix round 2,
+  overfitting-r1-2: the "3 × 2 + 2" derivation was contradicted by tmc's own setup, whose size argument
+  takes three instructions): the shortest window recovering all three arguments of each of the 15 copy
+  calls the rule recognises on the six tuning ROMs is 3 (6 calls), 4 (2), 6 (6, the m4a CpuSet on every
+  ROM) or 7 (1, tmc); `argInsns` is the maximum plus five, 12 (7, 8, 12 and 16 give the same rows on all
+  six; 6 loses tmc's 4,956-byte block), and fixture `ram-copy-setup-bound` has a setup of exactly 12, so
+  11 fails it. The jump after an IWRAM pointer load has its own window, `jumpInsns` 8: the 39 jumps the
+  rule finds on the six ROMs take 1 (33), 2 (2), 3 (2) or 5 (1, tmc) instructions; 8 is the maximum
+  plus three. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
+  (`bx`, `mov pc`, `bl` to a `bx rN` stub of that register, libgcc's `_call_via_rN`) names the entry S +
+  (P − D), Thumb when P is odd, when it opens a function: the instruction before it is an unconditional
+  exit, or the word before it is a literal pool (claimed as one, or a pool of the reading of another
+  entry the accepted jumps name in the block; fix round 2, overfitting-r1-5: a pool word decodes as
+  whatever instruction it happens to be, so the exit test alone declined every entry after a pool), and
+  no lower entry proposed with it reaches it. A pointer equal to D is not used: the copy names the
+  block's start already, and mapping a block from its start is phase 6's `runs_at` (§6.7). Re-measured in
+  fix round 2, now that the end-pointer loop is recognised: mapping it changes no bench row on the six
+  tuning ROMs (only origins: the analysis digests of fe7j, klonoa, sa2 and sa3 move) and adds the false
+  entry 0x0800012C to `code-copied-to-ram`, the load image of a routine the ELF types only at its IWRAM
+  address. IWRAM only and jumps only: EWRAM copies and stored pointers gave false entries on pokeemerald
+  and fe7j. Stateless: each (copy, jump) pair is proposed when the later of its two functions is accepted;
+  a callee is read only for a call whose r0..r2 hold an IWRAM address, a ROM address and a third known
+  value. Fixtures: `ram-code-entries` (a source-first copy routine), `ram-copy-memcpy` (agbcc C
+  `CopyBytes(dest, src, n)`), `ram-copy-bios` (CpuSet in 32-bit units and CpuFastSet of 10 words),
+  `ram-copy-setup-bound` (the argument window), `ram-copy-call-via` (the `bl _call_via_r3` jump; without
+  it tmc loses 9 true positives at fix round 2, 24 before the pool boundary; code-quality-r1-1), `ram-copy-entry-boundaries` (the
+  end-pointer loop, a declined fall-through entry, an entry after a pool); each fails with its branch
+  reverted, and the unit tests cover the CpuFastSet rounding and the clause that declines an entry inside
+  a lower proposed entry's code. Counter-check (where the rule's condition holds, and where it decides):
+  the copies are recognised on all six ROMs (fe7j 2, klonoa 1, pokeemerald 1, sa2 3, sa3 5: the m4a
+  SoundMainRAM CpuSet on all five, plus game copies to IWRAM; tmc 3), but on the five every jump points at
+  its block's start, so the rule names 0 entries there and disabling it (`bench run --disable
+  seed.ram-copy`) leaves their analysis digests unchanged: **its decisive effect is on tmc only**, where one copy (InitOverlays' MemCopy of the 4,956-byte block) names
+  38 entries, 11 accepted. Single-instance in the sense of D53: one block of one ROM. Its own count on tmc:
+  of those 11 proposals 2 are labels the ELF does not type (0x080B1AA8, 0x080B1B0C, `pointer-entry`:
+  genuine entries reached through veneers); disabled, tmc loses 33 true positives and 6 false entries
+  (those two and four that other rules find inside the block it brings into the code). The fix-round-2
+  changes leave every bench row of the six ROMs and both sealed ROMs unchanged; on tmc the pool boundary
+  moves origins and two unsized extents (analysis digest `d8aac78c…` → `5c747e55…`: arm_CalcCollisionDirection
+  and arm_DrawEntities are now taken by this rule, `sub_080B255C`'s extent ends at 0x080B299C instead of
+  0x080B280C and `sub_080B2874`'s at 0x080B289C instead of 0x080B299C, both FUNCs of size 0, so no extent
+  row moves). (e), (f) and (g) form one chain: (f) and (g) decline words and labels inside the same
+  copied block of the same ROM, which only (e) brings into the code.
 - (f) **`gap.forward-chain` declines a word holding an accepted Thumb function + 1** (word-aligned, odd,
   the word − 1 a function): a literal pool word, not code; the skip slot steps over it. Fixture
   `pointer-word-in-gap`. Counter-check: declines 6 words, all in one pointer table of tmc's copied block:
@@ -1779,7 +1807,9 @@ construction, replaced by D8 again, (k)). Not asking the `scaffold` family of tm
 for it (`72e6049`; replaced by the PoC's own run of tmc, (l)). Narrowing the roadmap's PoC thresholds to
 the five ROMs (`28b9005`; not authorised; the thresholds apply to all six). Raising `phase.json` while
 `g2.poc-parity` fails on tmc at `landed` 1 (`808513f`; it froze a fail). Mapping a pointer equal to the
-copy's destination (changes the `code-copied-to-ram` fixture's expectation without sign-off). Trusting every
+copy's destination (measured at fix round 2, with `code-copied-to-ram`'s end-pointer copy recognised: it
+adds a false entry there, the load image of a routine the ELF types only at its IWRAM address, and moves
+no bench row on the tuning ROMs; mapping a block from its start is phase 6's `runs_at`). Trusting every
 mapped pointer (the measured prototype: second entries accepted before their heads, three Thumb readings
 of ARM code at 0x080B19CC..0x080B19D4). Declining a mapped entry whose previous `b` jumps into its own
 straight line, or whose straight line falls into code a lower entry holds (measured in fix round 1: the

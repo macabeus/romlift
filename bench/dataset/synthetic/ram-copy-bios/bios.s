@@ -87,10 +87,11 @@ BlockB:
 	sub r0, r0, #1
 	bx lr
 	func_end IwramTriple
-	@ CpuFastSet moves blocks of eight words: the block is padded to 32 bytes.
 	.word 0, 0, 0
 BlockBEnd:
 
 	.section .rodata
-	@ Data after the code, so the ROM does not end at the code end.
-	.word 0xFFFFFFFF, 0xFFFFFFFF
+	@ Data after the code, so the ROM does not end at the code end. Block B is 10 words, which is not a
+	@ multiple of 8: CpuFastSet moves 16 (it rounds the count up to blocks of eight words), so the BIOS
+	@ reads 24 bytes of this data too and the ROM must hold them.
+	.word 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF

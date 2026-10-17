@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import rule from '../../../../../src/core/analysis/rules/seed/ram-copy.ts';
-import type { AnalysisView, Reading } from '../../../../../src/core/analysis/types.ts';
+import { Claim, type AnalysisView, type Reading } from '../../../../../src/core/analysis/types.ts';
 import type { Rom } from '../../../../../src/foundation/rom/rom.ts';
 import { romWith, viewWith, words } from '../../../../helpers/analysis.ts';
 import { armAt } from '../../../../helpers/arm.ts';
@@ -20,7 +20,7 @@ const BLOCK = 0x0800_0300;
 const IWRAM = 0x0300_0100;
 
 /** What main calls to copy: a loop taking (source, dest, size), memcpy's (dest, src, n), BIOS stubs, an inline swi, or a routine that copies nothing. */
-type Callee = 'src-first' | 'memcpy' | 'cpuset' | 'cpufastset' | 'inline-swi' | 'not-a-copy' | 'two-stores' | 'word-count';
+type Callee = 'src-first' | 'memcpy' | 'cpuset' | 'cpufastset' | 'inline-swi' | 'not-a-copy' | 'two-stores' | 'word-count' | 'dest-end' | 'source-end';
 
 interface Options {
   readonly callee?: Callee;
@@ -45,6 +45,10 @@ const CALLEES: Readonly<Record<Callee, Uint8Array>> = {
   'two-stores': thumbAt(COPY)`ldrb r3, [r0]; strb r3, [r1]; strb r3, [r0]; adds r0, #1; adds r1, #1; subs r2, #1; bne _08000240; bx lr`,
   // A word loop counting words: 4 bytes per unit.
   'word-count': thumbAt(COPY)`ldmia r0!, {r3}; stmia r1!, {r3}; subs r2, #1; bne _08000240; bx lr`,
+  // CopyWords(src, dest, end): the destination runs up to the third argument (L = end - dest).
+  'dest-end': thumbAt(COPY)`cmp r1, r2; bcs _0800024A; ldmia r0!, {r3}; stmia r1!, {r3}; b _08000240; bx lr`,
+  // The same with the source compared against its end (L = end - source).
+  'source-end': thumbAt(COPY)`cmp r0, r2; bcs _0800024A; ldmia r0!, {r3}; stmia r1!, {r3}; b _08000240; bx lr`,
 };
 
 /** main copies BLOCK (three ARM routines A, B, C at +0, +8, +0x14) to `dest` through the callee; the veneer jumps through `pointer`. */
@@ -52,8 +56,9 @@ function romFor(o: Options = {}): Rom {
   const callee = o.callee ?? 'src-first';
   const dest = o.dest ?? IWRAM;
   const size = o.size ?? (callee === 'cpuset' || callee === 'inline-swi' ? 0x0400_0008 : callee === 'cpufastset' ? 8 : callee === 'word-count' ? 8 : 0x20);
-  // memcpy takes (dest, src, n): main loads the words in that order.
-  const args = callee === 'memcpy' ? words(dest, BLOCK, size) : words(BLOCK, dest, size);
+  // memcpy takes (dest, src, n): main loads the words in that order; the end-pointer loops take an end.
+  const args =
+    callee === 'memcpy' ? words(dest, BLOCK, size) : callee === 'dest-end' ? words(BLOCK, dest, dest + size) : callee === 'source-end' ? words(BLOCK, dest, BLOCK + size) : words(BLOCK, dest, size);
   const main =
     callee === 'inline-swi'
       ? thumbAt(MAIN)`push {lr}; ldr r0, _08000210; ldr r1, _08000214; ldr r2, _08000218; swi #11; pop {pc}`
@@ -93,7 +98,7 @@ test('the copy and the jump name the ARM entry at its load address, whichever is
 });
 
 test('the copy is recognised by what the callee does, in either argument order, and by the BIOS copy calls', () => {
-  for (const callee of ['src-first', 'memcpy', 'cpuset', 'cpufastset', 'inline-swi', 'word-count'] as const) {
+  for (const callee of ['src-first', 'memcpy', 'cpuset', 'cpufastset', 'inline-swi', 'word-count', 'dest-end', 'source-end'] as const) {
     assert.deepEqual(queue(romFor({ callee }), VENEER, [MAIN, VENEER]), B, callee);
   }
   assert.deepEqual(queue(romFor({ callee: 'not-a-copy' }), VENEER, [MAIN, VENEER]), [], 'a callee that copies nothing');
@@ -124,4 +129,83 @@ test('declined: the block start, a fall-through entry, a store, an EWRAM copy, a
   assert.deepEqual(queue(romFor({ use: 'store' }), VENEER, [MAIN, VENEER]), [], 'the pointer is stored, not jumped through');
   assert.deepEqual(queue(romFor({ dest: 0x0200_0100, pointer: 0x0200_0108 }), VENEER, [MAIN, VENEER]), [], 'EWRAM');
   assert.deepEqual(queue(romFor({ dest: 0x0300_7ff0, pointer: 0x0300_7ff8 }), VENEER, [MAIN, VENEER]), [], 'the copy runs past the end of IWRAM');
+});
+
+test('an end-pointer loop copies end - start: a pointer past the end names nothing', () => {
+  assert.deepEqual(queue(romFor({ callee: 'dest-end', size: 0x10 }), VENEER, [MAIN, VENEER]), B, '+8 is inside 16 bytes');
+  assert.deepEqual(queue(romFor({ callee: 'dest-end', size: 0x10, pointer: IWRAM + 0x14 }), VENEER, [MAIN, VENEER]), [], '+0x14 is past them');
+  assert.deepEqual(queue(romFor({ callee: 'source-end', size: 0x10, pointer: IWRAM + 0x14 }), VENEER, [MAIN, VENEER]), []);
+});
+
+test('CpuFastSet rounds its word count up to a multiple of 8: 2 words move as 8', () => {
+  // 2 words are 8 bytes, but the BIOS moves 32: C at +0x14 is copied too.
+  assert.deepEqual(queue(romFor({ callee: 'cpufastset', size: 2, pointer: IWRAM + 0x14 }), VENEER, [MAIN, VENEER]), [{ entry: BLOCK + 0x14, mode: 'arm', cites: [VENEER, MAIN] }]);
+  assert.deepEqual(queue(romFor({ callee: 'cpufastset', size: 2, pointer: IWRAM + 0x24 }), VENEER, [MAIN, VENEER]), [], 'past the 32 bytes moved');
+});
+
+const VIA = 0x0800_0280;
+
+test('a jump through `bl` to a `bx rN` stub of the loaded register (_call_via_rN) names the entry', () => {
+  const rom = romWith([
+    { at: MAIN, bytes: thumbAt(MAIN)`push {lr}; ldr r0, _08000210; ldr r1, _08000214; ldr r2, _08000218; bl _08000240; pop {pc}` },
+    { at: MAIN + 0x10, bytes: words(BLOCK, IWRAM, 0x20) },
+    { at: COPY, bytes: CALLEES['src-first'] },
+    // push {lr}; ldr r3, =IWRAM + 8; bl _call_via_r3; pop {pc}, the stub `bx r3` at VIA + 0x10.
+    { at: VIA, bytes: thumbAt(VIA)`push {lr}; ldr r3, _0800028C; bl _08000290; pop {pc}` },
+    { at: VIA + 0x0c, bytes: words(IWRAM + 8) },
+    { at: VIA + 0x10, bytes: thumbAt(VIA + 0x10)`bx r3` },
+    { at: BLOCK, bytes: armAt(BLOCK)`mov r0, #0; bx lr; add r0, r0, #1; add r0, r0, #2; bx lr; mov r0, #3; bx lr` },
+  ]);
+  assert.deepEqual(queue(rom, VIA, [MAIN, VIA]), [{ entry: BLOCK + 8, mode: 'arm', cites: [VIA, MAIN] }]);
+  // A stub of another register does not jump through r3.
+  const other = romWith([
+    { at: MAIN, bytes: thumbAt(MAIN)`push {lr}; ldr r0, _08000210; ldr r1, _08000214; ldr r2, _08000218; bl _08000240; pop {pc}` },
+    { at: MAIN + 0x10, bytes: words(BLOCK, IWRAM, 0x20) },
+    { at: COPY, bytes: CALLEES['src-first'] },
+    { at: VIA, bytes: thumbAt(VIA)`push {lr}; ldr r3, _0800028C; bl _08000290; pop {pc}` },
+    { at: VIA + 0x0c, bytes: words(IWRAM + 8) },
+    { at: VIA + 0x10, bytes: thumbAt(VIA + 0x10)`bx r4` },
+    { at: BLOCK, bytes: armAt(BLOCK)`mov r0, #0; bx lr; add r0, r0, #1; add r0, r0, #2; bx lr; mov r0, #3; bx lr` },
+  ]);
+  assert.deepEqual(queue(other, VIA, [MAIN, VIA]), []);
+});
+
+const VENEER2 = 0x0800_0270;
+
+/** main copies BLOCK = `block` (ARM) to IWRAM; VENEER and VENEER2 jump through IWRAM + first and IWRAM + second. */
+function twoJumps(block: Uint8Array, first: number, second: number): Rom {
+  return romWith([
+    { at: MAIN, bytes: thumbAt(MAIN)`push {lr}; ldr r0, _08000210; ldr r1, _08000214; ldr r2, _08000218; bl _08000240; pop {pc}` },
+    { at: MAIN + 0x10, bytes: words(BLOCK, IWRAM, 0x20) },
+    { at: COPY, bytes: CALLEES['src-first'] },
+    { at: VENEER, bytes: thumbAt(VENEER)`ldr r3, _08000268; bx r3` },
+    { at: VENEER + 8, bytes: words(IWRAM + first) },
+    { at: VENEER2, bytes: thumbAt(VENEER2)`ldr r3, _08000278; bx r3` },
+    { at: VENEER2 + 8, bytes: words(IWRAM + second) },
+    { at: BLOCK, bytes: block },
+  ]);
+}
+
+// A = mov; bx lr. P = ldr r0, [pc, #0]; bx lr; its pool word 0x03001234 (an ARM `andeq`, not an exit). C = mov; bx lr.
+const POOLED = new Uint8Array([...armAt(BLOCK)`mov r0, #0; bx lr; ldr r0, [pc, #0]; bx lr`, ...words(0x0300_1234), ...armAt(BLOCK + 0x14)`mov r0, #3; bx lr`]);
+
+test('an entry right after a literal pool opens a function: a claimed pool, or a pool of another named entry', () => {
+  const rom = twoJumps(POOLED, 0x14, 0x14);
+  assert.deepEqual(queue(rom, VENEER, [MAIN, VENEER]), [], 'nothing says the word before C is data: it decodes as a conditional instruction');
+  const v = viewWith({ rom, functions: [MAIN, VENEER], readings: [MAIN, VENEER].map((e) => viewWith({ rom }).read(e, 'thumb')), claims: [{ span: { start: BLOCK + 0x10, end: BLOCK + 0x14 }, kind: Claim.pool }] });
+  assert.deepEqual(rule.queue(factOf(v.read(VENEER, 'thumb')), v), [{ entry: BLOCK + 0x14, mode: 'arm', cites: [VENEER, MAIN] }], 'a claimed pool word');
+  // main accepted after both veneers: its copy pairs with both jumps in one call.
+  const both = twoJumps(POOLED, 0x08, 0x14);
+  assert.deepEqual(queue(both, MAIN, [VENEER, VENEER2, MAIN]), [
+    { entry: BLOCK + 0x08, mode: 'arm', cites: [VENEER, MAIN] },
+    { entry: BLOCK + 0x14, mode: 'arm', cites: [VENEER2, MAIN] },
+  ], 'the pool of P, proposed with it');
+  assert.deepEqual(queue(both, VENEER2, [MAIN, VENEER, VENEER2]), [{ entry: BLOCK + 0x14, mode: 'arm', cites: [VENEER2, MAIN] }], 'the pool of P, named by an earlier jump and not yet accepted');
+});
+
+test('an entry inside the code of a lower entry proposed with it is not proposed', () => {
+  // X = mov; bx lr. A = cmp; beq L; bx lr; L: mov; bx lr. L follows an exit, but A's reading reaches it.
+  const block = armAt(BLOCK)`mov r0, #0; bx lr; cmp r0, #0; beq _08000314; bx lr; mov r0, #1; bx lr`;
+  assert.deepEqual(queue(twoJumps(block, 0x08, 0x14), MAIN, [VENEER, VENEER2, MAIN]), [{ entry: BLOCK + 0x08, mode: 'arm', cites: [VENEER, MAIN] }]);
+  assert.deepEqual(queue(twoJumps(block, 0x14, 0x14), MAIN, [VENEER, VENEER2, MAIN]), [{ entry: BLOCK + 0x14, mode: 'arm', cites: [VENEER, MAIN] }], 'alone, L opens after `bx lr`');
 });

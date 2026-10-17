@@ -95,11 +95,12 @@ export interface CompilerProfile {
   /** A pool or table belongs to the extent when it starts within this many bytes of the extent's end. */
   readonly extentPoolGap: number;
   /**
-   * Code copied to IWRAM (seed.ram-copy): the arguments of a copy call and the jump after an IWRAM
-   * pointer load are looked for within argInsns straight-line instructions. (The size bound of a copy is
-   * the hardware's: IWRAM's 32 KiB, from the memory map.)
+   * Code copied to IWRAM (seed.ram-copy): the arguments of a copy call are looked for within argInsns
+   * straight-line instructions before it, and the jump after an IWRAM pointer load within jumpInsns
+   * instructions after the load. (The size bound of a copy is the hardware's: IWRAM's 32 KiB, from the
+   * memory map.)
    */
-  readonly ramCopy: { readonly argInsns: number };
+  readonly ramCopy: { readonly argInsns: number; readonly jumpInsns: number };
   readonly gapScan: {
     /** How far below a gap's end the end-anchor scan looks. */
     readonly backwardWindow: number;

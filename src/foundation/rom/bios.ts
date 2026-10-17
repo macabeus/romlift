@@ -2,7 +2,8 @@
 // (swi 0x0C) take the source address in r0, the destination in r1 and a control word in r2, whose bits
 // 0-20 are the count, bit 24 asks for a fill (the first source unit is repeated, nothing is copied), and,
 // for CpuSet only, bit 26 makes the unit a 32-bit word instead of a 16-bit halfword; CpuFastSet always
-// moves 32-bit words. A Thumb `swi imm8` or a library stub that is one names the call by number.
+// moves 32-bit words, in blocks of 8, so its count is rounded up to a multiple of 8 ("rounded-up to
+// multiple of 8 words"). A Thumb `swi imm8` or a library stub that is one names the call by number.
 
 /** The swi number of CpuSet. */
 export const BIOS_CPU_SET = 0x0b;
@@ -16,10 +17,19 @@ const COUNT_MASK = 0x1f_ffff;
 const FILL = 1 << 24;
 const WORDS = 1 << 26;
 
+/** CpuFastSet moves words in blocks of this many. */
+const FAST_SET_BLOCK = 8;
+
+/** Whether swi `swi` is one of the BIOS copy calls (CpuSet, CpuFastSet). */
+export function isBiosCopy(swi: number): boolean {
+  return swi === BIOS_CPU_SET || swi === BIOS_CPU_FAST_SET;
+}
+
 /** The bytes a CpuSet or CpuFastSet with `control` copies; undefined for another call number or a fill. */
 export function biosCopyBytes(swi: number, control: number): number | undefined {
-  if (swi !== BIOS_CPU_SET && swi !== BIOS_CPU_FAST_SET) return undefined;
+  if (!isBiosCopy(swi)) return undefined;
   if ((control & FILL) !== 0) return undefined;
-  const unit = swi === BIOS_CPU_FAST_SET || (control & WORDS) !== 0 ? 4 : 2;
-  return (control & COUNT_MASK) * unit;
+  const count = control & COUNT_MASK;
+  if (swi === BIOS_CPU_FAST_SET) return Math.ceil(count / FAST_SET_BLOCK) * FAST_SET_BLOCK * 4;
+  return count * ((control & WORDS) !== 0 ? 4 : 2);
 }

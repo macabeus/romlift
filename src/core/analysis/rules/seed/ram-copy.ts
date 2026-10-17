@@ -8,10 +8,13 @@
 //   - a copy loop: a `bl` to Thumb code that loads through a register derived from one argument register
 //     and stores through a register derived from another (the source and the destination, whatever
 //     their order: a copy(source, dest, size) and memcpy(dest, src, n) alike). The third argument is the
-//     size: in bytes when it is added to a copy pointer (an end pointer), else the store width over the
-//     amount it is decremented by each iteration, in bytes per unit; any other shape declines.
+//     size: in bytes when it is added to a copy pointer (the loop then runs to that end pointer); the end
+//     itself when a copy pointer is compared with it (`cmp`), the size then end - that pointer's argument;
+//     else the store width over the amount it is decremented by each iteration, in bytes per unit; any
+//     other shape declines.
 //
-// S, D and L are the argument values in the straight-line run before the call: pool literals, `movs`,
+// S, D and L are the argument values in the straight-line run of at most `ramCopy.argInsns` instructions
+// before the call (the profile): pool literals, `movs`,
 // register copies, `adds`/`subs` with an immediate or a register, `negs`, `ands`, `orrs` and shifts of
 // known values. D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB), and [S, S + L) in
 // the ROM. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
@@ -21,7 +24,9 @@
 // cannot reach once the block is inside the code, so it proposes nothing.
 //
 // An entry inside the block opens a function only when the instruction before it is an unconditional
-// exit: a pointer into code that falls through names a second entry, which the code before it holds.
+// exit, or the word before it is a literal pool (claimed as one, or a pool of the reading of another entry
+// the accepted jumps name in the block): a pointer into code that falls through names a second entry,
+// which the code before it holds.
 //
 // The rule is a queue rule and keeps no state: when the copying function is accepted it maps the jumps
 // of every accepted function; when a function that jumps through an IWRAM pointer is accepted it maps
@@ -34,7 +39,7 @@ import { decode, isConditional, thumbWordAt } from '../../../../foundation/isa/d
 import { pcOf, thumbPoolBase } from '../../../../foundation/isa/pc-relative.ts';
 import { registerEffect } from '../../../../foundation/isa/registers.ts';
 import type { Insn } from '../../../../foundation/isa/types.ts';
-import { BIOS_COPY_ARGS, biosCopyBytes } from '../../../../foundation/rom/bios.ts';
+import { BIOS_COPY_ARGS, biosCopyBytes, isBiosCopy } from '../../../../foundation/rom/bios.ts';
 import { MEMORY_REGIONS, regionOf } from '../../../../foundation/rom/memory-map.ts';
 import { contains, u16, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../../foundation/rom/span.ts';
@@ -201,7 +206,7 @@ function constantsBefore(r: Reading, at: Addr, window: number, v: AnalysisView):
 
 /** A BIOS copy call by number: the BIOS's argument registers, the bytes from its control word; undefined for another number. */
 function biosCall(swi: number): CopyCall | undefined {
-  if (biosCopyBytes(swi, 0) === undefined) return undefined;
+  if (!isBiosCopy(swi)) return undefined;
   return {
     source: BIOS_COPY_ARGS.source,
     dest: BIOS_COPY_ARGS.dest,
@@ -323,6 +328,7 @@ function loopCall(callee: Reading, v: AnalysisView): CopyCall | undefined {
   const stores = new Map<number, number>();
   const steps = new Map<number, Set<number>>();
   const ends = new Set<string>();
+  const compares = new Set<string>();
   const step = (arg: number, by: number): void => {
     const set = steps.get(arg) ?? new Set<number>();
     set.add(by);
@@ -341,10 +347,10 @@ function loopCall(callee: Reading, v: AnalysisView): CopyCall | undefined {
     if (width !== undefined && base !== null) stores.set(base, Math.max(width, stores.get(base) ?? 0));
     const counted = insn.specId === 'thumb.sub_imm8' ? tagOf('rd') : insn.specId === 'thumb.sub_imm3' ? base : null;
     if (counted !== null) step(counted, f['imm'] ?? 0);
-    if (insn.specId === 'thumb.add_reg') {
+    if (insn.specId === 'thumb.add_reg' || insn.specId === 'thumb.cmp_reg') {
       const x = tagOf('rn');
       const y = tagOf('rm');
-      if (x !== null && y !== null && x !== y) ends.add(pairKey(x, y));
+      if (x !== null && y !== null && x !== y) (insn.specId === 'thumb.add_reg' ? ends : compares).add(pairKey(x, y));
     }
   }
   const sources = sortedKeys(loads).filter((a) => !stores.has(a));
@@ -355,6 +361,21 @@ function loopCall(callee: Reading, v: AnalysisView): CopyCall | undefined {
   const size = [0, 1, 2].find((a) => a !== source && a !== dest);
   if (size === undefined) return undefined;
   const width = stores.get(dest) ?? 0;
+  if (!ends.has(pairKey(source, size)) && !ends.has(pairKey(dest, size))) {
+    // The size argument is the end itself when a copy pointer is compared with it: L = end - that pointer.
+    const from = compares.has(pairKey(dest, size)) ? dest : compares.has(pairKey(source, size)) ? source : undefined;
+    if (from !== undefined) {
+      return {
+        source,
+        dest,
+        bytes: (args) => {
+          const end = args[size];
+          const start = args[from];
+          return end === undefined || start === undefined ? undefined : (end - start) | 0;
+        },
+      };
+    }
+  }
   let unit: number | undefined;
   if (ends.has(pairKey(source, size)) || ends.has(pairKey(dest, size))) unit = 1;
   else {
@@ -433,18 +454,19 @@ function mayJump(h: number): boolean {
   return matches(h, THUMB_BX) || matches(h, THUMB_MOV_PC) || matches(h, THUMB_BL_PREFIX);
 }
 
-/** Whether the value loaded into `rd` at `load` is jumped through within `argInsns` straight-line instructions. */
+/** Whether the value loaded into `rd` at `load` is jumped through within `ramCopy.jumpInsns` straight-line instructions. */
 function jumpsThrough(r: Reading, load: Addr, rd: number, v: AnalysisView): boolean {
+  const { jumpInsns } = v.profile.ramCopy;
   if (r.mode === 'thumb') {
     // Most IWRAM loads address variables: without a jump in the window there is nothing to decode.
     let any = false;
     let steps = 0;
-    for (let a = following(r, load); a !== undefined && steps < v.profile.ramCopy.argInsns && !any; a = following(r, a), steps++) any = mayJump(u16(v.rom, a));
+    for (let a = following(r, load); a !== undefined && steps < jumpInsns && !any; a = following(r, a), steps++) any = mayJump(u16(v.rom, a));
     if (!any) return false;
   }
   let live = 1 << rd;
   let steps = 0;
-  for (let a = following(r, load); a !== undefined && steps < v.profile.ramCopy.argInsns && live !== 0; a = following(r, a), steps++) {
+  for (let a = following(r, load); a !== undefined && steps < jumpInsns && live !== 0; a = following(r, a), steps++) {
     const x = insnAt(r, a, v);
     const g = x.flow;
     if (g.kind === 'indirect') return (g.via === 'bx' || g.via === 'mov-pc') && (live & (1 << g.reg)) !== 0;
@@ -461,7 +483,7 @@ function jumpsThrough(r: Reading, load: Addr, rd: number, v: AnalysisView): bool
   return false;
 }
 
-/** The IWRAM pointers a reading loads from its pool and jumps through within `argInsns` instructions. */
+/** The IWRAM pointers a reading loads from its pool and jumps through within `ramCopy.jumpInsns` instructions. */
 function jumpsOf(by: Addr, r: Reading, v: AnalysisView): Jump[] {
   const iwramPools = new Set(r.pools.filter((p) => inIwram(p.value)).map((p) => p.addr));
   if (iwramPools.size === 0) return [];
@@ -500,16 +522,21 @@ function exits(insn: Insn): boolean {
 
 /**
  * Whether `entry` opens a function of the copied block rather than continuing the code before it: it is
- * the block's first byte, or the instruction before it (in its mode) is an unconditional exit. A pointer
+ * the block's first byte, the word before it is a literal pool (claimed as one, or by `isPool`: a pool of
+ * the reading of another entry named in the block), or the instruction before it (in its mode) is an
+ * unconditional exit. A pool word is data, so the instruction it would decode as says nothing. A pointer
  * into the middle of a run of code that falls through (hand-written ARM with several entries) names a
  * second entry, which the function that runs into it already holds; proposing it would split that
  * function at an entry its reading reaches.
  */
-function opensFunction(entry: Addr, mode: Mode, copy: Copy, v: AnalysisView): boolean {
+function opensFunction(entry: Addr, mode: Mode, copy: Copy, isPool: (word: Addr) => boolean, v: AnalysisView): boolean {
   const size = mode === 'arm' ? 4 : 2;
   const prev = entry - size;
   if (entry === copy.source || prev < copy.source) return true;
-  return contains(v.rom, prev, size) && exits(decodedAt(prev, mode, v));
+  if (contains(v.rom, prev, size) && exits(decodedAt(prev, mode, v))) return true;
+  // Pool words are word-aligned, so only a word-aligned entry can follow one.
+  const word = entry - 4;
+  return (entry & 3) === 0 && word >= copy.source && (v.claimAt(word) === Claim.pool || isPool(word));
 }
 
 /** The entry a jump names in a copied block, and its mode; undefined when it names none. */
@@ -558,10 +585,26 @@ export default defineRule({
     const out: Proposal[] = [];
     // The instructions of the entries proposed so far, ascending: a higher entry inside them is not proposed.
     const covered = new Set<Addr>();
+    // The pool words of the readings of every entry the accepted jumps name in a copy, read only when an
+    // entry follows no exit (each pair is proposed in its own call, so the entry whose pool it is may not
+    // be accepted, and its pool not claimed, yet).
+    const poolsOf = new Map<Copy, Set<Addr>>();
+    const isPoolOf = (copy: Copy) => (word: Addr): boolean => {
+      let pools = poolsOf.get(copy);
+      if (pools === undefined) {
+        pools = new Set<Addr>();
+        for (const j of allJumps(v)) {
+          const e = namedEntry(copy, j);
+          if (e !== undefined) for (const q of v.read(e.entry, e.mode).pools) pools.add(q.addr);
+        }
+        poolsOf.set(copy, pools);
+      }
+      return pools.has(word);
+    };
     for (const entry of sortedKeys(named)) {
       const p = named.get(entry);
       if (p === undefined || covered.has(entry) || v.isFunction(entry) || v.claimAt(entry) !== Claim.free) continue;
-      if (!opensFunction(entry, p.mode, p.copy, v) || !readsAsFunction(entry, p.mode, v)) continue;
+      if (!opensFunction(entry, p.mode, p.copy, isPoolOf(p.copy), v) || !readsAsFunction(entry, p.mode, v)) continue;
       out.push({ entry, mode: p.mode, cites: p.cites });
       for (const i of v.read(entry, p.mode).insns) if (i.addr !== entry) covered.add(i.addr);
     }

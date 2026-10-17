@@ -171,13 +171,16 @@ export const AGBCC: CompilerProfile = {
   pointerWords: { minPointers: 4, minShare: 0.25 },
   anchorSlack: 3,
   extentPoolGap: 8,
-  // seed.ram-copy (D60 e): agbcc builds each of a call's three argument registers in at most two
-  // instructions (a pool load, then one copy, add, subtract, shift or mask), and guards a call made only
-  // for a non-zero size with one `cmp; beq` pair: 3 x 2 + 2 = 8. Measured, the longest argument setup of
-  // a copy call on the six tuning ROMs is 7 (tmc's InitOverlays: ldr; ldr; subs; cmp; beq; ldr; adds);
-  // the m4aSoundInit CpuSet of the other five is 6 (ldr; movs; negs; ands; ldr; ldr). The same window
-  // bounds the jump after an IWRAM pointer load.
-  ramCopy: { argInsns: 8 },
+  // seed.ram-copy (D60 e), both windows set from the tuning set's distribution with a stated margin, not
+  // derived from a codegen property (an argument can take any number of instructions). argInsns: the
+  // shortest window that recovers all three arguments of each of the 15 copy calls seed.ram-copy
+  // recognises on the six tuning ROMs is 3 (6 calls), 4 (2), 6 (6, the m4a CpuSet on every ROM) or 7 (1,
+  // a size computed as the difference of two pool literals behind a cmp; beq guard); the window is the
+  // maximum plus five, 12, so the tuning set's longest setup is not its edge (7, 8, 12 and 16 give the same
+  // rows on all six; 6 loses a 4,956-byte block). Fixture ram-copy-setup-bound has a setup of exactly 12.
+  // jumpInsns: from an IWRAM pointer load to the jump through it, the 39 jumps measured take 1 (33), 2
+  // (2), 3 (2) or 5 (1) instructions; the window is 8, the maximum plus three.
+  ramCopy: { argInsns: 12, jumpInsns: 8 },
   gapScan: {
     backwardWindow: 4096,
     fillSlack: 3,
