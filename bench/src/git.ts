@@ -7,9 +7,12 @@ export async function gitHead(repo: string): Promise<string | null> {
   return run.code === 0 ? run.stdout.trim() : null;
 }
 
-/** True when `git status --porcelain` lists anything, or when there is no git checkout. */
+/**
+ * True when `git status --porcelain` lists anything but bench/results.json (the artifact being
+ * written), or when there is no git checkout.
+ */
 export async function gitDirty(repo: string): Promise<boolean> {
-  const run = await runProcess('git', ['-C', repo, 'status', '--porcelain']);
+  const run = await runProcess('git', ['-C', repo, 'status', '--porcelain', '--', '.', ':(exclude)bench/results.json']);
   return run.code !== 0 || run.stdout.trim() !== '';
 }
 
