@@ -10,11 +10,16 @@ export interface FamilySpec {
   readonly liveFrom: 1 | 2 | 3 | 4 | 5 | 6;
   readonly scope: FamilyScope;
   readonly summary: string;
+  /**
+   * A `rom` family that only the PoC's dumps measure before this phase lands: until then it is live
+   * only for the tuning ROMs the PoC ran on (D60: tmc, revealed in phase 2, has no PoC run).
+   */
+  readonly pocUntil?: 3;
 }
 
 export const FAMILIES = {
   printer: { liveFrom: 1, scope: 'global', summary: '100% round-trip; raw share never rises; both alignments and every offset extreme agree' },
-  scaffold: { liveFrom: 1, scope: 'rom', summary: 'the scaffold reproduces the SHA-1' },
+  scaffold: { liveFrom: 1, scope: 'rom', pocUntil: 3, summary: 'the scaffold reproduces the SHA-1' },
   entries: { liveFrom: 2, scope: 'rom', summary: 'every miss and false entry listed; raw precision and true positives hold' },
   extents: { liveFrom: 2, scope: 'rom', summary: 'no agreeing function stops agreeing; 99.9% of sized functions agree' },
   'code-end': { liveFrom: 2, scope: 'rom', summary: 'within 16 bytes of the ELF' },

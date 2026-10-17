@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { contextFromEnv } from '../../../bench/src/context.ts';
-import { isSealed, loadDatasets, parseDataset, tuningDatasets, type DatasetProblemId } from '../../../bench/src/dataset.ts';
+import { isSealed, loadDatasets, parseDataset, pocDatasets, tuningDatasets, type DatasetProblemId } from '../../../bench/src/dataset.ts';
 import { dataset, withTempDir } from './fixtures.ts';
 
 const TUNING = {
@@ -14,6 +14,16 @@ const TUNING = {
   fe7j: 'fe-gba',
   pokeemerald: 'pret-gen3',
 } as const;
+
+test('the tuning datasets the PoC ran on: tmc, revealed later (D60), is tuning data but has no PoC run', async () => {
+  const loaded = await loadDatasets(contextFromEnv({}));
+  const names = (ds: readonly { readonly name: string }[]): string[] => ds.map((d) => d.name);
+  assert.deepEqual(names(tuningDatasets(loaded.datasets)), ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc']);
+  const poc = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3'];
+  assert.deepEqual(names(pocDatasets(loaded.datasets, poc)), poc);
+  assert.deepEqual(names(pocDatasets(loaded.datasets, poc, 'tmc')), []);
+  assert.deepEqual(names(pocDatasets(loaded.datasets, poc, 'sa2')), ['sa2']);
+});
 
 test('the five committed tuning datasets are well formed and record their digests and family', async () => {
   const loaded = await loadDatasets(contextFromEnv({}));

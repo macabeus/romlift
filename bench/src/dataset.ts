@@ -289,3 +289,12 @@ export async function loadDatasets(cx: BenchContext): Promise<LoadedDatasets> {
 export function tuningDatasets(all: readonly Dataset[], only?: string): Dataset[] {
   return all.filter((d) => !isSealed(d) && (only === undefined || d.name === only));
 }
+
+/**
+ * The tuning datasets the proof of concept ran on: those its baseline names (`pocNames`, the ROMs of
+ * bench/baseline/poc-2026-10-16.json). A dataset that became tuning data later by a reveal (tmc, D60) has
+ * no PoC run, dump or baseline row, so the PoC commands (export-poc, poc-check) skip it.
+ */
+export function pocDatasets(all: readonly Dataset[], pocNames: readonly string[], only?: string): Dataset[] {
+  return tuningDatasets(all, only).filter((d) => pocNames.includes(d.name));
+}

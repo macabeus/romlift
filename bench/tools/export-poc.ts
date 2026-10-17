@@ -21,9 +21,9 @@ import { compareCodeUnits } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
 import { parseArgs, UsageError } from '../src/args.ts';
-import { jsonDiffs, stripSeconds } from '../src/baseline.ts';
+import { jsonDiffs, readBaseline, stripSeconds } from '../src/baseline.ts';
 import { contextFromEnv, scoredPath, type BenchContext } from '../src/context.ts';
-import { loadDatasets, tuningDatasets, type Dataset } from '../src/dataset.ts';
+import { loadDatasets, pocDatasets, type Dataset } from '../src/dataset.ts';
 import { BenchError, exists, isRecord, prettyJson, readFileBytes, readJson, writeText } from '../src/files.ts';
 import {
   parityDigest,
@@ -258,8 +258,8 @@ async function main(argv: readonly string[]): Promise<number> {
   const { datasets, problems: datasetProblems } = await loadDatasets(cx);
   if (datasetProblems.length > 0) throw new BenchError(`malformed datasets: ${datasetProblems.map((p) => p.detail).join('; ')}`);
   const only = args.options['only'];
-  const chosen = tuningDatasets(datasets, only);
-  if (chosen.length === 0) throw new BenchError(only === undefined ? 'no tuning datasets' : `no tuning dataset named ${only}`);
+  const chosen = pocDatasets(datasets, (await readBaseline(cx)).roms.map((r) => String(r['name'])), only);
+  if (chosen.length === 0) throw new BenchError(only === undefined ? 'no tuning datasets the PoC ran on' : `no tuning dataset named ${only} that the PoC ran on`);
   if (mode === 'scored') {
     for (const d of chosen) await exportScored(cx, d, pinned.digest);
   } else if (mode === 'parity') {

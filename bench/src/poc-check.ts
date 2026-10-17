@@ -7,7 +7,7 @@
 // reclassified the rows the baseline still names `unreviewed` and `continuation-after-noreturn-call`.
 import { readBaseline, jsonDiffs, withoutPaths, type JsonRecord } from './baseline.ts';
 import type { BenchContext } from './context.ts';
-import { loadDatasets, tuningDatasets } from './dataset.ts';
+import { loadDatasets, pocDatasets } from './dataset.ts';
 import { BenchError } from './files.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 import { readDatasetInputs, rowOf } from './rescore.ts';
@@ -86,7 +86,7 @@ export async function pocCheck(cx: BenchContext): Promise<PocCheckReport> {
   const baseline = await readBaseline(cx);
   const pinned = await readPinnedPocSource(cx);
   const roms: PocCheckRom[] = [];
-  for (const d of tuningDatasets(datasets)) {
+  for (const d of pocDatasets(datasets, baseline.roms.map((r) => String(r['name'])))) {
     try {
       const inputs = await readDatasetInputs(cx, d);
       const base = baseline.roms.find((r) => r['name'] === d.name);

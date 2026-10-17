@@ -31,6 +31,17 @@ test('a current artifact passes every check at landed 0', () => {
   assert.deepEqual(verdicts(inputs()), { 'source-digest': true, 'gate-record': true, families: true, 'dataset-rows': true, 'heldout-rows': true });
 });
 
+test('the scaffold family, measured by the PoC until phase 3, is not asked of a tuning ROM the PoC never ran on (D60)', () => {
+  const two = [dataset(), dataset({ name: 'tmc' })];
+  const artifact = results([row(), row({ name: 'tmc' })], { meta: meta({ families: { tiny: ['code-end', 'entries', 'extents', 'scaffold'], tmc: ['code-end', 'entries', 'extents'] } }), printer: printerSummary() });
+  const families = (pocRoms: readonly string[] | undefined, landed: number) => provenanceChecks(inputs({ artifact, datasets: two, landed, ...(pocRoms === undefined ? {} : { pocRoms }) })).find((c) => c.id === 'families');
+  assert.equal(families(['tiny'], 1)?.ok, true);
+  assert.match(families(['tiny'], 1)?.detail ?? '', /not asked of a ROM it never ran on: tmc scaffold/);
+  assert.equal(families(['tiny', 'tmc'], 1)?.ok, false, 'a ROM the PoC ran on must have it');
+  assert.equal(families(undefined, 1)?.ok, false, 'without the PoC names every tuning ROM must have it');
+  assert.match(families(['tiny'], 3)?.detail ?? '', /tmc: family scaffold did not run/, 'from phase 3 every tuning ROM must have it');
+});
+
 test('a recomputed digest that differs fails with "re-run the real tier"', () => {
   const [digest] = provenanceChecks(inputs({ recomputedDigest: 't'.repeat(64) }));
   assert.equal(digest?.ok, false);
