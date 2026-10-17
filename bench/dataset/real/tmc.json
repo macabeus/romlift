@@ -9,7 +9,13 @@
   "family": "zeldaret-tmc",
   "buildNote": "unchanged",
   "heldout": true,
-  "revealed": [],
+  "revealed": [
+    {
+      "at": "2026-10-17T18:25:03.955Z",
+      "commit": "d6451607ae6716833027eedddc998f77aef3da42",
+      "reason": "owner decision 2026-10-17 (Bruno Macabeus, architecture section 12 item 4): tune on tmc, no new ROM; tmc moves from the sealed held-out set into the tuning set"
+    }
+  ],
   "labels": [],
   "untyped": []
 }

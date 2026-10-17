@@ -16,7 +16,7 @@ const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const BENCH_ENV = process.env['ROMLIFT_BENCH_ROOT'];
 const BENCH_ROOT = BENCH_ENV ? path.resolve(REPO, BENCH_ENV) : path.dirname(REPO);
 const REQUIRE = process.env['ROMLIFT_REQUIRE_LOCAL'] === '1';
-const TUNING = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3'] as const;
+const TUNING = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc'] as const;
 
 const profile = profileById('agbcc');
 if (profile === undefined) throw new Error('the agbcc profile is not registered');

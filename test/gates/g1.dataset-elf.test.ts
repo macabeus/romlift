@@ -1,14 +1,15 @@
 // g1.dataset-elf (architecture §8.3, §13): every `labels` row of a tuning dataset is an ELF FUNC symbol
 // inside a function the run found, and every `untyped` row is not a FUNC symbol; the tuning datasets
-// are exactly the five of docs/benchmark-roms.md (dataset-check pins them to the PoC baseline, and
-// this gate to the names below), so a tuning dataset flipped to `heldout` fails here.
+// are exactly the six of docs/benchmark-roms.md (dataset-check pins them to the PoC baseline plus the
+// revealed held-out datasets, and this gate to the names below), so a tuning dataset flipped to `heldout`
+// fails here. tmc joined by its recorded reveal (owner decision of 17 October 2026, D60).
 //
 // FROZEN output: the last stdout line of `npm run bench -- dataset-check --json` (exit 0):
 //   {ok, problems: []}   (each problem names its dataset, list and address)
 import { gate, type ExecResult } from './gate.ts';
 
-/** The tuning set of docs/benchmark-roms.md. */
-const TUNING = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3'];
+/** The tuning set of docs/benchmark-roms.md: the five of the PoC baseline and tmc, revealed (D60). */
+const TUNING = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc'];
 
 interface DatasetCheck {
   readonly ok: boolean;

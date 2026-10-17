@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 // The dataset check against romlift's own run (a hand-built analysis and its miss diagnoses), the
 // command end to end on the synthetic tier, and the tuning-set pin.
-import { checkDatasetAgainstRun, checkTuningSet, datasetCheck } from '../../../bench/src/dataset-check.ts';
+import { checkDatasetAgainstRun, checkTuningSet, datasetCheck, expectedTuningSet } from '../../../bench/src/dataset-check.ts';
 import { analysisFunctions, scoreAnalysis } from '../../../bench/src/score.ts';
 import { elfTruth } from '../../../bench/src/truth.ts';
 import { analysisResult, dataset, elfFile, fact, failingRunner, fixedRunner, withTempDir } from './fixtures.ts';
@@ -61,6 +61,19 @@ test('the tuning set is pinned to the baseline names: a missing or an extra unse
   assert.deepEqual(flipped.map((p) => [p.dataset, p.problem]), [['klonoa', 'tuning-set']]);
   const extra = checkTuningSet([...names, 'tmc'].map((name) => ({ name })), names);
   assert.deepEqual(extra.map((p) => [p.dataset, p.problem]), [['tmc', 'tuning-set']]);
+});
+
+test('a revealed held-out dataset joins the expected tuning set; a sealed one or an unrevealed flip does not', () => {
+  const reveal = { at: '2026-10-17T00:00:00Z', commit: 'abc', reason: 'owner decision' };
+  const datasets = [
+    { name: 'tmc', heldout: true, revealed: [reveal] },
+    { name: 'pokeruby', heldout: true, revealed: [] },
+    { name: 'fe7j', heldout: false, revealed: [] },
+  ];
+  assert.deepEqual(expectedTuningSet(['fe7j', 'klonoa'], datasets), ['fe7j', 'klonoa', 'tmc']);
+  // A held-out dataset run as tuning data without a reveal is still an extra unsealed dataset.
+  const extra = checkTuningSet([{ name: 'fe7j' }, { name: 'klonoa' }, { name: 'pokeruby' }], expectedTuningSet(['fe7j', 'klonoa'], datasets.slice(1)));
+  assert.deepEqual(extra.map((p) => [p.dataset, p.problem]), [['pokeruby', 'tuning-set']]);
 });
 
 test("dataset-check runs romlift's analysis: the synthetic tier passes, a row the run no longer needs is stale", async () => {

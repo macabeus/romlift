@@ -214,13 +214,15 @@ test('sealedDataset is a well-formed sealed dataset with the committed key order
   assert.deepEqual(parseDataset(d, 'x.json'), { dataset: d, problems: [] });
 });
 
-test('the committed held-out datasets are sealed, listless and recorded with their families', async () => {
+test('the committed held-out datasets are sealed, listless and recorded with their families; tmc is revealed', async () => {
   const { datasets, problems } = await loadDatasets(contextFromEnv({}));
   assert.deepEqual(problems, []);
   const sealed = datasets.filter(isSealed).map((d) => [d.name, d.family, d.labels.length + d.untyped.length]);
   assert.deepEqual(sealed, [
     ['pokefirered', 'pret-gen3', 0],
     ['pokeruby', 'pret-gen3', 0],
-    ['tmc', 'zeldaret-tmc', 0],
   ]);
+  // The owner decision of 17 October 2026 (D60): tmc is held out by creation and tuning data by its reveal.
+  const tmc = datasets.find((d) => d.name === 'tmc');
+  assert.ok(tmc !== undefined && tmc.heldout && tmc.revealed.length === 1 && !isSealed(tmc));
 });
