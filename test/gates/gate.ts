@@ -764,7 +764,7 @@ function message(error: unknown): string {
 
 /**
  * The detail a failing gate records: the failure, then the notes the gate wrote before it failed (a
- * sealed ROM's counts, say), so a failure keeps the measurements that explain it (correctness-r1-2).
+ * sealed ROM's counts, say), so a failure keeps the measurements that explain it (D59 q).
  */
 export function failureDetail(failure: string, notes: readonly string[]): string {
   return [failure, ...notes].join('; ');

@@ -369,7 +369,7 @@ test('gate() registers one test per gate and appends one NDJSON line per recorde
   }
 });
 
-test('a failing gate records its notes after the failure, so the measurements that explain it survive (correctness-r1-2)', () => {
+test('a failing gate records its notes after the failure, so the measurements that explain it survive (D59 q)', () => {
   assert.equal(failureDetail('held-out: 1 family', []), 'held-out: 1 family');
   assert.equal(failureDetail('held-out: 1 family', ['tmc [zeldaret-tmc] fail: glued 51', 'pokeruby pass']), 'held-out: 1 family; tmc [zeldaret-tmc] fail: glued 51; pokeruby pass');
 });

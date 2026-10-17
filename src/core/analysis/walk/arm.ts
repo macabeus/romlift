@@ -59,18 +59,9 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
         rec.errors.push({ reason: 'zero-run', at: pc });
         break;
       }
-      if (rowFor('arm', word).spec.flow === 'next') {
-        // The row's Flow is next: nothing to ask or record.
-        if (!rec.insn(pc, 4)) {
-          work.length = 0;
-          break;
-        }
-        run.push(pc);
-        pc += 4;
-        continue;
-      }
-      const insn = decodeArmAt(env, pc);
-      if (insn.flow.kind === 'invalid') {
+      // A row whose Flow is next needs no decode: nothing to ask or record but the instruction.
+      const insn = rowFor('arm', word).spec.flow === 'next' ? undefined : decodeArmAt(env, pc);
+      if (insn?.flow.kind === 'invalid') {
         rec.errors.push({ reason: 'not-code', at: pc });
         break;
       }
@@ -79,6 +70,10 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
         break;
       }
       run.push(pc);
+      if (insn === undefined) {
+        pc += 4;
+        continue;
+      }
       const conditional = isConditional(insn);
       const flow = insn.flow;
       let ends = false;

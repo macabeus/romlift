@@ -18,6 +18,7 @@ import { resultOf, runDriver } from './run.ts';
 import { settle } from './settle.ts';
 import { claimAt, createDriver } from './state.ts';
 import type { DriverState } from './state.ts';
+import { rejectionKey } from './trail.ts';
 import { whyInvalid } from './validity.ts';
 
 /** A function the run missed, as the caller knows it (from an ELF). */
@@ -54,8 +55,7 @@ function ruleFor(s: DriverState, reason: MissReason): RuleId | undefined {
   if (valid !== undefined) return valid.id;
   const { thumb, arm, after } = s.rules.gap.forward;
   const gap = [thumb, arm, ...after].find((g) => g?.rule.reason === reason);
-  if (gap !== undefined) return gap.id;
-  return s.rules.veto.find((v) => v.rule.reason === reason)?.id;
+  return gap?.id;
 }
 
 /** The diagnosis of one miss at the final state of `s`. */
@@ -92,9 +92,9 @@ export function diagnoseMiss(s: DriverState, miss: MissQuery): MissDiagnosis {
     refs > 0 ? `${refs} data word(s) point at it` : 'nothing points at it',
   ];
   // A gap candidate an accept veto rejected names that veto (its rejection is recorded under the veto's id).
-  const vetoed = s.rejections.get(`${addr}:${mode}`);
-  const veto = vetoed !== undefined && s.rules.veto.some((v) => v.id === vetoed.rule) ? vetoed : undefined;
-  if (veto !== undefined) return { ...base, reason: 'unanchored', rule: veto.rule, detail: `valid but vetoed by ${veto.rule}: ${veto.detail}; ${evidence.join(', ')}` };
+  const recorded = s.rejections.get(rejectionKey(addr, mode));
+  const veto = recorded !== undefined && s.rules.veto.some((v) => v.id === recorded.rule) ? recorded : undefined;
+  if (veto !== undefined) return { ...base, reason: veto.reason, rule: veto.rule, detail: `valid but vetoed by ${veto.rule}: ${veto.detail}; ${evidence.join(', ')}` };
   return { ...base, reason: 'unanchored', detail: `valid but not accepted: ${evidence.join(', ')}` };
 }
 

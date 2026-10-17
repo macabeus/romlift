@@ -149,7 +149,7 @@ function forwardChain(s: DriverState, g: Gap, from: Addr, end: Addr, added: Adde
       p += 4;
       continue;
     }
-    // The cartridge header is format, not code: the chain never stands in it (Review, architecture-r1-4).
+    // The cartridge header is format, not code: the chain never stands in it (D59 l).
     if (p < headerEnd) {
       p = headerEnd;
       continue;

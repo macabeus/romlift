@@ -31,8 +31,12 @@ export default defineRule({
   meta: {
     id: 'gap.adr-block-absorb',
     summary: "a gap-start block named by the previous Thumb function's add rd, pc, #imm that only branches back into it is merged into that function",
-    restsOn: 'hand-written interrupt handlers store a callback block with add rd, pc, #imm and return through the code of the function that names it',
-    recovers: 'handler blocks reported as functions of their own (Emerald multiboot handlers) and the extent of the function that owns them',
+    restsOn:
+      'hand-written interrupt handlers store a callback block with add rd, pc, #imm and return through the code of the function that names it; ' +
+      'the block may start one halfword on, past a claimed halfword or past one zero halfword of alignment (the PoC absorbRun retry, zero only: ' +
+      'the assembler aligns such a block with zero fill, not with the mov r8, r8 the profile padding idiom also accepts)',
+    recovers:
+      'handler blocks reported as functions of their own (Emerald multiboot handlers), also when aligned a halfword on, and the extent of the function that owns them',
     reads: ['rom', 'claims', 'function-set', 'readings'],
     adds: ['claims', 'readings'],
     origin: 'gap-scan',

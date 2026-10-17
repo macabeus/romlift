@@ -16,9 +16,14 @@ export function emit(s: DriverState, kind: TrailKind, at: Addr, rule: RuleId, ci
   if (trailKeeps(s.options.trail, s.options.trailFilter, e)) s.sink.event(e);
 }
 
+/** The key of the rejection of (at, mode) in DriverState.rejections. */
+export function rejectionKey(at: Addr, mode: Mode): string {
+  return `${at}:${mode}`;
+}
+
 /** Records a rejection: the last one per (at, mode), with a count. `cites` are its trail event's (the entry by default). */
 export function reject(s: DriverState, at: Addr, mode: Mode, rule: RuleId, reason: MissReason, intrinsic: boolean, detail: string, cites: readonly Addr[] = [at]): void {
-  const key = `${at}:${mode}`;
+  const key = rejectionKey(at, mode);
   const count = (s.rejections.get(key)?.count ?? 0) + 1;
   s.rejections.set(key, { at, mode, rule, reason, intrinsic, round: s.round, detail, count });
   emit(s, 'reject', at, rule, cites, `${reason}: ${detail}`);

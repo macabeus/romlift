@@ -1,4 +1,4 @@
-// Analysis memory is bounded (correctness-2 of the phase-2 review, D42, D59): a 32 MiB image that is
+// Analysis memory is bounded (D42, D59 c): a 32 MiB image that is
 // mostly zeros, with candidates in the zeros and in a long run of never-branching Thumb data, is
 // analysed in a child process under a 256 MiB V8 heap without running out of memory. Before
 // LIMITS.zeroRun and LIMITS.walkInsns each candidate walked to the end of the image, and a 4 MiB
