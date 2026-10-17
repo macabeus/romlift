@@ -3,10 +3,9 @@
 // walk rule names goes through the walk slot (first answer wins); without an answer the decoder's Flow
 // decides (types.ts, WalkStep). The bl verdicts come from the settle loop: `far` sites are walked as
 // jumps, `noret` sites end their path.
-import { decode, fieldsOf, rowFor } from '../../../foundation/isa/decode.ts';
+import { decode, fieldsOf, rowFor, thumbWordAt } from '../../../foundation/isa/decode.ts';
 import type { Insn } from '../../../foundation/isa/types.ts';
 import { contains, u32 } from '../../../foundation/rom/rom.ts';
-import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { toRun } from '../address-map.ts';
@@ -18,22 +17,10 @@ import { askWalk, asksWalk, toLoadInsn, walkCursor } from './cursor.ts';
 import { WalkRecord } from './record.ts';
 import type { MutableCursor, WalkCursor, WalkEnv } from './cursor.ts';
 
-/**
- * The halfword at `pc` with the next one above it when it is in the ROM (a bl pair decodes as one). The
- * walker asks only for an even address whose halfword is in the ROM, so the bytes are read directly.
- */
-function thumbWord(rom: Rom, pc: Addr): number {
-  const b = rom.bytes;
-  const k = pc - rom.base;
-  const lo = (b[k] ?? 0) | ((b[k + 1] ?? 0) << 8);
-  const hi = pc + 4 <= rom.end ? (b[k + 2] ?? 0) | ((b[k + 3] ?? 0) << 8) : 0;
-  return (lo | (hi << 16)) >>> 0;
-}
-
 /** The Thumb instruction at load address `pc`. */
 export function decodeThumbAt(env: WalkEnv, pc: Addr): Insn {
   const { addresses } = env.view;
-  return toLoadInsn(decode('thumb', thumbWord(env.view.rom, pc), toRun(addresses, pc)), addresses, pc);
+  return toLoadInsn(decode('thumb', thumbWordAt(env.view.rom, pc), toRun(addresses, pc)), addresses, pc);
 }
 
 interface Path {
@@ -198,7 +185,7 @@ export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, nor
         break;
       }
       const pool = rec.pools.size !== 0 && (rec.pools.has(pc) || rec.pools.has(pc & ~3));
-      const word = thumbWord(rom, pc);
+      const word = thumbWordAt(rom, pc);
       const row = rowFor('thumb', word);
       const spec = row.spec;
       if (pool || spec.flow === 'invalid') {

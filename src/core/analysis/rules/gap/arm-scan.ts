@@ -5,7 +5,7 @@
 // within fillSlack, and overlaps no claimed code. It is taken at the cursor, when a pool word or a pool
 // value refers back into the words it skipped, or one word ahead when it has armMinInsnsForSkip
 // instructions.
-import { decode } from '../../../../foundation/isa/decode.ts';
+import { decode, isConditional } from '../../../../foundation/isa/decode.ts';
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import { toRun } from '../../address-map.ts';
@@ -18,9 +18,9 @@ import { defineRule } from '../define-rule.ts';
 function armReading(v: AnalysisView, entry: Addr, end: Addr): Reading | undefined {
   const { rom, profile } = v;
   if ((entry & 3) !== 0 || !contains(rom, entry, 4)) return undefined;
-  const word = u32(rom, entry);
-  const flow = decode('arm', word, toRun(v.addresses, entry)).flow.kind;
-  if (word >>> 28 !== 0xe || flow === 'branch' || flow === 'invalid') return undefined;
+  const first = decode('arm', u32(rom, entry), toRun(v.addresses, entry));
+  const flow = first.flow.kind;
+  if (flow === 'branch' || flow === 'invalid' || isConditional(first)) return undefined;
   const r = v.read(entry, 'arm');
   if (r.insns.length < profile.gapScan.minInsns || r.errors.length > 0 || r.returns === 0 || r.codeEnd > end) return undefined;
   if (end - r.codeEnd > profile.gapScan.fillSlack && !isDense(r, profile)) return undefined;

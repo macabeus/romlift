@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import type { WalkStep } from '../../../../src/core/analysis/types.ts';
+import type { ResolvedPolicy } from '../../../../src/core/analysis/walk/cursor.ts';
+import type { RuleId } from '../../../../src/core/provenance/rule-id.ts';
 import { decode } from '../../../../src/foundation/isa/decode.ts';
+import type { Addr } from '../../../../src/foundation/rom/span.ts';
 import { romWith, viewWith, walkReading, words } from '../../../helpers/analysis.ts';
 import { armAt } from '../../../helpers/arm.ts';
 
@@ -38,4 +42,34 @@ test("the walk follows the table's flow classes, never the PoC's: add pc, pc is 
   assert.deepEqual(jump.adrs, []);
   const undefinedWord = walkReading(viewWith({ rom: romWith([{ at: F, bytes: Uint8Array.from([...armAt(F)`mov r0, #1`, ...words(0xe1c000d0)]) }]) }), F, 'arm');
   assert.deepEqual(undefinedWord.errors, [{ reason: 'not-code', at: F + 4 }]);
+});
+
+const answering = (id: RuleId, at: Addr, step: WalkStep): ResolvedPolicy => ({ id, rule: { kind: 'walk', onInsn: (insn) => (insn.addr === at ? step : undefined) } });
+
+test("an ARM 'table' step records the table and walks its targets; the jump ends the path", () => {
+  const T1 = F + 0x20;
+  const T2 = F + 0x28;
+  const rom = romWith([
+    { at: F, bytes: armAt(F)`mov r0, #1; add pc, pc, r0, lsl #2` },
+    { at: T1, bytes: armAt(T1)`mov r1, #2; bx lr` },
+    { at: T2, bytes: armAt(T2)`mov r1, #3; bx lr` },
+  ]);
+  const table = { base: F + 0x10, targets: [T1, T2], thumbBit: false };
+  const r = walkReading(viewWith({ rom }), F, 'arm', [answering('walk.table-by-register', F + 4, { step: 'table', table })]);
+  assert.deepEqual(r.tables, [table]);
+  assert.deepEqual(r.insns.map((i) => i.addr), [F, F + 4, T1, T1 + 4, T2, T2 + 4], 'the table targets are walked; nothing after the jump');
+  assert.equal(r.returns, 2);
+});
+
+test("an ARM 'switch-mode' step records the veneer and ends the path unless the instruction is conditional", () => {
+  const target = 0x0800_0301;
+  const switching = answering('walk.bx-pc-veneer', F + 4, { step: 'switch-mode', target });
+  const always = walkReading(viewWith({ rom: romWith([{ at: F, bytes: armAt(F)`mov r0, #1; bx r0; mov r1, #2; bx lr` }]) }), F, 'arm', [switching]);
+  assert.deepEqual(always.veneers, [target]);
+  assert.deepEqual(always.insns.map((i) => i.addr), [F, F + 4], 'an unconditional switch ends the path');
+  assert.equal(always.returns, 1);
+  const conditional = walkReading(viewWith({ rom: romWith([{ at: F, bytes: armAt(F)`mov r0, #1; bxne r0; mov r1, #2; bx lr` }]) }), F, 'arm', [switching]);
+  assert.deepEqual(conditional.veneers, [target]);
+  assert.deepEqual(conditional.insns.map((i) => i.addr), [F, F + 4, F + 8, F + 12], "bxne: the condition (the row's cond field) lets the path go on");
+  assert.equal(conditional.returns, 2);
 });

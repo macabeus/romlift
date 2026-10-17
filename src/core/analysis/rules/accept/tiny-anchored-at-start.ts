@@ -2,8 +2,8 @@
 // candidate (the forward chain's) of fewer than tinyFunctionInsns instructions (a stub: `bx lr`, `bx rN`, `movs; bx lr`) is
 // taken only when it is anchored at start and does not open with b, bcc or bl, which a stray halfword
 // pair in data often does.
-import { decode } from '../../../../foundation/isa/decode.ts';
-import { contains, u16 } from '../../../../foundation/rom/rom.ts';
+import { decode, thumbWordAt } from '../../../../foundation/isa/decode.ts';
+import { contains } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
 import type { AnalysisView } from '../../types.ts';
 import { anchoredAtStart } from '../../walk/predicates.ts';
@@ -12,8 +12,7 @@ import { defineRule } from '../define-rule.ts';
 /** The entry's first Thumb instruction is a branch (b, bcc) or a bl. */
 function opensWithBranch(entry: Addr, v: AnalysisView): boolean {
   if (!contains(v.rom, entry, 2)) return false;
-  const word = (u16(v.rom, entry) | (contains(v.rom, entry + 2, 2) ? u16(v.rom, entry + 2) << 16 : 0)) >>> 0;
-  const kind = decode('thumb', word, entry).flow.kind;
+  const kind = decode('thumb', thumbWordAt(v.rom, entry), entry).flow.kind;
   return kind === 'branch' || kind === 'bl';
 }
 

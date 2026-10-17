@@ -3,7 +3,7 @@
 // The PoC classed a few encodings otherwise (`add/sub pc, pc, #imm` as adr, the encodings the ARMv4T
 // leaves undefined as other or pc_write; test/local/poc-decoder-differential.test.ts lists them); the
 // walk follows the table, which changes no reading on the five tuning ROMs or the synthetic fixtures (D59).
-import { decode, rowFor } from '../../../foundation/isa/decode.ts';
+import { decode, isConditional, rowFor } from '../../../foundation/isa/decode.ts';
 import type { Insn } from '../../../foundation/isa/types.ts';
 import { contains, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
@@ -79,7 +79,7 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
         break;
       }
       run.push(pc);
-      const conditional = insn.word >>> 28 !== 0xe;
+      const conditional = isConditional(insn);
       const flow = insn.flow;
       let ends = false;
       if (flow.kind === 'bl') rec.calls.push({ site: pc, target: flow.target, mode: 'arm' });
