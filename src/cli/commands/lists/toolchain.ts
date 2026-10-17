@@ -1,4 +1,5 @@
-// The toolchain component's commands (`doctor` lands here in phase 1, wave 2).
+// The toolchain component's commands.
 import type { CommandSpec } from '../../registry.ts';
+import { doctorCommand } from '../doctor.ts';
 
-export const toolchainCommands: readonly CommandSpec[] = [];
+export const toolchainCommands: readonly CommandSpec[] = [doctorCommand];
