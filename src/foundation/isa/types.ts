@@ -43,6 +43,27 @@ export type RawReason = 'undefined' | 'unpredictable' | 'sbz-set' | 'as-alias' |
 /** Every RawReason, in the order reports list them. */
 export const RAW_REASONS: readonly RawReason[] = ['undefined', 'unpredictable', 'sbz-set', 'as-alias', 'no-roundtrip'];
 
+/**
+ * What an instruction writes to the core registers, as row data over its operand names: `writes` names
+ * operands holding a register it writes, `list` an operand holding a register mask it writes, `fixed` a
+ * mask of registers it always writes (a call's clobbers), and `from` the operands the written value is a
+ * copy, a sum or the load address of; a written value computed any other way (a constant, other
+ * arithmetic, a byte or halfword load) has no `from`. sp updates are the row's `stack`, and a branch's pc
+ * its Flow.
+ */
+export interface RegisterSpec {
+  readonly writes?: readonly string[];
+  readonly list?: string;
+  readonly fixed?: number;
+  readonly from?: readonly string[];
+}
+
+/** The register effect of one decoded instruction: a bit per register written (bit 15 is pc), and the registers the written value comes from. */
+export interface RegisterEffect {
+  readonly writes: number;
+  readonly from: readonly number[];
+}
+
 /** A table row; lives only in the isa tables. */
 export interface InsnSpec {
   readonly id: SpecId;
@@ -61,6 +82,8 @@ export interface InsnSpec {
   readonly stack?: (f: Fields) => number;
   /** The encoding reason `as` will not reproduce these fields, or null when it will. */
   readonly raw?: (f: Fields) => RawReason | null;
+  /** The registers it writes (Thumb rows; absent: none). */
+  readonly registers?: RegisterSpec;
 }
 
 export type Flow =

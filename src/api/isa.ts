@@ -11,6 +11,8 @@ export type {
   ParsedCandidate,
   ParsedInsn,
   RawReason,
+  RegisterEffect,
+  RegisterSpec,
   SpecId,
   SymbolResolver,
 } from '../foundation/isa/types.ts';
@@ -22,4 +24,5 @@ export { parse } from '../foundation/isa/parse.ts';
 export { assemble } from '../foundation/isa/assemble.ts';
 export { rawReason, roundTrips } from '../foundation/isa/roundtrip.ts';
 export { specOf } from '../foundation/isa/rows.ts';
+export { registerEffect } from '../foundation/isa/registers.ts';
 export { DIALECT } from '../foundation/asm/dialect.ts';

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { decode } from '../../../../src/foundation/isa/decode.ts';
-import { walkFlow } from '../../../../src/core/analysis/walk/arm.ts';
 import { romWith, viewWith, walkReading, words } from '../../../helpers/analysis.ts';
 import { armAt } from '../../../helpers/arm.ts';
 
@@ -28,20 +27,15 @@ test('ARM pools, bl calls, adr targets, and a branch below the entry is a tail',
   assert.deepEqual(r.tails, [], 'the ARM walk records no tail targets');
 });
 
-test("the walk uses the PoC's classes where the decoder differs on purpose", () => {
+test("the walk follows the table's flow classes, never the PoC's: add pc, pc is an indirect jump and an ARMv4T-undefined word is not code", () => {
   const addPc = decode('arm', 0xe28ff004, F);
-  assert.notEqual(addPc.flow.kind, 'adr');
-  assert.deepEqual(walkFlow(addPc), { kind: 'adr', target: F + 12 });
-  const subPc = decode('arm', 0xe24ff004, F);
-  assert.deepEqual(walkFlow(subPc), { kind: 'adr', target: F + 4 });
+  assert.equal(addPc.flow.kind, 'indirect');
   const ldrd = decode('arm', 0xe1c000d0, F);
   assert.equal(ldrd.specId, 'arm.ldrd_strd');
   assert.equal(ldrd.flow.kind, 'invalid');
-  assert.deepEqual(walkFlow(ldrd), { kind: 'next' });
-  const ordinary = decode('arm', 0xe12fff1e, F);
-  assert.equal(walkFlow(ordinary), ordinary.flow);
-  const rom = romWith([{ at: F, bytes: Uint8Array.from([...words(0xe28ff004, 0xe1c000d0), ...armAt(F + 8)`bx lr`]) }]);
-  const r = walkReading(viewWith({ rom }), F, 'arm');
-  assert.equal(r.insns.length, 3, 'add pc, pc is not a jump to the PoC, and ldrd walks on');
-  assert.deepEqual(r.adrs, [F + 12]);
+  const jump = walkReading(viewWith({ rom: romWith([{ at: F, bytes: Uint8Array.from([...words(0xe28ff004), ...armAt(F + 4)`bx lr`]) }]) }), F, 'arm');
+  assert.deepEqual(jump.exits.map((e) => e.kind), ['reg-jump'], 'add pc, pc, #4 ends the path (walk.mov-pc-without-table)');
+  assert.deepEqual(jump.adrs, []);
+  const undefinedWord = walkReading(viewWith({ rom: romWith([{ at: F, bytes: Uint8Array.from([...armAt(F)`mov r0, #1`, ...words(0xe1c000d0)]) }]) }), F, 'arm');
+  assert.deepEqual(undefinedWord.errors, [{ reason: 'not-code', at: F + 4 }]);
 });

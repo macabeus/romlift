@@ -6,7 +6,7 @@ import { fieldValue as v, popcount, wrap32 } from './bits.ts';
 import { branchOffset, branchTarget, pcOf, thumbPoolBase } from './pc-relative.ts';
 import { blOff, cond, flag, imm, pcRel, reg, reglist, row } from './row.ts';
 import type { Row, RowOptions } from './row.ts';
-import type { Fields, RawReason } from './types.ts';
+import type { Fields, RawReason, RegisterSpec } from './types.ts';
 
 function T(name: string, options: RowOptions): Row {
   return row(`thumb.${name}`, 'thumb', options);
@@ -14,18 +14,26 @@ function T(name: string, options: RowOptions): Row {
 
 const LOW3 = [reg('rm', 6), reg('rn', 3), reg('rd', 0)];
 
+/** The register effects the rows below share: rd written, followed to nothing or to its sources. */
+const RD: readonly string[] = ['rd'];
+const WRITES_RD: RegisterSpec = { writes: RD };
+/** A call clobbers r0-r3, r12 and lr; a BIOS call r0-r3. */
+const CALL_CLOBBERS = 0b0101_0000_0000_1111;
+const SWI_CLOBBERS = 0b1111;
+
 // ---------------------------------------------------------------------------------------------------
 // Shifts, add/sub, immediates and the ALU block.
 
 const shifts: Row[] = [
-  T('movs_reg', { mask: 0xffc0, match: 0x0000, fields: [reg('rm', 3), reg('rd', 0)], syntax: 'movs {rd}, {rm}' }),
-  T('lsl_imm', { mask: 0xf800, match: 0x0000, fields: [imm('imm', 6, 5), reg('rm', 3), reg('rd', 0)], syntax: 'lsls {rd}, {rm}, {imm}' }),
+  T('movs_reg', { mask: 0xffc0, match: 0x0000, fields: [reg('rm', 3), reg('rd', 0)], syntax: 'movs {rd}, {rm}', registers: { writes: RD, from: ['rm'] } }),
+  T('lsl_imm', { mask: 0xf800, match: 0x0000, fields: [imm('imm', 6, 5), reg('rm', 3), reg('rd', 0)], syntax: 'lsls {rd}, {rm}, {imm}', registers: WRITES_RD }),
   ...(['lsr', 'asr'] as const).map((op, i) =>
     T(`${op}_imm`, {
       mask: 0xf800,
       match: 0x0800 * (i + 1),
       fields: [imm('imm5', 6, 5), reg('rm', 3), reg('rd', 0)],
       syntax: `${op}s {rd}, {rm}, {imm}`,
+      registers: WRITES_RD,
       // An amount of 32 is encoded as 0.
       toOps: (f) => ({ rd: v(f, 'rd'), rm: v(f, 'rm'), imm: v(f, 'imm5') === 0 ? 32 : v(f, 'imm5') }),
       fromOps: (o) => {
@@ -40,8 +48,8 @@ const shifts: Row[] = [
 const imm3Raw = (f: Fields): RawReason | null => (v(f, 'rd') === v(f, 'rn') ? 'as-alias' : null);
 
 const addSub: Row[] = [
-  T('add_reg', { mask: 0xfe00, match: 0x1800, fields: LOW3, syntax: 'adds {rd}, {rn}, {rm}' }),
-  T('sub_reg', { mask: 0xfe00, match: 0x1a00, fields: LOW3, syntax: 'subs {rd}, {rn}, {rm}' }),
+  T('add_reg', { mask: 0xfe00, match: 0x1800, fields: LOW3, syntax: 'adds {rd}, {rn}, {rm}', registers: { writes: RD, from: ['rn', 'rm'] } }),
+  T('sub_reg', { mask: 0xfe00, match: 0x1a00, fields: LOW3, syntax: 'subs {rd}, {rn}, {rm}', registers: WRITES_RD }),
   T('add_imm3', {
     mask: 0xfe00,
     match: 0x1c00,
@@ -49,6 +57,7 @@ const addSub: Row[] = [
     syntax: 'adds {rd}, {rn}, {imm}',
     asPriority: 1,
     raw: imm3Raw,
+    registers: { writes: RD, from: ['rn'] },
   }),
   T('sub_imm3', {
     mask: 0xfe00,
@@ -57,8 +66,9 @@ const addSub: Row[] = [
     syntax: 'subs {rd}, {rn}, {imm}',
     asPriority: 1,
     raw: imm3Raw,
+    registers: WRITES_RD,
   }),
-  T('mov_imm', { mask: 0xf800, match: 0x2000, fields: [reg('rd', 8), imm('imm', 0, 8)], syntax: 'movs {rd}, {imm}' }),
+  T('mov_imm', { mask: 0xf800, match: 0x2000, fields: [reg('rd', 8), imm('imm', 0, 8)], syntax: 'movs {rd}, {imm}', registers: WRITES_RD }),
   T('cmp_imm', { mask: 0xf800, match: 0x2800, fields: [reg('rn', 8), imm('imm', 0, 8)], syntax: 'cmp {rn}, {imm}' }),
   T('add_imm8', {
     mask: 0xf800,
@@ -66,6 +76,7 @@ const addSub: Row[] = [
     fields: [reg('rd', 8), imm('imm', 0, 8)],
     syntax: 'adds {rd}, {imm}',
     aliases: ['adds {rd}, {rd}, {imm}'],
+    registers: { writes: RD, from: RD },
   }),
   T('sub_imm8', {
     mask: 0xf800,
@@ -73,6 +84,7 @@ const addSub: Row[] = [
     fields: [reg('rd', 8), imm('imm', 0, 8)],
     syntax: 'subs {rd}, {imm}',
     aliases: ['subs {rd}, {rd}, {imm}'],
+    registers: WRITES_RD,
   }),
 ];
 
@@ -102,6 +114,8 @@ const alu: Row[] = ALU.map(([name, mnemonic, first, second], op) =>
     match: 0x4000 | (op << 6),
     fields: [reg(second, 3), reg(first, 0)],
     syntax: `${mnemonic} {${first}}, {${second}}`,
+    // tst, cmp and cmn name their first register rn: they write only the flags.
+    ...(first === 'rd' ? { registers: WRITES_RD } : {}),
   }),
 );
 
@@ -116,8 +130,9 @@ function hiRefused(op: number, f: Fields): boolean {
   return op === 1 && (((v(f, 'hd') << 3) | v(f, 'rd3')) === 15 || ((v(f, 'hm') << 3) | v(f, 'rm3')) === 15);
 }
 
-function hiRow(name: string, op: number, first: 'rd' | 'rn', mnemonic: string, asPriority: number): Row {
+function hiRow(name: string, op: number, first: 'rd' | 'rn', mnemonic: string, asPriority: number, registers?: RegisterSpec): Row {
   return T(name, {
+    ...(registers === undefined ? {} : { registers }),
     mask: 0xff00,
     match: 0x4400 | (op << 8),
     fields: HI_FIELDS,
@@ -151,10 +166,10 @@ function pcWriteRow(name: string, op: number, mnemonic: string, flow: 'add-pc' |
 
 const hi: Row[] = [
   pcWriteRow('add_pc', 0, 'add', 'add-pc'),
-  hiRow('add_hi', 0, 'rd', 'add', 0),
+  hiRow('add_hi', 0, 'rd', 'add', 0, { writes: RD, from: ['rd', 'rm'] }),
   hiRow('cmp_hi', 1, 'rn', 'cmp', 1),
   pcWriteRow('mov_pc', 2, 'mov', 'mov-pc'),
-  hiRow('mov_hi', 2, 'rd', 'mov', 0),
+  hiRow('mov_hi', 2, 'rd', 'mov', 0, { writes: RD, from: ['rm'] }),
   T('bx', {
     mask: 0xff80,
     match: 0x4700,
@@ -186,6 +201,7 @@ const pcLoads: Row[] = [
     fields: [reg('rd', 8), pcRel('imm', 0, 8, 4)],
     syntax: 'ldr {rd}, {target}',
     flow: 'pc-load',
+    registers: WRITES_RD,
     toOps: (f, a) => ({ rd: v(f, 'rd'), target: wrap32(thumbPoolBase(a) + v(f, 'imm') * 4) }),
     fromOps: (o, a) => ({ rd: v(o, 'rd'), imm: (v(o, 'target') - thumbPoolBase(a)) / 4 }),
   }),
@@ -193,8 +209,14 @@ const pcLoads: Row[] = [
 
 const REG_OFFSET: readonly string[] = ['str', 'strh', 'strb', 'ldrsb', 'ldr', 'ldrh', 'ldrb', 'ldrsh'];
 
+/** A load writes rd; a word load is followed to its address registers. */
+function loadRegisters(op: string, address: readonly string[]): { readonly registers?: RegisterSpec } {
+  if (!op.startsWith('ldr')) return {};
+  return { registers: op === 'ldr' ? { writes: RD, from: address } : WRITES_RD };
+}
+
 const regOffset: Row[] = REG_OFFSET.map((op, i) =>
-  T(`${op}_reg`, { mask: 0xfe00, match: 0x5000 | (i << 9), fields: LOW3, syntax: `${op} {rd}, [{rn}, {rm}]` }),
+  T(`${op}_reg`, { mask: 0xfe00, match: 0x5000 | (i << 9), fields: LOW3, syntax: `${op} {rd}, [{rn}, {rm}]`, ...loadRegisters(op, ['rn', 'rm']) }),
 );
 
 const IMM_OFFSET: readonly (readonly [string, number, number])[] = [
@@ -207,22 +229,23 @@ const IMM_OFFSET: readonly (readonly [string, number, number])[] = [
 ];
 
 const immOffset: Row[] = IMM_OFFSET.map(([op, match, scale]) =>
-  T(`${op}_imm`, { mask: 0xf800, match, fields: [imm('imm', 6, 5, scale), reg('rn', 3), reg('rd', 0)], syntax: `${op} {rd}, [{rn}{off}]` }),
+  T(`${op}_imm`, { mask: 0xf800, match, fields: [imm('imm', 6, 5, scale), reg('rn', 3), reg('rd', 0)], syntax: `${op} {rd}, [{rn}{off}]`, ...loadRegisters(op, ['rn']) }),
 );
 
 const spRelative: Row[] = [
   T('str_sp', { mask: 0xf800, match: 0x9000, fields: [reg('rd', 8), imm('imm', 0, 8, 4)], syntax: 'str {rd}, [sp{off}]' }),
-  T('ldr_sp', { mask: 0xf800, match: 0x9800, fields: [reg('rd', 8), imm('imm', 0, 8, 4)], syntax: 'ldr {rd}, [sp{off}]' }),
+  T('ldr_sp', { mask: 0xf800, match: 0x9800, fields: [reg('rd', 8), imm('imm', 0, 8, 4)], syntax: 'ldr {rd}, [sp{off}]', registers: WRITES_RD }),
   T('adr', {
     mask: 0xf800,
     match: 0xa000,
     fields: [reg('rd', 8), pcRel('imm', 0, 8, 4)],
     syntax: 'adr {rd}, {target}',
     flow: 'adr',
+    registers: WRITES_RD,
     toOps: (f, a) => ({ rd: v(f, 'rd'), target: wrap32(thumbPoolBase(a) + v(f, 'imm') * 4) }),
     fromOps: (o, a) => ({ rd: v(o, 'rd'), imm: (v(o, 'target') - thumbPoolBase(a)) / 4 }),
   }),
-  T('add_sp_rd', { mask: 0xf800, match: 0xa800, fields: [reg('rd', 8), imm('imm', 0, 8, 4)], syntax: 'add {rd}, sp, {imm}' }),
+  T('add_sp_rd', { mask: 0xf800, match: 0xa800, fields: [reg('rd', 8), imm('imm', 0, 8, 4)], syntax: 'add {rd}, sp, {imm}', registers: WRITES_RD }),
   T('add_sp', {
     mask: 0xff80,
     match: 0xb000,
@@ -262,6 +285,7 @@ const stack: Row[] = [
     fields: [reglist('rlist', 0, 8)],
     syntax: 'pop {list}',
     flow: 'pop-pc',
+    registers: { list: 'list' },
     toOps: (f) => ({ list: v(f, 'rlist') | 0x8000 }),
     fromOps: (o) => ({ rlist: v(o, 'list') & 0xff }),
     stack: (f) => 4 * (popcount(v(f, 'rlist')) + 1),
@@ -274,6 +298,7 @@ const stack: Row[] = [
     toOps: (f) => ({ list: v(f, 'rlist') }),
     fromOps: (o) => ({ rlist: v(o, 'list') }),
     stack: (f) => 4 * popcount(v(f, 'rlist')),
+    registers: { list: 'list' },
     raw: emptyList,
     refuse: (f) => v(f, 'rlist') === 0,
   }),
@@ -282,6 +307,7 @@ const stack: Row[] = [
     match: 0xc000,
     fields: [reg('rn', 8), reglist('rlist', 0, 8)],
     syntax: 'stmia {rn}!, {list}',
+    registers: { writes: ['rn'] },
     toOps: (f) => ({ rn: v(f, 'rn'), list: v(f, 'rlist') }),
     fromOps: (o) => ({ rn: v(o, 'rn'), rlist: v(o, 'list') }),
     // The base in the list stores an UNKNOWN value unless it is the lowest register.
@@ -298,6 +324,7 @@ const stack: Row[] = [
     fields: [reg('rn', 8), reglist('rlist', 0, 8)],
     // Writeback happens only when the base is not loaded, and the text says which.
     syntax: 'ldmia {rn}{wb}, {list}',
+    registers: { writes: ['rn'], list: 'list' },
     toOps: (f) => ({ rn: v(f, 'rn'), list: v(f, 'rlist'), w: (v(f, 'rlist') >> v(f, 'rn')) & 1 ? 0 : 1 }),
     // as assembles `ldmia rn, {rn}` as `ldr rn, [rn]`, so that encoding has no text.
     fromOps: (o) => (v(o, 'list') === 1 << v(o, 'rn') ? undefined : { rn: v(o, 'rn'), rlist: v(o, 'list') }),
@@ -310,7 +337,7 @@ const stack: Row[] = [
 
 const branches: Row[] = [
   T('b_cond_undefined', { mask: 0xff00, match: 0xde00, fields: [imm('imm', 0, 8)], syntax: 'undefined', rawOnly: 'undefined' }),
-  T('swi', { mask: 0xff00, match: 0xdf00, fields: [imm('imm', 0, 8)], syntax: 'swi {imm}', flow: 'swi' }),
+  T('swi', { mask: 0xff00, match: 0xdf00, fields: [imm('imm', 0, 8)], syntax: 'swi {imm}', flow: 'swi', registers: { fixed: SWI_CLOBBERS } }),
   T('bcc', {
     mask: 0xf000,
     match: 0xd000,
@@ -349,6 +376,7 @@ export const THUMB_BL: Row = T('bl', {
   fields: [blOff('hi', 0), blOff('lo', 16)],
   syntax: 'bl {target}',
   flow: 'bl',
+  registers: { fixed: CALL_CLOBBERS },
   toOps: (f, a) => ({ target: branchTarget(pcOf(a, 'thumb'), (v(f, 'hi') << 11) | v(f, 'lo'), 22, 2) }),
   fromOps: (o, a) => {
     const offset = branchOffset(pcOf(a, 'thumb'), v(o, 'target'), 22, 2);

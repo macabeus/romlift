@@ -4,7 +4,7 @@ import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import type { Insn } from '../../foundation/isa/types.ts';
-import { thumbRegisterEffect } from './thumb-registers.ts';
+import { registerEffect } from '../../foundation/isa/registers.ts';
 import type { BlSite, CompilerProfile, JumpTableMatch, Pipeline, ReadingSummary } from './types.ts';
 
 /** The proof of concept's call order of every rule (§4.1): each analysis rule id in exactly one slot. */
@@ -121,7 +121,7 @@ function tableBase(insns: readonly Insn[], cursor: number, rom: Rom): { readonly
       if (contains(rom, insn.flow.pool, 4) && isTableBase(rom, u32(rom, insn.flow.pool), jump.addr)) return { base: u32(rom, insn.flow.pool), load: insn.addr };
       continue;
     }
-    const effect = thumbRegisterEffect(insn);
+    const effect = registerEffect(insn);
     if ((effect.writes & tracked) === 0) continue;
     tracked &= ~effect.writes;
     for (const r of effect.from) tracked |= 1 << r;

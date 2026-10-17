@@ -1,9 +1,10 @@
-// thumbRegisterEffect (core/profile/thumb-registers.ts): the registers a Thumb instruction writes and the
-// ones its value is followed back to by the table-base search.
+// registerEffect (foundation/isa/registers.ts): the registers a Thumb instruction writes and the ones its
+// value is followed back to, read from the row's RegisterSpec (agbcc's table-base search reads it).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { thumbRegisterEffect } from '../../../src/core/profile/thumb-registers.ts';
+import { registerEffect } from '../../../src/foundation/isa/registers.ts';
+import { THUMB_BL, THUMB_ROWS } from '../../../src/foundation/isa/thumb-table.ts';
 import { romWith } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
 import { insnAt } from '../analysis/rules/walk/support.ts';
@@ -16,7 +17,7 @@ function effects(text: string): Array<{ writes: number; from: readonly number[] 
   const out: Array<{ writes: number; from: readonly number[] }> = [];
   for (let a = F; a < F + bytes.length; ) {
     const insn = insnAt(rom, a, 'thumb');
-    out.push({ ...thumbRegisterEffect(insn) });
+    out.push({ ...registerEffect(insn) });
     a += insn.size;
   }
   return out;
@@ -60,4 +61,11 @@ test('pop, ldmia, stmia, a call and a BIOS call write their registers', () => {
     { writes: 0b0101_0000_0000_1111, from: [] },
     { writes: 0b1111, from: [] },
   ]);
+});
+
+test('every Thumb row that writes a general register as data says so in the table: no row writes rd without a RegisterSpec', () => {
+  const declared = [...THUMB_ROWS, THUMB_BL].filter((r) => r.spec.registers !== undefined).map((r) => r.spec.id);
+  const writesRd = [...THUMB_ROWS, THUMB_BL].filter((r) => r.spec.fields.some((f) => f.name === 'rd') && !/^thumb\.(str|strb|strh)_/.test(r.spec.id) && r.spec.id !== 'thumb.str_sp');
+  for (const r of writesRd) assert.ok(declared.includes(r.spec.id), `${r.spec.id} has an rd field but no RegisterSpec`);
+  assert.equal(declared.length, 44, "the 38 rows that write rd, pop, pop {.., pc}, ldmia, stmia, bl and swi");
 });

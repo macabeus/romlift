@@ -11,7 +11,6 @@ import type { Addr } from '../../../../foundation/rom/span.ts';
 import { toRun } from '../../address-map.ts';
 import { Claim } from '../../types.ts';
 import type { AnalysisView, Reading } from '../../types.ts';
-import { walkFlow } from '../../walk/arm.ts';
 import { isDense } from '../../walk/predicates.ts';
 import { defineRule } from '../define-rule.ts';
 
@@ -20,7 +19,7 @@ function armReading(v: AnalysisView, entry: Addr, end: Addr): Reading | undefine
   const { rom, profile } = v;
   if ((entry & 3) !== 0 || !contains(rom, entry, 4)) return undefined;
   const word = u32(rom, entry);
-  const flow = walkFlow(decode('arm', word, toRun(v.addresses, entry))).kind;
+  const flow = decode('arm', word, toRun(v.addresses, entry)).flow.kind;
   if (word >>> 28 !== 0xe || flow === 'branch' || flow === 'invalid') return undefined;
   const r = v.read(entry, 'arm');
   if (r.insns.length < profile.gapScan.minInsns || r.errors.length > 0 || r.returns === 0 || r.codeEnd > end) return undefined;
