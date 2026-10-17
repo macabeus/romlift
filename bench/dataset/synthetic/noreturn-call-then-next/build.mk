@@ -4,7 +4,7 @@
 # that bl because non-code follows it (walk.noreturn-call-before-noncode, after stripping the zero
 # padding: walk.trailing-zero-padding) and judge the bl never-returning (bl.noreturn-before-noncode);
 # Abort is reached only through a pool pointer, so it must also pass validity.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := noreturn-call-then-next
 SRCS := main.s abort.c
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

@@ -6,7 +6,7 @@
 # Leaf2 in its gap and is taken by the forward scan (gap.tiled-hole-inner); without it, the end-anchored
 # scan of the same pass takes Mixer2's tail as a false entry, and Mixer2 then overlaps claimed code.
 # The ARM routines are then found in the holes (gap.arm-scan).
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := mixer-tiled-hole
 SRCS := mixer.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

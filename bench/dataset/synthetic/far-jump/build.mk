@@ -4,7 +4,7 @@
 # MainLoop's first reading, so the `bl` is a jump inside the caller (bl.target-inside-caller). The loop
 # never returns, so no later rule of the ladder calls the `bl` a jump: without that rule the loop
 # becomes a false entry.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := far-jump
 SRCS := main.s far.c
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

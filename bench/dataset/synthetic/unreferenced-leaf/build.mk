@@ -4,7 +4,7 @@
 # since gFill keeps it from ending where Last starts. With that rule disabled, Leaf is an ELF FUNC that
 # the run misses, inside no found extent and without a prologue: the held-out classifier must call the
 # miss `glued`.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := unreferenced-leaf
 SRCS := main.s leaf.c tail.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

@@ -4,7 +4,7 @@
 # (walk.pc-load-is-pool), and pools away from their function are claimed too (claim.far-pools), so the
 # word is never a candidate. gScale's reading branches back into the claimed word and is rejected for
 # covering it (valid.no-claimed-code); otherwise it is a valid function anchored after that word.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := pool-word-push-lr
 SRCS := pool.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

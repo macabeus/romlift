@@ -2,7 +2,7 @@
 # are candidates: a Thumb `bx lr` stub without a prologue, anchored after main, and an ARM function that
 # explains more bytes. A Thumb reading wins only with a prologue or when the ARM one explains no more;
 # otherwise ArmSum would become a 2-byte Thumb entry.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := prologueless-thumb-over-arm
 SRCS := arm.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

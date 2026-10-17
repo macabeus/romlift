@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -1339,6 +1339,56 @@ wave-1 rules register every pipeline id, and runs on any registry through `runAn
 stubbed early" forbids). Wrapping the PoC's composite conditions into single rules (the slot orders
 would no longer be the PoC's call order). Caching ARM readings per epoch like Thumb ones (the PoC
 re-walks them, and a cached reading would miss acceptances within the epoch).
+
+
+## D57. Eight rules that no seedless fixture run can make load-bearing
+
+**Context.** `g2.rule-coverage` requires every analysis rule to be cited as decisive in a fixture trail
+and to move a fixture outcome when `bench ablate <rule> --tier synthetic` disables it, or a decision
+record that names the rule and says why it stays. The outcome ablation compares is the entries with
+their modes, the extents and the code end of the bench's seedless discover run (D24). Measured on the
+29 committed fixtures of phase 2 (bench/dataset/synthetic/index.md, wave 3), eight rules move that
+outcome on no fixture, and by construction on no ROM:
+
+- `region.startup`, `region.padding`, `region.data-after-code` run after the passes (driver/run.ts,
+  runDriver), when no function or extent can change any more, and write only claims or the startup
+  region, which the outcome does not contain. Their effect is judged where it is used: the startup
+  region by the startup exclusion of every dataset and the held-out classifier's `startupEnd` (§8.4),
+  the padding and data claims by the emission of phase 3 (`.align` and data slices).
+- `seed.listed`, `seed.override`, `seed.evidence-hint` seed only from `AnalysisOptions` (the TOML's
+  listed functions, overrides, evidence hints), which a seedless discover run never has. They are
+  proven by their unit tests, by `g2.confirm-equals-discover` (the listed set) and by the phase-4 to
+  phase-6 gates that pass options.
+- `valid.in-rom-unclaimed` never fails in discover mode: valid() (driver/validity.ts) answers false
+  for an entry outside the ROM, odd or claimed before whyInvalid runs, as the PoC's valid() does, and
+  the only rule that asks whyInvalid directly, the gap head, asks only at a free cursor. The rule
+  decides in confirm mode, where a listed entry inside other code reaches whyInvalid
+  (`W_LISTED_INVALID`), and in diagnoseMisses, which gives a miss inside found code the reason
+  'inside-code'.
+- `bl.noreturn-before-noncode` re-labels as never-returning a call after which the caller's walk
+  already stopped on non-code (the walk records that dead end itself), and the walk with or without
+  the mark reads the same instructions, so no entry, extent or code end moves. It is decisive in the
+  trail of `noreturn-call-then-next` (a 'verdict' event: the `bl` at 0x08000122 in Abort is 'noreturn';
+  disabled, it is 'call' by another bl rule, with identical entries and extents). What it changes is
+  the verdict record, from which the held-out classifier reads the never-returning sites of label
+  clause (a) (bench/src/analysis-run.ts, noReturnSites): without it a label right after such a call is
+  classified glued.
+
+**Decision.** These eight rules stay without a fixture that moves an outcome, and this record exempts
+them from `g2.rule-coverage`. It exempts no other rule: a rule that moves an outcome on some fixture
+but that no trail event cites is a defect of the trail to fix in the driver, never a reason for a
+record here. Three fixtures were added for rules the first 26 fixtures did not make load-bearing
+(`pointer-table-before-leaf`, `computed-jump-callback`, `large-data-referenced`); the coverage table
+of bench/dataset/synthetic/index.md names the fixture of every other rule.
+
+**Consequences.** test/unit/fixtures/coverage.test.ts asserts that disabling each of the eight moves
+no fixture outcome, so a change that makes one load-bearing (a region rule moved before a pass, a
+bench run with seeds) fails until its exemption is replaced by a fixture.
+
+**Rejected.** Adding the claims and the startup region to the ablation outcome (every claim edit would
+then count, which says nothing about the entries the gate protects). Ablating with TOML seeds or
+options (the bench scores a seedless run by D24; the seed rules have their own gates). Fixtures that
+reach `valid.in-rom-unclaimed` through confirm mode (ablation runs discover only).
 
 ---
 

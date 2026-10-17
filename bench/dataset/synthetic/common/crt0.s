@@ -5,8 +5,9 @@
 @ pointer with `mov lr, pc; bx r1`.
 @
 @ Startup symbols: `_start` (0x08000000) and `start_vector` (0x080000C0) are FUNC symbols of the
-@ startup region (the cartridge entry and the code it branches to, PoC `startup` getter); the bench
-@ counts a fixture's functions from the end of that region on, so no expect.json lists them.
+@ startup region (the cartridge entry and the code it branches to, PoC `startup` getter). The bench
+@ counts a fixture's functions from the end of that region on; every expect.json still lists both, by
+@ address and mode, because g2.synthetic-analysis allows a negative fixture no entry beyond its list.
 	.syntax unified
 	.text
 	.arm

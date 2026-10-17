@@ -2,7 +2,7 @@
 # InstallHandler's pool, is named by InstallHandler's `adr` and leaves only by `b .Lresume` back into
 # it, so it is absorbed into InstallHandler; without the rule it is a two-instruction block anchored
 # after claimed bytes and becomes a false entry, and InstallHandler's extent is cut at its pool.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := adr-handler-block
 SRCS := handler.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:
