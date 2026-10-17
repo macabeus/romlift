@@ -5,8 +5,8 @@
 // accepts it, shrinks `end` to it and asks again. A two-instruction load-and-jump stub whose code ends
 // exactly at an accepted stub of the same shape is one more element of that veneer array: it counts
 // despite minInsns, and its pool (after the array) does not have to fill the hole (D60 b). Where the
-// profile lets Thumb functions sit on 2 mod 4, the halfword between two words is tried first when it
-// opens with `push {.., lr}`, ranked as a prologue (D60 c).
+// profile lets Thumb functions sit on 2 mod 4, the halfword between two words is a candidate too when it
+// opens with `push {.., lr}`, ranked as a prologue with the word candidates by the same rule (D60 c).
 import { decode, thumbWordAt } from '../../../../foundation/isa/decode.ts';
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
@@ -63,25 +63,29 @@ export default defineRule({
     const halfwords = profile.alignment.thumbFunction < 4;
     let best: Addr | undefined;
     let bestPrologue = false;
-    for (let q = (end - 4) & ~3; q >= floor; q -= 4) {
-      if (halfwords && q + 2 >= floor && q + 4 <= end && pushesLrBetweenWords(q + 2, end, v)) {
-        if (best === undefined || !bestPrologue) {
-          best = q + 2;
-          bestPrologue = true;
-        }
-        continue;
-      }
-      if (v.isFunction(q) || v.claimAt(q) !== Claim.free || !contains(rom, q, 4) || u32(rom, q) === 0 || !v.valid(q)) continue;
+    // The candidates at one word, highest first: the halfword after it (a `push {.., lr}` on 2 mod 4,
+    // ranked as a prologue) and the word itself. Both go through the one ranking: a prologue wins, and
+    // without prologues the highest wins, so the scan stops at the first lower reading without one.
+    const word = (q: Addr): boolean | undefined => {
+      if (v.isFunction(q) || v.claimAt(q) !== Claim.free || !contains(rom, q, 4) || u32(rom, q) === 0 || !v.valid(q)) return undefined;
       const r = v.read(q, 'thumb');
       if (!veneerArrayElement(r, end, v)) {
-        if (r.insns.length < profile.gapScan.minInsns || r.codeEnd > end) continue;
-        if (!fillsTo(r, end, profile.gapScan.fillSlack) && !anchoredAtEnd(r, v)) continue;
+        if (r.insns.length < profile.gapScan.minInsns || r.codeEnd > end) return undefined;
+        if (!fillsTo(r, end, profile.gapScan.fillSlack) && !anchoredAtEnd(r, v)) return undefined;
       }
-      const prologue = profile.idioms.isPrologue(rom, q, 'thumb');
-      if (best === undefined || (prologue && !bestPrologue)) {
-        best = q;
-        bestPrologue = prologue;
-      } else if (!prologue && !bestPrologue) break;
+      return profile.idioms.isPrologue(rom, q, 'thumb');
+    };
+    scan: for (let q = (end - 4) & ~3; q >= floor; q -= 4) {
+      const candidates: (readonly [Addr, boolean])[] = [];
+      if (halfwords && q + 2 >= floor && q + 4 <= end && pushesLrBetweenWords(q + 2, end, v)) candidates.push([q + 2, true]);
+      const prologue = word(q);
+      if (prologue !== undefined) candidates.push([q, prologue]);
+      for (const [at, isPrologue] of candidates) {
+        if (best === undefined || (isPrologue && !bestPrologue)) {
+          best = at;
+          bestPrologue = isPrologue;
+        } else if (!isPrologue && !bestPrologue) break scan;
+      }
     }
     return best === undefined ? undefined : { entry: best, mode: 'thumb', cites: [best, end] };
   },

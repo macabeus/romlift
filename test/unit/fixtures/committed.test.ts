@@ -29,7 +29,7 @@ const POSITIVE = [
 const RULE_SPECIFIC = [
   'adr-handler-block', 'dead-code-in-extent', 'local-subroutine', 'mixer-tiled-hole', 'mov-lr-pc-bx',
   'pops-unpushed-frame', 'prologueless-thumb-over-arm', 'computed-jump-callback', 'large-data-referenced',
-  'inline-arm-switch', 'recursive-far-call', 'ram-copy-memcpy', 'ram-copy-bios',
+  'inline-arm-switch', 'recursive-far-call', 'ram-copy-memcpy', 'ram-copy-bios', 'push-lr-2mod4',
 ];
 const NEGATIVE = [
   'code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pointer-table-before-leaf', 'pool-padded-46c0',
@@ -78,7 +78,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
-test('the 35 fixtures are committed, and common/ is not one', () => {
+test('the 36 fixtures are committed, and common/ is not one', () => {
   const names = FIXTURES.map((f) => f.name);
   assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE].sort(byCodeUnit));
   assert.ok(!names.includes('common'));
