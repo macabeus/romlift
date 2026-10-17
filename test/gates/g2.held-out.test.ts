@@ -5,6 +5,13 @@
 // tuning set. Only counts and verdicts are read and printed: never an address or a name, and never the
 // bench's raw output.
 //
+// The family conditions are waived by the owner's decision of 17 October 2026 (Bruno Macabeus, architecture
+// §12 item 4, D60): "Tune on tmc, no new ROM" moved tmc, the only sealed ROM of a family absent from the
+// tuning set, into the tuning set, and the gate is recorded as having no held-out ROM of such a family.
+// The waiver applies only while no sealed dataset is of a family absent from the tuning set; it is printed
+// in the gate's note every time it applies, and it never covers a per-ROM threshold or the count of
+// passing ROMs (at least two).
+//
 // Expected output, for the phase-2 lead to align (architecture §8.5):
 //   npm run bench -- run --only <sealed dataset> --json   exit 0; the last stdout line is romlift/bench-run@1
 //   whose `sealed[]` holds one entry of counts for that dataset:
@@ -33,6 +40,9 @@ interface BenchRun {
   readonly schema: string;
   readonly sealed: readonly SealedCounts[];
 }
+
+/** D60: the family conditions of D53 waived by the owner; see the header. */
+const FAMILY_WAIVER = { decided: '2026-10-17', by: 'the owner, Bruno Macabeus (architecture §12 item 4)', decision: 'D60' } as const;
 
 const MIN_PRECISION = 0.997;
 const MIN_RECALL = 0.9946;
@@ -103,10 +113,16 @@ gate({
     const families = [...new Set(passing.map((d) => d.family ?? ''))].filter((f) => f !== '');
     const fresh = families.filter((f) => !tuningFamilies.has(f));
     const problems: string[] = [];
+    const familyProblems: string[] = [];
     if (passing.length < 2) problems.push(`${passing.length} of ${cx.sealed.length} sealed ROMs pass, at least two must`);
-    if (families.length < 2) problems.push(`the passing ROMs span ${families.length} codebase families, at least two must`);
-    if (fresh.length === 0) problems.push('no passing ROM is from a family absent from the tuning set');
+    if (families.length < 2) familyProblems.push(`the passing ROMs span ${families.length} codebase families, at least two must`);
+    if (fresh.length === 0) familyProblems.push('no passing ROM is from a family absent from the tuning set');
+    // The waiver holds only while no sealed dataset at all is of a family absent from the tuning set.
+    const anyFreshSealed = cx.sealed.some((d) => d.family !== undefined && d.family !== '' && !tuningFamilies.has(d.family));
+    const waived = !anyFreshSealed && familyProblems.length > 0 ? familyProblems : [];
+    if (waived.length === 0) problems.push(...familyProblems);
     if (problems.length > 0) throw new Error(`held-out: ${problems.join('; ')}`);
-    cx.note(`${passing.length} sealed ROMs pass, families ${families.join(', ')} (absent from tuning: ${fresh.join(', ')})`);
+    for (const w of waived) cx.note(`WAIVED: ${w}, by ${FAMILY_WAIVER.by} on ${FAMILY_WAIVER.decided} (${FAMILY_WAIVER.decision}): no held-out ROM of a family absent from the tuning set remains`);
+    cx.note(`${passing.length} sealed ROMs pass, families ${families.join(', ')} (absent from tuning: ${fresh.length === 0 ? 'none' : fresh.join(', ')})`);
   },
 });

@@ -8,6 +8,7 @@ import {
   adoptRefusal,
   appendReveal,
   assertCountsOnly,
+  FAMILY_WAIVER,
   heldOutVerdict,
   sealedCounts,
   sealedDataset,
@@ -155,6 +156,28 @@ test('heldOutVerdict: pret-gen3 and zeldaret-tmc passing pass the gate', () => {
     TUNING,
   );
   assert.deepEqual(v, { pass: true, passing: ['pokefirered', 'tmc'], families: ['pret-gen3', 'zeldaret-tmc'], freshFamilies: ['zeldaret-tmc'], problems: [] });
+});
+
+test('heldOutVerdict with the owner waiver (D60): two passing pret-gen3 siblings pass, the family conditions reported as waived', () => {
+  const sealed = [
+    { name: 'pokefirered', family: 'pret-gen3', pass: true },
+    { name: 'pokeruby', family: 'pret-gen3', pass: true },
+  ];
+  const v = heldOutVerdict(sealed, [...TUNING, 'zeldaret-tmc'], FAMILY_WAIVER);
+  assert.equal(v.pass, true);
+  assert.deepEqual(v.problems, []);
+  assert.deepEqual(v.waived, [
+    'the passing ROMs span 1 codebase families, at least two must: waived by the owner, Bruno Macabeus (architecture section 12 item 4) on 2026-10-17 (D60)',
+    'no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus (architecture section 12 item 4) on 2026-10-17 (D60)',
+  ]);
+  // The waiver never covers a ROM that fails, or fewer than two passing ROMs.
+  const one = heldOutVerdict([sealed[0]!, { ...sealed[1]!, pass: false }], [...TUNING, 'zeldaret-tmc'], FAMILY_WAIVER);
+  assert.deepEqual(one.problems, ['1 of 2 sealed ROMs pass, at least two must']);
+  // A sealed ROM of a family absent from the tuning set ends the waiver: the full rule applies again.
+  const fresh = heldOutVerdict([...sealed, { name: 'kirby', family: 'kirby-am', pass: false }], [...TUNING, 'zeldaret-tmc'], FAMILY_WAIVER);
+  assert.equal(fresh.pass, false);
+  assert.equal(fresh.waived, undefined);
+  assert.equal(fresh.problems.length, 2);
 });
 
 test('heldOutVerdict: one pass, or two families both in the tuning set, fail', () => {
