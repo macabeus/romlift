@@ -21,7 +21,7 @@ function agrees(derived: Fields, parsed: Fields): boolean {
 /** The word `row` encodes the operands as at `addr`, or undefined when it cannot. */
 export function encodeOperands(row: Row, operands: Fields, addr: Addr): number | undefined {
   const fields = row.fromOps(operands, addr);
-  if (fields === undefined || !fieldsFit(row.spec, fields)) return undefined;
+  if (fields === undefined || !fieldsFit(row.spec, fields) || row.refuse(fields)) return undefined;
   const word = encode(row.spec, fields);
   // Read the word back: a field that overlaps bits the row fixes (rd = pc, pc in a list) must not
   // change what the text says.

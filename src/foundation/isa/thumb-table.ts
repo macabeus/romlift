@@ -114,6 +114,12 @@ const alu: Row[] = ALU.map(([name, mnemonic, first, second], op) =>
 
 const HI_FIELDS = [flag('hd', 7), flag('hm', 6), reg('rm3', 3), reg('rd3', 0)];
 
+/** The hi-register texts as rejects: two low registers, and cmp with pc. */
+function hiRefused(op: number, f: Fields): boolean {
+  if (v(f, 'hd') === 0 && v(f, 'hm') === 0) return true;
+  return op === 1 && (((v(f, 'hd') << 3) | v(f, 'rd3')) === 15 || ((v(f, 'hm') << 3) | v(f, 'rm3')) === 15);
+}
+
 function hiRow(name: string, op: number, first: 'rd' | 'rn', mnemonic: string, asPriority: number): Row {
   return T(name, {
     mask: 0xff00,
@@ -129,11 +135,8 @@ function hiRow(name: string, op: number, first: 'rd' | 'rn', mnemonic: string, a
     },
     // ARMv4T: both registers low is UNPREDICTABLE, and `as` refuses the text for this architecture;
     // cmp with pc as either operand is UNPREDICTABLE too (as: "r15 not allowed here").
-    raw: (f) => {
-      if (v(f, 'hd') === 0 && v(f, 'hm') === 0) return 'unpredictable';
-      const usesPc = ((v(f, 'hd') << 3) | v(f, 'rd3')) === 15 || ((v(f, 'hm') << 3) | v(f, 'rm3')) === 15;
-      return op === 1 && usesPc ? 'unpredictable' : null;
-    },
+    raw: (f) => (hiRefused(op, f) ? 'unpredictable' : null),
+    refuse: (f) => hiRefused(op, f),
   });
 }
 
@@ -255,6 +258,7 @@ const stack: Row[] = [
     fromOps: (o) => ({ rlist: v(o, 'list') & 0xff, lr: (v(o, 'list') >> 14) & 1 }),
     stack: (f) => -4 * (popcount(v(f, 'rlist')) + v(f, 'lr')),
     raw: (f) => (v(f, 'rlist') === 0 && v(f, 'lr') === 0 ? 'unpredictable' : null),
+    refuse: (f) => v(f, 'rlist') === 0 && v(f, 'lr') === 0,
   }),
   T('pop_pc', {
     mask: 0xff00,
@@ -275,6 +279,7 @@ const stack: Row[] = [
     fromOps: (o) => ({ rlist: v(o, 'list') }),
     stack: (f) => 4 * popcount(v(f, 'rlist')),
     raw: emptyList,
+    refuse: (f) => v(f, 'rlist') === 0,
   }),
   T('stmia', {
     mask: 0xf800,

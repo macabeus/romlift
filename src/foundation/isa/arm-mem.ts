@@ -73,6 +73,8 @@ function transferRow(t: Transfer, regOffset: boolean, pcDest: boolean): Row {
       return shift === undefined ? undefined : { ...base, rm: v(o, 'rm'), ...shift };
     },
     raw: transferRaw(t, regOffset),
+    // as: "r15 not allowed here" for a byte transfer of pc and for ldrt/ldrbt/strbt of pc (strt pc is accepted).
+    refuse: (f) => v(f, 'rd') === 15 && (t.byte || (t.user && t.load)),
     stack: (f) => {
       const writeback = t.user || v(f, 'p') === 0 || v(f, 'w') === 1;
       if (regOffset || !writeback || v(f, 'rn') !== 13) return 0;
@@ -138,6 +140,7 @@ function halfRow(name: string, l: number, s: number, h: number, regOffset: boole
       const value = v(o, 'imm');
       return value > 0xff ? undefined : { ...base, immh: value >> 4, imml: value & 15 };
     },
+    refuse: (f) => v(f, 'rd') === 15,
     raw: (f) => {
       if (regOffset && v(f, 'sbz') !== 0) return 'sbz-set';
       if (v(f, 'p') === 0 && v(f, 'w') === 1) return 'unpredictable';
@@ -195,6 +198,8 @@ function swpRow(byte: boolean): Row {
     fields: [cond(), reg('rn', 16, 4), reg('rd', 12, 4), imm('sbz', 8, 4), reg('rm', 0, 4)],
     syntax: `${name}{c} {rd}, {rm}, [{rn}]`,
     fromOps: (o) => ({ cond: v(o, 'cond'), rn: v(o, 'rn'), rd: v(o, 'rd'), sbz: 0, rm: v(o, 'rm') }),
+    // as: "Rn must not overlap other operands".
+    refuse: (f) => v(f, 'rn') === v(f, 'rd') || v(f, 'rn') === v(f, 'rm'),
     raw: (f) => {
       if (v(f, 'sbz') !== 0) return 'sbz-set';
       const rn = v(f, 'rn');

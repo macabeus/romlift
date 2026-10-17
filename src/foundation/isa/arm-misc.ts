@@ -91,8 +91,9 @@ export const ARM_MULTIPLY_ROWS: readonly Row[] = [
 // ---------------------------------------------------------------------------------------------------
 // The miscellaneous space (opcodes tst..cmn with S = 0): bx, mrs, msr and undefined.
 
+/** A status-register move whose should-be-one or should-be-zero bits are not: printed raw. */
 const sbo = (id: string, mask: number, match: number, syntax: string): Row =>
-  row(`arm.${id}`, 'arm', { mask, match, fields: [cond(), reg('rd', 12, 4), reg('rm', 0, 4)], syntax, rawOnly: 'sbz-set' });
+  row(`arm.${id}`, 'arm', { mask, match, fields: [cond(), flag('r', 22), reg('rd', 12, 4), reg('rm', 0, 4)], syntax, rawOnly: 'sbz-set' });
 
 export const ARM_MISC_ROWS: readonly Row[] = [
   row('arm.bx', 'arm', { mask: 0x0fff_fff0, match: 0x012f_ff10, fields: [cond(), reg('rm', 0, 4)], syntax: 'bx{c} {rm}', flow: 'bx' }),
@@ -104,8 +105,9 @@ export const ARM_MISC_ROWS: readonly Row[] = [
     fields: [cond(), flag('r', 22), reg('rd', 12, 4)],
     syntax: 'mrs{c} {rd}, {psr}',
     raw: (f) => (v(f, 'rd') === 15 ? 'unpredictable' : null),
+    refuse: (f) => v(f, 'rd') === 15,
   }),
-  sbo('mrs_sbo', 0x0fb0_00f0, 0x0100_0000, 'mrs{c} {rd}, cpsr'),
+  sbo('mrs_sbo', 0x0fb0_00f0, 0x0100_0000, 'mrs{c} {rd}, {psr}'),
   row('arm.msr_reg', 'arm', {
     mask: 0x0fb0_fff0,
     match: 0x0120_f000,
@@ -113,7 +115,7 @@ export const ARM_MISC_ROWS: readonly Row[] = [
     syntax: 'msr{c} {psrf}, {rm}',
     raw: (f) => (v(f, 'mask') === 0 || v(f, 'rm') === 15 ? 'unpredictable' : null),
   }),
-  sbo('msr_reg_sbo', 0x0fb0_00f0, 0x0120_0000, 'msr{c} cpsr, {rm}'),
+  sbo('msr_reg_sbo', 0x0fb0_00f0, 0x0120_0000, 'msr{c} {psr}, {rm}'),
   row('arm.msr_imm', 'arm', {
     mask: 0x0fb0_f000,
     match: 0x0320_f000,
@@ -126,6 +128,7 @@ export const ARM_MISC_ROWS: readonly Row[] = [
     },
     // as takes no explicit `#imm8, rot` for msr, so a non-canonical rotation has no text.
     raw: (f) => (v(f, 'mask') === 0 ? 'unpredictable' : constOperands(v(f, 'imm12'))['explicit'] === 1 ? 'as-alias' : null),
+    refuse: (f) => constOperands(v(f, 'imm12'))['explicit'] === 1,
   }),
   row('arm.msr_imm_sbo', 'arm', { mask: 0x0fb0_0000, match: 0x0320_0000, fields: [cond()], syntax: 'msr{c} cpsr, #imm', rawOnly: 'sbz-set' }),
   // Everything else with opcode tst..cmn and S = 0.

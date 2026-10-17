@@ -18,6 +18,8 @@ export interface Row {
   readonly forms: readonly CompiledForm[];
   readonly toOps: ToOperands;
   readonly fromOps: FromOperands;
+  /** Fields whose text GNU as rejects (an error, not a warning): assemble gives nothing for them. */
+  readonly refuse: (f: Fields) => boolean;
   /** False for rows that always print raw (undefined spaces, lone bl halves): never parsed. */
   readonly printable: boolean;
 }
@@ -37,6 +39,7 @@ export interface RowOptions {
   readonly rawOnly?: RawReason;
   readonly toOps?: ToOperands;
   readonly fromOps?: FromOperands;
+  readonly refuse?: (f: Fields) => boolean;
 }
 
 /** The default codec: each field is the operand of the same name, times its scale. */
@@ -83,6 +86,7 @@ export function row(id: SpecId, mode: Mode, options: RowOptions): Row {
     forms: [options.syntax, ...(options.aliases ?? [])].map(compileForm),
     toOps: options.toOps ?? defaultToOps(fields),
     fromOps: options.fromOps ?? defaultFromOps(fields),
+    refuse: options.refuse ?? ((): boolean => false),
     printable: rawOnly === undefined,
   };
 }
