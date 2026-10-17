@@ -203,15 +203,15 @@ delivers. D56 records each deviation and why.
 | Component | Wave | Takes from the sections below |
 | --- | --- | --- |
 | `p2-engine` | 0 | 2.0's `src` part (provenance, profile, the analysis types and contracts, `address-map`, `limits`, `codes`, `define-rule`, `rules/index.ts` and the eight empty family indexes, the barrels), 2.A's driver (`driver/**`, `pointers.ts`, `foundation/util/{interval-index,csr,min-heap}.ts`) plus `reading.ts`, `oracle.ts` and `diagnose.ts`, and the walk skeleton of 2.B (`walk/{cursor,thumb,arm}.ts`); `test/helpers/analysis.ts` |
-| `p2-poc-export` | 0 | 2.0's `parity` and `queries` modes of `bench/tools/export-poc.ts` (the log format `romlift-bench/poc-queries@1`) and `bench/baseline/poc-digests.json` |
-| `p2-fixtures` | 0 | 2.E's synthetic fixtures (`bench/dataset/synthetic/**`, `fixtures.yml`, `test/helpers/{fixtures,dummy-profile}.ts`): fixture coverage |
-| `p2-heldout` | 0 | 2.E's sealed held-out datasets (`bench/dataset/real/{pokefirered,pokeruby,tmc}.json`) and the seal tool |
+| `p2-poc-export` | 0 | 2.0's `parity` and `queries` modes of `bench/tools/export-poc.ts` (the log format `romlift-bench/poc-queries@1`), their readers `bench/src/{parity-view,poc-log}.ts` and `bench/baseline/poc-digests.json` |
+| `p2-fixtures` | 0 | 2.E's synthetic fixtures (`bench/dataset/synthetic/**`, `fixtures.yml`, `test/helpers/fixtures.ts`): fixture coverage; `test/helpers/dummy-profile.ts` was not needed by wave 0 and goes to the first wave-1 component that uses it |
+| `p2-heldout` | 0 | 2.E's sealed held-out datasets (`bench/dataset/real/{pokefirered,pokeruby,tmc}.json`), the seal tool `bench/tools/seal-dataset.ts` and the sealed classifiers and counts `bench/src/{classify,seal}.ts` |
 | `p2-walk` | 1 | 2.B's rules: `rules/{walk,bl,claim}/**` and their tests, on the walk skeleton of `p2-engine` |
 | `p2-seeds` | 1 | 2.C's seed rules: `rules/seed/**` and their tests |
 | `p2-validity` | 1 | 2.C's validity and acceptance rules: `rules/{valid,accept}/**` and their tests |
 | `p2-gaps` | 1 | 2.D: `rules/{gap,region}/**` and their tests |
 | `p2-lockstep` | 1 | 2.0's `bench/src/{parity,lockstep}.ts` and `test/local/{poc-lockstep,poc-parity}.test.ts`, 2.A's codec (`core/analysis/codec.ts`, `src/api/analysis-codec.ts`) |
-| `p2-bench` | 1 | 2.E's `core/analysis/explain.ts` (`src/api/analysis-explain.ts`) and `bench/src/{classify,seal,ablate,speed}.ts` |
+| `p2-bench` | 1 | 2.E's `core/analysis/explain.ts` (`src/api/analysis-explain.ts`) and `bench/src/{ablate,speed}.ts`; it wires `bench run` on the sealed datasets, `--reveal` and `adopt` onto `p2-heldout`'s `classify.ts` and `seal.ts` |
 | `p2-commands` | 1 | 2.E's `core/workflow/{discover,explain}.ts`, `cli/commands/{analyze,explain}.ts`, `cli/commands/lists/analysis.ts`, `src/api/workflow-discover.ts`, `test/golden/explain/**` |
 | `p2-bench-run` | 1 | the `bench run` rewrite: the bench scores romlift's own analysis instead of the PoC's dumps (the scaffold family still reads the PoC's until phase 3) |
 | `p2-integration` | last | 2.I; runs the milestones and the exit commands with the real tier before the ci tier |
