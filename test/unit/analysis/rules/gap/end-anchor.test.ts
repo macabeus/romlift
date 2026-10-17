@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import rule from '../../../../../src/core/analysis/rules/gap/end-anchor.ts';
 import { Claim } from '../../../../../src/core/analysis/types.ts';
 import type { ViewSetup } from '../../../../helpers/analysis.ts';
-import { readingOf, romWith, viewWith } from '../../../../helpers/analysis.ts';
+import { readingOf, romWith, viewWith, words } from '../../../../helpers/analysis.ts';
 import { DUMMY_PROFILE } from '../../../../helpers/dummy-profile.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
 import { gapCursor } from './cursor.ts';
@@ -65,4 +65,31 @@ test('the floor: the cursor, the head end and end - backwardWindow (profile boun
   const c = gapCursor(X - 0x100, X + 0x48, X - 0x100);
   assert.equal(rule.propose(c, viewWith({ rom: far, profile: DUMMY_PROFILE, functions: [X + 8] }))?.entry, undefined, 'dummy: X is 72 bytes below the end');
   assert.equal(rule.propose(c, viewWith({ rom: far, functions: [X + 8] }))?.entry, X, 'agbcc: within 4096 bytes');
+});
+
+test('a load-and-jump stub that ends exactly at an accepted stub of the same shape is a veneer array element below minInsns (D60 b)', () => {
+  const Y = X + 0x20;
+  // Data before the array; two `ldr r3, [pc, #k]; bx r3` stubs laid end to end; their pool after them.
+  const veneers = romWith([
+    { at: X, bytes: new Uint8Array(0x20).fill(0xff) },
+    { at: Y, bytes: thumbAt(Y)`ldr r3, _08000328; bx r3; ldr r3, _0800032C; bx r3` },
+    { at: Y + 8, bytes: words(0x03000001, 0x03000101) },
+  ]);
+  const c = gapCursor(X, Y + 4, X);
+  assert.deepEqual(rule.propose(c, viewWith({ rom: veneers, functions: [Y + 4], valid: (a) => a === Y })), { entry: Y, mode: 'thumb', cites: [Y, Y + 4] });
+  assert.equal(rule.propose(c, viewWith({ rom: veneers, valid: (a) => a === Y })), undefined, 'the next stub is not accepted');
+  // The next function is not such a stub: two instructions stay below minInsns.
+  const other = romWith([
+    { at: Y, bytes: thumbAt(Y)`ldr r3, _08000328; bx r3; movs r0, #0; bx lr` },
+    { at: Y + 8, bytes: words(0x03000001) },
+  ]);
+  assert.equal(rule.propose(c, viewWith({ rom: other, functions: [Y + 4], valid: (a) => a === Y })), undefined);
+  // A stub that jumps through another register than it loads is no veneer.
+  const mixed = romWith([
+    { at: Y, bytes: thumbAt(Y)`ldr r3, _08000328; bx r2; ldr r3, _0800032C; bx r3` },
+    { at: Y + 8, bytes: words(0x03000001, 0x03000101) },
+  ]);
+  assert.equal(rule.propose(c, viewWith({ rom: mixed, functions: [Y + 4], valid: (a) => a === Y })), undefined);
+  // The dummy profile's minInsns is 4; the veneer array element does not depend on it.
+  assert.equal(rule.propose(c, viewWith({ rom: veneers, profile: DUMMY_PROFILE, functions: [Y + 4], valid: (a) => a === Y }))?.entry, Y);
 });
