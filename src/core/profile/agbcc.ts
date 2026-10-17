@@ -21,6 +21,7 @@ export const AGBCC_PIPELINE: Pipeline = {
     'walk.mov-lr-pc-bx-is-call',
     'walk.mov-pc-without-table',
     'walk.bx-pc-veneer',
+    'walk.inline-arm-switch',
     'walk.branch-into-function',
     'walk.trailing-zero-padding',
     'walk.noreturn-call-before-noncode',

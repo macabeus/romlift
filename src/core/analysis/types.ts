@@ -264,6 +264,8 @@ export interface Reading {
   readonly exits: readonly Exit[];
   /** Targets of b/bcc followed inside the function, sorted. */
   readonly branchTargets: readonly Addr[];
+  /** ARM code the Thumb walk switches into inline (walk.inline-arm-switch): each [target, end of its ARM reading), sorted. */
+  readonly armTails: readonly Span[];
   /** One past the last instruction byte (the entry when there is none). */
   readonly codeEnd: Addr;
   /** The extent's end: code plus adjacent pools and tables (claim.adjacent-pools' extentEnd). */
@@ -280,6 +282,8 @@ export interface ReadingShape {
   /** Pool word addresses in walk order. */
   readonly pools: readonly Addr[];
   readonly tables: readonly JumpTable[];
+  /** The inline ARM tails (Reading.armTails). */
+  readonly armTails?: readonly Span[];
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -388,7 +392,9 @@ export type WalkStep =
   /** The instruction does not end the path (an indirect call). */
   | { readonly step: 'continue' }
   /** At a Thumb stop: the last instruction of the run is padding; drop it and ask again. */
-  | { readonly step: 'padding' };
+  | { readonly step: 'padding' }
+  /** Thumb `bx rN` into ARM code right after it: the ARM code at target is this function's tail; the Thumb path ends as a register jump. */
+  | { readonly step: 'arm-tail'; readonly target: Addr };
 
 /**
  * Asked for every decoded instruction (cursor.phase 'insn') and, in Thumb, at a stop on non-code with

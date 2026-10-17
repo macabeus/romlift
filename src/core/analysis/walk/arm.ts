@@ -148,6 +148,7 @@ function apply(rec: WalkRecord, insn: Insn, conditional: boolean, id: RuleId, st
       return exitHere(rec, insn, conditional, 'return', id, isFunction);
     case 'continue':
     case 'padding':
+    case 'arm-tail':
       return false;
     case 'end-path':
       return exitHere(rec, insn, conditional, step.exit === 'tail' || step.exit === 'reg-jump' ? step.exit : 'return', id, isFunction);

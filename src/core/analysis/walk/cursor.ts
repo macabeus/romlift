@@ -3,7 +3,7 @@
 // the PoC's dense(), anchoredAtStart(), anchoredAtEnd() and popsCallersFrame() live here once.
 import type { Flow, Insn } from '../../../foundation/isa/types.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
-import type { Addr, Mode } from '../../../foundation/rom/span.ts';
+import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
 import type { BlSite, CompilerProfile, ReadingSummary } from '../../profile/types.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { toLoad } from '../address-map.ts';
@@ -169,6 +169,7 @@ export class WalkRecord {
   readonly tails: Addr[] = [];
   readonly exits: Exit[] = [];
   readonly branchTargets: Addr[] = [];
+  readonly armTails: Span[] = [];
   readonly entry: Addr;
   readonly mode: Mode;
   returns = 0;
@@ -223,7 +224,7 @@ export class WalkRecord {
   /** The immutable reading; `extra` adds what the settle loop decided. */
   finish(env: WalkEnv, extra: Pick<ReadingParts, 'far' | 'noret' | 'blVerdicts'> = {}): Reading {
     const insns = this.sortedInsns();
-    const shape: ReadingShape = { entry: this.entry, codeEnd: codeEndOf(this.entry, insns), pools: this.poolOrder.map((p) => p.addr), tables: this.tables };
+    const shape: ReadingShape = { entry: this.entry, codeEnd: codeEndOf(this.entry, insns), pools: this.poolOrder.map((p) => p.addr), tables: this.tables, armTails: this.armTails };
     return makeReading(
       {
         entry: this.entry,
@@ -243,6 +244,7 @@ export class WalkRecord {
         tailExits: this.tailExits,
         exits: this.exits,
         branchTargets: this.branchTargets,
+        armTails: this.armTails,
         ...extra,
         end: env.extentEnd(shape),
       },

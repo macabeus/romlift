@@ -34,6 +34,7 @@ export interface ReadingParts {
   readonly blVerdicts?: readonly BlVerdictRecord[];
   readonly exits?: readonly Exit[];
   readonly branchTargets?: readonly Addr[];
+  readonly armTails?: readonly Span[];
   readonly end: Addr;
 }
 
@@ -204,6 +205,7 @@ export function makeReading(parts: ReadingParts, rom: Rom, insnAt?: InsnLookup):
     blVerdicts: [...(parts.blVerdicts ?? [])].sort((a, b) => a.site - b.site),
     exits: [...(parts.exits ?? [])].sort((a, b) => a.at - b.at || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0)),
     branchTargets: sortedUnique(parts.branchTargets ?? []),
+    armTails: [...(parts.armTails ?? [])].sort((a, b) => a.start - b.start || a.end - b.end),
     codeEnd,
     end,
     holes: holes.holes,
@@ -234,6 +236,7 @@ export function partsOf(r: Reading): ReadingParts {
     blVerdicts: r.blVerdicts,
     exits: r.exits,
     branchTargets: r.branchTargets,
+    armTails: r.armTails,
     end: r.end,
   };
 }

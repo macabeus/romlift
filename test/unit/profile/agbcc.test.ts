@@ -7,7 +7,7 @@ import { PROFILES, profileById } from '../../../src/core/profile/registry.ts';
 import { pipelineIds, romWith, words } from '../../helpers/analysis.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
 
-/** Every analysis rule id of architecture §4.1, by family. */
+/** Every analysis rule id of architecture §4.1, by family, with the rules the phase-2 milestones added (walk.inline-arm-switch). */
 const SECTION_4_1 = {
   seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr'],
   walk: [
@@ -19,6 +19,7 @@ const SECTION_4_1 = {
     'walk.mov-pc-without-table',
     'walk.branch-into-function',
     'walk.bx-pc-veneer',
+    'walk.inline-arm-switch',
     'walk.trailing-zero-padding',
   ],
   bl: ['bl.self-or-accepted', 'bl.target-before-entry', 'bl.near-is-call', 'bl.target-inside-caller', 'bl.target-has-prologue', 'bl.target-pops-unpushed-frame', 'bl.noreturn-before-noncode'],
@@ -43,7 +44,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 test('every rule id of §4.1 sits in exactly one pipeline slot, and the pipeline names no other', () => {
   const expected = Object.values(SECTION_4_1).flat();
-  assert.equal(expected.length, 55);
+  assert.equal(expected.length, 56);
   const named = pipelineIds(AGBCC_PIPELINE);
   const counts = new Map<string, number>();
   for (const id of named) counts.set(id, (counts.get(id) ?? 0) + 1);

@@ -115,9 +115,10 @@ export function mergeReadings(s: DriverState, g: Reading, f: Reading): Reading {
   const pools = [...g.pools, ...f.pools];
   const tables = [...g.tables, ...f.tables];
   const addrs = pools.map((p) => p.addr).filter((a, i, all) => all.indexOf(a) === i);
-  const shape = { entry: g.entry, codeEnd: Math.max(g.codeEnd, f.codeEnd), pools: addrs, tables };
+  const armTails = [...g.armTails, ...f.armTails];
+  const shape = { entry: g.entry, codeEnd: Math.max(g.codeEnd, f.codeEnd), pools: addrs, tables, armTails };
   return makeReading(
-    { ...parts, insns, pools, tables, adrs: [...g.adrs, ...f.adrs], calls: [...g.calls, ...f.calls], end: s.rules.extentEnd(shape, s.profile) },
+    { ...parts, insns, pools, tables, armTails, adrs: [...g.adrs, ...f.adrs], calls: [...g.calls, ...f.calls], end: s.rules.extentEnd(shape, s.profile) },
     s.rom,
   );
 }

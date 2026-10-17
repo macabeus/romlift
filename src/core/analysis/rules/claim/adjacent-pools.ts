@@ -32,6 +32,7 @@ export default defineRule({
     const items: { readonly start: Addr; readonly end: Addr }[] = [
       ...shape.pools.map((p) => ({ start: p, end: p + 4 })),
       ...shape.tables.map((t) => ({ start: t.base, end: t.base + 4 * t.targets.length })),
+      ...(shape.armTails ?? []),
     ].sort((a, b) => a.start - b.start || a.end - b.end);
     // In start order one pass reaches the PoC's fixpoint: the end only grows, so an item that starts too
     // far past it ends the scan, and one that ended before it never extends it later.

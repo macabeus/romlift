@@ -12,6 +12,7 @@ import type { RuleId } from '../../provenance/rule-id.ts';
 import { toRun } from '../address-map.ts';
 import { DECODER_FLOW } from '../types.ts';
 import type { Reading, WalkStep } from '../types.ts';
+import { walkArm } from './arm.ts';
 import { askWalk, asksWalk, toLoadInsn, walkCursor, WalkRecord } from './cursor.ts';
 import type { MutableCursor, WalkCursor, WalkEnv } from './cursor.ts';
 
@@ -122,6 +123,12 @@ function apply(path: Path, insn: Insn, sp: number, id: RuleId, step: WalkStep): 
       return false;
     case 'end-path':
       return exitHere(path, insn, sp, step.exit === 'tail' || step.exit === 'reg-jump' ? step.exit : 'return', id);
+    case 'arm-tail': {
+      // The ARM code is walked for its extent only; it stays free for its own discovery.
+      const tail = walkArm(env, step.target);
+      if (tail.errors.length === 0 && tail.returns > 0 && tail.insns.length > 0) rec.armTails.push({ start: step.target, end: tail.end });
+      return exitHere(path, insn, sp, 'reg-jump', id);
+    }
   }
 }
 
