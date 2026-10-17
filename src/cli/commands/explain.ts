@@ -110,7 +110,7 @@ export function explainText(report: ExplainReport, summary: RunSummary): string 
 
 export const explainCommand: CommandSpec = {
   name: 'explain',
-  summary: 'Explains what the analysis decided about one address: claim, owner, provenance, rejections, bl verdicts, rules',
+  summary: 'Explains what the analysis decided about one address: claim, owner, provenance, rejections, verdicts, rules',
   usage: 'explain <addr> --rom <rom> [--json]',
   positionals: [{ name: '<addr>' }],
   options: [
