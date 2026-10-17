@@ -20,8 +20,10 @@ and the exit commands of each phase). Follow them; a decision changes only throu
 | `npm run test:local` | `test/local/**`; needs `ROMLIFT_BENCH_ROOT` and `ROMLIFT_POC` (below) |
 | `npm run bench -- <command>` | the benchmark harness (architecture §8.5), from phase 1 |
 | `npm run bench -- gates --require <n> --tier ci\|real` | runs the gate tests of phase ≤ n and prints every verdict (D29) |
+| `npm run bench -- doctor-real\|run\|poc-check\|dataset-check\|provenance\|stale-check` | the real-tier inputs; rescoring into `bench/results.json`; the PoC baseline; datasets against ELFs; the artifact's provenance; whether it is current |
 | `npm run corpus` | generates the `as` round-trip corpus into `bench/.local/corpus/` and assembles it with the system `arm-none-eabi-as`; exits 0 only at 100% round-trip |
 | `npm run export-poc -- --mode scored` | runs the read-only PoC from `ROMLIFT_POC` and dumps its scored runs into `bench/.local/` (architecture §4.5) |
+| `node --conditions=source src/cli/main.ts <command>` | runs the `romlift` CLI from source; phase 1 ships `doctor [--json] [--full]` (exit 0 when binutils, the corpus through the user's `as` and the JUMP11 probe are ok) |
 | `npm run build` | emits `dist/` for publishing only; development never builds |
 
 Node runs the TypeScript sources directly (type stripping, `--conditions=source`); `engines.node` is
@@ -99,6 +101,9 @@ cfg); **accept** names the acceptance rules (D6). Functions, modules, pools, tab
   on both tiers (`ci` and `real`) for every gate of that phase and all earlier ones (D29, D39).
 - Work happens on `phase/<n>-<name>`; parallel components on `phase/<n>/<component>`, each in its own
   `git worktree`, owning only the files roadmap.md lists for it (D43).
+- A phase closes with the full exit-command list of its record (`docs/phase-<n>.md`, "The closing
+  gate"), run in that order with the real tier before the ci tier, and its record is updated with the
+  measured output.
 - Merge to `main` and push only when the phase gate passes; `test/gates/phase.json` is raised in that
   merge commit. Only the phase lead regenerates `bench/results.json` and `bench/baseline/speed.json`.
 - Every commit message ends with exactly these two lines:
