@@ -13,7 +13,7 @@ dist/
 !bench/dataset/synthetic/*/build/**
 !test/fixtures/**
 
-# Local bench state
+# Local bench state: corpus output, PoC dumps and other run outputs; volatile timings (§8.2)
 bench/.local/
 bench/tmp/
 bench/timings.json
