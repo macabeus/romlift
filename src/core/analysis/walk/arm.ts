@@ -90,7 +90,7 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
   const work: Addr[] = [entry];
   const isFunction = (a: Addr): boolean => view.isFunction(a);
   const runs = { current: [] as Addr[] };
-  const cursor = walkCursor(view, entry, 'arm', (a) => rec.insns.has(a), () => runs.current.map((a) => decodeArmAt(env, a)));
+  const cursor = walkCursor(view, entry, 'arm', (a) => rec.insns.has(a), () => runs.current, (a) => decodeArmAt(env, a));
   for (let next = work.pop(); next !== undefined; next = work.pop()) {
     let pc = next;
     const run: Addr[] = [];

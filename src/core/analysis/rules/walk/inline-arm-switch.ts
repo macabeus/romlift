@@ -17,7 +17,7 @@ export default defineRule({
   onInsn(insn, cursor) {
     if (cursor.mode !== 'thumb' || cursor.phase !== 'insn' || insn.flow.kind !== 'indirect' || insn.flow.via !== 'bx') return undefined;
     const reg = insn.flow.reg;
-    const prev = cursor.run[cursor.run.length - 2];
+    const prev = cursor.back(1);
     if (prev === undefined || prev.flow.kind !== 'adr' || prev.fields['rd'] !== reg) return undefined;
     const next = (insn.addr + insn.size + 3) & ~3;
     return prev.flow.target === next ? { step: 'arm-tail', target: next } : undefined;

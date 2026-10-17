@@ -39,8 +39,10 @@ export interface WalkCursor {
   readonly at: Addr;
   /** Thumb: the stack delta after the instruction (push negative, pop positive); ARM: 0. */
   readonly sp: number;
-  /** The current path's straight-line run of instructions, the one asked about last. */
+  /** The current path's straight-line run of instructions, the one asked about last (decoded when read). */
   readonly run: readonly Insn[];
+  /** The k-th instruction before the last of the run (0: the last), decoding only that one. */
+  back(k: number): Insn | undefined;
   /** Thumb bcc, or an ARM condition other than AL. */
   readonly conditional: boolean;
   /** Whether `a` was already walked as an instruction of this reading. */
@@ -103,10 +105,10 @@ export interface WalkEnv {
 }
 
 /** The cursor a walker fills in place before each ask; `run` is built only when a rule reads it. */
-export type MutableCursor = { -readonly [K in Exclude<keyof WalkCursor, 'run'>]: WalkCursor[K] } & { readonly run: readonly Insn[] };
+export type MutableCursor = { -readonly [K in Exclude<keyof WalkCursor, 'run' | 'back'>]: WalkCursor[K] } & Pick<WalkCursor, 'run' | 'back'>;
 
-/** A cursor for one walk of `entry`; `run` decodes the current path's run on demand. */
-export function walkCursor(view: AnalysisView, entry: Addr, mode: Mode, walked: (a: Addr) => boolean, run: () => readonly Insn[]): MutableCursor {
+/** A cursor for one walk of `entry`; `run` and `back` decode the current path's run (its addresses, `runAddrs()`) on demand. */
+export function walkCursor(view: AnalysisView, entry: Addr, mode: Mode, walked: (a: Addr) => boolean, runAddrs: () => readonly Addr[], decodeAt: (a: Addr) => Insn): MutableCursor {
   return {
     entry,
     mode,
@@ -118,7 +120,12 @@ export function walkCursor(view: AnalysisView, entry: Addr, mode: Mode, walked: 
     conditional: false,
     walked,
     get run(): readonly Insn[] {
-      return run();
+      return runAddrs().map(decodeAt);
+    },
+    back(k) {
+      const addrs = runAddrs();
+      const a = addrs[addrs.length - 1 - k];
+      return a === undefined ? undefined : decodeAt(a);
     },
   };
 }

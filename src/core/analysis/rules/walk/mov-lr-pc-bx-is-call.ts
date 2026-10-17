@@ -20,8 +20,7 @@ export default defineRule({
   kind: 'walk',
   onInsn(insn, cursor) {
     if (cursor.mode !== 'arm' || cursor.phase !== 'insn' || insn.specId !== 'arm.bx') return undefined;
-    const run = cursor.run;
-    const prev = run[run.length - 2];
+    const prev = cursor.back(1);
     return prev !== undefined && prev.word >>> 0 === MOV_LR_PC ? { step: 'continue' } : undefined;
   },
 });

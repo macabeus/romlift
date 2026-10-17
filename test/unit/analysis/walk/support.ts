@@ -34,5 +34,6 @@ export function insnAt(rom: Rom, a: Addr, mode: Mode): Insn {
 
 /** A cursor for asking a rule directly; phase 'insn' at the entry unless `over` says otherwise. */
 export function cursorOf(view: AnalysisView, over: Partial<WalkCursor> & { readonly entry: Addr; readonly mode: Mode }): WalkCursor {
-  return { view, phase: 'insn', stop: undefined, at: over.entry, sp: 0, run: [], conditional: false, walked: () => false, ...over };
+  const run = over.run ?? [];
+  return { view, phase: 'insn', stop: undefined, at: over.entry, sp: 0, run, back: (k) => run[run.length - 1 - k], conditional: false, walked: () => false, ...over };
 }

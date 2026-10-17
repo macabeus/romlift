@@ -179,7 +179,7 @@ export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, nor
   const rec = new WalkRecord(entry, 'thumb');
   const work: [Addr, number][] = [[entry, 0]];
   const runs = { current: [] as Addr[] };
-  const cursor = walkCursor(view, entry, 'thumb', (a) => rec.insns.has(a), () => runs.current.map((a) => decodeThumbAt(env, a)));
+  const cursor = walkCursor(view, entry, 'thumb', (a) => rec.insns.has(a), () => runs.current, (a) => decodeThumbAt(env, a));
   for (let item = work.pop(); item !== undefined; item = work.pop()) {
     let [pc, sp] = item;
     const path: Path = { rec, env, run: [], work, cursor };
