@@ -17,13 +17,18 @@ and the exit commands of each phase). Follow them; a decision changes only throu
 | `npm run typecheck` | `tsc --noEmit` over `src/`, `test/` and `bench/` |
 | `npm run lint` | the architecture checker alone: `test/architecture.test.ts` and its mutation test (D5, D54 j); `npm test` runs both too |
 | `npm test` | `test/*.test.ts` and `test/{unit,golden,mutation}/**`; needs no ROM |
-| `npm run test:local` | `test/local/**`; needs `ROMLIFT_BENCH_ROOT` and `ROMLIFT_POC` (below) |
+| `npm run test:local` | `test/local/**`; needs `ROMLIFT_BENCH_ROOT` and `ROMLIFT_POC` (below): the PoC decoder differential, `epoch-reuse` against `epoch` on the tuning ROMs, and the committed PoC-parity evidence (`poc-parity`, `poc-lockstep`) |
 | `npm run bench -- <command>` | the benchmark harness (architecture §8.5), from phase 1 |
 | `npm run bench -- gates --require <n> --tier ci\|real` | runs the gate tests of phase ≤ n and prints every verdict (D29) |
-| `npm run bench -- doctor-real\|run\|poc-check\|dataset-check\|provenance\|stale-check` | the real-tier inputs; rescoring into `bench/results.json`; the PoC baseline; datasets against ELFs; the artifact's provenance; whether it is current |
+| `npm run bench -- doctor-real\|run\|poc-check\|dataset-check\|provenance\|stale-check` | the real-tier inputs; rescoring into `bench/results.json` (`run [--only <rom>] [--json] [--disable <rule>...] [--cpu-prof]`; a sealed dataset prints counts only); the PoC baseline; datasets against ELFs; the artifact's provenance; whether it is current |
+| `npm run bench -- speed [--only <rom>] [--write-baseline]` | serial median CPU time of the analysis per tuning ROM against `bench/baseline/speed.json`, calibrated (`g2.speed`); only the phase lead writes the baseline |
+| `npm run bench -- ablate <rule> [--tier synthetic\|real]` | re-runs with one rule disabled and prints where it was decisive and what moves |
+| `npm run bench -- explain <rom> <addr>` | what the discover run decided about one address of a tuning ROM or a fixture |
+| `npm run bench -- adopt <rom>` | seeds a new tuning dataset's lists as `unreviewed` placeholders to classify (refuses a sealed dataset) |
 | `npm run corpus` | generates the `as` round-trip corpus into `bench/.local/corpus/` and assembles it with the system `arm-none-eabi-as` (romlift's `runCorpus`, the run `doctor` makes); exits 0 only at 100% round-trip; `--reuse` prints the cached summary while its inputs digest (the corpus's import closure, D55) is current |
-| `npm run export-poc -- --mode scored` | runs the read-only PoC from `ROMLIFT_POC` and dumps its scored runs into `bench/.local/` (architecture §4.5) |
-| `node --conditions=source src/cli/main.ts <command>` | runs the `romlift` CLI from source; phase 1 ships `doctor [--json] [--full]` (exit 0 when binutils, the corpus through the user's `as` and the JUMP11 probe are ok) |
+| `npm run fixtures -- rebuild\|check [--only <name>]` | builds the synthetic fixtures with agbcc and binutils; `check` compares them with the committed builds (D28) |
+| `npm run export-poc -- --mode scored\|parity\|queries` | runs the read-only PoC from `ROMLIFT_POC` and dumps into `bench/.local/poc/<rom>/`: `scored.json` (its scored run and scaffold verdict), `parity.json` (its parity view, and the digests into `bench/baseline/poc-digests.json`), `queries.ndjson` and `readings.ndjson` (the lockstep log) (architecture §4.5) |
+| `node --conditions=source src/cli/main.ts <command>` | runs the `romlift` CLI from source: `doctor [--json] [--full]` (exit 0 when binutils, the corpus through the user's `as` and the JUMP11 probe are ok), and from phase 2 `analyze <rom> [--json] [--disable <rule>...]` and `explain <addr> --rom <rom> [--json]` |
 | `npm run build` | emits `dist/` for publishing only; development never builds |
 
 Node runs the TypeScript sources directly (type stripping, `--conditions=source`); `engines.node` is
