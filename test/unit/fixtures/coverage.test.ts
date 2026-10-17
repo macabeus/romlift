@@ -8,6 +8,11 @@
 // event names it: the driver emits an acceptance under the proposing rule (the accept rule only in the
 // note), and no event at all for a walk step or for the gap slots prefer and skip. g2.rule-coverage
 // fails on those rules until the driver cites them; the flag then turns true here.
+//
+// UNCOVERED lists the rules that no fixture makes load-bearing yet: disabling them moves no fixture
+// outcome. `bl.self-or-accepted` lost its fixture when M4's ascending worklist let
+// `bl.target-beyond-callee` decide `pops-unpushed-frame` first; `walk.inline-arm-switch` (an extents
+// rule of the tuning set) has no fixture. g2.rule-coverage fails on both until a fixture lands.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -33,8 +38,8 @@ const COVERAGE: Readonly<Record<RuleId, Coverage>> = {
   'accept.tiles-after-accepted': { fixture: 'handwritten-2mod4', cited: false },
   'accept.tiny-anchored-at-start': { fixture: 'false-stub-2byte', cited: true },
   'bl.near-is-call': { fixture: 'local-subroutine', cited: true },
-  'bl.self-or-accepted': { fixture: 'pops-unpushed-frame', cited: true },
   'bl.target-before-entry': { fixture: 'pops-unpushed-frame', cited: true },
+  'bl.target-beyond-callee': { fixture: 'pops-unpushed-frame', cited: true },
   'bl.target-has-prologue': { fixture: 'pops-unpushed-frame', cited: true },
   'bl.target-inside-caller': { fixture: 'far-jump', cited: true },
   'bl.target-pops-unpushed-frame': { fixture: 'pops-unpushed-frame', cited: true },
@@ -72,7 +77,7 @@ const COVERAGE: Readonly<Record<RuleId, Coverage>> = {
   'walk.noreturn-call-before-noncode': { fixture: 'noreturn-call-then-next', cited: false },
   'walk.pc-load-is-pool': { fixture: 'pool-padded-46c0', cited: false },
   'walk.swi-before-noncode': { fixture: 'swi-reset', cited: false },
-  'walk.table-nearest-pool-load': { fixture: 'table-jump-hoisted', cited: false },
+  'walk.table-by-register': { fixture: 'table-jump-hoisted', cited: false },
   'walk.trailing-zero-padding': { fixture: 'noreturn-call-then-next', cited: false },
 };
 
@@ -87,6 +92,9 @@ const EXEMPT: readonly RuleId[] = [
   'seed.override',
   'valid.in-rom-unclaimed',
 ];
+
+/** The rules no fixture makes load-bearing yet; g2.rule-coverage fails on them until one does. */
+const UNCOVERED: readonly RuleId[] = ['bl.self-or-accepted', 'walk.inline-arm-switch'];
 
 const FIXTURES = listSyntheticFixtures();
 const OPTIONS: AnalysisOptions = { mode: 'discover', seeds: [], overrides: [], trail: 'off' };
@@ -118,11 +126,10 @@ function without(f: SyntheticFixture, rule: RuleId, profile: CompilerProfile): R
   return analyzeTuned(readFixtureRom(f), profile, OPTIONS, { ...DEFAULT_TUNING, disabled: [rule] });
 }
 
-test('every rule of RULES is load-bearing on a named fixture or exempted by D57, never both', () => {
+test('every rule of RULES is load-bearing on a named fixture, exempted by D57 or listed uncovered, exactly once', () => {
   const ids = Object.keys(RULES).sort(byCodeUnit);
-  const listed = [...Object.keys(COVERAGE), ...EXEMPT].sort(byCodeUnit);
+  const listed = [...Object.keys(COVERAGE), ...EXEMPT, ...UNCOVERED].sort(byCodeUnit);
   assert.deepEqual(listed, ids);
-  for (const id of EXEMPT) assert.ok(!Object.hasOwn(COVERAGE, id), id);
 });
 
 test('disabling a covered rule makes its fixture\'s expect.json fail', () => {
@@ -151,6 +158,14 @@ test('disabling an exempted rule moves no fixture outcome', () => {
   }
 });
 
+test('disabling an uncovered rule moves no fixture outcome', () => {
+  const profile = agbcc();
+  for (const f of FIXTURES) {
+    const base = outcomeOf(analyzeTuned(readFixtureRom(f), profile, OPTIONS, DEFAULT_TUNING));
+    for (const rule of UNCOVERED) assert.equal(outcomeOf(without(f, rule, profile)), base, `${rule} on ${f.name}`);
+  }
+});
+
 test('D57 names every exempted rule with g2.rule-coverage, and no covered rule', () => {
   const decisions = readFileSync(join(SYNTHETIC_ROOT, '..', '..', '..', 'docs', 'decisions.md'), 'utf8');
   const sections = decisions.split(/^## /m).filter((s) => s.includes('g2.rule-coverage'));
@@ -158,4 +173,5 @@ test('D57 names every exempted rule with g2.rule-coverage, and no covered rule',
   assert.ok(d57 !== undefined, 'D57 names g2.rule-coverage');
   for (const id of EXEMPT) assert.ok(d57.includes(`\`${id}\``), id);
   for (const id of Object.keys(COVERAGE)) assert.ok(!sections.some((s) => s.includes(`\`${id}\``)), `${id} is load-bearing and must not be exempted`);
+  for (const id of UNCOVERED) assert.ok(!d57.includes(`\`${id}\``), `${id} awaits a fixture and must not be exempted`);
 });

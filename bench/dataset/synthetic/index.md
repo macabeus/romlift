@@ -30,7 +30,7 @@ mode only (the analysis gives `_start` the extent of the whole region), because
 outside it, such as code linked to IWRAM, is none) and sets `negative: true`, which the gate reads as
 "no entry beyond these": a false entry fails a positive fixture as it fails a negative one, so
 disabling a rule that keeps a false entry out (`bl.target-inside-caller` on `far-jump`,
-`walk.table-nearest-pool-load` on `table-jump-hoisted`) breaks the expectation. The kind column below
+`walk.table-by-register` on `table-jump-hoisted`) breaks the expectation. The kind column below
 keeps the categories of architecture §8.1. An extent is the ELF size; where the size ends in padding
 that the walk does not reach (the `nop` after `bx pc` in `bx-pc-veneer`), the extent stops before it,
 within the bench's 4-byte padding allowance.
@@ -65,7 +65,7 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 | Fixture | Kind | Phenomenon | Rule made load-bearing |
 | --- | --- | --- | --- |
 | `far-jump` | positive | agbcc's `bl .L @far jump` over a 2.4 KiB body (C) | `bl.target-inside-caller` |
-| `table-jump-hoisted` | positive | agbcc switch with a hoisted load before the bounds check (C) | `walk.table-nearest-pool-load` |
+| `table-jump-hoisted` | positive | agbcc switch with a hoisted load before the bounds check (C) | `walk.table-by-register` |
 | `leaf-handler-pointer-table` | positive | three prologue-less handlers named only by a pointer table | `accept.pointer-table-run`, `seed.data-pointer` |
 | `noreturn-call-then-next` | positive | `bl Fatal` to a noreturn function, zero padding, pool, next function (C) | `walk.noreturn-call-before-noncode`, `walk.trailing-zero-padding` |
 | `bx-lr-stub-chain` | positive | unreferenced `bx lr` stubs tiling after a function, which pass the tiny-candidate veto | `gap.forward-chain` |
@@ -78,7 +78,7 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 | `handwritten-2mod4` | positive | a trampoline at 2 mod 4 ending in `mov pc, r2` | `accept.tiles-after-accepted` (its `mov pc, r2` is trusted as a callee's; `computed-jump-callback` carries `walk.mov-pc-without-table`) |
 | `unreferenced-leaf` | positive | an unreferenced leaf after a called one (C); the suppressed split: without the rule, `Leaf` is missed, lies in no found extent and has no prologue, so the held-out classifier must call it `glued` | `gap.forward-chain` |
 | `local-subroutine` | rule-specific | a helper inside its caller's extent, called with `bl` | `bl.near-is-call` |
-| `pops-unpushed-frame` | rule-specific | far `bl` to the caller's own epilogue past a 1.6 KiB table; callees before the entry, with a prologue, and already accepted | `bl.target-pops-unpushed-frame`, `bl.target-before-entry`, `bl.target-has-prologue`, `bl.self-or-accepted` |
+| `pops-unpushed-frame` | rule-specific | far `bl` to the caller's own epilogue past a 1.6 KiB table; callees before the entry, with a prologue, and already accepted | `bl.target-pops-unpushed-frame`, `bl.target-before-entry`, `bl.target-has-prologue`, `bl.target-beyond-callee` |
 | `mov-lr-pc-bx` | rule-specific | ARM `mov lr, pc; bx r1` to an `adr`-named routine | `walk.mov-lr-pc-bx-is-call`, `seed.adr` |
 | `adr-handler-block` | rule-specific | an `adr`-named block after the pool that branches back in | `gap.adr-block-absorb` |
 | `dead-code-in-extent` | rule-specific | an unreachable stub-shaped block inside a function | `claim.dead-code-in-extent` |
@@ -92,7 +92,7 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 | `pool-word-push-lr` | negative | a far literal 0xBD00B500 (`push {lr}; pop {pc}`) | `claim.far-pools`, `valid.no-claimed-code` |
 | `pool-padded-46c0` | negative | a pool after 0x46C0 padding whose word reads as a stub | `walk.pc-load-is-pool`, `claim.adjacent-pools` |
 | `code-end-data-decodes` | negative | stub-shaped data after the last function; a `main` loop with no prologue | `seed.startup-pointer` (code end) |
-| `false-stub-2byte` | negative | a lone `b` fragment after a jump table's cases | `accept.tiny-anchored-at-start` (its not-a-branch condition), `walk.table-nearest-pool-load` |
+| `false-stub-2byte` | negative | a lone `b` fragment after a jump table's cases | `accept.tiny-anchored-at-start` (its not-a-branch condition), `walk.table-by-register` |
 
 `seed.rom-entry`, `seed.call` and `walk.pc-load-is-pool` move outcomes in every fixture,
 `claim.adjacent-pools` in fifteen.
@@ -101,6 +101,13 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 `region.data-after-code`, `seed.listed`, `seed.override`, `seed.evidence-hint` and
 `valid.in-rom-unclaimed` move no entry, extent or code end of a seedless discover run on any ROM; D57
 says why for each, and the coverage test asserts that disabling them moves no fixture outcome.
+
+**No fixture yet.** `bl.self-or-accepted` and `walk.inline-arm-switch` move no fixture outcome.
+`pops-unpushed-frame` was built for `bl.self-or-accepted`, but under M4's ascending worklist
+`bl.target-beyond-callee` decides that far `bl` first (docs/phase-2.md, deviation 3);
+`walk.inline-arm-switch` came with the umul3232H32 extents of the tuning set and has no fixture. They
+are neither covered nor exempt, and `g2.rule-coverage` fails on them until a fixture makes each
+load-bearing; the coverage test lists them as `UNCOVERED` and asserts they move nothing.
 
 **Not yet cited by the trail.** `g2.rule-coverage` also requires a decision event of the trail
 (accept, reject, verdict, claim, absorb) to name the rule. Fifteen load-bearing rules are named by none:
