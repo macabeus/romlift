@@ -18,9 +18,26 @@ a fresh `git worktree` with no local caches. The owner's answer of 17 October 20
 item 4 ("Tune on tmc, no new ROM", D60) was implemented from `306eaf2` to `808513f` ("The owner's decision",
 below), and the whole closing list ran at `808513f` in a fresh worktree. The adversarial review of `74ec273` was
 answered by fix round 1 of D60 (`baa6161` to `9c8b282`; "Review", below), which lowered `phase.json` back
-to 1 and re-ran the whole closing list at `9c8b282` in a fresh worktree ("The closing gate", below).
+to 1 and re-ran the whole closing list at `9c8b282` in a fresh worktree. The adversarial review of `f802822` was
+answered by fix round 2 of D60 (`907f9e3` to `2475b34`; "Review", below), which withdrew two more readings
+the owner had not authorised and re-ran the whole closing list at `2475b34` in a fresh worktree ("The
+closing gate", below).
 
-**Verdict (after fix round 1 of D60).** Phase 2 does **not** land. The review found that the landing at
+**Verdict (after fix round 2 of D60).** Phase 2 does **not** land. Every command of the closing list
+exits 0 at `2475b34` except the three `bench regression` runs and both `bench gates --require 2` tiers,
+and every failure is on tmc or on `g2.held-out`'s two-families condition, each an owner question (Q1 to
+Q5): real tier `g2.poc-parity` (tmc: no M1 evidence; Q1), `g2.baseline-rows` (tmc: 8 unaccepted rows;
+Q2), `g2.confirm-equals-discover` (tmc, first difference 0x08004274; Q3), `g2.held-out` (both sealed ROMs
+pass, both `pret-gen3`; the two-families condition is no longer waived on an inference; Q4) and
+`g2.code-end` (tmc +148 under the restored phase-1 convention; Q5); ci tier `g2.regression` and the three
+`bench regression` runs, on tmc's code end alone (Q5). No gate fails on fe7j, klonoa, pokeemerald, sa2 or
+sa3, whose rows equal those of `9c8b282` but the code end of klonoa (+4) and fe7j (+8), back under the
+phase-1 convention. tmc: tp 8,631, 5 listed misses, 12 listed false entries, 8,388/8,388 extents; its
+analysis digest moved (`d8aac78c…` → `5c747e55…`, origins and two unsized extents) with no row change.
+pokefirered and pokeruby pass sealed with unchanged counts. `test/gates/phase.json` stays
+`{ "landed": 1 }`; nothing is merged or pushed.
+
+**Verdict (after fix round 1 of D60; superseded by fix round 2).** Phase 2 does **not** land. The review found that the landing at
 `808513f` rested on gate changes the owner had not authorised; fix round 1 withdrew them, and with
 `test/gates/phase.json` back at `{ "landed": 1 }` every command of the closing list exits 0 at `9c8b282`
 except `bench gates --require 2 --tier real`, whose failing gates are all on tmc and none on another ROM:
@@ -788,55 +805,60 @@ on, its one problem is the code end (+148) under the restored convention (Q5).
 
 ## The closing gate
 
-The run at `9c8b282`, after fix round 1 of D60: a fresh worktree (`git worktree add --detach`, so no
-`node_modules`, no `bench/.local`), working tree clean but for the `bench/results.json` the run rewrites,
-every command from the worktree root with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
+The run at `2475b34`, after fix round 2 of D60: a fresh worktree (`git worktree add --detach`, so no
+`node_modules`, no `bench/.local`), working tree clean but for the `bench/results.json` the run rewrites
+(`bench/baseline/poc-digests.json` and `poc-dump-rows.json` byte-identical after the export), every
+command from the worktree root with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`, the roadmap's exit list with the
-orchestrator's additions and one of this round (`bench regression --base 74ec273`, romlift's own tmc row
-as a floor), the real tier before the ci tier. `test/gates/phase.json` is `{ "landed": 1 }`.
+orchestrator's additions, those of fix round 1 (`bench regression --base 74ec273`) and one of this round
+(`bench regression --base f802822`, the previous round's rows as a floor), the real tier before the ci
+tier. `test/gates/phase.json` is `{ "landed": 1 }`.
 
 | Command | Exit | Output |
 | --- | --- | --- |
 | `npm ci` | 0 | |
 | `npm run typecheck` | 0 | |
 | `npm run lint` | 0 | 21 tests, 21 pass |
-| `npm test` | 0 | 939 tests, 939 pass |
-| `npm run fixtures -- check` | 0 | 41 of 41 fixtures agree (agbcc commit not named, the bytes decide) |
+| `npm test` | 0 | 957 tests, 957 pass |
+| `npm run fixtures -- check` | 0 | 45 of 45 fixtures agree (agbcc commit not named, the bytes decide) |
 | `npm run bench -- doctor-real` | 0 | every ROM, ELF, PoC file and toolchain matches its digest |
-| `npm run export-poc -- --mode scored` | 0 | six ROMs (tmc from romlift's dataset: 8,591 functions, 54 misses, scaffold OK), deterministic (257 s) |
-| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical (79 s) |
-| `npm run export-poc -- --mode queries` | 0 | five lockstep logs re-read, parity matches the committed digest (51 s) |
+| `npm run export-poc -- --mode scored` | 0 | six ROMs, scaffold OK, deterministic (253 s); tmc 8,591 functions, 54 misses, on romlift's dataset `9d840f51…`, its PoC row equal to the one pinned in `poc-dump-rows.json` |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical (78 s) |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs re-read, parity matches the committed digest (52 s) |
 | `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 19 tests, 19 pass |
 | `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | binutils, corpus and JUMP11 ok |
 | `npm run corpus` | 0 | 100% round-trip, inputs digest `144770c8…` |
-| `npm run bench -- run` | 0 | six rows (the table below); sealed: pokefirered pass, pokeruby pass; `results.json` written at `9c8b282` |
-| `npm run bench -- speed` | 0 | ratio 0.961; fe7j 1,128 ms (limit 12,698), klonoa 236 (307), pokeemerald 2,122 (4,221), sa2 694 (783), sa3 1,057 (1,493), tmc 1,141 (1,785) |
-| `npm run bench -- regression` | 0 | no regression against `92bf7ce` (the PoC-sourced main) |
-| `npm run bench -- regression --base 74ec273` | 0 | no regression against `74ec273` (tmc's row of the previous round: tp 8,631, 8,388 agreeing extents) |
+| `npm run bench -- run` | 0 | six rows (the table below); sealed: pokefirered pass, pokeruby pass; `results.json` written at `2475b34` |
+| `npm run bench -- speed` | 0 | ratio 0.999; fe7j 1,163 ms (limit 13,202), klonoa 253 (319), pokeemerald 2,132 (4,389), sa2 671 (814), sa3 1,136 (1,552), tmc 1,274 (1,856) |
+| `npm run bench -- regression` | **1** | against `92bf7ce` (the PoC-sourced main): 1 failure, tmc code end 0x080B2A30 is 148 bytes from the ELF's 0x080B299C (Q5) |
+| `npm run bench -- regression --base 74ec273` | **1** | the same single failure |
+| `npm run bench -- regression --base f802822` | **1** | the same single failure; no tp, extent, listed-row or trailer problem |
 | `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
-| `npm run bench -- poc-check` | 0 | five ROMs: rows equal, PoC row equal, scaffold OK, deterministic, pinned; tmc: rows equal the PoC's own row, PoC row n/a (no pinned baseline row), scaffold OK, deterministic, pinned |
-| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.code-end (all six 0), g2.determinism, g2.entries (tmc tp 8,631, PoC 8,582 from its own run), g2.extents, g2.held-out (both sealed pass; both family conditions printed as WAIVED with their grounds), g2.no-unreviewed (8 datasets, 61 rows), g2.speed (ratio 0.983; klonoa 243 of 314 ms); **fail: g2.baseline-rows** (tmc: 8 rows without an accepted diff: false-entry-added 0x08008B2E, 0x080B197C, 0x080B1AA8, 0x080B1B0C, 0x080B21B0, 0x080B2718, 0x080B27E4; miss-changed 0x080B20AC), **g2.confirm-equals-discover** (tmc: first difference 0x08004274, extent end 0x08004356 in discover, 0x080042AC in confirm), **g2.poc-parity** (tmc: no parity evidence or committed digest); g3 to g6 pending (150 s) |
-| `npm run bench -- gates --require 2 --tier ci` | 0 | every g1 gate passes (g1.provenance: source digest `17d95b9e…`, 2 real-tier gates of phase ≤ 1 pass); g2.checks-fail (4 files, 19 tests), g2.determinism, g2.regression, g2.rule-coverage (51 of 59 rules on 41 fixtures, 8 kept by D57), g2.rule-registry (59 rules), g2.second-profile (41 fixtures, 267 functions), g2.synthetic-analysis (41 fixtures), g2.vocabulary-emitted (10 miss reasons, 14 origins) pass; g3 to g6 pending (67 s) |
+| `npm run bench -- poc-check` | 0 | five ROMs: rows equal, PoC row equal, scaffold OK, deterministic, pinned; tmc: rows equal the PoC's own row, PoC row equal to the one pinned in `poc-dump-rows.json`, scaffold OK, deterministic, pinned |
+| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.determinism, g2.entries (tmc tp 8,631, PoC 8,582), g2.extents, g2.no-unreviewed (8 datasets, 61 rows), g2.speed (ratio 1.002; klonoa 253 of 320 ms); **fail: g2.baseline-rows** (tmc: 8 rows without an accepted diff, Q2), **g2.code-end** (tmc +148, Q5), **g2.confirm-equals-discover** (tmc, first difference 0x08004274, Q3), **g2.held-out** (pokefirered and pokeruby pass with unchanged counts; WAIVED the fresh-family condition; fail "the passing ROMs span 1 codebase families, at least two must (not waived: … owner question Q4)"), **g2.poc-parity** (tmc: no parity evidence or committed digest, Q1); g3 to g6 pending (159 s) |
+| `npm run bench -- gates --require 2 --tier ci` | **1** | every g1 gate passes (g1.provenance: source digest `6cf518d0…`, 2 real-tier gates of phase ≤ 1 pass); g2.checks-fail, g2.determinism, g2.rule-coverage (51 of 59 rules on 45 fixtures, 8 kept by D57), g2.rule-registry (59 rules), g2.second-profile (45 fixtures, 301 functions), g2.synthetic-analysis (45 fixtures), g2.vocabulary-emitted pass; **fail: g2.regression** (tmc code end, Q5); g3 to g6 pending (72 s) |
 | `npm run bench -- provenance` | 0 | source digest current; gate record ok at phase ≤ 1; families live (scaffold, printer); 6 rows; no row of the 2 sealed datasets |
 | `npm run bench -- stale-check` | 0 | the artifact is current |
 
 Not done, as the orchestrator asked: pushing `phase-2`, the pull request to `main` and its CI workflows,
-the merge and the tag. The runs at `808513f`, `22cbc77` and before are in the Git history of this file.
+the merge and the tag. The runs at `9c8b282`, `808513f`, `22cbc77` and before are in the Git history of
+this file.
 
-## Per tuning ROM, at `9c8b282`
+## Per tuning ROM, at `2475b34`
 
 | ROM | ELF functions | Entries | TP | PoC TP | Raw precision | Raw recall | Misses | False entries | Extents agreeing | Code end | Row diffs (unaccepted) | Analysis digest | Parity digest |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| fe7j | 7,735 | 7,735 | 7,724 | 7,724 | 99.86% | 99.86% | 11 | 11 | 1,471 / 1,471 | +0 | 0 | `a1e91da5…` | `d2c87e51…` |
-| klonoa | 559 | 557 | 556 | 556 | 99.82% | 99.46% | 3 | 1 | 485 / 485 | +0 | 0 | `518d9572…` | `49c42676…` |
+| fe7j | 7,735 | 7,735 | 7,724 | 7,724 | 99.86% | 99.86% | 11 | 11 | 1,471 / 1,471 | +8 | 0 | `a1e91da5…` | `d2c87e51…` |
+| klonoa | 559 | 557 | 556 | 556 | 99.82% | 99.46% | 3 | 1 | 485 / 485 | +4 | 0 | `518d9572…` | `49c42676…` |
 | pokeemerald | 15,856 | 15,862 | 15,856 | 15,856 | 99.96% | 100.00% | 0 | 6 | 15,850 / 15,853 | +0 | 1 (0) | `698343b9…` | `d7348336…` |
 | sa2 | 2,892 | 2,898 | 2,892 | 2,892 | 99.79% | 100.00% | 0 | 6 | 2,887 / 2,889 | +0 | 1 (0) | `bfa0a805…` | `ae83e802…` |
 | sa3 | 4,693 | 4,699 | 4,693 | 4,693 | 99.87% | 100.00% | 0 | 6 | 4,305 / 4,307 | +0 | 1 (0) | `9c0fb964…` | `396939bf…` |
-| tmc | 8,636 | 8,643 | 8,631 | 8,582 (its own run) | 99.86% | 99.94% | 5 | 12 | 8,388 / 8,388 | +0 | 59 (8) | `d8aac78c…` | `929cee1f…` |
+| tmc | 8,636 | 8,643 | 8,631 | 8,582 (its own run, pinned) | 99.86% | 99.94% | 5 | 12 | 8,388 / 8,388 | +148 | 59 (8) | `5c747e55…` | `ea700ad0…` |
 
-The analysis digests equal those of `808513f` on all six ROMs: no analysis output changed in this round.
-Sealed at `9c8b282`: pokefirered pass (precision 99.95%, recall 100.00%, glued 0, label candidates 0,
-extents 12,383 / 12,386, code end 0), pokeruby pass (99.95%, 100.00%, 0, 0, 11,449 / 11,452, 0).
+The analysis digests of the five original ROMs equal those of `9c8b282`; tmc's moved through
+`95b257b` (the pool boundary of `seed.ram-copy`) with no row change. Sealed at `2475b34`: pokefirered
+pass (precision 99.95%, recall 100.00%, glued 0, label candidates 0, extents 12,383 / 12,386, code end
+0), pokeruby pass (99.95%, 100.00%, 0, 0, 11,449 / 11,452, 0).
 
 ## Known limitations
 
