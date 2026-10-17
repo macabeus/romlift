@@ -270,6 +270,19 @@ What ran on `phase-2-p2-milestones` (exit codes as measured; the integrator re-r
 | `npm run bench -- gates --require 2 --tier real` | 1 | pass: g1.dataset-elf, g2.confirm-equals-discover, g2.poc-parity, g2.speed; g1.bench-harness passes after `a3ce9b0`; pending (`discover`, `explain` from p2-commands): g2.baseline-rows, g2.code-end, g2.determinism, g2.entries, g2.extents, g2.held-out, g2.no-unreviewed |
 | `npm run bench -- gates --require 2 --tier ci` | 1 | pass: every g1 gate but g1.provenance (no real-tier gate record yet), g2.rule-registry, g2.second-profile, g2.synthetic-analysis, g2.vocabulary-emitted; fail: g2.checks-fail (p2-mutation-ci), g2.rule-coverage (p2-fixture-coverage: 26 rules, among them walk.inline-arm-switch and bl.self-or-accepted); pending: g2.determinism, g2.regression |
 
+After wave 3 was integrated on `phase-2` (p2-milestones, p2-fixture-coverage, p2-commands,
+p2-mutation-ci), the ci tier measured: `npm run typecheck` 0; `npm run lint` 0 (21 tests);
+`npm test` 0 (881 tests, 881 pass); `npm run bench -- regression` 0 (no regression against `92bf7ce`);
+`npm run bench -- gates --require 2 --tier ci` 1: pass every g1 gate but g1.provenance (the source
+digest of `results.json`, `de44a049…`, is stale against the merged sources, and no real-tier gate
+record exists), g2.checks-fail (5 files, 22 tests), g2.determinism (29 analyses), g2.regression,
+g2.rule-registry (57 rules), g2.second-profile, g2.synthetic-analysis (29 fixtures),
+g2.vocabulary-emitted; fail g2.rule-coverage on 17 rules: the 15 load-bearing rules no trail decision
+event names (four acceptance rules, the gap slots prefer and skip, nine walk rules with
+`walk.table-by-register` in place of `walk.table-nearest-pool-load`), plus `bl.self-or-accepted` and
+`walk.inline-arm-switch`, which no fixture makes load-bearing (bench/dataset/synthetic/index.md, "No
+fixture yet").
+
 The rest of the sequence (raise `test/gates/phase.json` to 2, the closing real-tier run, `bench
 provenance`, `bench stale-check`, the pull request and its CI) was not run: `g2.held-out` fails, and the
 safe default of D53 is that phase 2 does not land.
