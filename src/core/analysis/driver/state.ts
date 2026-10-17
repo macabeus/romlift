@@ -78,6 +78,8 @@ export interface DriverState extends DriverInputs {
   readonly order: Addr[];
   /** Thumb readings of the epoch (accepted ones for good). */
   readonly settled: Map<Addr, Reading>;
+  /** The estimated bytes of the readings `settled` holds for entries not accepted (epoch.ts hold), against LIMITS.epochReadingBytes. */
+  held: number;
   /** The last ARM reading of each entry; never served as a cache, only peeked (D56). */
   readonly lastArm: Map<Addr, Reading>;
   readonly inProgress: Set<Addr>;
@@ -154,6 +156,7 @@ export function createDriver(rom: Rom, profile: CompilerProfile, options: Analys
     ...(tuning.cache === 'epoch-reuse' && options.trail === 'off' ? { reuse: reuseState(rom.base, rom.bytes.length) } : {}),
     order: [],
     settled: new Map(),
+    held: 0,
     lastArm: new Map(),
     inProgress: new Set(),
     validMemo: new Map(),

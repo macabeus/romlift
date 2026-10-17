@@ -8,6 +8,7 @@ import { withVerdicts } from '../reading.ts';
 import type { BlSite, BlVerdict, BlVerdictRecord, Reading, WalkDecision } from '../types.ts';
 import { walkArm } from '../walk/arm.ts';
 import { walkThumb } from '../walk/thumb.ts';
+import { hold } from './epoch.ts';
 import { beginReading, endReading, readReading, takeCarried } from './reuse.ts';
 import type { DriverState } from './state.ts';
 import { emit } from './trail.ts';
@@ -121,7 +122,7 @@ function settleNow(s: DriverState, entry: Addr): Reading {
   if (!settled && !s.diagnostics.some((d) => d.code === 'W_SETTLE_LIMIT' && d.addr === entry)) s.diagnostics.push(settleLimit(entry, LIMITS.settleRounds));
   s.inProgress.delete(entry);
   const final = withVerdicts(r, { far: sortedKeys(far), noret: sortedKeys(noret), blVerdicts: sortedEntries(verdicts).map(([, v]) => v), steps });
-  s.settled.set(entry, final);
+  hold(s, entry, final);
   if (s.reuse !== undefined) endReading(s.reuse, entry);
   limited(s, final);
   return final;
@@ -138,6 +139,6 @@ function limited(s: DriverState, r: Reading): void {
 function carried(s: DriverState, entry: Addr): Reading | undefined {
   if (s.reuse === undefined) return undefined;
   const r = takeCarried(s.reuse, entry, s.inProgress);
-  if (r !== undefined) s.settled.set(entry, r);
+  if (r !== undefined) hold(s, entry, r);
   return r;
 }

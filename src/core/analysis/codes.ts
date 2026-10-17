@@ -17,7 +17,11 @@ export const AnalysisCodes = defineCodes({
   },
   W_CANDIDATE_BUDGET: {
     severity: 'warning',
-    meaning: 'one grow round proposed more candidates than the candidate budget',
+    meaning: 'one grow round proposed more candidates than the candidate budget; only the first ones, up to the budget, were judged',
+  },
+  W_READING_BUDGET: {
+    severity: 'warning',
+    meaning: 'the candidate readings held in one epoch passed the reading budget; they were dropped and are walked again when asked for',
   },
   W_LISTED_INVALID: {
     severity: 'warning',
