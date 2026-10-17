@@ -43,12 +43,14 @@ export type FamilyCondition = 'twoFamilies' | 'freshFamily';
 
 /**
  * The waiver of 17 October 2026 (D60): "Tune on tmc, no new ROM" moved tmc, the only sealed ROM of a family
- * absent from the tuning set, into the tuning set; pokefirered and pokeruby stay sealed and must pass.
+ * absent from the tuning set, into the tuning set; pokefirered and pokeruby stay sealed and must pass. The
+ * owner's answer to Q4 on 18 October 2026 (D61), the option chosen: "Waive both" extends it to the
+ * two-families condition; every per-ROM threshold and the count of passing ROMs still decide.
  */
 export const FAMILY_WAIVER: FamilyWaiver = {
   decided: '2026-10-17',
   by: 'the owner, Bruno Macabeus (architecture section 12 item 4)',
-  decision: 'D60',
+  decision: 'D60, D61',
   sealed: [
     { name: 'pokefirered', sha1: '41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc', elfSha256: 'bbe723fd5723f311f45b1d5db7a71e9f0284dd54f57ab0f700162d7a88346b5e' },
     { name: 'pokeruby', sha1: 'f28b6ffc97847e94a6c21a63cacf633ee5c8df1e', elfSha256: '51cfc8cf2654880e0cd6e20f3801e8c816624dc202c67d0cce8cdc6915128dde' },
@@ -56,10 +58,7 @@ export const FAMILY_WAIVER: FamilyWaiver = {
   tuningFamilies: ['fe-gba', 'kleod', 'pret-gen3', 'sat-r', 'zeldaret-tmc'],
   grounds: {
     freshFamily: "the owner's words: the gate is recorded as having no held-out ROM from a family absent from the tuning set",
-  },
-  pending: {
-    twoFamilies:
-      "not waived: the D60 decision does not state it (a waiver was only inferred from 'pokefirered and pokeruby must keep passing' and 'phase 2 then lands'); owner question Q4 of phase-2.md",
+    twoFamilies: 'the owner\'s answer to Q4 of phase-2.md on 2026-10-18 (D61), the option chosen: "Waive both"',
   },
 };
 

@@ -1132,7 +1132,9 @@ Counting siblings of a tuning ROM as independent.
 **Revision (17 October 2026, the owner's decision, D60).** The owner answered architecture §12 item 4:
 "Tune on tmc, no new ROM". tmc is revealed and tuned on; while no sealed dataset is of a family absent
 from the tuning set, `g2.held-out` waives its two family conditions and prints each waiver; every other
-condition stands, and a fresh sealed pair is still needed before release 1 claims generality.
+condition stands, and a fresh sealed pair is still needed before release 1 claims generality. Fix round 2
+of D60 waived only the fresh-family condition (the owner's words); the owner's answer to Q4 on 18 October
+2026, "Waive both" (D61 b), waives the two-families condition too.
 
 ## D54. Phase-1 component boundaries as executed
 
@@ -1910,6 +1912,12 @@ skipped or removed.
   that the harness reproduces the PoC's pinned rows field for field; that check is unchanged. Measured
   (`bench run`, against `8fba183`): tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3,
   pokefirered and pokeruby 0 → 0; no other count and no analysis digest moves.
+- (b) **Q4, the family conditions of `g2.held-out`** (`test/gates/held-out-verdict.ts` `FAMILY_WAIVER`). The
+  waiver's `grounds.twoFamilies` holds the answer ("Waive both"), so both family conditions are waived and
+  printed (`WAIVED: …`) with their grounds; its binding (the sealed pokefirered and pokeruby by name, ROM
+  SHA-1 and ELF SHA-256, and the tuning families of D60) is unchanged, and the count of passing sealed ROMs
+  (at least two) and every per-ROM threshold still decide. Measured: `g2.held-out` passes, pokefirered and
+  pokeruby pass sealed with unchanged counts.
 
 **Consequences.** See each item; phase-2.md records the closing run under these answers.
 

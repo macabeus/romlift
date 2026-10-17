@@ -1673,7 +1673,7 @@ message states the reason, as the working rule requires.
 | Entries (tuning) | dataset-against-ELF check passes; every miss in `labels`, every false entry in `untyped`; raw precision ≥ 99.7% on every ROM; raw true-positive count never drops; lists only shrink; zero `unreviewed` | 2 |
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
 | Code end | within 16 bytes of the ELF's code end (`bench/src/truth.ts` `elfCodeEnd`): the largest end of its functions, a sized function at addr + size and an unsized one (hand-written asm without `.size`) at the first `$d` mapping symbol or typed symbol after it, one convention for every ROM, tuning and sealed (the owner's answer to Q5, "Use $d for every ROM", D61 a); the rescoring of the PoC's own dumps keeps the PoC's convention (`pocCodeEnd`, addr + size), since it reproduces the PoC's pinned rows | 2 |
-| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (the fresh-family condition waived by the owner's decision for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else; the two-families condition is not in the owner's words and still applies until the owner answers Q4, D60) | 2 |
+| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (both family conditions waived by the owner, the fresh-family one by the decision of D60 and the two-families one by the answer to Q4, "Waive both" (D61 b), for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
@@ -1726,10 +1726,10 @@ claim of generality (D53). The owner answered §12 item 4 on 17 October 2026 (D6
 tuned on, and the owner's words record the gate as having no held-out ROM of a family absent from the
 tuning set, so `g2.held-out` (through `test/gates/held-out-verdict.ts`) waives the fresh-family condition
 for the sealed pokefirered and pokeruby (bound by name, ROM SHA-1 and ELF SHA-256) and the tuning families
-of D60, printing the waiver with its grounds; any change to either needs a new decision. Waiving the
-two-families condition as well was only inferred from the decision, not stated by the owner, so that
-condition still applies (both sealed ROMs are `pret-gen3`) and the gate fails on it until the owner answers
-Q4 of phase-2.md; the per-ROM thresholds and "at least two sealed ROMs pass" still decide.
+of D60, printing the waiver with its grounds; any change to either needs a new decision. The owner's answer
+to Q4 of phase-2.md on 18 October 2026 (D61 b), the option chosen: "Waive both", waives the two-families
+condition too (both sealed ROMs are `pret-gen3`), under the same binding and printed with those words; the
+per-ROM thresholds and "at least two sealed ROMs pass" still decide.
 
 ### 8.5 Commands
 

@@ -8,8 +8,8 @@
 // The owner's decision of 17 October 2026 (Bruno Macabeus, architecture §12 item 4, D60), "Tune on tmc, no
 // new ROM", moved tmc, the only sealed ROM of a family absent from the tuning set, into the tuning set, and
 // records the gate as having no held-out ROM of such a family: that waives the fresh-family condition. The
-// two-families condition is not in the owner's words (it was only inferred, owner question Q4 of
-// phase-2.md), so it still fails, with that reason printed. The verdict is held-out-verdict.ts's
+// owner's answer to Q4 of phase-2.md on 18 October 2026 (D61), the option chosen: "Waive both", waives the
+// two-families condition too, with those words as its grounds. The verdict is held-out-verdict.ts's
 // heldOutVerdict, the unit-tested function: the waiver is bound to the sealed datasets (name, ROM SHA-1,
 // ELF SHA-256) and the tuning families it was decided on, and any change to either ends it. It is printed
 // in the gate's note every time it applies, with its grounds, and it never covers a per-ROM threshold or the
