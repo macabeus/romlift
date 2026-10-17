@@ -7,11 +7,14 @@ here was measured on the owner's machine (macOS, Node 24.15.0, binutils 2.45.1 f
 15.3.Rel1) with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`, while the other wave-3 components ran
 on the same machine. Rules were tuned on the five tuning ROMs only; the held-out ROMs ran sealed, and
-only their counts and verdicts were read (D25).
+only their counts and verdicts were read (D25). The integrator then fixed the two ci-tier gates that
+still failed after wave 3 (`g2.rule-coverage`, `g1.provenance`) on `phase-2` (`6a74f3d`, `b2742a3`)
+and re-ran the whole closing list there ("The closing gate", below).
 
-**Verdict.** Phase 2 does **not** land. Milestones M1 to M6 hold on the five tuning ROMs, every tuning
-threshold of the roadmap holds, and the five rule changes after M1 each passed `bench regression`
-against the commit before them. M7 fails: `g2.held-out` needs two passing sealed ROMs from two codebase
+**Verdict.** Phase 2 does **not** land. Every gate command passes except `bench gates --require 2 --tier
+real`, whose only failing gate is `g2.held-out`. Milestones M1 to M6 hold on the five tuning ROMs, every
+tuning threshold of the roadmap holds, all seventeen `g2.*` gates but `g2.held-out` pass, and the five
+rule changes after M1 each passed `bench regression` against the commit before them. M7 fails: `g2.held-out` needs two passing sealed ROMs from two codebase
 families, one of them absent from the tuning set; pokefirered and pokeruby pass but are both
 `pret-gen3`, a family of the tuning set (pokeemerald), and tmc (`zeldaret-tmc`, the only sealed ROM of
 a family absent from the tuning set) fails with 51 `glued` misses, raw recall 99.37% and its code end
@@ -25,7 +28,8 @@ the tuning set alone, and then a fresh sealed pair before any claim of generalit
 
 ### Components
 
-Phase 2 ran as twelve components in three waves on `phase-2` (the roadmap's "As executed" table).
+Phase 2 ran as thirteen components in three waves on `phase-2` (the roadmap's "As executed" table, D56),
+then the integrator.
 
 | Wave | Component | Delivered |
 | --- | --- | --- |
@@ -42,6 +46,27 @@ Phase 2 ran as twelve components in three waves on `phase-2` (the roadmap's "As 
 | 3 | `p2-fixture-coverage` | fixture coverage of every rule (`g2.rule-coverage`) |
 | 3 | `p2-mutation-ci` | the phase-2 mutation tests (`g2.checks-fail`) and CI |
 | 3 | `p2-milestones` | this record: milestones M1 to M7 (below) |
+| — | integrator | D58: the trail cites walk steps, acceptance rules and the gap's prefer and skip slots; the `recursive-far-call` and `inline-arm-switch` fixtures; the closing run below |
+
+### Commands and formats
+
+| Command | What it does |
+| --- | --- |
+| `romlift analyze <rom> [--json] [--disable <rule>...]` | discover mode on a bare ROM: functions with origin and provenance, rejections, diagnostics (NDJSON with `--json`) |
+| `romlift explain <addr> --rom <rom> [--json]` | what the analysis decided about one address: claim, owner, provenance, the trail events of its 256-byte bucket (proposals, accepts, rejections, verdicts, waits, claims), the rules' metadata |
+| `npm run bench -- run [--only <rom>] [--json] [--disable <rule>...] [--cpu-prof]` | romlift's own scored discover run on the tuning ROMs, and counts only on the sealed ones (`romlift/bench-run@1`) |
+| `npm run bench -- speed [--only <rom>] [--write-baseline]` | calibrated median CPU per tuning ROM against `bench/baseline/speed.json` (`romlift-bench/speed@1`) |
+| `npm run bench -- ablate <rule> [--tier synthetic\|real] [--json]` | where a rule is decisive in the trail and what moves without it (`romlift/bench-ablate@1`) |
+| `npm run bench -- explain <rom> <addr>`, `adopt <rom>` | explain on a tuning ROM or fixture (`romlift/bench-explain@1`); seed a new tuning dataset's lists as unreviewed placeholders (refuses a sealed one) |
+| `npm run export-poc -- --mode parity\|queries` | the PoC's parity view (`romlift-bench/parity@1`, digests in `romlift-bench/poc-digests@1`) and its lockstep log (`romlift-bench/poc-queries@1`) |
+| `npm run fixtures -- rebuild\|check [--only <name>]` | build the synthetic fixtures with agbcc and binutils, or rebuild them into a temporary directory and compare (`romlift/fixtures@1`) |
+| `node --conditions=source bench/tools/seal-dataset.ts` | create a sealed held-out dataset from file hashes and the checkout commit, never reading a symbol |
+
+Formats: the analysis codec `romlift/analysis@1` (`encodeAnalysis`/`decodeAnalysis`); the parity evidence
+`romlift-bench/parity-evidence@1` and the accepted improvements `romlift-bench/accepted-diffs@1` in
+`bench/`; a fixture's `expect.json` (`{negative, entries: [{addr, mode, extent?}], codeEnd?}`); the sealed
+dataset files `bench/dataset/real/{pokefirered,pokeruby,tmc}.json` (`heldout: true`, family, digests,
+no rows).
 
 ### The milestones
 
@@ -238,6 +263,29 @@ code end within 16 bytes, two runs deterministic. The parity digests no longer e
    keeps working.
 7. **`speed.json` from M2.** It was measured under `poc-lifo` and not raised after M4: the final
    `epoch`/ascending medians are within 1.0 to 1.1 × of it.
+8. **The trail cites walk steps, acceptance rules and the gap slots prefer and skip** (D58, `6a74f3d`).
+   `g2.rule-coverage` failed after wave 3 on fifteen load-bearing rules that no decision event named.
+   New contract members: `WalkDecision`, `Reading.steps` (filled only when `WalkEnv.trace` is set, that
+   is when a trail is on, so an untraced run and every digest are unchanged), `WalkEnv.trace`,
+   `WalkRecord.step`. grow emits an `accept` event under the acceptance rule beside the proposer's;
+   take and absorb emit a `verdict` per walk step of the reading that became a function (settle keeps
+   the steps of every round); fill-gaps emits a `verdict` for the prefer and skip slots. `verdict` now
+   covers those decisions, and `romlift explain` prints the group as "verdicts" (it said "bl
+   verdicts"); the explain goldens were regenerated.
+9. **Two more fixtures** (31 in all): `recursive-far-call` makes `bl.self-or-accepted` load-bearing (an
+   agbcc recursive call 2.4 KiB past the entry after a guard that calls a never-returning function) and
+   `inline-arm-switch` makes `walk.inline-arm-switch` load-bearing (m4a's umul3232H32 shape). The
+   `pops-unpushed-frame` note now credits `bl.target-beyond-callee`. `g2.rule-coverage`: 49 of 57 rules
+   decisive and load-bearing on 31 fixtures, 8 exempted by D57.
+10. **No rule was written for tmc.** The only signal is the sealed counts: 51 `glued`, 3 label
+    candidates, every one of the 8,388 sized extents agreeing, and the code end 4,130 bytes short. No
+    tuning ROM shows a matching phenomenon: all five end their code within 16 bytes of the ELF, and on
+    each the bytes after the code end are data (strings, tables, zero words), none opening with
+    `push {.., lr}`. A rule could therefore be shown harmless on the tuning set but not validated by it,
+    and writing one because tmc's code end is short would be tuning on a held-out ROM's misses, which
+    AGENTS.md and D53 forbid. Revealing tmc would make it tuning data and leave no sealed ROM of a family
+    absent from the tuning set; the reserve pool has no admitted pair on this machine (no Kirby or
+    Pinball checkout).
 
 ## Fixes made during this component
 
@@ -250,47 +298,49 @@ code end within 16 bytes, two runs deterministic. The parity digests no longer e
 
 ## The closing gate
 
-What ran on `phase-2-p2-milestones` (exit codes as measured; the integrator re-runs the whole list on
-`phase-2` after wave 3 merges, real tier before ci):
+The integrator's run on `phase-2` at `b2742a3` (working tree clean but for the `bench/results.json` the
+run itself rewrites), every command from the repository root with
+`ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
+`ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`, in this order (the real tier before the
+ci tier). `test/gates/phase.json` stays `{ "landed": 1 }`: it is raised only when the phase lands.
 
 | Command | Exit | Output |
 | --- | --- | --- |
-| `npm ci` | 0 | 8 packages |
+| `npm ci` | 0 | 8 packages, 0 vulnerabilities |
 | `npm run typecheck` | 0 | |
-| `npm test` | 0 | 778 tests, 778 pass |
-| `npm run fixtures -- check` | 0 | 26 of 26 fixtures agree |
-| `npm run export-poc -- --mode scored` | 0 | five dumps, PoC scaffold OK, deterministic |
-| `npm run export-poc -- --mode parity` | 0 | five digests, byte-identical `poc-digests.json` |
-| `npm run export-poc -- --mode queries` | 0 | five logs, parity matches the committed digest |
+| `npm run lint` | 0 | 21 tests, 21 pass |
+| `npm test` | 0 | 888 tests, 888 pass |
+| `npm run fixtures -- check` | 0 | 31 of 31 fixtures agree (agbcc commit not named, the bytes decide) |
+| `npm run bench -- doctor-real` | 0 | every ROM, ELF, PoC file and toolchain matches its digest |
+| `npm run export-poc -- --mode scored` | 0 | five dumps, PoC scaffold OK, deterministic (217 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical (76 s) |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, parity matches the committed digest (49 s) |
 | `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 16 tests, 16 pass |
-| `npm run bench -- doctor-real` | 0 | every input matches its digest |
-| `npm run bench -- run` | 0 | five rows, three sealed entries |
-| `npm run bench -- speed` | 0 | every ROM within the ratchet |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | binutils, corpus and JUMP11 ok; agbcc and old_agbcc reported missing (not required) |
+| `npm run bench -- run` | 0 | five rows; sealed: pokefirered pass, pokeruby pass, tmc FAIL (counts in M7); gate record cleared |
+| `npm run bench -- speed` | 0 | calibration ratio 0.990; fe7j 8,120 ms (limit 11,824), klonoa 502 (605), pokeemerald 5,320 (7,728), sa2 745 (1,151), sa3 1,506 (2,269) |
 | `npm run bench -- regression` | 0 | no regression against `92bf7ce` (the PoC-sourced main) |
-| `npm run bench -- gates --require 2 --tier real` | 1 | pass: g1.dataset-elf, g2.confirm-equals-discover, g2.poc-parity, g2.speed; g1.bench-harness passes after `a3ce9b0`; pending (`discover`, `explain` from p2-commands): g2.baseline-rows, g2.code-end, g2.determinism, g2.entries, g2.extents, g2.held-out, g2.no-unreviewed |
-| `npm run bench -- gates --require 2 --tier ci` | 1 | pass: every g1 gate but g1.provenance (no real-tier gate record yet), g2.rule-registry, g2.second-profile, g2.synthetic-analysis, g2.vocabulary-emitted; fail: g2.checks-fail (p2-mutation-ci), g2.rule-coverage (p2-fixture-coverage: 26 rules, among them walk.inline-arm-switch and bl.self-or-accepted); pending: g2.determinism, g2.regression |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | five ROMs: rows equal, PoC row equal, scaffold OK, deterministic, PoC source pinned |
+| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end (fe7j 8, klonoa 4, others 0), g2.confirm-equals-discover, g2.determinism, g2.entries, g2.extents, g2.no-unreviewed, g2.poc-parity, g2.speed (ratio 1.054); **fail: g2.held-out** ("the passing ROMs span 1 codebase families, at least two must; no passing ROM is from a family absent from the tuning set"); g3 to g6 pending; 33 real-tier records written |
+| `npm run bench -- gates --require 2 --tier ci` | 0 | every g1 gate passes (g1.provenance now current); g2.checks-fail (5 files, 22 tests), g2.determinism, g2.regression, g2.rule-coverage (49 of 57 rules on 31 fixtures, 8 kept by D57), g2.rule-registry (57 rules), g2.second-profile (31 fixtures, 188 functions), g2.synthetic-analysis (31 fixtures), g2.vocabulary-emitted pass; g3 to g6 pending |
+| `npm run bench -- provenance` | 0 | source digest `0076dfc0…` current; gate record, families, dataset and held-out rows ok |
+| `npm run bench -- stale-check` | 0 | the artifact is current |
 
-After wave 3 was integrated on `phase-2` (p2-milestones, p2-fixture-coverage, p2-commands,
-p2-mutation-ci), the ci tier measured: `npm run typecheck` 0; `npm run lint` 0 (21 tests);
-`npm test` 0 (881 tests, 881 pass); `npm run bench -- regression` 0 (no regression against `92bf7ce`);
-`npm run bench -- gates --require 2 --tier ci` 1: pass every g1 gate but g1.provenance (the source
-digest of `results.json`, `de44a049…`, is stale against the merged sources, and no real-tier gate
-record exists), g2.checks-fail (5 files, 22 tests), g2.determinism (29 analyses), g2.regression,
-g2.rule-registry (57 rules), g2.second-profile, g2.synthetic-analysis (29 fixtures),
-g2.vocabulary-emitted; fail g2.rule-coverage on 17 rules: the 15 load-bearing rules no trail decision
-event names (four acceptance rules, the gap slots prefer and skip, nine walk rules with
-`walk.table-by-register` in place of `walk.table-nearest-pool-load`), plus `bl.self-or-accepted` and
-`walk.inline-arm-switch`, which no fixture makes load-bearing (bench/dataset/synthetic/index.md, "No
-fixture yet").
+Before the fixes, the same list at `55ecf36` failed `g2.rule-coverage` (17 rules) and `g1.provenance`
+(stale source digest, no real-tier record) in the ci tier, and `g2.held-out` in the real tier.
 
-The rest of the sequence (raise `test/gates/phase.json` to 2, the closing real-tier run, `bench
-provenance`, `bench stale-check`, the pull request and its CI) was not run: `g2.held-out` fails, and the
-safe default of D53 is that phase 2 does not land.
+Not run, because `g2.held-out` fails and the safe default of D53 (architecture §12, item 4, not waited
+on) is that phase 2 does not land: raising `test/gates/phase.json` to 2, the closing real-tier run under
+the raised marker, pushing `phase-2`, the pull request to `main` and its CI workflows, and the merge.
 
 ## Known limitations
 
-- **tmc fails sealed** (M7). A fix must rest on a rule's `restsOn` and be validated on the tuning set
-  alone; then a fresh sealed pair from the reserve pool is needed before release 1 claims generality.
+- **tmc fails sealed** (M7), so `g2.held-out` fails and phase 2 does not land. A fix must rest on a
+  rule's `restsOn` and be validated on the tuning set alone (deviation 10 says why none was written);
+  then a fresh sealed pair from the reserve pool is needed before release 1 claims generality. The
+  owner's answer to architecture §12 item 4 (land with the failure recorded) or an admitted reserve pair
+  of a family absent from the tuning set would unblock the closing sequence.
 - **3 s CPU.** Under `epoch` fe7j (8.0 s) and pokeemerald (5.5 s) exceed phase 3's budget; `epoch-reuse`
   brings fe7j to 3.2 s, and pokeemerald's cost is first-round walks over zero-filled data that no cache
   avoids.
