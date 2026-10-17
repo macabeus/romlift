@@ -1,6 +1,12 @@
 # Checks that need no ROM (architecture §8.6, D30). ROMs never reach CI: the real tier runs locally
 # and CI checks the provenance of its committed artifact, from phase 1 on. Each phase adds its steps
 # here in the commit that makes them pass (the ci-tier gates, determinism and regression runs).
+#
+# Phase 2 adds: `bench regression` against the merge-base (the full history is fetched so that
+# `git merge-base origin/main HEAD` resolves), the determinism run of the synthetic-tier analysis with a
+# varied environment and another working directory, and one file of synthetic-tier analysis digests per
+# job (bench/tools/ci-digests.ts), which the final job compares across Linux, macOS and both Node
+# versions.
 name: ci
 
 on:
@@ -21,7 +27,10 @@ jobs:
         node: ['22.18', '24']
     runs-on: ${{ matrix.os }}
     steps:
+      # The whole history: bench regression's default base is `git merge-base origin/main HEAD`.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -41,3 +50,48 @@ jobs:
         run: npm test
       - name: Gates of every landed phase, ci tier
         run: npm run bench -- gates --require "$(node -p "require('./test/gates/phase.json').landed")" --tier ci
+      - name: Regression against the merge-base with main
+        run: npm run bench -- regression
+      - name: Synthetic-tier analysis digests
+        run: node --conditions=source bench/tools/ci-digests.ts > "$RUNNER_TEMP/ci-digests.json"
+      # The same digests from another working directory, in another time zone and locale, must be the
+      # same bytes (the ci tier of g2.determinism runs the CLI the same way once phase 2 has landed).
+      - name: Determinism with a varied environment and another working directory
+        env:
+          TZ: Pacific/Kiritimati
+          LANG: tr_TR.UTF-8
+          LC_ALL: tr_TR.UTF-8
+        run: |
+          mkdir -p "$RUNNER_TEMP/elsewhere/second run"
+          cd "$RUNNER_TEMP/elsewhere/second run"
+          node --conditions=source "$GITHUB_WORKSPACE/bench/tools/ci-digests.ts" > varied.json
+          cmp "$RUNNER_TEMP/ci-digests.json" varied.json
+      - name: Upload the analysis digests
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-digests-${{ matrix.os }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/ci-digests.json
+          if-no-files-found: error
+          retention-days: 7
+
+  digests:
+    name: Analysis digests agree across Linux, macOS and both Node versions
+    needs: check
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install exactly the lock file
+        run: npm ci --ignore-scripts
+      # Each artifact lands in its own directory, named after it.
+      - name: Download every job's digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ci-digests-*
+          path: ${{ runner.temp }}/digests
+      - name: Compare the four digest files
+        run: node --conditions=source bench/tools/ci-digests.ts --compare "$RUNNER_TEMP"/digests/*/ci-digests.json --expect 4
