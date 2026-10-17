@@ -10,6 +10,7 @@ import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { toRun } from '../address-map.ts';
+import { LIMITS } from '../limits.ts';
 import { DECODER_FLOW } from '../types.ts';
 import type { Reading, WalkStep } from '../types.ts';
 import { walkArm } from './arm.ts';
@@ -204,13 +205,16 @@ export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, nor
         stopAt(path, pc, sp, pool ? 'pool' : 'invalid');
         break;
       }
+      // A path over more than LIMITS.zeroRun zero halfwords is in a zero-filled region: not code.
       zeros = (word & 0xffff) === 0 ? zeros + 1 : 0;
-      const limit = rec.limited(pc, zeros);
-      if (limit !== undefined) {
-        if (limit === 'walk') work.length = 0;
+      if (zeros > LIMITS.zeroRun) {
+        rec.errors.push({ reason: 'zero-run', at: pc });
         break;
       }
-      rec.insn(pc, spec.size);
+      if (!rec.insn(pc, spec.size)) {
+        work.length = 0;
+        break;
+      }
       path.run.push(pc);
       if (spec.stack !== undefined) sp += spec.stack(fieldsOf(row, spec.size === 2 ? word & 0xffff : word));
       if (spec.flow === 'next') {

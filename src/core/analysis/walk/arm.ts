@@ -9,6 +9,7 @@ import { contains, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { toRun } from '../address-map.ts';
+import { LIMITS } from '../limits.ts';
 import { DECODER_FLOW } from '../types.ts';
 import type { Reading, WalkStep } from '../types.ts';
 import { askWalk, asksWalk, toLoadInsn, walkCursor } from './cursor.ts';
@@ -52,15 +53,18 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
         break;
       }
       const word = u32(rom, pc);
+      // A path over more than LIMITS.zeroRun zero words is in a zero-filled region: not code.
       zeros = word === 0 ? zeros + 1 : 0;
-      const limit = rec.limited(pc, zeros);
-      if (limit !== undefined) {
-        if (limit === 'walk') work.length = 0;
+      if (zeros > LIMITS.zeroRun) {
+        rec.errors.push({ reason: 'zero-run', at: pc });
         break;
       }
       if (rowFor('arm', word).spec.flow === 'next') {
         // The row's Flow is next: nothing to ask or record.
-        rec.insn(pc, 4);
+        if (!rec.insn(pc, 4)) {
+          work.length = 0;
+          break;
+        }
         run.push(pc);
         pc += 4;
         continue;
@@ -70,7 +74,10 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
         rec.errors.push({ reason: 'not-code', at: pc });
         break;
       }
-      rec.insn(pc, 4);
+      if (!rec.insn(pc, 4)) {
+        work.length = 0;
+        break;
+      }
       run.push(pc);
       const conditional = insn.word >>> 28 !== 0xe;
       const flow = insn.flow;

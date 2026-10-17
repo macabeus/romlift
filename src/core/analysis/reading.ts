@@ -56,6 +56,7 @@ export function codeEndOf(entry: Addr, insns: readonly InsnSpan[]): Addr {
 }
 
 function sortedUnique(list: readonly Addr[]): readonly Addr[] {
+  if (list.length < 2) return list;
   const out = [...list].sort(compareNumbers);
   return out.filter((a, i) => i === 0 || out[i - 1] !== a);
 }
@@ -101,6 +102,7 @@ function uniqueCalls(calls: readonly CallSite[]): readonly CallSite[] {
 }
 
 function sortedVerdicts(verdicts: readonly BlVerdictRecord[]): readonly BlVerdictRecord[] {
+  if (verdicts.length < 2) return verdicts;
   return [...verdicts].sort((a, b) => a.site - b.site);
 }
 

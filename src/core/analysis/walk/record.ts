@@ -60,25 +60,18 @@ export class WalkRecord {
   }
 
   /**
-   * Whether the walk stops at `at`: a 'zero-run' error when the current path has run over more than
-   * LIMITS.zeroRun consecutive zero instructions (the path ends), a 'walk-limit' error when the walk has
-   * recorded LIMITS.walkInsns instructions (the walk ends).
+   * Records an instruction, unless the walk has recorded LIMITS.walkInsns already: it then records a
+   * 'walk-limit' error at `addr` instead and returns false, and the walk ends.
    */
-  limited(at: Addr, zeros: number): 'path' | 'walk' | undefined {
-    if (zeros > LIMITS.zeroRun) {
-      this.errors.push({ reason: 'zero-run', at });
-      return 'path';
+  insn(addr: Addr, len: number): boolean {
+    if (this.order.length >= LIMITS.walkInsns) {
+      this.errors.push({ reason: 'walk-limit', at: addr });
+      return false;
     }
-    if (this.order.length < LIMITS.walkInsns) return undefined;
-    this.errors.push({ reason: 'walk-limit', at });
-    return 'walk';
-  }
-
-  /** Records an instruction. */
-  insn(addr: Addr, len: number): void {
     this.insns.set(addr, len);
     this.order.push(addr);
     this.lens.push(len);
+    return true;
   }
 
   /** Drops a recorded instruction (trailing padding at a stop). */
