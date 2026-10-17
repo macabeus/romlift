@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "340acda637c45716848cc1e61fc5da04845737cd",
+    "commit": "78a6af932e4b20166d97505432b29242fdf78292",
     "dirty": false,
-    "sourceDigest": "627c26ae68a8c447298606f6f41d81335c3e0c8b4a23eb118baa8689e7684818",
+    "sourceDigest": "5020f30b14baed4e5e2be7116d82f20455fcb6be9878cc75b2edaa5b07cce02c",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -1976,6 +1976,84 @@
         "verdict": "pending",
         "inputs": {},
         "detail": "not exported yet: profileById, analyze, configFromDiscover, buildModel, emitTree"
+      },
+      {
+        "id": "g4.e2e-real",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: init, generate"
+      },
+      {
+        "id": "g4.generate-idempotent",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: init, generate"
+      },
+      {
+        "id": "g4.toml-mutations",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: init, generate, parseConfig, serializeConfig, legalBorders, profileById, analyze"
+      },
+      {
+        "id": "g4.worktree",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: init, generate"
+      },
+      {
+        "id": "g5.expected-bytes",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: init, generate, emitTree"
+      },
+      {
+        "id": "g5.import-legacy",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: importLegacy"
+      },
+      {
+        "id": "g5.klonoa-rehearsal",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: importLegacy, generate"
+      },
+      {
+        "id": "g5.klonoa-switch",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: importLegacy, parseLuvdisCfg, parseThumbAliases"
+      },
+      {
+        "id": "g6.ram-code-mapped",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: parseTrace, runTrace, analyzeUpdate, buildModel"
+      },
+      {
+        "id": "g6.signatures-heldout",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: matchSignatures, resolvePlacements, buildSignatures"
+      },
+      {
+        "id": "g6.signatures-judged",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: matchSignatures, resolvePlacements, proposeFromSignatures, buildSignatures"
+      },
+      {
+        "id": "g6.signatures-loo",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildSignatures, matchSignatures, resolvePlacements"
+      },
+      {
+        "id": "g6.signatures-rebuild",
+        "verdict": "pending",
+        "inputs": {},
+        "detail": "not exported yet: buildSignatures, extractSignatures, locateSignatures"
       }
     ]
   },

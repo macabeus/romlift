@@ -2,17 +2,17 @@
 
 The record of phase 1 (roadmap "Phase 1", architecture §5, §8, §13), written by the integration
 component `p1-integration` on 17 October 2026 against the merged tree of waves 0 and 1 (branch
-`phase-1` at `255f9e3`) plus the fixes listed below. Every number here was measured on the owner's
+`phase-1` at `255f9e3`) plus the fixes listed below, and brought up to date when wave 3
+(`p1-doctor`, `p1-gates-late`, `p1-integration`) was merged into `phase-1` (merge `78a6af9`). Every number here was measured on the owner's
 machine (macOS, Node 24.15.0, Arm GNU Toolchain 15.3.Rel1 binutils 2.45.1) with
 `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. Only the five tuning ROMs were read;
 the held-out checkouts were not opened.
 
-**Verdict.** Every phase-1 exit command passes except one expected gap: `g1.doctor` reports
-`pending` because `runDoctor` lands in parallel (component `p1-doctor`, wave 2), so
-`bench gates --require 1 --tier ci` exits 1 on that gate alone. The other eleven `g1.*` gates pass.
-The phase marker `test/gates/phase.json` is raised to `{ "landed": 1 }` and the first
-`bench/results.json` is committed.
+**Verdict.** Every phase-1 exit command passes. With `p1-doctor` merged, all twelve `g1.*` gates
+pass: `bench gates --require 1` exits 0 on the real tier and on the ci tier. The phase marker
+`test/gates/phase.json` is raised to `{ "landed": 1 }`, and `bench/results.json` is regenerated on
+the merged tree (commit `78a6af9`, clean tree, source digest `5020f30b…7cce02c`, Node 24).
 
 ## What phase 1 delivered
 
@@ -23,10 +23,11 @@ The phase marker `test/gates/phase.json` is raised to `{ "landed": 1 }` and the 
 | Round-trip corpus | `src/foundation/isa/corpus*.ts`, `test/corpus/generate.ts` | the pure case generator and comparator (D54 c) and the driver behind `npm run corpus` |
 | ROM, formats, utilities | `src/foundation/{rom,formats,util}/**`, `src/shell/{hash,fs}.ts` | `romFromBytes`, header, memory map, `parseElf`, `parseGnuMap`, `canonicalJson`, `hex`, `sortedKeys`/`sortedEntries`, the seeded PRNG; `sha1Of`, `sha256Stream`, `listDir`, `atomicWrite` |
 | Binutils runner | `src/shell/toolchain/binutils.ts` | `assembleWithBinutils`, `findBinutils`, `binutilsVersions` |
-| CLI framework | `src/cli/**` | frozen `CommandSpec`/`ExitCode`/`CliIo` types, the parser, `main`, text and NDJSON reporters (no command yet; `doctor` is wave 2) |
+| CLI framework | `src/cli/**` | frozen `CommandSpec`/`ExitCode`/`CliIo` types, the parser, `main`, text and NDJSON reporters |
+| Doctor | `src/shell/toolchain/doctor.ts`, `src/cli/commands/doctor.ts` | `romlift doctor [--json] [--full]`: binutils versions, the corpus re-assembled with the user's `as` (259,462 cases by default, 1,242,502 with `--full`), the `R_ARM_THM_JUMP11` probe through `linkWithBinutils`, and agbcc/old_agbcc reported either way; `runDoctor` in `romlift/node` |
 | Vocabularies | `src/core/provenance/vocabulary.ts` | `MISS_REASONS`, `ORIGINS` |
 | Bench harness | `bench/src/**`, `bench/tools/**` | datasets, rescoring of the PoC's `scored.json`, `run`, `poc-check`, `dataset-check`, `doctor-real`, `provenance`, `stale-check`, `gates`, `regression`, `report`, `web`; export-poc (`--mode scored`) pinned by `bench/baseline/poc-source.json` (D50) |
-| Gates | `test/gates/gate.ts`, `g1.*`–`g3.*` | executable gates with five verdicts (D29); `g4.*`–`g6.*` land with `p1-gates-late` |
+| Gates | `test/gates/gate.ts`, `g1.*`–`g6.*`, `test/gates-index.test.ts` | executable gates with five verdicts (D29), one file per §13 id; `test/gates-index.test.ts` keeps the gate set, tiers and annotations equal to §13 |
 | Checkers | `test/architecture.test.ts`, `test/helpers/architecture.ts`, `test/mutation/phase1/**` | the architecture checker (`npm run lint`) and the mutation tests of the four phase-1 checkers |
 
 ## Deviations (D54, plus integration)
@@ -48,7 +49,8 @@ Found during integration:
 - **Mutation-suite command.** `node --conditions=source --test test/mutation/phase1/` fails on
   Node 24.15 with `MODULE_NOT_FOUND`: the test runner treats a directory argument as a module to run.
   The working spelling is a glob, `node --conditions=source --test 'test/mutation/phase1/*.test.ts'`
-  (what `npm test` already does); `npm run lint` runs the architecture mutation file.
+  (what `npm test` already does); `npm run lint` runs the architecture mutation file. The same holds
+  for the gates: `node --test test/gates/` fails, `'test/gates/*.test.ts'` loads all 68 gate files.
 
 ## Fixes made during integration
 
@@ -200,20 +202,24 @@ tests failed and only the three clean-baseline tests passed; the copies were the
 | `g1.arm-sample` | ci | pass | 1,089,342 cases, 0 disagree; coverage classes recorded |
 | `g1.encoder-agrees` | ci | pass | 722,336 texts |
 | `g1.context-corpus` | ci | pass | 221,898 forms, 156 extremes |
-| `g1.doctor` | ci | **pending** | `runDoctor` not exported yet (lands with `p1-doctor`) |
-| `g1.provenance` | ci | pass | source digest `627c26ae…7684818` (Node 24); 2 real gates of phase ≤ 1 pass; families scaffold, printer; 5 rows; no sealed rows |
+| `g1.doctor` | ci | pass | binutils 2.45.1 ok; corpus 259,462 cases, 0 disagree; thumb-jump11 `0xE3FF` as expected; agbcc and old_agbcc reported `missing` (not on the PATH nor under `tools/agbcc`), which the gate allows |
+| `g1.provenance` | ci | pass | source digest `5020f30b…7cce02c` (Node 24); 2 real gates of phase ≤ 1 pass; families scaffold, printer; 5 rows; no sealed rows |
 | `g1.checks-fail` | ci | pass | 4 mutation files, 32 tests |
 | `g1.bench-harness` | real | pass | 5 ROMs: rows equal the baseline, PoC rows equal, scaffold SHA-1 OK, deterministic, PoC pinned |
 | `g1.dataset-elf` | real | pass | 5 datasets agree with their ELFs |
 
-Every `g2.*` and `g3.*` gate reports `pending` (their exports arrive in phases 2 and 3); they do not
-count toward `--require 1`. The real-tier exit is 0; the ci-tier exit is 1 on `g1.doctor` alone.
+Every `g2.*`–`g6.*` gate reports `pending` (their exports arrive in phases 2 to 6) or skips by tier;
+they do not count toward `--require 1`. The real tier wrote 33 gate records into `results.json`.
+Both tiers exit 0.
 
 ## Open items
 
-- **`g1.doctor`** is verified at the gate run after `p1-doctor` merges. That merge adds files under
-  `src/`, which moves the source digest, so the integrator then re-runs `bench run`,
-  `bench gates --require 1 --tier real` and `--tier ci`, and commits the refreshed `results.json`.
+- **Wave 3 re-run.** Merging `p1-doctor` added files under `src/` and moved the source digest
+  (`627c26ae…` to `5020f30b…`), so `g1.provenance` failed until the real tier was re-run. On the
+  merged tree the integrator re-ran `npm run corpus`, `bench doctor-real`, `export-poc --mode scored`,
+  `test:local`, `bench run`, `poc-check`, `dataset-check`, then `gates --require 1 --tier real` and
+  `--tier ci`, `provenance` and `stale-check`, all exit 0, with the same five rows as above, and
+  committed the refreshed `results.json`.
 - **`printer.yml`** must run on apt and Homebrew binutils in CI once the phase branch is pushed; it
   cannot run locally, so the "two binutils versions" threshold is not yet measured (only Homebrew's
   Arm GNU Toolchain 2.45.1 here).
