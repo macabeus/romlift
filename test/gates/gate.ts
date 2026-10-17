@@ -3,7 +3,8 @@
 //
 //   historical   a PoC-parity gate once phase.json.landed >= historicalAfter
 //   pending      a name in `needs` is exported by none of romlift, romlift/node, romlift/isa, romlift/internal
-//   unavailable  a declared local input is missing or its digest differs from the recorded one
+//   unavailable  a declared local input (`inputs`, plus `realInputs` on the real tier) is missing or its
+//                digest differs from the recorded one
 //   pass / fail  otherwise, whether `run` returned or threw
 //
 // Each recorded verdict is appended as one NDJSON line to $ROMLIFT_GATE_REPORT; `bench gates` parses
@@ -11,10 +12,11 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, realpath, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test, type TestContext } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
 export type GateTier = 'ci' | 'real';
@@ -30,6 +32,11 @@ export interface GateSpec {
   /** Public exports the gate calls; any one missing makes the gate `pending`. */
   readonly needs: readonly string[];
   readonly inputs?: readonly GateInput[];
+  /**
+   * Inputs checked only when the selected tier is `real`: a `both` gate runs on the committed fixtures
+   * in the ci tier and adds the local ROMs in the real tier, so its ci verdict must not need them.
+   */
+  readonly realInputs?: readonly GateInput[];
   /** PoC-parity gates: frozen as `historical` once this phase has landed. */
   readonly historicalAfter?: 2;
   /** Throws on failure. */
@@ -48,6 +55,18 @@ export interface DatasetRef {
   readonly family?: string;
   readonly heldout: boolean;
   readonly revealed: readonly unknown[];
+}
+
+/**
+ * A committed synthetic fixture: `bench/dataset/synthetic/<name>/` holding `build/<name>.gba` (§8.1). Every
+ * path is absolute; `elf` and `expect` are where §8.1 puts them, and a gate that reads them checks they exist.
+ */
+export interface FixtureRef {
+  readonly name: string;
+  readonly dir: string;
+  readonly rom: string;
+  readonly elf: string;
+  readonly expect: string;
 }
 
 export interface ExecResult {
@@ -77,6 +96,8 @@ export interface GateContext {
   readonly datasets: readonly DatasetRef[];
   /** Sealed held-out datasets: `heldout` true and `revealed` empty. */
   readonly sealed: readonly DatasetRef[];
+  /** The committed synthetic fixtures, by name. */
+  readonly fixtures: readonly FixtureRef[];
   /** The export `name` of the first entry point that has it. */
   need<T>(name: string): T;
   /** Runs a process with stdin closed; never throws for a nonzero exit (127 when it cannot start, 124 on timeout). */
@@ -85,6 +106,8 @@ export interface GateContext {
   npm(script: string, args?: readonly string[], options?: NpmOptions): Promise<ExecResult>;
   /** Parses the last non-empty line of a command's output as JSON. */
   lastJson<T>(stdout: string): T;
+  /** Parses every non-empty line of a command's NDJSON output. */
+  jsonLines<T>(stdout: string): readonly T[];
   /** A fresh temporary directory, removed when the gate finishes. */
   tmpDir(prefix: string): Promise<string>;
   note(text: string): void;
@@ -143,6 +166,12 @@ export function resolveRoots(
   const poc = env['ROMLIFT_POC'];
   const pocRoot = poc ? path.resolve(repoRoot, poc) : path.join(benchRoot, 'romlift-poc');
   return { benchRoot, pocRoot };
+}
+
+/** The inputs checked on `tier`: `inputs`, then `realInputs` on the real tier, each once, in that order. */
+export function inputsFor(spec: Pick<GateSpec, 'inputs' | 'realInputs'>, tier: GateTier): readonly GateInput[] {
+  const all = [...(spec.inputs ?? []), ...(tier === 'real' ? (spec.realInputs ?? []) : [])];
+  return all.filter((input, index) => all.indexOf(input) === index);
 }
 
 /** The names of `needs` that no entry point exports, in `needs` order. */
@@ -248,6 +277,22 @@ export function lastJson<T>(stdout: string): T {
   return JSON.parse(last) as T;
 }
 
+/** Parses every non-empty line of `stdout` as JSON; a bad line is named by its 1-based number. */
+export function jsonLines<T>(stdout: string): readonly T[] {
+  const out: T[] = [];
+  const lines = stdout.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    if (line.trim() === '') continue;
+    try {
+      out.push(JSON.parse(line) as T);
+    } catch (error) {
+      throw new Error(`line ${i + 1} is not JSON (${error instanceof Error ? error.message : String(error)}): ${line.slice(0, 200)}`);
+    }
+  }
+  return out;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -318,6 +363,21 @@ export interface InputEnv {
   readonly pocRoot: string;
   readonly tuning: readonly DatasetRef[];
   readonly sealed: readonly DatasetRef[];
+}
+
+/** The committed fixtures under `<repoRoot>/bench/dataset/synthetic`, sorted by name. */
+export async function listFixtures(repoRoot: string, io: GateIo): Promise<readonly FixtureRef[]> {
+  const root = path.join(repoRoot, 'bench', 'dataset', 'synthetic');
+  if (!(await io.isDirectory(root))) return [];
+  const out: FixtureRef[] = [];
+  for (const file of await io.listFiles(root)) {
+    const parts = file.split('/');
+    const name = parts[0] ?? '';
+    if (parts.length !== 3 || parts[1] !== 'build' || parts[2] !== `${name}.gba`) continue;
+    const dir = path.join(root, name);
+    out.push({ name, dir, rom: path.join(dir, 'build', `${name}.gba`), elf: path.join(dir, 'build', `${name}.elf`), expect: path.join(dir, 'expect.json') });
+  }
+  return out.sort((a, b) => byCodeUnit(a.name, b.name));
 }
 
 export const TOOLCHAIN_TOOLS: readonly string[] = ['arm-none-eabi-as', 'arm-none-eabi-ld', 'arm-none-eabi-objcopy'];
@@ -450,6 +510,9 @@ export function exec(command: string, args: readonly string[], options: ExecOpti
     const env: Record<string, string | undefined> = { ...process.env, ...options.env };
     // A gate that runs `bench gates` must not append its nested records to the parent's report.
     if (options.env?.['ROMLIFT_GATE_REPORT'] === undefined) delete env['ROMLIFT_GATE_REPORT'];
+    // node:test marks its child processes with NODE_TEST_CONTEXT; a nested `node --test` that inherits it
+    // runs as a subtest stream, prints nothing and exits 0, so a gate that runs tests would pass vacuously.
+    if (options.env?.['NODE_TEST_CONTEXT'] === undefined) delete env['NODE_TEST_CONTEXT'];
     const child = spawn(command, [...args], { cwd: options.cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
@@ -480,6 +543,68 @@ export function exec(command: string, args: readonly string[], options: ExecOpti
       else finish(code ?? 128, signal ? `killed by ${signal}\n` : '');
     });
   });
+}
+
+export interface LockOptions {
+  /** The directory holding the lock directories; default `<tmpdir>/romlift-gate-locks`. */
+  readonly dir?: string;
+  readonly pollMs?: number;
+}
+
+function errorCode(error: unknown): string | undefined {
+  return isRecord(error) && typeof error['code'] === 'string' ? error['code'] : undefined;
+}
+
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return errorCode(error) === 'EPERM';
+  }
+}
+
+/** A lock whose owner process is gone, or one that never got an owner within ten seconds. */
+async function lockIsStale(lock: string): Promise<boolean> {
+  let owner: string;
+  try {
+    owner = await readFile(path.join(lock, 'owner'), 'utf8');
+  } catch {
+    try {
+      return Date.now() - (await stat(lock)).mtimeMs > 10_000;
+    } catch {
+      return false;
+    }
+  }
+  const pid = Number.parseInt(owner, 10);
+  return !(Number.isInteger(pid) && pid > 0 && processAlive(pid));
+}
+
+/**
+ * Runs `fn` while holding a lock shared by every process of this checkout, so gates that node:test runs
+ * in parallel processes do not rebuild one shared input (the corpus) at the same time. The lock is a
+ * directory created atomically; one whose owner process has exited is taken over.
+ */
+export async function withLock<T>(name: string, fn: () => Promise<T>, options: LockOptions = {}): Promise<T> {
+  const root = options.dir ?? path.join(tmpdir(), 'romlift-gate-locks');
+  await mkdir(root, { recursive: true });
+  const lock = path.join(root, createHash('sha256').update(`${REPO_ROOT}\0${name}`).digest('hex').slice(0, 24));
+  for (;;) {
+    try {
+      await mkdir(lock);
+      break;
+    } catch (error) {
+      if (errorCode(error) !== 'EEXIST') throw error;
+    }
+    if (await lockIsStale(lock)) await rm(lock, { recursive: true, force: true });
+    else await delay(options.pollMs ?? 200);
+  }
+  try {
+    await writeFile(path.join(lock, 'owner'), `${process.pid}\n`);
+    return await fn();
+  } finally {
+    await rm(lock, { recursive: true, force: true });
+  }
 }
 
 const digestCache = new Map<string, Promise<string>>();
@@ -560,6 +685,7 @@ interface Environment {
   readonly landed: number;
   readonly tuning: readonly DatasetRef[];
   readonly sealed: readonly DatasetRef[];
+  readonly fixtures: readonly FixtureRef[];
 }
 
 interface Exports {
@@ -590,7 +716,8 @@ async function loadEnvironment(): Promise<Environment> {
     all.push(parseDataset(JSON.parse(await readFile(path.join(REPO_ROOT, file), 'utf8')), file));
   }
   const { tuning, sealed } = splitDatasets(all);
-  return { repoRoot: REPO_ROOT, benchRoot, pocRoot, landed, tuning, sealed };
+  const fixtures = await listFixtures(REPO_ROOT, nodeIo);
+  return { repoRoot: REPO_ROOT, benchRoot, pocRoot, landed, tuning, sealed, fixtures };
 }
 
 async function importEntry(name: EntryPoint): Promise<Record<string, unknown>> {
@@ -669,13 +796,14 @@ export function gate(spec: GateSpec): void {
         exported = { names: new Set(), values: new Map() };
       }
       if (precondition === undefined) {
+        const declared = inputsFor(spec, selected);
         const checks: Partial<Record<GateInput, InputCheck>> = {};
-        for (const input of spec.inputs ?? []) {
+        for (const input of declared) {
           const check = await checkOnce(input, env);
           checks[input] = check;
           if (check.digest !== undefined) inputs[input] = check.digest;
         }
-        precondition = decideInputs(spec, checks);
+        precondition = decideInputs({ ...spec, inputs: declared }, checks);
       }
     } catch (error) {
       record('fail', message(error), []);
@@ -698,6 +826,7 @@ export function gate(spec: GateSpec): void {
       landed: env.landed,
       datasets: env.tuning,
       sealed: env.sealed,
+      fixtures: env.fixtures,
       need<T>(name: string): T {
         if (!exported.values.has(name)) throw new Error(`'${name}' is not exported by any entry point`);
         return exported.values.get(name) as T;
@@ -710,6 +839,7 @@ export function gate(spec: GateSpec): void {
         return exec('npm', ['run', '--silent', script, '--', ...args], execOptions);
       },
       lastJson,
+      jsonLines,
       async tmpDir(prefix) {
         const dir = await mkdtemp(path.join(tmpdir(), prefix));
         temporary.push(dir);
