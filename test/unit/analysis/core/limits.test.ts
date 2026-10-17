@@ -18,5 +18,5 @@ test('each limit raises a warning, never an error', () => {
   assert.match(s.message, /0x08000100.*600 rounds/);
   assert.equal(fixpointLimit('grow', 10).code, 'W_FIXPOINT_LIMIT');
   assert.equal(candidateBudget(3, 9, 8).code, 'W_CANDIDATE_BUDGET');
-  for (const spec of Object.values(AnalysisCodes)) assert.equal(spec.severity, 'warning');
+  for (const code of ['W_SETTLE_LIMIT', 'W_FIXPOINT_LIMIT', 'W_CANDIDATE_BUDGET'] as const) assert.equal(AnalysisCodes[code].severity, 'warning');
 });

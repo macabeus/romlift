@@ -19,7 +19,7 @@ reconciliation, emission, verification, the write plan, the scaffold and the wor
 | `provenance/` | rule ids and metadata (`rule-id.ts`), provenance and rejections (`provenance.ts`), the trail (`trail.ts`), the miss-reason and origin vocabularies (`vocabulary.ts`) |
 | `profile/` | the compiler profile type (`types.ts`), agbcc's numbers, idioms and slot orders (`agbcc.ts`), the registry (`registry.ts`) |
 | `analysis/types.ts` | the analysis result and options, the internal `Reading`, the view, one contract per rule kind with the per-rule assignments (D56) |
-| `analysis/{address-map,pointers,limits,codes,reading,oracle}.ts` | load/run addresses, the pointer index, safety bounds, diagnostic codes, the reading builder, the lockstep oracle protocol |
+| `analysis/{address-map,pointers,limits,codes,reading,oracle,codec}.ts` | load/run addresses, the pointer index, safety bounds, diagnostic codes, the reading builder, the lockstep oracle protocol, the `romlift/analysis@1` codec of the result |
 | `analysis/walk/` | the Thumb and ARM walks (`thumb.ts`, `arm.ts`) and the cursor with the reading queries rules share (`cursor.ts`) |
 | `analysis/driver/` | the PoC's control flow (D48): `run`, `grow`, `fill-gaps`, `accept`, `settle`, `validity`, `epoch`, `worklist`, `confirm`, `view`, `diagnose`, and `rules.ts`, the only importer of `rules/index.ts` |
 | `analysis/rules/` | `define-rule.ts`, `index.ts` and one directory per family, one file per rule (§4.1) |

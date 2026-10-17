@@ -23,6 +23,10 @@ export const AnalysisCodes = defineCodes({
     severity: 'warning',
     meaning: 'discovery accepted a function the project does not list; it is reported and claims nothing',
   },
+  E_ANALYSIS_JSON: {
+    severity: 'error',
+    meaning: 'a romlift/analysis@1 document is not JSON or does not match the schema',
+  },
 });
 
 export type AnalysisCode = keyof typeof AnalysisCodes;
