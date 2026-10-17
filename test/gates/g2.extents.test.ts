@@ -10,8 +10,10 @@
 //       sized       found functions whose ELF symbol has a size
 //       agree       of those, the ones whose extent equals the ELF size (4-byte padding allowance)
 //       mismatches: [{addr, elf, found}]
-//       lost:       [{addr, elf, found}]   agreeing in bench/baseline/poc-2026-10-16.json, not agreeing now
+//       lost:       [{addr, elf, found}]   agreeing in the PoC reference (bench/baseline/poc-2026-10-16.json, or
+//                                          the pinned PoC's own run of a ROM revealed after it, D60), not now
 //     }
+//     poc: {tp, source}   source 'none' (no PoC reference) fails: no vacuous `lost`
 import { gate, type ExecResult } from './gate.ts';
 
 interface ExtentRow {
@@ -22,6 +24,7 @@ interface ExtentRow {
 
 interface BenchRunRom {
   readonly name: string;
+  readonly poc?: { readonly tp: number; readonly source?: 'baseline' | 'dump' | 'none' };
   readonly extents: { readonly sized: number; readonly agree: number; readonly mismatches: readonly ExtentRow[]; readonly lost: readonly ExtentRow[] };
 }
 
@@ -55,11 +58,12 @@ gate({
         problems.push(`${dataset.name}: not scored`);
         continue;
       }
+      if (rom.poc?.source === 'none') problems.push(`${rom.name}: no PoC reference (no baseline row and no PoC dump), so no lost extent can be judged: run npm run export-poc -- --mode scored`);
       const { sized, agree, lost } = rom.extents;
       const share = sized === 0 ? 0 : agree / sized;
       if (share < MIN_SHARE) problems.push(`${rom.name}: ${agree}/${sized} sized extents agree (${(share * 100).toFixed(3)}%) < 99.9%`);
       if (lost.length > 0) problems.push(`${rom.name}: ${lost.length} extents stopped agreeing: ${lost.slice(0, 8).map((e) => `${e.addr} elf ${e.elf} found ${e.found}`).join(', ')}`);
-      notes.push(`${rom.name} ${agree}/${sized} (${(share * 100).toFixed(3)}%)`);
+      notes.push(`${rom.name} ${agree}/${sized} (${(share * 100).toFixed(3)}%${rom.poc?.source === 'dump' ? ", lost against the PoC's own run" : ''})`);
     }
     if (problems.length > 0) throw new Error(`extents: ${problems.join('; ')}`);
     cx.note(`agreeing extents: ${notes.join(', ')}`);

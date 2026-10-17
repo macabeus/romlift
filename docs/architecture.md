@@ -1607,7 +1607,6 @@ interface Dataset {
   revealed: { at: string; commit: string; reason: string }[];   // append-only; non-empty ⇒ tuning
   labels: { addr: string; name: string; category: ExceptionCategory; note: string }[];   // empty while sealed
   untyped: { addr: string; category: ExceptionCategory; note: string }[];               // empty while sealed
-  codeEnd?: { addr: string; category: 'unsized-last-function'; note: string };          // D60 j: the ELF's code end when its last FUNC is unsized
 }
 ```
 
@@ -1661,8 +1660,8 @@ message states the reason, as the working rule requires.
 | Printer | 100% round-trip; raw share never rises; both alignments and every offset extreme agree | 1 |
 | Entries (tuning) | dataset-against-ELF check passes; every miss in `labels`, every false entry in `untyped`; raw precision ≥ 99.7% on every ROM; raw true-positive count never drops; lists only shrink; zero `unreviewed` | 2 |
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
-| Code end | within 16 bytes of the ELF | 2 |
-| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (the family conditions waived by the owner while no sealed ROM of such a family remains, D60) | 2 |
+| Code end | within 16 bytes of the ELF's code end, one convention for every ROM, tuning and sealed (`bench/src/truth.ts` `elfCodeEnd`, D60 j): a sized function ends at addr + size (agbcc's `.size`, its pool included), an unsized one at the first data mapping or typed symbol after it; only the rescoring of the PoC's own dumps against its baseline keeps the PoC's addr + size (`pocCodeEnd`) | 2 |
+| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (the family conditions waived by the owner for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else, D60) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on all five tuning ROMs and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and all five tuning ROMs (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |

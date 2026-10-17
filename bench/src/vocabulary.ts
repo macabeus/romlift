@@ -5,8 +5,7 @@
 // (CLASSIFIER_CATEGORIES); the vocabulary test fails on one that is not. Phase 2's milestone M5 (D26)
 // added second-entry, untyped-leaf and split-after-returning-call (which replaces the misnamed
 // continuation-after-noreturn-call), and disassembler-split for the one FE7J row that follows no call.
-// The owner decision of 17 October 2026 (D60) added unreached-tail and unsized-last-function (the
-// category of a dataset's codeEnd row) for tmc's rows, and widened second-entry, untyped-leaf and
+// The owner decision of 17 October 2026 (D60) added unreached-tail for tmc's rows, and widened second-entry, untyped-leaf and
 // split-after-returning-call to the veneers, call stubs and indirect calls tmc's rows show.
 //
 // `unreviewed` is not a category: it is the placeholder `bench adopt` writes for a row nobody has
@@ -24,7 +23,6 @@ export const EXCEPTION_CATEGORIES = {
   'split-after-returning-call': "the truth's own disassembler split right after a call whose callee returns (bl _call_via_rN, a bl to a returning helper, or mov lr, pc; bx rN)",
   'disassembler-split': "the truth's own disassembler split inside straight-line code that no call, branch or pointer reaches",
   'unreached-tail': "code right after a hand-written function's return that nothing reaches, which the ELF folds into that function",
-  'unsized-last-function': "the truth's last function has no ELF size; its code ends at the first data mapping symbol ($d) or typed symbol after it",
 } as const;
 export type ExceptionCategory = keyof typeof EXCEPTION_CATEGORIES;
 

@@ -1655,16 +1655,27 @@ tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeu
   an accepted function, is taken: three independent signs of a function that bytes of data do not show by
   chance.
 - (i) **Categories.** `unreached-tail` (code after a hand-written function's return that nothing reaches,
-  folded into that function by the ELF) and `unsized-last-function` (below) are new; `second-entry`
+  folded into that function by the ELF) is new (`unsized-last-function`, the category of the withdrawn
+  `codeEnd` row, is gone with it); `second-entry`
   (reached by its own bl, a veneer or a code pointer), `untyped-leaf` (directly or through
   `bl _call_via_rN`) and `split-after-returning-call` (a bl to a returning helper, or `mov lr, pc; bx rN`)
   are widened to what tmc's rows show.
-- (j) **A dataset `codeEnd` row** `{addr, category: 'unsized-last-function', note}` gives the ELF's code
-  end when its last function has no size: the scorer uses it instead of the largest addr + size.
-  dataset-check recomputes it from the ELF (the first `$d`, FUNC, OBJECT or SECTION symbol after the last
-  function, which must be unsized) and reports a wrong or unneeded row; `bench regression` asks a
-  `Bench-Exception` trailer for it as for any row. tmc's last FUNC, `sub_080B299C`, has size 0 and runs
-  to the `$d` at 0x080B2A30.
+- (j) **One code-end convention for every ROM, in the scorer** (fix round 1 of D60, replacing the dataset
+  `codeEnd` row of `80762ff`, which only tmc carried while klonoa and fe7j have the same ELF shape):
+  `bench/src/truth.ts` `elfCodeEnd` ends a sized function at addr + size (agbcc's `.size`, its literal pool
+  included) and an unsized one (hand-written asm without `.size`) at the first data mapping (`$d`) or typed
+  (FUNC, OBJECT, SECTION) symbol after it, where the assembler stopped emitting its instructions. The tuning
+  scorer and the sealed scorer both use it. A trailing literal pool of hand-written asm is data its file's
+  functions share (tmc's `_080B2A30`..`_080B2A6C` in `intr.s`), so it is not given to the last of them: the
+  asymmetry with a sized function, whose `.size` covers its own pool, is a known limitation of a convention
+  for symbols that carry no size. Effect: klonoa +4 → 0 (`sub_08051BD0`, SECTION at 0x08051BD4), fe7j +8 →
+  0 (`Checksum32_thm`, `$d` at 0x080C0C50), tmc +148 → 0 (`sub_080B299C`, `$d` at 0x080B2A30); the other
+  rows are unchanged; pokefirered and pokeruby still pass sealed. The rescoring of the PoC's own dumps
+  against its baseline (`bench poc-check`, `g1.bench-harness`) keeps the PoC's convention (`pocCodeEnd`,
+  the largest addr + size), because it checks that the harness reproduces the PoC's scoring; that is the
+  recorded decision the review asked for. The pool-inclusive alternative (an unsized function ends at the
+  next typed symbol, ignoring `$d`) puts tmc's ELF end at 0x080B2A70, 64 bytes past every reading of the
+  shared pool's last user; it is rejected rather than tuned around.
 - (k) **Withdrawn (fix round 1 of D60).** `747293f` made confirm mode take the listed entries after the
   passes, in discover's order, revising D8 without the owner; with the gate's listed set being discover's
   own output, confirm then replayed discover step for step and `g2.confirm-equals-discover` held by
@@ -1677,12 +1688,19 @@ tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeu
   another found extent a boundary of the function around it (34 such entries on tmc, 7 to 9 on each other
   tuning ROM: the startup piece and the m4a mixer's inner entries). Which remedy, if any, is the owner's
   (phase-2.md, "Owner questions").
-- (l) **The PoC's own measurements cover the ROMs it ran on.** `export-poc` and `bench poc-check` iterate
-  the tuning datasets the PoC baseline names (`pocDatasets`); the `scaffold` family, measured only by the
-  PoC's dumps until phase 3, is asked by the provenance check only of those ROMs until then. tmc has no
-  PoC run (the pinned PoC has no tmc dataset): its PoC true-positive floor in `g2.entries` is vacuous,
-  `g2.baseline-rows` has no row to compare, and `g2.poc-parity` has no evidence for it until it becomes
-  historical when phase 2 lands. Every other gate judges tmc as a tuning ROM.
+- (l) **The pinned PoC measures tmc too** (fix round 1 of D60, replacing the exemption of `72e6049`, under
+  which the `scaffold` family was not asked of tmc and its PoC floors were a vacuous 0). The pinned PoC's
+  results never covered tmc, but its code runs on it: `export-poc --mode scored` gives the child romlift's
+  dataset (name, ROM, ELF, SHA-1 and lists) for a ROM the PoC checkout has no file of, never writing into
+  the checkout. Measured at the pinned PoC source: 8,591 functions, tp 8,582, 54 misses, extents 8,388 /
+  8,388, deterministic, and its scaffold rebuilds tmc's SHA-1 (scaffold OK). So the `scaffold` family runs
+  on tmc like on the five; `bench poc-check` checks tmc's dump (romlift's rescoring equals the PoC's own
+  row of it, scaffold, determinism, pinned source; `baselineRow` false, no baseline row to compare); and
+  `bench run` takes that row as tmc's PoC reference (`poc.source` `dump`): `g2.entries`' floor (tp 8,582),
+  `g2.extents`' `lost` and `g2.baseline-rows`' diffs are measured, not vacuous, and a tuning ROM with no
+  reference at all (`poc.source` `none`) fails those gates. The parity and queries modes, and
+  `g2.poc-parity`, still cover the five: their evidence is the M1 lockstep at a commit that predates tmc's
+  reveal, and `g2.poc-parity` fails on tmc at `landed` 1 (phase-2.md, "Owner questions").
 - (m) **`bench/baseline/speed.json` holds tmc**, measured in the baseline's calibration.
 
 **Consequences.** tmc at `d645160` (sealed): 8,589 entries for 8,636 ELF functions, tp 8,582, recall

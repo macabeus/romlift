@@ -67,7 +67,7 @@ export const EXPECTED_ROMLIFT_ROW = {
   ...EXPECTED_ROW,
   extents: { ...EXPECTED_ROW.extents, lost: [] },
   analysisDigest: resultDigest(tinyResult()),
-  poc: { tp: 2 },
+  poc: { tp: 2, source: 'baseline' },
   staleExceptions: [],
   baselineRows: { diffs: [], unaccepted: [], staleAccepted: [] },
   // The synthetic tier commits no poc-digests.json, so nothing is expected.

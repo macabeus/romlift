@@ -7,7 +7,9 @@
 //   committed file. Per tuning ROM in `roms[]` this gate reads
 //     name
 //     baselineRows: {
-//       diffs:         [{kind, addr}]   every row that differs from bench/baseline/poc-2026-10-16.json
+//       diffs:         [{kind, addr}]   every row that differs from the PoC reference: bench/baseline/
+//                                        poc-2026-10-16.json, or for a ROM revealed after it was pinned
+//                                        the pinned PoC's own run of it (poc.source 'dump', D60)
 //       unaccepted:    [{kind, addr}]   the diffs accepted-diffs.json does not list (a regression, or an unlisted change)
 //       staleAccepted: [{kind, addr}]   listed improvements that no longer differ from the baseline
 //     }
@@ -22,6 +24,7 @@ interface RowDiff {
 
 interface BenchRunRom {
   readonly name: string;
+  readonly poc?: { readonly tp: number; readonly source?: 'baseline' | 'dump' | 'none' };
   readonly baselineRows: { readonly diffs: readonly RowDiff[]; readonly unaccepted: readonly RowDiff[]; readonly staleAccepted: readonly RowDiff[] };
 }
 
@@ -57,10 +60,14 @@ gate({
         problems.push(`${dataset.name}: not scored`);
         continue;
       }
+      if (rom.poc?.source === 'none') {
+        problems.push(`${rom.name}: no PoC reference (no baseline row and no PoC dump): run npm run export-poc -- --mode scored`);
+        continue;
+      }
       const { diffs, unaccepted, staleAccepted } = rom.baselineRows;
       if (unaccepted.length > 0) problems.push(`${rom.name}: ${unaccepted.length} rows differ from the PoC baseline without an accepted diff: ${rows(unaccepted)}`);
       if (staleAccepted.length > 0) problems.push(`${rom.name}: ${staleAccepted.length} stale accepted diffs: ${rows(staleAccepted)}`);
-      notes.push(`${rom.name} ${diffs.length} accepted improvements`);
+      notes.push(`${rom.name} ${diffs.length} accepted improvements${rom.poc?.source === 'dump' ? " (against the PoC's own run: no pinned baseline row)" : ''}`);
     }
     if (problems.length > 0) throw new Error(`baseline rows: ${problems.join('; ')}`);
     cx.note(notes.join(', '));

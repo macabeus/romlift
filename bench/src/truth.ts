@@ -11,11 +11,10 @@ export interface Truth {
   readonly functions: readonly TruthFunction[];
   readonly byAddr: ReadonlyMap<number, TruthFunction>;
   /**
-   * The addresses inside the ROM where an unsized function's code can end, ascending: data mapping
-   * symbols (`$d...`) and typed symbols (FUNC, OBJECT, SECTION). Read only by a dataset's `codeEnd` row
-   * (dataset-check); absent in hand-built truths.
+   * The addresses inside the ROM where an unsized function's code ends, ascending: data mapping symbols
+   * (`$d...`) and typed symbols (FUNC, with the Thumb bit cleared, OBJECT, SECTION). elfCodeEnd reads it.
    */
-  readonly ends?: readonly number[];
+  readonly ends: readonly number[];
 }
 
 /** Whether a symbol marks where the code before it ends: a data mapping symbol or a typed symbol. */
@@ -31,19 +30,34 @@ export function elfTruth(elf: ElfFile, romSize: number): Truth {
   return { functions, byAddr: new Map(functions.map((f) => [f.addr, f] as const)), ends };
 }
 
-/** The end of the ELF's code: the largest addr + size of its functions. */
-export function elfCodeEnd(truth: Pick<Truth, 'functions'>): number {
-  return truth.functions.reduce((e, t) => Math.max(e, t.addr + t.size), 0);
+/** The first address of `ends` (ascending) above `addr`, or undefined. */
+function nextEnd(ends: readonly number[], addr: number): number | undefined {
+  let lo = 0;
+  let hi = ends.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((ends[mid] ?? 0) <= addr) lo = mid + 1;
+    else hi = mid;
+  }
+  return ends[lo];
 }
 
 /**
- * Where the code of the ELF's last function ends when the ELF gives it no size (D60 j): the first
- * code-ending symbol (Truth.ends) past it. Undefined when the last function is sized, or no such symbol
- * follows it.
+ * The end of the ELF's code, one convention for every ROM, tuning and sealed (D60 j): the largest end
+ * of its functions, where a sized function ends at addr + size (agbcc's .size, its literal pool
+ * included) and an unsized one (hand-written asm without .size, size 0) at the first data mapping or
+ * typed symbol after it, where the assembler stopped emitting its instructions. A trailing pool of
+ * hand-written asm is data the file's functions share, so it is not given to the last of them.
  */
-export function unsizedCodeEnd(truth: Truth): number | undefined {
-  const end = elfCodeEnd(truth);
-  const last = truth.byAddr.get(end);
-  if (last === undefined || last.size !== 0 || truth.functions.some((t) => t.addr + t.size > end)) return undefined;
-  return truth.ends?.find((a) => a > end);
+export function elfCodeEnd(truth: Pick<Truth, 'functions' | 'ends'>): number {
+  return truth.functions.reduce((e, t) => Math.max(e, t.size > 0 ? t.addr + t.size : (nextEnd(truth.ends, t.addr) ?? t.addr)), 0);
+}
+
+/**
+ * The PoC's code end (the largest addr + size, an unsized function ending where it starts): only for
+ * rescoring the PoC's own dumps against its baseline (poc-check, g1.bench-harness), which must reproduce
+ * the PoC's scoring.
+ */
+export function pocCodeEnd(truth: Pick<Truth, 'functions'>): number {
+  return truth.functions.reduce((e, t) => Math.max(e, t.addr + t.size), 0);
 }

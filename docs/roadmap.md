@@ -353,9 +353,10 @@ ROMs, at least two pass (raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `g
 extents ≥ 99.9%, code end ≤ 16 bytes), from two families, one of them absent from the tuning set
 (architecture §8.4, D53); all seventeen
 `g2.*` gates `pass` or `historical`. Since the owner's decision of 17 October 2026 (D60) the tuning set is
-six ROMs (tmc revealed), the PoC thresholds (true positives at least the PoC's, rows equal the PoC
-baseline, parity) apply to the five the PoC ran on, and the held-out family conditions are waived while no
-sealed ROM of a family absent from the tuning set remains (printed by `g2.held-out`).
+six ROMs (tmc revealed); every threshold above applies to all six. tmc has no row in the pinned PoC baseline,
+so its PoC reference is the pinned PoC's own run of it (`export-poc --mode scored`; `poc.source` `dump`).
+The held-out family conditions are waived for the sealed pokefirered and pokeruby and the tuning families
+of D60 only (printed by `g2.held-out`).
 
 ---
 

@@ -44,6 +44,7 @@ const INPUT: SealedInput = {
   startupEnd: 0x08000100,
   isPrologue: (addr) => addr === 0x08000200,
   codeEnd: 0x08000290,
+  elfCodeEnd: 0x08000300,
 };
 
 test('sealedCounts counts from the end of the startup region and classifies every miss and false entry', () => {
@@ -79,7 +80,7 @@ test('the glued misses split by where they lie: inside a found extent, in no ext
 
 test('a glued miss inside a false entry\'s extent is not a glued split: only extents of found functions with an ELF entry count, as for labels', () => {
   // 0x08000508 lies inside the false entry 0x08000500..0x08000510, below the code end.
-  const counts = sealedCounts({ ...INPUT, truth: [...INPUT.truth, t(0x08000508, 4)], codeEnd: 0x08000600 });
+  const counts = sealedCounts({ ...INPUT, truth: [...INPUT.truth, t(0x08000508, 4)], codeEnd: 0x08000600, elfCodeEnd: 0x0800050C });
   assert.equal(counts.glued, 2);
   assert.deepEqual(counts.gluedWhere, { insideExtent: 1, outsideExtents: 1, pastCodeEnd: 0 });
 });

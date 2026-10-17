@@ -10,7 +10,7 @@ All paths below are relative to `/Users/macabeus/ApenasMeu/decompiler` (the benc
 
 ## Tuning set: the five ROMs the proof of concept was tuned on, and tmc
 
-The rules of the proof of concept (`/Users/macabeus/ApenasMeu/decompiler/romlift-poc`) were fixed against these five pairs, so their scores are not held-out scores. Since the owner's decision of 17 October 2026 (decision D60: "Tune on tmc, no new ROM") `tmc` is tuning data too: it was revealed (`npm run bench -- run --reveal tmc`, commit `306eaf2`, recorded in its dataset's `revealed` log) and romlift's rules were tuned on it. The PoC never ran on `tmc`, so it has no PoC dump, baseline row or parity digest; the PoC commands (`export-poc`, `bench poc-check`) cover the five.
+The rules of the proof of concept (`/Users/macabeus/ApenasMeu/decompiler/romlift-poc`) were fixed against these five pairs, so their scores are not held-out scores. Since the owner's decision of 17 October 2026 (decision D60: "Tune on tmc, no new ROM") `tmc` is tuning data too: it was revealed (`npm run bench -- run --reveal tmc`, commit `306eaf2`, recorded in its dataset's `revealed` log) and romlift's rules were tuned on it. The PoC's pinned results never covered `tmc`, so it has no baseline row or parity digest; `export-poc --mode scored` runs the pinned PoC on it (from romlift's dataset, without writing into the PoC checkout), and that run's own row is its PoC reference and its scaffold verdict (D60 l). The parity and queries modes cover the five.
 
 | Dataset name | Game | ROM | ELF | Map | Checkout (upstream) | ELF commit | ROM SHA-1 | ELF functions |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ The rules of the proof of concept (`/Users/macabeus/ApenasMeu/decompiler/romlift
 | `pokeemerald` | Pokémon Emerald | `pokeemerald/pokeemerald.gba` | `pokeemerald/pokeemerald.elf` | `pokeemerald/pokeemerald.map` | pret/pokeemerald | `731ad5bfd` | `f3ae088181bf583e55daf962a92bb46f4f1d07b7` | 15,856 |
 | `tmc` (revealed, D60) | The Legend of Zelda: The Minish Cap | `tmc/tmc.gba` | `tmc/tmc.elf` | `tmc/build/USA/tmc.map` | zeldaret/tmc | `6fb6dfb` | `b4bd50e4131b027c334547b4524e2dbbd4227130` | 8,636 |
 
-ROM and ELF paths, SHA-1s and ELF commits of the five are those recorded in the PoC's `bench/dataset/real/*.json` and `bench/results.json` (generated 2026-10-16). ELF function counts are the PoC's scored truth after its startup-region rule (tmc's: romlift's scorer, same rule). tmc's ELF gives its last function, `sub_080B299C`, no size; its dataset carries a `codeEnd` row (the `$d` at 0x080B2A30) that dataset-check recomputes from the ELF (D60 j).
+ROM and ELF paths, SHA-1s and ELF commits of the five are those recorded in the PoC's `bench/dataset/real/*.json` and `bench/results.json` (generated 2026-10-16). ELF function counts are the PoC's scored truth after its startup-region rule (tmc's: romlift's scorer, same rule). tmc's, klonoa's and fe7j's ELFs give their last function no size; the scorer ends an unsized function at the first data mapping or typed symbol after it, for every ROM (D60 j).
 
 ## Held-out set: two unseen ROMs (three until tmc's reveal)
 

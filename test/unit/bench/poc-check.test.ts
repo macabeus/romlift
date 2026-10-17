@@ -13,7 +13,7 @@ const PINNED = DUMP.pocSourceDigest;
 
 test('a rescored row equal to the baseline passes every check', () => {
   const r = checkPocRom('tiny', ROW, DUMP, BASELINE, PINNED);
-  assert.deepEqual(r, { name: 'tiny', rowsEqual: true, pocRowEqual: true, diffs: [], scaffoldOk: true, deterministic: true, pocSourceDigestOk: true });
+  assert.deepEqual(r, { name: 'tiny', rowsEqual: true, pocRowEqual: true, baselineRow: true, diffs: [], scaffoldOk: true, deterministic: true, pocSourceDigestOk: true });
   assert.ok(romPasses(r));
 });
 
@@ -45,6 +45,19 @@ test('a PoC row that differs, a failed scaffold, two digests and another PoC sou
   const none = checkPocRom('tiny', ROW, DUMP, undefined, PINNED);
   assert.deepEqual(none.diffs, ['no baseline row for tiny']);
   assert.ok(!romPasses(none));
+});
+
+test('a revealed ROM without a baseline row is compared with the PoC\'s own row (D60), and fails when they differ', () => {
+  // The dump's own PoC row of the ROM stands in for the baseline row it has none of.
+  const dump = { ...DUMP, pocRow: { ...BASELINE } };
+  const r = checkPocRom('tiny', ROW, dump, undefined, PINNED, true);
+  assert.deepEqual(r, { name: 'tiny', rowsEqual: true, pocRowEqual: false, baselineRow: false, diffs: [], scaffoldOk: true, deterministic: true, pocSourceDigestOk: true });
+  assert.ok(romPasses(r));
+  const differs = checkPocRom('tiny', { ...ROW, tp: 9 }, dump, undefined, PINNED, true);
+  assert.equal(differs.rowsEqual, false);
+  assert.match(differs.diffs[0] ?? '', /^row \(against the PoC's own row\) tp:/);
+  assert.ok(!romPasses(differs));
+  assert.ok(!romPasses(checkPocRom('tiny', ROW, { ...dump, scaffold: { ok: false, summary: '' } }, undefined, PINNED, true)), 'its scaffold still decides');
 });
 
 test('stripSeconds drops every seconds key at any depth, so two dumps of one run are byte-equal', () => {

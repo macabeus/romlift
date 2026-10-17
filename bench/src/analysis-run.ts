@@ -27,7 +27,7 @@ import type { BenchContext } from './context.ts';
 import type { Dataset } from './dataset.ts';
 import { BenchError, exists, readFileBytes } from './files.ts';
 import type { SealedInput } from './seal.ts';
-import { elfTruth, type Truth } from './truth.ts';
+import { elfCodeEnd, elfTruth, type Truth } from './truth.ts';
 
 /** The ROM and ELF of one dataset, both checked against its recorded digests. */
 export interface RealInputs {
@@ -185,5 +185,6 @@ export function sealedInput(name: string, inputs: Pick<RealInputs, 'rom' | 'trut
     startupEnd: result.startup.span.end,
     isPrologue: (addr) => profile.idioms.isPrologue(inputs.rom, addr, thumb.get(addr) === false ? 'arm' : 'thumb'),
     codeEnd: result.codeEnd,
+    elfCodeEnd: elfCodeEnd(inputs.truth),
   };
 }

@@ -44,6 +44,8 @@ export interface SealedInput extends ClassifyInput {
   readonly name: string;
   /** The code end the run reported. */
   readonly codeEnd: number;
+  /** The ELF's code end (truth.ts elfCodeEnd, the convention every ROM is scored with, D60 j). */
+  readonly elfCodeEnd: number;
 }
 
 /** The counts of one sealed run, scored as score.ts scores a tuning run. */
@@ -97,8 +99,6 @@ export function sealedCounts(input: SealedInput): SealedCounts {
     else gluedWhere.outsideExtents++;
   }
 
-  let elfEnd = 0;
-  for (const [addr, size] of elfSize) elfEnd = Math.max(elfEnd, addr + size);
   return {
     name: input.name,
     entries,
@@ -109,7 +109,7 @@ export function sealedCounts(input: SealedInput): SealedCounts {
     labelCandidates,
     falseEntries,
     extents: { sized, agree },
-    codeEnd: { delta: input.codeEnd - elfEnd },
+    codeEnd: { delta: input.codeEnd - input.elfCodeEnd },
   };
 }
 

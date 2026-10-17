@@ -137,7 +137,7 @@ test('bench run --json: an improvement is unaccepted until accepted-diffs.json l
     assert.equal(first.code, 0);
     assert.deepEqual(first.rom?.baselineRows, { diffs: [{ kind: 'miss-removed', addr: '0x0800000E' }], unaccepted: [{ kind: 'miss-removed', addr: '0x0800000E' }], staleAccepted: [] });
     assert.equal(first.rom?.tp, 3);
-    assert.deepEqual(first.rom?.poc, { tp: 2 });
+    assert.deepEqual(first.rom?.poc, { tp: 2, source: 'baseline' });
     const accepted = { schema: 'romlift-bench/accepted-diffs@1', improvements: [{ rom: 'tiny', kind: 'miss-removed', addr: '0x0800000E', commit: 'abc1234', reason: 'the gap rule now takes it' }] };
     await writeFile(join(cx.repoRoot, 'bench', 'baseline', 'accepted-diffs.json'), JSON.stringify(accepted));
     assert.deepEqual((await runJson(cx, tinyDeps(improved))).rom?.baselineRows.unaccepted, []);
@@ -150,4 +150,17 @@ test('bench run --json: an improvement is unaccepted until accepted-diffs.json l
     await writeFile(join(cx.repoRoot, 'bench', 'baseline', 'accepted-diffs.json'), JSON.stringify({ ...accepted, improvements: [{ ...accepted.improvements[0], kind: 'miss-added' }] }));
     assert.equal((await runJson(cx, tinyDeps())).code, 1);
   });
+});
+
+test('pocReference: the baseline row; for a revealed ROM without one, the PoC dump\'s own row (D60); else none', async () => {
+  const { pocReference } = await import('../../../bench/src/run.ts');
+  const { dataset } = await import('./fixtures.ts');
+  const row = { name: 'tiny', tp: 2 };
+  const tc = { baseline: { meta: {}, roms: [row] }, accepted: { schema: 'romlift-bench/accepted-diffs@1', improvements: [] }, pinnedPocDigest: '' } as const;
+  const dumpRow = { name: 'tmc', tp: 7 };
+  assert.deepEqual(pocReference(tc, dataset(), dumpRow), { record: row, source: 'baseline' });
+  const revealed = dataset({ name: 'tmc', heldout: true, revealed: [{ at: 'now', commit: 'c', reason: 'r' }] });
+  assert.deepEqual(pocReference(tc, revealed, dumpRow), { record: dumpRow, source: 'dump' });
+  assert.equal(pocReference(tc, revealed, undefined), undefined, 'no dump: no reference, never a vacuous 0');
+  assert.equal(pocReference(tc, dataset({ name: 'other' }), dumpRow), undefined, 'a tuning ROM never revealed has the baseline or nothing');
 });

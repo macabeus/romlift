@@ -65,13 +65,6 @@ test('a dataset row added without a Bench-Exception trailer fails; with one it p
   assert.deepEqual(failures(BASE_ROW, { datasets: [grown], baseDatasets: undefined }), []);
 });
 
-test('a codeEnd row (D60 j) added without a Bench-Exception trailer fails; with one it passes', () => {
-  const grown: Dataset = dataset({ codeEnd: { addr: '0x08000230', category: 'unsized-last-function', note: 'n' } });
-  assert.deepEqual(failures(BASE_ROW, { datasets: [grown] }), ["tiny: codeEnd row 0x08000230 was added without a 'Bench-Exception: tiny 0x08000230 <reason>' trailer"]);
-  assert.deepEqual(failures(BASE_ROW, { datasets: [grown], trailers: [{ rom: 'tiny', addr: '0x08000230', reason: 'unsized last function' }] }), []);
-  assert.deepEqual(failures(BASE_ROW, { datasets: [grown], baseDatasets: new Map([['tiny', grown]]) }), [], 'already in the base');
-});
-
 test('trailers are parsed from commit messages', () => {
   const messages = ['Add a row\n\nBench-Exception: sa2 0x080945EC inside umul3232H32, a mixer helper\nCo-Authored-By: x', 'Bench-Exception: bad 0x8000 short', 'no trailer'];
   assert.deepEqual(parseTrailers(messages), [{ rom: 'sa2', addr: '0x080945EC', reason: 'inside umul3232H32, a mixer helper' }]);

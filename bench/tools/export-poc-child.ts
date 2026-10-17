@@ -76,6 +76,9 @@ interface PocDataset {
   readonly name: string;
   readonly rom: string;
   readonly elf: string;
+  readonly sha1?: string;
+  readonly labels?: readonly unknown[];
+  readonly untyped?: readonly unknown[];
 }
 
 interface AnalysisModule {
@@ -108,10 +111,20 @@ async function load(pocRoot: string, file: string): Promise<unknown> {
   return module;
 }
 
+/**
+ * The PoC's own dataset of that name; else the tuning dataset romlift's parent passed in
+ * ROMLIFT_POC_DATASET ({name, rom, elf, sha1, labels, untyped}), for a ROM that became tuning data after the
+ * PoC was pinned (tmc, D60). The PoC is never written: its dataset directory is only read.
+ */
 function datasetNamed(all: readonly PocDataset[], name: string): PocDataset {
   const dataset = all.find((d) => d.name === name);
-  if (dataset === undefined) throw new Error(`the PoC has no dataset named ${name}`);
-  return dataset;
+  if (dataset !== undefined) return dataset;
+  const given = process.env['ROMLIFT_POC_DATASET'];
+  const parsed: unknown = given === undefined ? undefined : JSON.parse(given);
+  const ok = (v: unknown): v is PocDataset =>
+    typeof v === 'object' && v !== null && (v as PocDataset).name === name && typeof (v as PocDataset).rom === 'string' && typeof (v as PocDataset).elf === 'string' && typeof (v as PocDataset).sha1 === 'string' && Array.isArray((v as PocDataset).labels) && Array.isArray((v as PocDataset).untyped);
+  if (!ok(parsed)) throw new Error(`the PoC has no dataset named ${name}, and ROMLIFT_POC_DATASET gives none`);
+  return parsed;
 }
 
 // ---------------------------------------------------------------- scored mode (phase 1)

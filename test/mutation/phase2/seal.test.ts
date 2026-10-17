@@ -125,6 +125,7 @@ test('a sealed entry carrying an address fails assertCountsOnly, naming the fiel
     startupEnd: 0x0800_0100,
     isPrologue: () => false,
     codeEnd: 0x0800_0210,
+    elfCodeEnd: 0x0800_0210,
   });
   assertCountsOnly(counts);
   const faults: readonly [Record<string, unknown>, RegExp][] = [

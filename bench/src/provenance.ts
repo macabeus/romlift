@@ -7,11 +7,10 @@ import { join } from 'node:path';
 
 import type { Results } from './artifact.ts';
 import { readResultsFile } from './artifact.ts';
-import { readBaseline } from './baseline.ts';
 import { gatesDir, resultsPath, type BenchContext } from './context.ts';
 import { isSealed, loadDatasets, type Dataset } from './dataset.ts';
 import { currentNodeMajor, sourceDigest } from './digest.ts';
-import { familySpec, liveFamilies, type Family } from './families.ts';
+import { liveFamilies, type Family } from './families.ts';
 import { BenchError, isRecord, readJson } from './files.ts';
 import { discoverGateFiles, type GateFile } from './gate-files.ts';
 
@@ -31,8 +30,6 @@ export interface ProvenanceInputs {
   readonly landed: number;
   readonly gates: readonly GateFile[];
   readonly datasets: readonly Dataset[];
-  /** The tuning ROMs the PoC ran on (its baseline's names); undefined: every tuning dataset. */
-  readonly pocRoms?: readonly string[];
 }
 
 const NO_ARTIFACT = 'there is no bench/results.json: re-run the real tier';
@@ -68,7 +65,7 @@ export function checkGateRecord(artifact: Results | undefined, landed: number, g
   return { id: 'gate-record', ok: true, detail: `${checked} real-tier gate(s) of phase <= ${landed} pass or are historical` };
 }
 
-export function checkFamilies(artifact: Results | undefined, landed: number, datasets: readonly Dataset[], pocRoms?: readonly string[]): ProvenanceCheck {
+export function checkFamilies(artifact: Results | undefined, landed: number, datasets: readonly Dataset[]): ProvenanceCheck {
   const romFamilies = liveFamilies(landed, 'rom');
   const globalFamilies = liveFamilies(landed, 'global');
   if (artifact === undefined) {
@@ -76,24 +73,14 @@ export function checkFamilies(artifact: Results | undefined, landed: number, dat
     return { id: 'families', ok: !needed, detail: needed ? NO_ARTIFACT : `no family is live at phase ${landed}` };
   }
   const problems: string[] = [];
-  const notPoc: string[] = [];
   for (const d of datasets.filter((x) => !isSealed(x))) {
     const ran = new Set(artifact.meta.families[d.name] ?? []);
-    for (const f of romFamilies) {
-      // A family the PoC's dumps measure until a later phase is not asked of a ROM the PoC never ran on.
-      const until = familySpec(f).pocUntil;
-      if (until !== undefined && landed < until && pocRoms !== undefined && !pocRoms.includes(d.name)) {
-        notPoc.push(`${d.name} ${f}`);
-        continue;
-      }
-      if (!ran.has(f)) problems.push(`${d.name}: family ${f} did not run`);
-    }
+    for (const f of romFamilies) if (!ran.has(f)) problems.push(`${d.name}: family ${f} did not run`);
   }
   for (const f of globalFamilies) if (!globalFamilyPresent(artifact, f)) problems.push(`the ${f} family is absent from the artifact`);
   if (problems.length > 0) return { id: 'families', ok: false, detail: problems.join('; ') };
   const live = [...romFamilies, ...globalFamilies];
-  const skipped = notPoc.length === 0 ? '' : `; measured by the PoC's dumps until phase 3, not asked of a ROM it never ran on: ${notPoc.join(', ')}`;
-  return { id: 'families', ok: true, detail: live.length === 0 ? `no family is live at phase ${landed}` : `live: ${live.join(', ')}${skipped}` };
+  return { id: 'families', ok: true, detail: live.length === 0 ? `no family is live at phase ${landed}` : `live: ${live.join(', ')}` };
 }
 
 /** Whether the artifact holds the top-level member of a global family; a family whose member the artifact cannot hold yet is absent. */
@@ -125,7 +112,7 @@ export function provenanceChecks(inputs: ProvenanceInputs): ProvenanceCheck[] {
   return [
     checkSourceDigest(inputs.artifact, inputs.recomputedDigest),
     checkGateRecord(inputs.artifact, inputs.landed, inputs.gates),
-    checkFamilies(inputs.artifact, inputs.landed, inputs.datasets, inputs.pocRoms),
+    checkFamilies(inputs.artifact, inputs.landed, inputs.datasets),
     checkDatasetRows(inputs.artifact, inputs.datasets),
     checkHeldoutRows(inputs.artifact, inputs.datasets),
   ];
@@ -155,6 +142,5 @@ export async function provenanceInputs(cx: BenchContext, options: ProvenanceOpti
     landed: await readLanded(dir),
     gates: await discoverGateFiles(dir),
     datasets,
-    pocRoms: (await readBaseline(cx)).roms.map((r) => String(r['name'])),
   };
 }

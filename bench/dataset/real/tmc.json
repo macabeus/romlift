@@ -109,10 +109,5 @@
       "category": "local-subroutine",
       "note": "_080B27E4, a local label of the same ARM code, reached by `bl` from 0x080B27D8; the ELF folds it into sub_080B255C; origin call, 40 bytes"
     }
-  ],
-  "codeEnd": {
-    "addr": "0x080B2A30",
-    "category": "unsized-last-function",
-    "note": "sub_080B299C (asm/src/intr.s), the ELF's last FUNC, has size 0; its code runs to the $d mapping symbol at 0x080B2A30, where its literal pool starts. dataset-check recomputes the address from the ELF"
-  }
+  ]
 }

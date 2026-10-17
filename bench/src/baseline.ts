@@ -42,6 +42,11 @@ export async function readBaseline(cx: BenchContext): Promise<Baseline> {
   return parseBaseline(await readJson(path), path);
 }
 
+/** The names of the ROMs the PoC baseline holds a row of: the tuning ROMs the pinned PoC's results cover. */
+export function pocRomNames(baseline: Baseline): readonly string[] {
+  return baseline.roms.map((r) => String(r['name']));
+}
+
 /** `value` without the dotted paths in `excluded` (`seconds`, `scaffold.summary`). */
 export function withoutPaths(value: JsonRecord, excluded: readonly string[]): JsonRecord {
   const out: Record<string, unknown> = {};

@@ -27,7 +27,7 @@ import { compareCodeUnits, hexAddr } from 'romlift';
 import { acceptedFor, readAcceptedDiffs, type AcceptedDiffs } from './accepted-diffs.ts';
 import { analyzeDataset, analysisTuning, benchProfile, discoverOptions, isDefaultTuning, readRealInputs, sealedInput, type AnalysisRunner, type DatasetAnalysis, type RealInputs, type RunTuning, DEFAULT_RUN_TUNING } from './analysis-run.ts';
 import { readResultsFile, writeResultsFile, type GateEntry, type Results, type ResultsMeta, type RomInputs, type SealedEntry, type Toolchain } from './artifact.ts';
-import { readBaseline, type Baseline } from './baseline.ts';
+import { readBaseline, type Baseline, type JsonRecord } from './baseline.ts';
 import { compareWithBaseline, parseBaselineRow } from './baseline-rows.ts';
 import { datasetDir, resultsPath, timingsPath, type BenchContext } from './context.ts';
 import { cpuProfPath, profiled, writeTopSelfTime } from './cpu-prof.ts';
@@ -41,7 +41,7 @@ import { parsePocDigests, pocDigestsPath, type PocDigests } from './parity-view.
 import { readPinnedPocSource } from './poc-source.ts';
 import { printerMember } from './printer.ts';
 import { readDump } from './rescore.ts';
-import type { RomliftRow } from './row.ts';
+import type { PocSource, RomliftRow } from './row.ts';
 import { analysisFunctions, scoreAnalysis, staleExceptions } from './score.ts';
 import { appendReveal, assertCountsOnly, sealedCounts, sealedPasses } from './seal.ts';
 import { readSpeedBaseline } from './speed.ts';
@@ -113,16 +113,28 @@ export async function tuningContext(cx: BenchContext): Promise<TuningContext> {
 }
 
 
-/** The PoC's scaffold verdict for `d`, from its dump (until phase 3); refused when the dump is of another PoC source. */
-async function scaffoldOf(cx: BenchContext, d: Dataset, pinned: string): Promise<{ readonly ok: boolean } | undefined> {
+/** The PoC's dump of `d`: its scaffold verdict (until phase 3) and its own row; refused when the dump is of another PoC source. */
+async function pocDumpOf(cx: BenchContext, d: Dataset, pinned: string): Promise<{ readonly scaffold: { readonly ok: boolean }; readonly pocRow: JsonRecord } | undefined> {
   const dump = await readDump(cx, d);
   if (dump === undefined) return undefined;
   if (dump.pocSourceDigest !== pinned) throw new BenchError(`${d.name}: the dump was made from PoC source ${dump.pocSourceDigest}, not the pinned ${pinned}: re-run export-poc`);
-  return { ok: dump.scaffold.ok };
+  return { scaffold: { ok: dump.scaffold.ok }, pocRow: dump.pocRow };
+}
+
+/**
+ * The PoC row a tuning ROM is compared with: its row in the pinned baseline; for a ROM that became tuning
+ * data by a reveal after the baseline was pinned (tmc, D60), the PoC's own row of it from its dump (the
+ * pinned PoC source run on that ROM by export-poc); else none, and the PoC thresholds are not applicable.
+ */
+export function pocReference(tc: TuningContext, d: Dataset, dumpRow: JsonRecord | undefined): { readonly record: JsonRecord; readonly source: PocSource } | undefined {
+  const record = tc.baseline.roms.find((r) => r['name'] === d.name);
+  if (record !== undefined) return { record, source: 'baseline' };
+  if (d.revealed.length > 0 && dumpRow !== undefined) return { record: dumpRow, source: 'dump' };
+  return undefined;
 }
 
 /** The full row of one tuning dataset from its analysis. */
-export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: TuningContext, scaffold: { readonly ok: boolean } | undefined): RomliftRow {
+export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: TuningContext, scaffold: { readonly ok: boolean } | undefined, dumpRow?: JsonRecord): RomliftRow {
   const d = inputs.dataset;
   const row = scoreAnalysis({
     result: analysis.result,
@@ -133,12 +145,15 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
     deterministic: analysis.deterministic,
     ...(scaffold === undefined ? {} : { scaffold }),
   });
-  const record = tc.baseline.roms.find((r) => r['name'] === d.name);
+  const reference = pocReference(tc, d, dumpRow);
   const found = new Set(analysisFunctions(analysis.result).map((f) => hexAddr(f.entry)));
   const comparison =
-    record === undefined
-      ? { poc: { tp: 0 }, lost: [], baselineRows: { diffs: [], unaccepted: [], staleAccepted: [] } }
-      : compareWithBaseline(parseBaselineRow(record, 'bench/baseline/poc-2026-10-16.json'), row, found, acceptedFor(tc.accepted, d.name));
+    reference === undefined
+      ? { poc: { tp: 0, source: 'none' as const }, lost: [], baselineRows: { diffs: [], unaccepted: [], staleAccepted: [] } }
+      : (() => {
+          const c = compareWithBaseline(parseBaselineRow(reference.record, reference.source === 'baseline' ? 'bench/baseline/poc-2026-10-16.json' : `the PoC dump of ${d.name}`), row, found, acceptedFor(tc.accepted, d.name));
+          return { ...c, poc: { ...c.poc, source: reference.source } };
+        })();
   return {
     ...row,
     extents: { ...row.extents, lost: comparison.lost },
@@ -153,7 +168,8 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
 /** One tuning dataset analysed (profiled with --cpu-prof), scored and compared. */
 async function runTuning(cx: BenchContext, d: Dataset, tc: TuningContext, options: RunOptions, tuning: RunTuning): Promise<{ readonly row: RomliftRow; readonly inputs: RealInputs; readonly analysis: DatasetAnalysis; readonly scaffold: boolean }> {
   const inputs = await readRealInputs(cx, d);
-  const scaffold = await scaffoldOf(cx, d, tc.pinnedPocDigest);
+  const dump = await pocDumpOf(cx, d, tc.pinnedPocDigest);
+  const scaffold = dump?.scaffold;
   let analysis: DatasetAnalysis;
   if (options.cpuProf === true) {
     const { value, profile } = await profiled(() => analyzeDataset(inputs, options.runner, tuning));
@@ -163,7 +179,7 @@ async function runTuning(cx: BenchContext, d: Dataset, tc: TuningContext, option
   } else {
     analysis = analyzeDataset(inputs, options.runner, tuning);
   }
-  return { row: romliftRow(inputs, analysis, tc, scaffold), inputs, analysis, scaffold: scaffold !== undefined };
+  return { row: romliftRow(inputs, analysis, tc, scaffold, dump?.pocRow), inputs, analysis, scaffold: scaffold !== undefined };
 }
 
 /** One sealed dataset: a single run, classified; counts and verdict only. */

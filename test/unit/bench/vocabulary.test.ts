@@ -64,7 +64,7 @@ test('the vocabularies are exported from romlift and their guards accept only de
   assert.ok(!isOrigin('constructor'));
 });
 
-test('the exception categories: the PoC eight less two, plus the four of milestone M5 and the two of D60, each defined', () => {
+test('the exception categories: the PoC eight less two, plus the four of milestone M5 and the one of D60, each defined', () => {
   assert.deepEqual(Object.keys(EXCEPTION_CATEGORIES), [
     'loop-label',
     'mixer-internal',
@@ -77,7 +77,6 @@ test('the exception categories: the PoC eight less two, plus the four of milesto
     'split-after-returning-call',
     'disassembler-split',
     'unreached-tail',
-    'unsized-last-function',
   ]);
   assertDefined('EXCEPTION_CATEGORIES', EXCEPTION_CATEGORIES);
   assert.ok(isExceptionCategory('second-entry'));
@@ -98,7 +97,7 @@ test('every row of the committed datasets carries a defined category, none the p
 test('every category is carried by a committed dataset row or a sealed classifier (architecture §8.3)', async () => {
   const { datasets } = await loadDatasets(contextFromEnv({}));
   const carried = new Set<string>(CLASSIFIER_CATEGORIES);
-  for (const d of datasets) for (const row of [...d.labels, ...d.untyped, ...(d.codeEnd === undefined ? [] : [d.codeEnd])]) carried.add(row.category);
+  for (const d of datasets) for (const row of [...d.labels, ...d.untyped]) carried.add(row.category);
   for (const id of Object.keys(EXCEPTION_CATEGORIES)) assert.ok(carried.has(id), `${id} is carried by no dataset row and no classifier`);
 });
 

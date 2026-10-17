@@ -5,9 +5,13 @@
 // pinned PoC source. The rescored row is compared without the `category` of its misses and false
 // entries: categories describe the dataset, not the analysis (baseline-rows.ts), and milestone M5
 // reclassified the rows the baseline still names `unreviewed` and `continuation-after-noreturn-call`.
-import { readBaseline, jsonDiffs, withoutPaths, type JsonRecord } from './baseline.ts';
+// A tuning ROM that became tuning data by a reveal after the baseline was pinned (tmc, D60) has no
+// baseline row: its rescored row is compared with the PoC's own fresh row of it instead (the harness
+// still reproduces the PoC's scoring), `baselineRow` is false and `pocRowEqual` is not asked; its
+// scaffold, determinism and pinned source are checked as for the others.
+import { pocRomNames, readBaseline, jsonDiffs, withoutPaths, type JsonRecord } from './baseline.ts';
 import type { BenchContext } from './context.ts';
-import { loadDatasets, pocDatasets } from './dataset.ts';
+import { loadDatasets, tuningDatasets } from './dataset.ts';
 import { BenchError } from './files.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 import { readDatasetInputs, rowOf } from './rescore.ts';
@@ -22,7 +26,10 @@ export const POC_ROW_EXCLUDED: readonly string[] = ['seconds', 'signatures'];
 export interface PocCheckRom {
   readonly name: string;
   readonly rowsEqual: boolean;
+  /** The PoC's fresh row equals the baseline row; false and not asked when there is none (`baselineRow`). */
   readonly pocRowEqual: boolean;
+  /** Whether the pinned baseline holds a row of this ROM. */
+  readonly baselineRow: boolean;
   readonly diffs: readonly string[];
   readonly scaffoldOk: boolean;
   readonly deterministic: boolean;
@@ -35,7 +42,7 @@ export interface PocCheckReport {
 }
 
 export function romPasses(r: PocCheckRom): boolean {
-  return r.rowsEqual && r.pocRowEqual && r.scaffoldOk && r.deterministic && r.pocSourceDigestOk;
+  return r.rowsEqual && (r.pocRowEqual || !r.baselineRow) && r.scaffoldOk && r.deterministic && r.pocSourceDigestOk;
 }
 
 /** Two runs with one digest, and that digest is the stored analysis's own. */
@@ -56,19 +63,28 @@ export function withoutCategories(row: JsonRecord): JsonRecord {
   return { ...row, misses: strip(row['misses']), falseEntries: strip(row['falseEntries']) } as JsonRecord;
 }
 
-/** The verdict of one ROM from its rescored row, its dump and its baseline row. */
-export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseline: JsonRecord | undefined, pinnedDigest: string): PocCheckRom {
+/**
+ * The verdict of one ROM from its rescored row, its dump and its baseline row. `revealed`: the ROM became
+ * tuning data by a reveal after the baseline was pinned, so without a baseline row its rescored row is
+ * compared with the dump's own PoC row; any other ROM without one fails.
+ */
+export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseline: JsonRecord | undefined, pinnedDigest: string, revealed = false): PocCheckRom {
   const deterministic = dumpDeterministic(dump);
-  if (baseline === undefined) {
-    return { name, rowsEqual: false, pocRowEqual: false, diffs: [`no baseline row for ${name}`], scaffoldOk: dump.scaffold.ok, deterministic, pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest };
-  }
   const rowRecord: JsonRecord = { ...row };
-  const rowDiffs = jsonDiffs(withoutCategories(withoutPaths(baseline, ROW_EXCLUDED)), withoutCategories(withoutPaths(rowRecord, ROW_EXCLUDED)), '');
+  const rescored = withoutCategories(withoutPaths(rowRecord, ROW_EXCLUDED));
+  if (baseline === undefined) {
+    const common = { name, pocRowEqual: false, baselineRow: false, scaffoldOk: dump.scaffold.ok, deterministic, pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest };
+    if (!revealed) return { ...common, rowsEqual: false, diffs: [`no baseline row for ${name}`] };
+    const ownDiffs = jsonDiffs(withoutCategories(withoutPaths(dump.pocRow, ROW_EXCLUDED)), rescored, '');
+    return { ...common, rowsEqual: ownDiffs.length === 0, diffs: ownDiffs.map((d) => `row (against the PoC's own row) ${d}`) };
+  }
+  const rowDiffs = jsonDiffs(withoutCategories(withoutPaths(baseline, ROW_EXCLUDED)), rescored, '');
   const pocDiffs = jsonDiffs(withoutPaths(baseline, POC_ROW_EXCLUDED), withoutPaths(dump.pocRow, POC_ROW_EXCLUDED), '');
   return {
     name,
     rowsEqual: rowDiffs.length === 0,
     pocRowEqual: pocDiffs.length === 0,
+    baselineRow: true,
     diffs: [...rowDiffs.map((d) => `row ${d}`), ...pocDiffs.map((d) => `pocRow ${d}`)],
     scaffoldOk: dump.scaffold.ok,
     deterministic,
@@ -77,7 +93,7 @@ export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseli
 }
 
 function unavailable(name: string, why: string): PocCheckRom {
-  return { name, rowsEqual: false, pocRowEqual: false, diffs: [why], scaffoldOk: false, deterministic: false, pocSourceDigestOk: false };
+  return { name, rowsEqual: false, pocRowEqual: false, baselineRow: false, diffs: [why], scaffoldOk: false, deterministic: false, pocSourceDigestOk: false };
 }
 
 export async function pocCheck(cx: BenchContext): Promise<PocCheckReport> {
@@ -86,11 +102,12 @@ export async function pocCheck(cx: BenchContext): Promise<PocCheckReport> {
   const baseline = await readBaseline(cx);
   const pinned = await readPinnedPocSource(cx);
   const roms: PocCheckRom[] = [];
-  for (const d of pocDatasets(datasets, baseline.roms.map((r) => String(r['name'])))) {
+  const named = pocRomNames(baseline);
+  for (const d of tuningDatasets(datasets)) {
     try {
       const inputs = await readDatasetInputs(cx, d);
-      const base = baseline.roms.find((r) => r['name'] === d.name);
-      roms.push(checkPocRom(d.name, rowOf(inputs), inputs.dump, base, pinned.digest));
+      const base = named.includes(d.name) ? baseline.roms.find((r) => r['name'] === d.name) : undefined;
+      roms.push(checkPocRom(d.name, rowOf(inputs), inputs.dump, base, pinned.digest, d.revealed.length > 0));
     } catch (error) {
       if (!(error instanceof BenchError)) throw error;
       roms.push(unavailable(d.name, error.message));

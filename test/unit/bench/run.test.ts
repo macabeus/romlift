@@ -213,7 +213,7 @@ test('poc-check, dataset-check and provenance pass on the synthetic tier', async
   await withTempDir('romlift-checks-', async (root) => {
     const cx = await syntheticTier(root);
     const report = await pocCheck(cx);
-    assert.deepEqual(report, { ok: true, roms: [{ name: 'tiny', rowsEqual: true, pocRowEqual: true, diffs: [], scaffoldOk: true, deterministic: true, pocSourceDigestOk: true }] });
+    assert.deepEqual(report, { ok: true, roms: [{ name: 'tiny', rowsEqual: true, pocRowEqual: true, baselineRow: true, diffs: [], scaffoldOk: true, deterministic: true, pocSourceDigestOk: true }] });
     assert.deepEqual(await datasetCheck(cx, RUNNER), { ok: true, problems: [] });
     await benchRun(cx, { runner: RUNNER });
     assert.ok(provenanceChecks(await provenanceInputs(cx)).every((c) => c.ok));
@@ -250,7 +250,7 @@ test('the CLI dispatches the phase-2 commands and prints the frozen --json lines
     assert.equal(await main(['poc-check', '--json'], cx, (io = capture()), TINY_DEPS), 0);
     const poc = JSON.parse(io.lines.at(-1) ?? '') as { ok: boolean; roms: Record<string, unknown>[] };
     assert.equal(poc.ok, true);
-    assert.deepEqual(Object.keys(poc.roms[0] ?? {}), ['name', 'rowsEqual', 'pocRowEqual', 'diffs', 'scaffoldOk', 'deterministic', 'pocSourceDigestOk']);
+    assert.deepEqual(Object.keys(poc.roms[0] ?? {}), ['name', 'rowsEqual', 'pocRowEqual', 'baselineRow', 'diffs', 'scaffoldOk', 'deterministic', 'pocSourceDigestOk']);
 
     assert.equal(await main(['dataset-check', '--json'], cx, (io = capture()), TINY_DEPS), 0);
     assert.deepEqual(JSON.parse(io.lines.at(-1) ?? ''), { ok: true, problems: [] });
