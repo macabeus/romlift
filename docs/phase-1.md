@@ -122,10 +122,12 @@ No threshold was changed, and no gate was weakened: the closing run needed no fi
    `path\0bytes\0` plus the `as` line and the options; the bench hashed `path\0bytes` plus a
    pseudo-file `as --version` and `node\00`), so `bench run` judged every summary stale and left out
    the `printer` member. With `landed: 1` the provenance check fails on exactly that ("the printer
-   family is absent from the artifact"). `bench/src/printer.ts` now holds the one definition
-   (`corpusInputsDigest(repoRoot, asVersion, options)`, over `src/foundation/isa`,
-   `src/foundation/asm` and `test/corpus`), the driver imports it, and
-   `test/unit/bench/printer.test.ts` pins what it covers. No frozen contract changed: the summary is
+   family is absent from the artifact"). The fix then put the one definition in
+   `bench/src/printer.ts` (`corpusInputsDigest(repoRoot, asVersion, options)`, over
+   `src/foundation/isa`, `src/foundation/asm` and `test/corpus`), had the driver import it, and
+   pinned it in `test/unit/bench/printer.test.ts`. The current definition is D55 d:
+   `src/shell/toolchain/corpus-inputs.ts`, over the corpus's import closure, pinned by
+   `test/unit/shell/toolchain/corpus-inputs.test.ts`; `bench/src/printer.ts` only imports it. No frozen contract changed: the summary is
    still `romlift/corpus-summary@1` and only its digest value moved.
 2. **The phase marker** (`340acda`): `test/gates/phase.json` raised to 1 before the final real-tier
    run, because it is part of the source digest.

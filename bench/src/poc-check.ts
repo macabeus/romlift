@@ -36,12 +36,12 @@ export function romPasses(r: PocCheckRom): boolean {
   return r.rowsEqual && r.pocRowEqual && r.scaffoldOk && r.deterministic && r.pocSourceDigestOk;
 }
 
-/** The verdict of one ROM from its rescored row, its dump and its baseline row. */
 /** Two runs with one digest, and that digest is the stored analysis's own. */
 export function dumpDeterministic(dump: ScoredRun): boolean {
   return dump.digests[0] === dump.digests[1] && analysisDigest(dump.analysis) === dump.digests[0];
 }
 
+/** The verdict of one ROM from its rescored row, its dump and its baseline row. */
 export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseline: JsonRecord | undefined, pinnedDigest: string): PocCheckRom {
   const deterministic = dumpDeterministic(dump);
   if (baseline === undefined) {
