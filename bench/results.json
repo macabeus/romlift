@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "ab9eea0c3a8ef71a87e384aa1a3e80b45e1e78b2",
+    "commit": "a47de80c908341e223f52c4a9783ea4916e4749a",
     "dirty": true,
-    "sourceDigest": "0fd7dd9beb15f92ba84b8de8aac7a6fc8da0b4b0f762baacd7beafad4f579a88",
+    "sourceDigest": "f65ef5bd9c619fc12f7e5d5fb5eecb1c5d455fe0065788358286ca3cd078cca8",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -2282,12 +2282,7 @@
             "addr": "0x082DF04C"
           }
         ],
-        "unaccepted": [
-          {
-            "kind": "extent-agrees",
-            "addr": "0x082DF04C"
-          }
-        ],
+        "unaccepted": [],
         "staleAccepted": []
       },
       "parity": {
@@ -2402,12 +2397,7 @@
             "addr": "0x080945E8"
           }
         ],
-        "unaccepted": [
-          {
-            "kind": "extent-agrees",
-            "addr": "0x080945E8"
-          }
-        ],
+        "unaccepted": [],
         "staleAccepted": []
       },
       "parity": {
@@ -2522,12 +2512,7 @@
             "addr": "0x080B9838"
           }
         ],
-        "unaccepted": [
-          {
-            "kind": "extent-agrees",
-            "addr": "0x080B9838"
-          }
-        ],
+        "unaccepted": [],
         "staleAccepted": []
       },
       "parity": {
