@@ -81,8 +81,8 @@
     bl.target-pops-unpushed-frame: a bl whose target, read alone, pops a frame it never pushed is a far jump; otherwise a call
       rests on: the far tail of an agbcc function ends with the epilogue of the frame its head pushed, so read alone it pops more than it pushes
       recovers: far tails without a prologue split off as functions, and calls to plain functions misread as jumps
-    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code
-      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function

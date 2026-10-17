@@ -30,8 +30,8 @@
     claim.adjacent-pools: the extent is the code plus the pools and tables right after it; claim those pools and every table
       rests on: agbcc emits a function's literal pool and switch tables right after its code, separated only by alignment
       recovers: pools and tables that would be free bytes for the gap scan to misread as functions
-    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code
-      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
     gap.adr-block-absorb: a gap-start block named by the previous Thumb function's add rd, pc, #imm that only branches back into it is merged into that function
       rests on: hand-written interrupt handlers store a callback block with add rd, pc, #imm and return through the code of the function that names it; the block may start one halfword on, past a claimed halfword or past one zero halfword of alignment (the PoC absorbRun retry, zero only: the assembler aligns such a block with zero fill, not with the mov r8, r8 the profile padding idiom also accepts)

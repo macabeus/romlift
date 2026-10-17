@@ -66,3 +66,21 @@ test('through accept: the unreached arm and the padding become dead; the claimed
   take(without, F);
   assert.deepEqual(claimsOf(without, F + 6, F + 8), run(Claim.free, 2));
 });
+
+test('an unreached copy of the entry stub `movs rX, #k; b T` stays free: another entry of the stub table (D60 d)', () => {
+  // F: movs r1, #11; b T. F+4: movs r1, #82; b T (unreached). F+8: movs r1, #0 falls into T at F+0xA.
+  const rom = romWith([{ at: F, bytes: thumbAt(F)`movs r1, #11; b _0800020A; movs r1, #82; b _0800020A; movs r1, #0; push {r4, lr}; movs r0, #1; pop {r4, pc}` }]);
+  const s = driverOver(rom);
+  take(s, F);
+  assert.deepEqual(claimsOf(s, F, F + 0x0a), [...run(Claim.code, 4), ...run(Claim.free, 4), ...run(Claim.dead, 2)]);
+  // Another register or another target is no copy of the entry stub: dead code as before.
+  for (const other of [thumbAt(F)`movs r1, #11; b _0800020A; movs r2, #82; b _0800020A; movs r1, #0; push {r4, lr}; movs r0, #1; pop {r4, pc}`, thumbAt(F)`movs r1, #11; b _0800020A; movs r1, #82; b _08000208; movs r1, #0; push {r4, lr}; movs r0, #1; pop {r4, pc}`]) {
+    const t = driverOver(romWith([{ at: F, bytes: other }]));
+    take(t, F);
+    assert.deepEqual(claimsOf(t, F + 4, F + 8), run(Claim.dead, 4));
+  }
+  // A reading that opens otherwise claims its whole extent.
+  const v = viewWith({ rom: FILLED });
+  const dense = spaced(FILLED, 8);
+  assert.equal(rule.claims(factOf(dense), dense, v).length, 1);
+});
