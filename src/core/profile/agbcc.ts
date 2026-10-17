@@ -34,6 +34,7 @@ export const AGBCC_PIPELINE: Pipeline = {
     'bl.near-is-call',
     'bl.target-inside-caller',
     'bl.target-has-prologue',
+    'bl.target-beyond-callee',
     'bl.target-pops-unpushed-frame',
     'bl.noreturn-before-noncode',
   ],
