@@ -9,19 +9,19 @@
     0x08000AA4 seed.call round 0 cites 0x080000F8
   rejections: none
   bl verdicts (2):
-    0x080000F8 bl.target-pops-unpushed-frame round 0 cites 0x080000F8, 0x08000AA4: call
+    0x080000F8 bl.target-beyond-callee round 0 cites 0x080000F8, 0x08000AA4: call
     0x0800010C bl.target-inside-caller round 0 cites 0x0800010C, 0x08000A9A: far
   waits: none
   claims (2):
     0x08000AA4 claim.adjacent-pools round 0 cites 0x08000AA4: 1 edits
     0x08000AA4 claim.dead-code-in-extent round 0 cites 0x08000AA4: 1 edits
   rules (5):
+    bl.target-beyond-callee: a bl to an address beyond the entry of another function the caller calls is a call
+      rests on: a far jump reaches the caller's own tail, and a function never contains the entry of a function it calls
+      recovers: callees that pop a frame they never pushed, misread as the caller's tail when the caller is settled before them
     bl.target-inside-caller: a bl to an address below the caller's code end is a far jump inside the caller
       rests on: a callee is never inside its caller; agbcc places a function's code contiguously
       recovers: far tails of long functions split off as functions of their own
-    bl.target-pops-unpushed-frame: a bl whose target, read alone, pops a frame it never pushed is a far jump; otherwise a call
-      rests on: the far tail of an agbcc function ends with the epilogue of the frame its head pushed, so read alone it pops more than it pushes
-      recovers: far tails without a prologue split off as functions, and calls to plain functions misread as jumps
     claim.adjacent-pools: the extent is the code plus the pools and tables right after it; claim those pools and every table
       rests on: agbcc emits a function's literal pool and switch tables right after its code, separated only by alignment
       recovers: pools and tables that would be free bytes for the gap scan to misread as functions

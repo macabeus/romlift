@@ -10,11 +10,11 @@
     0x08000168 seed.call round 0 cites 0x08000102: thumb
     0x0800017C seed.call round 0 cites 0x08000106: thumb
   accepts (5):
-    0x0800017C seed.call round 0 cites 0x08000106
-    0x08000168 seed.call round 0 cites 0x08000102
-    0x08000154 seed.call round 0 cites 0x080000FE
-    0x08000134 seed.call round 0 cites 0x080000FA
     0x08000120 seed.call round 0 cites 0x080000F6
+    0x08000134 seed.call round 0 cites 0x080000FA
+    0x08000154 seed.call round 0 cites 0x080000FE
+    0x08000168 seed.call round 0 cites 0x08000102
+    0x0800017C seed.call round 0 cites 0x08000106
   rejections (15):
     0x08000110 valid.calls-code round 2 cites 0x08000110: calls-non-code: calls 0x0800011A, which is not code
     0x08000118 valid.balanced-stack round 2 cites 0x08000118: pops-frame: a return path pops more than it pushed
@@ -43,11 +43,11 @@
   waits (1):
     0x0800013C gap.tiled-hole round 2 cites 0x0800013C, 0x08000150: its end is not anchored yet
   claims (5):
-    0x0800017C claim.dead-code-in-extent round 0 cites 0x0800017C: 1 edits
-    0x08000168 claim.dead-code-in-extent round 0 cites 0x08000168: 1 edits
-    0x08000154 claim.dead-code-in-extent round 0 cites 0x08000154: 1 edits
-    0x08000134 claim.dead-code-in-extent round 0 cites 0x08000134: 1 edits
     0x08000120 claim.dead-code-in-extent round 0 cites 0x08000120: 1 edits
+    0x08000134 claim.dead-code-in-extent round 0 cites 0x08000134: 1 edits
+    0x08000154 claim.dead-code-in-extent round 0 cites 0x08000154: 1 edits
+    0x08000168 claim.dead-code-in-extent round 0 cites 0x08000168: 1 edits
+    0x0800017C claim.dead-code-in-extent round 0 cites 0x0800017C: 1 edits
   rules (9):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes

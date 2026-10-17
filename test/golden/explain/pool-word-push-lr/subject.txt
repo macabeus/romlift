@@ -8,9 +8,9 @@
     0x08000110 seed.call round 0 cites 0x080000FA: thumb
     0x08000124 seed.call round 0 cites 0x080000FE: thumb
   accepts (3):
-    0x08000124 seed.call round 0 cites 0x080000FE
-    0x08000110 seed.call round 0 cites 0x080000FA
     0x08000108 seed.call round 0 cites 0x080000F6
+    0x08000110 seed.call round 0 cites 0x080000FA
+    0x08000124 seed.call round 0 cites 0x080000FE
   rejections (1):
     0x08000120 valid.no-claimed-code round 2 cites 0x08000120: pool-claimed: its code overlaps claimed bytes at 0x0800011C
   bl verdicts (3):
@@ -19,11 +19,11 @@
     0x080000FE bl.near-is-call round 0 cites 0x080000FE, 0x08000124: call
   waits: none
   claims (5):
-    0x08000124 claim.dead-code-in-extent round 0 cites 0x08000124: 1 edits
-    0x08000110 claim.adjacent-pools round 0 cites 0x08000110: 1 edits
-    0x08000110 claim.dead-code-in-extent round 0 cites 0x08000110: 1 edits
     0x08000108 claim.far-pools round 0 cites 0x08000108: 1 edits
     0x08000108 claim.dead-code-in-extent round 0 cites 0x08000108: 1 edits
+    0x08000110 claim.adjacent-pools round 0 cites 0x08000110: 1 edits
+    0x08000110 claim.dead-code-in-extent round 0 cites 0x08000110: 1 edits
+    0x08000124 claim.dead-code-in-extent round 0 cites 0x08000124: 1 edits
   rules (6):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes

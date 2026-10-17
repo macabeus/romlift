@@ -2,14 +2,14 @@
   claim: code
   owner: 0x08000108 (origin call)
   provenance:
-    seed.call round 0 cites 0x0800010C
+    seed.call round 0 cites 0x08000102
   proposals (3):
     0x08000100 seed.call round 0 cites 0x080000F8: thumb
     0x08000108 seed.call round 0 cites 0x08000102: thumb
     0x08000108 seed.call round 0 cites 0x0800010C: thumb
   accepts (2):
     0x08000100 seed.call round 0 cites 0x080000F8
-    0x08000108 seed.call round 0 cites 0x0800010C
+    0x08000108 seed.call round 0 cites 0x08000102
   rejections: none
   bl verdicts (3):
     0x080000F8 bl.near-is-call round 0 cites 0x080000F8, 0x08000100: call

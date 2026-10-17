@@ -10,8 +10,8 @@
     0x08000130 gap.end-anchor round 3 cites 0x08000130, 0x08000138: thumb
     0x08000148 gap.backward-prologue-chain round 3 cites 0x08000148, 0x0800014C: thumb
   accepts (5):
-    0x0800014C seed.call round 0 cites 0x08000100
     0x08000138 seed.call round 0 cites 0x080000FC
+    0x0800014C seed.call round 0 cites 0x08000100
     0x0800011C seed.pool-pointer round 1 cites 0x0800011C: accepted by accept.prologue-and-loaded
     0x08000130 gap.end-anchor round 3 cites 0x08000130, 0x08000138
     0x08000148 gap.backward-prologue-chain round 3 cites 0x08000148, 0x0800014C
@@ -28,8 +28,8 @@
     0x08000100 bl.near-is-call round 0 cites 0x08000100, 0x0800014C: call
   waits: none
   claims (5):
-    0x0800014C claim.dead-code-in-extent round 0 cites 0x0800014C: 1 edits
     0x08000138 claim.dead-code-in-extent round 0 cites 0x08000138: 1 edits
+    0x0800014C claim.dead-code-in-extent round 0 cites 0x0800014C: 1 edits
     0x0800011C claim.dead-code-in-extent round 1 cites 0x0800011C: 1 edits
     0x08000130 claim.dead-code-in-extent round 3 cites 0x08000130: 1 edits
     0x08000148 claim.dead-code-in-extent round 3 cites 0x08000148: 1 edits
