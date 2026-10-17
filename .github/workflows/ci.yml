@@ -26,9 +26,18 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - name: Install binutils (apt)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
+      - name: Install binutils (Homebrew)
+        if: runner.os == 'macOS'
+        run: brew install arm-none-eabi-binutils
+      # @match-kit/decomp-yaml declares node >=24, so Node 22.18 prints EBADENGINE as a warning only.
       - name: Install exactly the lock file
         run: npm ci --ignore-scripts
       - name: Typecheck
         run: npm run typecheck
       - name: Test (unit, golden, architecture, mutation; includes the no-ROM-tracked check)
         run: npm test
+      - name: Gates of every landed phase, ci tier
+        run: npm run bench -- gates --require "$(node -p "require('./test/gates/phase.json').landed")" --tier ci
