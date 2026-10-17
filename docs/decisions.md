@@ -1520,6 +1520,48 @@ reading of the tuning set depends on them). An instruction cap alone (klonoa pad
 still peaked at 2 GB: 294 candidates in the zeros each walked 65,536 instructions). Raising
 `W_WALK_LIMIT` for zero runs (every tuning ROM would warn on its data candidates).
 
+**Revision (fix round 2 of the phase-2 review).** The re-review of fix round 1 found that (b) still had
+exceptions and that memory was still unbounded in the number of candidates. Added:
+
+- (j) **fillGaps counts what it adds.** Its return value, the fixpoint test of a pass, is the sum of what
+  `accept()` reports, the calls an absorbed block adds included (`absorb` returns them). A hole head
+  taken mid-gap is accepted under the head rule as at the gap start (the PoC's `tryTiledHole` and
+  `fillGaps` both say 'tiled hole'), so its provenance no longer depends on its position. Before, an
+  unlisted mid-gap head counted as one function in every round and a confirm run spun to
+  `W_FIXPOINT_LIMIT` (10,000 rounds per pass).
+- (k) **(b) without exceptions.** `grow` asks the validity slot about every harvest target that is not a
+  function, claimed ones included: `valid.in-rom-unclaimed` rejects them before any reading, so
+  disabling it changes the verdict; its unanchored rejection names the accept rules that declined,
+  not the driver's reading of a prologue. An accept veto's decision is a rejection under the veto's id
+  (`AcceptVeto.reason` is read), and `diagnoseMiss` names the veto of a vetoed miss.
+- (l) **The gap scan's remaining code is traversal and format.** Stepping over bytes a claim rule
+  already claimed, and never standing in the cartridge header (a fact of the GBA format, as `contains`
+  is; phase 3 claims the header, correctness-6), are not rule decisions and stay in the driver. The
+  absorb retries (a block a claimed halfword or one zero halfword on) moved into `gap.adr-block-absorb`.
+  Gap positions are bus addresses. The forward slot is typed `{ thumb, arm, after }` instead of by
+  position, with the ranks of the old list (0, 1, 2…), so the worklist order is unchanged.
+- (m) **Analysis memory is bounded in the number of candidates.** `LIMITS.candidateBudget` (262,144;
+  the tuning ROMs' largest round has 13,612) now binds: a grow round judges that many candidates and
+  raises `W_CANDIDATE_BUDGET`. `LIMITS.epochReadingBytes` (256 MiB by `readingBytes`' estimate; the
+  tuning ROMs hold about 105 MB at most): past it the candidate readings an epoch holds are dropped,
+  their verdicts staying memoised, and `W_READING_BUDGET` (new) is raised once; a dropped reading
+  asked for again is walked again, so (D13) holds exactly below the budget. A 32 MiB image whose last
+  28 MiB are self-referencing Thumb pointers analyses under a 512 MiB heap; without the two budgets it
+  runs out of heap.
+- (n) **`AnalysisTuning.worklist` is removed**: it had one value and no reader.
+- (o) **No hand decoding outside the ISA.** `isConditional` (from the row's `cond` field) and
+  `thumbWordAt` (foundation/isa/decode.ts) replace `word >>> 28 !== 0xe` in the ARM walk and
+  `gap.arm-scan` and the halfword pairs of the Thumb walk and `accept.tiny-anchored-at-start`.
+  `registerEffect` throws `RomliftInvariantError` for an operand name its row lacks, and a table test
+  checks every RegisterSpec name of every row.
+- (p) **The glued split uses the label classifier's functions**: a glued miss is `insideExtent` only
+  inside the extent of a found function that has an ELF entry (`classify.ts` `gluedWhere`).
+
+Consequences: functions, extents, claims and the parity view are unchanged on the five tuning ROMs and
+the 31 fixtures; rejections change (claimed harvest targets, veto rejections, the unanchored detail), so
+every analysis digest moves; tmc's glued split reads 2 inside an extent, 15 outside, 34 past the code
+end (its verdict is unchanged).
+
 ---
 
 ## Review findings index

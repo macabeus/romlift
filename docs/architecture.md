@@ -535,8 +535,7 @@ export function analyze(rom: Rom, profile: CompilerProfile, options: AnalysisOpt
   sink?: TrailSink): AnalysisResult;
 
 // exported from romlift/internal only, outside semver (D37)
-export interface AnalysisTuning {
-  readonly worklist: 'ascending';                // 'poc-lifo' was deleted by the phase-2 integration (D10, D59)
+export interface AnalysisTuning {               // no worklist member: it is always ascending (D10, D59 n)
   readonly cache: 'epoch' | 'epoch-reuse';       // §4.2, D13
   readonly disabled: readonly RuleId[];          // `analyze --disable`, `bench ablate`
 }
@@ -807,13 +806,19 @@ The signature registry is merged with `RULES` only for `explain`.
 `fill-gaps.ts` (`fillGaps()`: `hi` computed once per call, the gap head computed once per gap, absorb at
 the gap start and at every forward-chain position, the Thumb/ARM choice at the same cursor, the
 backward end-anchor loop that shrinks `end`, the late head acceptance, and the patient pass skipping a
-whole gap), `accept.ts` (`accept()` and `claim()`), `settle.ts` (the per-function `bl` fixpoint),
+whole gap; positions are bus addresses, the hole head is accepted under the head rule wherever a
+proposer after the pair takes it, and the count it returns is what `accept()` reports, absorbed blocks'
+calls included, so a confirm run whose candidates are unlisted reaches its fixpoint), `accept.ts` (`accept()` and `claim()`), `settle.ts` (the per-function `bl` fixpoint),
 `validity.ts` (`valid()`: the optimistic memo set before the check, intrinsic failures kept in
 `neverValid`, which also filters harvests), `epoch.ts` and `worklist.ts`; `state.ts` (the state and
 `createDriver`), `facts.ts` (`FunctionFact`, the extent end, the owner), `trail.ts` (events, rejections)
 and `view.ts` (the view). The rule slots are called at the PoC's call sites, in the order the profile's
 pipeline gives, and every decision is a slot's: the driver repeats no rule's predicate and names no
-rule id (D59). Stage control stays code because it is
+rule id (D59). `grow` asks the validity slot about every harvest target that is not yet a function,
+claimed ones included (`valid.in-rom-unclaimed` rejects those before any reading); an accept veto's
+decision is a rejection under the veto's id. What the gap scan does without a slot is traversal and
+format, not a decision: it steps over bytes a claim rule already claimed, and it never stands in the
+cartridge header (D59 l). Stage control stays code because it is
 the PoC's code; only the slot orders are data, so a reorder is a diff of the profile.
 
 **Epochs** (D13). An epoch begins at every `grow` round and every `fillGaps` call, where the PoC calls
@@ -823,7 +828,9 @@ readings of non-accepted entries and the validity memo are dropped; intrinsic fa
 readings stay. This is the semantics, not an optimisation: `cache: 'epoch'` is the only production
 mode. `cache: 'epoch-reuse'` (internal, built at milestone M2 only if a ROM misses the budget) may carry
 a reading across a boundary when every fact it read is unchanged, and a local test requires its digests
-to equal `'epoch'` on all five tuning ROMs. No cache evicts by capacity.
+to equal `'epoch'` on all five tuning ROMs. One bound evicts by capacity, and only on pathological input:
+the readings an epoch holds for entries not accepted are limited to `epochReadingBytes` (below), past
+which they are dropped (their verdicts stay memoised) and re-walked when asked for.
 
 **Two modes, one driver** (D8):
 
@@ -847,8 +854,11 @@ diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on
 
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
-returns what was accepted; a round that proposes more than `candidateBudget` candidates raises
-`W_CANDIDATE_BUDGET`. A path that runs over more than `zeroRun` (64) consecutive all-zero instructions
+returns what was accepted; a round that proposes more than `candidateBudget` (262,144) candidates
+judges only that many and raises `W_CANDIDATE_BUDGET`; the candidate readings one epoch holds are
+limited to `epochReadingBytes` (256 MiB by estimate) and raise `W_READING_BUDGET` when dropped. The
+tuning ROMs stay far below both (13,612 candidates and about 105 MB at most), so they bound only a
+flood of pointers (a 32 MiB image of self-referencing Thumb pointers analyses under a 512 MiB heap). A path that runs over more than `zeroRun` (64) consecutive all-zero instructions
 stops with a 'zero-run' error, and a walk that records `walkInsns` (65,536) instructions stops with a
 'walk-limit' error and raises `W_WALK_LIMIT`, which bounds the memory a candidate's reading holds
 (D42, D59). `RomliftInvariantError` (exit 70) is reserved for broken internal invariants, such
@@ -870,7 +880,8 @@ export interface Pipeline {
   readonly validity: readonly RuleId[];               // first failure is the rejection
   readonly accept: readonly RuleId[];                 // first that holds
   readonly claim: readonly RuleId[];
-  readonly gap: { readonly absorb: RuleId; readonly head: RuleId; readonly forward: readonly RuleId[];
+  readonly gap: { readonly absorb: RuleId; readonly head: RuleId;
+                  readonly forward: { readonly thumb: RuleId; readonly arm: RuleId; readonly after: readonly RuleId[] };
                   readonly prefer: RuleId; readonly skip: RuleId; readonly endAnchor: RuleId; readonly backward: RuleId };
   readonly region: readonly RuleId[];
   readonly passes: readonly ('patient' | 'impatient')[];   // each runs grow + fillGaps until stable
@@ -1759,7 +1770,7 @@ defined. The codes:
 | `E_ROM_NOT_GBA`, `E_ROM_SHA1_MISMATCH` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER` | `core/config` |
 | `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_NAME_COLLISION`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH` | `core/model` |
-| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT` | `core/analysis` |
+| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
 | `W_C_ORDER` | `core/reconcile` |
