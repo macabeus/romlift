@@ -1,7 +1,8 @@
 // The GNU binutils runner: finds arm-none-eabi-{as,ld,objcopy} on the PATH, reports their versions,
-// and assembles a source text to the bytes of its `.text` section (as with the dialect's arguments,
-// then objcopy -O binary -j .text) in a temporary directory that is always removed. It decides
-// nothing: callers choose what to assemble and what the bytes mean.
+// assembles a source text to the bytes of its `.text` section (as with the dialect's arguments, then
+// objcopy -O binary -j .text), and links several sources with a linker script to the bytes of the
+// linked `.text`, each in a temporary directory that is always removed. It decides nothing: callers
+// choose what to assemble and what the bytes mean.
 import { execFile } from 'node:child_process';
 import { accessSync, constants, statSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -34,6 +35,23 @@ export interface AssembleOptions {
   readonly files?: Readonly<Record<string, string>>;
   /** Arguments added after DIALECT.asArgs. */
   readonly args?: readonly string[];
+  /** The programs to run; default: findBinutils(process.env). */
+  readonly tools?: Binutils;
+}
+
+/** One source of a link: assembled to `<name>.o`, which the linker script may name. */
+export interface LinkSource {
+  /** A file stem without directory or extension, e.g. `a` for `a.s` and `a.o`. */
+  readonly name: string;
+  readonly text: string;
+  readonly mode?: Mode;
+}
+
+export interface LinkOptions {
+  /** The text of the linker script, passed to ld with -T; it names the objects as `<name>.o`. */
+  readonly script: string;
+  /** The programs to run; default: findBinutils(process.env). */
+  readonly tools?: Binutils;
 }
 
 export type AssembleResult =
@@ -53,7 +71,7 @@ function isExecutable(path: string): boolean {
 }
 
 /** The first executable named `name` on the PATH of `env` (with a PATHEXT suffix where one is set). */
-function which(name: string, env: Readonly<Record<string, string | undefined>>): string | undefined {
+export function findExecutable(name: string, env: Readonly<Record<string, string | undefined>>): string | undefined {
   const dirs = (env['PATH'] ?? '').split(delimiter).filter((d) => d !== '');
   const suffixes = ['', ...(env['PATHEXT'] ?? '').split(';').filter((s) => s !== '')];
   for (const dir of dirs) {
@@ -70,7 +88,7 @@ export function findBinutils(env: Readonly<Record<string, string | undefined>>):
   const found: Partial<Record<(typeof TOOLS)[number], string>> = {};
   const missing: string[] = [];
   for (const tool of TOOLS) {
-    const path = which(PREFIX + tool, env);
+    const path = findExecutable(PREFIX + tool, env);
     if (path === undefined) missing.push(PREFIX + tool);
     else found[tool] = path;
   }
@@ -115,13 +133,31 @@ function failed(stderr: string, message: string): AssembleResult {
   return { ok: false, stderr, diagnostics: [diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', message)] };
 }
 
+/** A file stem that names a file directly inside a directory. */
+function isStem(name: string): boolean {
+  return /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(name);
+}
+
+/** The arguments of `as` for one source in `mode`. */
+function asArgs(mode: Mode | undefined, extra: readonly string[], source: string, object: string): string[] {
+  return [...DIALECT.asArgs, ...(mode === 'thumb' ? ['-mthumb'] : []), ...extra, '-o', object, source];
+}
+
+/** The `.text` of `object` (an ELF in `dir`) as raw bytes, through objcopy -O binary -j .text. */
+async function textBytes(tools: Binutils, dir: string, object: string): Promise<AssembleResult> {
+  const objcopy = await run(tools.objcopy, ['-O', 'binary', '-j', '.text', object, 'text.bin'], dir);
+  if (objcopy.code !== 0) return failed(objcopy.stderr, `arm-none-eabi-objcopy exited with ${objcopy.code}`);
+  const bytes = await readFile(join(dir, 'text.bin'));
+  return { ok: true, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) };
+}
+
 /**
  * Assembles `source` with the PATH's arm-none-eabi-as and returns its `.text` bytes. The source and
  * `files` are written to a fresh temporary directory, which is the working directory of `as` (so
  * `.include "include/macros.inc"` resolves there) and is removed afterwards.
  */
 export async function assembleWithBinutils(source: string, options: AssembleOptions = {}): Promise<AssembleResult> {
-  const tools = findBinutils(process.env);
+  const tools = options.tools ?? findBinutils(process.env);
   if ('code' in tools) return { ok: false, stderr: '', diagnostics: [tools] };
   const dir = await mkdtemp(join(tmpdir(), 'romlift-as-'));
   try {
@@ -132,13 +168,35 @@ export async function assembleWithBinutils(source: string, options: AssembleOpti
       await writeFile(join(dir, relative), text);
     }
     await writeFile(join(dir, 'source.s'), source);
-    const args = [...DIALECT.asArgs, ...(options.mode === 'thumb' ? ['-mthumb'] : []), ...(options.args ?? []), '-o', 'source.o', 'source.s'];
-    const as = await run(tools.as, args, dir);
+    const as = await run(tools.as, asArgs(options.mode, options.args ?? [], 'source.s', 'source.o'), dir);
     if (as.code !== 0) return failed(as.stderr, `arm-none-eabi-as exited with ${as.code}`);
-    const objcopy = await run(tools.objcopy, ['-O', 'binary', '-j', '.text', 'source.o', 'source.bin'], dir);
-    if (objcopy.code !== 0) return failed(objcopy.stderr, `arm-none-eabi-objcopy exited with ${objcopy.code}`);
-    const bytes = await readFile(join(dir, 'source.bin'));
-    return { ok: true, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) };
+    return await textBytes(tools, dir, 'source.o');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Assembles each source to `<name>.o`, links them with ld -T `options.script` and returns the linked
+ * `.text` bytes. Everything happens in a fresh temporary directory, the working directory of every
+ * program, which is removed afterwards.
+ */
+export async function linkWithBinutils(sources: readonly LinkSource[], options: LinkOptions): Promise<AssembleResult> {
+  const tools = options.tools ?? findBinutils(process.env);
+  if ('code' in tools) return { ok: false, stderr: '', diagnostics: [tools] };
+  const bad = sources.find((s) => !isStem(s.name) || s.name === 'link' || s.name === 'linked' || s.name === 'text');
+  if (bad !== undefined) return failed('', `refusing the link source name '${bad.name}'`);
+  const dir = await mkdtemp(join(tmpdir(), 'romlift-ld-'));
+  try {
+    for (const source of sources) {
+      await writeFile(join(dir, `${source.name}.s`), source.text);
+      const as = await run(tools.as, asArgs(source.mode, [], `${source.name}.s`, `${source.name}.o`), dir);
+      if (as.code !== 0) return failed(as.stderr, `arm-none-eabi-as exited with ${as.code} on ${source.name}.s`);
+    }
+    await writeFile(join(dir, 'link.ld'), options.script);
+    const ld = await run(tools.ld, ['-T', 'link.ld', '-o', 'linked.elf', ...sources.map((s) => `${s.name}.o`)], dir);
+    if (ld.code !== 0) return failed(ld.stderr, `arm-none-eabi-ld exited with ${ld.code}`);
+    return await textBytes(tools, dir, 'linked.elf');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -7,7 +7,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { DIALECT } from '../../../../src/foundation/asm/dialect.ts';
-import { assembleWithBinutils, binutilsVersions, findBinutils } from '../../../../src/shell/toolchain/binutils.ts';
+import { assembleWithBinutils, binutilsVersions, findBinutils, findExecutable, linkWithBinutils } from '../../../../src/shell/toolchain/binutils.ts';
 
 const tools = findBinutils(process.env);
 const available = !('code' in tools);
@@ -87,4 +87,48 @@ test('assembleWithBinutils without the tools gives E_TOOLCHAIN_MISSING', async (
   } finally {
     process.env['PATH'] = saved;
   }
+});
+
+test('findExecutable searches the PATH of the given environment only', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'romlift-path-'));
+  try {
+    const file = path.join(dir, 'agbcc');
+    await writeFile(file, '#!/bin/sh\n');
+    await chmod(file, 0o755);
+    assert.equal(findExecutable('agbcc', { PATH: dir }), file);
+    assert.equal(findExecutable('agbcc', { PATH: '' }), undefined);
+    assert.equal(findExecutable('agbcc', {}), undefined);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('assembleWithBinutils runs the tools it is given, not the PATH', { skip: available ? false : 'unavailable: toolchain' }, async () => {
+  assert.ok(!('code' in tools));
+  const saved = process.env['PATH'];
+  process.env['PATH'] = '';
+  try {
+    const result = await assembleWithBinutils('.syntax unified\n.arm\n\tbx lr\n', { tools });
+    assert.ok(result.ok);
+    assert.deepEqual([...result.bytes], [0x1e, 0xff, 0x2f, 0xe1]);
+  } finally {
+    process.env['PATH'] = saved;
+  }
+});
+
+test('linkWithBinutils links two objects with the script and returns the linked .text', { skip: available ? false : 'unavailable: toolchain' }, async () => {
+  assert.ok(!('code' in tools));
+  const script = 'SECTIONS\n{\n  . = 0x08000000;\n  .text : { a.o(.text) b.o(.text) }\n  /DISCARD/ : { *(*) }\n}\n';
+  const a = { name: 'a', mode: 'arm' as const, text: '.syntax unified\n.arm\n.global _start\n_start:\n\tbl far\n' };
+  const b = { name: 'b', mode: 'arm' as const, text: '.syntax unified\n.arm\n.global far\nfar:\n\tbx lr\n' };
+  const result = await linkWithBinutils([a, b], { script, tools });
+  assert.ok(result.ok, result.ok ? '' : result.stderr);
+  // bl from 0x08000000 to 0x08000004: offset (4 - 8) >> 2 = -1.
+  assert.deepEqual([...result.bytes], [0xff, 0xff, 0xff, 0xeb, 0x1e, 0xff, 0x2f, 0xe1]);
+  const unresolved = await linkWithBinutils([a], { script: 'SECTIONS { .text : { a.o(.text) } }\n', tools });
+  assert.ok(!unresolved.ok);
+  assert.match(unresolved.stderr, /undefined reference to `far'/);
+  assert.deepEqual(unresolved.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_FAILED']);
+  const escape = await linkWithBinutils([{ name: '../a', text: '' }], { script, tools });
+  assert.ok(!escape.ok && /refusing the link source name/.test(escape.diagnostics[0]?.message ?? ''));
 });
