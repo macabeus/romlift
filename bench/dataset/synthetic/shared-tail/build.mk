@@ -1,7 +1,7 @@
 # shared-tail (positive; the plan's shared tail). Sharer's only exit is `b .LsharedTail` into Owner's
 # epilogue. A branch into another function's code leaves the function (walk.branch-into-function);
 # followed instead, Sharer's walk would cover Owner's claimed bytes and fail validity.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := shared-tail
 SRCS := tail.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

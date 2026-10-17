@@ -9,7 +9,7 @@
 # also pops one word it never pushed and has no prologue, but it is already accepted (Nudge calls it
 # from near by) when Caller is judged, so that `bl` is a call (bl.self-or-accepted; otherwise Caller's
 # walk would run on through DropArg).
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := pops-unpushed-frame
 SRCS := frame.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

@@ -1,9 +1,9 @@
 // The committed synthetic fixtures (architecture §8.1, D28), read from the repository alone: no
 // toolchain. Every fixture directory has its sources, a build.mk with both toolchain records, an
 // expect.json and both build files; every expected entry is a FUNC symbol of the fixture's own ELF
-// with that mode and, when given, that extent; the entries are exactly the ELF's functions from the end
-// of the startup region on, so a negative fixture names only its real functions; every .gba passes
-// checkRom.
+// with that mode and, when given, that extent; the entries are exactly the ELF's functions in the ROM,
+// the two startup functions first, and every expect.json is exhaustive (negative: true), so a false
+// entry fails any fixture; every .gba passes checkRom.
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,7 +16,11 @@ import { listSyntheticFixtures, parseExpect, readExpect, SYNTHETIC_ROOT, type Sy
 
 const FIXTURES = listSyntheticFixtures();
 
-/** The fixtures the phase-2 brief names (architecture §8.1): thirteen positive, seven rule-specific, six negative. */
+/**
+ * The fixtures of architecture §8.1: the thirteen positive ones of the plan, the rule-specific ones that
+ * make a rule load-bearing that no other fixture does (seven from the phase-2 brief, two added for
+ * g2.rule-coverage), and seven negative ones (six from the brief, one added for g2.rule-coverage).
+ */
 const POSITIVE = [
   'arm-pools-in-front', 'bx-lr-stub-chain', 'bx-pc-veneer', 'code-copied-to-ram', 'data-table-between-functions',
   'far-jump', 'handwritten-2mod4', 'leaf-handler-pointer-table', 'noreturn-call-then-next', 'shared-tail',
@@ -24,11 +28,14 @@ const POSITIVE = [
 ];
 const RULE_SPECIFIC = [
   'adr-handler-block', 'dead-code-in-extent', 'local-subroutine', 'mixer-tiled-hole', 'mov-lr-pc-bx',
-  'pops-unpushed-frame', 'prologueless-thumb-over-arm',
+  'pops-unpushed-frame', 'prologueless-thumb-over-arm', 'computed-jump-callback', 'large-data-referenced',
 ];
-const NEGATIVE = ['code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pool-padded-46c0', 'pool-word-push-lr', 'thumb-pointer-run'];
+const NEGATIVE = [
+  'code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pointer-table-before-leaf', 'pool-padded-46c0',
+  'pool-word-push-lr', 'thumb-pointer-run',
+];
 
-/** The startup region of common/crt0.s: these FUNC symbols, which no expect.json lists. */
+/** The startup region of common/crt0.s: these FUNC symbols, both ARM, which every expect.json lists first. */
 const STARTUP = ['_start', 'start_vector'];
 
 function isFile(path: string): boolean {
@@ -70,7 +77,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
-test('the 26 fixtures of the phase-2 brief are committed, and common/ is not one', () => {
+test('the 29 fixtures are committed, and common/ is not one', () => {
   const names = FIXTURES.map((f) => f.name);
   assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE].sort(byCodeUnit));
   assert.ok(!names.includes('common'));
@@ -136,11 +143,12 @@ test('every committed .gba is a cartridge that checkRom accepts, starting with a
   }
 });
 
-test('every fixture starts with the startup region of common/crt0.s, which no expect.json lists', () => {
+test('every fixture starts with the startup region of common/crt0.s, which its expect.json lists first, without extents', () => {
   for (const f of FIXTURES) {
-    const startup = functionsOf(f).filter((fn) => fn.addr < startupEnd(f)).map((fn) => fn.name);
-    assert.deepEqual(startup, STARTUP, f.name);
-    for (const entry of readExpect(f).entries) assert.ok(entry.addr >= startupEnd(f), `${f.name}: ${hex(entry.addr)} lies in the startup region`);
+    const startup = functionsOf(f).filter((fn) => fn.addr < startupEnd(f));
+    assert.deepEqual(startup.map((fn) => fn.name), STARTUP, f.name);
+    const listed = readExpect(f).entries.filter((entry) => entry.addr < startupEnd(f));
+    assert.deepEqual(listed, startup.map((fn) => ({ addr: fn.addr, mode: 'arm' })), `${f.name}: the startup entries of expect.json`);
   }
 });
 
@@ -159,17 +167,18 @@ test('every expect.json entry is a FUNC symbol of the fixture with its mode and,
   }
 });
 
-test('the entries are exactly the ELF functions from the end of the startup region on', () => {
+test('the entries are exactly the ELF functions in the ROM', () => {
   for (const f of FIXTURES) {
     const expected = readExpect(f).entries.map((e) => hex(e.addr));
-    const elf = functionsOf(f).filter((fn) => fn.addr >= startupEnd(f)).map((fn) => hex(fn.addr));
+    const elf = functionsOf(f).map((fn) => hex(fn.addr));
     assert.deepEqual(expected, elf, f.name);
   }
 });
 
-test('exactly the six negative fixtures are negative, and they name only their real functions', () => {
-  const negative = FIXTURES.filter((f) => readExpect(f).negative).map((f) => f.name);
-  assert.deepEqual(negative, NEGATIVE);
+test('every expect.json is exhaustive: negative, so no entry beyond its real functions is allowed, the seven negative fixtures included', () => {
+  const exhaustive = FIXTURES.filter((f) => readExpect(f).negative).map((f) => f.name);
+  assert.deepEqual(exhaustive, FIXTURES.map((f) => f.name));
+  for (const name of NEGATIVE) assert.ok(exhaustive.includes(name), name);
 });
 
 test('a code end, where given, is the end of the last ELF function in the ROM', () => {

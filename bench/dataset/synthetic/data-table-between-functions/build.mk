@@ -5,7 +5,7 @@
 # Mid is reached only through a pool pointer and opens with push {.., lr} (seed.pool-pointer,
 # accept.prologue-and-loaded). Tidy, unreferenced, ends where Last1 starts (gap.end-anchor). Frame, a
 # two-instruction frame with no reference, ends where Last2 starts (gap.backward-prologue-chain).
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := data-table-between-functions
 SRCS := tables.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

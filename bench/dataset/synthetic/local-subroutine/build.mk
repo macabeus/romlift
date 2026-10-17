@@ -2,7 +2,7 @@
 # first `bl` and before its second. A `bl` whose target is near (closer than a far jump ever is) is a
 # call; without that rule the target, which lies before the caller's code end, reads as a far jump
 # inside the caller and Increment is lost.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := local-subroutine
 SRCS := local.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

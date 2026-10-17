@@ -1,5 +1,14 @@
 {
+  "negative": true,
   "entries": [
+    {
+      "addr": "0x08000000",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000C0",
+      "mode": "arm"
+    },
     {
       "addr": "0x080000F4",
       "mode": "thumb",

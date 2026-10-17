@@ -2,7 +2,7 @@
 # `b .Ldone` is unreachable, word-aligned and inside Pick's extent. A dense function's unreached bytes
 # are claimed as its dead code; left free, they are a stub anchored after Pick's code and become a
 # false entry.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := dead-code-in-extent
 SRCS := dead.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

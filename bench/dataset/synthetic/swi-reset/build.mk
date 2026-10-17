@@ -1,7 +1,7 @@
 # swi-reset (positive; the plan's `swi` reset). DoReset ends with `swi 0` (SoftReset) followed by its
 # pool: a BIOS call before non-code ends the path as a return (walk.swi-before-noncode), so DoReset is
 # valid; without it the walk runs into the pool and DoReset is rejected.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := swi-reset
 SRCS := reset.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

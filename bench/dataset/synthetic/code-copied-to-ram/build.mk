@@ -2,7 +2,7 @@
 # are loaded after the ROM code and copied by main through CopyWords. Its FUNC symbol lies outside the
 # ROM, so it is no expected entry, and the code end stays at the end of _call_via_r3: the copied bytes
 # are not ROM code and nothing in the ROM points at them with a Thumb bit.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := code-copied-to-ram
 SRCS := ram.s
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:

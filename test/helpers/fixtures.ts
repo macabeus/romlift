@@ -1,13 +1,19 @@
 // The committed synthetic fixtures (architecture §8.1, D28) for tests: the fixture directories under
 // bench/dataset/synthetic that hold a committed build/<name>.gba (the rule test/gates/gate.ts's
-// listFixtures uses, so common/ is never one), their paths, and their expect.json parsed and checked.
+// listFixtures uses, so common/ is never one), their paths, their expect.json parsed and checked, their
+// ROM as romlift reads it, and the judgement of an analysis against an expect.json.
 //
 // expect.json (frozen by test/gates/g2.synthetic-analysis.test.ts):
 //   { negative?: boolean, entries: [{ addr, mode: 'thumb' | 'arm', extent?: { start, end } }], codeEnd? }
-// with addresses as "0x..." strings (numbers are accepted, as the gate accepts them).
+// with addresses as "0x..." strings (numbers are accepted, as the gate accepts them). The entries are
+// every FUNC symbol of the fixture's ELF inside the ROM, the two startup functions of common/crt0.s
+// included: the gate allows a negative fixture no entry beyond its list.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { romFromBytes, type AnalysisResult, type Rom } from 'romlift';
+import { sha1Of } from 'romlift/node';
 
 export type FixtureMode = 'thumb' | 'arm';
 
@@ -120,4 +126,36 @@ export function parseExpect(text: string, where: string): FixtureExpect {
 /** The parsed expect.json of a fixture. */
 export function readExpect(fixture: SyntheticFixture): FixtureExpect {
   return parseExpect(readFileSync(fixture.expect, 'utf8'), `${fixture.name}/expect.json`);
+}
+
+/** The fixture's committed ROM, as the gates read it. */
+export function readFixtureRom(fixture: SyntheticFixture): Rom {
+  const bytes = new Uint8Array(readFileSync(fixture.rom));
+  return romFromBytes(bytes, sha1Of(bytes));
+}
+
+const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
+
+/**
+ * Where `result` breaks `expect`, as g2.synthetic-analysis judges it: an expected entry missed or found
+ * in another mode or with another extent, another code end, and on a negative fixture every entry
+ * beyond the list. Empty when the expectation holds.
+ */
+export function expectProblems(expect: FixtureExpect, result: Pick<AnalysisResult, 'functions' | 'codeEnd'>): readonly string[] {
+  const problems: string[] = [];
+  const found = new Map(result.functions.map((f) => [f.entry, f] as const));
+  for (const e of expect.entries) {
+    const f = found.get(e.addr);
+    if (f === undefined) problems.push(`missed ${hex(e.addr)}`);
+    else if (f.mode !== e.mode) problems.push(`${hex(e.addr)} is ${f.mode}, expected ${e.mode}`);
+    else if (e.extent !== undefined && (f.extent.start !== e.extent.start || f.extent.end !== e.extent.end)) {
+      problems.push(`${hex(e.addr)} extent [${hex(f.extent.start)}, ${hex(f.extent.end)}), expected [${hex(e.extent.start)}, ${hex(e.extent.end)})`);
+    }
+  }
+  if (expect.codeEnd !== undefined && result.codeEnd !== expect.codeEnd) problems.push(`code end ${hex(result.codeEnd)}, expected ${hex(expect.codeEnd)}`);
+  if (expect.negative) {
+    const listed = new Set(expect.entries.map((e) => e.addr));
+    for (const f of result.functions) if (!listed.has(f.entry)) problems.push(`extra entry ${hex(f.entry)}`);
+  }
+  return problems;
 }

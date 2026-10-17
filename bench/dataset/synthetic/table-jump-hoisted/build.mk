@@ -4,7 +4,7 @@
 # find the table base as the nearest pc-relative load whose value is a table just ahead
 # (walk.table-nearest-pool-load), follow every case and claim the table; without the table the jump
 # reads as a computed return and Dispatch ends at its pool.
-# Startup: _start and start_vector (common/crt0.s); entries counted from main on.
+# Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := table-jump-hoisted
 SRCS := main.s switch.c
 # Toolchain record (D28), written by `npm run fixtures -- rebuild`:
