@@ -147,3 +147,27 @@ test('confirm on a fixture with one listed function deleted reaches its fixpoint
     ],
   );
 });
+
+test('a malformed seed is left out before round 0 with W_SEED_MALFORMED; the run neither hangs nor makes an extent that misses its entry', () => {
+  const malformed: readonly Seed[] = [
+    seed(Number.NaN),
+    seed(1.5),
+    seed(A, { size: -8 }),
+    seed(A, { size: 0 }),
+    seed(A, { size: 0.5 }),
+    seed(A, { size: 0x400_0000 }),
+  ];
+  for (const bad of malformed) {
+    const result = run([bad, seed(B)]);
+    assert.deepEqual(
+      result.diagnostics.filter((d) => d.code === 'W_SEED_MALFORMED').map((d) => d.rule),
+      ['seed.listed'],
+      `${String(bad.entry)} size ${String(bad.size)}`,
+    );
+    assert.equal(result.options.seeds.length, 1, 'the result records only the seeds the run used');
+    for (const f of result.functions) assert.ok(f.extent.start <= f.entry && f.entry < f.extent.end, `${f.entry} lies in its extent`);
+  }
+  const fits = run([seed(A, { size: 8 }), seed(B)]);
+  assert.equal(fits.diagnostics.some((d) => d.code === 'W_SEED_MALFORMED'), false, 'a size that fits is kept');
+  assert.equal(fits.functions.find((f) => f.entry === A)?.extent.end, A + 8);
+});

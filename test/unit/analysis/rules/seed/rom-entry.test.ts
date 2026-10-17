@@ -27,3 +27,10 @@ test('its metadata names the rom-entry origin', () => {
   assert.equal(romEntry.kind, 'seed');
   assert.equal(romEntry.meta.origin, 'rom-entry');
 });
+
+test('a truncated image whose startup word is not wholly in the ROM proposes only the b, never a function with an empty extent', () => {
+  const half = viewWith({ rom: romWith([], { entry: 0x0800_00c0, size: 0xc2 }) });
+  assert.deepEqual(romEntry.seeds(half), [{ entry: BASE, mode: 'arm', cites: [BASE] }], 'the header plus one halfword');
+  const whole = viewWith({ rom: romWith([], { entry: 0x0800_00c0, size: 0xc4 }) });
+  assert.deepEqual(romEntry.seeds(whole).map((c) => c.entry), [BASE, 0x0800_00c0], 'the header plus one word');
+});

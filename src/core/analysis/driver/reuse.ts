@@ -155,6 +155,11 @@ export function carry(r: ReuseState, entry: Addr, reading: Reading): void {
   if (facts !== undefined && !facts.opaque) r.carried.set(entry, { reading, facts });
 }
 
+/** Drops the facts of a reading that is forgotten without being carried (a reading budget eviction, epoch.ts). */
+export function dropFacts(r: ReuseState, entry: Addr): void {
+  r.facts.delete(entry);
+}
+
 /** The carried reading of `entry` when its facts still hold; it then belongs to the current epoch again. */
 export function takeCarried(r: ReuseState, entry: Addr, inProgress: ReadonlySet<Addr>): Reading | undefined {
   const c = r.carried.get(entry);

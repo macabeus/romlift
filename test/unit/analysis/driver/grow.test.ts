@@ -132,3 +132,32 @@ test('pointerCandidates gives one list per harvest rule of the slot, in slot ord
     'the third rule is proposed and accepted under its own id; without seed.call in the queue slot the callee is not proposed',
   );
 });
+
+test('the candidate budget is run-wide over distinct targets: a target judged before is judged again, a fresh one past it never is, and the warning is raised once', () => {
+  const entries = [0, 2, 4, 6, 8, 10, 12, 14].map((k) => F + 2 * k);
+  const rom = romWith([{ at: F, bytes: thumbAt(F)`${entries.map(() => 'bx lr; bx lr').join('; ')}` }]);
+  let lowest = 0;
+  const harvest = fakeRule(
+    'seed.pool-pointer',
+    {
+      kind: 'harvest',
+      harvest: (v) => {
+        const list = entries.filter((a) => !v.isFunction(a));
+        lowest = list[0] ?? 0;
+        return list;
+      },
+    },
+    'pool-pointer',
+  );
+  // Takes only the lowest target of the round's snapshot, so every round adds one and the loop goes on.
+  const lowestOnly = fakeRule('accept.prologue-and-loaded', { kind: 'accept', reason: 'unanchored', holds: (c) => (c.entry === lowest ? { cites: [c.entry], note: 'lowest' } : undefined) });
+  const profile = testProfile({ harvest: ['seed.pool-pointer'], validity: ['valid.in-rom-unclaimed'], accept: ['accept.prologue-and-loaded'], claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
+  const reg = registry(harvest, lowestOnly, inRom, extent, tiles, ...walk);
+  const s = createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);
+  assert.equal(grow(s, 3), 3, 'rounds 2 and 3 accept targets judged in round 1');
+  assert.deepEqual(s.order, entries.slice(0, 3));
+  assert.equal(s.judged.size, 3);
+  assert.ok(s.rejections.size <= 3, `${s.rejections.size} rejections`);
+  assert.equal(s.diagnostics.filter((d) => d.code === 'W_CANDIDATE_BUDGET').length, 1, 'once per run, though four rounds refused fresh targets');
+  assert.equal(s.round, 4);
+});

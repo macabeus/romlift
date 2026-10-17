@@ -13,9 +13,10 @@ export interface AnalysisLimits {
   /** Rounds of grow, and of each pass's grow + fillGaps loop. */
   readonly fixpointRounds: number;
   /**
-   * Candidates one grow round judges: past it the rest of the round's snapshot is not judged and
-   * W_CANDIDATE_BUDGET is raised, which bounds the rejections and verdicts a flood of pointers leaves
-   * (correctness-r1-4). The five tuning ROMs propose at most 13,612 in a round (pokeemerald).
+   * Distinct harvest targets grow judges in one run (D59 m): past it a fresh target is not judged and
+   * W_CANDIDATE_BUDGET is raised once, while targets judged before are judged again as usual. It bounds
+   * the rejections and validity verdicts a flood of pointers leaves, whatever the number of grow rounds.
+   * The five tuning ROMs judge at most 13,431 distinct targets in a run (pokeemerald).
    */
   readonly candidateBudget: number;
   /**
@@ -35,7 +36,7 @@ export interface AnalysisLimits {
    * Estimated bytes of the candidate readings one epoch may hold (readings of entries not accepted, kept
    * so a reading is computed once per epoch, D13). Past it the held readings are dropped, their validity
    * verdicts staying memoised, and W_READING_BUDGET is raised: a dropped reading asked for again is walked
-   * again. It bounds the memory of a grow round over a flood of candidates (correctness-r1-4). The five
+   * again. It bounds the memory of a grow round over a flood of candidates (D59 m). The five
    * tuning ROMs hold at most about 105 MB by this estimate (fe7j, pokeemerald), so they never reach it.
    */
   readonly epochReadingBytes: number;
@@ -69,7 +70,7 @@ export function readingBudget(round: number, budget: number): Diagnostic<Analysi
   );
 }
 
-/** W_CANDIDATE_BUDGET for a grow round that proposed `count` candidates. */
-export function candidateBudget(round: number, count: number, budget: number): Diagnostic<AnalysisCode> {
-  return diagnostic(AnalysisCodes, 'W_CANDIDATE_BUDGET', `grow round ${round} proposed ${count} candidates, over the budget of ${budget}; only the first ${budget} were judged`);
+/** W_CANDIDATE_BUDGET: from grow round `round` on, fresh targets past the run's budget of `budget` were not judged. */
+export function candidateBudget(round: number, budget: number): Diagnostic<AnalysisCode> {
+  return diagnostic(AnalysisCodes, 'W_CANDIDATE_BUDGET', `the run judged ${budget} distinct candidates, its budget; from grow round ${round} on, fresh candidates were not judged`);
 }

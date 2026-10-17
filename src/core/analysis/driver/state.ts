@@ -36,6 +36,7 @@ import { resolveRules } from './rules.ts';
 import type { ResolvedRules } from './rules.ts';
 import { read } from './settle.ts';
 import { valid, whyInvalid } from './validity.ts';
+import { wellFormedSeeds } from './seeds.ts';
 import { makeView } from './view.ts';
 
 /** An accepted function: its current reading and how it was accepted. */
@@ -85,6 +86,8 @@ export interface DriverState extends DriverInputs {
   readonly inProgress: Set<Addr>;
   validMemo: Map<Addr, boolean>;
   readonly neverValid: Set<Addr>;
+  /** The distinct harvest targets grow has judged in this run, against LIMITS.candidateBudget (grow.ts). */
+  readonly judged: Set<Addr>;
   readonly rejections: Map<string, Rejection>;
   readonly adrOwner: Map<Addr, Addr>;
   /** Confirm mode: the listed entries, and their addresses ascending. */
@@ -132,8 +135,11 @@ export function markEntry(s: Pick<DriverState, 'rom' | 'claims' | 'entryBits'>, 
 }
 
 /** A fresh driver state for one run. */
-export function createDriver(rom: Rom, profile: CompilerProfile, options: AnalysisOptions, tuning: AnalysisTuning, registry: RuleRegistry, sink?: TrailSink): DriverState {
+export function createDriver(rom: Rom, profile: CompilerProfile, given: AnalysisOptions, tuning: AnalysisTuning, registry: RuleRegistry, sink?: TrailSink): DriverState {
   const rules = resolveRules(profile, registry, tuning);
+  // A malformed seed never reaches a rule or the result's options (seeds.ts).
+  const checked = wellFormedSeeds(rom, given.seeds);
+  const options: AnalysisOptions = checked.seeds.length === given.seeds.length ? given : { ...given, seeds: checked.seeds };
   const listed = listedSeeds(options);
   let state: DriverState | undefined;
   const get = (): DriverState => {
@@ -161,13 +167,14 @@ export function createDriver(rom: Rom, profile: CompilerProfile, options: Analys
     inProgress: new Set(),
     validMemo: new Map(),
     neverValid: new Set(),
+    judged: new Set(),
     rejections: new Map(),
     adrOwner: new Map(),
     listed,
     listedOrder: sortedKeys(listed),
     unlisted: new Map(),
     listedInvalid: new Map(),
-    diagnostics: [],
+    diagnostics: [...checked.diagnostics],
     round: 0,
     epoch: 0,
     seq: 0,

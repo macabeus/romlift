@@ -1,6 +1,7 @@
 // seed.rom-entry (the PoC's run()): the cartridge starts with an ARM `b` over its header to the startup
 // code; that word and its target are the first two functions, both ARM. A ROM that does not start with
-// a `b` proposes nothing.
+// a `b` proposes nothing, and a target whose first ARM word is not wholly in the ROM (a truncated image)
+// is not proposed: it would be a function with an empty extent.
 import { decode } from '../../../../foundation/isa/decode.ts';
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import { defineRule } from '../define-rule.ts';
@@ -21,9 +22,7 @@ export default defineRule({
     if (!contains(v.rom, at, 4)) return [];
     const flow = decode('arm', u32(v.rom, at), at).flow;
     if (flow.kind !== 'branch') return [];
-    return [
-      { entry: at, mode: 'arm', cites: [at] },
-      { entry: flow.target, mode: 'arm', cites: [at] },
-    ];
+    const start = { entry: at, mode: 'arm' as const, cites: [at] };
+    return contains(v.rom, flow.target, 4) ? [start, { entry: flow.target, mode: 'arm', cites: [at] }] : [start];
   },
 });

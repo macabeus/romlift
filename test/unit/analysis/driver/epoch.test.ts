@@ -6,6 +6,7 @@ import { test } from 'node:test';
 
 import { accept } from '../../../../src/core/analysis/driver/accept.ts';
 import { beginEpoch, hold, readingBytes } from '../../../../src/core/analysis/driver/epoch.ts';
+import { LIMITS } from '../../../../src/core/analysis/limits.ts';
 import { settle } from '../../../../src/core/analysis/driver/settle.ts';
 import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
 import { registry, romWith, testProfile, tuningFor } from '../../../helpers/analysis.ts';
@@ -16,7 +17,7 @@ const F = 0x0800_0200;
 const G = 0x0800_0300;
 const H = 0x0800_1300;
 
-function setup() {
+function setup(cache: 'epoch' | 'epoch-reuse' = 'epoch') {
   const rom = romWith([
     { at: F, bytes: thumbAt(F)`movs r0, #0; bx lr` },
     { at: G, bytes: thumbAt(G)`movs r0, #1; bx lr` },
@@ -24,7 +25,7 @@ function setup() {
   ]);
   const profile = testProfile({ claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
   const reg = registry(extent, ...walk);
-  return createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);
+  return createDriver(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' }, tuningFor(profile, reg, { cache }), reg);
 }
 
 test('readingBytes counts a fixed part, each instruction and each 4 KiB page of the index', () => {
@@ -56,4 +57,23 @@ test('hold keeps readings under the budget; past it every candidate reading is d
   beginEpoch(s);
   assert.equal(s.held, 0);
   assert.deepEqual([...s.settled.keys()], [F]);
+});
+
+test("under 'epoch-reuse' a reading budget eviction drops the evicted readings' facts; nothing is carried or kept for them", () => {
+  const s = setup('epoch-reuse');
+  const reuse = s.reuse;
+  assert.ok(reuse !== undefined);
+  accept(s, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
+  const g = settle(s, G);
+  assert.ok(reuse.facts.has(G), 'settle records the facts of a candidate reading');
+  assert.ok(readingBytes(g) > 0);
+  s.held = LIMITS.epochReadingBytes; // the next held reading passes the run's budget
+  settle(s, H);
+  assert.ok(s.diagnostics.some((d) => d.code === 'W_READING_BUDGET'));
+  assert.equal(s.settled.has(G) || s.settled.has(H), false, 'both candidate readings are evicted');
+  assert.equal(reuse.facts.has(G), false, 'the facts of an evicted reading are dropped');
+  assert.equal(reuse.facts.has(H), false, 'the facts of the reading whose hold passed the budget are dropped too');
+  beginEpoch(s);
+  assert.equal(reuse.carried.has(G) || reuse.carried.has(H), false, 'an evicted reading is not carried');
+  assert.deepEqual([...reuse.facts.keys()].filter((e) => e !== F), [], 'no facts outlive their readings');
 });

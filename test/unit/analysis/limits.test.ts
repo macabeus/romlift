@@ -11,7 +11,7 @@ test("the limits are the PoC's settle cap and five safety bounds", () => {
   assert.ok(LIMITS.candidateBudget > 0);
   assert.ok(LIMITS.walkInsns >= 65_536, 'five times the largest function of the tuning ROMs');
   assert.equal(LIMITS.zeroRun, 64);
-  assert.ok(LIMITS.candidateBudget >= 13_612 * 16, 'far above the largest grow round of the tuning ROMs');
+  assert.ok(LIMITS.candidateBudget >= 13_431 * 16, 'far above the distinct candidates a run of the tuning ROMs judges');
   assert.ok(LIMITS.epochReadingBytes >= 2 * 105 * 1024 * 1024, 'far above the readings an epoch of the tuning ROMs holds');
 });
 
@@ -22,8 +22,8 @@ test('each limit raises a warning, never an error', () => {
   assert.equal(s.addr, 0x0800_0100);
   assert.match(s.message, /0x08000100.*600 rounds/);
   assert.equal(fixpointLimit('grow', 10).code, 'W_FIXPOINT_LIMIT');
-  assert.equal(candidateBudget(3, 9, 8).code, 'W_CANDIDATE_BUDGET');
-  assert.match(candidateBudget(3, 9, 8).message, /only the first 8 were judged/);
+  assert.equal(candidateBudget(3, 8).code, 'W_CANDIDATE_BUDGET');
+  assert.match(candidateBudget(3, 8).message, /judged 8 distinct candidates.*from grow round 3 on/);
   assert.equal(walkLimit(0x0800_0100, 'thumb', 0x0802_0100).code, 'W_WALK_LIMIT');
   assert.equal(readingBudget(4, 1024).code, 'W_READING_BUDGET');
   for (const code of ['W_SETTLE_LIMIT', 'W_FIXPOINT_LIMIT', 'W_CANDIDATE_BUDGET', 'W_WALK_LIMIT', 'W_READING_BUDGET'] as const) assert.equal(AnalysisCodes[code].severity, 'warning');

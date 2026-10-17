@@ -8,19 +8,27 @@ import type { Addr } from '../../../foundation/rom/span.ts';
 import { sortedKeys } from '../../../foundation/util/sorted.ts';
 import { LIMITS, readingBudget } from '../limits.ts';
 import type { Reading } from '../types.ts';
-import { carry } from './reuse.ts';
+import { carry, dropFacts } from './reuse.ts';
 import type { DriverState } from './state.ts';
+
+/**
+ * Forgets the epoch's reading of `entry`, the one way a candidate reading leaves `settled`. Under
+ * 'epoch-reuse' it is carried over the boundary with its facts (`carry`, at an epoch boundary) or its
+ * facts are dropped with it (`drop`, a reading budget eviction), so no fact outlives its reading.
+ */
+function forget(s: DriverState, entry: Addr, how: 'carry' | 'drop'): void {
+  const r = s.settled.get(entry);
+  s.settled.delete(entry);
+  if (s.reuse === undefined) return;
+  if (how === 'carry' && r !== undefined) carry(s.reuse, entry, r);
+  else dropFacts(s.reuse, entry);
+}
 
 /** Starts a new epoch. */
 export function beginEpoch(s: DriverState): void {
   s.epoch += 1;
   s.validMemo = new Map();
-  for (const entry of sortedKeys(s.settled)) {
-    if (s.funcs.has(entry)) continue;
-    const r = s.settled.get(entry);
-    if (s.reuse !== undefined && r !== undefined) carry(s.reuse, entry, r);
-    s.settled.delete(entry);
-  }
+  for (const entry of sortedKeys(s.settled)) if (!s.funcs.has(entry)) forget(s, entry, 'carry');
   s.held = 0;
   s.lastArm.clear();
 }
@@ -52,7 +60,7 @@ export function hold(s: DriverState, entry: Addr, r: Reading, budget: number = L
   if (s.funcs.has(entry)) return;
   s.held += readingBytes(r);
   if (s.held <= budget) return;
-  for (const e of sortedKeys(s.settled)) if (!s.funcs.has(e)) s.settled.delete(e);
+  for (const e of sortedKeys(s.settled)) if (!s.funcs.has(e)) forget(s, e, 'drop');
   s.held = 0;
   if (!s.diagnostics.some((d) => d.code === 'W_READING_BUDGET')) s.diagnostics.push(readingBudget(s.round, budget));
 }

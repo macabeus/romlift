@@ -43,8 +43,28 @@ export function acceptable(s: DriverState, c: Candidate, r: Reading): Provenance
   return undefined;
 }
 
-/** The PoC's grow(): accepts harvest candidates until a round adds none; returns how many it added. */
-export function grow(s: DriverState): number {
+/**
+ * Whether grow may judge `t` under the run's candidate budget: a target judged before always may; a fresh
+ * one only while fewer than `budget` distinct targets have been judged (D59 m). The first refusal of the
+ * run raises W_CANDIDATE_BUDGET.
+ */
+function withinBudget(s: DriverState, t: Addr, budget: number): boolean {
+  if (s.judged.has(t)) return true;
+  if (s.judged.size < budget) {
+    s.judged.add(t);
+    return true;
+  }
+  if (!s.diagnostics.some((d) => d.code === 'W_CANDIDATE_BUDGET')) s.diagnostics.push(candidateBudget(s.round, budget));
+  return false;
+}
+
+/**
+ * The PoC's grow(): accepts harvest candidates until a round adds none; returns how many it added. At
+ * most `budget` distinct targets are judged in the whole run (LIMITS.candidateBudget): past it a fresh
+ * target is left unjudged, so the rejections and verdicts a flood of pointers leaves are bounded by the
+ * budget, not by the rounds times the budget.
+ */
+export function grow(s: DriverState, budget: number = LIMITS.candidateBudget): number {
   let total = 0;
   for (let rounds = 0; ; rounds++) {
     if (rounds === LIMITS.fixpointRounds) {
@@ -53,16 +73,10 @@ export function grow(s: DriverState): number {
     }
     s.round += 1;
     beginEpoch(s);
-    const lists = pointerCandidates(s);
-    const count = lists.reduce((n, l) => n + l.targets.length, 0);
-    if (count > LIMITS.candidateBudget) s.diagnostics.push(candidateBudget(s.round, count, LIMITS.candidateBudget));
     let added = 0;
-    let judged = 0;
-    for (const { id: proposedBy, targets } of lists) {
+    for (const { id: proposedBy, targets } of pointerCandidates(s)) {
       for (const t of targets) {
-        if (judged === LIMITS.candidateBudget) break;
-        judged += 1;
-        if (s.funcs.has(t) || !valid(s, t)) continue;
+        if (s.funcs.has(t) || !withinBudget(s, t, budget) || !valid(s, t)) continue;
         const r = settle(s, t);
         const c: Candidate = { entry: t, mode: 'thumb', proposedBy, cites: [t] };
         const taken = acceptable(s, c, r);

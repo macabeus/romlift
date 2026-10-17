@@ -17,11 +17,15 @@ export const AnalysisCodes = defineCodes({
   },
   W_CANDIDATE_BUDGET: {
     severity: 'warning',
-    meaning: 'one grow round proposed more candidates than the candidate budget; only the first ones, up to the budget, were judged',
+    meaning: 'the run judged as many distinct grow candidates as the candidate budget allows; fresh candidates after that were not judged',
   },
   W_READING_BUDGET: {
     severity: 'warning',
     meaning: 'the candidate readings held in one epoch passed the reading budget; they were dropped and are walked again when asked for',
+  },
+  W_SEED_MALFORMED: {
+    severity: 'warning',
+    meaning: "a seed's entry is not an address, its mode is unknown or its size does not fit the ROM; the seed is left out",
   },
   W_LISTED_INVALID: {
     severity: 'warning',

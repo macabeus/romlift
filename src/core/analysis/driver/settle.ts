@@ -122,8 +122,9 @@ function settleNow(s: DriverState, entry: Addr): Reading {
   if (!settled && !s.diagnostics.some((d) => d.code === 'W_SETTLE_LIMIT' && d.addr === entry)) s.diagnostics.push(settleLimit(entry, LIMITS.settleRounds));
   s.inProgress.delete(entry);
   const final = withVerdicts(r, { far: sortedKeys(far), noret: sortedKeys(noret), blVerdicts: sortedEntries(verdicts).map(([, v]) => v), steps });
-  hold(s, entry, final);
+  // The facts are recorded before hold, so a reading budget eviction in hold drops them with the reading.
   if (s.reuse !== undefined) endReading(s.reuse, entry);
+  hold(s, entry, final);
   limited(s, final);
   return final;
 }
