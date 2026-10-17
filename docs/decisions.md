@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -1116,7 +1116,7 @@ depend on the day it runs.
 Gen-3 siblings of a tuning ROM. Diagnosing a failure requires revealing the ROM, which makes it tuning data,
 and the first version named no source of fresh pairs.
 
-**Decision.** Every dataset records its engine `family`. At least two sealed ROMs must pass, from at least
+**Decision.** Every dataset records its codebase `family` (D55 i). At least two sealed ROMs must pass, from at least
 two families, one of them absent from the tuning set (tmc, or a reserve-pool ROM listed in
 benchmark-roms.md). If the gate fails, phase 2 does not land unless the owner records a decision that
 accepts the failure (architecture §12); the failure is fixed by a rule change justified by its `restsOn`
@@ -1271,9 +1271,10 @@ does not fit "first answer wins" or where a rule needs a fact the view did not e
 
 **Decision.** Phase 2 runs as thirteen components in three waves (roadmap.md, "As executed"):
 
-- (a) The walk skeleton (`walk/{cursor,thumb,arm}.ts`) and the whole driver are in wave 0, in
-  `p2-engine`, with the lead's frozen types, so `analyze` exists for wave 1; the rule files stay with
-  the rule components, and `RULES` starts as eight empty family records.
+- (a) The walk skeleton (`walk/{cursor,thumb,arm}.ts`) and the whole driver are in wave 1, in
+  `p2-driver` (named `p2-engine` while it ran, D59), with the lead's frozen types, so `analyze` exists
+  for wave 2; the rule files stay with the rule components, and `RULES` starts as eight empty family
+  records.
 - (b) The codec (`core/analysis/codec.ts`) and the parity view go to `p2-lockstep`, which implements
   `RuleOracle` over the log of `p2-poc-export`; `core/analysis/explain.ts` goes to `p2-bench`; the
   `bench run` rewrite, the held-out datasets and the fixture coverage are components of their own.
@@ -1327,7 +1328,7 @@ does not fit "first answer wins" or where a rule needs a fact the view did not e
   `ORACLE_ORIGINS`; a registered rule's origin is always its own `meta.origin`.
 - (g) `diagnoseMisses` (romlift/internal) runs the analysis and diagnoses each miss at its final state,
   so the bench needs no access to the driver.
-- (h) The component branches are flat (`phase-2-p2-engine`): Git cannot hold `phase-2/<component>`
+- (h) The component branches are flat (`phase-2-p2-rules-gap-region`): Git cannot hold `phase-2/<component>`
   beside the branch `phase-2`.
 
 **Consequences.** Every wave-1 component typechecks and runs end to end against merged code; the
@@ -1340,6 +1341,11 @@ stubbed early" forbids). Wrapping the PoC's composite conditions into single rul
 would no longer be the PoC's call order). Caching ARM readings per epoch like Thumb ones (the PoC
 re-walks them, and a cached reading would miss acceptances within the epoch).
 
+**Revision (phase-2 review, D59).** (c)'s shared reading queries moved from `walk/cursor.ts` to
+`walk/predicates.ts`; (d)'s `ClaimCode` and the unread `next` of `isPadding` are gone; (e)'s PoC
+classes of the ARM walk are gone (the walk follows the table); (f)'s oracle protocol and
+`ORACLE_ORIGINS` are deleted; the waves of (a) are numbered 1 to 3, as the roadmap's table numbers them.
+
 
 ## D57. Eight rules that no seedless fixture run can make load-bearing
 
@@ -1347,7 +1353,8 @@ re-walks them, and a cached reading would miss acceptances within the epoch).
 and to move a fixture outcome when `bench ablate <rule> --tier synthetic` disables it, or a decision
 record that names the rule and says why it stays. The outcome ablation compares is the entries with
 their modes, the extents and the code end of the bench's seedless discover run (D24). Measured on the
-29 committed fixtures of phase 2 (bench/dataset/synthetic/index.md, wave 3), eight rules move that
+29 committed fixtures of phase 2 (bench/dataset/synthetic/index.md, wave 3), and again on all 31 after
+D58 added two, eight rules move that
 outcome on no fixture, and by construction on no ROM:
 
 - `region.startup`, `region.padding`, `region.data-after-code` run after the passes (driver/run.ts,
@@ -1384,6 +1391,11 @@ of bench/dataset/synthetic/index.md names the fixture of every other rule.
 **Consequences.** test/unit/fixtures/coverage.test.ts asserts that disabling each of the eight moves
 no fixture outcome, so a change that makes one load-bearing (a region rule moved before a pass, a
 bench run with seeds) fails until its exemption is replaced by a fixture.
+
+**Revision (phase-2 review, D59).** `valid()` no longer repeats `valid.in-rom-unclaimed`'s test: the slot
+judges outside, odd and claimed entries in discover mode too, and its rejection names the rule. Disabling
+it still moves no fixture outcome (the reading rules reject the same entries), so the exemption stands
+on the measurement, which test/unit/fixtures/coverage.test.ts repeats.
 
 **Rejected.** Adding the claims and the startup region to the ablation outcome (every claim edit would
 then count, which says nothing about the entries the gate protects). Ablating with TOML seeds or
@@ -1428,6 +1440,85 @@ lose their citation). Emitting walk events from inside every walk (the readings 
 and every settle round would flood a 'decisions' trail with answers that changed nothing). Recording
 steps unconditionally (it costs the walk an allocation per pool load with no reader when the trail is
 off).
+
+## D59. Phase-2 review: the oracle deleted, every decision through its slot, the walk bounded
+
+**Context.** The adversarial review of phase 2 (17 October 2026; every finding's disposition is in
+[phase-2.md](phase-2.md), "Review") found that the driver repeated two rules' predicates inline and
+hard-coded rule ids and slot counts, that the retired lockstep oracle was still threaded through the
+pure driver and brought back the PoC's LIFO order, that the ARM walk and a profile table kept PoC flow
+classes and Thumb register effects outside the ISA rows, that a valid cartridge with a large zero
+region ran the analysis out of memory, and that two rules and several contract members had shipped
+with no decision record.
+
+**Decision.**
+
+- (a) **The lockstep oracle is deleted.** `RuleOracle`, `consult`, `ORACLE_ORIGINS`, `OracleQueries`,
+  the oracle branch of `resolveRules`, `bench/src/lockstep.ts` and their tests are gone; the lockstep of
+  architecture §4.5 is historical. Its evidence (milestone M1, the `parity` member of `results.json`)
+  stays committed and `g2.poc-parity` checks it, now also that the commit it names is an ancestor of
+  HEAD; it is never re-run, because the driver no longer runs in the PoC's order (`'poc-lifo'` was
+  deleted by `c608a33`). `export-poc --mode queries` still writes the log and re-reads it through
+  `bench/src/poc-log.ts`, which stays as that command's validator. This supersedes D56 (f).
+- (b) **Every decision is a slot's.** The driver repeats no rule's predicate and names no rule id: the
+  gap's head is accepted only through the proposers after the pair (`gap.tiled-hole-inner`), at the gap
+  start and after the end-anchor loop, proposed by the head rule with a second 'accept' event under the
+  proposer (D58 a); `valid()` judges outside, odd and claimed entries through the validity slot
+  (`valid.in-rom-unclaimed`'s `checkEntry`); `pointerCandidates` returns one list per resolved harvest
+  rule; the calls of an absorbed block go through the queue slot; an unanchored candidate is rejected
+  under the rule that proposed it. Proposers return a `Proposal` and accept rules an `AcceptHold`; the
+  driver stamps the id of the slot it called, so no rule spells its own id, and accept rules judge a
+  candidate by its origin (`v.originOf(proposedBy)`), never by another rule's id.
+- (c) **The ISA rows are the only source of flow classes and register effects.** The ARM walk and
+  `gap.arm-scan` follow the decoder's Flow; the PoC's classes (`add/sub pc, pc, #imm` as adr, the
+  ARMv4T-undefined encodings as other or pc_write) are gone. On the five tuning ROMs and the 31 fixtures
+  no analysis digest moves; test/local/poc-decoder-differential.test.ts still lists every difference
+  from the PoC with its count. `InsnSpec.registers` (`RegisterSpec`: written operands, a written
+  register list, fixed clobbers, and the operands a written value is followed to) replaces
+  `core/profile/thumb-registers.ts`; `registerEffect` (foundation/isa/registers.ts, `romlift/isa`)
+  reads it. This supersedes D56 (e).
+- (d) **The walk is bounded.** `LIMITS.zeroRun` (64): a path over more consecutive all-zero
+  instructions stops with a 'zero-run' error and no diagnostic (the bytes are not code).
+  `LIMITS.walkInsns` (65,536, five times klonoa's largest function): a walk that records that many
+  instructions stops with a 'walk-limit' error and raises `W_WALK_LIMIT`. Both are decode errors to
+  `valid.decodes`. A unit test analyses a 32 MiB mostly-zero image under a 256 MiB V8 heap. This
+  applies D42 to the analysis ahead of phase 3's `g3.large-rom`.
+- (e) **The rules and contract members phase 2 added**, now in architecture §4.1:
+  `walk.inline-arm-switch` (walk slot, after `walk.bx-pc-veneer`; a Thumb `bx rN` after `add rN, pc, #0`
+  enters ARM code right after it, which is this function's tail; restsOn: hand-written code enters ARM
+  in place and runs the ARM body as one function; WalkStep `'arm-tail'`, `Reading.armTails`,
+  `ReadingShape.armTails`) and `bl.target-beyond-callee` (bl slot, before
+  `bl.target-pops-unpushed-frame`; a far `bl` past the entry of another function the caller calls is a
+  call; restsOn: a far jump reaches the caller's own tail, and a function never contains the entry of a
+  function it calls; it removes the order dependence milestone M4 exposed in `pops-unpushed-frame`);
+  `WalkCursor.back`, `InsnLookup` for `Reading.insnAt`; `WalkDecision`, `Reading.steps` and
+  `WalkEnv.trace` (D58); `withVerdicts` (reading.ts) builds the settled reading, so only reading.ts
+  builds readings; `CLAIM_KINDS` and `claimName` derive from `Claim`, the one claim enumeration;
+  `SealedCounts` counts the `other` false entries and splits the glued misses (`gluedWhere`: inside a
+  found extent, outside every extent, past the code end), counts only (D25); `shell/rom.ts` `readRom`.
+- (f) **Confirm mode's labels** (milestone M6): a listed entry with `label = true` is a walk boundary
+  only once it is taken, as discover's walk of the function around it saw it (driver/state.ts
+  `isListedBoundary`).
+- (g) **Removed until their phase:** the profile's `misfitThreshold` (`W_PROFILE_MISFIT` has no raiser,
+  and no rejection rate measured on the tuning ROMs separates a fitting profile: fe7j rejects more
+  candidates than it accepts) and `isPadding`'s `next` (never read; "0x46C0 only before a pool" returns
+  with the emission that needs it).
+- (h) **`defineRule` stays internal** (`romlift/internal`): a rule runs only from the registry of this
+  repository, so there is no public extension point to version; roadmap 2.0 lists it there.
+- (i) **Names.** The phase-2 component that built the driver is `p2-driver` (it ran as `p2-engine`, a
+  term the naming rule forbids); D53 says codebase `family`.
+
+**Consequences.** On the five tuning ROMs and the 31 fixtures functions, extents and claims are
+unchanged; rejections change (rule ids, zero-run and walk-limit details) and sa3 raises four
+`W_WALK_LIMIT` (tile-map data that decodes as 128 KiB of shifts). Analysis CPU drops on pokeemerald
+(4.8 s to 2.9 s) and klonoa (0.70 s to 0.27 s). `g2.checks-fail` has four mutation files (the lockstep
+reporter's is gone). `g2.held-out` still fails on tmc ([phase-2.md](phase-2.md)); D53 is unchanged.
+
+**Rejected.** Keeping the oracle behind one driver hook (it would keep the PoC's LIFO order alive in the
+product for evidence that is already committed). Keeping the PoC's ARM classes as a table override (no
+reading of the tuning set depends on them). An instruction cap alone (klonoa padded with 4 MiB of zeros
+still peaked at 2 GB: 294 candidates in the zeros each walked 65,536 instructions). Raising
+`W_WALK_LIMIT` for zero runs (every tuning ROM would warn on its data candidates).
 
 ---
 

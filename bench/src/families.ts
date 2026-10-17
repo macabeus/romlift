@@ -2,6 +2,7 @@
 // recorded per tuning ROM in meta.families; a `global` family is a top-level member of results.json
 // named after it (the printer's corpus summary is `printer`); `sealed` families are judged per sealed
 // ROM by g2.held-out. The provenance check requires every family live at the landed phase.
+import { compareCodeUnits } from 'romlift';
 
 export type FamilyScope = 'rom' | 'global' | 'sealed';
 
@@ -46,7 +47,7 @@ export function phase2RomFamilies(e: RomEvidence): Family[] {
   if (e.deterministic) families.push('determinism');
   if (e.scaffold) families.push('scaffold');
   if (e.speedBaseline) families.push('speed');
-  return families.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return families.sort(compareCodeUnits);
 }
 
 export function familySpec(family: Family): FamilySpec {
@@ -57,5 +58,5 @@ export function familySpec(family: Family): FamilySpec {
 export function liveFamilies(landed: number, scope: FamilyScope): Family[] {
   return (Object.keys(FAMILIES) as Family[])
     .filter((f) => familySpec(f).scope === scope && familySpec(f).liveFrom <= landed)
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    .sort(compareCodeUnits);
 }

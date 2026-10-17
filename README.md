@@ -24,8 +24,8 @@ digests and the lockstep of every rule family), then switches to an order-indepe
 register-tracked jump tables and a few measured improvements, with every tuning threshold met and every
 rule cited and load-bearing on a synthetic fixture or exempted by a decision. Every phase-2 gate passes
 except the sealed held-out gate, which fails on The Minish Cap (51 glued functions, code end 4,130 bytes
-short), so the phase waits for a rule fix validated on the tuning set, or the owner's decision, and a
-fresh sealed pair (D53). The commands so far are `doctor`, `analyze` and `explain`.
+short; of the 51, 3 lie inside a found extent, 14 in gaps and 34 past the code end), so the phase waits
+for a rule fix validated on the tuning set, or the owner's decision, and a fresh sealed pair (D53). The commands so far are `doctor`, `analyze` and `explain`.
 
 | Phase | Delivers |
 | --- | --- |

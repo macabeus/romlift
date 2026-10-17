@@ -103,6 +103,8 @@ gate({
       }
     }
     if (problems.length > 0) throw new Error(`fixture expectations fail: ${problems.join('; ')}`);
-    cx.note(`${cx.fixtures.length} fixtures hold their expect.json (${negatives} negative)`);
+    // `negative` is the flag that forbids extra entries; every committed fixture sets it (bench/dataset/synthetic/index.md,
+    // "Exhaustive"), so the note says how many allow none, not how many are negative fixtures in the §8.1 sense.
+    cx.note(`${cx.fixtures.length} fixtures hold their expect.json, no extra entries allowed in ${negatives}`);
   },
 });

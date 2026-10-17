@@ -2,6 +2,8 @@
 // the per-ROM thresholds, the verdict across sealed ROMs, the guard that keeps addresses and names out
 // of a sealed entry, the append-only reveal log, `adopt`'s refusal and the shape of a dataset created
 // sealed. Pure: plain data in, plain data out; the bench commands do the reading and the printing.
+import { compareCodeUnits } from 'romlift';
+
 import type { Dataset, Reveal } from './dataset.ts';
 import { classifier, classifyFalseEntry, classifyMiss, type ClassifyInput } from './classify.ts';
 import { extentAgrees } from './score.ts';
@@ -165,13 +167,11 @@ export interface HeldOutVerdict {
   readonly problems: readonly string[];
 }
 
-const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
-
 /** At least two sealed ROMs pass, from at least two families, one of them absent from the tuning set (D53). */
 export function heldOutVerdict(results: readonly SealedResult[], tuningFamilies: readonly string[]): HeldOutVerdict {
   const tuning = new Set(tuningFamilies);
   const passed = results.filter((r) => r.pass);
-  const families = [...new Set(passed.map((r) => r.family).filter((f) => f !== ''))].sort(byCodeUnit);
+  const families = [...new Set(passed.map((r) => r.family).filter((f) => f !== ''))].sort(compareCodeUnits);
   const freshFamilies = families.filter((f) => !tuning.has(f));
   const problems: string[] = [];
   if (passed.length < 2) problems.push(`${passed.length} of ${results.length} sealed ROMs pass, at least two must`);

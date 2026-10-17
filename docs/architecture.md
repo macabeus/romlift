@@ -70,8 +70,8 @@ artifacts, and a structural `diff` command (D18).
 **One npm package, `romlift`, with four entry points** (D1, D37): `romlift` (the pure library API:
 analysis, model, emission, explain, formats; browser-safe), `romlift/node` (the file-backed API:
 locate and load a project, apply a write plan, run the toolchain), `romlift/isa` (the instruction set,
-importable alone so gba-kit can share it) and `romlift/internal` (analysis tuning, the PoC oracle hook,
-and ablation; outside semver, documented as such, imported only by the CLI's `--disable`, the bench,
+importable alone so gba-kit can share it) and `romlift/internal` (analysis tuning, the rule registry,
+`defineRule` and ablation; outside semver, documented as such, imported only by the CLI's `--disable`, the bench,
 the gate tests and `test/local`). Templates ship inside the package. Signature specs ship; built
 signature files ship only once the owner decides (D40). The bench, fixtures and tests are not published.
 
@@ -106,7 +106,7 @@ romlift/
     foundation/                     no project knowledge; imports nothing outside foundation/
       rom/                          span.ts, rom.ts, header.ts, memory-map.ts, codes.ts
       isa/                          types.ts, thumb-table.ts, arm-table.ts, decode.ts, encode.ts, format.ts,
-                                    parse.ts, assemble.ts, roundtrip.ts
+                                    parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59)
       corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
                                     as round-trip corpus, counts only (D54 c, D55)
       asm/                          dialect.ts (file preamble, macros.inc text), statements.ts (parser of the
@@ -119,10 +119,11 @@ romlift/
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
       profile/                      types.ts, registry.ts, agbcc.ts
-      analysis/                     types.ts, address-map.ts, pointers.ts, limits.ts, codec.ts, explain.ts, codes.ts
-        driver/                     run.ts, grow.ts, fill-gaps.ts, accept.ts, settle.ts, validity.ts, epoch.ts,
-                                    worklist.ts, confirm.ts, view.ts
-        walk/                       cursor.ts, thumb.ts, arm.ts
+      analysis/                     types.ts, address-map.ts, pointers.ts, limits.ts, codec.ts, explain.ts, codes.ts,
+                                    reading.ts
+        driver/                     run.ts, state.ts, facts.ts, trail.ts, view.ts, grow.ts, fill-gaps.ts, accept.ts,
+                                    settle.ts, validity.ts, epoch.ts, worklist.ts, confirm.ts, diagnose.ts, reuse.ts
+        walk/                       cursor.ts, record.ts, predicates.ts, insn-index.ts, thumb.ts, arm.ts
         rules/                      define-rule.ts, index.ts (concatenates the family registries)
           seed/ walk/ bl/ valid/ accept/ gap/ claim/ region/     index.ts + one file per rule (§4.1)
       proposals/                    types.ts (Proposal, ProposalSource, LibraryRegion, sourceKey)
@@ -149,6 +150,7 @@ romlift/
       codes.ts                      the shell's diagnostic codes
       hash.ts                       sha1/sha256 via node:crypto, incremental
       fs.ts                         listDir (sorted by code unit), atomic write (temp and rename)
+      rom.ts                        readRom: a ROM file read, hashed and wrapped (D59)
       project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts
       config/                       load.ts, save.ts
       evidence/                     read-elf.ts, read-map.ts, read-legacy.ts, read-trace.ts
@@ -161,7 +163,7 @@ romlift/
       commands/                     index.ts, lists/<component>.ts (one command list per component), one file per command
       reporters/                    text.ts, ndjson.ts
   bench/                            dev only; imports only romlift, romlift/node, romlift/isa, romlift/internal
-    src/                            cli.ts, run.ts, score.ts, parity.ts, lockstep.ts, classify.ts, seal.ts,
+    src/                            cli.ts, run.ts, score.ts, parity.ts, classify.ts, seal.ts,
                                     dataset.ts, dataset-check.ts, vocabulary.ts, gates.ts, provenance.ts,
                                     digest.ts, regression.ts, ablate.ts, speed.ts, readability.ts, objdiff.ts,
                                     large-rom.ts, migration.ts, signatures.ts, doctor-real.ts, report.ts, serve.ts
@@ -534,10 +536,9 @@ export function analyze(rom: Rom, profile: CompilerProfile, options: AnalysisOpt
 
 // exported from romlift/internal only, outside semver (D37)
 export interface AnalysisTuning {
-  readonly worklist: 'poc-lifo' | 'ascending';   // 'poc-lifo' exists only until phase 2 lands (D10)
+  readonly worklist: 'ascending';                // 'poc-lifo' was deleted by the phase-2 integration (D10, D59)
   readonly cache: 'epoch' | 'epoch-reuse';       // §4.2, D13
   readonly disabled: readonly RuleId[];          // `analyze --disable`, `bench ablate`
-  readonly oracle?: RuleOracle;                  // lockstep against the PoC's recorded answers (§4.5)
 }
 export function analyzeTuned(rom: Rom, profile: CompilerProfile, options: AnalysisOptions,
   tuning: AnalysisTuning, sink?: TrailSink): AnalysisResult;
@@ -741,26 +742,32 @@ export interface AnalysisView {                       // what a rule may read; t
   read(entry: Addr, mode: Mode): Reading;              // cached for the current epoch (§4.2)
   valid(entry: Addr): boolean;                         // the driver's validity service (driver/validity.ts)
   neverValid(entry: Addr): boolean;                    // intrinsic failures, remembered for the analysis
+  originOf(rule: RuleId): Origin | undefined;          // a proposer's meta.origin (D59)
   readonly pointers: PointerIndex;
+  // D56 added seeds, overrides, functions(), accepted(), whyInvalid(), inProgress() and adrOwner()
 }
-export interface Candidate { readonly entry: Addr; readonly mode: Mode; readonly proposedBy: RuleId;
-  readonly cites: readonly Addr[] }
+// A proposer returns a Proposal; the driver stamps the id of the slot it called (D59), so no rule spells
+// its own id and accept rules judge a candidate by its origin, never by another rule's id.
+export interface Proposal  { readonly entry: Addr; readonly mode: Mode; readonly cites: readonly Addr[] }
+export interface Candidate extends Proposal { readonly proposedBy: RuleId }
 
-export interface SeedRule    { kind: 'seed';    seeds(v: AnalysisView): readonly Candidate[] }            // round 0, sorted
+export interface SeedRule    { kind: 'seed';    seeds(v: AnalysisView): readonly Proposal[] }             // round 0, sorted
 export interface HarvestRule { kind: 'harvest'; harvest(v: AnalysisView, earlier: ReadonlySet<Addr>): readonly Addr[] }
-export interface QueueRule   { kind: 'queue';   queue(f: FunctionFact, v: AnalysisView): readonly Candidate[] }  // at accept
+export interface QueueRule   { kind: 'queue';   queue(f: FunctionFact, v: AnalysisView): readonly Proposal[] }   // at accept, and for an absorbed block
 export interface WalkPolicy  { kind: 'walk';    onInsn(insn: Insn, cursor: WalkCursor): WalkStep | undefined }
 export type WalkStep =
   | { readonly step: 'end-path'; readonly exit: Exit['kind'] }
   | { readonly step: 'pool'; readonly addr: Addr }
   | { readonly step: 'table'; readonly table: JumpTable }
-  | { readonly step: 'switch-mode'; readonly target: Addr };
+  | { readonly step: 'switch-mode'; readonly target: Addr }
+  | { readonly step: 'continue' } | { readonly step: 'padding' }          // D56
+  | { readonly step: 'arm-tail'; readonly target: Addr };                 // walk.inline-arm-switch (D59)
 export interface BlVerdictRule { kind: 'bl';
   decide(site: BlSite, caller: Reading, v: AnalysisView): BlVerdict | 'defer' | undefined }
 export interface ValidityRule { kind: 'valid'; readonly reason: MissReason; readonly intrinsic: boolean;
   check(r: Reading, v: AnalysisView): string | undefined }                  // the detail on failure
-export interface AcceptRule { kind: 'accept';
-  holds(c: Candidate, r: Reading, v: AnalysisView): Provenance | undefined }
+export interface AcceptRule { kind: 'accept';                              // the driver records the provenance
+  holds(c: Candidate, r: Reading, v: AnalysisView): { readonly cites: readonly Addr[]; readonly note: string } | undefined }
 export interface ClaimRule  { kind: 'claim';  claims(f: FunctionFact, r: Reading, v: AnalysisView): readonly ClaimEdit[] }
 export interface RegionRule { kind: 'region'; classify(v: AnalysisView): readonly ClaimEdit[] }
 
@@ -769,7 +776,7 @@ export interface GapCursor { readonly gap: Span; readonly at: Addr; readonly end
   readonly head?: Reading; readonly pass: 'patient' | 'impatient' }
 export interface GapAbsorb   { kind: 'gap-absorb';   absorb(c: GapCursor, v: AnalysisView): { readonly into: Addr; readonly span: Span } | undefined }
 export interface GapHead     { kind: 'gap-head';     head(c: GapCursor, v: AnalysisView): Reading | undefined }
-export interface GapProposer { kind: 'gap';          propose(c: GapCursor, v: AnalysisView): Candidate | undefined }
+export interface GapProposer { kind: 'gap';          propose(c: GapCursor, v: AnalysisView): Proposal | undefined }
 export interface GapPrefer   { kind: 'gap-prefer';   prefer(thumb: Reading, arm: Reading, v: AnalysisView): 'thumb' | 'arm' }
 export interface GapSkip     { kind: 'gap-skip';     skip(c: GapCursor, v: AnalysisView): Addr | undefined }   // next cursor, or stop
 ```
@@ -779,11 +786,11 @@ The rules, with the PoC source each one is ported from (`romlift-poc/src/analysi
 | Family | Rule ids (contract) | PoC call site |
 | --- | --- | --- |
 | seed | `seed.rom-entry`, `seed.startup-pointer`, `seed.listed`, `seed.override`, `seed.evidence-hint` (SeedRule); `seed.pool-pointer`, `seed.data-pointer` (HarvestRule); `seed.call`, `seed.veneer`, `seed.adr` (QueueRule) | `run()`; `pointerCandidates()` (one snapshot per `grow` round, data list filtered by the pool set and `neverValid`); the `accept()` worklist |
-| walk | `walk.pc-load-is-pool`, `walk.table-nearest-pool-load` (until milestone M3, then `walk.table-by-register`), `walk.mov-lr-pc-bx-is-call`, `walk.noreturn-call-before-noncode`, `walk.swi-before-noncode`, `walk.mov-pc-without-table`, `walk.branch-into-function`, `walk.bx-pc-veneer`, `walk.trailing-zero-padding` | `analyzeThumb`, `analyzeArm` |
-| bl | `bl.self-or-accepted`, `bl.target-before-entry`, `bl.near-is-call`, `bl.target-inside-caller`, `bl.target-has-prologue`, `bl.target-pops-unpushed-frame`, `bl.noreturn-before-noncode` | `settle()` |
+| walk | `walk.pc-load-is-pool`, `walk.table-nearest-pool-load` (until milestone M3, then `walk.table-by-register`), `walk.mov-lr-pc-bx-is-call`, `walk.noreturn-call-before-noncode`, `walk.swi-before-noncode`, `walk.mov-pc-without-table`, `walk.branch-into-function`, `walk.bx-pc-veneer`, `walk.trailing-zero-padding`; `walk.inline-arm-switch` (no PoC counterpart, D59) | `analyzeThumb`, `analyzeArm`; `walk.inline-arm-switch` answers a Thumb `bx rN` after `add rN, pc, #0` (the walk of the ARM code after it gives the extent, `Reading.armTails`) |
+| bl | `bl.self-or-accepted`, `bl.target-before-entry`, `bl.near-is-call`, `bl.target-inside-caller`, `bl.target-has-prologue`, `bl.target-beyond-callee` (no PoC counterpart, D59), `bl.target-pops-unpushed-frame`, `bl.noreturn-before-noncode` | `settle()`; `bl.target-beyond-callee` sits before the frame check: a far `bl` past the entry of another function the caller calls is a call |
 | valid | `valid.in-rom-unclaimed`, `valid.decodes`, `valid.balanced-stack`, `valid.returns-or-prologue`, `valid.no-claimed-code`, `valid.pool-not-code`, `valid.not-pointer-table`, `valid.dense`, `valid.calls-code` | `whyInvalid()` in this order; `dense()`, `looksLikePointerTable()`, `couldBeCode()` |
 | accept | `accept.tiles-after-accepted`, `accept.prologue-and-loaded`, `accept.prologue-and-end-anchored`, `accept.pointer-table-run`, `accept.tiny-anchored-at-start` | `acceptable()`, `inPointerTable()`, `thumbCandidate()` |
-| gap | `gap.adr-block-absorb` (GapAbsorb), `gap.tiled-hole` (GapHead), `gap.tiled-hole-inner`, `gap.forward-chain`, `gap.arm-scan`, `gap.end-anchor`, `gap.backward-prologue-chain` (GapProposer), `gap.arm-over-prologueless-thumb` (GapPrefer), `gap.skip-padding-and-pointers` (GapSkip) | `fillGaps()`: `absorbRun`, `holeHead`, `tryTiledHole`, `thumbCandidate`, `armAhead`, the comparison at the same cursor, the end-anchor loop, the backward prologue chain, the padding and pointer-word step |
+| gap | `gap.adr-block-absorb` (GapAbsorb), `gap.tiled-hole` (GapHead), `gap.tiled-hole-inner`, `gap.forward-chain`, `gap.arm-scan`, `gap.end-anchor`, `gap.backward-prologue-chain` (GapProposer), `gap.arm-over-prologueless-thumb` (GapPrefer), `gap.skip-padding-and-pointers` (GapSkip) | `fillGaps()`: `absorbRun`, `holeHead`, `tryTiledHole` and the head acceptance (both through the proposers after the pair, `gap.tiled-hole-inner`, D59), `thumbCandidate`, `armAhead`, the comparison at the same cursor, the end-anchor loop, the backward prologue chain, the padding and pointer-word step |
 | claim | `claim.adjacent-pools`, `claim.far-pools`, `claim.dead-code-in-extent` | `claim()`, `Func.end` |
 | region | `region.startup`, `region.padding`, `region.data-after-code` | `startup` getter, classification |
 | sig (§7) | `sig.unique-fit`, `sig.link-order-run`, `sig.neighbour-spacing`, `sig.pinned-both-sides`, `sig.short-member-window` | `signatures/apply.ts`; their own registry in `core/signatures/rules/` |
@@ -802,8 +809,11 @@ the gap start and at every forward-chain position, the Thumb/ARM choice at the s
 backward end-anchor loop that shrinks `end`, the late head acceptance, and the patient pass skipping a
 whole gap), `accept.ts` (`accept()` and `claim()`), `settle.ts` (the per-function `bl` fixpoint),
 `validity.ts` (`valid()`: the optimistic memo set before the check, intrinsic failures kept in
-`neverValid`, which also filters harvests), `epoch.ts` and `worklist.ts`. The rule slots are called at
-the PoC's call sites, in the order the profile's pipeline gives. Stage control stays code because it is
+`neverValid`, which also filters harvests), `epoch.ts` and `worklist.ts`; `state.ts` (the state and
+`createDriver`), `facts.ts` (`FunctionFact`, the extent end, the owner), `trail.ts` (events, rejections)
+and `view.ts` (the view). The rule slots are called at the PoC's call sites, in the order the profile's
+pipeline gives, and every decision is a slot's: the driver repeats no rule's predicate and names no
+rule id (D59). Stage control stays code because it is
 the PoC's code; only the slot orders are data, so a reorder is a diff of the profile.
 
 **Epochs** (D13). An epoch begins at every `grow` round and every `fillGaps` call, where the PoC calls
@@ -838,7 +848,10 @@ diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
 returns what was accepted; a round that proposes more than `candidateBudget` candidates raises
-`W_CANDIDATE_BUDGET`. `RomliftInvariantError` (exit 70) is reserved for broken internal invariants, such
+`W_CANDIDATE_BUDGET`. A path that runs over more than `zeroRun` (64) consecutive all-zero instructions
+stops with a 'zero-run' error, and a walk that records `walkInsns` (65,536) instructions stops with a
+'walk-limit' error and raises `W_WALK_LIMIT`, which bounds the memory a candidate's reading holds
+(D42, D59). `RomliftInvariantError` (exit 70) is reserved for broken internal invariants, such
 as a claim overlap or a tiling gap, never for the shape of a ROM.
 
 ### 4.3 Profile
@@ -876,10 +889,10 @@ export interface CompilerProfile {
                       readonly prologueDistance: number };
   readonly alignment: { readonly thumbFunction: number; readonly armFunction: number; readonly cFunction: number;
                         readonly pool: number; readonly object: number };
-  readonly misfitThreshold: number;                   // rejection rate above which W_PROFILE_MISFIT is raised
+  // misfitThreshold returns with the first raiser of W_PROFILE_MISFIT (D59)
   readonly idioms: {
     isPrologue(rom: Rom, a: Addr, mode: Mode): boolean;
-    isPadding(rom: Rom, a: Addr, next: ClaimKind | undefined): boolean;   // 0x46C0 counts only before a pool
+    isPadding(rom: Rom, a: Addr): boolean;            // zero, or a byte of 0x46C0 (D59: `next` dropped, unread)
     matchTableJump(insns: readonly Insn[], cursor: number, rom: Rom): JumpTableMatch | undefined;
     matchFarJump(site: BlSite, caller: ReadingSummary): boolean;
   };
@@ -902,8 +915,8 @@ numbers and a reordered `validity` slot, and requires it to typecheck and run on
   architecture test enforces that iteration goes through `sortedKeys`/`sortedEntries` (§2).
 - The worklist key is total (D10): `'ascending'` pops the minimum of `(addr, modeRank, ruleRank, seq)`,
   where `modeRank` is 0 for Thumb and 1 for ARM, `ruleRank` is the proposing rule's index in its
-  pipeline slot, and `seq` is the proposal counter. `'poc-lifo'` reproduces the PoC's `work.pop()` and
-  exists only until phase 2 lands.
+  pipeline slot, and `seq` is the proposal counter. `'poc-lifo'`, which reproduced the PoC's
+  `work.pop()`, was deleted by the phase-2 integration (D59).
 - No clock, environment, locale, `os` or path value reaches core. Text is LF only, paths are POSIX, and
   numbers print through `foundation/util/hex.ts`. Generated files never contain the project's absolute
   path.
@@ -938,12 +951,15 @@ over the sorted list. `bench/tools/export-poc.ts` refuses to run when the checko
   `armAhead`, `holeHead`, `tryTiledHole`, `absorbBlock` and `pointerCandidates` of the PoC's `Analyzer`
   prototype, and records each call's sequence number, arguments and result.
 
-**Lockstep** (`bench/src/lockstep.ts`, `test/local/poc-lockstep.test.ts`). Because the driver calls the
-rule slots at the PoC's call sites, the k-th query of our run corresponds to the k-th query of the
-PoC's. With `tuning.oracle` set, a rule family that is not implemented yet is answered from the log, and
-an implemented family is compared with it; the first divergence is reported with its sequence number,
-the query, both answers and the epoch. So each component proves its own family on all five tuning
-ROMs before integration, with the other families answered by the PoC (D48).
+**Lockstep** (historical: `bench/src/lockstep.ts` and the driver's oracle were deleted in the fix round of
+phase 2, D59; `test/local/poc-lockstep.test.ts` checks the committed summary). Because the driver called
+the rule slots at the PoC's call sites, the k-th query of our run corresponded to the k-th query of the
+PoC's. With `tuning.oracle` set, a rule family that was not implemented yet was answered from the log,
+and an implemented family was compared with it; the first divergence was reported with its sequence
+number, the query, both answers and the epoch. So each component proved its own family on all five
+tuning ROMs before integration, with the other families answered by the PoC (D48); milestone M1 recorded
+the result in `results.json` (`romlift-bench/parity-evidence@1`). The log (`export-poc --mode queries`)
+is still written and re-read through its validating reader; nothing replays it.
 
 **Milestones**, in order, on the phase branch after the components merge:
 
@@ -976,8 +992,9 @@ never accepted as a diff. A listed improvement that no longer differs from the P
 stale. From then on `g2.baseline-rows` holds: the bench rows equal the baseline except the improvements
 listed in `accepted-diffs.json`.
 
-When phase 2 lands, `'poc-lifo'` is deleted and `g2.poc-parity` becomes `historical`: its evidence (the
-committed digests and the lockstep summary in `results.json`) stays, and it is no longer re-run.
+`'poc-lifo'` was deleted by the phase-2 integration and the oracle in its fix round (D59); `g2.poc-parity`
+checks the committed evidence (the digests and the lockstep summary in `results.json`, tied to the commit
+it names) and becomes `historical` when phase 2 lands. It is never re-run.
 
 ## 5. The printer
 
@@ -1742,7 +1759,7 @@ defined. The codes:
 | `E_ROM_NOT_GBA`, `E_ROM_SHA1_MISMATCH` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER` | `core/config` |
 | `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_NAME_COLLISION`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH` | `core/model` |
-| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET` | `core/analysis` |
+| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
 | `W_C_ORDER` | `core/reconcile` |
@@ -1800,8 +1817,8 @@ Emerald (`g3.speed-budget`). Levers, in the order milestone M2 applies them (D13
 1. **Computed-once facts.** A `Reading` is immutable, so its `codeEnd`, `end` and extent are computed
    when it is built, which removes the measured quadratic loop without changing a result.
 2. **Indexed lookups.** `owner()` uses a nesting-aware interval index (`foundation/util/interval-index.ts`)
-   and returns the innermost extent covering an address; a test compares its answer with the PoC's
-   first-match choice on every query of the lockstep log and records the cases where they differ. The
+   and returns the innermost extent covering an address (the PoC took the first match; the lockstep of
+   milestone M1 compared the two on every query of its log). The
    pointer index is CSR (sorted target `Uint32Array` plus offsets, `foundation/util/csr.ts`).
 3. **Epoch reuse**, only if a ROM still misses the budget after a re-measure: `cache: 'epoch-reuse'`
    (§4.2), with digest equality to `'epoch'` on all five tuning ROMs.
@@ -1836,7 +1853,7 @@ seeded data and requires peak RSS < 512 MiB for `init` and `generate`, recording
 | Mutation: each checker is shown to fail on an injected fault (tiling overlap, a flipped byte in a `FileEntry`, a dataset row the run no longer needs, a held-out row in `results.json`, `bench adopt` on a sealed dataset, a reconciled file whose sha1 changed, a stale digest, an illegal import) with the exact code and exit code | `test/mutation/**`; gates `g1.checks-fail`, `g2.checks-fail`, `g3.checks-fail`, `g4.checks-fail` | no | yes |
 | Round-trip corpus against `as` | `printer.yml` | no | yes |
 | Synthetic analysis and end to end | `fixtures.yml`, `packed.yml`, `g2.synthetic-analysis`, `g4.e2e-fixtures` | committed fixtures | yes |
-| Local: PoC lockstep and parity, cache modes, large ROM | `test/local/**` | local ROMs and the PoC | no |
+| Local: the PoC decoder differential, the committed PoC-parity evidence, cache modes | `test/local/**` | local ROMs and the PoC | no |
 | Real tier and real gates | `bench run`, `bench gates --tier real` | local ROMs | provenance and gate record only |
 
 **Gates as tests.** Each `test/gates/gN.<name>.test.ts` calls `gate()` from `test/gates/gate.ts`:
@@ -1878,7 +1895,7 @@ family registries and codes files, updates the phase's gate files (written in ph
 and must typecheck. Then three to five
 components run in parallel in separate worktrees, each owning a disjoint set of files (roadmap.md lists
 them), and each proven alone: by its unit tests, its goldens, and, in phase 2, by lockstep against the
-PoC with the other families answered from the log (§4.5). A component changes a frozen type only through
+PoC with the other families answered from the log (§4.5; deleted once its evidence was committed, D59). A component changes a frozen type only through
 a commit to the phase branch that all components rebase on. A last component, the integrator, merges
 them, runs the milestones that need everything together, regenerates `bench/results.json` (no component
 commits it), and runs the exit commands.
@@ -1958,7 +1975,7 @@ one is missing.
 | `g2.held-out` | real (sealed) | the held-out family of §8.4 |
 | `g2.speed` | real | `bench speed` within 1.5 × `baseline/speed.json` (calibrated) |
 | `g2.regression` | ci | `bench regression` against the merge-base passes on the committed artifacts and datasets |
-| `g2.checks-fail` | ci | mutation tests of the classifier, seal, stale-exception, regression and lockstep reporters |
+| `g2.checks-fail` | ci | mutation tests of the classifier, seal, stale-exception and regression reporters (the lockstep reporter was deleted with the oracle, D59) |
 | `g3.self-check` | ci and real | tiling, re-encode and module-size checks pass on every fixture and tuning ROM |
 | `g3.text-layout` | ci and real | the text-layout check passes on every fixture and tuning ROM |
 | `g3.raw-link` | ci and real | the raw printer links to the SHA-1 on every fixture and all five tuning ROMs |
