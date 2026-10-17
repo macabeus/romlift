@@ -1,0 +1,34 @@
+0x0800010C
+  claim: code
+  owner: 0x08000104 (origin call)
+  provenance:
+    seed.call round 0 cites 0x080000FC
+  proposals (1):
+    0x08000104 seed.call round 0 cites 0x080000FC: thumb
+  accepts (1):
+    0x08000104 seed.call round 0 cites 0x080000FC
+  rejections: none
+  bl verdicts (2):
+    0x080000FC bl.near-is-call round 0 cites 0x080000FC, 0x08000104: call
+    0x0800010C bl.target-inside-caller round 0 cites 0x0800010C, 0x08000A9A: far
+  waits: none
+  claims (2):
+    0x08000104 claim.adjacent-pools round 0 cites 0x08000104: 2 edits
+    0x08000104 claim.dead-code-in-extent round 0 cites 0x08000104: 1 edits
+  rules (5):
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    bl.target-inside-caller: a bl to an address below the caller's code end is a far jump inside the caller
+      rests on: a callee is never inside its caller; agbcc places a function's code contiguously
+      recovers: far tails of long functions split off as functions of their own
+    claim.adjacent-pools: the extent is the code plus the pools and tables right after it; claim those pools and every table
+      rests on: agbcc emits a function's literal pool and switch tables right after its code, separated only by alignment
+      recovers: pools and tables that would be free bytes for the gap scan to misread as functions
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+explain: ok (exit 0)
