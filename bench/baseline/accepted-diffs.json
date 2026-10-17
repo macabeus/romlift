@@ -21,6 +21,363 @@
       "addr": "0x080B9838",
       "commit": "a47de80",
       "reason": "walk.inline-arm-switch: umul3232H32's ARM body after `add r2, pc, #0; bx r2` is inside its extent, 16 bytes as the ELF types it"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000E92",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on a non-padding 2-mod-4 halfword (D60 a): libgcc's _call_via_r8 .. _call_via_lr and the second entry `movs r3, #1; b ...` at 0x08000E92 right after a function ending on 2 mod 4"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000F02",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on a non-padding 2-mod-4 halfword (D60 a): libgcc's _call_via_r8 .. _call_via_lr and the second entry `movs r3, #1; b ...` at 0x08000E92 right after a function ending on 2 mod 4"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000F04",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on a non-padding 2-mod-4 halfword (D60 a): libgcc's _call_via_r8 .. _call_via_lr and the second entry `movs r3, #1; b ...` at 0x08000E92 right after a function ending on 2 mod 4"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000F06",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on a non-padding 2-mod-4 halfword (D60 a): libgcc's _call_via_r8 .. _call_via_lr and the second entry `movs r3, #1; b ...` at 0x08000E92 right after a function ending on 2 mod 4"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000F08",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on a non-padding 2-mod-4 halfword (D60 a): libgcc's _call_via_r8 .. _call_via_lr and the second entry `movs r3, #1; b ...` at 0x08000E92 right after a function ending on 2 mod 4"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000F0A",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on a non-padding 2-mod-4 halfword (D60 a): libgcc's _call_via_r8 .. _call_via_lr and the second entry `movs r3, #1; b ...` at 0x08000E92 right after a function ending on 2 mod 4"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000F0C",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on a non-padding 2-mod-4 halfword (D60 a): libgcc's _call_via_r8 .. _call_via_lr and the second entry `movs r3, #1; b ...` at 0x08000E92 right after a function ending on 2 mod 4"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000F0E",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on a non-padding 2-mod-4 halfword (D60 a): libgcc's _call_via_r8 .. _call_via_lr and the second entry `movs r3, #1; b ...` at 0x08000E92 right after a function ending on 2 mod 4"
+    },
+    {
+      "rom": "tmc",
+      "kind": "false-entry-removed",
+      "addr": "0x08008B30",
+      "commit": "abe9b1a",
+      "reason": "the gap scan resumes on the 2-mod-4 halfword where _play_snd really starts, so the tiled-hole reading starts at 0x08008B2E, not 0x08008B30 (the row moves two bytes; 0x08008B2E is listed unreached-tail)"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000288",
+      "commit": "67af08d",
+      "reason": "gap.end-anchor's veneer-array element (D60 b): the unreferenced head of the `ldr r3, [pc, #k]; bx r3` array after gActTilePtrs"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x0800028C",
+      "commit": "67af08d",
+      "reason": "gap.end-anchor's veneer-array element (D60 b): the unreferenced head of the `ldr r3, [pc, #k]; bx r3` array after gActTilePtrs"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000290",
+      "commit": "67af08d",
+      "reason": "gap.end-anchor's veneer-array element (D60 b): the unreferenced head of the `ldr r3, [pc, #k]; bx r3` array after gActTilePtrs"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000294",
+      "commit": "67af08d",
+      "reason": "gap.end-anchor's veneer-array element (D60 b): the unreferenced head of the `ldr r3, [pc, #k]; bx r3` array after gActTilePtrs"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08000298",
+      "commit": "67af08d",
+      "reason": "gap.end-anchor's veneer-array element (D60 b): the unreferenced head of the `ldr r3, [pc, #k]; bx r3` array after gActTilePtrs"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x08007DCE",
+      "commit": "8d207c0",
+      "reason": "gap.end-anchor's `push {.., lr}` on 2 mod 4 (D60 c): the hand-written function after the data halfword 0x730B"
+    },
+    {
+      "rom": "tmc",
+      "kind": "false-entry-removed",
+      "addr": "0x08007DCC",
+      "commit": "8d207c0",
+      "reason": "gap.end-anchor ranks the 2-mod-4 `push {.., lr}` at 0x08007DCE above the word reading of the data halfword before it (D60 c)"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080043B0",
+      "commit": "212d436",
+      "reason": "claim.dead-code-in-extent leaves an unreached copy of the entry stub `movs r1, #k; b create_fx` free (D60 d): CreateSwampDrownFx"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B19CC",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1A0C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1A60",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1A8C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1AF0",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1B54",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1B68",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1B84",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1BA4",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1BCC",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1C54",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1C7C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1D98",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1F30",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1F5C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1F88",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1FA4",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B1FE4",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B201C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B20EC",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B2124",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B21CC",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B227C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B237C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B23F0",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B2448",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B2478",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B2534",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B255C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B27F4",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B280C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B2874",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x080B299C",
+      "commit": "6f9c9c4",
+      "reason": "seed.ram-copy (D60 e; its copy recognition rewritten in f39242a): the functions of the block InitOverlays copies to IWRAM with MemCopy, linked at their load address past the PoC's code end, found from the IWRAM pointers the veneers jump through and then by the gap scan inside the block"
+    },
+    {
+      "rom": "tmc",
+      "kind": "miss-removed",
+      "addr": "0x0801637C",
+      "commit": "5a715f3",
+      "reason": "accept.prologue-and-calls-accepted (D60 h): CreateDustFromScript, named only by a script table between data, with a prologue, a return and calls on accepted functions"
     }
   ]
 }
