@@ -1,0 +1,27 @@
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ROMs and everything derived from ROM bytes are never committed (docs/benchmark-roms.md).
+*.gba
+*.elf
+*.map
+*.o
+*.sav
+# Synthetic fixtures are self-authored, so their builds are committed (architecture §2, D28).
+!bench/dataset/synthetic/*/build/**
+!test/fixtures/**
+
+# Local bench state
+bench/.local/
+bench/tmp/
+bench/timings.json
+
+# Built signature files stay local until the owner decides (D40); specs/ is committed.
+signatures/*.json
+
+# Editors and OS
+.DS_Store
+.vscode/
+.idea/
