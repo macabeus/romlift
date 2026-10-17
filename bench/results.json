@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "e867dae6498fdbad4bb93b7388fddd5def9bd044",
+    "commit": "843eae89113f90b58a0d669bc8bf03e39531823b",
     "dirty": true,
-    "sourceDigest": "f8369763dc0dcd4817096b84c4316cfcebe708b384c3d27164cc4f5c713dac37",
+    "sourceDigest": "b96b9814557ba8731b3d26cd724478ca85f6bf359aa420b27258b0ac88f389eb",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -51,35 +51,40 @@
         "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ],
       "klonoa": [
         "code-end",
         "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ],
       "pokeemerald": [
         "code-end",
         "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ],
       "sa2": [
         "code-end",
         "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ],
       "sa3": [
         "code-end",
         "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ]
     },
     "source": "romlift",

@@ -12,8 +12,9 @@ import { Claim } from '../types.ts';
 import type { Candidate, ClaimEdit, Reading } from '../types.ts';
 import { checkListed, isUnlisted, recordUnlisted } from './confirm.ts';
 import { analyzeArm, settle } from './settle.ts';
-import { also, emit, factOf } from './view.ts';
+import { also, emit, factOf, markEntry } from './view.ts';
 import type { DriverState } from './view.ts';
+import { touch } from './reuse.ts';
 import { ascending, pocLifo } from './worklist.ts';
 
 /** The origin a proposing rule gives what it proposes (its meta.origin). */
@@ -26,6 +27,7 @@ export function write(s: DriverState, e: ClaimEdit): void {
   const lo = Math.max(e.span.start - s.rom.base, 0);
   const hi = Math.min(e.span.end - s.rom.base, s.claims.length);
   if (lo >= hi) return;
+  if (s.reuse !== undefined) touch(s.reuse, s.rom.base + lo, s.rom.base + hi);
   if (e.when === 'always') s.claims.fill(e.kind, lo, hi);
   else if (e.when === 'start-free') {
     if (s.claims[lo] === Claim.free) s.claims.fill(e.kind, lo, hi);
@@ -60,6 +62,8 @@ function take(s: DriverState, c: Candidate, r: Reading, note?: string): readonly
     absorbed: [],
   });
   s.order.push(c.entry);
+  markEntry(s, c.entry);
+  if (s.reuse !== undefined) touch(s.reuse, c.entry, c.entry + 1);
   s.ownerIndex = undefined;
   if (c.mode === 'thumb') s.settled.set(c.entry, r);
   claim(s, c.entry, r);
@@ -124,6 +128,7 @@ export function absorb(s: DriverState, into: Addr, block: Reading): void {
   if (g === undefined) return;
   const merged = mergeReadings(s, g.reading, block);
   g.reading = merged;
+  if (s.reuse !== undefined) touch(s.reuse, into, into + 1);
   if (merged.mode === 'thumb') s.settled.set(into, merged);
   const span: Span = { start: block.entry, end: block.end };
   g.absorbed.push(span);

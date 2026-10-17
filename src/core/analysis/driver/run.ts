@@ -29,9 +29,10 @@ import { listedSeeds } from './confirm.ts';
 import { fillGaps } from './fill-gaps.ts';
 import { grow } from './grow.ts';
 import { resolveRules, RULES } from './rules.ts';
+import { reuseState } from './reuse.ts';
 import { read } from './settle.ts';
 import { valid, whyInvalid } from './validity.ts';
-import { emit, extentEndOf, factOf, makeView, ownerOf } from './view.ts';
+import { emit, extentEndOf, factOf, makeView, markEntry, ownerOf } from './view.ts';
 import type { DriverState } from './view.ts';
 
 /** The tuning `analyze` runs with: the PoC's LIFO until milestone M4, epoch caching, nothing disabled. */
@@ -58,6 +59,8 @@ export function createDriver(rom: Rom, profile: CompilerProfile, options: Analys
     ...(sink === undefined ? {} : { sink }),
     claims: new Uint8Array(rom.bytes.length),
     funcs: new Map(),
+    entryBits: new Uint8Array((rom.bytes.length + 7) >>> 3),
+    ...(tuning.cache === 'epoch-reuse' && options.trail === 'off' && tuning.oracle === undefined ? { reuse: reuseState(rom.base, rom.bytes.length) } : {}),
     order: [],
     settled: new Map(),
     lastArm: new Map(),
@@ -83,6 +86,7 @@ export function createDriver(rom: Rom, profile: CompilerProfile, options: Analys
     view,
     walkEnv: { view, policies: rules.walk, extentEnd: (shape) => rules.extentEnd(shape, profile) },
   };
+  for (const entry of state.listedOrder) markEntry(state, entry);
   return state;
 }
 

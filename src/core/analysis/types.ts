@@ -211,6 +211,13 @@ export interface ReadingError {
   readonly at: Addr;
 }
 
+/** Instruction length by address: a Map, or the walk's own index (walk/insn-index.ts). */
+export interface InsnLookup {
+  has(a: Addr): boolean;
+  get(a: Addr): number | undefined;
+  readonly size: number;
+}
+
 /**
  * The walk of one entry under the claims and function set at the time it was taken. Immutable;
  * `codeEnd`, `end` and the holes are computed once, when it is built (milestone M2 step (a)).
@@ -221,7 +228,7 @@ export interface Reading {
   /** Every instruction, sorted by address. */
   readonly insns: readonly InsnSpan[];
   /** Instruction length by address. */
-  readonly insnAt: ReadonlyMap<Addr, number>;
+  readonly insnAt: InsnLookup;
   /** Pool words in the order the walk first loaded them (the PoC's Map order). */
   readonly pools: readonly PoolWord[];
   /** Pool value by address. */

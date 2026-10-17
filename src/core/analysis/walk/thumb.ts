@@ -5,7 +5,8 @@
 // jumps, `noret` sites end their path.
 import { decode, fieldsOf, rowFor } from '../../../foundation/isa/decode.ts';
 import type { Insn } from '../../../foundation/isa/types.ts';
-import { contains, u16, u32 } from '../../../foundation/rom/rom.ts';
+import { contains, u32 } from '../../../foundation/rom/rom.ts';
+import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { toRun } from '../address-map.ts';
@@ -14,16 +15,22 @@ import type { Reading, WalkStep } from '../types.ts';
 import { askWalk, asksWalk, toLoadInsn, walkCursor, WalkRecord } from './cursor.ts';
 import type { MutableCursor, WalkCursor, WalkEnv } from './cursor.ts';
 
-/** The halfword at `pc` with the next one above it when it is in the ROM (a bl pair decodes as one). */
-function thumbWord(env: WalkEnv, pc: Addr): number {
-  const rom = env.view.rom;
-  return (u16(rom, pc) | (contains(rom, pc + 2, 2) ? u16(rom, pc + 2) << 16 : 0)) >>> 0;
+/**
+ * The halfword at `pc` with the next one above it when it is in the ROM (a bl pair decodes as one). The
+ * walker asks only for an even address whose halfword is in the ROM, so the bytes are read directly.
+ */
+function thumbWord(rom: Rom, pc: Addr): number {
+  const b = rom.bytes;
+  const k = pc - rom.base;
+  const lo = (b[k] ?? 0) | ((b[k + 1] ?? 0) << 8);
+  const hi = pc + 4 <= rom.end ? (b[k + 2] ?? 0) | ((b[k + 3] ?? 0) << 8) : 0;
+  return (lo | (hi << 16)) >>> 0;
 }
 
 /** The Thumb instruction at load address `pc`. */
 export function decodeThumbAt(env: WalkEnv, pc: Addr): Insn {
   const { addresses } = env.view;
-  return toLoadInsn(decode('thumb', thumbWord(env, pc), toRun(addresses, pc)), addresses, pc);
+  return toLoadInsn(decode('thumb', thumbWord(env.view.rom, pc), toRun(addresses, pc)), addresses, pc);
 }
 
 interface Path {
@@ -54,7 +61,7 @@ function stopAt(path: Path, pc: Addr, sp: number, stop: 'invalid' | 'pool'): voi
     const last = decodeThumbAt(path.env, at);
     const answer = askWalk(path.env, last, cursorFor(path, last, sp, 'stop', pc, stop));
     if (answer?.step.step === 'padding') {
-      rec.insns.delete(last.addr);
+      rec.drop(last.addr);
       run.pop();
       continue;
     }
@@ -176,8 +183,8 @@ export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, nor
         rec.errors.push({ reason: 'out-of-rom', at: pc });
         break;
       }
-      const pool = rec.pools.has(pc) || rec.pools.has(pc & ~3);
-      const word = thumbWord(env, pc);
+      const pool = rec.pools.size !== 0 && (rec.pools.has(pc) || rec.pools.has(pc & ~3));
+      const word = thumbWord(rom, pc);
       const row = rowFor('thumb', word);
       const spec = row.spec;
       if (pool || spec.flow === 'invalid') {

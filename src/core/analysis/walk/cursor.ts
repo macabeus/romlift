@@ -9,6 +9,7 @@ import type { RuleId } from '../../provenance/rule-id.ts';
 import { toLoad } from '../address-map.ts';
 import type { AddressMap } from '../address-map.ts';
 import { codeEndOf, makeReading } from '../reading.ts';
+import { InsnIndex } from './insn-index.ts';
 import type { ReadingParts } from '../reading.ts';
 import { Claim } from '../types.ts';
 import type {
@@ -149,9 +150,12 @@ export function toLoadInsn(insn: Insn, addresses: AddressMap, load: Addr): Insn 
 
 /** The mutable record of one walk, turned into a Reading by finish(). */
 export class WalkRecord {
-  /** Instruction length by address; `order` lists the addresses as they were first walked. */
-  readonly insns = new Map<Addr, number>();
+  /** Instruction length by address; `order` and `lens` list the addresses and lengths as they were first walked. */
+  readonly insns = new InsnIndex();
   private readonly order: Addr[] = [];
+  private readonly lens: number[] = [];
+  /** Whether an instruction was dropped (trailing padding): `order` may then name addresses `insns` lacks. */
+  private dropped = false;
   readonly pools = new Map<Addr, number>();
   readonly poolOrder: PoolWord[] = [];
   readonly tables: JumpTable[] = [];
@@ -179,11 +183,23 @@ export class WalkRecord {
   insn(addr: Addr, len: number): void {
     this.insns.set(addr, len);
     this.order.push(addr);
+    this.lens.push(len);
+  }
+
+  /** Drops a recorded instruction (trailing padding at a stop). */
+  drop(addr: Addr): void {
+    this.insns.delete(addr);
+    this.dropped = true;
   }
 
   /** The instructions still recorded (padding may have been dropped), sorted by address. */
   private sortedInsns(): InsnSpan[] {
-    const addrs = this.order.filter((a) => this.insns.has(a)).sort((a, b) => a - b);
+    const order = this.order;
+    let ascending = !this.dropped;
+    for (let i = 1; ascending && i < order.length; i++) if ((order[i] as Addr) <= (order[i - 1] as Addr)) ascending = false;
+    // A single straight path walks in ascending order with nothing dropped: the walk order is the answer.
+    if (ascending) return order.map((addr, i) => ({ addr, len: this.lens[i] ?? 0 }));
+    const addrs = order.filter((a) => this.insns.has(a)).sort((a, b) => a - b);
     const out: InsnSpan[] = [];
     for (let i = 0; i < addrs.length; i++) {
       const addr = addrs[i] as Addr;
