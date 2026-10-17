@@ -129,8 +129,13 @@ gate({
     const reachable = reachableArmRows(cx.need<Decode>('decode'));
     const missing = reachable.filter((id) => arm.coverage[id] === undefined);
     if (missing.length > 0) throw new Error(`${missing.length} decodable ARM rows have no coverage entry: ${missing.slice(0, 10).join(', ')}`);
-    const empty = covered.filter((id) => (arm.coverage[id]?.exhaustive.length ?? 0) + (arm.coverage[id]?.sampled.length ?? 0) === 0);
-    if (empty.length > 0) throw new Error(`${empty.length} ARM rows record no covered field class: ${empty.slice(0, 10).join(', ')}`);
+    // A raw-only row with no fields (arm.nv, arm.undefined) has nothing to sweep, so its entry is empty;
+    // it decodes only as invalid, so only the rows decode can select must record a field class.
+    const fieldless = (id: string): boolean => (arm.coverage[id]?.exhaustive.length ?? 0) + (arm.coverage[id]?.sampled.length ?? 0) === 0;
+    const empty = reachable.filter(fieldless);
+    if (empty.length > 0) throw new Error(`${empty.length} decodable ARM rows record no covered field class: ${empty.slice(0, 10).join(', ')}`);
+    const rawOnly = covered.filter(fieldless);
+    if (rawOnly.length > 0) cx.note(`fieldless raw-only arm rows: ${rawOnly.join(' ')}`);
 
     let exhaustive = 0;
     let sampled = 0;

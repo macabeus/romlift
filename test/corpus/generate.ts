@@ -5,8 +5,8 @@
 // Generates the corpus files of src/foundation/isa/corpus.ts into bench/.local/corpus/ (gitignored;
 // corpus text is never committed), assembles each with the PATH's arm-none-eabi-as through
 // assembleWithBinutils, compares the bytes case by case, writes summary.json (the frozen
-// `romlift/corpus-summary@1` contract) and prints a human summary, or the JSON with --json. Exits 0
-// only when the summary is ok. --reuse prints the cached summary instead when its inputsDigest still
+// `romlift/corpus-summary@1` contract) and prints a human summary, or with --json the summary as one
+// JSON line (§2.1: --json output parses line by line). Exits 0 only when the summary is ok. --reuse prints the cached summary instead when its inputsDigest still
 // matches: sha256 over the path-sorted contents of src/foundation/isa/**, src/foundation/asm/dialect.ts
 // and test/corpus/**, the first line of `as --version`, and the options.
 import { availableParallelism } from 'node:os';
@@ -141,7 +141,7 @@ async function main(): Promise<number> {
   if (values.reuse) {
     const cached = await readCached(summaryFile);
     if (cached !== undefined && cached.inputsDigest === digest) {
-      process.stdout.write(`${values.json ? JSON.stringify(cached, null, 2) : human(cached, undefined)}\n`);
+      process.stdout.write(`${values.json ? JSON.stringify(cached) : human(cached, undefined)}\n`);
       return cached.ok ? 0 : 1;
     }
   }
@@ -163,7 +163,7 @@ async function main(): Promise<number> {
   });
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   const seconds = (performance.now() - started) / 1000;
-  process.stdout.write(`${values.json ? JSON.stringify(summary, null, 2) : human(summary, seconds)}\n`);
+  process.stdout.write(`${values.json ? JSON.stringify(summary) : human(summary, seconds)}\n`);
   return summary.ok ? 0 : 1;
 }
 
