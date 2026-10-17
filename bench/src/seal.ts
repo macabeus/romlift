@@ -5,7 +5,7 @@
 import { compareCodeUnits } from 'romlift';
 
 import type { Dataset, Reveal } from './dataset.ts';
-import { classifier, classifyFalseEntry, classifyMiss, type ClassifyInput } from './classify.ts';
+import { classifier, classifyFalseEntry, classifyMiss, gluedWhere as whereGlued, type ClassifyInput } from './classify.ts';
 import { extentAgrees } from './score.ts';
 
 /** What a sealed run stores and prints for one dataset: counts only (g2.held-out reads exactly this). */
@@ -91,8 +91,9 @@ export function sealedCounts(input: SealedInput): SealedCounts {
       continue;
     }
     glued++;
-    if (input.found.some((f) => addr > f.extent.start && addr < f.extent.end)) gluedWhere.insideExtent++;
-    else if (addr >= input.codeEnd) gluedWhere.pastCodeEnd++;
+    const where = whereGlued(cx, addr, input.codeEnd);
+    if (where === 'inside-extent') gluedWhere.insideExtent++;
+    else if (where === 'past-code-end') gluedWhere.pastCodeEnd++;
     else gluedWhere.outsideExtents++;
   }
 

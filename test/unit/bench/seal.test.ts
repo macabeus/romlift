@@ -78,6 +78,13 @@ test('the glued misses split by where they lie: inside a found extent, in no ext
   assert.equal((g?.insideExtent ?? 0) + (g?.outsideExtents ?? 0) + (g?.pastCodeEnd ?? 0), counts.glued);
 });
 
+test('a glued miss inside a false entry\'s extent is not a glued split: only extents of found functions with an ELF entry count, as for labels', () => {
+  // 0x08000508 lies inside the false entry 0x08000500..0x08000510, below the code end.
+  const counts = sealedCounts({ ...INPUT, truth: [...INPUT.truth, t(0x08000508, 4)], codeEnd: 0x08000600 });
+  assert.equal(counts.glued, 2);
+  assert.deepEqual(counts.gluedWhere, { insideExtent: 1, outsideExtents: 1, pastCodeEnd: 0 });
+});
+
 test('a sealed entry has exactly the shape g2.held-out reads and nothing its leak check rejects', () => {
   const counts = sealedCounts(INPUT);
   assert.deepEqual(Object.keys(counts), ['name', 'entries', 'elfFunctions', 'tp', 'glued', 'gluedWhere', 'labelCandidates', 'falseEntries', 'extents', 'codeEnd']);

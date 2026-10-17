@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { classifier, classifyFalseEntry, classifyMiss, labelClause, type ClassifyInput, type FoundFunction, type TruthFunction } from '../../../bench/src/classify.ts';
+import { classifier, classifyFalseEntry, classifyMiss, gluedWhere, labelClause, type ClassifyInput, type FoundFunction, type TruthFunction } from '../../../bench/src/classify.ts';
 
 // One hand-built layout: startup below 0x08000200, then F at 0x08000200..0x08000300 (an ELF FUNC whose
 // ELF size stops at 0x08000280, as a hand-written parent's does), G at 0x08000400 (not an ELF FUNC).
@@ -113,4 +113,15 @@ test('false entries: startup, veneer, adr-callback, inside-elf-function, other, 
   assert.equal(classifyFalseEntry(cx, { entry: 0x080002FE, origin: 'call' }), 'inside-elf-function');
   assert.equal(classifyFalseEntry(cx, { entry: 0x08000300, origin: 'call' }), 'other');
   assert.equal(classifyFalseEntry(cx, { entry: 0x08000280, origin: 'pool-pointer' }), 'other');
+});
+
+test('gluedWhere: inside the extent of a found function with an ELF entry, else past the code end, else outside every such extent', () => {
+  const g = found({ entry: 0x08000400, extent: { start: 0x08000400, end: 0x08000440 } }); // not an ELF FUNC
+  const cx = classifier(input([found(), g]));
+  assert.equal(gluedWhere(cx, 0x08000240, 0x08000500), 'inside-extent', 'swallowed by F: a glued split');
+  assert.equal(gluedWhere(cx, 0x08000420, 0x08000500), 'outside-extents', "inside a false entry's extent is not a glued split");
+  assert.equal(gluedWhere(cx, 0x08000300, 0x08000500), 'outside-extents', "at F's end: not strictly inside");
+  assert.equal(gluedWhere(cx, 0x08000200, 0x08000500), 'outside-extents', "at F's own entry");
+  assert.equal(gluedWhere(cx, 0x08000600, 0x08000500), 'past-code-end');
+  assert.equal(gluedWhere(cx, 0x08000500, 0x08000500), 'past-code-end', 'at the code end');
 });

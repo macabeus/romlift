@@ -119,6 +119,19 @@ export function labelClause(cx: Classifier, m: number): LabelClause | undefined 
   return best?.clause;
 }
 
+/** Where a glued miss lies (counts only, for a sealed ROM): the three classes sum to the glued misses. */
+export type GluedWhere = 'inside-extent' | 'outside-extents' | 'past-code-end';
+
+/**
+ * Where glued miss `m` lies: strictly inside the extent of a found function that has an ELF FUNC entry
+ * (the functions labelClause looks in: a true glued split), else at or past `codeEnd`, else in no such
+ * extent below it (in a gap, or inside a false entry's extent).
+ */
+export function gluedWhere(cx: Classifier, m: number, codeEnd: number): GluedWhere {
+  if (cx.input.found.some((f) => f.entry !== m && cx.elfEntries.has(f.entry) && strictlyInside(m, f.extent))) return 'inside-extent';
+  return m >= codeEnd ? 'past-code-end' : 'outside-extents';
+}
+
 /** A miss is a label candidate when a clause holds, and glued otherwise (a glued miss fails the ROM). */
 export function classifyMiss(cx: Classifier, m: number): MissClass {
   return labelClause(cx, m) === undefined ? 'glued' : 'label-candidate';

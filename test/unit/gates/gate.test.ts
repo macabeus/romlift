@@ -11,6 +11,7 @@ import {
   checkInput,
   decideVerdict,
   exec,
+  failureDetail,
   formatRecord,
   inputsFor,
   jsonLines,
@@ -366,4 +367,9 @@ test('gate() registers one test per gate and appends one NDJSON line per recorde
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('a failing gate records its notes after the failure, so the measurements that explain it survive (correctness-r1-2)', () => {
+  assert.equal(failureDetail('held-out: 1 family', []), 'held-out: 1 family');
+  assert.equal(failureDetail('held-out: 1 family', ['tmc [zeldaret-tmc] fail: glued 51', 'pokeruby pass']), 'held-out: 1 family; tmc [zeldaret-tmc] fail: glued 51; pokeruby pass');
 });

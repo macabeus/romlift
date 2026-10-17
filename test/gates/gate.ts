@@ -762,6 +762,14 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * The detail a failing gate records: the failure, then the notes the gate wrote before it failed (a
+ * sealed ROM's counts, say), so a failure keeps the measurements that explain it (correctness-r1-2).
+ */
+export function failureDetail(failure: string, notes: readonly string[]): string {
+  return [failure, ...notes].join('; ');
+}
+
 // ---------------------------------------------------------------------------------------------------
 // gate()
 
@@ -856,7 +864,7 @@ export function gate(spec: GateSpec): void {
     try {
       await spec.run(cx);
     } catch (error) {
-      record('fail', message(error), []);
+      record('fail', failureDetail(message(error), notes), []);
       throw error;
     } finally {
       for (const dir of temporary) await rm(dir, { recursive: true, force: true });
