@@ -225,7 +225,7 @@ const policy = (id: RuleId, onInsn: WalkPolicy['onInsn']): ResolvedPolicy => ({ 
 /** The PoC's walk decisions as policies, in agbcc's walk order. */
 export const REFERENCE_WALK: readonly ResolvedPolicy[] = [
   policy('walk.pc-load-is-pool', (insn) => (insn.flow.kind === 'pool-load' ? { step: 'pool', addr: insn.flow.pool } : undefined)),
-  policy('walk.table-nearest-pool-load', (insn, c) => {
+  policy('walk.table-by-register', (insn, c) => {
     if (c.mode !== 'thumb' || c.phase !== 'insn' || insn.flow.kind !== 'indirect' || insn.flow.via === 'bx') return undefined;
     const m = c.view.profile.idioms.matchTableJump(c.run, c.run.length - 1, c.view.rom);
     return m === undefined ? undefined : { step: 'table', table: { base: m.base, targets: m.targets, thumbBit: false } };

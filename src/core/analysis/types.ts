@@ -393,7 +393,7 @@ export type WalkStep =
 /**
  * Asked for every decoded instruction (cursor.phase 'insn') and, in Thumb, at a stop on non-code with
  * the last instruction of the run (cursor.phase 'stop'). Assignments: walk.pc-load-is-pool: a pool load
- * → pool (both modes). walk.table-nearest-pool-load: Thumb mov/add pc → table from
+ * → pool (both modes). walk.table-by-register: Thumb mov/add pc → table from
  * profile.idioms.matchTableJump(cursor.run, cursor.run.length - 1). walk.mov-lr-pc-bx-is-call: ARM bx
  * whose previous instruction is `mov lr, pc` → continue. walk.mov-pc-without-table: an indirect jump
  * through mov/add pc (both modes) or ARM ldr/ldm pc → end-path reg-jump. walk.bx-pc-veneer: Thumb `bx

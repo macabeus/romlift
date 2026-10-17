@@ -79,12 +79,11 @@ export interface CompilerProfile {
   readonly pipeline: Pipeline;
   /** A `bl` used as a jump: only beyond this distance, and (when required) from a caller that pushed lr. */
   readonly farJump: { readonly minDistance: number; readonly requiresPushedLr: boolean };
-  /** A jump table behind `mov pc`/`add pc` (lookBehindInsns is deleted at milestone M3). */
+  /** A jump table behind `mov pc`/`add pc`: its base within maxBaseDistance ahead, at most maxEntries targets within maxTargetSpan of the jump. */
   readonly tableJump: {
     readonly maxBaseDistance: number;
     readonly maxEntries: number;
     readonly maxTargetSpan: number;
-    readonly lookBehindInsns?: number;
   };
   /** A function is dense when its holes stay within max(minHoles, extent >> holeShift) bytes. */
   readonly density: { readonly minHoles: number; readonly holeShift: number };

@@ -12,7 +12,7 @@ const SECTION_4_1 = {
   seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr'],
   walk: [
     'walk.pc-load-is-pool',
-    'walk.table-nearest-pool-load',
+    'walk.table-by-register',
     'walk.mov-lr-pc-bx-is-call',
     'walk.noreturn-call-before-noncode',
     'walk.swi-before-noncode',
@@ -62,13 +62,13 @@ test('the orders reproduce the PoC call order', () => {
   assert.equal(AGBCC_PIPELINE.bl[AGBCC_PIPELINE.bl.length - 1], 'bl.noreturn-before-noncode');
   assert.equal(AGBCC_PIPELINE.accept[AGBCC_PIPELINE.accept.length - 1], 'accept.tiny-anchored-at-start');
   const walk = AGBCC_PIPELINE.walk;
-  assert.ok(walk.indexOf('walk.table-nearest-pool-load') < walk.indexOf('walk.mov-pc-without-table'));
+  assert.ok(walk.indexOf('walk.table-by-register') < walk.indexOf('walk.mov-pc-without-table'));
   assert.ok(walk.indexOf('walk.mov-lr-pc-bx-is-call') < walk.indexOf('walk.mov-pc-without-table'));
 });
 
 test("agbcc holds the PoC's numbers", () => {
   assert.deepEqual(AGBCC.farJump, { minDistance: 1536, requiresPushedLr: false });
-  assert.deepEqual(AGBCC.tableJump, { maxBaseDistance: 0x400, maxEntries: 2048, maxTargetSpan: 0x10000, lookBehindInsns: 40 });
+  assert.deepEqual(AGBCC.tableJump, { maxBaseDistance: 0x400, maxEntries: 2048, maxTargetSpan: 0x10000 });
   assert.deepEqual(AGBCC.density, { minHoles: 8, holeShift: 4 });
   assert.equal(AGBCC.pointerTableRun, 3);
   assert.equal(AGBCC.tinyFunctionInsns, 3);
@@ -106,7 +106,7 @@ test('padding is a zero byte or a byte of mov r8, r8', () => {
   assert.equal(AGBCC.idioms.isPadding(rom, 0x0800_0203, undefined), false);
 });
 
-test('matchTableJump: the nearest qualifying pool load names the base; slots stop below the lowest target', () => {
+test('matchTableJump: the pool load the jump register comes from names the base; slots stop below the lowest target', () => {
   const at = 0x0800_0200;
   const code = thumbAt(at)`ldr r1, _0800020C; ldr r0, [r1, r0]; mov pc, r0`;
   const rom = romWith([
