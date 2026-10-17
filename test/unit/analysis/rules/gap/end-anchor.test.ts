@@ -117,3 +117,21 @@ test('a `push {.., lr}` on the halfword between two words opens a hand-written f
   ]);
   assert.equal(rule.propose(c, viewWith({ rom: plain, valid: (a) => a === H })), undefined);
 });
+
+test('the 2-mod-4 `push` candidate and the word below it go through one ranking: both are judged, the prologue wins (D60 c)', () => {
+  const H = X + 0x0e;
+  const END2 = X + 0x14;
+  const half = romWith([
+    { at: X, bytes: new Uint8Array(0x0e).fill(0xff) },
+    { at: H, bytes: thumbAt(H)`push {lr}; movs r0, #0; pop {pc}` },
+  ]);
+  const c = gapCursor(X, END2, X);
+  // Both readings are valid and fill the gap; the word one (at H - 2) is no prologue, so the halfword wins.
+  // The word under the halfword candidate is judged too (valid() is asked at H - 2): before e764d41 the
+  // halfword candidate skipped it. The outcome is the same either way, since the halfword candidate is a
+  // prologue and comes first at its word; what the change fixed is that no candidate is skipped unjudged.
+  const asked: number[] = [];
+  const found = rule.propose(c, viewWith({ rom: half, valid: (a) => (asked.push(a), a === H || a === H - 2) }));
+  assert.equal(found?.entry, H);
+  assert.ok(asked.includes(H - 2), `valid() asked at ${asked.map((a) => (a - X).toString(16)).join(', ')}`);
+});
