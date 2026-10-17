@@ -15,6 +15,7 @@ and the exit commands of each phase). Follow them; a decision changes only throu
 | --- | --- |
 | `npm ci` | install exactly the lock file (`npm install` only when changing dependencies) |
 | `npm run typecheck` | `tsc --noEmit` over `src/`, `test/` and `bench/` |
+| `npm run lint` | the architecture checker alone: `test/architecture.test.ts` and its mutation test (D5, D54 j); `npm test` runs both too |
 | `npm test` | `test/*.test.ts` and `test/{unit,golden,mutation}/**`; needs no ROM |
 | `npm run test:local` | `test/local/**`; needs `ROMLIFT_BENCH_ROOT` and `ROMLIFT_POC` (below) |
 | `npm run bench -- <command>` | the benchmark harness (architecture §8.5), from phase 1 |
@@ -38,7 +39,7 @@ Node runs the TypeScript sources directly (type stripping, `--conditions=source`
 | `ROMLIFT_GATE_TIER` | `ci` | the tier the gate tests run (`ci` or `real`); `bench gates --tier` passes it to them |
 | `ROMLIFT_GATE_REPORT` | unset | a file each gate test appends its verdict to, one NDJSON line per gate (`test/gates/gate.ts`) |
 
-There is no separate linter or formatter. Strictness comes from `tsconfig.json`, and the layer rules,
+There is no separate linter or formatter; `npm run lint` is only a shortcut to the architecture test. Strictness comes from `tsconfig.json`, and the layer rules,
 globals allowlist, `Map` iteration rule, barrel shape and dynamic-import rule are enforced by
 `test/architecture.test.ts` (D5) with the checker in `test/helpers/architecture.ts`, whose edge table
 is architecture §2 written as data; a violation fails `npm test`. Style follows the code in the architecture: two-space indent, single

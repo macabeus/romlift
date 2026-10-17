@@ -1161,6 +1161,9 @@ roadmap.md, "As executed"). The deviations from roadmap 1.0–1.D:
 - (h) `GateSpec.tier` accepts `'both'` for the gates architecture §13 marks "ci and real".
 - (i) The exit commands run the real tier before the ci tier, because `g1.provenance` (ci) checks the
   real gate record once `phase.json.landed` is 1.
+- (j) `npm run lint` runs only the architecture checker (`test/architecture.test.ts` and
+  `test/mutation/phase1/architecture.test.ts`), so the phase exit commands can name lint without a
+  separate linter (D5 stands: the checker is the lint, and `npm test` still runs it).
 
 The architecture checker reads a dynamic `import()` whose specifier's type is a string literal or a
 union of string literals as one edge per literal, so `test/gates/gate.ts` can load the four entry points

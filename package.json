@@ -41,6 +41,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "lint": "node --conditions=source --test test/architecture.test.ts test/mutation/phase1/architecture.test.ts",
     "test": "node --conditions=source --test \"test/*.test.ts\" \"test/{unit,golden,mutation}/**/*.test.ts\"",
     "test:local": "node --conditions=source --test \"test/local/**/*.test.ts\"",
     "bench": "node --conditions=source bench/src/cli.ts",
