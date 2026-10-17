@@ -39,7 +39,7 @@ import { gitDirty, gitHead } from './git.ts';
 import { resultParityDigest } from './parity.ts';
 import { parsePocDigests, pocDigestsPath, type PocDigests } from './parity-view.ts';
 import { readPinnedPocSource } from './poc-source.ts';
-import { currentPrinterSummary } from './printer.ts';
+import { printerMember } from './printer.ts';
 import { readDump } from './rescore.ts';
 import type { RomliftRow } from './row.ts';
 import { analysisFunctions, scoreAnalysis, staleExceptions } from './score.ts';
@@ -267,15 +267,17 @@ async function writeArtifact(
     source: 'romlift',
     profile: benchProfile().id,
   };
-  // The previous artifact holds what a run cannot recompute (the parity evidence): refuse to drop it.
+  // The previous artifact holds what a run cannot recompute (the parity evidence, the printer summary
+  // without a corpus run): refuse to drop either.
   const previous = await readResultsFile(resultsPath(cx)).catch((error: unknown) => {
     throw new BenchError(`refusing to overwrite bench/results.json: it does not parse (${error instanceof Error ? error.message : String(error)})`);
   });
   const gates = keptGates(previous, meta);
-  const printer = await currentPrinterSummary(cx, toolchain.as);
+  const printer = await printerMember(cx, toolchain.as, previous?.printer);
+  if (!printer.ok) throw new BenchError(`not writing bench/results.json: ${printer.reason}`);
   const results: Results = {
     meta,
-    ...(printer === undefined ? {} : { printer }),
+    ...(printer.summary === undefined ? {} : { printer: printer.summary }),
     gates: { real: gates },
     roms: report.roms,
     ...(report.sealed.length === 0 ? {} : { sealed: report.sealed }),

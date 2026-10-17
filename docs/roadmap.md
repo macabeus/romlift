@@ -332,12 +332,18 @@ npm run export-poc -- --mode parity
 npm run export-poc -- --mode queries
 npm run test:local
 npm run bench -- doctor-real
+npm run corpus
 npm run bench -- run
 npm run bench -- speed
 npm run bench -- regression
-npm run bench -- gates --require 2 --tier ci
 npm run bench -- gates --require 2 --tier real
+npm run bench -- gates --require 2 --tier ci
 ```
+
+`npm run corpus` comes before `bench run` because the artifact's `printer` member is the corpus summary
+while its inputs digest is current; without a fresh summary `bench run` keeps the previous member only
+when it is still current, and otherwise refuses to write rather than drop it (D59 t). The real tier runs
+before the ci tier (AGENTS.md).
 
 Thresholds: on each tuning ROM, raw precision ≥ 99.7%, every miss in `labels` and every false entry in
 `untyped`, raw true positives ≥ the PoC's, zero `unreviewed`, no agreeing extent lost and ≥ 99.9% of sized
