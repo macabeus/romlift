@@ -213,12 +213,6 @@ two modes is proven in the phase that builds the driver, not two phases later.
 **Rejected.** Config entries as ordinary seeds in one mode (silent split changes). A `settle` stage that
 resumes discovery with seeds (reorders acceptance inside the phase-2 port).
 
-**Revision (17 October 2026, D60 k).** `isFunction` means "taken" in both modes, and confirm mode takes
-the listed entries the rules reach during the passes, in discover's order, and the rest of the list
-after them (then runs the passes again). The split is still exactly the TOML's; the rule "listed entries
-are functions from round 0" made confirm's readings differ from discover's on tmc's hand-written code
-with several entries.
-
 ## D9. One proposal shape; the TOML decides and records the source
 
 **Context.** The PoC applies signatures at every `generate` and rewrites the TOML. The first version of
@@ -1666,14 +1660,18 @@ tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeu
   function, which must be unsized) and reports a wrong or unneeded row; `bench regression` asks a
   `Bench-Exception` trailer for it as for any row. tmc's last FUNC, `sub_080B299C`, has size 0 and runs
   to the `$d` at 0x080B2A30.
-- (k) **Confirm mode takes the rest of the list after the passes** (revising D8): the seeds of origin
-  `listed` are taken after the passes, which then run again, and `isFunction` means "taken" in both
-  modes. The rules take, of the listed entries, those they reach in discover's order and with discover's
-  readings (a reading depends on what was taken before it, and an epoch keeps the reading of a candidate
-  from the moment it was first judged); an unlisted acceptance is still only reported, and every listed
-  entry is a function before the run ends, its extent its TOML size or its reading cut at the next listed
-  entry that is not a label. tmc's animation entries, stub tables and IWRAM chains made the two modes
-  differ on six functions before.
+- (k) **Withdrawn (fix round 1 of D60).** `747293f` made confirm mode take the listed entries after the
+  passes, in discover's order, revising D8 without the owner; with the gate's listed set being discover's
+  own output, confirm then replayed discover step for step and `g2.confirm-equals-discover` held by
+  construction (0 unlisted on every ROM). It is reverted: D8 stands (a listed entry that is not a label is
+  a function from round 0). The gate fails on tmc, on six functions of hand-written code with several
+  entries (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C; one, 0x08004274, already
+  at `d645160`), and passes on the five other tuning ROMs. A fresh reading at take time (dropping the
+  epoch's candidate reading) removes two of the six (0x08004274, 0x080043AC) and changes epoch semantics
+  (§4.2); D8's `resettle` stage, re-reading under the final function set, would make every entry inside
+  another found extent a boundary of the function around it (34 such entries on tmc, 7 to 9 on each other
+  tuning ROM: the startup piece and the m4a mixer's inner entries). Which remedy, if any, is the owner's
+  (phase-2.md, "Owner questions").
 - (l) **The PoC's own measurements cover the ROMs it ran on.** `export-poc` and `bench poc-check` iterate
   the tuning datasets the PoC baseline names (`pocDatasets`); the `scaffold` family, measured only by the
   PoC's dumps until phase 3, is asked by the provenance check only of those ROMs until then. tmc has no

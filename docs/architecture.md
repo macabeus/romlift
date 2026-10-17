@@ -737,7 +737,7 @@ export interface AnalysisView {                       // what a rule may read; t
   readonly round: number; readonly epoch: number;
   claimAt(a: Addr): ClaimKind;
   owner(a: Addr): FunctionFact | undefined;            // innermost extent covering a (§9.3)
-  isFunction(a: Addr): boolean;                        // accepted, in both modes (§4.2, D60 k)
+  isFunction(a: Addr): boolean;                        // discover: accepted; confirm: listed (§4.2)
   read(entry: Addr, mode: Mode): Reading;              // cached for the current epoch (§4.2)
   valid(entry: Addr): boolean;                         // the driver's validity service (driver/validity.ts)
   neverValid(entry: Addr): boolean;                    // intrinsic failures, remembered for the analysis
@@ -838,10 +838,8 @@ which they are dropped (their verdicts stay memoised) and re-walked when asked f
 
 - `discover` (used by `analyze`, `init`, `analyze --update` and the bench) accepts what the rules accept.
 - `confirm` (used by `generate`, `model`, `verify` and `explain` inside a project) seeds exactly the
-  TOML's `[functions]` as `seed.listed`. The listed entries the rules reach during the passes are taken
-  then, in discover's order, and the rest of the list after the passes, which then run again (D60 k,
-  revising D8's "functions from round 0": a reading depends on what was taken before it). A listed
-  entry's extent is its TOML `size` when given; otherwise its reading under that fixed
+  TOML's `[functions]` as `seed.listed`, and `isFunction(a)` is true for every listed entry from round
+  0. A listed entry's extent is its TOML `size` when given; otherwise its reading under that fixed
   function set, cut at the next listed entry that is not `label = true` (`ModelFunction.source.extent`
   says which). A listed entry that fails validity is honoured (`W_LISTED_INVALID`, recorded in
   `listedInvalid`). Harvest and gap rules still run, but their acceptances become `UnlistedFinding`s and

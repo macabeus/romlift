@@ -33,8 +33,12 @@ import type { DriverState } from './state.ts';
 /** The tuning `analyze` runs with: epoch caching, nothing disabled (the worklist is always ascending, D10, D59). */
 export const DEFAULT_TUNING: AnalysisTuning = { cache: 'epoch', disabled: [] };
 
-/** Each pass of the profile runs grow and fillGaps until neither adds a function. */
-function runPasses(s: DriverState): void {
+/** Runs the seeds, the passes and the regions on `s`; returns the startup region. */
+export function runDriver(s: DriverState): StartupRegion {
+  for (const { id, rule } of s.rules.seed) {
+    // accept() emits the 'propose' event of each seed as it queues it.
+    for (const c of rule.seeds(s.view)) accept(s, { ...c, proposedBy: id });
+  }
   for (const pass of s.profile.pipeline.passes) {
     for (let rounds = 0; ; rounds++) {
       if (rounds === LIMITS.fixpointRounds) {
@@ -43,29 +47,6 @@ function runPasses(s: DriverState): void {
       }
       if (grow(s) + fillGaps(s, pass) === 0) break;
     }
-  }
-}
-
-/**
- * Runs the seeds, the passes and the regions on `s`; returns the startup region. In confirm mode the
- * seeds of origin `listed` (the project's [functions]) are taken after the passes, and the passes then
- * run again (D60 k): first the rules take, of the listed entries, those they reach, in the order a
- * discover run takes them (an unlisted one is only reported), then the rest of the list is taken. A
- * reading depends on what was taken before it (a walk ends at a taken entry or at code another function
- * claimed; a reading kept for the epoch was walked when its candidate was first judged), so this order
- * gives confirm the readings discover gives.
- */
-export function runDriver(s: DriverState): StartupRegion {
-  const deferred = s.options.mode === 'confirm' ? s.rules.seed.filter(({ id }) => s.rules.origin.get(id) === 'listed') : [];
-  for (const { id, rule } of s.rules.seed) {
-    if (deferred.some((d) => d.id === id)) continue;
-    // accept() emits the 'propose' event of each seed as it queues it.
-    for (const c of rule.seeds(s.view)) accept(s, { ...c, proposedBy: id });
-  }
-  runPasses(s);
-  if (deferred.length > 0) {
-    for (const { id, rule } of deferred) for (const c of rule.seeds(s.view)) accept(s, { ...c, proposedBy: id });
-    runPasses(s);
   }
   let startup: StartupRegion | undefined;
   for (const { rule } of s.rules.region) {
