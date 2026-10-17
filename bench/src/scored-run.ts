@@ -36,6 +36,11 @@ export interface ScoredRun {
   readonly rom: string;
   readonly sha1: string;
   readonly pocSourceDigest: string;
+  /**
+   * sha256 of the dataset romlift handed the PoC (poc-dump-rows.ts pocDatasetOf) when the PoC ran on it,
+   * a ROM it has no dataset file of (D60); null when it ran on its own dataset file.
+   */
+  readonly datasetDigest: string | null;
   readonly analysis: DumpAnalysis;
   readonly misses: readonly DumpMiss[];
   /** sha256 of the canonical JSON of each of the two analyses. */
@@ -109,11 +114,14 @@ export function parseScoredRun(value: unknown, where: string): ScoredRun {
   if (!isRecord(scaffold) || typeof scaffold['ok'] !== 'boolean') throw new BenchError(`${where}: scaffold.ok must be a boolean`);
   const pocRow = value['pocRow'];
   if (!isRecord(pocRow)) throw new BenchError(`${where}: pocRow must be an object`);
+  const datasetDigest = value['datasetDigest'];
+  if (datasetDigest !== null && typeof datasetDigest !== 'string') throw new BenchError(`${where}: datasetDigest must be a digest or null (re-run export-poc --mode scored)`);
   return {
     schema: SCORED_SCHEMA,
     rom: str(value['rom'], `${where}: rom`),
     sha1: str(value['sha1'], `${where}: sha1`),
     pocSourceDigest: str(value['pocSourceDigest'], `${where}: pocSourceDigest`),
+    datasetDigest,
     analysis: {
       functions,
       startup: {

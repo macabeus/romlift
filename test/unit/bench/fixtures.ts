@@ -80,6 +80,7 @@ export function dump(overrides: Partial<ScoredRun> = {}): ScoredRun {
     rom: 'tiny',
     sha1: '0'.repeat(40),
     pocSourceDigest: 'p'.repeat(64),
+    datasetDigest: null,
     analysis,
     misses: [],
     digests: [digest, digest],

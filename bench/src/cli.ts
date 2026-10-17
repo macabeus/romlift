@@ -198,7 +198,7 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     async run(cx, args, io) {
       const report = await pocCheck(cx);
       for (const r of report.roms) {
-        io.out(`${r.name.padEnd(12)} ${romPasses(r) ? 'OK' : 'FAILED'}  rows ${r.rowsEqual ? 'equal' : 'differ'}, PoC row ${!r.baselineRow ? 'n/a (no pinned baseline row; rows compared with the PoC\'s own row)' : r.pocRowEqual ? 'equal' : 'differs'}, scaffold ${r.scaffoldOk ? 'OK' : 'FAILED'}, ${r.deterministic ? 'deterministic' : 'NOT deterministic'}, PoC source ${r.pocSourceDigestOk ? 'pinned' : 'NOT pinned'}`);
+        io.out(`${r.name.padEnd(12)} ${romPasses(r) ? 'OK' : 'FAILED'}  rows ${r.rowsEqual ? 'equal' : 'differ'}, PoC row ${r.pinnedRow === true ? (r.pocRowEqual ? 'equal to the one pinned in poc-dump-rows.json (rows compared with the PoC\'s own row)' : 'differs from the pinned one') : !r.baselineRow ? 'n/a' : r.pocRowEqual ? 'equal' : 'differs'}, scaffold ${r.scaffoldOk ? 'OK' : 'FAILED'}, ${r.deterministic ? 'deterministic' : 'NOT deterministic'}, PoC source ${r.pocSourceDigestOk ? 'pinned' : 'NOT pinned'}`);
         for (const d of r.diffs) io.out(`  ${d}`);
       }
       if (args.flags.has('json')) json(io, report);

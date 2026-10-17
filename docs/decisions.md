@@ -1806,7 +1806,13 @@ of generality until a sealed ROM of a fresh family passes (D53).
   row of it, scaffold, determinism, pinned source; `baselineRow` false, no baseline row to compare); and
   `bench run` takes that row as tmc's PoC reference (`poc.source` `dump`): `g2.entries`' floor (tp 8,582),
   `g2.extents`' `lost` and `g2.baseline-rows`' diffs are measured, not vacuous, and a tuning ROM with no
-  reference at all (`poc.source` `none`) fails those gates. The parity and queries modes, and
+  reference at all (`poc.source` `none`) fails those gates. Fix round 2 (gate-honesty-r1-5, code-quality-r1-4)
+  pins that reference by content, as the baseline pins the five: `bench/baseline/poc-dump-rows.json` holds,
+  per revealed ROM, the digest of the dataset romlift handed the PoC and the digest of the PoC's row
+  (tmc: tp 8,582); the dump records the dataset digest it was made on; `bench run` and `bench poc-check`
+  refuse a dump made on another dataset or whose row's digest is not the pinned one, and `export-poc
+  --mode scored` checks a fresh dump against the file, rewriting it only with `--pin` (the Git diff is the
+  review). `bench poc-check` now prints tmc's PoC row as equal to the pinned one, not n/a. The parity and queries modes, and
   `g2.poc-parity`, still cover the five: their evidence is the M1 lockstep at a commit that predates tmc's
   reveal, and `g2.poc-parity` fails on tmc at `landed` 1 (phase-2.md, "Owner questions").
 - (m) **`bench/baseline/speed.json` holds tmc**, measured in the baseline's calibration.

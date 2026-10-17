@@ -117,14 +117,19 @@ async function load(pocRoot: string, file: string): Promise<unknown> {
  * PoC was pinned (tmc, D60). The PoC is never written: its dataset directory is only read.
  */
 function datasetNamed(all: readonly PocDataset[], name: string): PocDataset {
+  return datasetUsed(all, name).dataset;
+}
+
+/** datasetNamed, and whether the dataset is the PoC's own file ('poc') or the one romlift handed over ('given'). */
+function datasetUsed(all: readonly PocDataset[], name: string): { readonly dataset: PocDataset; readonly source: 'poc' | 'given' } {
   const dataset = all.find((d) => d.name === name);
-  if (dataset !== undefined) return dataset;
+  if (dataset !== undefined) return { dataset, source: 'poc' };
   const given = process.env['ROMLIFT_POC_DATASET'];
   const parsed: unknown = given === undefined ? undefined : JSON.parse(given);
   const ok = (v: unknown): v is PocDataset =>
     typeof v === 'object' && v !== null && (v as PocDataset).name === name && typeof (v as PocDataset).rom === 'string' && typeof (v as PocDataset).elf === 'string' && typeof (v as PocDataset).sha1 === 'string' && Array.isArray((v as PocDataset).labels) && Array.isArray((v as PocDataset).untyped);
   if (!ok(parsed)) throw new Error(`the PoC has no dataset named ${name}, and ROMLIFT_POC_DATASET gives none`);
-  return parsed;
+  return { dataset: parsed, source: 'given' };
 }
 
 // ---------------------------------------------------------------- scored mode (phase 1)
@@ -149,7 +154,7 @@ async function scored(pocRoot: string, name: string): Promise<void> {
   const { BENCH_ROOT, loadDatasets } = (await load(pocRoot, 'bench/dataset.ts')) as DatasetModule;
   const { runRom } = (await load(pocRoot, 'bench/run.ts')) as RunModule;
 
-  const dataset = datasetNamed(loadDatasets(name), name);
+  const { dataset, source } = datasetUsed(loadDatasets(name), name);
   const rom = Rom.load(join(BENCH_ROOT, dataset.rom));
   const analyses: unknown[] = [];
   let first: PocAnalyzer | undefined;
@@ -167,7 +172,7 @@ async function scored(pocRoot: string, name: string): Promise<void> {
     .map((m) => ({ addr: hexAddr(m.addr), reason: m.reason }));
   console.error(`${name}: running the PoC's own bench row with its scaffold`);
   const row = runRom(dataset, { scaffold: true });
-  process.stdout.write(`${JSON.stringify({ analyses, misses, row })}\n`);
+  process.stdout.write(`${JSON.stringify({ analyses, misses, row, dataset: source })}\n`);
 }
 
 // ---------------------------------------------------------------- canonical JSON and readings

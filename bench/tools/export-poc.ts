@@ -3,7 +3,9 @@
 // once per tuning dataset (never a sealed one), and writes what it found to the gitignored
 // bench/.local/poc/<rom>/:
 //
-//   scored   scored.json, in the frozen ScoredRun shape (phase 1);
+//   scored   scored.json, in the frozen ScoredRun shape (phase 1); a dump made on romlift's dataset (a ROM
+//            the PoC has no dataset file of, D60) is checked against bench/baseline/poc-dump-rows.json,
+//            which `--pin` writes instead;
 //   parity   parity.json, the parity view (bench/src/parity-view.ts), after two PoC processes have
 //            produced the same digest; then bench/baseline/poc-digests.json, the digest per ROM;
 //   queries  queries.ndjson and readings.ndjson, the lockstep log (bench/src/poc-log.ts), after
@@ -40,8 +42,19 @@ import { openPocLog, queriesPath } from '../src/poc-log.ts';
 import { comparePocSource, computePocSource, readPinnedPocSource } from '../src/poc-source.ts';
 import { runProcess } from '../src/process.ts';
 import { analysisDigest, parseScoredRun, SCORED_SCHEMA, type ScoredRun } from '../src/scored-run.ts';
+import {
+  dumpRowMismatch,
+  pocDatasetDigest,
+  pocDatasetOf,
+  pocDumpRowsPath,
+  pocDumpRowsText,
+  pocRowDigest,
+  POC_DUMP_ROWS_SCHEMA,
+  readPocDumpRows,
+  type PinnedDumpRow,
+} from '../src/poc-dump-rows.ts';
 
-const USAGE = 'usage: npm run export-poc -- --mode scored|parity|queries [--only <rom>]';
+const USAGE = 'usage: npm run export-poc -- --mode scored|parity|queries [--only <rom>] [--pin]';
 const CHILD = fileURLToPath(new URL('./export-poc-child.ts', import.meta.url));
 
 export const EXPORT_MODES = ['scored', 'parity', 'queries'] as const;
@@ -54,7 +67,7 @@ export function isExportMode(value: string | undefined): value is ExportMode {
 // ---------------------------------------------------------------- pure post-processing
 
 /** Builds the frozen scored.json value from the child's document; throws when the document is not as expected. */
-export function scoredFromChild(doc: unknown, rom: string, sha1: string, pocSourceDigest: string): ScoredRun {
+export function scoredFromChild(doc: unknown, rom: string, sha1: string, pocSourceDigest: string, datasetDigest: string | null = null): ScoredRun {
   if (!isRecord(doc) || !Array.isArray(doc['analyses']) || doc['analyses'].length !== 2 || !isRecord(doc['row'])) {
     throw new BenchError(`${rom}: the PoC child printed no {analyses: [2], misses, row} document`);
   }
@@ -67,6 +80,7 @@ export function scoredFromChild(doc: unknown, rom: string, sha1: string, pocSour
     rom,
     sha1,
     pocSourceDigest,
+    datasetDigest: doc['dataset'] === 'given' ? datasetDigest : null,
     analysis: first,
     misses: doc['misses'],
     digests: [analysisDigest(first), analysisDigest(second)],
@@ -164,12 +178,6 @@ async function checkedRom(cx: BenchContext, d: Dataset): Promise<string> {
   return sha1;
 }
 
-/** The dataset in the PoC's shape ({name, rom, elf, sha1, labels, untyped}), for a ROM the pinned PoC has no file of. */
-export function pocDatasetOf(d: Dataset): { readonly name: string; readonly rom: string; readonly elf: string; readonly sha1: string; readonly labels: readonly unknown[]; readonly untyped: readonly unknown[] } {
-  const entry = (e: { readonly addr: string; readonly name?: string; readonly category: string; readonly note?: string }): unknown => ({ addr: e.addr, ...(e.name === undefined ? {} : { name: e.name }), category: e.category, ...(e.note === undefined ? {} : { note: e.note }) });
-  return { name: d.name, rom: d.rom, elf: d.elf, sha1: d.sha1, labels: d.labels.map(entry), untyped: d.untyped.map(entry) };
-}
-
 /** Runs the child for one dataset and returns the JSON document on its last stdout line. */
 async function runChild(cx: BenchContext, d: Dataset, args: readonly string[]): Promise<unknown> {
   const tsx = join(cx.pocRoot, 'node_modules', '.bin', 'tsx');
@@ -200,15 +208,43 @@ async function runChild(cx: BenchContext, d: Dataset, args: readonly string[]): 
   }
 }
 
-async function exportScored(cx: BenchContext, d: Dataset, pocSourceDigest: string): Promise<void> {
+async function exportScored(cx: BenchContext, d: Dataset, pocSourceDigest: string): Promise<ScoredRun> {
   const sha1 = await checkedRom(cx, d);
-  const scored = scoredFromChild(await runChild(cx, d, ['scored']), d.name, sha1, pocSourceDigest);
+  const scored = scoredFromChild(await runChild(cx, d, ['scored']), d.name, sha1, pocSourceDigest, pocDatasetDigest(d));
   await writeText(scoredPath(cx, d.name), `${JSON.stringify(scored)}\n`);
   const same = scored.digests[0] === scored.digests[1];
   process.stdout.write(
     `${d.name.padEnd(12)} ${scored.analysis.functions.length} functions, ${scored.misses.length} misses, ` +
-      `scaffold ${scored.scaffold.ok ? 'OK' : 'FAILED'}, ${same ? 'deterministic' : 'NOT DETERMINISTIC'} -> ${scoredPath(cx, d.name)}\n`,
+      `scaffold ${scored.scaffold.ok ? 'OK' : 'FAILED'}, ${same ? 'deterministic' : 'NOT DETERMINISTIC'}` +
+      `${scored.datasetDigest === null ? '' : `, on romlift's dataset ${scored.datasetDigest.slice(0, 12)}…`} -> ${scoredPath(cx, d.name)}\n`,
   );
+  return scored;
+}
+
+/**
+ * The pinned PoC rows after a scored export: each dump made on romlift's dataset is checked against
+ * bench/baseline/poc-dump-rows.json, or, with `pin`, written into it (the diff in Git is the review).
+ */
+async function checkOrPinDumpRows(cx: BenchContext, runs: readonly { readonly d: Dataset; readonly scored: ScoredRun }[], pocSourceDigest: string, pin: boolean): Promise<void> {
+  const committed = await readPocDumpRows(cx);
+  const roms: Record<string, PinnedDumpRow> = { ...(committed?.pocSourceDigest === pocSourceDigest ? committed.roms : {}) };
+  const problems: string[] = [];
+  for (const { d, scored } of runs) {
+    if (scored.datasetDigest === null) continue;
+    if (pin) {
+      const tp = scored.pocRow['tp'];
+      roms[d.name] = { datasetDigest: scored.datasetDigest, rowDigest: pocRowDigest(scored.pocRow), tp: typeof tp === 'number' ? tp : 0 };
+      continue;
+    }
+    const why = dumpRowMismatch(d, committed, scored.pocSourceDigest, scored.datasetDigest, scored.pocRow);
+    if (why !== undefined) problems.push(why);
+    else process.stdout.write(`${d.name.padEnd(12)} the PoC's row equals the one pinned in ${pocDumpRowsPath(cx)}\n`);
+  }
+  if (pin) {
+    await writeText(pocDumpRowsPath(cx), pocDumpRowsText({ schema: POC_DUMP_ROWS_SCHEMA, pocSourceDigest, roms }));
+    process.stdout.write(`${Object.keys(roms).length} pinned PoC rows -> ${pocDumpRowsPath(cx)}\n`);
+  }
+  if (problems.length > 0) throw new BenchError(`the PoC's rows differ from the pinned ones (re-pin with --pin only after reviewing why):\n${problems.join('\n')}`);
 }
 
 /** Two PoC processes per ROM; parity.json is written only when their digests agree. Returns the digest. */
@@ -258,7 +294,7 @@ async function readCommittedDigests(cx: BenchContext): Promise<PocDigests | unde
 }
 
 async function main(argv: readonly string[]): Promise<number> {
-  const args = parseArgs(argv, { options: ['mode', 'only'] });
+  const args = parseArgs(argv, { options: ['mode', 'only'], flags: ['pin'] });
   const mode = args.options['mode'];
   if (!isExportMode(mode)) throw new UsageError(`--mode must be scored, parity or queries\n${USAGE}`);
   const cx = contextFromEnv(process.env);
@@ -278,7 +314,9 @@ async function main(argv: readonly string[]): Promise<number> {
   const chosen = mode === 'scored' ? tuningDatasets(datasets, only) : pocDatasets(datasets, pocRomNames(await readBaseline(cx)), only);
   if (chosen.length === 0) throw new BenchError(only === undefined ? 'no tuning datasets the PoC ran on' : `no tuning dataset named ${only} that the PoC ran on`);
   if (mode === 'scored') {
-    for (const d of chosen) await exportScored(cx, d, pinned.digest);
+    const runs: { readonly d: Dataset; readonly scored: ScoredRun }[] = [];
+    for (const d of chosen) runs.push({ d, scored: await exportScored(cx, d, pinned.digest) });
+    await checkOrPinDumpRows(cx, runs, pinned.digest, args.flags.has('pin'));
   } else if (mode === 'parity') {
     const digests: Record<string, string> = {};
     for (const d of chosen) digests[d.name] = await exportParity(cx, d);

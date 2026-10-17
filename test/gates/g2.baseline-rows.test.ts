@@ -15,7 +15,7 @@
 //     }
 //   kind is one of 'miss-removed', 'false-entry-removed', 'extent-agrees' (improvements) or any other
 //   name the bench gives a change.
-import { gate, type ExecResult } from './gate.ts';
+import { gate, noPocReference, type ExecResult } from './gate.ts';
 
 interface RowDiff {
   readonly kind: string;
@@ -60,14 +60,15 @@ gate({
         problems.push(`${dataset.name}: not scored`);
         continue;
       }
-      if (rom.poc?.source === 'none') {
-        problems.push(`${rom.name}: no PoC reference (no baseline row and no PoC dump): run npm run export-poc -- --mode scored`);
+      const missing = noPocReference(rom);
+      if (missing !== undefined) {
+        problems.push(missing);
         continue;
       }
       const { diffs, unaccepted, staleAccepted } = rom.baselineRows;
       if (unaccepted.length > 0) problems.push(`${rom.name}: ${unaccepted.length} rows differ from the PoC baseline without an accepted diff: ${rows(unaccepted)}`);
       if (staleAccepted.length > 0) problems.push(`${rom.name}: ${staleAccepted.length} stale accepted diffs: ${rows(staleAccepted)}`);
-      notes.push(`${rom.name} ${diffs.length} accepted improvements${rom.poc?.source === 'dump' ? " (against the PoC's own run: no pinned baseline row)" : ''}`);
+      notes.push(`${rom.name} ${diffs.length} accepted improvements${rom.poc?.source === 'dump' ? " (against the PoC's own run, pinned in bench/baseline/poc-dump-rows.json)" : ''}`);
     }
     if (problems.length > 0) throw new Error(`baseline rows: ${problems.join('; ')}`);
     cx.note(notes.join(', '));

@@ -770,6 +770,15 @@ function message(error: unknown): string {
 }
 
 /**
+ * The problem of a bench row with no PoC reference (`poc.source` 'none': no baseline row and no PoC dump),
+ * shared by g2.entries, g2.extents and g2.baseline-rows, which must fail rather than judge against a
+ * vacuous 0; undefined when the row has one.
+ */
+export function noPocReference(rom: { readonly name: string; readonly poc?: { readonly source?: string } }, what = ''): string | undefined {
+  return rom.poc?.source === 'none' ? `${rom.name}: no PoC reference (no baseline row and no PoC dump)${what}: run npm run export-poc -- --mode scored` : undefined;
+}
+
+/**
  * The detail a failing gate records: the failure, then the notes the gate wrote before it failed (a
  * sealed ROM's counts, say), so a failure keeps the measurements that explain it (D59 q).
  */

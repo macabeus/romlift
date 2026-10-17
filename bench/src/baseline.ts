@@ -43,6 +43,11 @@ export async function readBaseline(cx: BenchContext): Promise<Baseline> {
 }
 
 /** The names of the ROMs the PoC baseline holds a row of: the tuning ROMs the pinned PoC's results cover. */
+/** The pinned baseline's row of `name`, or undefined when the baseline names no such ROM. */
+export function baselineRowOf(baseline: Baseline, name: string): JsonRecord | undefined {
+  return baseline.roms.find((r) => r['name'] === name);
+}
+
 export function pocRomNames(baseline: Baseline): readonly string[] {
   return baseline.roms.map((r) => String(r['name']));
 }

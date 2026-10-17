@@ -27,7 +27,7 @@ import { compareCodeUnits, hexAddr } from 'romlift';
 import { acceptedFor, readAcceptedDiffs, type AcceptedDiffs } from './accepted-diffs.ts';
 import { analyzeDataset, analysisTuning, benchProfile, discoverOptions, isDefaultTuning, readRealInputs, sealedInput, type AnalysisRunner, type DatasetAnalysis, type RealInputs, type RunTuning, DEFAULT_RUN_TUNING } from './analysis-run.ts';
 import { readResultsFile, writeResultsFile, type GateEntry, type Results, type ResultsMeta, type RomInputs, type SealedEntry, type Toolchain } from './artifact.ts';
-import { readBaseline, type Baseline, type JsonRecord } from './baseline.ts';
+import { baselineRowOf, readBaseline, type Baseline, type JsonRecord } from './baseline.ts';
 import { compareWithBaseline, parseBaselineRow } from './baseline-rows.ts';
 import { datasetDir, resultsPath, timingsPath, type BenchContext } from './context.ts';
 import { cpuProfPath, profiled, writeTopSelfTime } from './cpu-prof.ts';
@@ -38,6 +38,7 @@ import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from '.
 import { gitDirty, gitHead } from './git.ts';
 import { resultParityDigest } from './parity.ts';
 import { parsePocDigests, pocDigestsPath, type PocDigests } from './parity-view.ts';
+import { dumpRowMismatch, readPocDumpRows, type PocDumpRows } from './poc-dump-rows.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 import { printerMember } from './printer.ts';
 import { readDump } from './rescore.ts';
@@ -99,25 +100,38 @@ export interface TuningContext {
   readonly pinnedPocDigest: string;
   /** bench/baseline/poc-digests.json, when committed. */
   readonly pocDigests?: PocDigests;
+  /** bench/baseline/poc-dump-rows.json: the pinned PoC rows of the ROMs revealed after the baseline (D60). */
+  readonly pocDumpRows?: PocDumpRows;
 }
 
 export async function tuningContext(cx: BenchContext): Promise<TuningContext> {
   const digestsPath = pocDigestsPath(cx);
   const pocDigests = (await exists(digestsPath)) ? parsePocDigests(await readJson(digestsPath), digestsPath) : undefined;
+  const pocDumpRows = await readPocDumpRows(cx);
   return {
     baseline: await readBaseline(cx),
     accepted: await readAcceptedDiffs(cx),
     pinnedPocDigest: (await readPinnedPocSource(cx)).digest,
     ...(pocDigests === undefined ? {} : { pocDigests }),
+    ...(pocDumpRows === undefined ? {} : { pocDumpRows }),
   };
 }
 
 
-/** The PoC's dump of `d`: its scaffold verdict (until phase 3) and its own row; refused when the dump is of another PoC source. */
-async function pocDumpOf(cx: BenchContext, d: Dataset, pinned: string): Promise<{ readonly scaffold: { readonly ok: boolean }; readonly pocRow: JsonRecord } | undefined> {
+/**
+ * The PoC's dump of `d`: its scaffold verdict (until phase 3) and its own row; refused when the dump is of
+ * another PoC source, and, for a ROM the pinned baseline does not name, when it was made on another
+ * dataset or its row differs from the one pinned in bench/baseline/poc-dump-rows.json.
+ */
+async function pocDumpOf(cx: BenchContext, d: Dataset, tc: TuningContext): Promise<{ readonly scaffold: { readonly ok: boolean }; readonly pocRow: JsonRecord } | undefined> {
   const dump = await readDump(cx, d);
   if (dump === undefined) return undefined;
+  const pinned = tc.pinnedPocDigest;
   if (dump.pocSourceDigest !== pinned) throw new BenchError(`${d.name}: the dump was made from PoC source ${dump.pocSourceDigest}, not the pinned ${pinned}: re-run export-poc`);
+  if (baselineRowOf(tc.baseline, d.name) === undefined) {
+    const why = dumpRowMismatch(d, tc.pocDumpRows, dump.pocSourceDigest, dump.datasetDigest, dump.pocRow);
+    if (why !== undefined) throw new BenchError(why);
+  }
   return { scaffold: { ok: dump.scaffold.ok }, pocRow: dump.pocRow };
 }
 
@@ -127,7 +141,7 @@ async function pocDumpOf(cx: BenchContext, d: Dataset, pinned: string): Promise<
  * pinned PoC source run on that ROM by export-poc); else none, and the PoC thresholds are not applicable.
  */
 export function pocReference(tc: TuningContext, d: Dataset, dumpRow: JsonRecord | undefined): { readonly record: JsonRecord; readonly source: PocSource } | undefined {
-  const record = tc.baseline.roms.find((r) => r['name'] === d.name);
+  const record = baselineRowOf(tc.baseline, d.name);
   if (record !== undefined) return { record, source: 'baseline' };
   if (d.revealed.length > 0 && dumpRow !== undefined) return { record: dumpRow, source: 'dump' };
   return undefined;
@@ -168,7 +182,7 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
 /** One tuning dataset analysed (profiled with --cpu-prof), scored and compared. */
 async function runTuning(cx: BenchContext, d: Dataset, tc: TuningContext, options: RunOptions, tuning: RunTuning): Promise<{ readonly row: RomliftRow; readonly inputs: RealInputs; readonly analysis: DatasetAnalysis; readonly scaffold: boolean }> {
   const inputs = await readRealInputs(cx, d);
-  const dump = await pocDumpOf(cx, d, tc.pinnedPocDigest);
+  const dump = await pocDumpOf(cx, d, tc);
   const scaffold = dump?.scaffold;
   let analysis: DatasetAnalysis;
   if (options.cpuProf === true) {

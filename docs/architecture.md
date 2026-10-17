@@ -173,7 +173,8 @@ romlift/
     tools/convert-poc-signatures.ts converts the PoC's signature files to schema 3 into bench/.local/ (phase 6)
     dataset/real/<rom>.json         tuning and held-out datasets (§8.2)
     dataset/synthetic/<name>/       fixture sources, build.mk, expect.json, build/ (committed)
-    baseline/                       poc-2026-10-16.json (the PoC's rows), poc-digests.json, poc-source.json,
+    baseline/                       poc-2026-10-16.json (the PoC's rows), poc-dump-rows.json (the pinned PoC
+                                    rows of ROMs revealed later, D60), poc-digests.json, poc-source.json,
                                     accepted-diffs.json, speed.json
     migration/                      klonoa.json (pinned commits), klonoa.sh (rehearsal), klonoa-import.json (counts)
     results.json                    the committed artifact; refreshed only by a phase lead (D43)
@@ -184,7 +185,9 @@ romlift/
     corpus/                         generate.ts (the as round-trip corpus driver over runCorpus; output never
                                     committed; imports only the entry points and bench/src/args.ts, D55)
     mutation/                       fault injection into every checker (§10)
-    gates/                          g1.*.test.ts … g6.*.test.ts, gate.ts, phase.json
+    gates/                          g1.*.test.ts … g6.*.test.ts, gate.ts, phase.json, and the pure helpers the
+                                    gates call and test/unit/gates tests: held-out-verdict.ts (g2.held-out's
+                                    cross-ROM verdict and the D60 waiver), poc-parity-coverage.ts
     local/                          tests that need local ROMs or the PoC; report `unavailable` when absent
     fixtures/                       tiny self-authored files for parser tests (an ELF, a map, legacy files)
     helpers/                        thumb`` / arm`` byte builders, prng.ts, temp dirs, fixture loader, dummy profile,
@@ -1694,7 +1697,7 @@ side targets a section symbol rather than a named symbol is counted as `unnamed-
 not gated; every other difference fails. A fixture test misnames one pool word and requires the gate to
 fail.
 
-**Held-out runs** (`bench/src/seal.ts`, `classify.ts`, D25, D53). A dataset with `heldout: true` and an
+**Held-out runs** (`bench/src/seal.ts` and `classify.ts` for the sealed counts of one ROM, `test/gates/held-out-verdict.ts` for the verdict across the sealed ROMs and the D60 waiver, D25, D53). A dataset with `heldout: true` and an
 empty `revealed` runs sealed: `bench run` stores and prints only counts and gate verdicts, never an
 address or a name. Its exceptions are judged by ELF-checkable classifiers, not lists. A miss M (an ELF
 `FUNC` the run did not report) is:

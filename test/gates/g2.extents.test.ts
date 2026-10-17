@@ -14,7 +14,7 @@
 //                                          the pinned PoC's own run of a ROM revealed after it, D60), not now
 //     }
 //     poc: {tp, source}   source 'none' (no PoC reference) fails: no vacuous `lost`
-import { gate, type ExecResult } from './gate.ts';
+import { gate, noPocReference, type ExecResult } from './gate.ts';
 
 interface ExtentRow {
   readonly addr: string;
@@ -58,7 +58,8 @@ gate({
         problems.push(`${dataset.name}: not scored`);
         continue;
       }
-      if (rom.poc?.source === 'none') problems.push(`${rom.name}: no PoC reference (no baseline row and no PoC dump), so no lost extent can be judged: run npm run export-poc -- --mode scored`);
+      const missing = noPocReference(rom, ', so no lost extent can be judged');
+      if (missing !== undefined) problems.push(missing);
       const { sized, agree, lost } = rom.extents;
       const share = sized === 0 ? 0 : agree / sized;
       if (share < MIN_SHARE) problems.push(`${rom.name}: ${agree}/${sized} sized extents agree (${(share * 100).toFixed(3)}%) < 99.9%`);

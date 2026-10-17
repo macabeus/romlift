@@ -16,7 +16,7 @@
 //     misses:          [{addr, reason, listed}]   listed: the row is in the dataset's `labels`
 //     falseEntries:    [{addr, origin, listed}]   listed: the row is in the dataset's `untyped`
 //     staleExceptions: [{list, addr}]             `labels`/`untyped` rows this run no longer needs
-import { gate, type ExecResult } from './gate.ts';
+import { gate, noPocReference, type ExecResult } from './gate.ts';
 
 interface Miss {
   readonly addr: string;
@@ -88,7 +88,8 @@ gate({
       }
       const precision = rom.entries === 0 ? 0 : rom.tp / rom.entries;
       if (precision < MIN_PRECISION) problems.push(`${rom.name}: raw precision ${percent(precision)} (${rom.tp}/${rom.entries}) < 99.70%`);
-      if (rom.poc.source === 'none') problems.push(`${rom.name}: no PoC reference (no baseline row and no PoC dump): run npm run export-poc -- --mode scored`);
+      const missing = noPocReference(rom);
+      if (missing !== undefined) problems.push(missing);
       else if (rom.tp < rom.poc.tp) problems.push(`${rom.name}: ${rom.tp} true positives, fewer than the PoC's ${rom.poc.tp}`);
       const unlistedMisses = rom.misses.filter((m) => !m.listed);
       if (unlistedMisses.length > 0) problems.push(`${rom.name}: misses not in labels: ${unlistedMisses.slice(0, 8).map((m) => `${m.addr} (${m.reason})`).join(', ')}`);
