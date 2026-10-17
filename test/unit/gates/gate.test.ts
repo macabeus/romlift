@@ -1,8 +1,8 @@
 // The gate framework's decisions, with fake inputs; and gate() itself, end to end, in a child process.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -10,8 +10,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   checkInput,
   decideVerdict,
+  exec,
   formatRecord,
+  inputsFor,
+  jsonLines,
   lastJson,
+  listFixtures,
   missingExports,
   objectsDigest,
   parseDataset,
@@ -20,6 +24,7 @@ import {
   splitDatasets,
   testOutcome,
   tierIncludes,
+  withLock,
   type DatasetRef,
   type ExecResult,
   type GateIo,
@@ -138,6 +143,91 @@ test('lastJson reads the last non-empty line', () => {
   assert.throws(() => lastJson('\n  \n'));
 });
 
+test('jsonLines reads every non-empty line and names a bad one', () => {
+  assert.deepEqual(jsonLines('{"a":1}\n\n{"b":2}\n'), [{ a: 1 }, { b: 2 }]);
+  assert.deepEqual(jsonLines(''), []);
+  assert.throws(() => jsonLines('{"a":1}\nnot json\n'), /line 2 is not JSON/);
+});
+
+test('realInputs are checked on the real tier only, after inputs, each once', () => {
+  const spec = { inputs: ['toolchain', 'roms'] as const, realInputs: ['roms', 'elfs'] as const };
+  assert.deepEqual(inputsFor(spec, 'ci'), ['toolchain', 'roms']);
+  assert.deepEqual(inputsFor(spec, 'real'), ['toolchain', 'roms', 'elfs']);
+  assert.deepEqual(inputsFor({ realInputs: ['roms'] }, 'ci'), []);
+  assert.deepEqual(inputsFor({}, 'real'), []);
+});
+
+test('fixtures are the bench/dataset/synthetic/<name>/build/<name>.gba files, sorted by name', async () => {
+  const root = '/repo/bench/dataset/synthetic';
+  const io = fakeIo({
+    [`${root}/far-jump/build/far-jump.gba`]: 'r',
+    [`${root}/far-jump/expect.json`]: '{}',
+    [`${root}/b-stub/build/b-stub.gba`]: 'r',
+    [`${root}/b-stub/build/other.gba`]: 'not the fixture rom',
+    [`${root}/no-build/expect.json`]: '{}',
+  });
+  assert.deepEqual(await listFixtures('/repo', io), [
+    {
+      name: 'b-stub',
+      dir: `${root}/b-stub`,
+      rom: `${root}/b-stub/build/b-stub.gba`,
+      elf: `${root}/b-stub/build/b-stub.elf`,
+      expect: `${root}/b-stub/expect.json`,
+    },
+    {
+      name: 'far-jump',
+      dir: `${root}/far-jump`,
+      rom: `${root}/far-jump/build/far-jump.gba`,
+      elf: `${root}/far-jump/build/far-jump.elf`,
+      expect: `${root}/far-jump/expect.json`,
+    },
+  ]);
+  assert.deepEqual(await listFixtures('/elsewhere', io), []);
+});
+
+test('exec never passes NODE_TEST_CONTEXT on, so a nested node --test really runs', async () => {
+  const probe = await exec(process.execPath, ['-e', 'process.stdout.write(String(process.env.NODE_TEST_CONTEXT))']);
+  assert.equal(probe.stdout, 'undefined');
+  const kept = await exec(process.execPath, ['-e', 'process.stdout.write(String(process.env.NODE_TEST_CONTEXT))'], {
+    env: { NODE_TEST_CONTEXT: 'explicit' },
+  });
+  assert.equal(kept.stdout, 'explicit');
+});
+
+test('withLock serialises holders and takes over a lock whose owner has exited', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'romlift-lock-'));
+  try {
+    let inside = 0;
+    let overlap = false;
+    const hold = (value: number) =>
+      withLock(
+        'unit',
+        async () => {
+          inside++;
+          if (inside > 1) overlap = true;
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          inside--;
+          return value;
+        },
+        { dir, pollMs: 5 },
+      );
+    assert.deepEqual(await Promise.all([hold(1), hold(2), hold(3)]), [1, 2, 3]);
+    assert.equal(overlap, false);
+
+    // A lock left behind by a process that has exited.
+    const gone = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
+    const deadPid = Number(gone.stdout);
+    const stale = await withLock('stale', async () => readdirSync(dir)[0] ?? '', { dir });
+    assert.notEqual(stale, '');
+    mkdirSync(path.join(dir, stale));
+    writeFileSync(path.join(dir, stale, 'owner'), `${deadPid}\n`);
+    assert.equal(await withLock('stale', async () => 'taken over', { dir, pollMs: 5 }), 'taken over');
+    assert.deepEqual(readdirSync(dir), [], 'every lock is released');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('datasets parse, and split into tuning and sealed', () => {
   const parsed = parseDataset(
     { name: 'sa2', rom: 'sa2/sa2.gba', elf: 'sa2/sa2.elf', sha1: 'ab', elfSha256: 'cd', heldout: false, revealed: [], labels: [] },
@@ -241,6 +331,7 @@ test('gate() registers one test per gate and appends one NDJSON line per recorde
         `gate({ id: 'g1.fails', phase: 1, tier: 'both', needs: [], async run() { throw new Error('broken'); } });`,
         `gate({ id: 'g1.waits', phase: 1, tier: 'ci', needs: ['noSuchExportAnywhere'], async run() {} });`,
         `gate({ id: 'g1.elsewhere', phase: 1, tier: 'real', needs: [], async run() {} });`,
+        `gate({ id: 'g1.later', phase: 1, tier: 'both', needs: [], realInputs: ['klonoa'], async run(cx) { cx.note(\`fixtures \${Array.isArray(cx.fixtures)}\`); } });`,
         '',
       ].join('\n'),
     );
@@ -262,7 +353,8 @@ test('gate() registers one test per gate and appends one NDJSON line per recorde
       .split('\n')
       .map((line) => JSON.parse(line) as { id: string; verdict: string; detail: string; inputs: Record<string, string>; missing: string[] });
     const byId = new Map(records.map((r) => [r.id, r]));
-    assert.equal(records.length, 3, 'the real-tier gate records nothing under the ci tier');
+    assert.equal(records.length, 4, 'the real-tier gate records nothing under the ci tier');
+    assert.deepEqual([byId.get('g1.later')?.verdict, byId.get('g1.later')?.detail], ['pass', 'fixtures true'], 'realInputs are not checked on ci');
     assert.deepEqual([byId.get('g1.passes')?.verdict, byId.get('g1.passes')?.detail], ['pass', 'fine']);
     assert.deepEqual(byId.get('g1.passes')?.inputs, { extra: 'abc' });
     assert.deepEqual([byId.get('g1.fails')?.verdict, byId.get('g1.fails')?.detail], ['fail', 'broken']);
