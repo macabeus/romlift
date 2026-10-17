@@ -7,10 +7,12 @@
 // assembleWithBinutils, compares the bytes case by case, writes summary.json (the frozen
 // `romlift/corpus-summary@1` contract) and prints a human summary, or with --json the summary as one
 // JSON line (§2.1: --json output parses line by line). Exits 0 only when the summary is ok. --reuse prints the cached summary instead when its inputsDigest still
-// matches: sha256 over the path-sorted contents of src/foundation/isa/**, src/foundation/asm/dialect.ts
-// and test/corpus/**, the first line of `as --version`, and the options.
+// matches: sha256 over the path-sorted contents of src/foundation/isa/**, src/foundation/asm/** and
+// test/corpus/**, the first line of `as --version`, and the options. The digest is the bench's
+// `corpusInputsDigest` (bench/src/printer.ts), so the printer family of results.json accepts exactly
+// the summary this driver writes.
 import { availableParallelism } from 'node:os';
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -20,33 +22,11 @@ import type { CorpusComparison } from '../../src/foundation/isa/corpus-compare.t
 import type { CorpusFile, CorpusOptions, CorpusSectionSummary, CorpusSummary } from '../../src/foundation/isa/corpus.ts';
 import { DIALECT } from '../../src/foundation/asm/dialect.ts';
 import { RAW_REASONS } from '../../src/foundation/isa/types.ts';
-import { compareCodeUnits } from '../../src/foundation/util/sorted.ts';
 import { listDir } from '../../src/shell/fs.ts';
-import { sha256Stream } from '../../src/shell/hash.ts';
 import { assembleWithBinutils, binutilsVersions, findBinutils } from '../../src/shell/toolchain/binutils.ts';
+import { corpusInputsDigest } from '../../bench/src/printer.ts';
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
-const DIGEST_INPUTS: readonly string[] = ['src/foundation/isa', 'src/foundation/asm/dialect.ts', 'test/corpus'];
-
-/** Every file under `rel` (or `rel` itself), repository-relative with '/' separators. */
-async function filesUnder(rel: string): Promise<string[]> {
-  const absolute = path.join(REPO, rel);
-  const info = await stat(absolute);
-  if (info.isFile()) return [rel];
-  const listed = await listDir(absolute);
-  if (!listed.ok) throw new Error(listed.diagnostic.message);
-  const out: string[] = [];
-  for (const name of listed.value) out.push(...(await filesUnder(`${rel}/${name}`)));
-  return out;
-}
-
-async function inputsDigest(asVersion: string, options: CorpusOptions): Promise<string> {
-  const files = (await Promise.all(DIGEST_INPUTS.map(filesUnder))).flat().sort(compareCodeUnits);
-  const chunks: (string | Uint8Array)[] = [];
-  for (const file of files) chunks.push(`${file}\0`, await readFile(path.join(REPO, file)), '\0');
-  chunks.push(`as\0${asVersion}\0options\0${JSON.stringify(options)}\0`);
-  return sha256Stream(chunks);
-}
 
 function percent(part: number, whole: number): string {
   return whole === 0 ? 'n/a' : `${((100 * part) / whole).toFixed(2)}%`;
@@ -134,7 +114,7 @@ async function main(): Promise<number> {
     return 1;
   }
   const asVersion = (await binutilsVersions(tools)).as;
-  const digest = await inputsDigest(asVersion, options);
+  const digest = await corpusInputsDigest(REPO, asVersion, options);
   const out = path.resolve(values.out);
   const summaryFile = path.join(out, 'summary.json');
 
