@@ -32,7 +32,7 @@ These three pairs are the held-out gate of phase 2 ("the same gates on at least 
 | `pokeruby` | Pokémon Ruby | `pokeruby/` (pret/pokeruby) | `5784633` | `pokeruby/pokeruby.gba` | `pokeruby/pokeruby.elf` | `pokeruby/pokeruby.map` |
 | `tmc` | The Legend of Zelda: The Minish Cap | `tmc/` (zeldaret/tmc) | `6fb6dfb` | `tmc/tmc.gba` | `tmc/tmc.elf` | `tmc/build/USA/tmc.map` |
 
-Status on 2026-10-17: all three held-out builds (`pokefirered`, `pokeruby`, `tmc`) reproduce their checkout's own SHA-1 file, so all three pairs are ready. `tmc` writes its ELF at the checkout root (`tmc/tmc.elf`) and its map under the build directory (`tmc/build/USA/tmc.map`), not beside the ELF. Their ROM SHA-1s, ELF digests and ELF commits are recorded in their dataset files when the sealed datasets are created (phase 2), by the tooling that runs them sealed; this document records only the paths, so nobody opens, hashes or inspects a held-out file to keep it current.
+Status on 2026-10-17: all three held-out builds (`pokefirered`, `pokeruby`, `tmc`) reproduce their checkout's own SHA-1 file, so all three pairs are ready. `tmc` writes its ELF at the checkout root (`tmc/tmc.elf`) and its map under the build directory (`tmc/build/USA/tmc.map`), not beside the ELF. Their ROM SHA-1s, ELF digests and ELF commits are recorded in their sealed dataset files (`bench/dataset/real/{pokefirered,pokeruby,tmc}.json`, phase 2), created by `node --conditions=source bench/tools/seal-dataset.ts`, which hashes the files, reads the checkout's `git rev-parse --short HEAD` and never reads a symbol; the measured commits equal the table above. This document records only the paths, so nobody opens, hashes or inspects a held-out file to keep it current.
 
 ## Codebase families and the reserve pool
 
