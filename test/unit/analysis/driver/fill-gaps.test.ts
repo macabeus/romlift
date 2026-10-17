@@ -33,6 +33,8 @@ interface Options {
   /** Confirm mode listing only F and H (discover by default). */
   readonly confirm?: boolean;
   readonly pipeline?: Partial<Pipeline>;
+  /** Alignment fields that replace the test profile's. */
+  readonly alignment?: { readonly thumbFunction: number };
 }
 
 const HEAD_TAKER = fakeRule(
@@ -79,7 +81,8 @@ function setup(o: Options = {}) {
     ...(o.code === undefined ? [] : [{ at: F + 4, bytes: o.code }]),
     { at: H, bytes: thumbAt(H)`bx lr` },
   ]);
-  const profile = testProfile({ claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id), ...o.pipeline });
+  const base = testProfile({ claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id), ...o.pipeline });
+  const profile = o.alignment === undefined ? base : { ...base, alignment: { ...base.alignment, ...o.alignment } };
   const reg = registry(...gap, ...(o.extra ?? []), extent, ...walk);
   const tuning = tuningFor(profile, reg, { disabled: o.disabled ?? [] });
   const s = createDriver(rom, profile, optionsFor(o), tuning, reg);
@@ -131,6 +134,24 @@ test('a forward proposal is accepted with its rule and origin, and the scan resu
   assert.equal(f?.accepted.rule, 'gap.forward-chain');
   assert.equal(f?.reading.end, F + 8);
   assert.ok(log.includes('thumb@+208'), 'the scan resumes at the next word after the accepted extent');
+});
+
+test('after code ending at 2 mod 4 the scan resumes on the next halfword unless it is padding (alignment.thumbFunction, D60 a)', () => {
+  // `bx lr` at F+4 ends at F+6; the halfword there is 0xFFFF (the fill), not padding: the next stub may start there.
+  const stub = setup({ forward: (c, read) => c.at === F + 4 && read(c.at).insns.length > 0, code: thumbAt(F + 4)`bx lr` });
+  fillGaps(stub.s, 'patient');
+  assert.equal(stub.s.funcs.get(F + 4)?.reading.end, F + 6);
+  assert.ok(stub.log.includes('thumb@+206'), stub.log.join(' '));
+  // A zero halfword or `mov r8, r8` after it is the assembler's padding: the scan takes the next word.
+  for (const pad of [new Uint8Array([0, 0]), thumbAt(F + 6)`mov r8, r8`]) {
+    const padded = setup({ forward: (c, read) => c.at === F + 4 && read(c.at).insns.length > 0, code: new Uint8Array([...thumbAt(F + 4)`bx lr`, ...pad]) });
+    fillGaps(padded.s, 'patient');
+    assert.ok(!padded.log.includes('thumb@+206') && padded.log.includes('thumb@+208'), padded.log.join(' '));
+  }
+  // A profile whose Thumb functions are word-aligned never stands on 2 mod 4.
+  const aligned = setup({ forward: (c, read) => c.at === F + 4 && read(c.at).insns.length > 0, code: thumbAt(F + 4)`bx lr`, alignment: { thumbFunction: 4 } });
+  fillGaps(aligned.s, 'patient');
+  assert.ok(!aligned.log.includes('thumb@+206') && aligned.log.includes('thumb@+208'), aligned.log.join(' '));
 });
 
 test('the cartridge header is never code: the forward chain starts at 0xC0', () => {

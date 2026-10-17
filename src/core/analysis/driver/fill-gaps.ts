@@ -7,8 +7,10 @@
 // the head rule; the patient pass skips a whole gap whose head none of them accepts yet. Every position
 // here is a bus address, as in the cursors the rules see. fillGaps returns the functions it added: the sum
 // of what accept() reports, absorbed blocks' calls included, so a confirm run whose candidates are all
-// unlisted reaches its fixpoint.
-import { HEADER_END } from '../../../foundation/rom/rom.ts';
+// unlisted reaches its fixpoint. After a reading the scan resumes where the profile says a function may
+// start (`resume`, D60 a): on the halfword right after it when Thumb functions may sit at 2 mod 4 and that
+// halfword is not padding, else on the next compiled-function boundary.
+import { HEADER_END, contains } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
 import { sortedKeys } from '../../../foundation/util/sorted.ts';
@@ -39,8 +41,25 @@ interface Added {
   n: number;
 }
 
-function align4(a: Addr): Addr {
-  return (a + 3) & ~3;
+function alignUp(a: Addr, to: number): Addr {
+  return a + ((to - (a % to)) % to);
+}
+
+/**
+ * Where the scan goes on after code (or an absorbed block) that ends at `a`. Traversal, not a decision
+ * (D59 l, D60 a): the profile decides where a function may start. At `a` itself when it is a Thumb
+ * function boundary (alignment.thumbFunction; agbcc's hand-written Thumb sits on 2 mod 4) that is not a
+ * compiled one and the halfword there is not padding (idioms.isPadding on both bytes); otherwise at the
+ * next compiled-function boundary (alignment.cFunction), where the assembler's `.align 2, 0` puts the next
+ * C function. The PoC always took the next word, which skipped a stub at 2 mod 4 right after a function
+ * (libgcc's `_call_via_rN`, an alternative entry `movs r3, #1; b ...`).
+ */
+function resume(s: DriverState, a: Addr): Addr {
+  const { thumbFunction, cFunction } = s.profile.alignment;
+  const { isPadding } = s.profile.idioms;
+  const onThumb = a % thumbFunction === 0 && a % cFunction !== 0;
+  if (onThumb && contains(s.rom, a, 2) && !(isPadding(s.rom, a) && isPadding(s.rom, a + 1))) return a;
+  return alignUp(a, cFunction);
 }
 
 function cursor(g: Gap, at: Addr, end: Addr, head?: Reading): GapCursor {
@@ -156,18 +175,18 @@ function forwardChain(s: DriverState, g: Gap, from: Addr, end: Addr, added: Adde
     }
     const resumed = absorbRun(s, g, p, end, added);
     if (resumed !== p) {
-      p = align4(resumed);
+      p = resume(s, resumed);
       continue;
     }
     const { thumb, arm } = pair(s, g, p, end);
     if (thumb !== null && (arm === null || preferred(s, thumb.r, arm.r) === 'thumb')) {
       added.n += accept(s, thumb.c);
-      p = align4(thumb.r.end);
+      p = resume(s, thumb.r.end);
       continue;
     }
     if (arm !== null) {
       added.n += accept(s, arm.c);
-      p = align4(arm.r.end);
+      p = resume(s, arm.r.end);
       continue;
     }
     // The PoC's tryTiledHole: the hole head at the cursor, when a proposer after the pair takes it.
@@ -175,7 +194,7 @@ function forwardChain(s: DriverState, g: Gap, from: Addr, end: Addr, added: Adde
     const taken = head === null ? undefined : tiledAt(s, g, p, end, head);
     if (head !== null && taken !== undefined) {
       added.n += acceptHead(s, head, taken);
-      p = align4(head.end);
+      p = resume(s, head.end);
       continue;
     }
     const next = skip(s, g, p, end);
@@ -188,13 +207,13 @@ function forwardChain(s: DriverState, g: Gap, from: Addr, end: Addr, added: Adde
 /** One gap: the head, the forward chain, the end-anchor loop, the late head and the backward chain. */
 function fillGap(s: DriverState, g: Gap, added: Added): void {
   let end = g.stop;
-  let p = align4(absorbRun(s, g, g.start, end, added)); // handler blocks of the function before the gap
+  let p = resume(s, absorbRun(s, g, g.start, end, added)); // handler blocks of the function before the gap
   const head = holeHead(s, g, p, end);
   if (head !== null) {
     const taken = tiledAt(s, g, p, end, head);
     if (taken !== undefined) {
       added.n += acceptHead(s, head, taken);
-      p = align4(head.end);
+      p = resume(s, head.end);
     } else if (g.pass === 'patient') {
       if (s.rules.gap.head !== undefined) emit(s, 'wait', head.entry, s.rules.gap.head.id, [head.entry, head.end], 'no proposer takes it yet: its end is not anchored');
       return;
