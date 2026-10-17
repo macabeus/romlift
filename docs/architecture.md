@@ -33,7 +33,7 @@ extent and code-end gates of §8. Requirements R1–R9 of the plan apply unchang
 
 | # | Requirement | Where this architecture meets it |
 | --- | --- | --- |
-| R1 | One shot, split into functions | `init` (§2.1); gates `g4.e2e-fixtures`, `g4.e2e-real` (all five tuning ROMs), `g4.packed-e2e` (the published tarball) |
+| R1 | One shot, split into functions | `init` (§2.1); gates `g4.e2e-fixtures`, `g4.e2e-real` (every tuning ROM: six since D60, tmc included), `g4.packed-e2e` (the published tarball) |
 | R2 | Node and TypeScript only | Node ≥ 22.18 type stripping, three runtime dependencies (D2, D38); `g1.runtime-deps` |
 | R3 | One TOML; `generate` never writes it | `generate` runs in confirm mode and takes every name, extent and border from the TOML (D8, D9); `g4.no-toml-write` |
 | R4 | Generated `.s` regenerated and gitignored; two runs identical | one emission stream, one write plan, a manifest (§6.3, §6.4); `g3.tree-determinism` on Linux and macOS with a varied environment (D30) |
@@ -784,7 +784,7 @@ The rules, with the PoC source each one is ported from (`romlift-poc/src/analysi
 
 | Family | Rule ids (contract) | PoC call site |
 | --- | --- | --- |
-| seed | `seed.rom-entry`, `seed.startup-pointer`, `seed.listed`, `seed.override`, `seed.evidence-hint` (SeedRule); `seed.pool-pointer`, `seed.data-pointer` (HarvestRule); `seed.call`, `seed.veneer`, `seed.adr`, `seed.ram-copy` (QueueRule; `seed.ram-copy` has no PoC counterpart, D60 e) | `run()`; `pointerCandidates()` (one snapshot per `grow` round, data list filtered by the pool set and `neverValid`); the `accept()` worklist; `seed.ram-copy` maps the IWRAM pointers accepted code jumps through to the load image of a block accepted code copies to IWRAM, and `seed.adr` proposes only past the function's extent (D60 g) |
+| seed | `seed.rom-entry`, `seed.startup-pointer`, `seed.listed`, `seed.override`, `seed.evidence-hint` (SeedRule); `seed.pool-pointer`, `seed.data-pointer` (HarvestRule); `seed.call`, `seed.veneer`, `seed.adr`, `seed.ram-copy` (QueueRule; `seed.ram-copy` has no PoC counterpart, D60 e) | `run()`; `pointerCandidates()` (one snapshot per `grow` round, data list filtered by the pool set and `neverValid`); the `accept()` worklist; `seed.ram-copy` maps the IWRAM pointers accepted code jumps through to the load image of a block accepted code copies to IWRAM (a BIOS CpuSet/CpuFastSet, or a callee whose loads and stores name the source and the destination), and `seed.adr` proposes only past the function's extent (D60 g) |
 | walk | `walk.pc-load-is-pool`, `walk.table-nearest-pool-load` (until milestone M3, then `walk.table-by-register`), `walk.mov-lr-pc-bx-is-call`, `walk.noreturn-call-before-noncode`, `walk.swi-before-noncode`, `walk.mov-pc-without-table`, `walk.branch-into-function`, `walk.bx-pc-veneer`, `walk.trailing-zero-padding`; `walk.inline-arm-switch` (no PoC counterpart, D59) | `analyzeThumb`, `analyzeArm`; `walk.inline-arm-switch` answers a Thumb `bx rN` after `add rN, pc, #0` (the walk of the ARM code after it gives the extent, `Reading.armTails`) |
 | bl | `bl.self-or-accepted`, `bl.target-before-entry`, `bl.near-is-call`, `bl.target-inside-caller`, `bl.target-has-prologue`, `bl.target-beyond-callee` (no PoC counterpart, D59), `bl.target-pops-unpushed-frame`, `bl.noreturn-before-noncode` | `settle()`; `bl.target-beyond-callee` sits before the frame check: a far `bl` past the entry of another function the caller calls is a call |
 | valid | `valid.in-rom-unclaimed`, `valid.decodes`, `valid.balanced-stack`, `valid.returns-or-prologue`, `valid.no-claimed-code`, `valid.pool-not-code`, `valid.not-pointer-table`, `valid.dense`, `valid.calls-code` | `whyInvalid()` in this order; `dense()`, `looksLikePointerTable()`, `couldBeCode()` |
@@ -852,7 +852,13 @@ modes, `label` for entries inside another found extent, no sizes), runs confirm,
 view (functions, extents, far verdicts, claims) to be equal on every tuning ROM. If it fails on a ROM,
 the remedy is a final `resettle` stage in discover that recomputes `bl` verdicts and readings against the
 final function set until stable; it then runs in both modes and lands as its own commit with its bench
-diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on the files.
+diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on the files. The gate
+holds on fe7j, klonoa, pokeemerald, sa2 and sa3 and fails on tmc, on six functions of hand-written code
+with several entries whose shared code goes to whichever entry is taken first (D60 k); a confirm mode that
+took the listed entries after the passes held by construction and was withdrawn, and a `resettle` stage
+under the final function set would make every entry inside another found extent a boundary (the startup
+piece and the m4a mixer's inner entries on every tuning ROM). Which remedy is taken is the owner's
+(phase-2.md, "Owner questions").
 
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
@@ -1099,7 +1105,7 @@ same corpus through the user's `as`. The same check on whole writer output (a Th
   `.2byte`/`.4byte`/`.byte` with a comment naming their note (`@ dead`, `@ mixer hole`, `@ unreached`),
   inside the owning function's file.
 - **Raw printer.** `--printer raw` keeps the PoC's all-data emission (`rawLines`, ported) as a
-  bisection baseline. A raw build must always match, and `g3.raw-link` proves it on all five tuning ROMs
+  bisection baseline. A raw build must always match, and `g3.raw-link` proves it on every tuning ROM
   from the first model onwards.
 
 ## 6. Emission and project model
@@ -1664,8 +1670,8 @@ message states the reason, as the working rule requires.
 | Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (the family conditions waived by the owner for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else, D60) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
-| Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on all five tuning ROMs and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and all five tuning ROMs (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
-| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on all five tuning ROMs; objdiff score 0 (below) | 3 |
+| Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
+| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM; objdiff score 0 (below) | 3 |
 | Memory | peak RSS < 512 MiB on the deterministic 32 MiB synthetic ROM (`g3.large-rom`) | 3 |
 | Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance); on a reference ROM every name equals that reference's own symbol; leave-one-reference-out adds or moves no placement; sealed held-out counts | 6 |
 
@@ -1711,9 +1717,10 @@ held-out dataset. If `g2.held-out` fails, phase 2 does not land unless the owner
 accepts the failure (§12); the failure is then fixed by a rule change justified by its `restsOn` and
 validated on the tuning set alone, and a fresh sealed pair from the reserve pool is needed before any
 claim of generality (D53). The owner answered §12 item 4 on 17 October 2026 (D60): tmc is revealed and
-tuned on, and while no sealed dataset is of a family absent from the tuning set the gate waives its two
-family conditions and prints each waiver; the per-ROM thresholds and "at least two sealed ROMs pass"
-still decide.
+tuned on, and the gate waives its two family conditions for the sealed pokefirered and pokeruby (bound
+by name, ROM SHA-1 and ELF SHA-256) and the tuning families of D60, printing each waiver with its
+grounds; any change to either needs a new decision, and the per-ROM thresholds and "at least two sealed
+ROMs pass" still decide.
 
 ### 8.5 Commands
 
@@ -1843,7 +1850,7 @@ Emerald (`g3.speed-budget`). Levers, in the order milestone M2 applies them (D13
    milestone M1 compared the two on every query of its log). The
    pointer index is CSR (sorted target `Uint32Array` plus offsets, `foundation/util/csr.ts`).
 3. **Epoch reuse**, only if a ROM still misses the budget after a re-measure: `cache: 'epoch-reuse'`
-   (§4.2), with digest equality to `'epoch'` on all five tuning ROMs.
+   (§4.2), with digest equality to `'epoch'` on every tuning ROM.
 
 There is no LRU and no capacity-based eviction: a reading cache that evicted and recomputed under newer
 claims would make results depend on the capacity. `bench run --cpu-prof` and `bench speed` back every
@@ -1929,7 +1936,7 @@ in roadmap.md pass. The gates per phase are those of §1.
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
-| The rules overfit the five tuning ROMs | wrong splits on a new game | sealed held-out runs with ELF-checkable classifiers that cannot hide a glued function (§8.4); two codebase families must pass; `bench ablate` and `g2.rule-coverage` per rule; every rule carries `restsOn` |
+| The rules overfit the tuning ROMs | wrong splits on a new game | sealed held-out runs with ELF-checkable classifiers that cannot hide a glued function (§8.4); two codebase families must pass; `bench ablate` and `g2.rule-coverage` per rule; every rule carries `restsOn` |
 | Semantics-first porting keeps PoC quirks (LIFO order, a 40-instruction table window, windows of 4,096, 16 and 64 bytes) | behaviour rests on accidents | every constant is a named profile field; the table window is replaced by register tracking at M3 and the order at M4, each one reviewed commit with its diff (D10, D12) |
 | The driver cannot reach parity | phase 2 stalls | the driver ports the PoC's control flow verbatim and lockstep reports the first divergent query (D48) |
 | Confirm mode diverges from discover mode | `generate` splits differently from `init` | `g2.confirm-equals-discover` in the phase that builds the driver; `g4.generate-idempotent` on the files |
@@ -1955,8 +1962,11 @@ in roadmap.md pass. The gates per phase are those of §1.
    a fresh sealed pair passes (D53)? **Answered by the owner on 17 October 2026: "Tune on tmc, no new
    ROM"** (D60). tmc is revealed and tuned on with general rules; pokefirered and pokeruby stay sealed and
    pass; `g2.held-out` is recorded as having no held-out ROM of a family absent from the tuning set (its
-   family conditions waived and printed as such). Release 1 still needs a fresh sealed pair of such a
-   family before it claims generality (D53).
+   family conditions waived and printed as such, bound to the sealed pair and the tuning families of the
+   decision). Release 1 still needs a fresh sealed pair of such a family before it claims generality
+   (D53). Phase 2 has not landed on it: fix round 1 of D60 found three gates the decision did not cover
+   (`g2.poc-parity` and `g2.baseline-rows` on tmc, `g2.confirm-equals-discover` on tmc), which are
+   further owner questions (phase-2.md, "Owner questions").
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
    about 16,000 lines).
 6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export.
@@ -2004,9 +2014,9 @@ one is missing.
 | `g2.checks-fail` | ci | mutation tests of the classifier, seal, stale-exception and regression reporters (the lockstep reporter was deleted with the oracle, D59) |
 | `g3.self-check` | ci and real | tiling, re-encode and module-size checks pass on every fixture and tuning ROM |
 | `g3.text-layout` | ci and real | the text-layout check passes on every fixture and tuning ROM |
-| `g3.raw-link` | ci and real | the raw printer links to the SHA-1 on every fixture and all five tuning ROMs |
+| `g3.raw-link` | ci and real | the raw printer links to the SHA-1 on every fixture and every tuning ROM |
 | `g3.link` | ci and real | the readable printer links to the SHA-1 on every fixture and on at least three tuning ROMs (target five) |
-| `g3.readability` | real | readability shares only increase, on all five tuning ROMs |
+| `g3.readability` | real | readability shares only increase, on every tuning ROM |
 | `g3.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links |
 | `g3.tree-determinism` | ci and real | two processes with a varied environment give one tree digest; no generated file contains the project path; Linux and macOS agree |
 | `g3.golden-writers` | ci | every writer's output on every fixture equals its golden |
@@ -2014,9 +2024,9 @@ one is missing.
 | `g3.large-rom` | ci | §9.4 |
 | `g3.checks-fail` | ci | mutation tests of the four self-checks and of `planWrites` |
 | `g4.e2e-fixtures` | ci | in a directory holding only the fixture ROM, `npx romlift init <rom> && ./setup.sh && make` ends at the SHA-1; the composite fixture's illegal border fails with `E_MODULE_BORDER` |
-| `g4.e2e-real` | real | the same command on all five tuning ROMs; sealed ROMs report counts only |
+| `g4.e2e-real` | real | the same command on every tuning ROM; sealed ROMs report counts only |
 | `g4.packed-e2e` | ci | the same command from the packed and installed tarball (`packed.yml`) |
-| `g4.generate-idempotent` | ci and real | `generate` right after `init` gives an identical tree on every fixture and all five tuning ROMs |
+| `g4.generate-idempotent` | ci and real | `generate` right after `init` gives an identical tree on every fixture and every tuning ROM |
 | `g4.toml-mutations` | ci and real | seeded random legal TOML edits (move a module start to another legal border, rename, delete a listed function, add a valid override, split a module) keep the self-checks and the link green; each illegal edit (unaligned start, duplicate key, bad key spelling) gives its documented code and writes nothing |
 | `g4.no-toml-write` | ci | `generate` never opens the TOML for writing |
 | `g4.worktree` | ci and real | in a fresh `git worktree` of an initialised project, `./setup.sh` copies the ROM from the main checkout and `make` ends at the SHA-1 |

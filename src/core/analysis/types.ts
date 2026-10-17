@@ -372,8 +372,11 @@ export interface HarvestRule {
 /**
  * At accept, in pipeline.queue order, pushed onto the worklist; the calls of an absorbed block too. seed.call (origin call): every
  * call of the function in `calls` order. seed.veneer (origin veneer): every veneer, ascending, as ARM.
- * seed.adr (origin adr): for an ARM function, every adr target in the ROM, word-aligned and above the
- * entry, ascending, as ARM.
+ * seed.adr (origin adr): for an ARM function, every adr target in the ROM, word-aligned, at or past its
+ * extent end, unclaimed and read as ARM code without an error, ascending, as ARM (D60 g).
+ * seed.ram-copy (origin ram-copy, D60 e): for a copy of a ROM block to IWRAM by accepted code (a BIOS
+ * CpuSet/CpuFastSet, or a callee that loads through one argument and stores through another) and an IWRAM
+ * pointer accepted code jumps through, the entry of the block at the pointer's load address, ascending.
  */
 export interface QueueRule {
   readonly kind: 'queue';
@@ -485,7 +488,8 @@ export interface AcceptHold {
  * anchored at start. accept.prologue-and-loaded: prologue and origin pool-pointer.
  * accept.prologue-and-end-anchored: prologue and anchored at end. accept.pointer-table-run: origin
  * data-pointer and in a run of profile.pointerTableRun Thumb pointers to functions or valid entries
- * (inPointerTable).
+ * (inPointerTable). accept.prologue-and-calls-accepted (D60 h): origin data-pointer, a word-aligned
+ * prologue, a return, and at least one call, every call on an accepted function.
  */
 export interface AcceptRule {
   readonly kind: 'accept';
@@ -518,7 +522,8 @@ export interface ClaimEdit {
  * claim.adjacent-pools: pools in [entry, end) start-free as pool, tables always as table, and
  * `extentEnd` (the PoC's Func.end: extend codeEnd by every pool or table starting within
  * profile.extentPoolGap bytes of it). claim.far-pools: pools outside the extent, start-free as pool.
- * claim.dead-code-in-extent: when the reading is dense, its free bytes in [entry, end) as dead.
+ * claim.dead-code-in-extent: when the reading is dense, its free bytes in [entry, end) as dead, except
+ * unreached copies of its own entry stub `movs rX, #k; b T` (D60 d).
  */
 export interface ClaimRule {
   readonly kind: 'claim';
@@ -568,8 +573,10 @@ export interface GapHead {
  * The forward chain, the end anchor and the backward chain. gap.forward-chain (origin gap-scan):
  * thumbCandidate() at `at`. gap.arm-scan (origin arm-gap-scan, reason 'arm-unreached'): armAhead() from
  * `at`. gap.tiled-hole-inner (origin tiled-hole): cursor.head fills the hole to `end` within fillSlack,
- * or is anchored at end. gap.end-anchor (origin gap-scan): the best candidate below `end` (one per call;
- * the driver accepts it and shrinks `end`). gap.backward-prologue-chain (origin gap-scan): the highest
+ * or is anchored at end; gap.forward-chain declines a word holding an accepted Thumb function + 1 (D60 f).
+ * gap.end-anchor (origin gap-scan): the best candidate below `end` (one per call; the driver accepts it
+ * and shrinks `end`), a veneer-array element counting below minInsns (D60 b) and a `push {.., lr}` on 2
+ * mod 4 ranked as a prologue with the word candidates (D60 c). gap.backward-prologue-chain (origin gap-scan): the highest
  * `push {.., lr}` below `end`, within prologueDistance, whose reading fills to `end`.
  */
 export interface GapProposer {

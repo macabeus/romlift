@@ -13,9 +13,10 @@ const TUNING = {
   sa3: 'sat-r',
   fe7j: 'fe-gba',
   pokeemerald: 'pret-gen3',
+  tmc: 'zeldaret-tmc',
 } as const;
 
-test('the tuning datasets the PoC ran on: tmc, revealed later (D60), is tuning data but has no PoC run', async () => {
+test('the tuning datasets the PoC baseline names: tmc, revealed later (D60), is tuning data with no baseline row', async () => {
   const loaded = await loadDatasets(contextFromEnv({}));
   const names = (ds: readonly { readonly name: string }[]): string[] => ds.map((d) => d.name);
   assert.deepEqual(names(tuningDatasets(loaded.datasets)), ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc']);
@@ -25,24 +26,30 @@ test('the tuning datasets the PoC ran on: tmc, revealed later (D60), is tuning d
   assert.deepEqual(names(pocDatasets(loaded.datasets, poc, 'sa2')), ['sa2']);
 });
 
-test('the five committed tuning datasets are well formed and record their digests and family', async () => {
+test('the six committed tuning datasets are well formed and record their digests and family (tmc revealed, D60)', async () => {
   const loaded = await loadDatasets(contextFromEnv({}));
   assert.deepEqual(loaded.problems, []);
   // The sealed held-out datasets beside them are checked by seal.test.ts.
-  const datasets = loaded.datasets.filter((d) => !d.heldout);
+  const datasets = tuningDatasets(loaded.datasets);
   assert.deepEqual(
     datasets.map((d) => d.name),
-    ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3'],
+    ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc'],
   );
   for (const d of datasets) {
     assert.equal(d.family, TUNING[d.name as keyof typeof TUNING]);
-    assert.equal(d.heldout, false);
-    assert.deepEqual(d.revealed, []);
+    // The five were tuning data from the start; tmc is held-out data revealed by the owner's decision.
+    if (d.name === 'tmc') {
+      assert.equal(d.heldout, true);
+      assert.equal(d.revealed.length, 1);
+    } else {
+      assert.equal(d.heldout, false);
+      assert.deepEqual(d.revealed, []);
+    }
     assert.match(d.sha1, /^[0-9a-f]{40}$/);
     assert.match(d.elfSha256, /^[0-9a-f]{64}$/);
     assert.ok(d.map !== undefined && d.buildNote !== '' && d.elfCommit !== '');
   }
-  assert.equal(tuningDatasets(datasets).length, 5);
+  assert.equal(datasets.length, 6);
   assert.deepEqual(
     tuningDatasets(datasets, 'sa3').map((d) => d.name),
     ['sa3'],
