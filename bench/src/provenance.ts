@@ -10,7 +10,7 @@ import { readResultsFile } from './artifact.ts';
 import { gatesDir, resultsPath, type BenchContext } from './context.ts';
 import { isSealed, loadDatasets, type Dataset } from './dataset.ts';
 import { currentNodeMajor, sourceDigest } from './digest.ts';
-import { liveFamilies } from './families.ts';
+import { liveFamilies, type Family } from './families.ts';
 import { BenchError, isRecord, readJson } from './files.ts';
 import { discoverGateFiles, type GateFile } from './gate-files.ts';
 
@@ -77,11 +77,20 @@ export function checkFamilies(artifact: Results | undefined, landed: number, dat
     const ran = new Set(artifact.meta.families[d.name] ?? []);
     for (const f of romFamilies) if (!ran.has(f)) problems.push(`${d.name}: family ${f} did not run`);
   }
-  const top = artifact as unknown as Record<string, unknown>;
-  for (const f of globalFamilies) if (top[f] === undefined) problems.push(`the ${f} family is absent from the artifact`);
+  for (const f of globalFamilies) if (!globalFamilyPresent(artifact, f)) problems.push(`the ${f} family is absent from the artifact`);
   if (problems.length > 0) return { id: 'families', ok: false, detail: problems.join('; ') };
   const live = [...romFamilies, ...globalFamilies];
   return { id: 'families', ok: true, detail: live.length === 0 ? `no family is live at phase ${landed}` : `live: ${live.join(', ')}` };
+}
+
+/** Whether the artifact holds the top-level member of a global family; a family whose member the artifact cannot hold yet is absent. */
+export function globalFamilyPresent(artifact: Results, family: Family): boolean {
+  switch (family) {
+    case 'printer':
+      return artifact.printer !== undefined;
+    default:
+      return false;
+  }
 }
 
 export function checkDatasetRows(artifact: Results | undefined, datasets: readonly Dataset[]): ProvenanceCheck {

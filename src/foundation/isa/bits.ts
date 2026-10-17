@@ -1,5 +1,7 @@
 // Bit arithmetic shared by the tables and the codecs: sign extension, rotation, popcount and the
-// Align(PC, 4) of PC-relative Thumb forms. All values are unsigned 32-bit unless a name says signed.
+// Align(PC, 4) of PC-relative Thumb forms, and the one accessor of a field record. All values are
+// unsigned 32-bit unless a name says signed.
+import type { Fields } from './types.ts';
 
 /** The `bits`-wide two's-complement value `v` as a signed number. */
 export function sext(v: number, bits: number): number {
@@ -34,9 +36,9 @@ export function align4(a: number): number {
   return a - (a % 4);
 }
 
-/** The value of `width` bits of `word` starting at bit `lo`. */
-export function bitsOf(word: number, lo: number, width: number): number {
-  return Math.floor((word >>> 0) / 2 ** lo) % 2 ** width;
+/** The value a field or operand record holds under `key`, 0 when it holds none. */
+export function fieldValue(f: Fields, key: string): number {
+  return f[key] ?? 0;
 }
 
 /** A 32-bit address wrapped into 0..2^32-1. */

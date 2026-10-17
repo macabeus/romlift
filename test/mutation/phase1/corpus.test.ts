@@ -6,15 +6,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
-import { armCoverage, compareCorpusFile, CORPUS_ISA, corpusFiles, summarizeCorpus } from '../../../src/foundation/isa/corpus.ts';
-import type { CorpusAssembly, CorpusOptions } from '../../../src/foundation/isa/corpus.ts';
+import { corpusOk } from '../../../src/core/workflow/doctor.ts';
+import { armCoverage, compareCorpusFile, corpusFiles, summarizeCorpus } from '../../../src/foundation/corpus/corpus.ts';
+import type { CorpusAssembly, CorpusOptions } from '../../../src/foundation/corpus/corpus.ts';
 import { assembleWithBinutils, findBinutils } from '../../../src/shell/toolchain/binutils.ts';
 import { perfectAs } from '../../unit/corpus/simulate.ts';
 
 const OPTIONS: CorpusOptions = { seed: 11, armSample: 512, blSample: 65_536 };
 
 test('a flipped byte in an assembled corpus file fails exactly its case and the summary', async () => {
-  const files = [...corpusFiles(CORPUS_ISA, OPTIONS)];
+  const files = [...corpusFiles(OPTIONS)];
   const target = files.find((f) => f.name === 'thumb-000.s');
   assert.ok(target !== undefined);
 
@@ -38,11 +39,10 @@ test('a flipped byte in an assembled corpus file fails exactly its case and the 
   assert.equal(broken.sections.thumb.examples[0]?.offset, victim.offset);
   assert.equal(broken.sections.thumb.examples[0]?.text, victim.text);
 
-  const meta = { inputsDigest: 'mutation', as: 'test', options: OPTIONS, coverage: armCoverage(CORPUS_ISA), armRows: CORPUS_ISA.specs('arm').map((s) => s.id) };
   const others = files.filter((f) => f !== target).map((f) => compareCorpusFile(f, perfectAs(f)));
-  assert.equal(summarizeCorpus([clean, ...others], meta).ok, true);
-  const summary = summarizeCorpus([broken, ...others], meta);
-  assert.equal(summary.ok, false);
+  assert.equal(corpusOk(summarizeCorpus([clean, ...others], armCoverage()), OPTIONS), true);
+  const summary = summarizeCorpus([broken, ...others], armCoverage());
+  assert.equal(corpusOk(summary, OPTIONS), false);
   assert.equal(summary.sections.thumb.disagree, 1);
   assert.equal(summary.sections.bl.disagree + summary.sections.arm.disagree, 0);
 });

@@ -15,6 +15,14 @@ export interface OptionSpec {
   readonly value?: string;
 }
 
+/** One positional argument a command takes, in order. */
+export interface PositionalSpec {
+  /** The placeholder shown in usage text, e.g. `<rom>`. */
+  readonly name: string;
+  /** May be left out; only the last positionals may be optional. */
+  readonly optional?: boolean;
+}
+
 /** The command line after parsing: the command name, its positionals and its options by kind. */
 export interface ParsedArgs {
   readonly command: string;
@@ -37,6 +45,8 @@ export interface CommandSpec {
   readonly name: string;
   readonly summary: string;
   readonly usage: string;
+  /** The positionals the command takes; the parser rejects a missing or an extra one. */
+  readonly positionals: readonly PositionalSpec[];
   readonly options: readonly OptionSpec[];
   run(args: ParsedArgs, io: CliIo): Promise<ExitCode>;
 }

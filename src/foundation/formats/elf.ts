@@ -187,18 +187,29 @@ export function parseElf(bytes: Uint8Array): ParseResult<ElfFile> {
   }
 }
 
+/** The order elfFunctions lists functions in. */
+export type ElfFunctionOrder = 'address' | 'symbol-table';
+
 /**
  * The functions of an ELF inside `within` (a half-open address span, usually the ROM): func symbols
  * merged by address, keeping the first name and the largest size (the PoC's readElfFunctions), in
- * address order.
+ * address order, or with `order: 'symbol-table'` in the symbol-table order of each address's first
+ * symbol (the order the PoC names the owner of a false entry by).
  */
-export function elfFunctions(elf: ElfFile, within: Span): readonly ElfFunction[] {
+export function elfFunctions(elf: ElfFile, within: Span, order: ElfFunctionOrder = 'address'): readonly ElfFunction[] {
   const byAddr = new Map<number, ElfFunction>();
+  const firstSeen: number[] = [];
   for (const s of elf.symbols) {
     if (s.type !== 'func' || s.addr < within.start || s.addr >= within.end) continue;
     const have = byAddr.get(s.addr);
-    if (have === undefined) byAddr.set(s.addr, { addr: s.addr, size: s.size, name: s.name, thumb: s.thumb });
-    else if (s.size > have.size) byAddr.set(s.addr, { ...have, size: s.size });
+    if (have === undefined) {
+      firstSeen.push(s.addr);
+      byAddr.set(s.addr, { addr: s.addr, size: s.size, name: s.name, thumb: s.thumb });
+    } else if (s.size > have.size) byAddr.set(s.addr, { ...have, size: s.size });
   }
-  return Array.from(byAddr.values()).sort((a, b) => a.addr - b.addr);
+  const addrs = order === 'address' ? [...firstSeen].sort((a, b) => a - b) : firstSeen;
+  return addrs.flatMap((a) => {
+    const f = byAddr.get(a);
+    return f === undefined ? [] : [f];
+  });
 }

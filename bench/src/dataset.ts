@@ -69,7 +69,8 @@ export type DatasetProblemId =
   | 'not-inside-found-function'
   | 'is-a-func'
   | 'stale-exception'
-  | 'input-unavailable';
+  | 'input-unavailable'
+  | 'tuning-set';
 
 export interface DatasetProblem {
   readonly dataset: string;

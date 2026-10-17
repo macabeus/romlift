@@ -2,16 +2,13 @@
 // register shifted by an immediate, register shifted by a register). Writes to pc get rows of their
 // own so the flow class is a table fact: `add pc, ...` is add-pc and every other data-processing
 // write to pc is mov-pc. `add`/`sub` from pc with a rotated immediate print as `adr`.
-import { wrap32 } from './bits.ts';
+import { fieldValue as v, wrap32 } from './bits.ts';
+import { pcOf } from './pc-relative.ts';
 import { constField, constOperands, decodeArmImmediate, encodeArmImmediate, isCanonicalArmImmediate } from './arm-immediate.ts';
 import { shiftFields, shiftOperands } from './arm-shift.ts';
 import { cond, flag, imm, reg, rotImm, row, shiftType } from './row.ts';
 import type { FromOperands, Row, RowOptions, ToOperands } from './row.ts';
 import type { Fields, FlowKind, RawReason } from './types.ts';
-
-function v(f: Fields, key: string): number {
-  return f[key] ?? 0;
-}
 
 const OPCODES: readonly string[] = ['and', 'eor', 'sub', 'rsb', 'add', 'adc', 'sbc', 'rsc', 'tst', 'teq', 'cmp', 'cmn', 'orr', 'mov', 'bic', 'mvn'];
 
@@ -125,12 +122,12 @@ function adrRow(subtract: boolean): Row {
     asPriority: subtract ? 1 : 0,
     toOps: (f, a) => {
       const value = decodeArmImmediate(v(f, 'imm12'));
-      return { cond: v(f, 'cond'), rd: v(f, 'rd'), target: wrap32(a + 8 + (subtract ? -value : value)) };
+      return { cond: v(f, 'cond'), rd: v(f, 'rd'), target: wrap32(pcOf(a, 'arm') + (subtract ? -value : value)) };
     },
     fromOps: (o, a) => {
       // as resolves the label to a signed offset: add #off when it is non-negative and encodable, else
       // sub #-off (taken modulo 2^32); an offset beyond 32 signed bits is an error.
-      const offset = v(o, 'target') - (a + 8);
+      const offset = v(o, 'target') - pcOf(a, 'arm');
       if (offset >= 2 ** 31 || offset < -(2 ** 31)) return undefined;
       const field = subtract ? encodeArmImmediate(wrap32(-offset)) : offset >= 0 ? encodeArmImmediate(offset) : undefined;
       return field === undefined ? undefined : { cond: v(o, 'cond'), rd: v(o, 'rd'), imm12: field };

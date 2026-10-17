@@ -1,15 +1,12 @@
 // The ARM (ARMv4T) memory rows: word and byte loads and stores (with the user-mode T forms and the
 // pc-relative pool load), halfword and signed transfers, the block transfers and swp. Loads into pc
 // get rows of their own (flow pop-pc), so the flow class is a table fact.
-import { popcount, wrap32 } from './bits.ts';
+import { fieldValue as v, popcount, wrap32 } from './bits.ts';
+import { pcOf } from './pc-relative.ts';
 import { shiftFields, shiftOperands } from './arm-shift.ts';
 import { cond, flag, imm, reg, reglist, row, shiftType } from './row.ts';
 import type { Row } from './row.ts';
 import type { Fields, RawReason } from './types.ts';
-
-function v(f: Fields, key: string): number {
-  return f[key] ?? 0;
-}
 
 // ---------------------------------------------------------------------------------------------------
 // Word and byte transfers: cond 01 I P U B W L Rn Rd offset.
@@ -90,9 +87,9 @@ const LDR_POOL: Row = row('arm.ldr_pc', 'arm', {
   fields: [cond(), flag('u', 23), reg('rd', 12, 4), imm('imm', 0, 12)],
   syntax: 'ldr{c} {rd}, {target}',
   flow: 'pc-load',
-  toOps: (f, a) => ({ cond: v(f, 'cond'), rd: v(f, 'rd'), target: wrap32(a + 8 + (v(f, 'u') === 1 ? 1 : -1) * v(f, 'imm')) }),
+  toOps: (f, a) => ({ cond: v(f, 'cond'), rd: v(f, 'rd'), target: wrap32(pcOf(a, 'arm') + (v(f, 'u') === 1 ? 1 : -1) * v(f, 'imm')) }),
   fromOps: (o, a) => {
-    const offset = v(o, 'target') - (a + 8);
+    const offset = v(o, 'target') - pcOf(a, 'arm');
     return { cond: v(o, 'cond'), rd: v(o, 'rd'), u: offset < 0 ? 0 : 1, imm: Math.abs(offset) };
   },
   // A label at pc + 8 assembles with U = 1, so `[pc, #-0]` has no label form.

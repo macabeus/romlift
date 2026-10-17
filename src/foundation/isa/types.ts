@@ -68,7 +68,9 @@ export type Flow =
   | { readonly kind: 'branch'; readonly target: Addr; readonly conditional: boolean }
   | { readonly kind: 'bl'; readonly target: Addr }
   | { readonly kind: 'return'; readonly via: 'bx-lr' | 'pop-pc' | 'mov-pc-lr' }
-  | { readonly kind: 'indirect'; readonly reg: number; readonly via: 'bx' | 'mov-pc' | 'add-pc' }
+  /** `reg` is the jump register (bx, mov-pc, add-pc) or the base pc is loaded through (load-pc). */
+  | { readonly kind: 'indirect'; readonly reg: number; readonly via: 'bx' | 'mov-pc' | 'add-pc' | 'load-pc' }
+  /** A literal-pool load; `rd` 15 (ARM `ldr pc, [pc, #imm]`) transfers control to the loaded word. */
   | { readonly kind: 'pool-load'; readonly pool: Addr; readonly rd: number }
   | { readonly kind: 'adr'; readonly target: Addr }
   | { readonly kind: 'swi'; readonly imm: number }
@@ -94,15 +96,20 @@ export interface SymbolResolver {
   addressOf(name: string): Addr | undefined;
 }
 
-/** One instruction text read back by `parse`: the rows that accept it and its operand values. */
+/** One row that accepts a parsed text, with the operand values that row reads from it. */
+export interface ParsedCandidate {
+  readonly specId: SpecId;
+  /** Operand values (registers, immediates, label addresses) by operand name. */
+  readonly operands: Fields;
+}
+
+/** One instruction text read back by `parse`: every row that accepts it, each with its own reading. */
 export interface ParsedInsn {
   readonly mode: Mode;
   readonly text: string;
   readonly mnemonic: string;
-  /** Every row whose syntax accepts the text, in table order. */
-  readonly candidates: readonly SpecId[];
-  /** Operand values (registers, immediates, label addresses) by operand name. */
-  readonly operands: Fields;
+  /** Every row whose syntax accepts the text, in table order, once each (its first reading). */
+  readonly candidates: readonly ParsedCandidate[];
 }
 
 /** The encoding `assemble` picks for a parsed text at an address. */

@@ -1,21 +1,21 @@
 // `romlift doctor [--json] [--full]` (architecture §2.1): runs the toolchain checks of runDoctor and
 // prints them. Text: one line per check, then the verdict. --json: one {"type":"check",id,status,detail}
-// line per check in report order, the diagnostics, then the summary line. Exit 0 when binutils, the
-// corpus and the JUMP11 probe are ok; 1 when the binutils are missing or cannot run; 3 when the corpus
-// or the probe disagrees.
-import { DOCTOR_REQUIRED, runDoctor } from '../../api/toolchain.ts';
-import type { DoctorCheck, DoctorReport } from '../../api/toolchain.ts';
+// line per check in report order, the diagnostics, then the summary line. The exit code is the report's
+// verdict (core/workflow/doctor.ts) mapped: ok 0, unusable (binutils missing or not running) 1,
+// disagrees (the corpus or the probe) 3.
+import { runDoctor } from '../../api/toolchain.ts';
+import type { DoctorCheck, DoctorReport, DoctorVerdict } from '../../api/toolchain.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
 import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
 
-/** The exit code of a report: the binutils first, then the corpus and the probe. */
-export function doctorExitCode(report: DoctorReport): ExitCode {
-  const status = (id: DoctorCheck['id']): DoctorCheck['status'] | undefined => report.checks.find((c) => c.id === id)?.status;
-  if (status('binutils') !== 'ok') return ExitCode.errors;
-  return DOCTOR_REQUIRED.every((id) => status(id) === 'ok') ? ExitCode.ok : ExitCode.verifyFailed;
+const EXIT_CODES: Readonly<Record<DoctorVerdict, ExitCode>> = { ok: ExitCode.ok, unusable: ExitCode.errors, disagrees: ExitCode.verifyFailed };
+
+/** The exit code of a verdict. */
+export function doctorExitCode(verdict: DoctorVerdict): ExitCode {
+  return EXIT_CODES[verdict];
 }
 
 function checkLine(check: DoctorCheck, width: number): string {
@@ -44,13 +44,14 @@ export const doctorCommand: CommandSpec = {
   name: 'doctor',
   summary: 'Checks the toolchain: binutils, the as round-trip corpus, the JUMP11 probe, agbcc',
   usage: 'doctor [--json] [--full]',
+  positionals: [],
   options: [
     { name: 'json', kind: 'boolean', summary: 'Prints NDJSON: one line per check, the diagnostics, then a summary' },
     { name: 'full', kind: 'boolean', summary: 'Runs the CI-size corpus (an ARM sample of 2^20 words)' },
   ],
   async run(args, io) {
     const report = await runDoctor({ env: io.env, cwd: io.cwd, full: args.flags['full'] === true });
-    const exitCode = doctorExitCode(report);
+    const exitCode = doctorExitCode(report.verdict);
     const summary: RunSummary = { ok: exitCode === ExitCode.ok, exitCode };
     if (args.flags['json'] === true) {
       io.stdout(doctorNdjson(report, summary));

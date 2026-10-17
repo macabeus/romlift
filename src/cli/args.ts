@@ -1,7 +1,7 @@
 // The command-line parser (architecture §2.1). The first token that is not an option names the
 // command; every other token is read against that command's `OptionSpec` list: boolean flags
 // (`--json`), string options (`--rom <path>` or `--rom=<path>`), repeatable options (`--disable <rule>`,
-// kept in order) and positionals; `--` ends the options. `--help` (or `-h`) is accepted by every
+// kept in order) and positionals, as many as the command declares; `--` ends the options. `--help` (or `-h`) is accepted by every
 // command and sets `flags.help`. Parsing never throws: a bad command line is a precise message.
 import { findCommand, HELP_FLAG } from './registry.ts';
 import type { CommandSpec, OptionSpec, ParsedArgs } from './registry.ts';
@@ -86,5 +86,13 @@ export function parseArgs(argv: readonly string[], commands: readonly CommandSpe
     }
   }
 
+  if (flags[HELP_FLAG] !== true) {
+    const required = spec.positionals.filter((p) => p.optional !== true).length;
+    if (positionals.length > spec.positionals.length) {
+      return fail(`unexpected argument '${positionals[spec.positionals.length] ?? ''}' for command '${name}'`);
+    }
+    const missing = spec.positionals[positionals.length];
+    if (positionals.length < required && missing !== undefined) return fail(`command '${name}' needs ${missing.name}`);
+  }
   return { ok: true, spec, args: { command: spec.name, positionals, flags, options, repeated } };
 }

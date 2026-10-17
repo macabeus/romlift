@@ -33,6 +33,7 @@ function recording(name: string, code: ExitCode, summary: string): CommandSpec {
     name,
     summary,
     usage: name,
+    positionals: [],
     options: [],
     run: async (args, io) => {
       (io as CapturedIo).calls.push(args);
@@ -44,7 +45,8 @@ function recording(name: string, code: ExitCode, summary: string): CommandSpec {
 export const analyzeFake: CommandSpec = {
   name: 'analyze',
   summary: 'Analyzes a ROM',
-  usage: 'analyze <rom> [--json] [--rom <path>] [--disable <rule>...]',
+  usage: 'analyze [<rom>…] [--json] [--rom <path>] [--disable <rule>...]',
+  positionals: ['<rom>', '<rom2>', '<rom3>', '<rom4>'].map((name) => ({ name, optional: true })),
   options: [
     { name: 'json', kind: 'boolean', summary: 'Prints NDJSON' },
     { name: 'rom', kind: 'string', summary: 'The ROM to read', value: '<path>' },
@@ -68,6 +70,7 @@ export const FAKE_COMMANDS: readonly CommandSpec[] = [
     name: 'invariant',
     summary: 'Throws RomliftInvariantError',
     usage: 'invariant',
+    positionals: [],
     options: [],
     run: async () => {
       throw new RomliftInvariantError('the tiling has a hole\nat 0x08000000');
@@ -77,6 +80,7 @@ export const FAKE_COMMANDS: readonly CommandSpec[] = [
     name: 'crash',
     summary: 'Throws a TypeError',
     usage: 'crash',
+    positionals: [],
     options: [],
     run: async () => {
       throw new TypeError('x is undefined');
@@ -86,6 +90,7 @@ export const FAKE_COMMANDS: readonly CommandSpec[] = [
     name: 'bogus',
     summary: 'Returns a number that is not an exit code',
     usage: 'bogus',
+    positionals: [],
     options: [],
     run: async () => 42 as unknown as ExitCode,
   },

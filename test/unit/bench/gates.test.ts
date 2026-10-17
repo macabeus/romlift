@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 import { resultsText } from '../../../bench/src/artifact.ts';
 import { REPO_ROOT } from '../../../bench/src/context.ts';
-import { formatGateLine, parseGateReport, requireFailures, runGates } from '../../../bench/src/gates.ts';
+import { blindRecords, formatGateLine, parseGateReport, requireFailures, runGates } from '../../../bench/src/gates.ts';
 import { results, withTempDir } from './fixtures.ts';
 
 const GATE_TS = pathToFileURL(join(REPO_ROOT, 'test', 'gates', 'gate.ts')).href;
@@ -82,4 +82,25 @@ test('--require ignores later phases, other tiers and historical verdicts', () =
     'ci',
   );
   assert.deepEqual(failures, ['g1.d.test.ts left no record (its tier is not declared)']);
+});
+
+test('a real-tier run that cannot see its inputs keeps the committed gate record', async () => {
+  await withTempDir('romlift-blind-gates-', async (dir) => {
+    const gates = join(dir, 'gates');
+    const empty = join(dir, 'empty');
+    await mkdir(gates);
+    await mkdir(empty);
+    await writeFile(join(gates, 'phase.json'), '{ "landed": 1 }\n');
+    await writeFile(join(gates, 'g1.fake-blind.test.ts'), gateFile("{ id: 'g1.fake-blind', phase: 1, tier: 'real', needs: [], inputs: ['poc'], async run() {} }"));
+    const artifact = join(dir, 'results.json');
+    const committed = resultsText(results([], { gates: { real: [{ id: 'g1.fake-blind', verdict: 'pass', inputs: { poc: 'abc' }, detail: 'measured' }] } }));
+    await writeFile(artifact, committed);
+    const lines: string[] = [];
+    const run = await runGates({ repoRoot: REPO_ROOT, benchRoot: empty, pocRoot: empty }, { tier: 'real', require: 1, dir: gates, resultsPath: artifact, log: (l) => lines.push(l) });
+    assert.deepEqual(run.records.map((r) => [r.id, r.verdict]), [['g1.fake-blind', 'unavailable']]);
+    assert.equal(await readFile(artifact, 'utf8'), committed);
+    assert.match(lines.at(-1) ?? '', /^kept the gate record of .*results\.json: g1\.fake-blind unavailable/);
+    assert.deepEqual(blindRecords(run.records, 0), []);
+    assert.equal(blindRecords(run.records, 1).length, 1);
+  });
 });

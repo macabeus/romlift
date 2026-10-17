@@ -47,8 +47,7 @@ test('parse reads the printed grammar, with spacing, case and comments normalise
   assert.ok(parsed !== undefined);
   assert.equal(parsed.mnemonic, 'push');
   assert.equal(parsed.text, 'PUSH {r4, lr}');
-  assert.deepEqual(parsed.candidates, ['thumb.push']);
-  assert.deepEqual(parsed.operands, { list: 0x4010 });
+  assert.deepEqual(parsed.candidates, [{ specId: 'thumb.push', operands: { list: 0x4010 } }]);
   assert.equal(parse('frobnicate r0', 'thumb', 0x0800_0000, LABELS), undefined);
   assert.equal(parse('b nowhere', 'thumb', 0x0800_0000, LABELS), undefined);
   assert.equal(parse('ldr r0, [r1', 'arm', 0x0800_0000, LABELS), undefined);

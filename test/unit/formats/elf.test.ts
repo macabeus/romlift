@@ -95,6 +95,14 @@ test('elfFunctions merges func symbols by address inside a span, in address orde
   };
   const merged = elfFunctions(duplicated, { start: 0x0800_0008, end: 0x0800_0009 });
   assert.deepEqual(merged, [{ addr: 0x0800_0008, size: 12, name: 'thumb_one', thumb: true }]);
+  // symbol-table order: each address where its first symbol appears; the merge is the same.
+  const reversed: ElfFile = { ...elf, symbols: [...elf.symbols].reverse() };
+  const span = { start: 0x0800_0000, end: 0x0a00_0000 };
+  const firsts: number[] = [];
+  for (const s of reversed.symbols) if (s.type === 'func' && s.addr >= span.start && s.addr < span.end && !firsts.includes(s.addr)) firsts.push(s.addr);
+  assert.deepEqual(elfFunctions(reversed, span, 'symbol-table').map((f) => f.addr), firsts);
+  assert.notDeepEqual(firsts, [...firsts].sort((x, y) => x - y), 'the fixture tells the two orders apart');
+  assert.deepEqual([...elfFunctions(reversed, span, 'symbol-table')].sort((x, y) => x.addr - y.addr), [...elfFunctions(reversed, span)]);
 });
 
 test('every truncation of the fixture returns ok:false, never throws', () => {

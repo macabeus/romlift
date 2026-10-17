@@ -3,7 +3,8 @@ import { test } from 'node:test';
 
 import { MISS_REASONS } from 'romlift';
 
-import { analysisDigest, scoredFromChild } from '../../../bench/tools/export-poc.ts';
+import { analysisDigest } from '../../../bench/src/scored-run.ts';
+import { scoredFromChild } from '../../../bench/tools/export-poc.ts';
 import { missReasonId, originId, parseScoredRun } from '../../../bench/src/scored-run.ts';
 import { dump, fn } from './fixtures.ts';
 

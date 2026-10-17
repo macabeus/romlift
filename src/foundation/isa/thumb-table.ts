@@ -2,18 +2,14 @@
 // first row whose mask matches wins). The 32-bit bl pair is the last row; decode pairs a prefix with
 // a following suffix, and a lone half falls to its raw row. Everything here is GNU as unified syntax
 // as `arm-none-eabi-as -mcpu=arm7tdmi` accepts it.
-import { popcount, wrap32 } from './bits.ts';
-import { branchOffset, branchTarget, thumbPoolBase } from './pc-relative.ts';
+import { fieldValue as v, popcount, wrap32 } from './bits.ts';
+import { branchOffset, branchTarget, pcOf, thumbPoolBase } from './pc-relative.ts';
 import { blOff, cond, flag, imm, pcRel, reg, reglist, row } from './row.ts';
 import type { Row, RowOptions } from './row.ts';
 import type { Fields, RawReason } from './types.ts';
 
 function T(name: string, options: RowOptions): Row {
   return row(`thumb.${name}`, 'thumb', options);
-}
-
-function v(f: Fields, key: string): number {
-  return f[key] ?? 0;
 }
 
 const LOW3 = [reg('rm', 6), reg('rn', 3), reg('rd', 0)];
@@ -321,9 +317,9 @@ const branches: Row[] = [
     fields: [cond(8), pcRel('imm', 0, 8, 2)],
     syntax: 'b{c} {target}',
     flow: 'cond-branch',
-    toOps: (f, a) => ({ cond: v(f, 'cond'), target: branchTarget(a + 4, v(f, 'imm'), 8, 2) }),
+    toOps: (f, a) => ({ cond: v(f, 'cond'), target: branchTarget(pcOf(a, 'thumb'), v(f, 'imm'), 8, 2) }),
     fromOps: (o, a) => {
-      const offset = branchOffset(a + 4, v(o, 'target'), 8, 2);
+      const offset = branchOffset(pcOf(a, 'thumb'), v(o, 'target'), 8, 2);
       const c = o['cond'] ?? 14;
       return offset === undefined || c > 13 ? undefined : { cond: c, imm: offset };
     },
@@ -334,9 +330,9 @@ const branches: Row[] = [
     fields: [pcRel('imm', 0, 11, 2)],
     syntax: 'b {target}',
     flow: 'branch',
-    toOps: (f, a) => ({ target: branchTarget(a + 4, v(f, 'imm'), 11, 2) }),
+    toOps: (f, a) => ({ target: branchTarget(pcOf(a, 'thumb'), v(f, 'imm'), 11, 2) }),
     fromOps: (o, a) => {
-      const offset = branchOffset(a + 4, v(o, 'target'), 11, 2);
+      const offset = branchOffset(pcOf(a, 'thumb'), v(o, 'target'), 11, 2);
       return offset === undefined ? undefined : { imm: offset };
     },
   }),
@@ -353,9 +349,9 @@ export const THUMB_BL: Row = T('bl', {
   fields: [blOff('hi', 0), blOff('lo', 16)],
   syntax: 'bl {target}',
   flow: 'bl',
-  toOps: (f, a) => ({ target: branchTarget(a + 4, (v(f, 'hi') << 11) | v(f, 'lo'), 22, 2) }),
+  toOps: (f, a) => ({ target: branchTarget(pcOf(a, 'thumb'), (v(f, 'hi') << 11) | v(f, 'lo'), 22, 2) }),
   fromOps: (o, a) => {
-    const offset = branchOffset(a + 4, v(o, 'target'), 22, 2);
+    const offset = branchOffset(pcOf(a, 'thumb'), v(o, 'target'), 22, 2);
     return offset === undefined ? undefined : { hi: offset >>> 11, lo: offset & 0x7ff };
   },
 });

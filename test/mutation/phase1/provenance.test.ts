@@ -8,7 +8,7 @@ import { test } from 'node:test';
 
 import type { BenchContext } from '../../../bench/src/context.ts';
 import { main, type BenchIo } from '../../../bench/src/cli.ts';
-import { withTempDir } from '../../unit/bench/fixtures.ts';
+import { printerSummary, withTempDir } from '../../unit/bench/fixtures.ts';
 import { syntheticTier } from '../../unit/bench/harness.ts';
 
 interface Check {
@@ -79,7 +79,7 @@ test('a missing family fails families', async () => {
     'family',
     async (cx) => {
       await editJson(join(cx.repoRoot, 'bench', 'results.json'), (r) => {
-        r['printer'] = { schema: 'romlift/corpus-summary@1' };
+        r['printer'] = printerSummary();
         const meta = r['meta'] as { families: Record<string, string[]> };
         meta.families['tiny'] = ['code-end', 'entries', 'extents'];
       });

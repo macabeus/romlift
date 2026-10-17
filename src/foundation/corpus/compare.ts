@@ -1,23 +1,15 @@
 // Compares what `as` made of a corpus file with the original bytes, case by case, and folds the
-// per-file comparisons into the frozen summary `romlift/corpus-summary@1`. A case agrees when the
+// per-file comparisons into the counts of a run (CorpusCounts). It decides nothing: whether the counts
+// meet the threshold is core/workflow/doctor.ts's corpusOk. A case agrees when the
 // bytes at its offset are its original word; a mnemonic also checks that `assemble` gave the same
 // word in process (encoder agreement); a probe agrees when `as` rejected its file and `assemble`
 // refused its text.
+import { RAW_REASONS } from '../isa/types.ts';
+import type { RawReason } from '../isa/types.ts';
 import { hex } from '../util/hex.ts';
 import { compareCodeUnits } from '../util/sorted.ts';
-import { RAW_REASONS } from './types.ts';
-import type { RawReason, SpecId } from './types.ts';
-import type {
-  Alignment,
-  ArmCoverage,
-  CorpusAssembly,
-  CorpusExample,
-  CorpusFile,
-  CorpusOptions,
-  CorpusSection,
-  CorpusSectionSummary,
-  CorpusSummary,
-} from './corpus-types.ts';
+import { zeroRawCounts } from './types.ts';
+import type { Alignment, ArmCoverage, CorpusAssembly, CorpusCounts, CorpusExample, CorpusFile, CorpusSection, CorpusSectionSummary } from './types.ts';
 
 /** Examples kept per summary block. */
 const EXAMPLES = 20;
@@ -52,12 +44,8 @@ export interface CorpusComparison {
   };
 }
 
-function reasons(): Record<RawReason, number> {
-  return { undefined: 0, unpredictable: 0, 'sbz-set': 0, 'as-alias': 0, 'no-roundtrip': 0 };
-}
-
 function tally(): SectionTally {
-  return { cases: 0, mnemonic: 0, raw: 0, agree: 0, disagree: 0, rawByReason: reasons(), examples: [] };
+  return { cases: 0, mnemonic: 0, raw: 0, agree: 0, disagree: 0, rawByReason: zeroRawCounts(), examples: [] };
 }
 
 function block(): Block {
@@ -161,7 +149,8 @@ export function compareCorpusFile(file: CorpusFile, assembly: CorpusAssembly): C
   };
 }
 
-function mergeSections(parts: readonly CorpusSectionSummary[]): CorpusSectionSummary {
+/** The sum of several section counts (the first EXAMPLES examples kept). */
+export function mergeSections(parts: readonly CorpusSectionSummary[]): CorpusSectionSummary {
   const out = tally();
   for (const p of parts) {
     out.cases += p.cases;
@@ -175,18 +164,8 @@ function mergeSections(parts: readonly CorpusSectionSummary[]): CorpusSectionSum
   return out;
 }
 
-export interface CorpusMeta {
-  readonly inputsDigest: string;
-  /** The first line of `as --version`. */
-  readonly as: string;
-  readonly options: CorpusOptions;
-  readonly coverage: ArmCoverage;
-  /** Every ARM row id; each must have a coverage entry. */
-  readonly armRows: readonly SpecId[];
-}
-
-/** Folds per-file comparisons into the corpus summary; `ok` is the phase-1 threshold. */
-export function summarizeCorpus(comparisons: readonly CorpusComparison[], meta: CorpusMeta): CorpusSummary {
+/** Folds per-file comparisons into the counts of the run, with the ARM coverage classes. */
+export function summarizeCorpus(comparisons: readonly CorpusComparison[], armCoverage: ArmCoverage): CorpusCounts {
   const section = (s: CorpusSection): CorpusSectionSummary => mergeSections(comparisons.map((c) => c.sections[s]));
   const thumb = section('thumb');
   const bl = section('bl');
@@ -205,34 +184,15 @@ export function summarizeCorpus(comparisons: readonly CorpusComparison[], meta: 
     for (const a of c.context.alignments) alignments.add(a);
     extremes += c.context.extremes;
   }
-  const sortedAlignments = [...alignments].sort(compareCodeUnits);
-  const ok =
-    thumb.disagree === 0 &&
-    bl.disagree === 0 &&
-    arm.disagree === 0 &&
-    encoder.disagree === 0 &&
-    context.disagree === 0 &&
-    thumb.cases >= 0x10000 &&
-    bl.cases >= 0x10000 &&
-    arm.cases >= meta.options.armSample &&
-    meta.armRows.every((id) => meta.coverage[id] !== undefined) &&
-    sortedAlignments.includes('0-mod-4') &&
-    sortedAlignments.includes('2-mod-4') &&
-    extremes > 0;
   const coverage: Record<string, ArmCoverage[string]> = {};
-  for (const id of Object.keys(meta.coverage).sort(compareCodeUnits)) {
-    const entry = meta.coverage[id];
+  for (const id of Object.keys(armCoverage).sort(compareCodeUnits)) {
+    const entry = armCoverage[id];
     if (entry !== undefined) coverage[id] = entry;
   }
   return {
-    schema: 'romlift/corpus-summary@1',
-    inputsDigest: meta.inputsDigest,
-    as: meta.as,
-    options: { seed: meta.options.seed, armSample: meta.options.armSample, blSample: meta.options.blSample },
     sections: { thumb, bl, arm: { ...arm, coverage } },
     encoderAgrees: encoder,
-    context: { checked: context.checked, disagree: context.disagree, alignments: sortedAlignments, extremes, examples: context.examples },
-    ok,
+    context: { checked: context.checked, disagree: context.disagree, alignments: [...alignments].sort(compareCodeUnits), extremes, examples: context.examples },
   };
 }
 

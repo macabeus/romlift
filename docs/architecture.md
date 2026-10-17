@@ -107,6 +107,8 @@ romlift/
       rom/                          span.ts, rom.ts, header.ts, memory-map.ts, codes.ts
       isa/                          types.ts, thumb-table.ts, arm-table.ts, decode.ts, encode.ts, format.ts,
                                     parse.ts, assemble.ts, roundtrip.ts
+      corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
+                                    as round-trip corpus, counts only (D54 c, D55)
       asm/                          dialect.ts (file preamble, macros.inc text), statements.ts (parser of the
                                     directive subset romlift emits), layout.ts (lays statements out to bytes)
       formats/                      elf.ts, gnu-map.ts, canonical-json.ts, luvdis-cfg.ts, ldscript-symbols.ts,
@@ -140,7 +142,8 @@ romlift/
       verify/                       tiling.ts, reencode.ts, module-size.ts, text-layout.ts, paths.ts, report.ts, codes.ts
       write-plan/                   types.ts, plan-writes.ts, manifest.ts, journal.ts, codes.ts
       scaffold/                     render.ts, vars.ts
-      workflow/                     types.ts, discover.ts, explain.ts, generate.ts, init.ts, analyze-update.ts,
+      workflow/                     doctor.ts (phase 1: the doctor's checks, corpus threshold and verdict, D55),
+                                    types.ts, discover.ts, explain.ts, generate.ts, init.ts, analyze-update.ts,
                                     rename.ts, import-legacy.ts
     shell/                          the only code that touches files, processes, hashing or the environment
       codes.ts                      the shell's diagnostic codes
@@ -149,7 +152,8 @@ romlift/
       project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts
       config/                       load.ts, save.ts
       evidence/                     read-elf.ts, read-map.ts, read-legacy.ts, read-trace.ts
-      toolchain/                    binutils.ts, doctor.ts, link-check.ts, npm.ts
+      toolchain/                    binutils.ts, doctor.ts, corpus.ts (runCorpus), corpus-inputs.ts (the corpus
+                                    inputs digest), link-check.ts, npm.ts (D55)
       signatures/                   build-from-references.ts, locate.ts
       trace/                        gba-kit.ts (optional peer dependency)
     cli/
@@ -174,7 +178,8 @@ romlift/
     architecture.test.ts            layer edges, globals allowlist, rule-file isolation, Map iteration, barrels
     unit/                           mirrors src/
     golden/                         printer, writers, config serializer and patcher, reconciler, explain
-    corpus/                         generate.ts (the as round-trip corpus; output never committed)
+    corpus/                         generate.ts (the as round-trip corpus driver over runCorpus; output never
+                                    committed; imports only the entry points and bench/src/args.ts, D55)
     mutation/                       fault injection into every checker (§10)
     gates/                          g1.*.test.ts … g6.*.test.ts, gate.ts, phase.json
     local/                          tests that need local ROMs or the PoC; report `unavailable` when absent
@@ -212,6 +217,7 @@ It fails on any edge not allowed here:
 | `cli/*` | `shell`, `core/workflow`, `core/diagnostic-codes.ts`, `foundation/diagnostics`, `src/api/*` |
 | `src/api/*`, `src/{index,node,isa,internal}.ts` | the modules they re-export |
 | `bench/src/*`, `test/gates/*`, `test/local/*` | `romlift`, `romlift/node`, `romlift/isa`, `romlift/internal` (package self-reference), `node:*` |
+| `test/corpus/*` | the same, plus `bench/src/args.ts` (D55) |
 
 **Globals allowlist** (D5). Under `src/foundation` and `src/core` an identifier that resolves to a
 global must be one of: `Math` (but not `Math.random`), `Number`, `String`, `Boolean`, `BigInt`,
@@ -245,6 +251,9 @@ lives in `test/gates`, never in the shipped CLI (D29).
 export interface CommandSpec {
   readonly name: string;
   readonly summary: string;
+  readonly usage: string;
+  readonly positionals: readonly PositionalSpec[];   // { name, optional? }; the parser rejects a missing or an extra one (D55)
+  readonly options: readonly OptionSpec[];
   run(args: ParsedArgs, io: CliIo): Promise<ExitCode>;
 }
 export const ExitCode = { ok: 0, errors: 1, usage: 2, verifyFailed: 3, internal: 70 } as const;
@@ -403,8 +412,9 @@ export type Flow =
   | { readonly kind: 'branch'; readonly target: Addr; readonly conditional: boolean }
   | { readonly kind: 'bl'; readonly target: Addr }
   | { readonly kind: 'return'; readonly via: 'bx-lr' | 'pop-pc' | 'mov-pc-lr' }
-  | { readonly kind: 'indirect'; readonly reg: number; readonly via: 'bx' | 'mov-pc' | 'add-pc' }
-  | { readonly kind: 'pool-load'; readonly pool: Addr; readonly rd: number }
+  | { readonly kind: 'indirect'; readonly reg: number; readonly via: 'bx' | 'mov-pc' | 'add-pc' | 'load-pc' }
+                                                           // load-pc: pc loaded through base `reg` (ldr/ldm, base not sp; 15 = a pc-relative table read)
+  | { readonly kind: 'pool-load'; readonly pool: Addr; readonly rd: number }  // rd 15 (ldr pc, [pc, #imm]) transfers control: the walker reads rd
   | { readonly kind: 'adr'; readonly target: Addr }
   | { readonly kind: 'swi'; readonly imm: number }
   | { readonly kind: 'mode-switch'; readonly target: Addr }               // bx pc
@@ -1555,7 +1565,7 @@ interface Dataset {
   name: string; rom: string; elf: string; map?: string; sha1: string; elfCommit: string;
   elfSha256: string;                                  // `bench run` refuses an ELF with another digest
   objectsDir?: string; objectsDigest?: string;        // the reference build's objects, the objdiff targets (§8.4)
-  family: string;                                     // engine family: 'kleod', 'sat-r', 'fe-gba', 'pret-gen3', 'zeldaret-tmc', …
+  family: string;                                     // codebase family (D55): 'kleod', 'sat-r', 'fe-gba', 'pret-gen3', 'zeldaret-tmc', …
   buildNote: string;                                  // local changes needed to rebuild it (research-notes.md)
   heldout: boolean;                                   // set when the dataset is created; never edited
   revealed: { at: string; commit: string; reason: string }[];   // append-only; non-empty ⇒ tuning
@@ -1615,7 +1625,7 @@ message states the reason, as the working rule requires.
 | Entries (tuning) | dataset-against-ELF check passes; every miss in `labels`, every false entry in `untyped`; raw precision ≥ 99.7% on every ROM; raw true-positive count never drops; lists only shrink; zero `unreviewed` | 2 |
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
 | Code end | within 16 bytes of the ELF | 2 |
-| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two engine families, one of them absent from the tuning set | 2 |
+| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on all five tuning ROMs and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and all five tuning ROMs (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
@@ -1696,8 +1706,8 @@ and the PoC), `build` (`dist/`).
 
 **Provenance by content** (D27). `meta.sourceDigest` is the sha256 over the sorted contents of
 `src/**`, `signatures/specs/**`, `templates/**`, `bench/src/**`, `bench/tools/**`, `bench/dataset/**`,
-`bench/baseline/**`, `test/gates/**`, `package.json`, `package-lock.json` and `tsconfig*.json`, plus
-the Node major version. `provenance.yml` recomputes it at the PR head and fails with "re-run the real
+`bench/baseline/**`, `test/gates/**`, `test/corpus/**` (D55), `package.json`, `package-lock.json` and
+`tsconfig*.json`, plus the Node major version. `provenance.yml` recomputes it at the PR head and fails with "re-run the real
 tier" when it differs from the committed artifact. It also fails when a real-tier gate of a phase ≤
 `phase.json.landed` is not `pass` or `historical` in the artifact's gate record, when a family gated at
 the current phase is absent from `meta.families` for a tuning ROM, when a dataset row has no matching row
@@ -1880,7 +1890,7 @@ in roadmap.md pass. The gates per phase are those of §1.
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
-| The rules overfit the five tuning ROMs | wrong splits on a new game | sealed held-out runs with ELF-checkable classifiers that cannot hide a glued function (§8.4); two engine families must pass; `bench ablate` and `g2.rule-coverage` per rule; every rule carries `restsOn` |
+| The rules overfit the five tuning ROMs | wrong splits on a new game | sealed held-out runs with ELF-checkable classifiers that cannot hide a glued function (§8.4); two codebase families must pass; `bench ablate` and `g2.rule-coverage` per rule; every rule carries `restsOn` |
 | Semantics-first porting keeps PoC quirks (LIFO order, a 40-instruction table window, windows of 4,096, 16 and 64 bytes) | behaviour rests on accidents | every constant is a named profile field; the table window is replaced by register tracking at M3 and the order at M4, each one reviewed commit with its diff (D10, D12) |
 | The driver cannot reach parity | phase 2 stalls | the driver ports the PoC's control flow verbatim and lockstep reports the first divergent query (D48) |
 | Confirm mode diverges from discover mode | `generate` splits differently from `init` | `g2.confirm-equals-discover` in the phase that builds the driver; `g4.generate-idempotent` on the files |

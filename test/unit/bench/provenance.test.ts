@@ -5,7 +5,7 @@ import { test } from 'node:test';
 
 import { discoverGateFiles, parseGateFileName, tierOf, type GateFile } from '../../../bench/src/gate-files.ts';
 import { provenanceChecks, readLanded, type ProvenanceInputs } from '../../../bench/src/provenance.ts';
-import { dataset, meta, results, row, withTempDir } from './fixtures.ts';
+import { dataset, meta, printerSummary, results, row, withTempDir } from './fixtures.ts';
 
 const GATES: readonly GateFile[] = [
   { file: 'g1.real-one.test.ts', id: 'g1.real-one', phase: 1, tier: 'real' },
@@ -16,7 +16,7 @@ const GATES: readonly GateFile[] = [
 
 function inputs(overrides: Partial<ProvenanceInputs> = {}): ProvenanceInputs {
   return {
-    artifact: results([row()], { meta: meta({ families: { tiny: ['code-end', 'entries', 'extents', 'scaffold'] } }), printer: { schema: 'romlift/corpus-summary@1' } }),
+    artifact: results([row()], { meta: meta({ families: { tiny: ['code-end', 'entries', 'extents', 'scaffold'] } }), printer: printerSummary() }),
     recomputedDigest: 's'.repeat(64),
     landed: 0,
     gates: GATES,
@@ -52,7 +52,7 @@ test('the gate record needs every real or both gate of a landed phase to pass or
         { id: 'g1.both-one', verdict: 'historical', inputs: {}, detail: '' },
       ],
     },
-    printer: {},
+    printer: printerSummary(),
   });
   assert.equal(verdicts(inputs({ artifact: passing, landed: 1 }))['gate-record'], true);
   const pending = { ...passing, gates: { real: [{ id: 'g1.real-one', verdict: 'unavailable', inputs: {}, detail: '' }] } };
@@ -68,7 +68,7 @@ test('families: every live per-ROM family for every tuning ROM, and the printer 
   const noPrinter = results([row()]);
   assert.equal(verdicts(inputs({ artifact: noPrinter, landed: 1 }))['families'], false);
   assert.equal(verdicts(inputs({ artifact: noPrinter, landed: 0 }))['families'], true);
-  const noScaffold = results([row()], { meta: meta({ families: { tiny: ['entries'] } }), printer: {} });
+  const noScaffold = results([row()], { meta: meta({ families: { tiny: ['entries'] } }), printer: printerSummary() });
   assert.equal(verdicts(inputs({ artifact: noScaffold, landed: 1 }))['families'], false);
   assert.equal(verdicts(inputs({ landed: 2 }))['families'], false, 'determinism and speed are live at phase 2');
 });

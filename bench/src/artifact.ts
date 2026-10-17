@@ -1,10 +1,12 @@
 // bench/results.json (architecture §8.2): provenance in `meta`, the optional printer summary, the
 // real-tier gate record and one row per tuning ROM sorted by name. It holds no timestamp and no
 // machine data; those go to bench/timings.json.
-import { compareCodeUnits } from 'romlift';
+import { compareCodeUnits, isMissReason, isOrigin } from 'romlift';
+import { parseCorpusSummary, type CorpusSummary } from 'romlift/internal';
 
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
-import type { BenchRow } from './row.ts';
+import type { BenchRow, ExtentRow, FalseRow, MissRow } from './row.ts';
+import { isExceptionCategory, type ExceptionCategory } from './vocabulary.ts';
 
 export interface RomInputs {
   readonly sha1: string;
@@ -43,7 +45,7 @@ export interface GateEntry {
 export interface Results {
   readonly meta: ResultsMeta;
   /** bench/.local/corpus/summary.json when current; absent otherwise. */
-  readonly printer?: unknown;
+  readonly printer?: CorpusSummary;
   readonly gates: { readonly real: readonly GateEntry[] };
   readonly roms: readonly BenchRow[];
 }
@@ -52,17 +54,111 @@ function fail(where: string, what: string): never {
   throw new BenchError(`${where}: ${what}`);
 }
 
-function parseRow(value: unknown, where: string): BenchRow {
-  if (!isRecord(value) || typeof value['name'] !== 'string') fail(where, 'a row has no name');
-  const at = `${where}: row ${value['name']}`;
-  for (const key of ['tp', 'entries', 'elfFunctions'] as const) if (typeof value[key] !== 'number') fail(at, `${key} must be a number`);
-  for (const key of ['misses', 'falseEntries'] as const) if (!Array.isArray(value[key])) fail(at, `${key} must be an array`);
-  const extents = value['extents'];
-  if (!isRecord(extents) || !Array.isArray(extents['mismatches'])) fail(at, 'extents.mismatches must be an array');
-  const codeEnd = value['codeEnd'];
-  if (!isRecord(codeEnd) || typeof codeEnd['delta'] !== 'number') fail(at, 'codeEnd.delta must be a number');
-  if (typeof value['deterministic'] !== 'boolean') fail(at, 'deterministic must be a boolean');
-  return value as unknown as BenchRow;
+// Field readers: each returns the typed value or throws a BenchError naming the field.
+function str(value: unknown, at: string): string {
+  if (typeof value !== 'string') fail(at, 'must be a string');
+  return value;
+}
+
+function num(value: unknown, at: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) fail(at, 'must be a number');
+  return value;
+}
+
+function bool(value: unknown, at: string): boolean {
+  if (typeof value !== 'boolean') fail(at, 'must be a boolean');
+  return value;
+}
+
+function rec(value: unknown, at: string): Readonly<Record<string, unknown>> {
+  if (!isRecord(value)) fail(at, 'must be an object');
+  return value;
+}
+
+function list<T>(value: unknown, at: string, item: (v: unknown, at: string) => T): T[] {
+  if (!Array.isArray(value)) fail(at, 'must be an array');
+  return value.map((v, i) => item(v, `${at}[${i}]`));
+}
+
+function category(r: Readonly<Record<string, unknown>>, at: string): { readonly category?: ExceptionCategory } {
+  if (r['category'] === undefined) return {};
+  const id = str(r['category'], `${at}.category`);
+  if (!isExceptionCategory(id)) fail(`${at}.category`, `'${id}' is not an exception category`);
+  return { category: id };
+}
+
+function missRow(value: unknown, at: string): MissRow {
+  const r = rec(value, at);
+  const reason = str(r['reason'], `${at}.reason`);
+  if (!isMissReason(reason)) fail(`${at}.reason`, `'${reason}' is not a miss reason`);
+  return { addr: str(r['addr'], `${at}.addr`), name: str(r['name'], `${at}.name`), size: num(r['size'], `${at}.size`), reason, listed: bool(r['listed'], `${at}.listed`), ...category(r, at) };
+}
+
+function falseRow(value: unknown, at: string): FalseRow {
+  const r = rec(value, at);
+  const origin = str(r['origin'], `${at}.origin`);
+  if (!isOrigin(origin)) fail(`${at}.origin`, `'${origin}' is not an origin`);
+  return {
+    addr: str(r['addr'], `${at}.addr`),
+    origin,
+    size: num(r['size'], `${at}.size`),
+    ...(r['owner'] === undefined ? {} : { owner: str(r['owner'], `${at}.owner`) }),
+    listed: bool(r['listed'], `${at}.listed`),
+    ...category(r, at),
+  };
+}
+
+function extentRow(value: unknown, at: string): ExtentRow {
+  const r = rec(value, at);
+  return { addr: str(r['addr'], `${at}.addr`), name: str(r['name'], `${at}.name`), elf: num(r['elf'], `${at}.elf`), found: num(r['found'], `${at}.found`) };
+}
+
+/** One row of results.json, every field checked against BenchRow. */
+export function parseRow(value: unknown, where: string): BenchRow {
+  const r = rec(value, where);
+  const at = `${where}: row ${typeof r['name'] === 'string' ? r['name'] : '?'}`;
+  const startup = rec(r['startup'], `${at}.startup`);
+  const extents = rec(r['extents'], `${at}.extents`);
+  const codeEnd = rec(r['codeEnd'], `${at}.codeEnd`);
+  const scaffold = rec(r['scaffold'], `${at}.scaffold`);
+  return {
+    name: str(r['name'], `${at}.name`),
+    sha1: str(r['sha1'], `${at}.sha1`),
+    elfCommit: r['elfCommit'] === null ? null : str(r['elfCommit'], `${at}.elfCommit`),
+    elfFunctions: num(r['elfFunctions'], `${at}.elfFunctions`),
+    entries: num(r['entries'], `${at}.entries`),
+    startup: { end: str(startup['end'], `${at}.startup.end`), pieces: num(startup['pieces'], `${at}.startup.pieces`), elfFunctions: num(startup['elfFunctions'], `${at}.startup.elfFunctions`) },
+    thumb: num(r['thumb'], `${at}.thumb`),
+    arm: num(r['arm'], `${at}.arm`),
+    tp: num(r['tp'], `${at}.tp`),
+    precision: num(r['precision'], `${at}.precision`),
+    recall: num(r['recall'], `${at}.recall`),
+    misses: list(r['misses'], `${at}.misses`, missRow),
+    falseEntries: list(r['falseEntries'], `${at}.falseEntries`, falseRow),
+    extents: { sized: num(extents['sized'], `${at}.extents.sized`), agree: num(extents['agree'], `${at}.extents.agree`), mismatches: list(extents['mismatches'], `${at}.extents.mismatches`, extentRow) },
+    codeEnd: { found: str(codeEnd['found'], `${at}.codeEnd.found`), elf: str(codeEnd['elf'], `${at}.codeEnd.elf`), delta: num(codeEnd['delta'], `${at}.codeEnd.delta`) },
+    deterministic: bool(r['deterministic'], `${at}.deterministic`),
+    scaffold: { ok: bool(scaffold['ok'], `${at}.scaffold.ok`) },
+  };
+}
+
+/** meta.inputs: per ROM its {sha1, elfSha256}, plus the `pocSourceDigest` string. */
+function parseInputs(value: unknown, at: string): Readonly<Record<string, RomInputs | string>> {
+  const out: Record<string, RomInputs | string> = {};
+  for (const [key, entry] of Object.entries(rec(value, at))) {
+    if (typeof entry === 'string') out[key] = entry;
+    else {
+      const r = rec(entry, `${at}.${key}`);
+      out[key] = { sha1: str(r['sha1'], `${at}.${key}.sha1`), elfSha256: str(r['elfSha256'], `${at}.${key}.elfSha256`) };
+    }
+  }
+  return out;
+}
+
+function parsePrinter(value: unknown, where: string): CorpusSummary {
+  const parsed = parseCorpusSummary(value);
+  if (!parsed.ok) fail(`${where}: printer`, parsed.error);
+  return parsed.value;
 }
 
 function parseGateEntry(value: unknown, where: string): GateEntry {
@@ -78,12 +174,11 @@ export function parseResults(value: unknown, where: string): Results {
   if (!isRecord(meta)) fail(where, 'no meta');
   if (typeof meta['sourceDigest'] !== 'string') fail(where, 'meta.sourceDigest must be a string');
   if (typeof meta['nodeMajor'] !== 'number') fail(where, 'meta.nodeMajor must be a number');
-  if (!isRecord(meta['inputs'])) fail(where, 'meta.inputs must be an object');
   if (!isRecord(meta['families'])) fail(where, 'meta.families must be an object');
   const families: Record<string, string[]> = {};
   for (const [rom, list] of Object.entries(meta['families'])) {
     if (!Array.isArray(list) || !list.every((f) => typeof f === 'string')) fail(where, `meta.families.${rom} must be a list of names`);
-    families[rom] = list as string[];
+    families[rom] = list.filter((f): f is string => typeof f === 'string');
   }
   const toolchain = isRecord(meta['toolchain']) ? meta['toolchain'] : {};
   const tool = (k: string): string | null => (typeof toolchain[k] === 'string' ? toolchain[k] : null);
@@ -98,12 +193,12 @@ export function parseResults(value: unknown, where: string): Results {
       sourceDigest: meta['sourceDigest'],
       nodeMajor: meta['nodeMajor'],
       romliftVersion: typeof meta['romliftVersion'] === 'string' ? meta['romliftVersion'] : '',
-      inputs: meta['inputs'] as Record<string, RomInputs | string>,
+      inputs: parseInputs(meta['inputs'], `${where}: meta.inputs`),
       toolchain: { as: tool('as'), ld: tool('ld'), objcopy: tool('objcopy') },
       families,
       source: 'poc',
     },
-    ...(value['printer'] === undefined ? {} : { printer: value['printer'] }),
+    ...(value['printer'] === undefined ? {} : { printer: parsePrinter(value['printer'], where) }),
     gates: { real: real.map((g, i) => parseGateEntry(g, `${where}: gates.real[${i}]`)) },
     roms: roms.map((r, i) => parseRow(r, `${where}: roms[${i}]`)),
   };

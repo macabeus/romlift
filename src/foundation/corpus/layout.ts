@@ -2,12 +2,19 @@
 // (the printed mnemonic or its `.inst` fallback), padding, and the `.set` definitions of every label
 // the cases printed. Each case is decoded at the address it occupies, so a PC-relative form prints the
 // label of its own target.
+import { DIALECT } from '../asm/dialect.ts';
+import { assemble } from '../isa/assemble.ts';
+import { decode } from '../isa/decode.ts';
+import { format, formatRaw } from '../isa/format.ts';
+import { parse } from '../isa/parse.ts';
+import { printing } from '../isa/roundtrip.ts';
+import { specOf } from '../isa/rows.ts';
+import type { FlowKind, Insn, SymbolResolver } from '../isa/types.ts';
 import type { Mode } from '../rom/span.ts';
-import { compareNumbers } from '../util/sorted.ts';
 import { hex } from '../util/hex.ts';
-import { CORPUS_BASE } from './corpus-types.ts';
-import type { CaseContext, CorpusCase, CorpusFile, CorpusIsa, CorpusProbe, CorpusSection, Extreme } from './corpus-types.ts';
-import type { FlowKind, Insn, SymbolResolver } from './types.ts';
+import { compareNumbers } from '../util/sorted.ts';
+import { CORPUS_BASE } from './types.ts';
+import type { CaseContext, CorpusCase, CorpusFile, CorpusProbe, CorpusSection, Extreme } from './types.ts';
 
 /** The row flow classes whose text names an address, so their bytes depend on where they sit. */
 const ADDRESS_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['branch', 'cond-branch', 'bl', 'pc-load', 'adr']);
@@ -45,8 +52,8 @@ function labelLines(labels: ReadonlySet<number>): string[] {
   });
 }
 
-function header(isa: CorpusIsa, mode: Mode): string[] {
-  return [isa.preamble(mode).trimEnd(), '.balign 4', 'corpus_base:'];
+function header(mode: Mode): string[] {
+  return [DIALECT.preamble(mode).trimEnd(), '.balign 4', 'corpus_base:'];
 }
 
 export interface FileBuilder {
@@ -60,23 +67,20 @@ export interface FileBuilder {
 }
 
 /** A builder for one file of cases of `section`, decoded in `mode`. */
-export function fileBuilder(isa: CorpusIsa, mode: Mode, section: CorpusSection, name: string): FileBuilder {
-  const lines = header(isa, mode);
+export function fileBuilder(mode: Mode, section: CorpusSection, name: string): FileBuilder {
+  const lines = header(mode);
   const cases: CorpusCase[] = [];
   const labels = new Set<number>();
   const resolver = recordingResolver(labels);
   let offset = 0;
 
-  const addressDependent = (insn: Insn): boolean => ADDRESS_FLOWS.has(isa.specOf(insn.specId).flow);
+  const addressDependent = (insn: Insn): boolean => ADDRESS_FLOWS.has(specOf(insn.specId).flow);
 
   const add = (word: number, extreme?: Extreme): CorpusCase => {
     const addr = CORPUS_BASE + offset;
-    const insn = isa.decode(mode, word, addr);
-    const reason = isa.rawReason(insn, resolver);
-    const printed = reason === null ? isa.format(insn, resolver) : undefined;
-    const text = printed ?? isa.formatRaw(insn);
-    const parsed = printed === undefined ? undefined : isa.parse(printed, mode, addr, resolver);
-    const assembled = parsed === undefined ? undefined : isa.assemble(parsed, addr)?.word;
+    const insn = decode(mode, word, addr);
+    const printed = printing(insn, resolver);
+    const text = printed.kind === 'mnemonic' ? printed.text : formatRaw(insn);
     const context: CaseContext | undefined = addressDependent(insn)
       ? { alignment: alignmentOf(addr), ...(extreme === undefined ? {} : { extreme }) }
       : undefined;
@@ -86,10 +90,9 @@ export function fileBuilder(isa: CorpusIsa, mode: Mode, section: CorpusSection, 
       size: insn.size,
       specId: insn.specId,
       text,
-      kind: printed === undefined ? 'raw' : 'mnemonic',
+      kind: printed.kind,
       section,
-      ...(reason === null ? {} : { reason }),
-      ...(assembled === undefined ? {} : { assembled }),
+      ...(printed.kind === 'raw' ? { reason: printed.reason } : { assembled: printed.assembled.word }),
       ...(context === undefined ? {} : { context }),
     };
     lines.push(`\t${text}`);
@@ -118,7 +121,6 @@ export function fileBuilder(isa: CorpusIsa, mode: Mode, section: CorpusSection, 
  * printed with its label moved `delta` bytes, one step past the end of its range.
  */
 export function probeFile(
-  isa: CorpusIsa,
   mode: Mode,
   section: CorpusSection,
   name: string,
@@ -129,11 +131,11 @@ export function probeFile(
 ): CorpusFile | undefined {
   const addr = CORPUS_BASE + offset;
   const labels = new Set<number>();
-  const insn = isa.decode(mode, word, addr);
-  const text = isa.format(insn, recordingResolver(labels, delta));
+  const insn = decode(mode, word, addr);
+  const text = format(insn, recordingResolver(labels, delta));
   if (text === undefined) return undefined;
-  const parsed = isa.parse(text, mode, addr, recordingResolver(new Set<number>()));
-  const assembled = parsed === undefined ? undefined : isa.assemble(parsed, addr)?.word;
+  const parsed = parse(text, mode, addr, recordingResolver(new Set<number>()));
+  const assembled = parsed === undefined ? undefined : assemble(parsed, addr)?.word;
   const probe: CorpusProbe = {
     offset,
     section,
@@ -141,6 +143,6 @@ export function probeFile(
     context: { alignment: alignmentOf(addr), extreme },
     ...(assembled === undefined ? {} : { assembled }),
   };
-  const lines = [...header(isa, mode), ...(offset > 0 ? [`\t.space ${offset}`] : []), `\t${text}`, ...labelLines(labels)];
+  const lines = [...header(mode), ...(offset > 0 ? [`\t.space ${offset}`] : []), `\t${text}`, ...labelLines(labels)];
   return { name, mode, text: `${lines.join('\n')}\n`, size: offset + insn.size, expect: 'error', cases: [], probe };
 }

@@ -1,15 +1,12 @@
 // The remaining ARM (ARMv4T) rows: the never condition, branches, swi, multiplies, bx, the status
 // register moves, and the coprocessor and undefined spaces (the GBA has no coprocessor, so every
 // coprocessor instruction traps as undefined).
-import { branchOffset, branchTarget } from './pc-relative.ts';
+import { fieldValue as v } from './bits.ts';
+import { branchOffset, branchTarget, pcOf } from './pc-relative.ts';
 import { cond, flag, imm, pcRel, reg, rotImm, row } from './row.ts';
 import type { Row } from './row.ts';
 import { constField, constOperands } from './arm-immediate.ts';
 import type { Fields } from './types.ts';
-
-function v(f: Fields, key: string): number {
-  return f[key] ?? 0;
-}
 
 /** Condition 0b1111 is UNPREDICTABLE on the ARMv4T (ARMv5 reuses it for unconditional forms). */
 export const ARM_NV: Row = row('arm.nv', 'arm', { mask: 0xf000_0000, match: 0xf000_0000, syntax: 'condition nv', rawOnly: 'unpredictable' });
@@ -21,9 +18,9 @@ function branchRow(link: boolean): Row {
     fields: [cond(), pcRel('off', 0, 24, 4)],
     syntax: `${link ? 'bl' : 'b'}{c} {target}`,
     flow: link ? 'bl' : 'branch',
-    toOps: (f, a) => ({ cond: v(f, 'cond'), target: branchTarget(a + 8, v(f, 'off'), 24, 4) }),
+    toOps: (f, a) => ({ cond: v(f, 'cond'), target: branchTarget(pcOf(a, 'arm'), v(f, 'off'), 24, 4) }),
     fromOps: (o, a) => {
-      const off = branchOffset(a + 8, v(o, 'target'), 24, 4);
+      const off = branchOffset(pcOf(a, 'arm'), v(o, 'target'), 24, 4);
       return off === undefined ? undefined : { cond: v(o, 'cond'), off };
     },
   });

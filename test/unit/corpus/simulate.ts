@@ -1,6 +1,6 @@
 // What a perfect `as` would make of a corpus file: each case's original bytes at its offset (fillers
 // zero), and a rejection for a probe file. Used to test the comparator without a toolchain.
-import type { CorpusAssembly, CorpusFile } from '../../../src/foundation/isa/corpus.ts';
+import type { CorpusAssembly, CorpusFile } from '../../../src/foundation/corpus/corpus.ts';
 
 export function perfectAs(file: CorpusFile): CorpusAssembly {
   if (file.expect === 'error') return { ok: false, stderr: 'source.s: Assembler messages:\nsource.s:7: Error: branch out of range\n' };

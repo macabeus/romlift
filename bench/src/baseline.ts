@@ -16,20 +16,12 @@ export interface Baseline {
   readonly roms: readonly JsonRecord[];
 }
 
-/** A row without its volatile `seconds`, top-level and in `scaffold`. */
-export function stripSeconds(row: unknown): unknown {
-  if (!isRecord(row)) return row;
+/** A value without its volatile `seconds`, at every depth (the row, its scaffold, its signatures). */
+export function stripSeconds(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripSeconds);
+  if (!isRecord(value)) return value;
   const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row)) {
-    if (key === 'seconds') continue;
-    if (key === 'scaffold' && isRecord(value)) {
-      const scaffold: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(value)) if (k !== 'seconds') scaffold[k] = v;
-      out[key] = scaffold;
-    } else {
-      out[key] = value;
-    }
-  }
+  for (const [key, field] of Object.entries(value)) if (key !== 'seconds') out[key] = stripSeconds(field);
   return out;
 }
 

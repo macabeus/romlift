@@ -1,7 +1,7 @@
 // g2.held-out (architecture §8.4 "Held-out runs", §13, D25, D53): sealed. Each sealed dataset (held out,
 // never revealed) passes when raw precision >= 99.7%, raw recall >= 99.46%, no miss is `glued`, at most 11
 // misses are label candidates, >= 99.9% of sized extents agree, and the code end is within 16 bytes. At
-// least two sealed ROMs must pass, from at least two engine families, one of them a family absent from the
+// least two sealed ROMs must pass, from at least two codebase families, one of them a family absent from the
 // tuning set. Only counts and verdicts are read and printed: never an address or a name, and never the
 // bench's raw output.
 //
@@ -99,7 +99,7 @@ gate({
     const fresh = families.filter((f) => !tuningFamilies.has(f));
     const problems: string[] = [];
     if (passing.length < 2) problems.push(`${passing.length} of ${cx.sealed.length} sealed ROMs pass, at least two must`);
-    if (families.length < 2) problems.push(`the passing ROMs span ${families.length} engine families, at least two must`);
+    if (families.length < 2) problems.push(`the passing ROMs span ${families.length} codebase families, at least two must`);
     if (fresh.length === 0) problems.push('no passing ROM is from a family absent from the tuning set');
     if (problems.length > 0) throw new Error(`held-out: ${problems.join('; ')}`);
     cx.note(`${passing.length} sealed ROMs pass, families ${families.join(', ')} (absent from tuning: ${fresh.join(', ')})`);

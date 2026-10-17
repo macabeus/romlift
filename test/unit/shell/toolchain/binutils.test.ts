@@ -8,6 +8,7 @@ import { test } from 'node:test';
 
 import { DIALECT } from '../../../../src/foundation/asm/dialect.ts';
 import { assembleWithBinutils, binutilsVersions, findBinutils, findExecutable, linkWithBinutils } from '../../../../src/shell/toolchain/binutils.ts';
+import { stubBinutils } from './stub.ts';
 
 const tools = findBinutils(process.env);
 const available = !('code' in tools);
@@ -131,4 +132,25 @@ test('linkWithBinutils links two objects with the script and returns the linked 
   assert.deepEqual(unresolved.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_FAILED']);
   const escape = await linkWithBinutils([{ name: '../a', text: '' }], { script, tools });
   assert.ok(!escape.ok && /refusing the link source name/.test(escape.diagnostics[0]?.message ?? ''));
+});
+
+test('a tool that exits 0 without writing its output is E_TOOLCHAIN_FAILED, not a thrown read', async () => {
+  await stubBinutils({}, async (dir) => {
+    const stub = findBinutils({ PATH: dir });
+    assert.ok(!('code' in stub));
+    const assembled = await assembleWithBinutils('.thumb\n', { tools: stub });
+    assert.ok(!assembled.ok);
+    assert.deepEqual(assembled.diagnostics.map((d) => d.code), ['E_TOOLCHAIN_FAILED']);
+    assert.match(assembled.diagnostics[0]?.message ?? '', /wrote no source\.o/);
+    const linked = await linkWithBinutils([{ name: 'a', text: '.thumb\n' }], { script: 'SECTIONS {}\n', tools: stub });
+    assert.ok(!linked.ok);
+    assert.match(linked.diagnostics[0]?.message ?? '', /wrote no linked\.elf/);
+  });
+  await stubBinutils({ as: ': > source.o' }, async (dir) => {
+    const stub = findBinutils({ PATH: dir });
+    assert.ok(!('code' in stub));
+    const assembled = await assembleWithBinutils('.thumb\n', { tools: stub });
+    assert.ok(!assembled.ok);
+    assert.match(assembled.diagnostics[0]?.message ?? '', /objcopy exited 0 but wrote no text\.bin/);
+  });
 });

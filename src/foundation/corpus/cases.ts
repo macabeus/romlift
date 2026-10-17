@@ -3,13 +3,16 @@
 // forms (the ends of each range, and one step past them in files `as` must reject), every bl prefix
 // with boundary suffixes plus a seeded bl sample, every ARM row swept field by field with all 16
 // conditions, and a seeded ARM sample.
+import { decode } from '../isa/decode.ts';
+import { CONDITIONS } from '../isa/operand-text.ts';
+import { specsOf } from '../isa/rows.ts';
+import type { Field, InsnSpec } from '../isa/types.ts';
 import type { Mode } from '../rom/span.ts';
 import { prngSequence, xorshift32 } from '../util/prng.ts';
-import { fileBuilder, probeFile } from './corpus-layout.ts';
-import type { FileBuilder } from './corpus-layout.ts';
-import { CASES_PER_FILE } from './corpus-types.ts';
-import type { ArmCoverage, CorpusFile, CorpusIsa, CorpusOptions, CorpusSection, Extreme } from './corpus-types.ts';
-import type { Field, InsnSpec } from './types.ts';
+import { fileBuilder, probeFile } from './layout.ts';
+import type { FileBuilder } from './layout.ts';
+import { CASES_PER_FILE } from './types.ts';
+import type { ArmCoverage, CorpusFile, CorpusOptions, CorpusSection, Extreme } from './types.ts';
 
 /** A seed for one part of the corpus, derived from the corpus seed (xorshift32 needs it nonzero). */
 function seedFor(seed: number, salt: number): number {
@@ -22,7 +25,6 @@ function name(prefix: string, index: number): string {
 
 /** Files of at most CASES_PER_FILE cases, each case added by `add` from one item. */
 function* chunked<T>(
-  isa: CorpusIsa,
   mode: Mode,
   section: CorpusSection,
   prefix: string,
@@ -30,13 +32,13 @@ function* chunked<T>(
   add: (builder: FileBuilder, item: T) => void,
 ): Generator<CorpusFile> {
   let index = 0;
-  let builder = fileBuilder(isa, mode, section, name(prefix, index));
+  let builder = fileBuilder(mode, section, name(prefix, index));
   for (const item of items) {
     add(builder, item);
     if (builder.count() >= CASES_PER_FILE) {
       yield builder.build();
       index++;
-      builder = fileBuilder(isa, mode, section, name(prefix, index));
+      builder = fileBuilder(mode, section, name(prefix, index));
     }
   }
   if (builder.count() > 0) yield builder.build();
@@ -60,7 +62,8 @@ interface ExtremeForm {
   readonly step: number;
 }
 
-const THUMB_CONDITIONS: readonly string[] = ['eq', 'ne', 'cs', 'cc', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le'];
+/** The conditions a Thumb bcc can carry: every suffix but al (14) and nv (15). */
+const THUMB_CONDITIONS: readonly string[] = CONDITIONS.slice(0, 14);
 
 export const EXTREME_FORMS: readonly ExtremeForm[] = [
   { name: 'b', mode: 'thumb', section: 'thumb', min: 0xe400, max: 0xe3ff, step: 2 },
@@ -79,10 +82,10 @@ function offsetsFor(mode: Mode): readonly number[] {
   return mode === 'thumb' ? [0, 2] : [0];
 }
 
-function* extremeFiles(isa: CorpusIsa, section: CorpusSection): Generator<CorpusFile> {
+function* extremeFiles(section: CorpusSection): Generator<CorpusFile> {
   const forms = EXTREME_FORMS.filter((f) => f.section === section);
   const mode = forms[0]?.mode ?? 'thumb';
-  const builder = fileBuilder(isa, mode, section, `${section}-extremes.s`);
+  const builder = fileBuilder(mode, section, `${section}-extremes.s`);
   for (const form of forms) {
     for (const [word, extreme] of [
       [form.min, 'min'],
@@ -107,7 +110,7 @@ function* extremeFiles(isa: CorpusIsa, section: CorpusSection): Generator<Corpus
       ];
       for (const [word, delta, extreme] of probes) {
         const tag = `${form.mode}-${form.name}-${extreme === 'min-1' ? 'below' : 'above'}-${offset === 0 ? 'a0' : 'a2'}`;
-        const file = probeFile(isa, form.mode, form.section, `probe-${tag}.s`, word, offset, delta, extreme);
+        const file = probeFile(form.mode, form.section, `probe-${tag}.s`, word, offset, delta, extreme);
         if (file !== undefined) yield file;
       }
     }
@@ -139,18 +142,18 @@ function withField(word: number, field: Field, value: number): number {
 const SWEEP_BASES = 4;
 const BASE_ATTEMPTS = 32;
 
-function* armSweepWords(isa: CorpusIsa, seed: number): Generator<number> {
+function* armSweepWords(seed: number): Generator<number> {
   let state = seedFor(seed, 0x5eed_a000);
   const random = (): number => {
     state = xorshift32(state);
     return state;
   };
-  for (const spec of isa.specs('arm')) {
+  for (const spec of specsOf('arm')) {
     for (let b = 0; b < SWEEP_BASES; b++) {
       let base = spec.match;
       for (let attempt = 0; attempt < BASE_ATTEMPTS; attempt++) {
         const word = ((random() & ~spec.mask) | spec.match) >>> 0;
-        if (isa.decode('arm', word, 0).specId === spec.id) {
+        if (decode('arm', word, 0).specId === spec.id) {
           base = word;
           break;
         }
@@ -162,9 +165,9 @@ function* armSweepWords(isa: CorpusIsa, seed: number): Generator<number> {
 }
 
 /** Per ARM row: the fields the sweep covers exhaustively and those it only samples. */
-export function armCoverage(isa: CorpusIsa): ArmCoverage {
+export function armCoverage(): ArmCoverage {
   const out: Record<string, { exhaustive: string[]; sampled: string[] }> = {};
-  for (const spec of isa.specs('arm')) out[spec.id] = coverageOf(spec);
+  for (const spec of specsOf('arm')) out[spec.id] = coverageOf(spec);
   return out;
 }
 
@@ -192,16 +195,16 @@ function* blWords(options: CorpusOptions): Generator<number> {
 // ---------------------------------------------------------------------------------------------------
 
 /** Every corpus file, in a fixed order: Thumb, bl, ARM; within each the cases, extremes and probes. */
-export function* corpusFiles(isa: CorpusIsa, options: CorpusOptions): Generator<CorpusFile> {
-  yield* chunked(isa, 'thumb', 'thumb', 'thumb', range(0x10000), (b, hw) => b.addBoth(hw));
-  yield* extremeFiles(isa, 'thumb');
+export function* corpusFiles(options: CorpusOptions): Generator<CorpusFile> {
+  yield* chunked('thumb', 'thumb', 'thumb', range(0x10000), (b, hw) => b.addBoth(hw));
+  yield* extremeFiles('thumb');
   // Each bl is followed by a 2-byte pad, so consecutive pairs alternate between the two alignments.
-  yield* chunked(isa, 'thumb', 'bl', 'bl', blWords(options), (b, word) => {
+  yield* chunked('thumb', 'bl', 'bl', blWords(options), (b, word) => {
     b.add(word);
     b.pad(2);
   });
-  yield* extremeFiles(isa, 'bl');
-  yield* chunked(isa, 'arm', 'arm', 'arm-sweep', armSweepWords(isa, options.seed), (b, word) => b.add(word));
-  yield* extremeFiles(isa, 'arm');
-  yield* chunked(isa, 'arm', 'arm', 'arm-sample', prngSequence(seedFor(options.seed, 0xa5a5_0000), options.armSample), (b, word) => b.add(word));
+  yield* extremeFiles('bl');
+  yield* chunked('arm', 'arm', 'arm-sweep', armSweepWords(options.seed), (b, word) => b.add(word));
+  yield* extremeFiles('arm');
+  yield* chunked('arm', 'arm', 'arm-sample', prngSequence(seedFor(options.seed, 0xa5a5_0000), options.armSample), (b, word) => b.add(word));
 }

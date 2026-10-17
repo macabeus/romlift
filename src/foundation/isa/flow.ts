@@ -2,18 +2,18 @@
 //   bx       bx lr returns; Thumb bx pc switches to ARM at Align(addr + 4, 4) (instruction fetch is
 //            word-aligned); any other register is an indirect jump.
 //   pop-pc   pc loaded from memory: a return when the base is sp (pop, ldmia sp!, ldr pc, [sp], #4),
-//            otherwise an indirect jump through the base register.
+//            otherwise an indirect jump via 'load-pc' through the base register (15: a pc-relative
+//            table read such as `ldr pc, [pc, r0, lsl #2]`).
+//   pc-load  a literal-pool load; with rd 15 (`ldr pc, [pc, #imm]`) it transfers control to the
+//            loaded word, so a walker reads rd before treating it as a fall-through.
 //   mov-pc   a data-processing write to pc: `mov pc, lr` (no shift, no other operand) returns;
 //            anything else is an indirect jump through rm (or rn for an immediate operand).
 //   add-pc   `add pc, ...`: an indirect jump (jump tables).
 //   branch   unconditional in Thumb; conditional in ARM when the condition is not al.
 import type { Addr, Mode } from '../rom/span.ts';
-import { align4 } from './bits.ts';
+import { align4, fieldValue as op } from './bits.ts';
+import { pcOf } from './pc-relative.ts';
 import type { Fields, Flow, FlowKind } from './types.ts';
-
-function op(ops: Fields, key: string): number {
-  return ops[key] ?? 0;
-}
 
 function indirectReg(ops: Fields): number {
   return ops['rm'] ?? ops['rn'] ?? 15;
@@ -33,12 +33,12 @@ export function flowOf(kind: FlowKind, mode: Mode, ops: Fields, addr: Addr): Flo
     case 'bx': {
       const rm = op(ops, 'rm');
       if (rm === 14) return { kind: 'return', via: 'bx-lr' };
-      if (rm === 15 && mode === 'thumb') return { kind: 'mode-switch', target: align4(addr + 4) };
+      if (rm === 15 && mode === 'thumb') return { kind: 'mode-switch', target: align4(pcOf(addr, 'thumb')) };
       return { kind: 'indirect', reg: rm, via: 'bx' };
     }
     case 'pop-pc': {
       const rn = ops['rn'];
-      return rn === undefined || rn === 13 ? { kind: 'return', via: 'pop-pc' } : { kind: 'indirect', reg: rn, via: 'mov-pc' };
+      return rn === undefined || rn === 13 ? { kind: 'return', via: 'pop-pc' } : { kind: 'indirect', reg: rn, via: 'load-pc' };
     }
     case 'mov-pc': {
       const plain = ops['rn'] === undefined && ops['rs'] === undefined && op(ops, 'shift') === 0 && op(ops, 'amount') === 0;

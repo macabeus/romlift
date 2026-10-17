@@ -3,7 +3,8 @@ import { test } from 'node:test';
 
 import { parseArgs } from '../../../src/cli/args.ts';
 import type { ParseOutcome } from '../../../src/cli/args.ts';
-import type { ParsedArgs } from '../../../src/cli/registry.ts';
+import { ExitCode } from '../../../src/cli/exit-codes.ts';
+import type { CommandSpec, ParsedArgs } from '../../../src/cli/registry.ts';
 import { FAKE_COMMANDS } from './fake.ts';
 
 function parsed(argv: readonly string[]): ParsedArgs {
@@ -97,4 +98,17 @@ test('parsing does not mutate argv', () => {
   const argv = Object.freeze(['analyze', '--disable', 'x', 'a']);
   parsed(argv);
   assert.deepEqual(argv, ['analyze', '--disable', 'x', 'a']);
+});
+
+test('positionals are checked against the declared ones: an extra or a missing one is a usage error', () => {
+  assert.equal(message(['zeta', 'extra']), "unexpected argument 'extra' for command 'zeta'");
+  assert.equal(message(['analyze', 'a', 'b', 'c', 'd', 'e']), "unexpected argument 'e' for command 'analyze'");
+  const needsRom: CommandSpec = { name: 'needs', summary: 'Needs a ROM', usage: 'needs <rom> [<dir>]', positionals: [{ name: '<rom>' }, { name: '<dir>', optional: true }], options: [], run: async () => ExitCode.ok };
+  const outcome = parseArgs(['needs'], [needsRom]);
+  assert.ok(!outcome.ok);
+  assert.equal(outcome.message, "command 'needs' needs <rom>");
+  assert.ok(parseArgs(['needs', 'a.gba'], [needsRom]).ok);
+  assert.ok(parseArgs(['needs', 'a.gba', 'out'], [needsRom]).ok);
+  assert.ok(!parseArgs(['needs', 'a.gba', 'out', 'x'], [needsRom]).ok);
+  assert.ok(parseArgs(['needs', '--help'], [needsRom]).ok, '--help needs no positionals');
 });

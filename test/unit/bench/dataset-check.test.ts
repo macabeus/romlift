@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { checkDatasetAgainstRun } from '../../../bench/src/dataset-check.ts';
+import { checkDatasetAgainstRun, checkTuningSet } from '../../../bench/src/dataset-check.ts';
 import { scoreRun } from '../../../bench/src/score.ts';
 import { elfTruth } from '../../../bench/src/truth.ts';
 import { dataset, dump, elfFile, fn } from './fixtures.ts';
@@ -55,4 +55,13 @@ test('an untyped row that is a FUNC symbol is reported', () => {
 
 test('an untyped row the run no longer reports is stale', () => {
   assert.deepEqual(problems([], ['0x08000208']), ['untyped 0x08000208 stale-exception']);
+});
+
+test('the tuning set is pinned to the baseline names: a missing or an extra unsealed dataset is a problem', () => {
+  const names = ['fe7j', 'klonoa', 'sa2'];
+  assert.deepEqual(checkTuningSet(names.map((name) => ({ name })), names), []);
+  const flipped = checkTuningSet([{ name: 'fe7j' }, { name: 'sa2' }], names);
+  assert.deepEqual(flipped.map((p) => [p.dataset, p.problem]), [['klonoa', 'tuning-set']]);
+  const extra = checkTuningSet([...names, 'tmc'].map((name) => ({ name })), names);
+  assert.deepEqual(extra.map((p) => [p.dataset, p.problem]), [['tmc', 'tuning-set']]);
 });

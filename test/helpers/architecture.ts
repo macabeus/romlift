@@ -45,7 +45,7 @@ export interface ArchitectureOptions {
 }
 
 /** The directories whose files are checked, relative to the repository root. */
-export const SCANNED_DIRS: readonly string[] = ['src', 'bench/src', 'bench/tools', 'test/gates', 'test/local'];
+export const SCANNED_DIRS: readonly string[] = ['src', 'bench/src', 'bench/tools', 'test/gates', 'test/local', 'test/corpus'];
 
 // ---------------------------------------------------------------------------------------------------
 // Patterns. A target is a repository-relative path (`src/core/model/x.ts`), `npm:<specifier>` for a
@@ -160,6 +160,8 @@ export const EDGE_TABLE: readonly EdgeRow[] = [
   { from: 'bench/tools/**', allow: [...ENTRY_POINTS, 'node:**', 'bench/tools/**', 'bench/src/**'] },
   { from: 'test/gates/**', allow: [...ENTRY_POINTS, 'node:**', 'test/gates/**'] },
   { from: 'test/local/**', allow: [...ENTRY_POINTS, 'node:**', 'test/local/**'] },
+  // The corpus driver: romlift through its entry points, and the bench's argument parser (D55).
+  { from: 'test/corpus/**', allow: [...ENTRY_POINTS, 'node:**', 'test/corpus/**', 'bench/src/args.ts'] },
 ];
 
 export const TARGET_GUARDS: readonly TargetGuard[] = [

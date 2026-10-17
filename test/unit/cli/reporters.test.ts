@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Diagnostic } from '../../../src/api/rom.ts';
-import { ExitCode, isExitCode, summarizeDiagnostics } from '../../../src/cli/exit-codes.ts';
+import { ExitCode, isExitCode } from '../../../src/cli/exit-codes.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../../../src/cli/reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../../../src/cli/reporters/text.ts';
 
@@ -96,12 +96,6 @@ test('summaryLine and recordLine', () => {
     version: '2.43',
   });
   assert.throws(() => recordLine('check', { type: 'other' }), { name: 'RomliftInvariantError' });
-});
-
-test('summarizeDiagnostics counts by severity and maps errors to exit 1', () => {
-  assert.deepEqual(summarizeDiagnostics([]), { ok: true, exitCode: 0, counts: { error: 0, warning: 0, info: 0 } });
-  assert.deepEqual(summarizeDiagnostics([bare, bare]), { ok: true, exitCode: 0, counts: { error: 0, warning: 2, info: 0 } });
-  assert.deepEqual(summarizeDiagnostics([bare, full]), { ok: false, exitCode: 1, counts: { error: 1, warning: 1, info: 0 } });
 });
 
 test('isExitCode accepts exactly the five codes', () => {

@@ -38,16 +38,19 @@ test('a PoC row that differs, a failed scaffold, two digests and another PoC sou
   assert.equal(checkPocRom('tiny', ROW, { ...DUMP, pocRow: { ...DUMP.pocRow, elfCommit: 'zzz' } }, BASELINE, PINNED).pocRowEqual, false);
   assert.equal(checkPocRom('tiny', ROW, { ...DUMP, scaffold: { ok: false, summary: '' } }, BASELINE, PINNED).scaffoldOk, false);
   assert.equal(checkPocRom('tiny', ROW, { ...DUMP, digests: ['a', 'b'] }, BASELINE, PINNED).deterministic, false);
+  // Two equal digests are not enough: they must be the digest of the analysis the dump stores.
+  const edited = { ...DUMP.analysis, codeRange: ['0x08000000', '0x08000004'] as const };
+  assert.equal(checkPocRom('tiny', ROW, { ...DUMP, analysis: edited }, BASELINE, PINNED).deterministic, false);
   assert.equal(checkPocRom('tiny', ROW, DUMP, BASELINE, 'q'.repeat(64)).pocSourceDigestOk, false);
   const none = checkPocRom('tiny', ROW, DUMP, undefined, PINNED);
   assert.deepEqual(none.diffs, ['no baseline row for tiny']);
   assert.ok(!romPasses(none));
 });
 
-test('stripSeconds drops the row and scaffold seconds and keeps the signatures', () => {
-  assert.deepEqual(stripSeconds({ seconds: 1, scaffold: { ok: true, seconds: 2, summary: 's' }, signatures: { seconds: 3 } }), {
+test('stripSeconds drops every seconds key at any depth, so two dumps of one run are byte-equal', () => {
+  assert.deepEqual(stripSeconds({ seconds: 1, scaffold: { ok: true, seconds: 2, summary: 's' }, signatures: { seconds: 3, versions: [{ seconds: 4, library: 'm4a' }] } }), {
     scaffold: { ok: true, summary: 's' },
-    signatures: { seconds: 3 },
+    signatures: { versions: [{ library: 'm4a' }] },
   });
 });
 

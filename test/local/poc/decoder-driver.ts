@@ -4,9 +4,10 @@
 //   $ROMLIFT_POC/node_modules/.bin/tsx test/local/poc/decoder-driver.ts <poc root>  < request.json
 //
 // The request is { thumb: number[], bl: [number, number][], arm: number[] }. Each Thumb halfword is
-// decoded at 0x08000000 + 4i with a zero halfword after it (so it never pairs), each bl pair at
-// 0x08000000 + 4i, each ARM word at 0x08000000 + 4i. The reply is the same three lists of
-// [kind, arg]. The PoC is read-only: this file only imports it.
+// decoded twice, at 0x08000000 + 4i and at 0x08000000 + 4i + 2 (so PC-relative targets are compared
+// at both alignments), each time with a zero halfword after it (so it never pairs); each bl pair at
+// 0x08000000 + 4i, each ARM word at 0x08000000 + 4i. The reply is the four lists thumb, thumbOdd, bl
+// and arm of [kind, arg]. The PoC is read-only: this file only imports it.
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -70,17 +71,19 @@ const decodeThumb = decoder(await load(root, 'src/thumb.ts'), 'decodeThumb');
 const decodeArm = decoder(await load(root, 'src/arm.ts'), 'decodeArm');
 
 const request = JSON.parse(await readStdin()) as Request;
-const run = (bytes: Uint8Array, count: number, decode: Decoder): [string, number][] => {
+const run = (bytes: Uint8Array, count: number, decode: Decoder, offset = 0): [string, number][] => {
   const target = new RomClass(bytes);
   const out: [string, number][] = [];
   for (let i = 0; i < count; i++) {
-    const d = decode(target, BASE + 4 * i);
+    const d = decode(target, BASE + 4 * i + offset);
     out.push([d.kind, d.arg]);
   }
   return out;
 };
 const reply = {
   thumb: run(image(request.thumb.map((hw) => [hw, 0] as const), true), request.thumb.length, decodeThumb),
+  // [0, hw]: the halfword at 4i + 2, followed by the next slot's zero halfword.
+  thumbOdd: run(image(request.thumb.map((hw) => [0, hw] as const), true), request.thumb.length, decodeThumb, 2),
   bl: run(image(request.bl, true), request.bl.length, decodeThumb),
   arm: run(image(request.arm.map((w) => [w, 0] as const), false), request.arm.length, decodeArm),
 };

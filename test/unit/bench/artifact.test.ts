@@ -21,7 +21,17 @@ test('resultsText sorts rows by name and gate records by id, and round-trips', (
 
 test('parseResults rejects an artifact without its provenance', () => {
   assert.throws(() => parseResults({ meta: { ...meta(), sourceDigest: 1 }, roms: [] }, 'x'), /sourceDigest/);
-  assert.throws(() => parseResults({ meta: meta(), roms: [{ name: 'a' }] }, 'x'), /tp must be a number/);
+  assert.throws(() => parseResults({ meta: meta(), roms: [{ name: 'a' }] }, 'x'), /row a\.startup: must be an object/);
+  // Every BenchRow field is checked, not only a few: a row parses back to itself, and each break names its field.
+  const good = row();
+  assert.deepEqual(parseResults({ meta: meta(), roms: [good] }, 'x').roms, [good]);
+  assert.throws(() => parseResults({ meta: meta(), roms: [{ ...good, precision: 'high' }] }, 'x'), /row tiny\.precision: must be a number/);
+  assert.throws(() => parseResults({ meta: meta(), roms: [{ ...good, startup: { end: 1 } }] }, 'x'), /row tiny\.startup\.end: must be a string/);
+  assert.throws(() => parseResults({ meta: meta(), roms: [{ ...good, scaffold: {} }] }, 'x'), /row tiny\.scaffold\.ok: must be a boolean/);
+  const miss = { addr: '0x08000400', name: 'x', size: 4, reason: 'inside code', listed: false };
+  assert.throws(() => parseResults({ meta: meta(), roms: [{ ...good, misses: [miss] }] }, 'x'), /'inside code' is not a miss reason/);
+  assert.throws(() => parseResults({ meta: { ...meta(), inputs: { tiny: { sha1: 'a' } } }, roms: [] }, 'x'), /meta\.inputs\.tiny\.elfSha256: must be a string/);
+  assert.throws(() => parseResults({ meta: meta(), printer: { schema: 'romlift/corpus-summary@1' }, roms: [] }, 'x'), /printer: sections is not an object/);
   assert.throws(() => parseResultsText('{', 'x'), /not JSON/);
   assert.deepEqual(parseResults({ meta: meta(), roms: [] }, 'x').gates.real, []);
 });

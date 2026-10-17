@@ -1,7 +1,8 @@
 // `bench poc-check [--json]` (g1.bench-harness, architecture §13): per tuning ROM, rescoring the PoC's
 // scored.json with score.ts reproduces bench/baseline/poc-2026-10-16.json field for field, the PoC's
 // own fresh row equals the baseline too, its scaffold rebuilt the ROM, its two analyses have one
-// digest, and the dump was made from the pinned PoC source.
+// digest and that digest is the one of the analysis the dump stores, and the dump was made from the
+// pinned PoC source.
 import { readBaseline, jsonDiffs, withoutPaths, type JsonRecord } from './baseline.ts';
 import type { BenchContext } from './context.ts';
 import { loadDatasets, tuningDatasets } from './dataset.ts';
@@ -9,7 +10,7 @@ import { BenchError } from './files.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 import { readDatasetInputs, rowOf } from './rescore.ts';
 import type { BenchRow } from './row.ts';
-import type { ScoredRun } from './scored-run.ts';
+import { analysisDigest, type ScoredRun } from './scored-run.ts';
 
 /** Row fields the rescored row is not compared on: volatile, judged later, or not produced by score.ts. */
 export const ROW_EXCLUDED: readonly string[] = ['seconds', 'signatures', 'scaffold.summary', 'datasetProblems'];
@@ -36,11 +37,18 @@ export function romPasses(r: PocCheckRom): boolean {
 }
 
 /** The verdict of one ROM from its rescored row, its dump and its baseline row. */
+/** Two runs with one digest, and that digest is the stored analysis's own. */
+export function dumpDeterministic(dump: ScoredRun): boolean {
+  return dump.digests[0] === dump.digests[1] && analysisDigest(dump.analysis) === dump.digests[0];
+}
+
 export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseline: JsonRecord | undefined, pinnedDigest: string): PocCheckRom {
+  const deterministic = dumpDeterministic(dump);
   if (baseline === undefined) {
-    return { name, rowsEqual: false, pocRowEqual: false, diffs: [`no baseline row for ${name}`], scaffoldOk: dump.scaffold.ok, deterministic: dump.digests[0] === dump.digests[1], pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest };
+    return { name, rowsEqual: false, pocRowEqual: false, diffs: [`no baseline row for ${name}`], scaffoldOk: dump.scaffold.ok, deterministic, pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest };
   }
-  const rowDiffs = jsonDiffs(withoutPaths(baseline, ROW_EXCLUDED), withoutPaths(row as unknown as JsonRecord, ROW_EXCLUDED), '');
+  const rowRecord: JsonRecord = { ...row };
+  const rowDiffs = jsonDiffs(withoutPaths(baseline, ROW_EXCLUDED), withoutPaths(rowRecord, ROW_EXCLUDED), '');
   const pocDiffs = jsonDiffs(withoutPaths(baseline, POC_ROW_EXCLUDED), withoutPaths(dump.pocRow, POC_ROW_EXCLUDED), '');
   return {
     name,
@@ -48,7 +56,7 @@ export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseli
     pocRowEqual: pocDiffs.length === 0,
     diffs: [...rowDiffs.map((d) => `row ${d}`), ...pocDiffs.map((d) => `pocRow ${d}`)],
     scaffoldOk: dump.scaffold.ok,
-    deterministic: dump.digests[0] === dump.digests[1],
+    deterministic,
     pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest,
   };
 }

@@ -19,6 +19,7 @@ export const SOURCE_DIRS: readonly string[] = [
   'bench/dataset',
   'bench/baseline',
   'test/gates',
+  'test/corpus',
 ];
 export const SOURCE_FILES: readonly string[] = ['package.json', 'package-lock.json'];
 const TSCONFIG = /^tsconfig[^/]*\.json$/;

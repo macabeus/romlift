@@ -1,21 +1,12 @@
-// The data of the round-trip corpus: options, cases, files and the frozen summary contract
-// (`romlift/corpus-summary@1`). corpus.ts is the entry point; this file holds what every corpus
-// module shares.
+// The data of the round-trip corpus: options, cases, files, the counts a run produces and the frozen
+// summary contract (`romlift/corpus-summary@1`). corpus.ts is the entry point; this file holds what
+// every corpus module shares. The corpus holds counts only: whether they meet the phase-1 threshold
+// is decided by core/workflow/doctor.ts (corpusOk).
 import type { Mode } from '../rom/span.ts';
-import type { Assembled, Insn, InsnSpec, ParsedInsn, RawReason, SpecId, SymbolResolver } from './types.ts';
+import type { RawReason, SpecId } from '../isa/types.ts';
 
-/** The isa functions the corpus exercises; injected so a test can break one and watch the corpus fail. */
-export interface CorpusIsa {
-  readonly decode: (mode: Mode, word: number, addr: number) => Insn;
-  readonly format: (insn: Insn, resolver: SymbolResolver) => string | undefined;
-  readonly formatRaw: (insn: Insn) => string;
-  readonly parse: (text: string, mode: Mode, addr: number, resolver: SymbolResolver) => ParsedInsn | undefined;
-  readonly assemble: (parsed: ParsedInsn, addr: number) => Assembled | undefined;
-  readonly rawReason: (insn: Insn, resolver: SymbolResolver) => RawReason | null;
-  readonly specOf: (id: SpecId) => InsnSpec;
-  readonly specs: (mode: Mode) => readonly InsnSpec[];
-  readonly preamble: (mode: Mode) => string;
-}
+/** The schema id of the persisted summary. */
+export const CORPUS_SUMMARY_SCHEMA = 'romlift/corpus-summary@1';
 
 export interface CorpusOptions {
   /** Seeds the bl sample, the ARM sweep bases and the ARM sample (xorshift32, foundation/util/prng.ts). */
@@ -102,12 +93,8 @@ export interface CorpusSectionSummary {
   readonly examples: readonly CorpusExample[];
 }
 
-/** The frozen summary contract `romlift/corpus-summary@1`, consumed by the gate files and the bench. */
-export interface CorpusSummary {
-  readonly schema: 'romlift/corpus-summary@1';
-  readonly inputsDigest: string;
-  readonly as: string;
-  readonly options: CorpusOptions;
+/** What comparing every file of a corpus run with `as` counted: per section, the encoder and the context. */
+export interface CorpusCounts {
   readonly sections: {
     readonly thumb: CorpusSectionSummary;
     readonly bl: CorpusSectionSummary;
@@ -121,7 +108,40 @@ export interface CorpusSummary {
     readonly extremes: number;
     readonly examples: readonly CorpusExample[];
   };
+}
+
+/** The frozen summary contract `romlift/corpus-summary@1`, consumed by the gate files and the bench. */
+export interface CorpusSummary extends CorpusCounts {
+  readonly schema: typeof CORPUS_SUMMARY_SCHEMA;
+  readonly inputsDigest: string;
+  readonly as: string;
+  readonly options: CorpusOptions;
+  /** Whether the counts meet the threshold (core/workflow/doctor.ts corpusOk). */
   readonly ok: boolean;
+}
+
+/** The persisted summary of a run, keys in contract order. */
+export function corpusSummary(
+  head: { readonly inputsDigest: string; readonly as: string; readonly options: CorpusOptions },
+  counts: CorpusCounts,
+  ok: boolean,
+): CorpusSummary {
+  const { seed, armSample, blSample } = head.options;
+  return {
+    schema: CORPUS_SUMMARY_SCHEMA,
+    inputsDigest: head.inputsDigest,
+    as: head.as,
+    options: { seed, armSample, blSample },
+    sections: counts.sections,
+    encoderAgrees: counts.encoderAgrees,
+    context: counts.context,
+    ok,
+  };
+}
+
+/** A raw count of 0 for every RawReason, in RAW_REASONS order (a new reason fails the typecheck here). */
+export function zeroRawCounts(): Record<RawReason, number> {
+  return { undefined: 0, unpredictable: 0, 'sbz-set': 0, 'as-alias': 0, 'no-roundtrip': 0 };
 }
 
 /** What assembling one corpus file produced: the `.text` bytes, or the assembler's error output. */

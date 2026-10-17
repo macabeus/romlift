@@ -50,6 +50,8 @@ export interface LinkSource {
 export interface LinkOptions {
   /** The text of the linker script, passed to ld with -T; it names the objects as `<name>.o`. */
   readonly script: string;
+  /** Files written beside the sources before assembling, by relative path (e.g. include/macros.inc). */
+  readonly files?: Readonly<Record<string, string>>;
   /** The programs to run; default: findBinutils(process.env). */
   readonly tools?: Binutils;
 }
@@ -143,12 +145,35 @@ function asArgs(mode: Mode | undefined, extra: readonly string[], source: string
   return [...DIALECT.asArgs, ...(mode === 'thumb' ? ['-mthumb'] : []), ...extra, '-o', object, source];
 }
 
+/** The bytes of a file a program should have written, or undefined when it is missing or unreadable. */
+async function output(path: string): Promise<Uint8Array | undefined> {
+  try {
+    const bytes = await readFile(path);
+    return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  } catch {
+    return undefined;
+  }
+}
+
 /** The `.text` of `object` (an ELF in `dir`) as raw bytes, through objcopy -O binary -j .text. */
 async function textBytes(tools: Binutils, dir: string, object: string): Promise<AssembleResult> {
+  if ((await output(join(dir, object))) === undefined) return failed('', `the assembler or linker exited 0 but wrote no ${object}`);
   const objcopy = await run(tools.objcopy, ['-O', 'binary', '-j', '.text', object, 'text.bin'], dir);
   if (objcopy.code !== 0) return failed(objcopy.stderr, `arm-none-eabi-objcopy exited with ${objcopy.code}`);
-  const bytes = await readFile(join(dir, 'text.bin'));
-  return { ok: true, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) };
+  const bytes = await output(join(dir, 'text.bin'));
+  if (bytes === undefined) return failed('', 'arm-none-eabi-objcopy exited 0 but wrote no text.bin');
+  return { ok: true, bytes };
+}
+
+/** Writes `files` under `dir`; an error message when a path would leave it. */
+async function writeFiles(dir: string, files: Readonly<Record<string, string>>): Promise<string | undefined> {
+  for (const [path, text] of Object.entries(files)) {
+    const relative = safeRelative(path);
+    if (relative === undefined) return `refusing to write ${path} outside the assembly directory`;
+    await mkdir(dirname(join(dir, relative)), { recursive: true });
+    await writeFile(join(dir, relative), text);
+  }
+  return undefined;
 }
 
 /**
@@ -161,12 +186,8 @@ export async function assembleWithBinutils(source: string, options: AssembleOpti
   if ('code' in tools) return { ok: false, stderr: '', diagnostics: [tools] };
   const dir = await mkdtemp(join(tmpdir(), 'romlift-as-'));
   try {
-    for (const [path, text] of Object.entries(options.files ?? {})) {
-      const relative = safeRelative(path);
-      if (relative === undefined) return failed('', `refusing to write ${path} outside the assembly directory`);
-      await mkdir(dirname(join(dir, relative)), { recursive: true });
-      await writeFile(join(dir, relative), text);
-    }
+    const refused = await writeFiles(dir, options.files ?? {});
+    if (refused !== undefined) return failed('', refused);
     await writeFile(join(dir, 'source.s'), source);
     const as = await run(tools.as, asArgs(options.mode, options.args ?? [], 'source.s', 'source.o'), dir);
     if (as.code !== 0) return failed(as.stderr, `arm-none-eabi-as exited with ${as.code}`);
@@ -188,6 +209,8 @@ export async function linkWithBinutils(sources: readonly LinkSource[], options: 
   if (bad !== undefined) return failed('', `refusing the link source name '${bad.name}'`);
   const dir = await mkdtemp(join(tmpdir(), 'romlift-ld-'));
   try {
+    const refused = await writeFiles(dir, options.files ?? {});
+    if (refused !== undefined) return failed('', refused);
     for (const source of sources) {
       await writeFile(join(dir, `${source.name}.s`), source.text);
       const as = await run(tools.as, asArgs(source.mode, [], `${source.name}.s`, `${source.name}.o`), dir);

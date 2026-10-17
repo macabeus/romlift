@@ -1,6 +1,6 @@
 // assemble(parsed, addr): the encoding GNU as picks for a parsed text at an address. Candidates are
-// tried in asPriority order (table order breaks ties); a candidate encodes when its codec turns the
-// operands into fields that fit their widths and those fields read back as the same operands, which
+// tried in asPriority order (table order breaks ties); a candidate encodes when its codec turns its own
+// reading of the operands into fields that fit their widths and those fields read back as the same operands, which
 // is where range limits, alignment, Align(PC, 4) and immediate rotation are enforced.
 import type { Addr } from '../rom/span.ts';
 import { fieldsOf, rowFor } from './decode.ts';
@@ -30,9 +30,11 @@ export function encodeOperands(row: Row, operands: Fields, addr: Addr): number |
 
 /** The encoding GNU as picks for `parsed` at `addr`, or undefined when no candidate fits. */
 export function assemble(parsed: ParsedInsn, addr: Addr): Assembled | undefined {
-  const rows = parsed.candidates.map(rowOf).sort((a, b) => a.spec.asPriority - b.spec.asPriority || rowOrder(a.spec.id) - rowOrder(b.spec.id));
-  for (const row of rows) {
-    const word = encodeOperands(row, parsed.operands, addr);
+  const candidates = parsed.candidates
+    .map((c) => ({ row: rowOf(c.specId), operands: c.operands }))
+    .sort((a, b) => a.row.spec.asPriority - b.row.spec.asPriority || rowOrder(a.row.spec.id) - rowOrder(b.row.spec.id));
+  for (const { row, operands } of candidates) {
+    const word = encodeOperands(row, operands, addr);
     if (word === undefined) continue;
     const decoded = rowFor(parsed.mode, word);
     return { specId: decoded.spec.id, size: row.spec.size, word };

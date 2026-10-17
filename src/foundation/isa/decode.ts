@@ -1,7 +1,9 @@
 // decode(mode, word, addr): the table lookup of architecture §5. Thumb goes through a 65,536-entry
 // index from halfword to row, built at module load; a bl prefix followed by a bl suffix (the high
 // halfword of `word`) decodes as one 4-byte instruction. ARM goes through 4,096 buckets keyed on bits
-// 27..20 and 7..4, each listing the rows those bits allow, in table order. Decode never throws.
+// 27..20 and 7..4, each listing the rows those bits allow, in table order. Decode never throws: every
+// word matches a row, because each table ends with a catch-all row, resolved once at module load.
+import { RomliftInvariantError } from '../diagnostics/diagnostic.ts';
 import type { Addr, Mode } from '../rom/span.ts';
 import { flowOf } from './flow.ts';
 import type { Row } from './row.ts';
@@ -14,6 +16,16 @@ function matches(row: Row, word: number): boolean {
 }
 
 const THUMB16: readonly Row[] = ROWS.thumb.filter((r) => r.spec.size === 2);
+
+/** The last row of a table: its catch-all, which every word not matched earlier decodes to. */
+function catchAll(rows: readonly Row[], table: string): Row {
+  const last = rows[rows.length - 1];
+  if (last === undefined) throw new RomliftInvariantError(`isa tables: the ${table} table is empty`);
+  return last;
+}
+
+const THUMB_LAST: Row = catchAll(THUMB16, 'Thumb');
+const ARM_LAST: Row = catchAll(ROWS.arm, 'ARM');
 
 /** Halfword to index into THUMB16. */
 const THUMB_INDEX: Uint16Array = (() => {
@@ -30,15 +42,10 @@ function armKey(word: number): number {
   return ((word >>> 16) & 0xff0) | ((word >>> 4) & 0xf);
 }
 
-/** The bits of a 32-bit value that the bucket key covers, spread as the key spreads them. */
-function keyBits(value: number): number {
-  return armKey(value >>> 0);
-}
-
 const ARM_BUCKETS: readonly (readonly Row[])[] = (() => {
   const buckets: Row[][] = [];
   for (let key = 0; key < 0x1000; key++) {
-    buckets.push(ROWS.arm.filter((r) => ((key ^ keyBits(r.spec.match)) & keyBits(r.spec.mask)) === 0));
+    buckets.push(ROWS.arm.filter((r) => ((key ^ armKey(r.spec.match)) & armKey(r.spec.mask)) === 0));
   }
   return buckets;
 })();
@@ -53,13 +60,13 @@ export function fieldsOf(row: Row, word: number): Fields {
 function armRow(word: number): Row {
   const bucket = ARM_BUCKETS[armKey(word)] ?? [];
   for (const r of bucket) if (matches(r, word)) return r;
-  return ROWS.arm[ROWS.arm.length - 1] ?? THUMB_BL;
+  return ARM_LAST;
 }
 
 function thumbRow(word: number): Row {
   const hw = word & 0xffff;
   if ((hw & 0xf800) === 0xf000 && ((word >>> 16) & 0xf800) === 0xf800) return THUMB_BL;
-  return THUMB16[THUMB_INDEX[hw] ?? THUMB16.length - 1] ?? THUMB_BL;
+  return THUMB16[THUMB_INDEX[hw] ?? THUMB16.length - 1] ?? THUMB_LAST;
 }
 
 /** The row `word` decodes to in `mode` (Thumb: the low halfword, paired with the high one for bl). */

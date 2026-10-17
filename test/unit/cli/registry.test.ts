@@ -44,7 +44,7 @@ test('commandHelp shows the synopsis, summary and options in declared order', ()
   assert.equal(
     commandHelp(analyzeFake),
     [
-      'Usage: romlift analyze <rom> [--json] [--rom <path>] [--disable <rule>...]',
+      'Usage: romlift analyze [<rom>…] [--json] [--rom <path>] [--disable <rule>...]',
       '',
       'Analyzes a ROM',
       '',

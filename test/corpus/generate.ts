@@ -2,29 +2,24 @@
 //
 //   npm run corpus [-- --json] [--out <dir>] [--arm-sample <n>] [--reuse]
 //
-// Generates the corpus files of src/foundation/isa/corpus.ts into bench/.local/corpus/ (gitignored;
-// corpus text is never committed), assembles each with the PATH's arm-none-eabi-as through
-// assembleWithBinutils, compares the bytes case by case, writes summary.json (the frozen
-// `romlift/corpus-summary@1` contract) and prints a human summary, or with --json the summary as one
-// JSON line (§2.1: --json output parses line by line). Exits 0 only when the summary is ok. --reuse prints the cached summary instead when its inputsDigest still
-// matches: sha256 over the path-sorted contents of src/foundation/isa/**, src/foundation/asm/** and
-// test/corpus/**, the first line of `as --version`, and the options. The digest is the bench's
-// `corpusInputsDigest` (bench/src/printer.ts), so the printer family of results.json accepts exactly
-// the summary this driver writes.
-import { availableParallelism } from 'node:os';
+// Runs the corpus through romlift's runCorpus (the same run `romlift doctor` makes) with the PATH's
+// arm-none-eabi-as, writing every corpus file into bench/.local/corpus/ (gitignored; corpus text is
+// never committed), then writes summary.json (the frozen `romlift/corpus-summary@1` contract) and
+// prints a human summary, or with --json the summary as one JSON line (§2.1: --json output parses
+// line by line). Exits 0 only when the summary is ok. --reuse prints the cached summary instead when
+// its inputsDigest is still current; the digest is romlift's corpusInputsDigest (D55), the one the
+// bench checks before results.json carries the summary as its printer family.
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs } from 'node:util';
 
-import { armCoverage, compareCorpusFile, CORPUS_ISA, corpusFiles, DEFAULT_CORPUS_OPTIONS, summarizeCorpus } from '../../src/foundation/isa/corpus.ts';
-import type { CorpusComparison } from '../../src/foundation/isa/corpus-compare.ts';
-import type { CorpusFile, CorpusOptions, CorpusSectionSummary, CorpusSummary } from '../../src/foundation/isa/corpus.ts';
-import { DIALECT } from '../../src/foundation/asm/dialect.ts';
-import { RAW_REASONS } from '../../src/foundation/isa/types.ts';
-import { listDir } from '../../src/shell/fs.ts';
-import { assembleWithBinutils, binutilsVersions, findBinutils } from '../../src/shell/toolchain/binutils.ts';
-import { corpusInputsDigest } from '../../bench/src/printer.ts';
+import { binutilsVersions, findBinutils, listDir } from 'romlift/node';
+import { corpusInputsDigest, corpusSummary, DEFAULT_CORPUS_OPTIONS, parseCorpusSummary, runCorpus } from 'romlift/internal';
+import type { CorpusOptions, CorpusSectionSummary, CorpusSummary } from 'romlift/internal';
+import { RAW_REASONS } from 'romlift/isa';
+
+import { parseArgs, UsageError } from '../../bench/src/args.ts';
+import type { BenchArgs } from '../../bench/src/args.ts';
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -32,8 +27,9 @@ function percent(part: number, whole: number): string {
   return whole === 0 ? 'n/a' : `${((100 * part) / whole).toFixed(2)}%`;
 }
 
+/** A count with a comma every three digits, independent of the locale. */
 function count(n: number): string {
-  return n.toLocaleString('en-US');
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function sectionLine(name: string, s: CorpusSectionSummary): string {
@@ -61,50 +57,36 @@ function human(summary: CorpusSummary, seconds: number | undefined): string {
     ...summary.encoderAgrees.examples.slice(0, 5).map((e) => `      encoder: ${e.text}: expected ${e.expected}, got ${e.got}`),
     ...summary.context.examples.slice(0, 5).map((e) => `      context: ${e.text}: expected ${e.expected}, got ${e.got}`),
     `ARM rows with coverage: ${Object.keys(arm.coverage).length}`,
+    `inputs digest ${summary.inputsDigest}`,
     `${summary.ok ? 'ok' : 'FAILED'}${seconds === undefined ? ' (cached)' : ` in ${seconds.toFixed(1)} s`}`,
   ].join('\n');
 }
 
 async function readCached(file: string): Promise<CorpusSummary | undefined> {
   try {
-    return JSON.parse(await readFile(file, 'utf8')) as CorpusSummary;
+    const parsed = parseCorpusSummary(JSON.parse(await readFile(file, 'utf8')));
+    return parsed.ok ? parsed.value : undefined;
   } catch {
     return undefined;
   }
 }
 
-/** Assembles and compares the files with at most `limit` assemblers running, keeping file order. */
-async function compareAll(files: Iterable<CorpusFile>, out: string, limit: number): Promise<CorpusComparison[]> {
-  const results: CorpusComparison[] = [];
-  const running = new Set<Promise<void>>();
-  let index = 0;
-  for (const file of files) {
-    const at = index++;
-    await writeFile(path.join(out, file.name), file.text);
-    const task = assembleWithBinutils(file.text, { mode: file.mode, files: { 'include/macros.inc': DIALECT.macrosInc } }).then((result) => {
-      results[at] = compareCorpusFile(file, result.ok ? { ok: true, bytes: result.bytes } : { ok: false, stderr: result.stderr || result.diagnostics.map((d) => d.message).join('\n') });
-    });
-    const tracked: Promise<void> = task.finally(() => running.delete(tracked));
-    running.add(tracked);
-    if (running.size >= limit) await Promise.race(running);
-  }
-  await Promise.all(running);
-  return results;
-}
+const USAGE = 'usage: npm run corpus [-- --json] [--out <dir>] [--arm-sample <n>] [--reuse]';
 
-async function main(): Promise<number> {
-  const { values } = parseArgs({
-    options: {
-      json: { type: 'boolean', default: false },
-      out: { type: 'string', default: path.join(REPO, 'bench/.local/corpus') },
-      'arm-sample': { type: 'string' },
-      reuse: { type: 'boolean', default: false },
-    },
-    strict: true,
-  });
-  const armSample = values['arm-sample'] === undefined ? DEFAULT_CORPUS_OPTIONS.armSample : Number(values['arm-sample']);
+async function main(argv: readonly string[]): Promise<number> {
+  let args: BenchArgs;
+  try {
+    args = parseArgs(argv, { options: ['out', 'arm-sample'], flags: ['json', 'reuse'] });
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    process.stderr.write(`${error.message}\n${USAGE}\n`);
+    return 2;
+  }
+  const json = args.flags.has('json');
+  const sampleText = args.options['arm-sample'];
+  const armSample = sampleText === undefined ? DEFAULT_CORPUS_OPTIONS.armSample : Number(sampleText);
   if (!Number.isInteger(armSample) || armSample < 0) {
-    process.stderr.write(`--arm-sample must be a non-negative integer, got ${values['arm-sample'] ?? ''}\n`);
+    process.stderr.write(`--arm-sample must be a non-negative integer, got ${sampleText ?? ''}\n`);
     return 2;
   }
   const options: CorpusOptions = { ...DEFAULT_CORPUS_OPTIONS, armSample };
@@ -114,14 +96,14 @@ async function main(): Promise<number> {
     return 1;
   }
   const asVersion = (await binutilsVersions(tools)).as;
-  const digest = await corpusInputsDigest(REPO, asVersion, options);
-  const out = path.resolve(values.out);
+  const inputsDigest = await corpusInputsDigest(REPO, asVersion, options);
+  const out = path.resolve(args.options['out'] ?? path.join(REPO, 'bench/.local/corpus'));
   const summaryFile = path.join(out, 'summary.json');
 
-  if (values.reuse) {
+  if (args.flags.has('reuse')) {
     const cached = await readCached(summaryFile);
-    if (cached !== undefined && cached.inputsDigest === digest) {
-      process.stdout.write(`${values.json ? JSON.stringify(cached) : human(cached, undefined)}\n`);
+    if (cached !== undefined && cached.inputsDigest === inputsDigest) {
+      process.stdout.write(`${json ? JSON.stringify(cached) : human(cached, undefined)}\n`);
       return cached.ok ? 0 : 1;
     }
   }
@@ -133,18 +115,12 @@ async function main(): Promise<number> {
     if (name.endsWith('.s') || name === 'summary.json') await rm(path.join(out, name), { force: true });
   }
   const started = performance.now();
-  const comparisons = await compareAll(corpusFiles(CORPUS_ISA, options), out, Math.max(2, availableParallelism()));
-  const summary = summarizeCorpus(comparisons, {
-    inputsDigest: digest,
-    as: asVersion,
-    options,
-    coverage: armCoverage(CORPUS_ISA),
-    armRows: CORPUS_ISA.specs('arm').map((s) => s.id),
-  });
+  const run = await runCorpus({ options, tools, onFile: (file) => writeFile(path.join(out, file.name), file.text) });
+  const summary = corpusSummary({ inputsDigest, as: asVersion, options }, run.counts, run.ok);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   const seconds = (performance.now() - started) / 1000;
-  process.stdout.write(`${values.json ? JSON.stringify(summary) : human(summary, seconds)}\n`);
+  process.stdout.write(`${json ? JSON.stringify(summary) : human(summary, seconds)}\n`);
   return summary.ok ? 0 : 1;
 }
 
-process.exitCode = await main();
+process.exitCode = await main(process.argv.slice(2));

@@ -12,8 +12,9 @@
 //   {amode_reg} '[rn, -rm, lsl #n]!' forms (rn p u w rm shift amount); {hamode_reg} '[rn, -rm]!'
 //   forms (rn p u w rm); {psr} cpsr/spsr (r); {psrf} 'cpsr_fc' (r mask).
 // A placeholder may appear twice in a parse-only alias; both occurrences must then read one value.
+import { RomliftInvariantError } from '../diagnostics/diagnostic.ts';
 import type { Addr } from '../rom/span.ts';
-import { rol32, ror32 } from './bits.ts';
+import { fieldValue as get, rol32, ror32 } from './bits.ts';
 import {
   CONDITIONS,
   num,
@@ -64,10 +65,6 @@ function put(out: Ops, key: string, value: number | undefined): boolean {
   if (old !== undefined && old !== value) return false;
   out[key] = value;
   return true;
-}
-
-function get(ops: Fields, key: string): number {
-  return ops[key] ?? 0;
 }
 
 /** ', lsl #2', ', rrx' or '' for an immediate shift (shift 4 is rrx). */
@@ -312,7 +309,7 @@ export function compileForm(template: string): CompiledForm {
       continue;
     }
     const part = MNEMONIC_PARTS[text];
-    if (part === undefined) throw new Error(`template '${template}': unknown mnemonic placeholder {${text}}`);
+    if (part === undefined) throw new RomliftInvariantError(`template '${template}': unknown mnemonic placeholder {${text}}`);
     parts.push({ kind: 'mnemonic', part });
     mnemonics = mnemonics.flatMap(([m, ops]) => part.values.map(([suffix, more]) => [m + suffix, { ...ops, ...more }] as const));
   }
@@ -325,7 +322,7 @@ export function compileForm(template: string): CompiledForm {
       continue;
     }
     const operand = OPERANDS[text];
-    if (operand === undefined) throw new Error(`template '${template}': unknown operand placeholder {${text}}`);
+    if (operand === undefined) throw new RomliftInvariantError(`template '${template}': unknown operand placeholder {${text}}`);
     parts.push({ kind: 'operand', operand, key: text });
   }
   return { template, mnemonics, parts, operandsFrom };

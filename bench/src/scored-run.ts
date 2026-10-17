@@ -2,7 +2,8 @@
 // export-poc in a frozen shape, and its reader. The dump keeps the PoC's own texts (origins such as
 // 'gap scan', miss diagnoses such as 'inside code of the accepted function at …'); this reader is
 // the only place that maps them to the vocabulary ids, with the PoC's own prefix rules.
-import { isOrigin, parseHexAddr, type MissReason, type Mode, type Origin } from 'romlift';
+import { canonicalJson, isOrigin, parseHexAddr, type JsonValue, type MissReason, type Mode, type Origin } from 'romlift';
+import { sha256Stream } from 'romlift/node';
 
 import { BenchError, isRecord } from './files.ts';
 
@@ -42,6 +43,11 @@ export interface ScoredRun {
   readonly scaffold: { readonly ok: boolean; readonly summary: string };
   /** The PoC's own runRom row, minus its seconds. */
   readonly pocRow: Readonly<Record<string, unknown>>;
+}
+
+/** The digest of one analysis: sha256 of its canonical JSON (export-poc writes it; poc-check recomputes it). */
+export function analysisDigest(analysis: unknown): string {
+  return sha256Stream(canonicalJson(analysis as JsonValue));
 }
 
 /** The PoC's diagnoseMiss text to its reason id (the PoC's missReasonId, verbatim in effect). */

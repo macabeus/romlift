@@ -102,7 +102,10 @@ test('word and byte transfers, the pool load and the T forms', () => {
     { word: 0x05d1_0000, spec: 'arm.ldrb_imm', text: 'ldrbeq r0, [r1]' },
     { word: 0xe52d_e004, spec: 'arm.str_imm', text: 'str lr, [sp, #-4]!', stack: -4 },
     { word: 0xe49d_f004, spec: 'arm.ldr_imm_pc', text: 'ldr pc, [sp], #4', stack: 4, flow: { kind: 'return', via: 'pop-pc' } },
-    { word: 0xe591_f000, spec: 'arm.ldr_imm_pc', text: 'ldr pc, [r1]', flow: { kind: 'indirect', reg: 1, via: 'mov-pc' } },
+    { word: 0xe591_f000, spec: 'arm.ldr_imm_pc', text: 'ldr pc, [r1]', flow: { kind: 'indirect', reg: 1, via: 'load-pc' } },
+    // A pc-relative table read is an indirect jump loaded through pc; a pool load into pc keeps its pool and rd 15.
+    { word: 0xe79f_f100, spec: 'arm.ldr_reg_pc', text: 'ldr pc, [pc, r0, lsl #2]', flow: { kind: 'indirect', reg: 15, via: 'load-pc' } },
+    { word: 0xe59f_f000, spec: 'arm.ldr_pc', text: 'ldr pc, _08000008', flow: { kind: 'pool-load', pool: 0x0800_0008, rd: 15 } },
     { word: 0xe5b1_1004, spec: 'arm.ldr_imm', raw: 'unpredictable' },
     { word: 0xe5c1_f000, spec: 'arm.strb_imm', raw: 'unpredictable' },
     { word: 0xe600_0010, spec: 'arm.media_undefined', raw: 'undefined' },

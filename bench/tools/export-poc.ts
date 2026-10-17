@@ -8,8 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { canonicalJson, type JsonValue } from 'romlift';
-import { sha1Of, sha256Stream } from 'romlift/node';
+import { sha1Of } from 'romlift/node';
 
 import { parseArgs, UsageError } from '../src/args.ts';
 import { stripSeconds } from '../src/baseline.ts';
@@ -18,15 +17,11 @@ import { loadDatasets, tuningDatasets, type Dataset } from '../src/dataset.ts';
 import { BenchError, exists, isRecord, readFileBytes, writeText } from '../src/files.ts';
 import { comparePocSource, computePocSource, readPinnedPocSource } from '../src/poc-source.ts';
 import { runProcess } from '../src/process.ts';
-import { parseScoredRun, SCORED_SCHEMA, type ScoredRun } from '../src/scored-run.ts';
+import { analysisDigest, parseScoredRun, SCORED_SCHEMA, type ScoredRun } from '../src/scored-run.ts';
 
 const USAGE = 'usage: npm run export-poc -- --mode scored [--only <rom>]';
 const CHILD = fileURLToPath(new URL('./export-poc-child.ts', import.meta.url));
 
-/** The digest of one analysis: sha256 of its canonical JSON. */
-export function analysisDigest(analysis: unknown): string {
-  return sha256Stream(canonicalJson(analysis as JsonValue));
-}
 
 /** Builds the frozen scored.json value from the child's document; throws when the document is not as expected. */
 export function scoredFromChild(doc: unknown, rom: string, sha1: string, pocSourceDigest: string): ScoredRun {

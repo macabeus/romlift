@@ -3,7 +3,9 @@
 // appends to $ROMLIFT_GATE_REPORT, and prints every gate sorted by id with its verdict, detail and
 // input digests. With --require n it fails when a gate of phase <= n in the selected tier is pending,
 // fail or unavailable, or when a gate file of phase <= n that runs in that tier left no record. With
-// --tier real the records become the gate record of bench/results.json.
+// --tier real the records become the gate record of bench/results.json, unless a real-tier gate of a
+// landed phase (or of phase <= n) is `unavailable`: a run that could not see its inputs measured
+// nothing, so the committed record is kept and the run says so.
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,6 +17,7 @@ import type { BenchContext } from './context.ts';
 import { BenchError, exists, isRecord, readText } from './files.ts';
 import { discoverGateFiles, includesTier, type GateFile } from './gate-files.ts';
 import { runProcess } from './process.ts';
+import { readLanded } from './provenance.ts';
 
 export type Tier = 'ci' | 'real';
 const VERDICTS: ReadonlySet<string> = new Set(['pass', 'fail', 'pending', 'unavailable', 'historical']);
@@ -69,6 +72,11 @@ export function requireFailures(records: readonly GateReportLine[], files: reado
   return failures;
 }
 
+/** The real-tier records that keep the committed gate record: `unavailable` ones of phase <= `upTo`. */
+export function blindRecords(records: readonly GateReportLine[], upTo: number): GateReportLine[] {
+  return records.filter((r) => r.tier === 'real' && r.verdict === 'unavailable' && r.phase <= upTo);
+}
+
 export function formatGateLine(r: GateReportLine): string {
   const inputs = Object.keys(r.inputs)
     .sort(compareCodeUnits)
@@ -117,9 +125,16 @@ export async function runGates(cx: BenchContext, options: GatesOptions): Promise
   if (options.tier === 'real') {
     const artifact = await readResultsFile(options.resultsPath);
     if (artifact === undefined) throw new BenchError(`${options.resultsPath} does not exist: run npm run bench -- run first`);
-    const real: GateEntry[] = records.filter((r) => r.tier === 'real').map((r) => ({ id: r.id, verdict: r.verdict, inputs: r.inputs, detail: r.detail }));
-    await writeResultsFile(options.resultsPath, { ...artifact, gates: { real } });
-    options.log(`wrote ${real.length} real-tier gate record(s) into ${options.resultsPath}`);
+    const landed = (await exists(join(options.dir, 'phase.json'))) ? await readLanded(options.dir) : 0;
+    const upTo = Math.max(options.require ?? 0, landed);
+    const blind = blindRecords(records, upTo);
+    if (blind.length > 0) {
+      options.log(`kept the gate record of ${options.resultsPath}: ${blind.map((r) => r.id).join(', ')} unavailable (${blind[0]?.detail ?? ''})`);
+    } else {
+      const real: GateEntry[] = records.filter((r) => r.tier === 'real').map((r) => ({ id: r.id, verdict: r.verdict, inputs: r.inputs, detail: r.detail }));
+      await writeResultsFile(options.resultsPath, { ...artifact, gates: { real } });
+      options.log(`wrote ${real.length} real-tier gate record(s) into ${options.resultsPath}`);
+    }
   }
   return { records, failures, runnerOutput };
 }

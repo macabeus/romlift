@@ -56,7 +56,7 @@ export function assembleSnippet(mode: Mode, text: string, origin: number): Uint8
     if (line.text === '') continue;
     const sizing: SymbolResolver = { labelFor: () => undefined, addressOf: (name) => absolute(name) ?? labels.get(name) ?? addr };
     const parsed = parse(line.text, mode, addr, sizing);
-    addr += parsed?.candidates.some((id) => id === 'thumb.bl') ? 4 : mode === 'arm' ? 4 : 2;
+    addr += parsed?.candidates.some((c) => c.specId === 'thumb.bl') ? 4 : mode === 'arm' ? 4 : 2;
   }
   // Pass 2: the bytes.
   const resolver: SymbolResolver = { labelFor: () => undefined, addressOf: (name) => absolute(name) ?? labels.get(name) };

@@ -1,12 +1,38 @@
 // g1.runtime-deps (architecture §13, R2, D38): package.json `dependencies` is exactly smol-toml, zod and
 // @match-kit/decomp-yaml, and no package of the production tree has an install script, a compiled
-// `.node` addon or a `binding.gyp` (which npm would build with node-gyp).
+// `.node` addon or a `binding.gyp` (which npm would build with node-gyp). The production tree is the
+// lock file's `packages` without `dev: true`, each directory resolved from the repository root and
+// checked against the package names of `npm ls --all --omit=dev --json`; paths npm prints are never
+// trusted (npm 11 redacts UUID-like path segments in --parseable output).
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult } from './gate.ts';
 
 const EXPECTED = ['@match-kit/decomp-yaml', 'smol-toml', 'zod'] as const;
 const INSTALL_SCRIPTS = ['preinstall', 'install', 'postinstall'] as const;
+
+interface LockFile {
+  readonly packages?: Readonly<Record<string, { readonly dev?: boolean; readonly name?: string }>>;
+}
+
+interface NpmTree {
+  readonly dependencies?: Readonly<Record<string, NpmTree>>;
+}
+
+/** Every package name of an `npm ls --json` tree, once each. */
+function treeNames(tree: NpmTree, into = new Set<string>()): Set<string> {
+  for (const [name, child] of Object.entries(tree.dependencies ?? {})) {
+    into.add(name);
+    treeNames(child, into);
+  }
+  return into;
+}
+
+/** The package name of a lock-file key: the part after its last `node_modules/`. */
+function lockName(key: string): string {
+  const at = key.lastIndexOf('node_modules/');
+  return at < 0 ? key : key.slice(at + 'node_modules/'.length);
+}
 
 interface PackageJson {
   readonly name?: string;
@@ -49,11 +75,21 @@ gate({
       throw new Error(`package.json dependencies are [${declared.join(', ')}], expected exactly [${EXPECTED.join(', ')}]`);
     }
 
-    const ls = await cx.exec('npm', ['ls', '--all', '--omit=dev', '--parseable'], { cwd: cx.repoRoot });
-    if (ls.code !== 0) throw new Error(`npm ls --all --omit=dev --parseable exited ${ls.code}:\n${tail(ls)}`);
+    const lock = JSON.parse(await readFile(path.join(cx.repoRoot, 'package-lock.json'), 'utf8')) as LockFile;
+    const keys = Object.entries(lock.packages ?? {})
+      .filter(([key, entry]) => key !== '' && entry.dev !== true)
+      .map(([key]) => key)
+      .sort(byCodeUnit);
+    const ls = await cx.exec('npm', ['ls', '--all', '--omit=dev', '--json'], { cwd: cx.repoRoot });
+    if (ls.code !== 0) throw new Error(`npm ls --all --omit=dev --json exited ${ls.code}:\n${tail(ls)}`);
+    const listed = [...treeNames(JSON.parse(ls.stdout) as NpmTree)].sort(byCodeUnit);
+    const locked = [...new Set(keys.map(lockName))].sort(byCodeUnit);
+    if (listed.join('\n') !== locked.join('\n')) {
+      throw new Error(`npm ls lists the production packages [${listed.join(', ')}], the lock file [${locked.join(', ')}]`);
+    }
     const root = path.resolve(cx.repoRoot);
-    const dirs = [...new Set(ls.stdout.split('\n').map((l) => l.trim()).filter((l) => l !== '' && path.resolve(l) !== root))].sort(byCodeUnit);
-    if (dirs.length < EXPECTED.length) throw new Error(`npm ls listed ${dirs.length} production packages, fewer than the ${EXPECTED.length} dependencies`);
+    const dirs = keys.map((key) => path.join(root, key));
+    if (dirs.length < EXPECTED.length) throw new Error(`the lock file lists ${dirs.length} production packages, fewer than the ${EXPECTED.length} dependencies`);
 
     const problems: string[] = [];
     for (const dir of dirs) {

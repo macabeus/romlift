@@ -5,6 +5,7 @@ import type { Diagnostic } from '../diagnostics/diagnostic.ts';
 import { RomCodes } from './codes.ts';
 import type { RomCode } from './codes.ts';
 import { parseHeader } from './header.ts';
+import { hex, hexAddr } from '../util/hex.ts';
 import type { Addr } from './span.ts';
 
 /** The bus address of the first cartridge byte. */
@@ -73,7 +74,7 @@ export function checkRom(bytes: Uint8Array): readonly Diagnostic<RomCode>[] {
   const fixed = bytes[FIXED_BYTE_OFFSET] ?? 0;
   if (fixed !== FIXED_BYTE) {
     found.push(
-      diagnostic(RomCodes, 'E_ROM_NOT_GBA', `the header byte at 0xB2 is 0x${byteHex(fixed)}, not 0x96`, {
+      diagnostic(RomCodes, 'E_ROM_NOT_GBA', `the header byte at 0xB2 is 0x${hex(fixed, 2)}, not 0x96`, {
         addr: ROM_BASE + FIXED_BYTE_OFFSET,
       }),
     );
@@ -85,16 +86,12 @@ export function checkRom(bytes: Uint8Array): readonly Diagnostic<RomCode>[] {
       diagnostic(
         RomCodes,
         'E_ROM_NOT_GBA',
-        `the header complement at 0xBD is 0x${byteHex(stored)}, but the header sums to 0x${byteHex(expected)}`,
+        `the header complement at 0xBD is 0x${hex(stored, 2)}, but the header sums to 0x${hex(expected, 2)}`,
         { addr: ROM_BASE + COMPLEMENT_OFFSET },
       ),
     );
   }
   return found;
-}
-
-function byteHex(value: number): string {
-  return value.toString(16).toUpperCase().padStart(2, '0');
 }
 
 /** Whether the `len` bytes from bus address `a` all lie inside the ROM. */
@@ -105,7 +102,7 @@ export function contains(rom: Rom, a: Addr, len = 1): boolean {
 /** The file offset of the `len` bytes at `a`; reading outside the ROM is a caller bug. */
 function offsetOf(rom: Rom, a: Addr, len: number): number {
   if (!contains(rom, a, len)) {
-    throw new RomliftInvariantError(`read of ${len} bytes at 0x${(a >>> 0).toString(16)} outside the ROM`);
+    throw new RomliftInvariantError(`read of ${len} bytes at ${hexAddr(a)} outside the ROM`);
   }
   return a - ROM_BASE;
 }

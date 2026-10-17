@@ -8,6 +8,7 @@ export type {
   FlowKind,
   Insn,
   InsnSpec,
+  ParsedCandidate,
   ParsedInsn,
   RawReason,
   SpecId,

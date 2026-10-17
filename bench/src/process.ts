@@ -1,4 +1,4 @@
-// Child processes for the bench: git, the toolchain, node --test and the PoC's tsx. Never throws for
+// Child processes for the bench: git, node --test and the PoC's tsx (binutils run through romlift/node). Never throws for
 // a nonzero exit; 127 when the command cannot start.
 import { spawn } from 'node:child_process';
 
@@ -37,11 +37,4 @@ export function runProcess(command: string, args: readonly string[], options: Pr
     child.on('error', (error) => finish(127, `${error.message}\n`));
     child.on('close', (code, signal) => finish(code ?? 128, signal ? `killed by ${signal}\n` : ''));
   });
-}
-
-/** The first line of a command's stdout, trimmed, or undefined when it fails. */
-export async function firstLine(command: string, args: readonly string[]): Promise<string | undefined> {
-  const run = await runProcess(command, args);
-  if (run.code !== 0) return undefined;
-  return (run.stdout.split('\n')[0] ?? '').trim();
 }

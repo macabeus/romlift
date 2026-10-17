@@ -6,10 +6,11 @@ import { join } from 'node:path';
 
 import type { ElfFile, ElfSymbol } from 'romlift';
 
+import { armCoverage, corpusSummary, summarizeCorpus, type CorpusSummary } from '../../../src/foundation/corpus/corpus.ts';
 import type { Results, ResultsMeta } from '../../../bench/src/artifact.ts';
 import type { Dataset } from '../../../bench/src/dataset.ts';
 import type { BenchRow } from '../../../bench/src/row.ts';
-import { SCORED_SCHEMA, type DumpFunction, type ScoredRun } from '../../../bench/src/scored-run.ts';
+import { analysisDigest, SCORED_SCHEMA, type DumpFunction, type ScoredRun } from '../../../bench/src/scored-run.ts';
 
 export interface SymbolSpec {
   readonly name: string;
@@ -62,15 +63,23 @@ export function dataset(overrides: Partial<Dataset> = {}): Dataset {
 
 export const fn = (entry: string, end: string, origin = 'call', mode: 'thumb' | 'arm' = 'thumb'): DumpFunction => ({ entry, end, origin, mode });
 
+/** A well-formed (empty) corpus summary for the printer member of an artifact. */
+export function printerSummary(): CorpusSummary {
+  return corpusSummary({ inputsDigest: 'i'.repeat(64), as: 'GNU assembler (test) 2.45', options: { seed: 1, armSample: 0, blSample: 0 } }, summarizeCorpus([], armCoverage()), false);
+}
+
+/** A dump whose two digests are its analysis's own, unless overridden. */
 export function dump(overrides: Partial<ScoredRun> = {}): ScoredRun {
+  const analysis = overrides.analysis ?? { functions: [], startup: { end: '0x08000000', entries: [] }, codeRange: ['0x08000000', '0x08000000'] };
+  const digest = analysisDigest(analysis);
   return {
     schema: SCORED_SCHEMA,
     rom: 'tiny',
     sha1: '0'.repeat(40),
     pocSourceDigest: 'p'.repeat(64),
-    analysis: { functions: [], startup: { end: '0x08000000', entries: [] }, codeRange: ['0x08000000', '0x08000000'] },
+    analysis,
     misses: [],
-    digests: ['d'.repeat(64), 'd'.repeat(64)],
+    digests: [digest, digest],
     scaffold: { ok: true, summary: 'built' },
     pocRow: {},
     ...overrides,

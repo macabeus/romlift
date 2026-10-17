@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -1178,6 +1178,87 @@ the description of what phase 1 delivers; the "As executed" table is who built w
 forbids, and they would hide interface drift). Keeping the corpus with the CLI (the CLI author would
 prove an encoder they did not write). Putting the PRNG in `test/helpers` only (`doctor` in `src` could
 not import it). One gate component for all six phases (too large to finish in one wave).
+
+## D55. Phase-1 review: one corpus run, one verdict, one digest
+
+**Context.** The first review of phase 1 (docs/phase-1.md, "Review") found the doctor and corpus
+verdict decided in three layers (foundation hard-coded the phase-1 threshold, the shell set
+`report.ok`, the CLI recomputed it from the statuses); the corpus pipeline copied between the shell
+doctor and the corpus driver; two incompatible definitions of the summary's `inputsDigest`; a digest
+that left out modules the corpus imports, so `npm run corpus -- --reuse` accepted stale summaries;
+test-harness files inside `foundation/isa` beyond what D54 (c) admitted, behind an injection seam no
+test used; a frozen `ParsedInsn` that could not hold a reading per candidate; a `Flow` that called a
+pc load through a base register `mov-pc`; a `CommandSpec` without positional arity; and the term
+"engine family", which the naming rule forbids.
+
+**Decision.**
+
+- (a) **The corpus has its own directory**, `src/foundation/corpus/` (`corpus.ts` the entry,
+  `types.ts`, `cases.ts`, `layout.ts`, `compare.ts`, `parse-summary.ts`), outside `foundation/isa`, so
+  nothing of it ships beside `romlift/isa`. It imports the isa functions directly: the `CorpusIsa`
+  seam is removed, because no test injected an isa (the mutation test flips assembled bytes). The
+  corpus produces **counts only** (`CorpusCounts`); `corpusSummary(head, counts, ok)` builds the
+  persisted `romlift/corpus-summary@1`, whose shape and key order are unchanged, and
+  `parseCorpusSummary` reads one back field by field.
+- (b) **The policy is one pure module**, `src/core/workflow/doctor.ts`, live from phase 1:
+  `DOCTOR_CHECK_IDS`, `DOCTOR_REQUIRED`, the corpus threshold `corpusOk(counts, options)` (no
+  disagreement; at least 0x10000 Thumb and bl cases and the ARM sample; every ARM row covered; both
+  alignments; an extreme) and `doctorVerdict(checks)` → `ok | unusable | disagrees`. The shell
+  calls them and decides nothing; `DoctorReport.ok` is replaced by `verdict`, and the CLI maps the
+  verdict to an exit code (0, 1, 3) without reading the statuses.
+- (c) **One corpus run**, `runCorpus` in `src/shell/toolchain/corpus.ts` (bounded concurrency, file
+  order kept, an `onFile` hook), used by `doctor` and by `test/corpus/generate.ts`.
+- (d) **One inputs digest**, `corpusInputsDigest` in `src/shell/toolchain/corpus-inputs.ts`: sha256 over
+  every repository file reached by the relative imports of `src/foundation/corpus/corpus.ts`,
+  `src/core/workflow/doctor.ts`, `src/shell/toolchain/corpus.ts`, `corpus-inputs.ts` itself and
+  `test/corpus/generate.ts`, plus the `as --version` line and the options. A module the corpus starts
+  to import is covered from that commit; a unit test proves the closure equals the one the TypeScript
+  compiler resolves. `doctor` never persists a summary and computes no digest. `test/corpus/**`
+  joins the source digest (architecture §8.6). The digest, `runCorpus`, `corpusOk`, the summary
+  helpers and `runDoctorWith` (the doctor with explicit corpus options, which the tests use) are
+  exported through `romlift/internal` (`src/api/corpus.ts`), not `romlift/node`; `DoctorOptions` no
+  longer has `armSample`.
+- (e) **The corpus driver** imports only the four entry points and the bench's argument parser
+  (`bench/src/args.ts`); `test/corpus/**` is scanned by the architecture checker with that edge row.
+- (f) **`ParsedInsn.candidates`** is `readonly ParsedCandidate[]`, each `{specId, operands}`: every row
+  that accepts a text keeps its own reading, so `assemble` can no longer lose a row with a better
+  `asPriority` whose reading conflicted with an earlier one. **`Flow`** gains `via: 'load-pc'` for pc
+  loaded through a base register other than sp (ldr/ldm; base 15 is a pc-relative table read), and
+  `pool-load` with `rd` 15 is documented as a transfer of control the walker must check (the PoC
+  classifies `ldr pc, [pc, #imm]` the same way, so parity is kept). `roundtrip.ts` exports
+  `printing(insn, resolver)`, the rule run once with its text and encoding, which `rawReason` and
+  the corpus use.
+- (g) **`CommandSpec.positionals`** (`readonly {name, optional?}[]`): the parser rejects an extra or a
+  missing positional with exit 2. `romlift doctor extra` is a usage error.
+- (h) **The `romlift/isa` surface** is the roadmap 1.A list plus `formatRaw`, `rawReason`,
+  `RAW_REASONS` and the types `Assembled`, `ParsedInsn`, `ParsedCandidate`, `FieldKind` and
+  `Dialect`, which the corpus, the doctor and gba-kit's printer need; they are public from phase 1.
+- (i) **Codebase family** replaces "engine family" for `Dataset.family` (architecture §8.2, §8.4,
+  §12, docs/benchmark-roms.md); D53's rule is unchanged.
+- (j) **Phase branches and the marker as practised.** The phase branch is `phase-<n>`, its components
+  `phase-<n>-<component>` (a flat name; `phase/<n>-<name>` with `phase/<n>/<component>` also works, the
+  roadmap's names never clashed, and either is acceptable). `test/gates/phase.json` is raised on the
+  phase branch before the closing real-tier run, because it is part of the source digest that run
+  records; the merge to `main` carries it. AGENTS.md and roadmap "How a phase runs" say so.
+- (k) **Smaller rules**: `elfFunctions` takes an order (`address`, or `symbol-table` for the PoC's
+  false-entry owners), and the bench's truth is built on it; the bench's toolchain versions come from
+  `romlift/node`'s `binutilsVersions`; `bench gates --tier real` keeps the committed gate record when a
+  real-tier gate of a landed phase (or of phase ≤ `--require`) is `unavailable`; `bench dataset-check`
+  pins the unsealed datasets to the ROMs of the PoC baseline; `bench poc-check` recomputes the stored
+  analysis's digest; export-poc strips every nested `seconds`; `g1.runtime-deps` reads the production
+  tree from the lock file, cross-checked with `npm ls --json`, never from paths npm prints.
+
+**Consequences.** One function decides each verdict and one defines the digest; the CLI, the doctor
+and the driver cannot drift apart. A corpus change anywhere in its import closure regenerates the
+summary. The doctor's NDJSON is unchanged. Phase 2 starts from a `ParsedInsn` and a `Flow` that
+carry what the walker needs.
+
+**Rejected.** Keeping `ok` decided inside foundation (policy in the layer that knows no project).
+Making `inputsDigest` optional for doctor (a frozen field would lose its meaning in one producer).
+A fixed directory list for the digest (it already missed `foundation/util`, `foundation/rom`,
+`foundation/diagnostics` and the shell runner). Keeping the `CorpusIsa` seam documented (it had no
+user). Rewriting the pool-load into an indirect Flow (it would lose the pool address the walker needs
+and break PoC parity).
 
 ---
 

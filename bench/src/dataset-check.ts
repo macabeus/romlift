@@ -2,7 +2,10 @@
 // Every `labels` address must be an ELF FUNC inside a function the run found (inside a found extent,
 // not itself an entry), every `untyped` address must not be a FUNC, and every listed row must still
 // be needed by the run (a label it still misses, an untyped address it still reports), so the lists
-// stay exact. Structural problems of the files are reported too.
+// stay exact. Structural problems of the files are reported too, and the tuning set itself is pinned:
+// the unsealed datasets must be exactly the ROMs of the PoC baseline (docs/benchmark-roms.md), so a
+// tuning dataset flipped to `heldout`, or a held-out one unsealed, fails instead of shrinking the set.
+import { readBaseline } from './baseline.ts';
 import type { BenchContext } from './context.ts';
 import { loadDatasets, rowAddr, tuningDatasets, type Dataset, type DatasetProblem } from './dataset.ts';
 import { BenchError } from './files.ts';
@@ -44,9 +47,28 @@ export function checkDatasetAgainstRun(d: Dataset, truth: Truth, dump: ScoredRun
   return problems;
 }
 
+/** The problems of a tuning set that is not exactly `expected` (the baseline's ROM names). */
+export function checkTuningSet(tuning: readonly Pick<Dataset, 'name'>[], expected: readonly string[]): DatasetProblem[] {
+  const have = new Set(tuning.map((d) => d.name));
+  const want = new Set(expected);
+  const problems: DatasetProblem[] = [];
+  for (const name of expected) {
+    if (!have.has(name)) problems.push({ dataset: name, list: 'dataset', addr: '', problem: 'tuning-set', detail: `${name} is in the baseline's tuning set but no unsealed dataset has that name (flipped to heldout?)` });
+  }
+  for (const { name } of tuning) {
+    if (!want.has(name)) problems.push({ dataset: name, list: 'dataset', addr: '', problem: 'tuning-set', detail: `${name} is an unsealed dataset but not in the baseline's tuning set` });
+  }
+  return problems;
+}
+
 export async function datasetCheck(cx: BenchContext): Promise<DatasetCheckReport> {
   const loaded = await loadDatasets(cx);
   const problems: DatasetProblem[] = [...loaded.problems];
+  const baseline = await readBaseline(cx);
+  // A dataset whose file does not parse is reported for that already, not as missing from the set.
+  const unparsed = new Set(loaded.problems.map((p) => p.dataset));
+  const expected = baseline.roms.map((r) => String(r['name'])).filter((name) => !unparsed.has(name));
+  problems.push(...checkTuningSet(tuningDatasets(loaded.datasets).filter((d) => !unparsed.has(d.name)), expected));
   for (const d of tuningDatasets(loaded.datasets)) {
     try {
       const inputs = await readDatasetInputs(cx, d);

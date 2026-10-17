@@ -6,7 +6,7 @@ import type { Row } from './row.ts';
 import { ROWS } from './rows.ts';
 import { readForm } from './template.ts';
 import type { CompiledForm } from './template.ts';
-import type { Fields, ParsedInsn, SpecId, SymbolResolver } from './types.ts';
+import type { Fields, ParsedCandidate, ParsedInsn, SymbolResolver } from './types.ts';
 
 interface Entry {
   readonly row: Row;
@@ -55,15 +55,12 @@ export function parse(text: string, mode: Mode, addr: Addr, resolver: SymbolReso
   if (entries === undefined) return undefined;
 
   const cx = { addr, address: (name: string) => resolver.addressOf(name) };
-  const candidates: SpecId[] = [];
-  const operands: Record<string, number> = {};
+  const candidates: ParsedCandidate[] = [];
   for (const entry of entries) {
-    const ops = readForm(entry.form, entry.mnemonicOps, operandText, cx);
-    if (ops === undefined || candidates.includes(entry.row.spec.id)) continue;
-    // One operand record serves every candidate: a reading that contradicts an earlier one is dropped.
-    if (Object.keys(ops).some((key) => operands[key] !== undefined && operands[key] !== ops[key])) continue;
-    Object.assign(operands, ops);
-    candidates.push(entry.row.spec.id);
+    const specId = entry.row.spec.id;
+    if (candidates.some((c) => c.specId === specId)) continue;
+    const operands = readForm(entry.form, entry.mnemonicOps, operandText, cx);
+    if (operands !== undefined) candidates.push({ specId, operands });
   }
-  return candidates.length === 0 ? undefined : { mode, text: normal, mnemonic, candidates, operands };
+  return candidates.length === 0 ? undefined : { mode, text: normal, mnemonic, candidates };
 }

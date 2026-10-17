@@ -8,8 +8,11 @@ import { test } from 'node:test';
 
 import { doctorExitCode, doctorNdjson, doctorText } from '../../../src/cli/commands/doctor.ts';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
+import { doctorVerdict } from '../../../src/core/workflow/doctor.ts';
+import type { DoctorCheck } from '../../../src/core/workflow/doctor.ts';
 import { findBinutils } from '../../../src/shell/toolchain/binutils.ts';
-import type { DoctorCheck, DoctorReport } from '../../../src/shell/toolchain/doctor.ts';
+import type { DoctorReport } from '../../../src/shell/toolchain/doctor.ts';
+import { stubBinutils } from '../shell/toolchain/stub.ts';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const IDS = ['binutils', 'corpus', 'thumb-jump11', 'agbcc', 'old_agbcc'];
@@ -39,9 +42,13 @@ function lines(stdout: string): Line[] {
     .map((text) => JSON.parse(text) as Line);
 }
 
+function verdictOf(statuses: Readonly<Record<string, DoctorCheck['status']>>): DoctorReport['verdict'] {
+  return report(statuses).verdict;
+}
+
 function report(statuses: Readonly<Record<string, DoctorCheck['status']>>): DoctorReport {
   const checks = IDS.map((id): DoctorCheck => ({ id: id as DoctorCheck['id'], status: statuses[id] ?? 'ok', detail: `${id} detail` }));
-  return { checks, diagnostics: [], ok: checks.slice(0, 3).every((c) => c.status === 'ok') };
+  return { checks, diagnostics: [], verdict: doctorVerdict(checks) };
 }
 
 test('doctor --json with the real toolchain exits 0: checks in order, then the summary', { skip: available ? false : 'unavailable: toolchain' }, () => {
@@ -82,11 +89,11 @@ test('doctor in text mode prints one line per check and the verdict', () => {
 });
 
 test('the exit code: 0 when the three required checks are ok, 1 without binutils, 3 when the corpus or probe fails', () => {
-  assert.equal(doctorExitCode(report({ agbcc: 'missing', old_agbcc: 'missing' })), ExitCode.ok);
-  assert.equal(doctorExitCode(report({ binutils: 'missing', corpus: 'missing', 'thumb-jump11': 'missing' })), ExitCode.errors);
-  assert.equal(doctorExitCode(report({ binutils: 'fail', corpus: 'missing', 'thumb-jump11': 'missing' })), ExitCode.errors);
-  assert.equal(doctorExitCode(report({ corpus: 'fail' })), ExitCode.verifyFailed);
-  assert.equal(doctorExitCode(report({ 'thumb-jump11': 'fail' })), ExitCode.verifyFailed);
+  assert.equal(doctorExitCode(verdictOf({ agbcc: 'missing', old_agbcc: 'missing' })), ExitCode.ok);
+  assert.equal(doctorExitCode(verdictOf({ binutils: 'missing', corpus: 'missing', 'thumb-jump11': 'missing' })), ExitCode.errors);
+  assert.equal(doctorExitCode(verdictOf({ binutils: 'fail', corpus: 'missing', 'thumb-jump11': 'missing' })), ExitCode.errors);
+  assert.equal(doctorExitCode(verdictOf({ corpus: 'fail' })), ExitCode.verifyFailed);
+  assert.equal(doctorExitCode(verdictOf({ 'thumb-jump11': 'fail' })), ExitCode.verifyFailed);
 });
 
 test('the NDJSON and text renderings of a report', () => {
@@ -99,4 +106,25 @@ test('the NDJSON and text renderings of a report', () => {
   assert.equal(text.stdout.split('\n')[2], 'thumb-jump11  fail     thumb-jump11 detail');
   assert.ok(text.stdout.endsWith('doctor: failed (exit 3)\n'));
   assert.equal(text.stderr, '');
+});
+
+test('doctor rejects a positional argument with exit 2', () => {
+  const result = doctor(['extra'], { PATH: '' });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /unexpected argument 'extra' for command 'doctor'/);
+  assert.equal(result.stdout, '');
+});
+
+test('doctor --json with binutils that exit 0 but write nothing reports failures, never crashes', async () => {
+  await stubBinutils({ as: 'exit 0' }, (dir) => {
+    const result = doctor(['--json'], { PATH: dir });
+    assert.equal(result.status, 3, result.stderr);
+    const parsed = lines(result.stdout);
+    assert.deepEqual(parsed.filter((l) => l.type === 'check').map((l) => [l.id, l.status]).slice(0, 3), [
+      ['binutils', 'ok'],
+      ['corpus', 'fail'],
+      ['thumb-jump11', 'fail'],
+    ]);
+    assert.deepEqual(parsed.at(-1), { type: 'summary', ok: false, exitCode: 3 });
+  });
 });

@@ -3,35 +3,23 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import {
-  armCoverage,
-  CASES_PER_FILE,
-  compareCorpusFile,
-  CORPUS_BASE,
-  CORPUS_ISA,
-  corpusFiles,
-  summarizeCorpus,
-} from '../../../src/foundation/isa/corpus.ts';
-import type { CorpusFile, CorpusOptions } from '../../../src/foundation/isa/corpus.ts';
+import { corpusOk } from '../../../src/core/workflow/doctor.ts';
+import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
+import { armCoverage, CASES_PER_FILE, compareCorpusFile, CORPUS_BASE, corpusFiles, corpusSummary, parseCorpusSummary, summarizeCorpus } from '../../../src/foundation/corpus/corpus.ts';
+import type { CorpusFile, CorpusOptions } from '../../../src/foundation/corpus/corpus.ts';
 import { decode } from '../../../src/foundation/isa/decode.ts';
-import { specOf } from '../../../src/foundation/isa/rows.ts';
+import { specOf, specsOf } from '../../../src/foundation/isa/rows.ts';
 import { perfectAs } from './simulate.ts';
 
 // The bl threshold (65,536 cases) needs the full bl sample; the ARM sample is cut down for speed.
 const OPTIONS: CorpusOptions = { seed: 7, armSample: 256, blSample: 65_536 };
-const FILES: readonly CorpusFile[] = [...corpusFiles(CORPUS_ISA, OPTIONS)];
+const FILES: readonly CorpusFile[] = [...corpusFiles(OPTIONS)];
 const byName = (name: string): CorpusFile => {
   const file = FILES.find((f) => f.name === name);
   assert.ok(file !== undefined, name);
   return file;
 };
-const META = {
-  inputsDigest: 'test',
-  as: 'GNU assembler (test)',
-  options: OPTIONS,
-  coverage: armCoverage(CORPUS_ISA),
-  armRows: CORPUS_ISA.specs('arm').map((s) => s.id),
-};
+const HEAD = { inputsDigest: 'test', as: 'GNU assembler (test)', options: OPTIONS };
 
 const ADDRESS_FLOWS = new Set(['branch', 'cond-branch', 'bl', 'pc-load', 'adr']);
 
@@ -68,9 +56,9 @@ test('ARM: every row swept, the sample, and per-row coverage', () => {
   }
   // A row with a condition field shows all 16 conditions in the sweep words generated for it.
   assert.equal(conditions.get('arm.add_imm')?.size, 15);
-  const coverage = armCoverage(CORPUS_ISA);
+  const coverage = armCoverage();
   assert.deepEqual(coverage['arm.add_imm'], { exhaustive: ['cond', 's', 'rn', 'rd'], sampled: ['imm12'] });
-  assert.equal(Object.keys(coverage).length, CORPUS_ISA.specs('arm').length);
+  assert.equal(Object.keys(coverage).length, specsOf('arm').length);
 });
 
 test('labels are defined in the same file at the computed targets', () => {
@@ -83,7 +71,7 @@ test('labels are defined in the same file at the computed targets', () => {
     for (const c of file.cases) {
       for (const label of c.text.match(/\b_[0-9A-F]{8}\b/g) ?? []) assert.ok(defined.has(label), `${file.name}: ${c.text}`);
     }
-    assert.ok(file.text.startsWith(`${CORPUS_ISA.preamble(file.mode)}.balign 4\ncorpus_base:\n`), file.name);
+    assert.ok(file.text.startsWith(`${DIALECT.preamble(file.mode)}.balign 4\ncorpus_base:\n`), file.name);
   }
 });
 
@@ -111,9 +99,11 @@ test('offset extremes: both ends at both alignments, and one step past them in f
 });
 
 test('a perfect assembler gives an ok summary that meets every threshold', () => {
-  const summary = summarizeCorpus(FILES.map((f) => compareCorpusFile(f, perfectAs(f))), META);
+  const counts = summarizeCorpus(FILES.map((f) => compareCorpusFile(f, perfectAs(f))), armCoverage());
+  const summary = corpusSummary(HEAD, counts, corpusOk(counts, OPTIONS));
   assert.equal(summary.schema, 'romlift/corpus-summary@1');
   assert.equal(summary.ok, true);
+  assert.deepEqual(parseCorpusSummary(JSON.parse(JSON.stringify(summary))), { ok: true, value: summary });
   for (const s of [summary.sections.thumb, summary.sections.bl, summary.sections.arm]) {
     assert.equal(s.disagree, 0);
     assert.equal(s.agree, s.cases);
@@ -156,10 +146,22 @@ test('the comparator: a wrong word, a short .text, an as failure, an accepted pr
   assert.equal(accepted.context.examples[0]?.got, 'as accepted, assemble refused');
 });
 
-test('the summary is not ok when a threshold is missed', () => {
+test('corpusOk is false when a threshold is missed', () => {
   const comparisons = FILES.map((f) => compareCorpusFile(f, perfectAs(f)));
-  assert.equal(summarizeCorpus(comparisons, { ...META, options: { ...OPTIONS, armSample: 1 << 24 } }).ok, false);
-  assert.equal(summarizeCorpus(comparisons, { ...META, armRows: [...META.armRows, 'arm.missing'] }).ok, false);
-  assert.equal(summarizeCorpus(comparisons.filter((c) => !c.file.startsWith('bl-')), META).ok, false);
-  assert.equal(summarizeCorpus([], META).ok, false);
+  const counts = summarizeCorpus(comparisons, armCoverage());
+  assert.equal(corpusOk(counts, OPTIONS), true);
+  assert.equal(corpusOk(counts, { ...OPTIONS, armSample: 1 << 24 }), false);
+  const { 'arm.add_imm': _dropped, ...partial } = armCoverage();
+  assert.equal(corpusOk(summarizeCorpus(comparisons, partial), OPTIONS), false);
+  assert.equal(corpusOk(summarizeCorpus(comparisons.filter((c) => !c.file.startsWith('bl-')), armCoverage()), OPTIONS), false);
+  assert.equal(corpusOk(summarizeCorpus([], armCoverage()), OPTIONS), false);
+});
+
+test('parseCorpusSummary names the first field that breaks the contract', () => {
+  const counts = summarizeCorpus(FILES.slice(0, 2).map((f) => compareCorpusFile(f, perfectAs(f))), armCoverage());
+  const summary: Record<string, unknown> = JSON.parse(JSON.stringify(corpusSummary(HEAD, counts, false))) as Record<string, unknown>;
+  assert.deepEqual(parseCorpusSummary({ ...summary, schema: 'romlift/corpus-summary@2' }), { ok: false, error: "schema is not 'romlift/corpus-summary@1'" });
+  assert.deepEqual(parseCorpusSummary({ ...summary, ok: 'yes' }), { ok: false, error: 'ok is not a boolean' });
+  assert.deepEqual(parseCorpusSummary({ ...summary, inputsDigest: 1 }), { ok: false, error: 'inputsDigest is not a string' });
+  assert.deepEqual(parseCorpusSummary(null), { ok: false, error: 'the summary is not an object' });
 });
