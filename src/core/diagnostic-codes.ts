@@ -2,7 +2,8 @@
 // lead adds the codes module of a component when its first raiser lands. The shell's codes stay
 // outside this union.
 import { RomCodes } from '../foundation/rom/codes.ts';
+import { AnalysisCodes } from './analysis/codes.ts';
 
-export const ALL_CODES = { ...RomCodes } as const;
+export const ALL_CODES = { ...RomCodes, ...AnalysisCodes } as const;
 
 export type DiagnosticCode = keyof typeof ALL_CODES;

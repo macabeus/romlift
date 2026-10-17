@@ -11,5 +11,7 @@ The romlift package: four layers, each allowed to import only the layers below i
 
 The entry points `index.ts` (`romlift`), `node.ts` (`romlift/node`), `isa.ts` (`romlift/isa`) and
 `internal.ts` (`romlift/internal`) contain only `export * from './api/<component>.ts'` lines; each
-`api/<component>.ts` barrel is owned by one component (D43). They are created by component 1.0 of
+`api/<component>.ts` barrel is owned by one component (D43). From phase 2, `romlift` exports the profiles and
+`analyze` (`api/profile.ts`, `api/analysis.ts`); `romlift/internal` exports the tuned analysis, the rule
+registry, the lockstep oracle types, `diagnoseMisses` and `makeReading` (`api/internal-analysis.ts`). They are created by component 1.0 of
 phase 1, as is every file listed for it in [roadmap.md](../docs/roadmap.md).

@@ -194,6 +194,28 @@ ROMs; the PoC's scaffold reproduces the SHA-1 on all five; all twelve `g1.*` gat
 Entry: phase 1 landed. Branch `phase/2-analysis`. Seven components: 2.0, then 2.A–2.E in parallel, then
 2.I, which runs milestones M1–M7 (architecture §4.5).
 
+### As executed (D56)
+
+Phase 2 runs as thirteen components in three waves on the branch `phase-2`, each on its own flat branch
+`phase-2-<component>` and worktree (D55 j); sections 2.0–2.I below still describe what the phase
+delivers. D56 records each deviation and why.
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p2-engine` | 0 | 2.0's `src` part (provenance, profile, the analysis types and contracts, `address-map`, `limits`, `codes`, `define-rule`, `rules/index.ts` and the eight empty family indexes, the barrels), 2.A's driver (`driver/**`, `pointers.ts`, `foundation/util/{interval-index,csr,min-heap}.ts`) plus `reading.ts`, `oracle.ts` and `diagnose.ts`, and the walk skeleton of 2.B (`walk/{cursor,thumb,arm}.ts`); `test/helpers/analysis.ts` |
+| `p2-poc-export` | 0 | 2.0's `parity` and `queries` modes of `bench/tools/export-poc.ts` (the log format `romlift-bench/poc-queries@1`) and `bench/baseline/poc-digests.json` |
+| `p2-fixtures` | 0 | 2.E's synthetic fixtures (`bench/dataset/synthetic/**`, `fixtures.yml`, `test/helpers/{fixtures,dummy-profile}.ts`): fixture coverage |
+| `p2-heldout` | 0 | 2.E's sealed held-out datasets (`bench/dataset/real/{pokefirered,pokeruby,tmc}.json`) and the seal tool |
+| `p2-walk` | 1 | 2.B's rules: `rules/{walk,bl,claim}/**` and their tests, on the walk skeleton of `p2-engine` |
+| `p2-seeds` | 1 | 2.C's seed rules: `rules/seed/**` and their tests |
+| `p2-validity` | 1 | 2.C's validity and acceptance rules: `rules/{valid,accept}/**` and their tests |
+| `p2-gaps` | 1 | 2.D: `rules/{gap,region}/**` and their tests |
+| `p2-lockstep` | 1 | 2.0's `bench/src/{parity,lockstep}.ts` and `test/local/{poc-lockstep,poc-parity}.test.ts`, 2.A's codec (`core/analysis/codec.ts`, `src/api/analysis-codec.ts`) |
+| `p2-bench` | 1 | 2.E's `core/analysis/explain.ts` (`src/api/analysis-explain.ts`) and `bench/src/{classify,seal,ablate,speed}.ts` |
+| `p2-commands` | 1 | 2.E's `core/workflow/{discover,explain}.ts`, `cli/commands/{analyze,explain}.ts`, `cli/commands/lists/analysis.ts`, `src/api/workflow-discover.ts`, `test/golden/explain/**` |
+| `p2-bench-run` | 1 | the `bench run` rewrite: the bench scores romlift's own analysis instead of the PoC's dumps (the scaffold family still reads the PoC's until phase 3) |
+| `p2-integration` | last | 2.I; runs the milestones and the exit commands with the real tier before the ci tier |
+
 ### 2.0 Analysis interfaces, profile and lockstep harness (lead)
 
 - **Owns:** `src/core/provenance/{rule-id,provenance,trail}.ts`, `src/core/profile/{types,registry,agbcc}.ts`
@@ -300,6 +322,7 @@ npm ci
 npm run typecheck
 npm test
 npm run fixtures -- check
+npm run export-poc -- --mode scored
 npm run export-poc -- --mode parity
 npm run export-poc -- --mode queries
 npm run test:local

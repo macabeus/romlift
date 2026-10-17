@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { ALL_CODES } from '../../../src/core/diagnostic-codes.ts';
+import { AnalysisCodes } from '../../../src/core/analysis/codes.ts';
 import { RomCodes } from '../../../src/foundation/rom/codes.ts';
 import { ShellCodes } from '../../../src/shell/codes.ts';
 
@@ -54,6 +55,8 @@ for (const file of codesFiles) {
 test('the scan finds the codes modules of this phase', () => {
   assert.ok(codesFiles.includes('foundation/rom/codes.ts'));
   assert.ok(codesFiles.includes('shell/codes.ts'));
+  assert.ok(codesFiles.includes('core/analysis/codes.ts'));
+  for (const code of Object.keys(AnalysisCodes)) assert.equal(defined.get(code), 'core/analysis/codes.ts');
   for (const code of Object.keys(RomCodes)) assert.equal(defined.get(code), 'foundation/rom/codes.ts');
   for (const code of Object.keys(ShellCodes)) assert.equal(defined.get(code), 'shell/codes.ts');
 });
