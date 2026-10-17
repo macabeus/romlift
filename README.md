@@ -14,7 +14,9 @@ and needs only Node.js and the GBA toolchain.
 
 ## Status
 
-Phase 0 of 6: the repository skeleton. No command works yet.
+Phase 1 of 6 (Decoder) is in progress: the repository infrastructure is in place (layer checker, gate
+framework, CLI command types); the decoder, `doctor` and the bench harness are being built. No command
+works yet.
 
 | Phase | Delivers |
 | --- | --- |
@@ -31,7 +33,7 @@ Phase 0 of 6: the repository skeleton. No command works yet.
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D53 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D54 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |

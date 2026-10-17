@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53; each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -1128,6 +1128,53 @@ improvised.
 
 **Rejected.** Landing automatically on a recorded failure (weakens the plan's gate without the owner).
 Counting siblings of a tuning ROM as independent.
+
+## D54. Phase-1 component boundaries as executed
+
+**Context.** Roadmap 1.0–1.D splits phase 1 into a lead, four parallel components and an integrator.
+Executing it with parallel agents exposed dependencies the split did not allow for: 1.D calls
+`parseElf`, `parseGnuMap` and `canonicalJson`, and a parallel component cannot typecheck against
+exports that are not merged yet; the corpus is the proof of the encoder, but it sat with the CLI;
+`doctor` needs the finished ISA and corpus; the gate files are too many for the lead alone; and a few
+files the work needs were in no listing.
+
+**Decision.** Phase 1 runs as nine components in three waves plus the integrator (the table is in
+roadmap.md, "As executed"). The deviations from roadmap 1.0–1.D:
+
+- (a) 1.B's files move into wave 0, as component `p1-foundation`, beside the lead's `p1-infra`,
+  because 1.D calls `parseElf` and `canonicalJson`, and parallel components cannot typecheck against
+  unmerged exports.
+- (b) `src/foundation/isa/types.ts` is created and owned by the ISA component (`p1-isa`), not by the
+  lead: no other wave-1 component uses it.
+- (c) The binutils runner (`src/shell/toolchain/binutils.ts`, `assembleWithBinutils`) and the corpus
+  (`test/corpus/generate.ts` plus a new pure `src/foundation/isa/corpus.ts`) belong to the ISA
+  component, so the author of the encoder proves it against `as`. The corpus core lives in `src`
+  because `doctor` (shell) must re-assemble it and the shell may not import `test/`.
+- (d) `doctor` and its command move to wave 2 (`p1-doctor`), once the ISA and corpus have merged.
+- (e) The gate files are written by two gate components, `p1-gates-early` (g1–g3, wave 1) and
+  `p1-gates-late` (g4–g6, wave 2), on the `test/gates/gate.ts` contract that `p1-infra` freezes.
+- (f) New files: `src/api/files.ts` (the `romlift/node` file helpers), `src/foundation/util/prng.ts`
+  (the corpus's seeded sample is needed by `doctor` in `src`, so the PRNG cannot live only in
+  `test/helpers`), and `test/helpers/architecture.ts` (the checker, reused by the mutation test).
+- (g) The CLI's `CommandSpec`, `OptionSpec`, `ParsedArgs`, `CliIo` and `ExitCode` are frozen in wave 0,
+  because every phase's command lists depend on them; `p1-cli` adds the parser and helpers in wave 1.
+- (h) `GateSpec.tier` accepts `'both'` for the gates architecture §13 marks "ci and real".
+- (i) The exit commands run the real tier before the ci tier, because `g1.provenance` (ci) checks the
+  real gate record once `phase.json.landed` is 1.
+
+The architecture checker reads a dynamic `import()` whose specifier's type is a string literal or a
+union of string literals as one edge per literal, so `test/gates/gate.ts` can load the four entry points
+without naming files that do not exist yet in a partial tree; any other non-literal specifier fails
+outside the PoC loaders.
+
+**Consequences.** Every component typechecks alone against merged code only; the encoder's author
+also owns its external proof; the lead's files stay small and frozen early. Roadmap 1.0–1.D remains
+the description of what phase 1 delivers; the "As executed" table is who built which part.
+
+**Rejected.** Running 1.D against stubs of 1.B's exports (stubs are what "nothing is stubbed early"
+forbids, and they would hide interface drift). Keeping the corpus with the CLI (the CLI author would
+prove an encoder they did not write). Putting the PRNG in `test/helpers` only (`doctor` in `src` could
+not import it). One gate component for all six phases (too large to finish in one wave).
 
 ---
 
