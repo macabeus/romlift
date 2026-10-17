@@ -18,14 +18,30 @@ and the exit commands of each phase). Follow them; a decision changes only throu
 | `npm test` | `test/*.test.ts` and `test/{unit,golden,mutation}/**`; needs no ROM |
 | `npm run test:local` | `test/local/**`; needs `ROMLIFT_BENCH_ROOT` and `ROMLIFT_POC` (below) |
 | `npm run bench -- <command>` | the benchmark harness (architecture §8.5), from phase 1 |
+| `npm run bench -- gates --require <n> --tier ci\|real` | runs the gate tests of phase ≤ n and prints every verdict (D29) |
+| `npm run corpus` | generates the `as` round-trip corpus into `bench/.local/corpus/` and assembles it with the system `arm-none-eabi-as`; exits 0 only at 100% round-trip |
+| `npm run export-poc -- --mode scored` | runs the read-only PoC from `ROMLIFT_POC` and dumps its scored runs into `bench/.local/` (architecture §4.5) |
 | `npm run build` | emits `dist/` for publishing only; development never builds |
 
 Node runs the TypeScript sources directly (type stripping, `--conditions=source`); `engines.node` is
-`>=22.18` and CI runs Node 22.18 and 24 on Linux and macOS (D2, D30).
+`>=22.18` and CI runs Node 22.18 and 24 on Linux and macOS (D2, D30). `@match-kit/decomp-yaml` declares
+`node >=24`, so `npm ci` on Node 22.18 prints an `EBADENGINE` warning; it is only a warning, and
+`engine-strict` stays off.
+
+### Environment
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ROMLIFT_BENCH_ROOT` | the parent directory of the repository root | where the benchmark checkouts live (docs/benchmark-roms.md) |
+| `ROMLIFT_POC` | `$ROMLIFT_BENCH_ROOT/romlift-poc` | the read-only proof-of-concept checkout |
+| `ROMLIFT_REQUIRE_LOCAL` | unset | `1` makes `test/local/**` tests fail instead of skipping as `unavailable` when an input is missing |
+| `ROMLIFT_GATE_TIER` | `ci` | the tier the gate tests run (`ci` or `real`); `bench gates --tier` passes it to them |
+| `ROMLIFT_GATE_REPORT` | unset | a file each gate test appends its verdict to, one NDJSON line per gate (`test/gates/gate.ts`) |
 
 There is no separate linter or formatter. Strictness comes from `tsconfig.json`, and the layer rules,
-globals allowlist and `Map` iteration rule are enforced by `test/architecture.test.ts` (D5), so a
-violation fails `npm test`. Style follows the code in the architecture: two-space indent, single
+globals allowlist, `Map` iteration rule, barrel shape and dynamic-import rule are enforced by
+`test/architecture.test.ts` (D5) with the checker in `test/helpers/architecture.ts`, whose edge table
+is architecture §2 written as data; a violation fails `npm test`. Style follows the code in the architecture: two-space indent, single
 quotes, semicolons, and `.editorconfig` for whitespace.
 
 ## Code rules
@@ -64,10 +80,10 @@ cfg); **accept** names the acceptance rules (D6). Functions, modules, pools, tab
   only SHA-1s, ELF digests, exception lists and the results artifact (docs/benchmark-roms.md).
   `.gitignore` excludes them and `test/repository.test.ts` fails if one is tracked. The only exceptions
   are the self-authored synthetic fixtures under `bench/dataset/synthetic/*/build/` and `test/fixtures/`.
-- **Benchmark checkouts** live under `ROMLIFT_BENCH_ROOT`, default `..`; on the owner's machine that is
-  `/Users/macabeus/ApenasMeu/decompiler`. Tuning set: `kleod/` (klonoa), `sa2/`, `sa3/`,
-  `FireEmblem7J/` (fe7j), `pokeemerald/`, each with its ROM, ELF and map (table in
-  docs/benchmark-roms.md). agbcc builds: `pokeemerald/tools/agbcc` and `agbcc/` under the same root.
+- **Benchmark checkouts** live under `ROMLIFT_BENCH_ROOT`, default the parent directory of the
+  repository root; on the owner's machine that is `/Users/macabeus/ApenasMeu/decompiler`. Tuning set:
+  `kleod/` (klonoa), `sa2/`, `sa3/`, `FireEmblem7J/` (fe7j), `pokeemerald/`, each with its ROM, ELF and
+  map (table in docs/benchmark-roms.md). agbcc builds: `pokeemerald/tools/agbcc` and `agbcc/` under the same root.
 - **The proof of concept** is at `ROMLIFT_POC` (`/Users/macabeus/ApenasMeu/decompiler/romlift-poc`). It
   is read-only: never modify it. Its numbers are the acceptance bar, pinned by content (D50).
 - **Held-out ROMs** (`pokefirered`, `pokeruby`, `tmc`, and any admitted from the reserve pool) are never

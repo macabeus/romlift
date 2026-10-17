@@ -60,6 +60,24 @@ Claude-Session: https://claude.ai/code/session_01JNLnM6KmzWvJDFNNgMvvvX
 Entry: an empty repository. Branch `phase/1-decoder`. Six components: 1.0, then 1.A–1.D in parallel,
 then 1.I.
 
+### As executed (D54)
+
+Phase 1 runs as nine components in three waves on the branch `phase-1`, each component on its own
+branch and worktree; sections 1.0–1.I below still describe what the phase delivers. D54 records each
+deviation and why.
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p1-infra` | 0 | 1.0's repository files, `test/architecture.test.ts` and its checker `test/helpers/architecture.ts`, `test/gates/gate.ts`, `phase.json`, `ci.yml`, the frozen CLI types (`registry.ts`, `exit-codes.ts`, `commands/index.ts`, `lists/toolchain.ts`), `foundation/util/prng.ts` |
+| `p1-foundation` | 0 | all of 1.B, plus 1.0's barrels, `span.ts`, `diagnostic.ts`, `formats/types.ts`, `src/api/files.ts` |
+| `p1-isa` | 1 | 1.A, plus `foundation/isa/types.ts`, the corpus (`test/corpus/generate.ts`, `foundation/isa/corpus.ts`) and `shell/toolchain/binutils.ts` |
+| `p1-cli` | 1 | 1.C's CLI: `main.ts`, `args.ts`, reporters, registry helpers |
+| `p1-bench` | 1 | 1.D |
+| `p1-gates-early` | 1 | the `g1.*`, `g2.*` and `g3.*` gate files |
+| `p1-doctor` | 2 | 1.C's `doctor`: `shell/toolchain/doctor.ts`, `commands/doctor.ts`, `lists/toolchain.ts`, `api/toolchain.ts` |
+| `p1-gates-late` | 2 | the `g4.*`, `g5.*` and `g6.*` gate files |
+| `p1-integration` | last | 1.I; runs the exit commands with the real tier before the ci tier |
+
 ### 1.0 Repository and frozen interfaces (lead)
 
 - **Owns:** `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.build.json`, `.gitignore`,
