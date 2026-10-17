@@ -1,0 +1,86 @@
+{
+  "negative": true,
+  "entries": [
+    {
+      "addr": "0x08000000",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000C0",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x08000102"
+      }
+    },
+    {
+      "addr": "0x08000114",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000114",
+        "end": "0x08000118"
+      }
+    },
+    {
+      "addr": "0x08000118",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000118",
+        "end": "0x0800011C"
+      }
+    },
+    {
+      "addr": "0x0800011C",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x0800011C",
+        "end": "0x08000120"
+      }
+    },
+    {
+      "addr": "0x08000120",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000120",
+        "end": "0x08000124"
+      }
+    },
+    {
+      "addr": "0x08000134",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000134",
+        "end": "0x08000138"
+      }
+    },
+    {
+      "addr": "0x08000138",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000138",
+        "end": "0x0800013C"
+      }
+    },
+    {
+      "addr": "0x0800013C",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x0800013C",
+        "end": "0x08000140"
+      }
+    },
+    {
+      "addr": "0x08000140",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000140",
+        "end": "0x08000144"
+      }
+    }
+  ],
+  "codeEnd": "0x08000144"
+}
