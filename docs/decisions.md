@@ -1927,6 +1927,17 @@ skipped or removed.
   historical gate to `historicalCheck === run`, and `test/unit/gates/poc-parity-check.test.ts` runs the
   harness at `landed` 2 on a gate whose check throws (`fail`) and one whose check returns (`historical`;
   code-quality-r2-6). A scoped-out name that is no tuning dataset fails as stale.
+- (d) **Q2, `g2.baseline-rows`** (`test/gates/baseline-rows-verdict.ts`). `BENCHMARK_ROWS` holds tmc with the
+  owner's words and its floor, tp 8,631 of 8,636 ELF functions (recall 99.94%). For tmc (its PoC reference
+  the pinned PoC's own run, `poc.source` `dump`) an unaccepted row of the kinds a dataset row carries (a
+  miss added or changed, a false entry added or changed) passes when the run's row lists it with a category,
+  and the gate prints each such row with its category; any other unaccepted row (an extent change, an
+  unlisted or uncategorised row) and any stale accepted diff still fail, and tp or recall below the floor
+  fails. Every other ROM, and any revealed ROM the owner did not name, is judged exactly as before. Measured:
+  tmc's 8 rows (0x08008B2E `unreached-tail`; 0x080B197C, 0x080B1AA8, 0x080B1B0C, 0x080B21B0
+  `pointer-entry`; 0x080B20AC `split-after-returning-call`; 0x080B2718, 0x080B27E4 `local-subroutine`) are
+  accepted as listed, 51 improvements as before, tp 8,631 at the floor; the five unchanged. The roadmap's
+  narrowing of `28b9005` (D60, Rejected) stays rejected for every ROM but tmc.
 
 **Consequences.** See each item; phase-2.md records the closing run under these answers.
 

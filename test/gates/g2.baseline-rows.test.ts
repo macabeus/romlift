@@ -1,6 +1,9 @@
 // g2.baseline-rows (architecture §4.5 "What a row change may be", §13): the bench rows of every tuning ROM
 // equal the PoC baseline except the improvements listed in bench/baseline/accepted-diffs.json, and no
-// listed improvement is stale (one that no longer differs from the baseline fails).
+// listed improvement is stale (one that no longer differs from the baseline fails). tmc, revealed after
+// the baseline was pinned, is a benchmark row by the owner's answer to Q1 and Q2 (D61 d, "Keep tmc as
+// 99.94%. It's a benchmark row that we can improve later"): its rows that the dataset lists with a category
+// are accepted and printed, and its tp 8,631 of 8,636 is a floor (baseline-rows-verdict.ts).
 //
 // Expected output, for the phase-2 lead to align (architecture §8.5):
 //   npm run bench -- run --json   exit 0; the last stdout line is romlift/bench-run@1; --json writes no
@@ -15,30 +18,18 @@
 //     }
 //   kind is one of 'miss-removed', 'false-entry-removed', 'extent-agrees' (improvements) or any other
 //   name the bench gives a change.
+//   For a ROM the owner kept as a benchmark row (baseline-rows-verdict.ts BENCHMARK_ROWS: tmc, D61 d) it
+//   also reads tp, elfFunctions, recall and misses[]/falseEntries[] ({addr, listed, category}).
+import { baselineRowsVerdict, type BaselineRowsInput } from './baseline-rows-verdict.ts';
 import { gate, noPocReference, type ExecResult } from './gate.ts';
-
-interface RowDiff {
-  readonly kind: string;
-  readonly addr: string;
-}
-
-interface BenchRunRom {
-  readonly name: string;
-  readonly poc?: { readonly tp: number; readonly source?: 'baseline' | 'dump' | 'none' };
-  readonly baselineRows: { readonly diffs: readonly RowDiff[]; readonly unaccepted: readonly RowDiff[]; readonly staleAccepted: readonly RowDiff[] };
-}
 
 interface BenchRun {
   readonly schema: string;
-  readonly roms: readonly BenchRunRom[];
+  readonly roms: readonly BaselineRowsInput[];
 }
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
-}
-
-function rows(list: readonly RowDiff[]): string {
-  return list.slice(0, 8).map((d) => `${d.kind} ${d.addr}`).join(', ');
 }
 
 gate({
@@ -65,10 +56,9 @@ gate({
         problems.push(missing);
         continue;
       }
-      const { diffs, unaccepted, staleAccepted } = rom.baselineRows;
-      if (unaccepted.length > 0) problems.push(`${rom.name}: ${unaccepted.length} rows differ from the PoC baseline without an accepted diff: ${rows(unaccepted)}`);
-      if (staleAccepted.length > 0) problems.push(`${rom.name}: ${staleAccepted.length} stale accepted diffs: ${rows(staleAccepted)}`);
-      notes.push(`${rom.name} ${diffs.length} accepted improvements${rom.poc?.source === 'dump' ? " (against the PoC's own run, pinned in bench/baseline/poc-dump-rows.json)" : ''}`);
+      const verdict = baselineRowsVerdict(rom);
+      problems.push(...verdict.problems);
+      notes.push(verdict.note);
     }
     if (problems.length > 0) throw new Error(`baseline rows: ${problems.join('; ')}`);
     cx.note(notes.join(', '));

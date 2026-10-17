@@ -1020,7 +1020,13 @@ record only improvements against the PoC baseline: a row removed from the misses
 or an extent that now agrees, each with the commit and a reason. A regression is fixed in the rules,
 never accepted as a diff. A listed improvement that no longer differs from the PoC baseline fails as
 stale. From then on `g2.baseline-rows` holds: the bench rows equal the baseline except the improvements
-listed in `accepted-diffs.json`.
+listed in `accepted-diffs.json`. One ROM is a benchmark row instead (`test/gates/baseline-rows-verdict.ts`
+`BENCHMARK_ROWS`): tmc, revealed after the baseline was pinned, by the owner's answer to Q1 and Q2 of
+phase-2.md (D61 d), "Keep tmc as 99.94%. It's a benchmark row that we can improve later". Its reference is
+the pinned PoC's own run of it; a row that differs from that run and is not a listed improvement passes only
+when the dataset lists it with a category (a `labels` or `untyped` row), and is printed; an extent change, an
+unlisted or uncategorised row and a stale accepted diff still fail; and its tp 8,631 of 8,636 (recall
+99.94%) is a floor. The five original ROMs are judged exactly as above.
 
 `'poc-lifo'` was deleted by the phase-2 integration and the oracle in its fix round (D59); `g2.poc-parity`
 checks the committed evidence (the digests and the lockstep summary in `results.json`, tied to the commit
@@ -2014,7 +2020,7 @@ one is missing.
 | `g1.provenance` | ci | the source digest, gate record, family and held-out checks of §8.6 run and agree with the committed artifact |
 | `g1.checks-fail` | ci | mutation tests of the phase-1 checkers (architecture, corpus comparator, dataset check, provenance) |
 | `g2.poc-parity` | real (historical after phase 2) | M1: parity-view digests equal `poc-digests.json`; rows equal the PoC baseline; once historical, the evidence covers every tuning dataset |
-| `g2.baseline-rows` | real | rows equal the baseline except the improvements in `accepted-diffs.json`; no stale improvement |
+| `g2.baseline-rows` | real | rows equal the baseline except the improvements in `accepted-diffs.json`; no stale improvement; tmc a benchmark row (rows listed with a category accepted, tp 8,631 a floor; D61 d) |
 | `g2.entries` | real | the entries family of §8.4 |
 | `g2.extents` | real | the extents family |
 | `g2.code-end` | real | the code-end family |
