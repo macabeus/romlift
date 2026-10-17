@@ -7,6 +7,7 @@
 // line holding the report (addresses as hexAddr strings, the claim by name), the diagnostics, then the
 // summary line. Exit codes: 0 ok, 1 an error diagnostic, 2 usage.
 import { claimName } from '../../api/analysis.ts';
+import { readRom } from '../../api/files.ts';
 import type { RuleMeta, TrailEvent, TrailKind } from '../../api/profile.ts';
 import { hexAddr, parseHexAddr } from '../../api/rom.ts';
 import type { Addr, Diagnostic } from '../../api/rom.ts';
@@ -18,7 +19,7 @@ import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, loadRom, printDiagnosticsOnly, provenanceJson, usageError } from './analyze.ts';
+import { exitCodeOf, printDiagnosticsOnly, provenanceJson, usageError } from './analysis-records.ts';
 
 /** The address argument: '0x' and one to eight hex digits, or a decimal number; undefined otherwise. */
 export function parseAddrArg(text: string): Addr | undefined {
@@ -116,12 +117,12 @@ export const explainCommand: CommandSpec = {
     if (addr === undefined) return usageError(io, 'explain', `'${text}' is not an address (0x and hex digits, or decimal)`);
     const path = args.options['rom'];
     if (path === undefined) return usageError(io, 'explain', 'needs --rom <rom>');
-    const loaded = await loadRom(path);
+    const loaded = await readRom(path);
     if (!loaded.ok) {
       printDiagnosticsOnly(io, json, 'explain', [loaded.diagnostic], { ok: false, exitCode: ExitCode.errors });
       return ExitCode.errors;
     }
-    const outcome = explainOutcome(loaded.rom, addr);
+    const outcome = explainOutcome(loaded.value, addr);
     const exitCode = exitCodeOf(outcome.diagnostics);
     const summary: RunSummary = { ok: exitCode === ExitCode.ok, exitCode };
     if (json) {

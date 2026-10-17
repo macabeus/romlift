@@ -8,9 +8,11 @@
 // Expected output, for the phase-2 lead to align (architecture §8.5):
 //   npm run bench -- run --only <sealed dataset> --json   exit 0; the last stdout line is romlift/bench-run@1
 //   whose `sealed[]` holds one entry of counts for that dataset:
-//     {name, entries, elfFunctions, tp, glued, labelCandidates,
-//      falseEntries: {startup, veneer, adrCallback, insideElfFunction},
+//     {name, entries, elfFunctions, tp, glued, gluedWhere: {insideExtent, outsideExtents, pastCodeEnd},
+//      labelCandidates, falseEntries: {startup, veneer, adrCallback, insideElfFunction, other},
 //      extents: {sized, agree}, codeEnd: {delta}}
+//   gluedWhere splits the glued misses (inside a found extent: a glued split; in no extent or past the code
+//   end: code the run never reached) and is printed, never judged: zero glued is the threshold.
 //   entries and elfFunctions are counted from the end of the startup region, startup entries excluded.
 import { gate, type DatasetRef, type GateContext } from './gate.ts';
 
@@ -20,6 +22,7 @@ interface SealedCounts {
   readonly elfFunctions: number;
   readonly tp: number;
   readonly glued: number;
+  readonly gluedWhere?: { readonly insideExtent: number; readonly outsideExtents: number; readonly pastCodeEnd: number };
   readonly labelCandidates: number;
   readonly falseEntries: Readonly<Record<string, number>>;
   readonly extents: { readonly sized: number; readonly agree: number };
@@ -75,7 +78,9 @@ async function judge(cx: GateContext, dataset: DatasetRef): Promise<{ readonly p
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
     .map((k) => `${k} ${counts.falseEntries[k] ?? 0}`)
     .join(', ');
-  const measured = `precision ${pct(precision)}, recall ${pct(recall)}, glued ${counts.glued}, label candidates ${counts.labelCandidates}, extents ${pct(extents, 3)}, code end ${counts.codeEnd.delta}, false entries ${falseByClass}`;
+  const g = counts.gluedWhere;
+  const where = g === undefined ? '' : ` (inside an extent ${g.insideExtent}, outside every extent ${g.outsideExtents}, past the code end ${g.pastCodeEnd})`;
+  const measured = `precision ${pct(precision)}, recall ${pct(recall)}, glued ${counts.glued}${where}, label candidates ${counts.labelCandidates}, extents ${pct(extents, 3)}, code end ${counts.codeEnd.delta}, false entries ${falseByClass}`;
   const verdict = failures.length === 0 ? 'pass' : `fail (${failures.join('; ')})`;
   return { pass: failures.length === 0, summary: `${dataset.name} [${dataset.family ?? 'no family'}] ${verdict}: ${measured}` };
 }

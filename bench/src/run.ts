@@ -304,10 +304,12 @@ export function summaryText(r: RomliftRow): string {
 export function sealedText(s: SealedEntry): string {
   const share = (n: number, d: number): string => (d === 0 ? 'n/a' : pct(n / d));
   const f = s.falseEntries;
+  const g = s.gluedWhere;
+  const where = g === undefined ? '' : ` (inside an extent ${g.insideExtent}, outside every extent ${g.outsideExtents}, past the code end ${g.pastCodeEnd})`;
   return (
-    `${s.name.padEnd(12)} (sealed) ${s.pass ? 'pass' : 'FAIL'}: precision ${share(s.tp, s.entries)}, recall ${share(s.tp, s.elfFunctions)}, glued ${s.glued}, ` +
+    `${s.name.padEnd(12)} (sealed) ${s.pass ? 'pass' : 'FAIL'}: precision ${share(s.tp, s.entries)}, recall ${share(s.tp, s.elfFunctions)}, glued ${s.glued}${where}, ` +
     `label candidates ${s.labelCandidates}, extents ${s.extents.agree}/${s.extents.sized}, code end ${s.codeEnd.delta}, ` +
-    `false entries: startup ${f.startup}, veneer ${f.veneer}, adr-callback ${f.adrCallback}, inside-elf-function ${f.insideElfFunction}`
+    `false entries: startup ${f.startup}, veneer ${f.veneer}, adr-callback ${f.adrCallback}, inside-elf-function ${f.insideElfFunction}, other ${f.other ?? 'not counted'}`
   );
 }
 

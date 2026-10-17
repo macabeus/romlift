@@ -7,48 +7,17 @@
 // --disable turns registered rules off through the internal tuning (D37); an unknown id is a usage error.
 // Exit codes: 0 ok, 1 an error diagnostic (E_IO_READ, E_ROM_NOT_GBA), 2 usage.
 import type { AnalysisResult, FunctionFact } from '../../api/analysis.ts';
-import { readBytes, sha1Of } from '../../api/files.ts';
-import type { Provenance, Rejection } from '../../api/profile.ts';
-import { hexAddr, romFromBytes } from '../../api/rom.ts';
-import type { Diagnostic, Rom, Span } from '../../api/rom.ts';
+import { readRom } from '../../api/files.ts';
+import type { Rejection } from '../../api/profile.ts';
+import { hexAddr } from '../../api/rom.ts';
 import { disabledTuning, discoverTuned, parseRuleIds } from '../../core/workflow/discover.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
-import { PROGRAM } from '../registry.ts';
-import type { CliIo, CommandSpec } from '../registry.ts';
+import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
-import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-
-// Shared by the analysis commands.
-
-/** The ROM at `path`, or the E_IO_READ diagnostic of reading it. */
-export async function loadRom(path: string): Promise<{ readonly ok: true; readonly rom: Rom } | { readonly ok: false; readonly diagnostic: Diagnostic }> {
-  const read = await readBytes(path);
-  if (!read.ok) return { ok: false, diagnostic: read.diagnostic };
-  return { ok: true, rom: romFromBytes(read.value, sha1Of(read.value)) };
-}
-
-/** 1 when any diagnostic is an error, else 0. */
-export function exitCodeOf(diagnostics: readonly Diagnostic[]): ExitCode {
-  return diagnostics.some((d) => d.severity === 'error') ? ExitCode.errors : ExitCode.ok;
-}
-
-/** A usage error raised by a command after parsing: one stderr line and the pointer to its help. */
-export function usageError(io: CliIo, command: string, message: string): ExitCode {
-  io.stderr(`${PROGRAM}: ${command}: ${message}\nRun '${PROGRAM} ${command} --help' for its options.\n`);
-  return ExitCode.usage;
-}
-
-/** A span as {start, end} hexAddr strings. */
-export function spanJson(span: Span): RecordFields {
-  return { start: hexAddr(span.start), end: hexAddr(span.end) };
-}
-
-/** A provenance record with its cites as hexAddr strings. */
-export function provenanceJson(p: Provenance): RecordFields {
-  return { rule: p.rule, round: p.round, cites: p.cites.map(hexAddr), note: p.note };
-}
+import { columns, formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
+import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError } from './analysis-records.ts';
 
 // The analyze output.
 
@@ -99,13 +68,6 @@ export function analyzeNdjson(result: AnalysisResult, summary: RunSummary): stri
   ].join('');
 }
 
-/** Rows of cells as lines, every column but the last padded to its widest cell plus two spaces. */
-export function columns(rows: readonly (readonly string[])[], indent = ''): string {
-  const widths: number[] = [];
-  for (const row of rows) row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
-  return rows.map((row) => `${indent}${row.map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0))).join('  ')}`.trimEnd() + '\n').join('');
-}
-
 const FUNCTION_HEADER = ['entry', 'mode', 'extent', 'code end', 'origin', 'accepted', 'also'];
 
 function functionRow(f: FunctionFact): readonly string[] {
@@ -133,16 +95,6 @@ export function analyzeText(result: AnalysisResult, summary: RunSummary): { read
   return { stdout, stderr: result.diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join('') };
 }
 
-/** Prints a failure that happened before any analysis (the ROM could not be read). */
-export function printDiagnosticsOnly(io: CliIo, json: boolean, command: string, diagnostics: readonly Diagnostic[], summary: RunSummary): void {
-  if (json) {
-    io.stdout([...diagnostics.map(diagnosticLine), summaryLine(summary)].join(''));
-    return;
-  }
-  io.stderr(diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join(''));
-  io.stdout(`${command}: ${formatSummaryText(summary)}\n`);
-}
-
 export const analyzeCommand: CommandSpec = {
   name: 'analyze',
   summary: 'Finds the functions of a ROM (discover mode): origin, provenance, rejections, diagnostics',
@@ -157,13 +109,13 @@ export const analyzeCommand: CommandSpec = {
     const disabled = parseRuleIds(args.repeated['disable'] ?? []);
     if (disabled.unknown.length > 0) return usageError(io, 'analyze', `--disable names no analysis rule: ${disabled.unknown.join(', ')}`);
     const path = args.positionals[0] ?? '';
-    const loaded = await loadRom(path);
+    const loaded = await readRom(path);
     if (!loaded.ok) {
       const summary: RunSummary = { ok: false, exitCode: ExitCode.errors, counts: { functions: 0, rejections: 0, diagnostics: 1 } };
       printDiagnosticsOnly(io, json, 'analyze', [loaded.diagnostic], summary);
       return ExitCode.errors;
     }
-    const result = discoverTuned(loaded.rom, {}, disabledTuning(disabled.known));
+    const result = discoverTuned(loaded.value, {}, disabledTuning(disabled.known));
     const summary = analyzeSummary(result, exitCodeOf(result.diagnostics));
     if (json) {
       io.stdout(analyzeNdjson(result, summary));

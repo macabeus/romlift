@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { analyzeNdjson, analyzeSummary, columns } from '../../../src/cli/commands/analyze.ts';
+import { analyzeNdjson, analyzeSummary } from '../../../src/cli/commands/analyze.ts';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
@@ -93,9 +93,6 @@ test('analyze text: the function table, then the summary line', async () => {
   assert.match(lines.at(-1) ?? '', /^analyze: ok \(exit 0\): diagnostics 0, functions \d+, rejections \d+$/);
 });
 
-test('columns pads every column but the last and trims the line end', () => {
-  assert.equal(columns([['a', 'bbb', 'c'], ['dddd', 'e', '']], '  '), '  a     bbb  c\n  dddd  e\n');
-});
 
 test('an unknown --disable id is a usage error (exit 2) naming it; nothing on stdout', async () => {
   const out = await run(['analyze', ROM, '--json', '--disable', 'walk.no-such-rule', '--disable', 'bogus']);

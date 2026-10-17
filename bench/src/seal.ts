@@ -15,13 +15,23 @@ export interface SealedCounts {
   readonly elfFunctions: number;
   readonly tp: number;
   readonly glued: number;
+  /**
+   * Where the glued misses lie, which tells a glued split from code never reached without revealing an
+   * address: strictly inside a found function's extent, in no found extent below the run's code end, or
+   * at or past the run's code end. The three sum to `glued`. Optional when read from an older artifact.
+   */
+  readonly gluedWhere?: { readonly insideExtent: number; readonly outsideExtents: number; readonly pastCodeEnd: number };
   readonly labelCandidates: number;
-  /** False entries per class; startup ones are outside `entries`, the others count against precision. */
+  /**
+   * False entries per class; startup ones are outside `entries`, the others count against precision and
+   * sum to entries - tp. `other` is optional when read from an artifact written before it was counted.
+   */
   readonly falseEntries: {
     readonly startup: number;
     readonly veneer: number;
     readonly adrCallback: number;
     readonly insideElfFunction: number;
+    readonly other?: number;
   };
   readonly extents: { readonly sized: number; readonly agree: number };
   /** The run's code end minus the ELF's (the end of its last function). */
@@ -46,7 +56,7 @@ export function sealedCounts(input: SealedInput): SealedCounts {
   let tp = 0;
   let sized = 0;
   let agree = 0;
-  const falseEntries = { startup: 0, veneer: 0, adrCallback: 0, insideElfFunction: 0 };
+  const falseEntries = { startup: 0, veneer: 0, adrCallback: 0, insideElfFunction: 0, other: 0 };
   for (const f of input.found) {
     if (f.entry >= startupEnd) entries++;
     const size = elfSize.get(f.entry);
@@ -56,6 +66,7 @@ export function sealedCounts(input: SealedInput): SealedCounts {
       else if (kind === 'veneer') falseEntries.veneer++;
       else if (kind === 'adr-callback') falseEntries.adrCallback++;
       else if (kind === 'inside-elf-function') falseEntries.insideElfFunction++;
+      else falseEntries.other++;
       continue;
     }
     if (f.entry < startupEnd) continue;
@@ -68,12 +79,19 @@ export function sealedCounts(input: SealedInput): SealedCounts {
   let elfFunctions = 0;
   let glued = 0;
   let labelCandidates = 0;
+  const gluedWhere = { insideExtent: 0, outsideExtents: 0, pastCodeEnd: 0 };
   for (const addr of elfSize.keys()) {
     if (addr < startupEnd) continue;
     elfFunctions++;
     if (foundEntries.has(addr)) continue;
-    if (classifyMiss(cx, addr) === 'glued') glued++;
-    else labelCandidates++;
+    if (classifyMiss(cx, addr) !== 'glued') {
+      labelCandidates++;
+      continue;
+    }
+    glued++;
+    if (input.found.some((f) => addr > f.extent.start && addr < f.extent.end)) gluedWhere.insideExtent++;
+    else if (addr >= input.codeEnd) gluedWhere.pastCodeEnd++;
+    else gluedWhere.outsideExtents++;
   }
 
   let elfEnd = 0;
@@ -84,6 +102,7 @@ export function sealedCounts(input: SealedInput): SealedCounts {
     elfFunctions,
     tp,
     glued,
+    gluedWhere,
     labelCandidates,
     falseEntries,
     extents: { sized, agree },

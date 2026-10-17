@@ -55,19 +55,33 @@ test('sealedCounts counts from the end of the startup region and classifies ever
     elfFunctions: 6,
     tp: 4,
     glued: 1,
+    gluedWhere: { insideExtent: 1, outsideExtents: 0, pastCodeEnd: 0 },
     labelCandidates: 1,
-    falseEntries: { startup: 1, veneer: 1, adrCallback: 1, insideElfFunction: 1 },
+    falseEntries: { startup: 1, veneer: 1, adrCallback: 1, insideElfFunction: 1, other: 1 },
     // A agrees exactly, B by padding, F's 0x100 bytes do not agree with 0x80; H is unsized.
     extents: { sized: 3, agree: 2 },
     codeEnd: { delta: 0x08000290 - 0x08000300 },
   });
   assert.doesNotThrow(() => assertCountsOnly(counts));
+  const f = counts.falseEntries;
+  assert.equal(f.veneer + f.adrCallback + f.insideElfFunction + (f.other ?? 0), counts.entries - counts.tp, 'the non-startup classes are every false entry that counts against precision');
+});
+
+test('the glued misses split by where they lie: inside a found extent, in no extent below the code end, past the code end', () => {
+  const counts = sealedCounts({
+    ...INPUT,
+    truth: [...INPUT.truth, t(0x08000288, 4), t(0x08000600, 0x10)],
+  });
+  assert.equal(counts.glued, 3);
+  assert.deepEqual(counts.gluedWhere, { insideExtent: 1, outsideExtents: 1, pastCodeEnd: 1 });
+  const g = counts.gluedWhere;
+  assert.equal((g?.insideExtent ?? 0) + (g?.outsideExtents ?? 0) + (g?.pastCodeEnd ?? 0), counts.glued);
 });
 
 test('a sealed entry has exactly the shape g2.held-out reads and nothing its leak check rejects', () => {
   const counts = sealedCounts(INPUT);
-  assert.deepEqual(Object.keys(counts), ['name', 'entries', 'elfFunctions', 'tp', 'glued', 'labelCandidates', 'falseEntries', 'extents', 'codeEnd']);
-  assert.deepEqual(Object.keys(counts.falseEntries), ['startup', 'veneer', 'adrCallback', 'insideElfFunction']);
+  assert.deepEqual(Object.keys(counts), ['name', 'entries', 'elfFunctions', 'tp', 'glued', 'gluedWhere', 'labelCandidates', 'falseEntries', 'extents', 'codeEnd']);
+  assert.deepEqual(Object.keys(counts.falseEntries), ['startup', 'veneer', 'adrCallback', 'insideElfFunction', 'other']);
   const leak = /0x[0-9a-f]{5,}|"(addr|addrs|names|symbol|symbols|misses|rows|labels|untyped)"\s*:/i;
   assert.doesNotMatch(JSON.stringify(counts), leak);
 });

@@ -38,6 +38,7 @@ test('listDir and readBytes report E_IO_READ with the path', async () => {
   assert.ok(!read.ok);
   assert.equal(read.diagnostic.code, 'E_IO_READ');
   assert.match(read.diagnostic.message, /ENOENT/);
+  assert.doesNotMatch(read.diagnostic.message, /ENOENT: ENOENT/, 'the code is named once');
 });
 
 test('readBytes returns the file contents', async () => {

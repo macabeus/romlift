@@ -208,7 +208,11 @@ function parsePrinter(value: unknown, where: string): CorpusSummary {
   return parsed.value;
 }
 
-/** One sealed entry: counts only (assertCountsOnly) with every count and the verdict present. */
+function gluedWhereOf(r: Record<string, unknown>, at: string): NonNullable<SealedEntry['gluedWhere']> {
+  return { insideExtent: num(r['insideExtent'], `${at}.insideExtent`), outsideExtents: num(r['outsideExtents'], `${at}.outsideExtents`), pastCodeEnd: num(r['pastCodeEnd'], `${at}.pastCodeEnd`) };
+}
+
+/** One sealed entry: counts only (assertCountsOnly) with every count and the verdict present (`other` and `gluedWhere` only from the phase-2 fix round on). */
 function parseSealed(value: unknown, at: string): SealedEntry {
   try {
     assertCountsOnly(value);
@@ -224,12 +228,14 @@ function parseSealed(value: unknown, at: string): SealedEntry {
     elfFunctions: num(r['elfFunctions'], `${at}.elfFunctions`),
     tp: num(r['tp'], `${at}.tp`),
     glued: num(r['glued'], `${at}.glued`),
+    ...(r['gluedWhere'] === undefined ? {} : { gluedWhere: gluedWhereOf(rec(r['gluedWhere'], `${at}.gluedWhere`), `${at}.gluedWhere`) }),
     labelCandidates: num(r['labelCandidates'], `${at}.labelCandidates`),
     falseEntries: {
       startup: num(falseEntries['startup'], `${at}.falseEntries.startup`),
       veneer: num(falseEntries['veneer'], `${at}.falseEntries.veneer`),
       adrCallback: num(falseEntries['adrCallback'], `${at}.falseEntries.adrCallback`),
       insideElfFunction: num(falseEntries['insideElfFunction'], `${at}.falseEntries.insideElfFunction`),
+      ...(falseEntries['other'] === undefined ? {} : { other: num(falseEntries['other'], `${at}.falseEntries.other`) }),
     },
     extents: { sized: num(extents['sized'], `${at}.extents.sized`), agree: num(extents['agree'], `${at}.extents.agree`) },
     codeEnd: { delta: num(rec(r['codeEnd'], `${at}.codeEnd`)['delta'], `${at}.codeEnd.delta`) },

@@ -44,7 +44,20 @@ export async function main(argv: readonly string[], io: CliIo, commands: readonl
   }
 }
 
+/**
+ * A reader that closes the pipe early (`romlift analyze rom.gba | head`) is not an error of romlift: on
+ * EPIPE the process exits quietly with the code it has so far (0 while the command still runs).
+ */
+function exitQuietlyOnEpipe(stream: NodeJS.WriteStream): void {
+  stream.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code !== 'EPIPE') throw error;
+    process.exit();
+  });
+}
+
 if (import.meta.main) {
+  exitQuietlyOnEpipe(process.stdout);
+  exitQuietlyOnEpipe(process.stderr);
   const io: CliIo = {
     stdout: (text) => {
       process.stdout.write(text);

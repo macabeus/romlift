@@ -1,6 +1,7 @@
-// The explain workflow (architecture §9.2, D35): two discover runs, the second with trail 'full' filtered
-// to explainFilter (the 256-byte bucket around the address widened to the extents covering it), composed
-// by explainAnalysis with the registered rules' metadata; the phase-2 report is the analysis part only.
+// The explain workflow (architecture §9.2, D35): one discover run with trail 'full' kept to a window around
+// the address, filtered afterwards to explainFilter (the 256-byte bucket around the address widened to the
+// extents covering it); a second run only when an extent reaches past the window. explainAnalysis composes
+// it with the registered rules' metadata; the phase-2 report is the analysis part only.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -97,4 +98,28 @@ test('an image that is not a cartridge: a free, ownerless report and the E_ROM_N
   assert.deepEqual(outcome.report, { addr: 0x0800_0000, claim: Claim.free, events: [], rules: [] });
   assert.ok(outcome.diagnostics.length > 0 && outcome.diagnostics.every((d) => d.code === 'E_ROM_NOT_GBA'));
   assert.deepEqual(explain(rom, 0x0800_0000), outcome.report);
+});
+
+test('an extent that reaches past the window is explained by a second run filtered to it: the owner and its acceptance are kept', async () => {
+  const { romWith, words } = await import('../../helpers/analysis.ts');
+  const { armAt } = await import('../../helpers/arm.ts');
+  const { thumbAt } = await import('../../helpers/thumb.ts');
+  const F = 0x0800_0200;
+  // 36,000 `movs r1, #1` then `bx lr`: a 72 KB Thumb function the ARM startup code loads and enters.
+  const body = new Uint8Array(2 * 36_000);
+  for (let k = 0; k < body.length; k += 2) body.set([0x01, 0x21], k);
+  const rom = romWith(
+    [
+      { at: 0x0800_00c0, bytes: armAt(0x0800_00c0)`ldr r0, _080000c8; bx r0` },
+      { at: 0x0800_00c8, bytes: words(F + 1) },
+      { at: F, bytes: body },
+      { at: F + body.length, bytes: thumbAt(F + body.length)`bx lr` },
+    ],
+    { entry: 0x0800_00c0 },
+  );
+  const addr = F + 0x1_1000;
+  const { report } = explainOutcome(rom, addr);
+  assert.equal(report.owner?.entry, F);
+  assert.ok(report.events.some((e) => e.kind === 'accept' && e.at === F), 'the acceptance at the entry, 68 KiB below the address, is kept');
+  assert.deepEqual(report, explain(rom, addr));
 });
