@@ -18,6 +18,9 @@
     },
     "sa3": {
       "analysisCpuMs": 1035.92
+    },
+    "tmc": {
+      "analysisCpuMs": 1238.47
     }
   }
 }
