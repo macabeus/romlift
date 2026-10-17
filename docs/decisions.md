@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -1259,6 +1259,86 @@ A fixed directory list for the digest (it already missed `foundation/util`, `fou
 `foundation/diagnostics` and the shell runner). Keeping the `CorpusIsa` seam documented (it had no
 user). Rewriting the pool-load into an indirect Flow (it would lose the pool address the walker needs
 and break PoC parity).
+
+
+## D56. Phase-2 component boundaries, and the contract members the driver port needs
+
+**Context.** Roadmap 2.0–2.I splits phase 2 into a lead, five parallel components and an integrator. As
+in phase 1 (D54), a parallel component cannot typecheck against exports that are not merged: every
+rule component needs a running `analyze` to be proven alone, and lockstep needs the driver. Porting the
+PoC's control flow onto the frozen contracts of architecture §4.1 also showed places where its logic
+does not fit "first answer wins" or where a rule needs a fact the view did not expose.
+
+**Decision.** Phase 2 runs as thirteen components in three waves (roadmap.md, "As executed"):
+
+- (a) The walk skeleton (`walk/{cursor,thumb,arm}.ts`) and the whole driver are in wave 0, in
+  `p2-engine`, with the lead's frozen types, so `analyze` exists for wave 1; the rule files stay with
+  the rule components, and `RULES` starts as eight empty family records.
+- (b) The codec (`core/analysis/codec.ts`) and the parity view go to `p2-lockstep`, which implements
+  `RuleOracle` over the log of `p2-poc-export`; `core/analysis/explain.ts` goes to `p2-bench`; the
+  `bench run` rewrite, the held-out datasets and the fixture coverage are components of their own.
+  `npm run export-poc -- --mode scored` joins the phase-2 exit list, because `bench run` still reads the
+  PoC's scaffold family from its dumps until phase 3.
+- (c) Contract members added to architecture §4.1, each the minimum the PoC's logic needs:
+  - `WalkStep` gains `continue` (an indirect call: `mov lr, pc; bx rN`) and `padding` (a trailing
+    zero halfword at a stop). The walk slot is asked for pool loads, branches, returns, indirect jumps
+    and mode switches, and, in Thumb, at a stop on non-code with the run's last instruction
+    (`WalkCursor.phase` 'stop', `stop` 'invalid' | 'pool'). Without an answer the decoder's Flow
+    decides; an exit no rule decided carries `DECODER_FLOW` ('walk.decoder-flow'); an indirect jump
+    other than `bx rN` that no rule explains is not code, so `walk.mov-pc-without-table` decides.
+  - `BlVerdictRule.refines`: `bl.noreturn-before-noncode` runs after the verdict, for a call or a
+    deferred site in the caller's dead ends, as the PoC's settle() does.
+  - `ValidityRule.checkEntry`: `valid.in-rom-unclaimed` judges the entry before any reading, so
+    whyInvalid() asks settle() exactly where the PoC does.
+  - A rule kind `accept-veto` in the accept slot: `accept.tiny-anchored-at-start` is the tiny-candidate
+    veto inside thumbCandidate(); the driver applies the vetoes to the forward proposals.
+  - `ClaimRule.extentEnd`: the PoC's `Func.end`, computed by `claim.adjacent-pools` when a reading is
+    built (the code end when no claim rule has one); `ClaimEdit.when` ('always' | 'start-free' |
+    'free-bytes') states how the PoC's claim() writes. `RegionRule.startup` returns the startup region.
+  - `AnalysisView` gains `seeds`, `overrides`, `functions()` (acceptance order, for
+    `seed.startup-pointer`), `accepted(entry)`, `whyInvalid(entry)` (for `gap.tiled-hole`),
+    `inProgress(entry)` (for the 'defer' of `bl.target-pops-unpushed-frame`) and `adrOwner(a)` (for
+    `gap.adr-block-absorb`).
+  - Gap slots: forward[0] and forward[1] are the pair asked at one cursor (thumbCandidate, armAhead) and
+    compared by `prefer`; the proposers after them see `GapCursor.head`, the head rule's reading at the
+    cursor (tryTiledHole); the endAnchor proposer sees the gap's head; the end-anchor and backward
+    proposers return one candidate per call and the driver shrinks `end`. `GapProposer.reason` lets
+    `gap.arm-scan` emit 'arm-unreached'.
+  - The `Reading` carries the walk order of pools and tables, the settle verdicts, the exits, the
+    branch targets and the PoC's dense() holes, all computed once by `makeReading` (milestone M2 (a)).
+  - Shared reading queries live in `walk/cursor.ts` (`isDense`, `popsCallersFrame`, `anchoredAtStart`,
+    `anchoredAtEnd`, `fillsTo`), since rule files may import `walk/` but never each other.
+- (d) Profile fields added for the PoC's remaining constants: `pointerWords` (4 pointers, a share of
+  1/4), `anchorSlack` (3), `extentPoolGap` (8), `gapScan.minInsns` (3), `gapScan.prologueDistance`
+  (4,096, the backward chain's window), and the idiom `opensWithPushLr` (the raw `push {.., lr}` test of
+  whyInvalid and the backward chain) beside `isPrologue` (`opensWithPrologue`: also word-aligned).
+  `ClaimCode`, `BlSite`, `ReadingSummary` and `JumpTableMatch` are defined in `core/profile/types.ts`
+  because the profile may not import the analysis; agbcc's `isPadding` ignores `next` for PoC parity.
+- (e) Parity details of the port: an ARM reading is a fresh walk at every read, as the PoC's
+  analyzeArm() (only Thumb readings are memoised per epoch); the driver peeks at the reading a proposer
+  just computed instead of asking for it again; the calls of an absorbed block are accepted one by one as
+  `seed.call` proposals; the ARM walk uses the PoC's class for the encodings the decoder classifies
+  otherwise on purpose (test/local/poc-decoder-differential.test.ts).
+- (f) The oracle protocol (core/analysis/oracle.ts): one typed query per PoC method in its own units;
+  the walk family's answers cover `bl`; `claim` and `forgetCandidates` are markers, never answered;
+  couldBeCode() and inPointerTable() live inside rules and are never asked, while the settle and valid
+  queries those rules make through the view are; an answered tryTiledHole or absorbBlock still has its
+  PoC side effects applied. A rule absent because its family is answered gets its origin from
+  `ORACLE_ORIGINS`; a registered rule's origin is always its own `meta.origin`.
+- (g) `diagnoseMisses` (romlift/internal) runs the analysis and diagnoses each miss at its final state,
+  so the bench needs no access to the driver.
+- (h) The component branches are flat (`phase-2-p2-engine`): Git cannot hold `phase-2/<component>`
+  beside the branch `phase-2`.
+
+**Consequences.** Every wave-1 component typechecks and runs end to end against merged code; the
+per-rule assignments are written next to each contract in `core/analysis/types.ts`, so the rule
+components cannot drift; `analyze` with the shipped profile throws `RomliftInvariantError` until the
+wave-1 rules register every pipeline id, and runs on any registry through `runAnalysis`.
+
+**Rejected.** Running the driver against stubbed rules in the product (stubs are what "nothing is
+stubbed early" forbids). Wrapping the PoC's composite conditions into single rules (the slot orders
+would no longer be the PoC's call order). Caching ARM readings per epoch like Thumb ones (the PoC
+re-walks them, and a cached reading would miss acceptances within the epoch).
 
 ---
 

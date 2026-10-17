@@ -11,3 +11,15 @@ reconciliation, emission, verification, the write plan, the scaffold and the wor
 - Content errors are returned as diagnostics, never thrown; each module that raises codes owns a
   `codes.ts` (D45).
 - `workflow/` composes the other modules; nothing in core imports it (D36).
+
+## Phase 2: provenance, profiles and the analysis
+
+| Path | Responsibility |
+| --- | --- |
+| `provenance/` | rule ids and metadata (`rule-id.ts`), provenance and rejections (`provenance.ts`), the trail (`trail.ts`), the miss-reason and origin vocabularies (`vocabulary.ts`) |
+| `profile/` | the compiler profile type (`types.ts`), agbcc's numbers, idioms and slot orders (`agbcc.ts`), the registry (`registry.ts`) |
+| `analysis/types.ts` | the analysis result and options, the internal `Reading`, the view, one contract per rule kind with the per-rule assignments (D56) |
+| `analysis/{address-map,pointers,limits,codes,reading,oracle}.ts` | load/run addresses, the pointer index, safety bounds, diagnostic codes, the reading builder, the lockstep oracle protocol |
+| `analysis/walk/` | the Thumb and ARM walks (`thumb.ts`, `arm.ts`) and the cursor with the reading queries rules share (`cursor.ts`) |
+| `analysis/driver/` | the PoC's control flow (D48): `run`, `grow`, `fill-gaps`, `accept`, `settle`, `validity`, `epoch`, `worklist`, `confirm`, `view`, `diagnose`, and `rules.ts`, the only importer of `rules/index.ts` |
+| `analysis/rules/` | `define-rule.ts`, `index.ts` and one directory per family, one file per rule (§4.1) |
