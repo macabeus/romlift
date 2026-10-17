@@ -6,6 +6,7 @@ import rule from '../../../../../src/core/analysis/rules/gap/end-anchor.ts';
 import { Claim } from '../../../../../src/core/analysis/types.ts';
 import type { ViewSetup } from '../../../../helpers/analysis.ts';
 import { readingOf, romWith, viewWith, words } from '../../../../helpers/analysis.ts';
+import { AGBCC } from '../../../../../src/core/profile/agbcc.ts';
 import { DUMMY_PROFILE } from '../../../../helpers/dummy-profile.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
 import { gapCursor } from './cursor.ts';
@@ -92,4 +93,27 @@ test('a load-and-jump stub that ends exactly at an accepted stub of the same sha
   assert.equal(rule.propose(c, viewWith({ rom: mixed, functions: [Y + 4], valid: (a) => a === Y })), undefined);
   // The dummy profile's minInsns is 4; the veneer array element does not depend on it.
   assert.equal(rule.propose(c, viewWith({ rom: veneers, profile: DUMMY_PROFILE, functions: [Y + 4], valid: (a) => a === Y }))?.entry, Y);
+});
+
+test('a `push {.., lr}` on the halfword between two words opens a hand-written function there, ranked as a prologue (D60 c)', () => {
+  const H = X + 0x0e;
+  const END2 = X + 0x14;
+  // Stray halfwords up to H, then `push {lr}; bl ...; pop {pc}` at 2 mod 4 ending at END2.
+  const half = romWith([
+    { at: X, bytes: new Uint8Array(0x0e).fill(0xff) },
+    { at: H, bytes: thumbAt(H)`push {lr}; movs r0, #0; pop {pc}` },
+  ]);
+  const c = gapCursor(X, END2, X);
+  assert.deepEqual(rule.propose(c, viewWith({ rom: half, valid: (a) => a === H })), { entry: H, mode: 'thumb', cites: [H, END2] });
+  // The word-aligned reading at H - 2 that runs into it is not taken instead.
+  assert.deepEqual(rule.propose(c, viewWith({ rom: half, valid: (a) => a === H || a === H - 2 }))?.entry, H);
+  // A profile whose Thumb functions are word-aligned only looks at words.
+  const aligned = { ...AGBCC, alignment: { ...AGBCC.alignment, thumbFunction: 4 } };
+  assert.equal(rule.propose(c, viewWith({ rom: half, profile: aligned, valid: (a) => a === H })), undefined);
+  // Without `push {.., lr}` the halfword is no candidate.
+  const plain = romWith([
+    { at: X, bytes: new Uint8Array(0x0e).fill(0xff) },
+    { at: H, bytes: thumbAt(H)`movs r1, #1; movs r0, #0; bx lr` },
+  ]);
+  assert.equal(rule.propose(c, viewWith({ rom: plain, valid: (a) => a === H })), undefined);
 });

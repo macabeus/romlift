@@ -47,9 +47,9 @@
     gap.backward-prologue-chain: the highest push {.., lr} below the gap end, within prologueDistance, that is valid and ends within fillSlack of the end
       rests on: agbcc opens every function that calls with push {.., lr}, and functions tile the ROM up to the next one
       recovers: a run of unreferenced functions before an accepted one, taken from the back when the forward chain stopped at data
-    gap.end-anchor: the highest valid reading below the gap end that ends at it (fillSlack) or is anchored there, a prologue preferred, within backwardWindow; a load-and-jump stub that ends at an accepted stub of the same shape counts below minInsns
-      rests on: functions tile the ROM, so the code just before an accepted function ends exactly where it starts; a veneer array is a run of two-instruction `ldr rN, [pc, #k]; bx rN` stubs laid end to end, so a stub ending exactly at the next stub of the array is code
-      recovers: unreferenced functions at the end of a gap that the forward chain cannot reach past data, and the unreferenced head of a veneer array that follows data
+    gap.end-anchor: the highest valid reading below the gap end that ends at it (fillSlack) or is anchored there, a prologue (or `push {.., lr}` on 2 mod 4) preferred, within backwardWindow; a load-and-jump stub that ends at an accepted stub of the same shape counts below minInsns
+      rests on: functions tile the ROM, so the code just before an accepted function ends exactly where it starts; a veneer array is a run of two-instruction `ldr rN, [pc, #k]; bx rN` stubs laid end to end, so a stub ending exactly at the next stub of the array is code; hand-written Thumb may start on 2 mod 4, where `push {.., lr}` opens it as it opens a compiled function on a word
+      recovers: unreferenced functions at the end of a gap that the forward chain cannot reach past data (hand-written ones on 2 mod 4 too), and the unreferenced head of a veneer array that follows data
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

@@ -4,7 +4,9 @@
 // its end. A prologue wins; without prologues the highest wins. One candidate per call: the driver
 // accepts it, shrinks `end` to it and asks again. A two-instruction load-and-jump stub whose code ends
 // exactly at an accepted stub of the same shape is one more element of that veneer array: it counts
-// despite minInsns, and its pool (after the array) does not have to fill the hole (D60 b).
+// despite minInsns, and its pool (after the array) does not have to fill the hole (D60 b). Where the
+// profile lets Thumb functions sit on 2 mod 4, the halfword between two words is tried first when it
+// opens with `push {.., lr}`, ranked as a prologue (D60 c).
 import { decode, thumbWordAt } from '../../../../foundation/isa/decode.ts';
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
@@ -27,14 +29,27 @@ function veneerArrayElement(r: Reading, end: Addr, v: AnalysisView): boolean {
   return isLoadJumpStub(v.accepted(end) ?? v.read(end, 'thumb'), v);
 }
 
+/**
+ * A valid Thumb reading at `h`, on the halfword between two words, that opens with `push {.., lr}` and
+ * otherwise qualifies as a word-aligned candidate does (minInsns, code below `end`, filling the hole or
+ * anchored at its end): a hand-written function that sits on 2 mod 4. It ranks as a prologue.
+ */
+function pushesLrBetweenWords(h: Addr, end: Addr, v: AnalysisView): boolean {
+  const { profile } = v;
+  if (v.isFunction(h) || v.claimAt(h) !== Claim.free || !profile.idioms.opensWithPushLr(v.rom, h) || !v.valid(h)) return false;
+  const r = v.read(h, 'thumb');
+  if (r.insns.length < profile.gapScan.minInsns || r.codeEnd > end) return false;
+  return fillsTo(r, end, profile.gapScan.fillSlack) || anchoredAtEnd(r, v);
+}
+
 export default defineRule({
   meta: {
     id: 'gap.end-anchor',
     summary:
-      'the highest valid reading below the gap end that ends at it (fillSlack) or is anchored there, a prologue preferred, within backwardWindow; a load-and-jump stub that ends at an accepted stub of the same shape counts below minInsns',
+      'the highest valid reading below the gap end that ends at it (fillSlack) or is anchored there, a prologue (or `push {.., lr}` on 2 mod 4) preferred, within backwardWindow; a load-and-jump stub that ends at an accepted stub of the same shape counts below minInsns',
     restsOn:
-      'functions tile the ROM, so the code just before an accepted function ends exactly where it starts; a veneer array is a run of two-instruction `ldr rN, [pc, #k]; bx rN` stubs laid end to end, so a stub ending exactly at the next stub of the array is code',
-    recovers: 'unreferenced functions at the end of a gap that the forward chain cannot reach past data, and the unreferenced head of a veneer array that follows data',
+      'functions tile the ROM, so the code just before an accepted function ends exactly where it starts; a veneer array is a run of two-instruction `ldr rN, [pc, #k]; bx rN` stubs laid end to end, so a stub ending exactly at the next stub of the array is code; hand-written Thumb may start on 2 mod 4, where `push {.., lr}` opens it as it opens a compiled function on a word',
+    recovers: 'unreferenced functions at the end of a gap that the forward chain cannot reach past data (hand-written ones on 2 mod 4 too), and the unreferenced head of a veneer array that follows data',
     reads: ['rom', 'claims', 'function-set', 'readings', 'validity'],
     adds: ['candidates'],
     origin: 'gap-scan',
@@ -44,9 +59,18 @@ export default defineRule({
     const { rom, profile } = v;
     const end = c.end;
     const floor = Math.max(c.at, end - profile.gapScan.backwardWindow, c.head?.end ?? c.at);
+    // Hand-written Thumb may start on the halfword between two words (alignment.thumbFunction).
+    const halfwords = profile.alignment.thumbFunction < 4;
     let best: Addr | undefined;
     let bestPrologue = false;
     for (let q = (end - 4) & ~3; q >= floor; q -= 4) {
+      if (halfwords && q + 2 >= floor && q + 4 <= end && pushesLrBetweenWords(q + 2, end, v)) {
+        if (best === undefined || !bestPrologue) {
+          best = q + 2;
+          bestPrologue = true;
+        }
+        continue;
+      }
       if (v.isFunction(q) || v.claimAt(q) !== Claim.free || !contains(rom, q, 4) || u32(rom, q) === 0 || !v.valid(q)) continue;
       const r = v.read(q, 'thumb');
       if (!veneerArrayElement(r, end, v)) {
