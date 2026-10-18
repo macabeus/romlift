@@ -20,6 +20,7 @@ import { HEADER_END, peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
+import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult, FunctionFact } from '../analysis/types.ts';
 
 /** The ARM word: ld aligns every object to it, and agbcc aligns every C function to it. */
@@ -160,14 +161,7 @@ export interface TiledChunk {
 
 /** The index of the first entry at or above `a` in `entries` (sorted by entry). */
 function firstAtOrAbove(entries: readonly { readonly entry: Addr }[], a: Addr): number {
-  let lo = 0;
-  let hi = entries.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((entries[mid]?.entry ?? 0) < a) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+  return lowerBound(entries, a, (e) => e.entry);
 }
 
 /**
@@ -192,10 +186,10 @@ export function tileCode(entries: readonly PlacedEntry[], from: Addr, to: Addr, 
   const first = firstAtOrAbove(entries, from);
   const last = firstAtOrAbove(entries, to);
   for (let i = first; i < last; i++) {
-    const e = entries[i] as PlacedEntry;
-    if (e.entry < cursor) continue;
+    const e = entries[i];
+    if (e === undefined || e.entry < cursor) continue;
     if (e.entry > cursor) orphan(cursor, e.entry);
-    const next = i + 1 < last ? (entries[i + 1] as PlacedEntry).entry : to;
+    const next = i + 1 < last ? (entries[i + 1]?.entry ?? to) : to;
     const end = Math.min(to, Math.max(e.entry + 2, Math.min(e.end ?? next, next)));
     out.push({ span: { start: e.entry, end }, entry: e.entry });
     cursor = end;
@@ -314,14 +308,7 @@ export interface CodeLayout {
 
 /** The first index of `sorted` holding a value above `a`. */
 function firstAbove(sorted: readonly Addr[], a: Addr): number {
-  let lo = 0;
-  let hi = sorted.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((sorted[mid] ?? 0) <= a) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+  return lowerBound(sorted, a + 1, (x) => x);
 }
 
 /** The candidates no reference crosses: a reference from s to t crosses a border b when b is in (min, max]. */

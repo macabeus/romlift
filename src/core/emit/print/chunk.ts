@@ -19,10 +19,11 @@ import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnosti
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { contains, u32, u8 } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
-import { pushAll } from '../../../foundation/util/arrays.ts';
+import { lowerBound, pushAll } from '../../../foundation/util/arrays.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../../foundation/util/sorted.ts';
 import { itemAt } from '../../model/item-table.ts';
+import { runOffsetOf } from '../../model/modules.ts';
 import { compareLabels, resolverFor } from '../../model/resolver.ts';
 import { ItemKind } from '../../model/types.ts';
 import type { Chunk, Item, Label, Model } from '../../model/types.ts';
@@ -98,14 +99,11 @@ function chunkLabels(model: Model, chunk: Chunk, runOffset: number): readonly La
     seen.add(key);
     out.push(l);
   };
-  let lo = 0;
-  let hi = model.labels.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((model.labels[mid] as Label).addr < start) lo = mid + 1;
-    else hi = mid;
+  for (let i = lowerBound(model.labels, start, (l) => l.addr); i < model.labels.length; i++) {
+    const l = model.labels[i];
+    if (l === undefined || l.addr >= end) break;
+    add(l);
   }
-  for (let i = lo; i < model.labels.length && (model.labels[i] as Label).addr < end; i++) add(model.labels[i] as Label);
   for (const l of chunk.innerLabels) add(l);
   return out.sort(compareLabels);
 }
@@ -213,10 +211,8 @@ function headerBody(cx: BodyContext): readonly string[] {
     labels.map((l) => l.addr - runOffset),
   );
   for (const piece of pieces) {
-    while (next < labels.length && (labels[next] as Label).addr - runOffset <= piece.start) {
-      const l = labels[next] as Label;
+    for (let l = labels[next]; l !== undefined && l.addr - runOffset <= piece.start; l = labels[++next]) {
       if (l.addr - runOffset === piece.start) pushAll(out, labelLines(l, 'thumb'));
-      next++;
     }
     for (let a = piece.start; a < piece.end; a += HEADER_BYTES_PER_LINE) {
       const bytes: string[] = [];
@@ -253,10 +249,8 @@ function readableBody(cx: BodyContext): readonly string[] {
   let next = 0;
   const labelsBefore = (load: Addr): readonly Label[] => {
     const at: Label[] = [];
-    while (next < labels.length && (labels[next] as Label).addr - runOffset <= load) {
-      const l = labels[next] as Label;
+    for (let l = labels[next]; l !== undefined && l.addr - runOffset <= load; l = labels[++next]) {
       if (l.addr - runOffset === load) at.push(l);
-      next++;
     }
     return at;
   };
@@ -354,7 +348,7 @@ function printerOf(how: Printer | EmitContext | undefined): Printer {
 export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer | EmitContext = DEFAULT_PRINTER): PrintedChunk {
   const c = model.chunks[chunk];
   if (c === undefined) throw new RomliftInvariantError(`printChunk: no chunk ${chunk} of ${model.chunks.length}`);
-  const runOffset = c.runAt === undefined ? 0 : c.runAt - c.span.start;
+  const runOffset = runOffsetOf(c);
   const all = chunkLabels(model, c, runOffset);
   const head = headLabel(all, c, runOffset);
   const atStart = c.span.start + runOffset;

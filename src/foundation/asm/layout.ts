@@ -27,6 +27,7 @@
 // names no symbol encodes alike at every address of one word alignment, and a text whose names all read as
 // its own address (the sizing resolver) has one size there. The memo holds no symbol value, so one memo
 // serves layouts with different symbols.
+import { RomliftInvariantError } from '../diagnostics/diagnostic.ts';
 import { assemble } from '../isa/assemble.ts';
 import { parse } from '../isa/parse.ts';
 import { specOf } from '../isa/rows.ts';
@@ -53,6 +54,13 @@ export interface LayoutMemo {
 /** An empty LayoutMemo, to share across the layouts of one run. */
 export function layoutMemo(): LayoutMemo {
   return { sizes: Array.from({ length: MEMO_SLOTS }, () => new Map()), words: Array.from({ length: MEMO_SLOTS }, () => new Map()) };
+}
+
+/** Slot `slot` of a memo's maps; a memo without it (not made by layoutMemo) is a caller bug. */
+function slotOf<V>(slots: readonly Map<string, V>[], slot: number): Map<string, V> {
+  const map = slots[slot];
+  if (map === undefined) throw new RomliftInvariantError(`layout memo: no slot ${slot} of ${slots.length} (make one with layoutMemo())`);
+  return map;
 }
 
 /** The memo slot of an instruction text: its state and its address mod 4. */
@@ -188,7 +196,7 @@ function padding(addr: Addr, power: number): number {
 
 /** insnSize through the layout's memo. */
 function sizeOf(w: Walker, text: string, mode: Mode, addr: Addr): number | undefined {
-  const sizes = w.memo.sizes[memoSlot(mode, addr)] as Map<string, number | undefined>;
+  const sizes = slotOf(w.memo.sizes, memoSlot(mode, addr));
   const hit = sizes.get(text);
   if (hit !== undefined || sizes.has(text)) return hit;
   const size = insnSize(text, mode, addr);
@@ -462,7 +470,7 @@ function exprValue(expr: Expr, symbols: Symbols): number | string {
  * a text consults no resolver, so its word is the same at every address of its word alignment.
  */
 function encodeMemo(text: string, p: Placed, symbols: Symbols, words: readonly Map<string, number>[]): { readonly word: number } | string {
-  const slot = words[memoSlot(p.mode, p.at)] as Map<string, number>;
+  const slot = slotOf(words, memoSlot(p.mode, p.at));
   const hit = slot.get(text);
   if (hit !== undefined) return { word: hit };
   let named = false;

@@ -8,23 +8,17 @@
 // `0xXXXXXXXX`.
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex } from '../../../foundation/util/hex.ts';
+import { lowerBound } from '../../../foundation/util/arrays.ts';
 import { compareLabels, moduleAt, wordValueOf } from '../../model/resolver.ts';
 import type { Label, Model } from '../../model/types.ts';
 
 /** The labels of the model at run address `addr` that module `module` can see, preferred first (compareLabels). */
 export function visibleLabelsAt(model: Pick<Model, 'labels' | 'modules'>, module: string, addr: Addr): readonly Label[] {
   const labels = model.labels;
-  let lo = 0;
-  let hi = labels.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((labels[mid] as Label).addr < addr) lo = mid + 1;
-    else hi = mid;
-  }
   const out: Label[] = [];
-  for (let i = lo; i < labels.length; i++) {
-    const l = labels[i] as Label;
-    if (l.addr !== addr) break;
+  for (let i = lowerBound(labels, addr, (l) => l.addr); i < labels.length; i++) {
+    const l = labels[i];
+    if (l === undefined || l.addr !== addr) break;
     out.push(l);
   }
   if (out.length === 0) return out;

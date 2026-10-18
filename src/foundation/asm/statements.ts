@@ -123,7 +123,7 @@ export function parseExpr(text: string): Expr | string {
 }
 
 /** `text` without its `@` comment (a `@` inside a string does not start one). */
-function stripComment(text: string): string {
+export function stripComment(text: string): string {
   let quoted = false;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];

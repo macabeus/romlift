@@ -9,6 +9,7 @@
 import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
+import { lowerBound, spanIndexAt } from '../../foundation/util/arrays.ts';
 import type { Label, LabelKind, Model, Module } from './types.ts';
 
 /** The label printed when several share an address: a function name first, then table, pool, local, data. */
@@ -33,16 +34,7 @@ export function moduleIndexAt(modules: readonly Module[], addr: Addr): number {
     const run = runRange(m);
     if (run !== undefined && addr >= run.start && addr < run.end) return i;
   }
-  let lo = 0;
-  let hi = modules.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const m = modules[mid] as Module;
-    if (addr < m.span.start) hi = mid - 1;
-    else if (addr >= m.span.end) lo = mid + 1;
-    else return mid;
-  }
-  return -1;
+  return spanIndexAt(modules, addr, (m) => m.span);
 }
 
 /** The module `addr` belongs to (moduleIndexAt), or undefined. */
@@ -92,26 +84,14 @@ function indexOf(labels: readonly Label[], modules: readonly Module[]): LabelInd
   return index;
 }
 
-/** The first index in `labels` whose address is not below `addr`. */
-function lowerBound(labels: readonly Label[], addr: Addr): number {
-  let lo = 0;
-  let hi = labels.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((labels[mid] as Label).addr < addr) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
-
 function resolverFromIndex(index: LabelIndex, module: string): SymbolResolver {
   const visible = (i: number): boolean => index.labels[i]?.scope === 'global' || index.moduleOf[i] === module;
   return {
     // `from` does not matter in phase 3: every label visible in the module resolves the same anywhere in it.
     labelFor(target: Addr, _from: Addr): string | undefined {
-      for (let i = lowerBound(index.labels, target); i < index.labels.length; i++) {
-        const label = index.labels[i] as Label;
-        if (label.addr !== target) break;
+      for (let i = lowerBound(index.labels, target, (l) => l.addr); i < index.labels.length; i++) {
+        const label = index.labels[i];
+        if (label === undefined || label.addr !== target) break;
         if (visible(i)) return label.name;
       }
       return undefined;

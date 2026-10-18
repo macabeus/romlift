@@ -22,7 +22,7 @@ import { specOf } from '../../foundation/isa/rows.ts';
 import type { Insn, SymbolResolver } from '../../foundation/isa/types.ts';
 import { contains, peek16, peek32, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import { pushAll } from '../../foundation/util/arrays.ts';
+import { lowerBound, pushAll } from '../../foundation/util/arrays.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
@@ -188,16 +188,9 @@ function firstEndingAbove(list: readonly { readonly end: Addr }[], at: number, a
   return i;
 }
 
-/** The index of the first value above `a` in an ascending list. */
+/** The index of the first value above `a` in an ascending list of integers. */
 function firstAbove(sorted: readonly Addr[], a: Addr): number {
-  let lo = 0;
-  let hi = sorted.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((sorted[mid] ?? 0) <= a) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+  return lowerBound(sorted, a + 1, (x) => x);
 }
 
 /** The items of every chunk, in address order, with the chunks' item ranges. */
@@ -363,8 +356,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       let at = start;
       segmentAt = firstEndingAbove(segments.concrete, segmentAt, start);
       for (let k = segmentAt; k < segments.concrete.length; k++) {
-        const s = segments.concrete[k] as Segment;
-        if (s.start >= end) break;
+        const s = segments.concrete[k];
+        if (s === undefined || s.start >= end) break;
         const a = Math.max(s.start, start);
         if (a > at && noted && alignsTo(at, a, s)) table.append({ kind: 'padding', start: at, length: a - at });
         else if (a > at) fillData(at, a, noted);

@@ -10,11 +10,13 @@
 // (the static-function case of §6.2), where a second global definition would break the link; a Thumb
 // function label is preceded by `.thumb_func`, so ld gives `.4byte Name` the Thumb bit wordValueOf promises.
 import { DIALECT } from '../../../foundation/asm/dialect.ts';
+import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex, hexAddr } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../../foundation/util/sorted.ts';
+import { lowerBound } from '../../../foundation/util/arrays.ts';
 import { BASEROM_PATH, moduleSource } from '../../model/paths.ts';
 import { compareLabels, moduleIndexAt, wordValueOf } from '../../model/resolver.ts';
 import { ItemKind } from '../../model/types.ts';
@@ -41,15 +43,8 @@ function nameCounts(model: Model): ReadonlyMap<string, number> {
 }
 
 /** The first index of `labels` (sorted by address) whose address is not below `addr`. */
-function lowerBound(labels: readonly { readonly addr: Addr }[], addr: Addr): number {
-  let lo = 0;
-  let hi = labels.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((labels[mid]?.addr ?? 0) < addr) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+function firstLabelAt(labels: readonly { readonly addr: Addr }[], addr: Addr): number {
+  return lowerBound(labels, addr, (l) => l.addr);
 }
 
 /** The run address of a module's first byte (its load address outside runs_at). */
@@ -58,8 +53,15 @@ function runStart(module: Module): Addr {
 }
 
 /** Every label the file of module `index` defines, by load address then name, one per name. */
+/** The module at `index`; the writer is called only with indexes of `model.modules`. */
+function moduleOf(model: Model, index: number): Module {
+  const module = model.modules[index];
+  if (module === undefined) throw new RomliftInvariantError(`data writer: no module ${index} of ${model.modules.length}`);
+  return module;
+}
+
 function marksOf(model: Model, index: number): readonly Mark[] {
-  const module = model.modules[index] as Module;
+  const module = moduleOf(model, index);
   const offset = runStart(module) - module.span.start;
   const run = { start: runStart(module), end: runStart(module) + (module.span.end - module.span.start) };
   const counts = nameCounts(model);
@@ -69,9 +71,9 @@ function marksOf(model: Model, index: number): readonly Mark[] {
     const thumbFunc = label !== undefined && wordValueOf(label) !== label.addr;
     out.push({ at: runAddr - offset, name, global: label?.scope === 'global' || !shared, thumbFunc });
   };
-  for (let i = lowerBound(model.labels, run.start); i < model.labels.length; i++) {
-    const l = model.labels[i] as Label;
-    if (l.addr >= run.end) break;
+  for (let i = firstLabelAt(model.labels, run.start); i < model.labels.length; i++) {
+    const l = model.labels[i];
+    if (l === undefined || l.addr >= run.end) break;
     if (moduleIndexAt(model.modules, l.addr) === index) add(l.addr, l.name, l);
   }
   const chunks = model.chunks.slice(module.chunks.first, module.chunks.first + module.chunks.count);
@@ -79,7 +81,7 @@ function marksOf(model: Model, index: number): readonly Mark[] {
     for (const l of chunk.innerLabels) add(l.addr, l.name, l);
     if (chunk.kind === 'data') add(chunk.span.start + offset, chunk.name, undefined);
   }
-  for (let i = lowerBound(model.symbols, run.start); i < model.symbols.length; i++) {
+  for (let i = firstLabelAt(model.symbols, run.start); i < model.symbols.length; i++) {
     const s = model.symbols[i];
     if (s === undefined || s.addr >= run.end) break;
     add(s.addr, s.name, undefined);
@@ -100,9 +102,9 @@ function wordName(model: Model, index: number, word: number): string | undefined
   const target = (word & ~1) >>> 0;
   const own = model.modules[index]?.name;
   const at: Label[] = [];
-  for (let i = lowerBound(model.labels, target); i < model.labels.length; i++) {
-    const l = model.labels[i] as Label;
-    if (l.addr !== target) break;
+  for (let i = firstLabelAt(model.labels, target); i < model.labels.length; i++) {
+    const l = model.labels[i];
+    if (l === undefined || l.addr !== target) break;
     at.push(l);
   }
   const label = at
@@ -110,7 +112,7 @@ function wordName(model: Model, index: number, word: number): string | undefined
     .find((l) => wordValueOf(l) === word && (l.scope === 'global' || model.modules[moduleIndexAt(model.modules, l.addr)]?.name === own));
   if (label !== undefined) return label.name;
   if (word !== target) return undefined;
-  const symbol = model.symbols[lowerBound(model.symbols, target)];
+  const symbol = model.symbols[firstLabelAt(model.symbols, target)];
   return symbol?.addr === target ? symbol.name : undefined;
 }
 
@@ -120,7 +122,7 @@ function incbin(from: Addr, to: Addr): string {
 
 /** The text of a data module's file. */
 function dataText(model: Model, index: number): string {
-  const module = model.modules[index] as Module;
+  const module = moduleOf(model, index);
   const marks = marksOf(model, index);
   const lines: string[] = [`@ data module ${module.name}: ${hexAddr(module.span.start)}..${hexAddr(module.span.end)}, ${module.span.end - module.span.start} bytes`];
   let next = 0;
@@ -137,7 +139,7 @@ function dataText(model: Model, index: number): string {
   };
   const markInside = (start: Addr, end: Addr): boolean => {
     for (let k = next; k < marks.length; k++) {
-      const at = (marks[k] as Mark).at;
+      const at = marks[k]?.at ?? end;
       if (at >= end) return false;
       if (at > start) return true;
     }

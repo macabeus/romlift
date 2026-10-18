@@ -16,6 +16,7 @@ import { contains, peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
+import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import type { ChunkPlan } from './chunks.ts';
 import type { Segments } from './items.ts';
@@ -172,14 +173,7 @@ function keep(group: readonly Candidate[]): Candidate[] {
 
 /** The first index of `segments` whose end lies above `a`. */
 function segmentIndexAt(segments: readonly Segments['concrete'][number][], a: Addr): number {
-  let lo = 0;
-  let hi = segments.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((segments[mid] as Segments['concrete'][number]).end <= a) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+  return lowerBound(segments, a + 1, (s) => s.end);
 }
 
 /**
@@ -249,21 +243,14 @@ interface LabelIndex {
 }
 
 function firstAt(labels: readonly Label[], addr: Addr): number {
-  let lo = 0;
-  let hi = labels.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((labels[mid] as Label).addr < addr) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+  return lowerBound(labels, addr, (l) => l.addr);
 }
 
 /** The index in index.byAddr of the preferred label at run address `addr` that `match` accepts, or -1. */
 function preferredAt(index: LabelIndex, addr: Addr, match: (l: Label) => boolean): number {
   for (let i = firstAt(index.byAddr, addr); i < index.byAddr.length; i++) {
-    const l = index.byAddr[i] as Label;
-    if (l.addr !== addr) break;
+    const l = index.byAddr[i];
+    if (l === undefined || l.addr !== addr) break;
     if (match(l)) return i;
   }
   return -1;

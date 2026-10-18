@@ -11,6 +11,7 @@ import { contains } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
+import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import type { FunctionConfig, RomliftConfig } from '../config/schema.ts';
 import { codeLayout, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from '../layout/borders.ts';
@@ -34,16 +35,7 @@ function compareDiagnostics(a: Diagnostic, b: Diagnostic): number {
 
 /** The index of the chunk containing load address `a`, or -1. */
 function chunkIndexAt(chunks: readonly ChunkPlan[], a: Addr): number {
-  let lo = 0;
-  let hi = chunks.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const c = chunks[mid] as ChunkPlan;
-    if (a < c.span.start) hi = mid - 1;
-    else if (a >= c.span.end) lo = mid + 1;
-    else return mid;
-  }
-  return -1;
+  return spanIndexAt(chunks, a, (c) => c.span);
 }
 
 /** Per chunk, the func labels of the listed entries inside it that do not start it (label entries, and the cartridge entry in the header). */

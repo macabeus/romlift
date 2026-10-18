@@ -9,6 +9,7 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { hex } from '../../foundation/util/hex.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
+import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import type { LayoutReason, Proposal, ProposalSource } from '../proposals/types.ts';
 import { codeLayout } from './borders.ts';
@@ -91,14 +92,8 @@ function asmOnlyModules(layout: CodeLayout, libraries: readonly FixedRange[], fr
 
 /** Whether a function chunk starts in [start, end); `starts` are the function chunks' starts, ascending. */
 function hasFunction(starts: readonly Addr[], start: Addr, end: Addr): boolean {
-  let lo = 0;
-  let hi = starts.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((starts[mid] ?? 0) < start) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo < starts.length && (starts[lo] ?? 0) < end;
+  const at = starts[lowerBound(starts, start, (a) => a)];
+  return at !== undefined && at < end;
 }
 
 /** The starts of the C modules of one stretch [start, end) of agbcc-shaped code. */

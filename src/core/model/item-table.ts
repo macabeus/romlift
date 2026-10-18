@@ -179,6 +179,7 @@ export function itemSpan(items: ItemTable, i: number): Span {
 
 /** The index of the item whose span contains load address `addr`, or -1. Items must be in address order. */
 export function findItem(items: ItemTable, addr: Addr): number {
+  // Typed-array columns, not a list of spans, so the search stays here (spanIndexAt takes a list).
   let lo = 0;
   let hi = items.count - 1;
   while (lo <= hi) {

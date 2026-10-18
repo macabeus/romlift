@@ -36,9 +36,9 @@
 import { DIALECT } from '../../foundation/asm/dialect.ts';
 import { layoutMemo, layoutStatements } from '../../foundation/asm/layout.ts';
 import type { Layout, LayoutInput, LayoutMemo } from '../../foundation/asm/layout.ts';
-import { parseStatements } from '../../foundation/asm/statements.ts';
+import { parseStatements, stripComment } from '../../foundation/asm/statements.ts';
 import type { Statement } from '../../foundation/asm/statements.ts';
-import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
@@ -46,7 +46,8 @@ import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { pushAll } from '../../foundation/util/arrays.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
-import { findItem, specIdAt } from '../model/item-table.ts';
+import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
+import { runOffsetOf } from '../model/modules.ts';
 import { BASEROM_PATH, buildUnits, chunkPaths, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { moduleIndexAt, wordValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
@@ -65,7 +66,7 @@ const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>(['header', 'crt
 const INCLUDES: ReadonlyMap<string, string> = new Map([[MACROS_PATH, DIALECT.macrosInc]]);
 
 // ---------------------------------------------------------------------------------------------------
-// What each path of the model holds, indexed once per model.
+// What each path of the model holds, indexed once per check pass (checkEntries) and dropped with it.
 
 type Target =
   | { readonly kind: 'chunk'; readonly module: number; readonly chunk: number }
@@ -83,11 +84,9 @@ interface PathIndex {
   readonly labelsByName: ReadonlyMap<string, readonly Label[]>;
   /** The [symbols] entries outside the ROM, which symbols.ld defines, by name (the first by address). */
   readonly symbolsByName: ReadonlyMap<string, Addr>;
-  /** What every layout of the model's files remembers of instruction texts (foundation/asm/layout.ts). */
+  /** What every layout of the pass's files remembers of instruction texts (foundation/asm/layout.ts). */
   readonly memo: LayoutMemo;
 }
-
-const INDEXES = new WeakMap<Model, PathIndex>();
 
 /**
  * Whether a printer can place `label`: its load address is an item's start, or lies inside a data item (the
@@ -136,14 +135,6 @@ function buildIndex(model: Model): PathIndex {
   return { targets, chunkPaths: paths, expected, labelsByName, symbolsByName: externalSymbols(model), memo: layoutMemo() };
 }
 
-function indexOf(model: Model): PathIndex {
-  const cached = INDEXES.get(model);
-  if (cached !== undefined) return cached;
-  const index = buildIndex(model);
-  INDEXES.set(model, index);
-  return index;
-}
-
 // ---------------------------------------------------------------------------------------------------
 // Diagnostics.
 
@@ -178,7 +169,7 @@ function itemMode(model: Model, i: number): Mode | undefined {
   const kind = model.items.kind[i];
   if (kind !== ItemKind.insn && kind !== ItemKind.rawInsn) return undefined;
   const spec = specIdAt(model.items.spec[i] ?? 0xffff);
-  return spec === undefined ? undefined : spec.startsWith('thumb.') ? 'thumb' : 'arm';
+  return spec === undefined ? undefined : modeOfSpec(spec);
 }
 
 /**
@@ -299,16 +290,16 @@ function asIncluded(text: string): string {
 
 /** The line of the module file's `.include` of the macro file, or undefined (parseStatements leaves it no statement). */
 function macrosIncludeLine(text: string): number | undefined {
-  const index = text.split('\n').findIndex((raw) => raw.replace(/@.*$/, '').trim() === MACROS_INCLUDE);
+  const index = text.split('\n').findIndex((raw) => stripComment(raw).trim() === MACROS_INCLUDE);
   return index < 0 ? undefined : index + 1;
 }
 
 /** A function or orphan file: laid out from its chunk's start. */
 function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { readonly path: string; readonly text: string }, m: number, c: number): FileCheck {
-  const module = model.modules[m] as Module;
+  const module = model.modules[m];
   const chunk = model.chunks[c];
-  if (chunk === undefined) return { diagnostics: [], sectionAlign: 0 };
-  const runOffset = chunk.runAt === undefined ? 0 : chunk.runAt - chunk.span.start;
+  if (module === undefined || chunk === undefined) throw new RomliftInvariantError(`text-layout: the path index names chunk ${c} of module ${m}, which the model lacks`);
+  const runOffset = runOffsetOf(chunk);
   const parsed = parse(asIncluded(entry.text));
   const job: Job = {
     path: entry.path,
@@ -322,8 +313,9 @@ function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { reado
 
 /** A module's source: laid out from the module's start, each include of a chunk file standing for its bytes. */
 function checkSourceFile(rom: Rom, model: Model, index: PathIndex, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
-  const module = model.modules[m] as Module;
-  const runOffset = module.runAt === undefined ? 0 : module.runAt - module.span.start;
+  const module = model.modules[m];
+  if (module === undefined) throw new RomliftInvariantError(`text-layout: the path index names module ${m}, which the model lacks`);
+  const runOffset = runOffsetOf(module);
   const files = new Map<string, Span>();
   const order: { readonly path: string; readonly span: Span }[] = [];
   for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
@@ -541,9 +533,8 @@ interface EntryCheck {
   readonly unit?: { readonly module: number; readonly sectionAlign: number };
 }
 
-function checkOne(rom: Rom, model: Model, entry: FileEntry): EntryCheck {
+function checkOne(rom: Rom, model: Model, index: PathIndex, entry: FileEntry): EntryCheck {
   if (entry.ownership !== 'generated') return { diagnostics: [] };
-  const index = indexOf(model);
   const target = index.targets.get(entry.path);
   if (target === undefined) {
     return { diagnostics: CHECKED_WRITERS.has(entry.writer) ? [textError(entry.path, 1, ROM_BASE, `the ${entry.writer} writer emits a file no chunk or module of the model has`)] : [] };
@@ -564,9 +555,12 @@ function checkOne(rom: Rom, model: Model, entry: FileEntry): EntryCheck {
   return { diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY), unit: { module: target.module, sectionAlign: file.sectionAlign } };
 }
 
-/** The text-layout check of one entry of the emission stream; [] when it is not this check's or it passes. */
+/**
+ * The text-layout check of one entry of the emission stream; [] when it is not this check's or it passes. It
+ * indexes the model for this one entry; checkEntries indexes it once for a whole stream.
+ */
 export function checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[] {
-  return checkOne(rom, model, entry).diagnostics;
+  return checkOne(rom, model, buildIndex(model), entry).diagnostics;
 }
 
 /**
@@ -607,14 +601,15 @@ export function checkEntries(rom: Rom, model: Model, entries: Iterable<FileEntry
   const diagnostics: Diagnostic[] = [];
   const paths: string[] = [];
   const aligns = new Map<number, number>();
+  const index = buildIndex(model);
   for (const entry of entries) {
     paths.push(entry.path);
-    const found = checkOne(rom, model, entry);
+    const found = checkOne(rom, model, index, entry);
     pushAll(diagnostics, found.diagnostics);
     if (found.unit !== undefined) aligns.set(found.unit.module, Math.max(aligns.get(found.unit.module) ?? 0, found.unit.sectionAlign));
   }
   const emitted = new Set(paths);
-  for (const { path, addr } of indexOf(model).expected) {
+  for (const { path, addr } of index.expected) {
     if (!emitted.has(path)) diagnostics.push(textError(path, 1, addr, 'the stream emits no such file, which the model needs'));
   }
   pushAll(diagnostics, unitAlignment(model, aligns));
