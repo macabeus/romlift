@@ -1,4 +1,5 @@
-// Human-readable views of rows and artifacts: the one-line summary per ROM, the rows that moved
+// Human-readable views of rows and artifacts: the one-line summary per ROM (with the phase-3 readability
+// shares and objdiff summary when the row has them), the rows that moved
 // between two artifacts (newly missed and newly false first), and the text of `bench baseline`.
 import type { Results } from './artifact.ts';
 import type { BenchRow } from './row.ts';
@@ -13,8 +14,17 @@ export function summaryLine(r: BenchRow): string {
     `  precision ${pct(r.precision)}  recall ${pct(r.recall)}` +
     `  misses ${r.misses.length} (${unlistedMisses} unlisted)  false ${r.falseEntries.length} (${unlistedFalse} unlisted)` +
     `  extents ${r.extents.agree}/${r.extents.sized}  code end ${r.codeEnd.delta >= 0 ? '+' : ''}${r.codeEnd.delta}` +
-    `${r.deterministic ? '' : '  NOT DETERMINISTIC'}  make ${r.scaffold === undefined ? 'n/a' : r.scaffold.ok ? 'OK' : 'FAILED'}`
+    `${r.deterministic ? '' : '  NOT DETERMINISTIC'}  make ${r.scaffold === undefined ? 'n/a' : r.scaffold.ok ? 'OK' : 'FAILED'}` +
+    `${r.readability === undefined ? '' : `  readability ${pct(r.readability.mnemonicShare)}/${pct(r.readability.symbolicBranchShare)}/${pct(r.readability.symbolicPoolShare)}`}` +
+    `${r.objdiff === undefined ? '' : `  objdiff ${objdiffText(r.objdiff)}`}`
   );
+}
+
+/** The objdiff member in one phrase: not linked, or the scored count and the differences by kind. */
+export function objdiffText(o: NonNullable<BenchRow['objdiff']>): string {
+  if (!o.linked) return 'not linked';
+  const kinds = Object.entries(o.differences).map(([kind, n]) => `${n} ${kind}`);
+  return `${o.scored} scored, ${kinds.length === 0 ? 'no difference' : kinds.join(', ')}`;
 }
 
 export interface RomDiff {

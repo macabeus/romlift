@@ -1,6 +1,7 @@
 // `bench regression [--base <ref|file>] [--fresh <file>] [--json]` (architecture §8.5, g2.regression):
 // compares a fresh artifact with a base one, and the datasets with the base's datasets. It fails on fewer
-// true positives, a new extent mismatch, an unlisted miss or false entry, a code end more than 16 bytes
+// true positives, a new extent mismatch, a lower readability share (from phase 3; skipped when the base
+// row has none), an unlisted miss or false entry, a code end more than 16 bytes
 // from the ELF, a non-deterministic run, a ROM the fresh artifact lost, and a `labels`/`untyped` row
 // added without a `Bench-Exception: <rom> <addr> <reason>` trailer in a commit since the base. When the
 // base rows come from the PoC's dumps and the fresh ones from romlift's analysis (phase 2 against main),
@@ -20,6 +21,7 @@ import { loadDatasets, parseDataset, type Dataset } from './dataset.ts';
 import { rowDiffs } from './baseline-rows.ts';
 import { BenchError, exists } from './files.ts';
 import { gitMergeBase, gitMessagesSince, gitShow } from './git.ts';
+import { SHARE_NAMES } from './readability.ts';
 import type { BenchRow } from './row.ts';
 
 export const CODE_END_TOLERANCE = 16;
@@ -84,6 +86,23 @@ function pocRowProblems(fresh: BenchRow, base: BenchRow): RegressionProblem[] {
   return out;
 }
 
+/**
+ * A readability share lower than the base's (architecture §8.5): the shares only increase. Nothing is compared
+ * when the base row has no readability member (an artifact from before phase 3); a fresh row without one
+ * while the base has it lost the family.
+ */
+export function readabilityProblems(fresh: BenchRow, base: BenchRow): RegressionProblem[] {
+  if (base.readability === undefined) return [];
+  if (fresh.readability === undefined) return [{ kind: 'readability', rom: fresh.name, detail: 'the base measured the readability shares, the fresh artifact does not' }];
+  const out: RegressionProblem[] = [];
+  for (const name of SHARE_NAMES) {
+    const was = base.readability[name];
+    const now = fresh.readability[name];
+    if (now < was) out.push({ kind: 'readability', rom: fresh.name, detail: `${name} fell from ${was} to ${now}` });
+  }
+  return out;
+}
+
 export function regressionProblems(input: RegressionInput): RegressionProblem[] {
   const { fresh, base } = input;
   const problems: RegressionProblem[] = [];
@@ -103,6 +122,7 @@ export function regressionProblems(input: RegressionInput): RegressionProblem[] 
     if (r.tp < b.tp) push('true-positives', `true positives fell from ${b.tp} to ${r.tp}`);
     const had = new Set(b.extents.mismatches.map((m) => m.addr));
     for (const m of r.extents.mismatches) if (!had.has(m.addr)) push('new-extent-mismatch', `new extent mismatch at ${m.addr} ${m.name}: found ${m.found}, ELF ${m.elf}`);
+    problems.push(...readabilityProblems(r, b));
     if (pocBase) problems.push(...pocRowProblems(r, b));
   }
   for (const b of base.roms) if (!fresh.roms.some((r) => r.name === b.name)) problems.push({ kind: 'coverage', rom: b.name, detail: 'in the base artifact but not in the fresh one (coverage shrank)' });

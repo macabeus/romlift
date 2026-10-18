@@ -83,6 +83,22 @@ test('families: every live per-ROM family for every tuning ROM, and the printer 
   assert.equal(verdicts(inputs({ landed: 2 }))['families'], false, 'determinism and speed are live at phase 2');
 });
 
+test('landed 3: readability per tuning ROM with its member, scaffold with its member, and the memory member', () => {
+  const live = ['code-end', 'determinism', 'entries', 'extents', 'readability', 'scaffold', 'speed'];
+  const readability = { mnemonicShare: 1, symbolicBranchShare: 1, symbolicPoolShare: 1, floor: null };
+  const memory = { romBytes: 32 * 1024 * 1024, sha1: 'b'.repeat(40), runs: [{ command: 'init', exitCode: 0, maxRssMiB: 100 }] };
+  const artifact = (r: ReturnType<typeof row>, withMemory: boolean): ReturnType<typeof results> =>
+    results([r], { meta: meta({ families: { tiny: live } }), printer: printerSummary(), ...(withMemory ? { memory } : {}) });
+  const check = (a: ReturnType<typeof results>) => provenanceChecks(inputs({ artifact: a, landed: 3 })).find((c) => c.id === 'families');
+  assert.equal(check(artifact(row({ readability }), true))?.ok, true);
+  assert.match(check(artifact(row({ readability }), false))?.detail ?? '', /the memory family is absent from the artifact/);
+  assert.match(check(artifact(row(), true))?.detail ?? '', /tiny: family readability ran but its row holds no readability member/);
+  const { scaffold: _scaffold, ...noScaffold } = row({ readability });
+  assert.match(check(artifact(noScaffold, true))?.detail ?? '', /tiny: family scaffold ran but its row holds no scaffold member/);
+  // Phase 2 asks for none of the phase-3 members.
+  assert.equal(provenanceChecks(inputs({ artifact: results([row()], { meta: meta({ families: { tiny: live } }), printer: printerSummary() }), landed: 2 })).find((c) => c.id === 'families')?.ok, true);
+});
+
 test('dataset-rows and heldout-rows', () => {
   assert.equal(verdicts(inputs({ datasets: [dataset(), dataset({ name: 'other' })] }))['dataset-rows'], false);
   const sealed = verdicts(inputs({ datasets: [dataset({ heldout: true })] }));

@@ -57,7 +57,8 @@ export interface LinkOptions {
 }
 
 export type AssembleResult =
-  | { readonly ok: true; readonly bytes: Uint8Array }
+  /** `bytes`: the `.text` section; `object`: the whole ELF the program wrote (the relocatable object of `as`, the linked ELF of `ld`). */
+  | { readonly ok: true; readonly bytes: Uint8Array; readonly object: Uint8Array }
   | { readonly ok: false; readonly stderr: string; readonly diagnostics: readonly Diagnostic[] };
 
 const PREFIX = 'arm-none-eabi-';
@@ -157,12 +158,13 @@ async function output(path: string): Promise<Uint8Array | undefined> {
 
 /** The `.text` of `object` (an ELF in `dir`) as raw bytes, through objcopy -O binary -j .text. */
 async function textBytes(tools: Binutils, dir: string, object: string): Promise<AssembleResult> {
-  if ((await output(join(dir, object))) === undefined) return failed('', `the assembler or linker exited 0 but wrote no ${object}`);
+  const elf = await output(join(dir, object));
+  if (elf === undefined) return failed('', `the assembler or linker exited 0 but wrote no ${object}`);
   const objcopy = await run(tools.objcopy, ['-O', 'binary', '-j', '.text', object, 'text.bin'], dir);
   if (objcopy.code !== 0) return failed(objcopy.stderr, `arm-none-eabi-objcopy exited with ${objcopy.code}`);
   const bytes = await output(join(dir, 'text.bin'));
   if (bytes === undefined) return failed('', 'arm-none-eabi-objcopy exited 0 but wrote no text.bin');
-  return { ok: true, bytes };
+  return { ok: true, bytes, object: elf };
 }
 
 /** Writes `files` under `dir`; an error message when a path would leave it. */
@@ -177,7 +179,7 @@ async function writeFiles(dir: string, files: Readonly<Record<string, string>>):
 }
 
 /**
- * Assembles `source` with the PATH's arm-none-eabi-as and returns its `.text` bytes. The source and
+ * Assembles `source` with the PATH's arm-none-eabi-as and returns its `.text` bytes and the object. The source and
  * `files` are written to a fresh temporary directory, which is the working directory of `as` (so
  * `.include "include/macros.inc"` resolves there) and is removed afterwards.
  */

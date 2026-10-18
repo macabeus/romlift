@@ -5,13 +5,13 @@ import { test } from 'node:test';
 import { benchRun } from '../../../bench/src/run.ts';
 import { apiResults } from '../../../bench/src/serve.ts';
 import { withTempDir } from './fixtures.ts';
-import { syntheticTier, TINY_DEPS } from './harness.ts';
+import { runWith, syntheticTier, TINY_DEPS } from './harness.ts';
 
 test('the web report endpoint serves the artifact, its base, the verdict and the vocabularies', async () => {
   await withTempDir('romlift-web-', async (root) => {
     const cx = await syntheticTier(root);
     assert.equal((await apiResults(cx, join(root, 'none.json'))).status, 404);
-    await benchRun(cx, { runner: TINY_DEPS.runner });
+    await benchRun(cx, runWith(TINY_DEPS));
     const artifact = join(cx.repoRoot, 'bench', 'results.json');
     const { status, body } = await apiResults(cx, artifact);
     assert.equal(status, 200);

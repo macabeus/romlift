@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { baselineText, diffResults, formatDiff, moved, summaryLine } from '../../../bench/src/report.ts';
+import { baselineText, diffResults, formatDiff, moved, objdiffText, summaryLine } from '../../../bench/src/report.ts';
 import { results, row } from './fixtures.ts';
 
 test('summaryLine names counts, unlisted rows and the verdicts', () => {
@@ -39,4 +39,12 @@ test('baselineText prints the row and where the artifact came from', () => {
 test('summaryLine says n/a for a row without a scaffold verdict', () => {
   const { scaffold: _scaffold, ...bare } = row();
   assert.match(summaryLine(bare), /make n\/a$/);
+});
+
+test('summaryLine adds the readability shares and the objdiff summary of a phase-3 row', () => {
+  const readability = { mnemonicShare: 0.99, symbolicBranchShare: 1, symbolicPoolShare: 0.5, floor: null };
+  const objdiff = { linked: true, scored: 4, differences: { relocation: 1, 'unnamed-target': 2 }, examples: [] };
+  assert.match(summaryLine(row({ readability, objdiff })), /make OK +readability 99\.00%\/100\.00%\/50\.00% +objdiff 4 scored, 1 relocation, 2 unnamed-target$/);
+  assert.equal(objdiffText({ ...objdiff, differences: {} }), '4 scored, no difference');
+  assert.equal(objdiffText({ linked: false, scored: 0, differences: {}, examples: [] }), 'not linked');
 });

@@ -89,7 +89,9 @@ async function main() {
         <td class="num">${r.falseEntries.length}${uf ? ` <span class="bad">(${uf} unlisted)</span>` : ''}</td>
         <td class="num">${d ? dl(d.extents[0], d.extents[1]) : ''}${r.extents.agree} / ${r.extents.sized}</td>
         <td class="num ${Math.abs(r.codeEnd.delta) > 16 ? 'bad' : ''}">${r.codeEnd.delta >= 0 ? '+' : ''}${r.codeEnd.delta}</td>
-        <td>${r.deterministic ? '<span class="ok">deterministic</span>' : '<span class="bad">not deterministic</span>'} · ${r.scaffold.ok ? '<span class="ok">make OK</span>' : '<span class="bad">make failed</span>'}
+        <td>${r.deterministic ? '<span class="ok">deterministic</span>' : '<span class="bad">not deterministic</span>'}${r.scaffold === undefined ? '' : r.scaffold.ok ? ' · <span class="ok">raw link OK</span>' : ' · <span class="bad">raw link failed</span>'}
+          ${r.readability ? `<div class="meta">readability ${['mnemonicShare', 'symbolicBranchShare', 'symbolicPoolShare'].map((k) => `<span class="${r.readability.floor && r.readability[k] < r.readability.floor[k] ? 'bad' : ''}">${pct(r.readability[k])}</span>`).join(' / ')}${r.readability.floor ? '' : ' <span class="bad">(no floor)</span>'}</div>` : ''}
+          ${r.objdiff ? `<div class="meta">objdiff ${r.objdiff.linked ? `${r.objdiff.scored} scored${Object.entries(r.objdiff.differences).map(([k, n]) => ` · <span class="${k === 'unnamed-target' ? '' : 'bad'}">${n} ${esc(k)}</span>`).join('')}` : '<span class="bad">readable build does not link</span>'}</div>` : ''}
           <div class="meta">${esc((m.families[r.name] ?? []).join(', '))}</div></td>
       </tr>`;
     }));

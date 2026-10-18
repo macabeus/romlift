@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Dataset } from '../../../bench/src/dataset.ts';
-import { parseTrailers, regressionFailures, regressionProblems, regressionReport, type RegressionInput } from '../../../bench/src/regression.ts';
+import { parseTrailers, readabilityProblems, regressionFailures, regressionProblems, regressionReport, type RegressionInput } from '../../../bench/src/regression.ts';
 import type { BenchRow } from '../../../bench/src/row.ts';
 import { dataset, results, row } from './fixtures.ts';
 
@@ -114,4 +114,19 @@ test('the --json report: ok only without problems, the base named', () => {
   const outcome = { baseLabel: 'abc', notes: [], failures: ['tiny: x'], problems: [{ kind: 'k', rom: 'tiny', detail: 'x' }] };
   assert.deepEqual(regressionReport(outcome), { schema: 'romlift/bench-regression@1', ok: false, base: 'abc', problems: [{ kind: 'k', rom: 'tiny', detail: 'x' }] });
   assert.equal(regressionReport({ ...outcome, failures: [], problems: [] }).ok, true);
+});
+
+const SHARES = { mnemonicShare: 0.99, symbolicBranchShare: 1, symbolicPoolShare: 0.98 };
+
+test('a lower readability share fails; an equal or higher one does not; a base without the family is skipped', () => {
+  const base = { ...BASE_ROW, readability: { ...SHARES, floor: null } };
+  const withShares = (s: Partial<typeof SHARES>): BenchRow => ({ ...BASE_ROW, readability: { ...SHARES, ...s, floor: null } });
+  const run = (fresh: BenchRow, b: BenchRow = base): string[] => failures(fresh, { base: results([b]) });
+  assert.deepEqual(run(withShares({})), []);
+  assert.deepEqual(run(withShares({ mnemonicShare: 1, symbolicPoolShare: 0.99 })), []);
+  assert.deepEqual(run(withShares({ symbolicPoolShare: 0.97 })), ['tiny: symbolicPoolShare fell from 0.98 to 0.97']);
+  assert.deepEqual(run(BASE_ROW), ['tiny: the base measured the readability shares, the fresh artifact does not']);
+  // A phase-2 base (no readability member) is never compared.
+  assert.deepEqual(run(withShares({ mnemonicShare: 0 }), BASE_ROW), []);
+  assert.deepEqual(readabilityProblems(withShares({ mnemonicShare: 0.5 }), base).map((p) => p.kind), ['readability']);
 });

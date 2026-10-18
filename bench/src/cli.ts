@@ -22,7 +22,8 @@ import { pocCheck, romPasses } from './poc-check.ts';
 import { provenanceChecks, provenanceInputs } from './provenance.ts';
 import { defaultBase, readBase, readFresh, regression, regressionReport } from './regression.ts';
 import { baselineText, diffResults, formatDiff, moved } from './report.ts';
-import { BENCH_RUN_SCHEMA, benchRun, revealDataset, summaryText, type BenchRunReport } from './run.ts';
+import { BENCH_RUN_SCHEMA, benchRun, largeRomProcess, revealDataset, summaryText, type BenchRunReport, type RunOptions } from './run.ts';
+import type { EmissionRunner } from './scaffold.ts';
 import { serve } from './serve.ts';
 import { benchSpeed, speedPasses } from './speed.ts';
 
@@ -31,12 +32,21 @@ export interface BenchIo {
   err(line: string): void;
 }
 
-/** What the commands reach outside the repository: the analysis, the clock of a reveal, the calibration workload. */
+/**
+ * What the commands reach outside the repository: the analysis, the clock of a reveal, the calibration
+ * workload, and from phase 3 the emission families, the large-ROM script and objdiff-cli (run.ts's defaults
+ * when absent).
+ */
 export interface BenchDeps {
   readonly runner: AnalysisRunner;
   readonly now: () => string;
   /** The speed calibration workload; the default is speed.ts's. */
   readonly calibrate?: () => unknown;
+  readonly emission?: EmissionRunner;
+  readonly largeRom?: RunOptions['largeRom'];
+  readonly objdiffTool?: RunOptions['objdiffTool'];
+  /** How `bench large-rom` runs the script; default run.ts largeRomProcess. */
+  readonly largeRomProcess?: typeof largeRomProcess;
 }
 
 export const DEFAULT_DEPS: BenchDeps = { runner: ROMLIFT_RUNNER, now: () => new Date().toISOString() };
@@ -46,7 +56,9 @@ interface Command {
   readonly args: ArgSpec;
   /** Options that may repeat (`--disable a --disable b`); their values arrive in `repeated`. */
   readonly repeated?: readonly string[];
-  run(cx: BenchContext, args: BenchArgs, io: BenchIo, deps: BenchDeps, repeated: Readonly<Record<string, readonly string[]>>): Promise<number>;
+  /** The arguments go unparsed to another program, in `raw`. */
+  readonly passthrough?: boolean;
+  run(cx: BenchContext, args: BenchArgs, io: BenchIo, deps: BenchDeps, repeated: Readonly<Record<string, readonly string[]>>, raw: readonly string[]): Promise<number>;
 }
 
 const json = (io: BenchIo, value: unknown): void => io.out(JSON.stringify(value));
@@ -95,9 +107,10 @@ function printRunReport(io: BenchIo, report: BenchRunReport, asJson: boolean): v
 export const COMMANDS: Readonly<Record<string, Command>> = {
   run: {
     summary:
-      'run [--only <rom>] [--json] [--disable <rule>...] [--cpu-prof] [--reveal <rom> --reason <text>]  ' +
-      "score romlift's discover run of every dataset; write bench/results.json (lead only, without --json) and bench/timings.json",
-    args: { options: ['only', 'reveal', 'reason'], flags: ['json', 'cpu-prof'] },
+      'run [--only <rom>] [--json] [--scaffold] [--write-readability-floor] [--disable <rule>...] [--cpu-prof] [--reveal <rom> --reason <text>]  ' +
+      "score romlift's discover run of every dataset and its readability; --scaffold builds and links both printers' trees and runs objdiff; " +
+      'write bench/results.json (lead only, without --json) and bench/timings.json',
+    args: { options: ['only', 'reveal', 'reason'], flags: ['json', 'cpu-prof', 'scaffold', 'write-readability-floor'] },
     repeated: ['disable'],
     async run(cx, args, io, deps, repeated) {
       const asJson = args.flags.has('json');
@@ -108,6 +121,7 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
       if (reveal !== undefined) {
         if (reason === undefined || reason.trim() === '') throw new UsageError('--reveal needs --reason <text>');
         if (args.options['only'] !== undefined) throw new UsageError('--reveal names its dataset; drop --only');
+        if (args.flags.has('scaffold') || args.flags.has('write-readability-floor')) throw new UsageError('--reveal scores one dataset; drop --scaffold and --write-readability-floor');
         const row = await revealDataset(cx, reveal, { reason, runner: deps.runner, at: deps.now(), log: io.out });
         io.out(summaryText(row));
         if (asJson) json(io, { schema: BENCH_RUN_SCHEMA, roms: [row], sealed: [], failed: [] } satisfies BenchRunReport);
@@ -120,7 +134,12 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
         json: asJson,
         tuning,
         cpuProf: args.flags.has('cpu-prof'),
+        scaffold: args.flags.has('scaffold'),
+        writeReadabilityFloor: args.flags.has('write-readability-floor'),
         runner: deps.runner,
+        ...(deps.emission === undefined ? {} : { emission: deps.emission }),
+        ...(deps.largeRom === undefined ? {} : { largeRom: deps.largeRom }),
+        ...(deps.objdiffTool === undefined ? {} : { objdiffTool: deps.objdiffTool }),
         log: io.out,
       });
       printRunReport(io, outcome.report, asJson);
@@ -131,6 +150,16 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
         );
       }
       return outcome.report.failed.length === 0 ? 0 : 1;
+    },
+  },
+  'large-rom': {
+    summary: 'large-rom [--json] [...]  run bench/src/large-rom.ts with these arguments (the memory family, g3.large-rom) and relay its output and exit code',
+    args: {},
+    passthrough: true,
+    async run(cx, _args, io, deps, _repeated, raw) {
+      const run = await (deps.largeRomProcess ?? largeRomProcess)(cx, raw);
+      for (const line of run.stdout.split('\n').filter((l, i, all) => l !== '' || i < all.length - 1)) io.out(line);
+      return run.code;
     },
   },
   speed: {
@@ -343,8 +372,9 @@ export async function main(argv: readonly string[], cx: BenchContext, io: BenchI
     return 2;
   }
   try {
+    if (command.passthrough === true) return await command.run(cx, parseArgs([], command.args), io, deps, {}, rest);
     const { rest: remaining, values } = takeRepeated(rest, command.repeated ?? []);
-    return await command.run(cx, parseArgs(remaining, command.args), io, deps, values);
+    return await command.run(cx, parseArgs(remaining, command.args), io, deps, values, rest);
   } catch (error) {
     if (error instanceof UsageError) {
       io.err(`${error.message}\n${usage()}`);
