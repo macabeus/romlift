@@ -15,9 +15,9 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 
 | Component | Wave | Branch | Status | Delivered |
 | --- | --- | --- | --- | --- |
-| `p3-lead` | 1 | `phase-3-lead` | committed, not merged | the frozen types, the shared primitives (item table, resolver, paths, manifest and journal codecs), the writer registry, the empty codes files and barrels, the analysis goldens, the model test helper, the g3 gate files aligned, D62 |
-| `p3-asm-text` | 1 | `phase-3-asm-text` | | `foundation/asm/{statements,layout}.ts` |
-| `p3-bench-inputs` | 1 | `phase-3-bench-inputs` | | objdiff-cli version and locator, reference objects, the large-ROM image |
+| `p3-lead` | 1 | `phase-3-lead` | merged (`3f0b341`) | the frozen types, the shared primitives (item table, resolver, paths, manifest and journal codecs), the writer registry, the empty codes files and barrels, the analysis goldens, the model test helper, the g3 gate files aligned, D62 |
+| `p3-asm-text` | 1 | `phase-3-asm-text` | merged (`aa2e7cc`) | `foundation/asm/{statements,layout}.ts` |
+| `p3-bench-inputs` | 1 | `phase-3-bench-inputs` | merged (`1c758c3`) | objdiff-cli version and locator, reference objects, the large-ROM image |
 | `p3-model` | 2 | | | `buildModel`, `encodeModel`, `legalBorders`, `inferModules`, `configFromDiscover` |
 | `p3-printer` | 2 | | | `emitTree`, `printChunk`, the header, crt0, function, orphan and module writers |
 | `p3-data-verify` | 2 | | | the data, ldscript and symbols writers, `verifyModel`, `checkEntry`, `checkPaths` |
@@ -41,6 +41,28 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 - `test/golden/analysis/<fixture>.json` for the 47 committed fixtures, `test/helpers/model.ts`.
 - The g3 gate files aligned to the frozen API (needs lists, the `verify --json` check ids, six tuning ROMs in
   the comments); no threshold changed.
+
+### p3-asm-text (wave 1)
+
+- `foundation/asm/statements.ts`: `parseStatements(text, { includes })` parses the directive subset romlift
+  emits into `Statement`s (`label`, `mode`, `align`, `data`, `inst`, `insn`, `incbin`, `include`, `symbol`,
+  each with its `line`); errors are values. `foundation/asm/layout.ts`: `layoutStatements` lays them out to
+  bytes, labels and aligns the way GNU as and ld place them (checked against binutils 2.45.1). Not re-exported
+  by a barrel; wave 2's `core/verify` imports them directly.
+- Points wave 2 relies on: `inst` carries its `directive` and accepts `.inst.w` (the raw Thumb bl pair
+  `formatRaw` prints; `word` is first halfword | second << 16); a switch from Thumb to ARM pads to a word
+  with zeros, so an ARM chunk's padding is emitted by the preamble's `.arm` and `aligns` lists those pads
+  beside every `.align` (p3-data-verify matches a padding item to the line that emitted it); an `.align`
+  without a fill byte that pads is refused, because the text alone cannot tell which no-op GNU as fills.
+
+### p3-bench-inputs (wave 1)
+
+- `bench/src/objects.ts` and `objectsDir`/`objectsDigest` on the six tuning datasets, checked by
+  `doctor-real` (`<rom>.objects-linked`); `bench/src/objdiff-cli.ts` with the pinned
+  `bench/tools/objdiff.version` (3.7.2) and the self-authored `test/fixtures/objdiff/`; the deterministic
+  32 MiB synthetic ROM (`bench/src/large-rom-image.ts`, re-exported by `test/helpers/large-rom.ts`, SHA-1
+  `b846b9453414ce93afc5e8fd559eaac582dc570e`). The measurements are in benchmark-roms.md.
+- klonoa's reference objects come from the clone `kleod-5b25cd6/` (benchmark-roms.md, "Reference objects").
 
 ## Deviations from the roadmap
 
@@ -96,6 +118,12 @@ ci tier, `test/gates/phase.json` raised to `{ "landed": 3 }` before the real-tie
   fail on every phase-3 commit that changes a source (the source digest moves); this is expected.
 - The analysis goldens (`test/golden/analysis/*.json`) are single-line canonical JSON, as `encodeAnalysis`
   writes them; a rule change rewrites them with `UPDATE_GOLDEN=1`.
+- Measured in wave 1, a risk for `g3.large-rom` (peak RSS < 512 MiB, unchanged): the analysis alone
+  (`discover` analyze, its own `node --conditions=source` process, Node 24.15) on the 32 MiB synthetic ROM
+  finds 3,639 functions, raises `W_READING_BUDGET` once and peaks at 1,097,408 KiB RSS (1,071.7 MiB), 45.9 s
+  CPU; it does not complete under `--max-old-space-size=320`. The gate measures `init` and `generate`; until
+  wave 3 runs it, nothing is waived. If it still fails after the fix rounds, it is recorded here with the
+  numbers and the phase does not land.
 - Carried from phase 2 (phase-2.md, "Carried into phase 3"): the cartridge entry's extent covers the header
   (correctness-6), to be bounded with the header's emission; a two-instruction ARM leaf after ARM code is read
   as Thumb on tmc (its bytes print either way).
