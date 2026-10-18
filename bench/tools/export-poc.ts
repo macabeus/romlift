@@ -5,7 +5,9 @@
 //
 //   scored   scored.json, in the frozen ScoredRun shape (phase 1); a dump made on romlift's dataset (a ROM
 //            the PoC has no dataset file of, D60) is checked against bench/baseline/poc-dump-rows.json,
-//            which `--pin` writes instead;
+//            which `--pin` writes instead (only from deterministic dumps). Every child runs first; the
+//            dumps are written only once the rows are checked or pinned, so a failed check or a refused
+//            pin leaves the previous dumps in place;
 //   parity   parity.json, the parity view (bench/src/parity-view.ts), after two PoC processes have
 //            produced the same digest; then bench/baseline/poc-digests.json, the digest per ROM;
 //   queries  queries.ndjson and readings.ndjson, the lockstep log (bench/src/poc-log.ts), after
@@ -208,17 +210,23 @@ async function runChild(cx: BenchContext, d: Dataset, args: readonly string[]): 
   }
 }
 
+/** Runs the PoC's scored run of `d`; nothing is written yet (writeScored, after the rows are checked or pinned). */
 async function exportScored(cx: BenchContext, d: Dataset, pocSourceDigest: string): Promise<ScoredRun> {
   const sha1 = await checkedRom(cx, d);
   const scored = scoredFromChild(await runChild(cx, d, ['scored']), d.name, sha1, pocSourceDigest, pocDatasetDigest(d));
-  await writeText(scoredPath(cx, d.name), `${JSON.stringify(scored)}\n`);
   const same = scored.digests[0] === scored.digests[1];
   process.stdout.write(
     `${d.name.padEnd(12)} ${scored.analysis.functions.length} functions, ${scored.misses.length} misses, ` +
       `scaffold ${scored.scaffold.ok ? 'OK' : 'FAILED'}, ${same ? 'deterministic' : 'NOT DETERMINISTIC'}` +
-      `${scored.datasetDigest === null ? '' : `, on romlift's dataset ${scored.datasetDigest.slice(0, 12)}…`} -> ${scoredPath(cx, d.name)}\n`,
+      `${scored.datasetDigest === null ? '' : `, on romlift's dataset ${scored.datasetDigest.slice(0, 12)}…`}\n`,
   );
   return scored;
+}
+
+/** Writes the dump of one scored run to bench/.local/poc/<rom>/scored.json. */
+async function writeScored(cx: BenchContext, d: Dataset, scored: ScoredRun): Promise<void> {
+  await writeText(scoredPath(cx, d.name), `${JSON.stringify(scored)}\n`);
+  process.stdout.write(`${d.name.padEnd(12)} -> ${scoredPath(cx, d.name)}\n`);
 }
 
 /**
@@ -232,6 +240,11 @@ async function checkOrPinDumpRows(cx: BenchContext, runs: readonly { readonly d:
   for (const { d, scored } of runs) {
     if (scored.datasetDigest === null) continue;
     if (pin) {
+      // A row is pinned only from a dump whose two PoC runs agree: a non-deterministic row is no reference.
+      if (scored.digests[0] !== scored.digests[1]) {
+        problems.push(`${d.name}: not pinned, the PoC's two runs disagree`);
+        continue;
+      }
       const tp = scored.pocRow['tp'];
       roms[d.name] = { datasetDigest: scored.datasetDigest, rowDigest: pocRowDigest(scored.pocRow), tp: typeof tp === 'number' ? tp : 0 };
       continue;
@@ -240,11 +253,15 @@ async function checkOrPinDumpRows(cx: BenchContext, runs: readonly { readonly d:
     if (why !== undefined) problems.push(why);
     else process.stdout.write(`${d.name.padEnd(12)} the PoC's row equals the one pinned in ${pocDumpRowsPath(cx)}\n`);
   }
+  if (problems.length > 0) {
+    throw new BenchError(
+      pin ? `refusing to pin, nothing written:\n${problems.join('\n')}` : `the PoC's rows differ from the pinned ones, no dump written (re-pin with --pin only after reviewing why):\n${problems.join('\n')}`,
+    );
+  }
   if (pin) {
     await writeText(pocDumpRowsPath(cx), pocDumpRowsText({ schema: POC_DUMP_ROWS_SCHEMA, pocSourceDigest, roms }));
     process.stdout.write(`${Object.keys(roms).length} pinned PoC rows -> ${pocDumpRowsPath(cx)}\n`);
   }
-  if (problems.length > 0) throw new BenchError(`the PoC's rows differ from the pinned ones (re-pin with --pin only after reviewing why):\n${problems.join('\n')}`);
 }
 
 /** Two PoC processes per ROM; parity.json is written only when their digests agree. Returns the digest. */
@@ -317,6 +334,7 @@ async function main(argv: readonly string[]): Promise<number> {
     const runs: { readonly d: Dataset; readonly scored: ScoredRun }[] = [];
     for (const d of chosen) runs.push({ d, scored: await exportScored(cx, d, pinned.digest) });
     await checkOrPinDumpRows(cx, runs, pinned.digest, args.flags.has('pin'));
+    for (const { d, scored } of runs) await writeScored(cx, d, scored);
   } else if (mode === 'parity') {
     const digests: Record<string, string> = {};
     for (const d of chosen) digests[d.name] = await exportParity(cx, d);
