@@ -1706,8 +1706,11 @@ sealed ROM of a fresh family passes.
   instructions before the call (pool literals, `movs`, register copies, `adds`/`subs`, `negs`, `ands`,
   `orrs`, shifts; a call forgets r0..r3, r12 and lr). Since the review of `8fba183` (overfitting-r2-1) the
   run is straight-line in fact: it stops before a join point (a branch, jump-table or far-`bl` target of
-  the reading) and at an instruction that does not fall into the next (an unconditional exit: a return, a
-  register jump, a branch, a `bl` walked as a jump or that never returns); before, it walked back by
+  the reading; since fix round 2 of D61, overfitting-correctness-r1-1, also the reading's entry and the
+  target of every `bl` of the reading, returning or noreturn) and at an instruction that does not fall
+  into the next (an unconditional exit: a return, a register jump, a branch, a `bl` walked as a jump or
+  that never returns; with every join in, it lies only right before a join and decides nothing alone);
+  before, it walked back by
   layout across both and could read S, D and L from code that never flows into the call. Negative fixture
   `ram-copy-args-straight-line` (arguments loaded before a `pop {pc}`, the call reached only from a `beq`:
   the old scan maps a veneer's IWRAM pointer into a data object and proposes the false ARM entry
@@ -1932,8 +1935,9 @@ verbatim, and the meaning applied:
   code end ends an unsized function at the next `$d` mapping symbol (or typed symbol), for every ROM,
   tuning and sealed, in every scorer; record the before/after per ROM (tmc +148 → 0, klonoa +4 → 0, fe7j
   +8 → 0, others 0). (Fix round 1 of D61 restored "in every scorer", which this record had dropped,
-  gate-honesty-r0-3; the one scorer kept on the PoC's convention is in (a), an interpretation the owner
-  is asked to confirm or overrule as Q7 of phase-2.md.)
+  gate-honesty-r0-3. It kept one scorer on the PoC's convention and asked the owner about it as Q7 of
+  phase-2.md; fix round 2 of D61 withdrew that reading and the question, because the meaning given
+  already answers it: "in every scorer" covers the rescoring of the PoC's dumps too, (a).)
 
 These are the only gate changes the answers authorise; no other gate, threshold or check is weakened,
 skipped or removed.
@@ -1941,20 +1945,41 @@ skipped or removed.
 **Decision.**
 
 - (a) **Q5, the code end** (`bench/src/truth.ts` `elfCodeEnd`). An unsized function (hand-written asm
-  without `.size`) ends at the first data mapping symbol (`$d`, `$d.*`) or typed symbol (FUNC with the
-  Thumb bit cleared, OBJECT, SECTION) after it; a sized one at addr + size. One convention for every ROM,
-  tuning and sealed, in the tuning scorer (`score.ts`) and the sealed scorer (`seal.ts` through
-  `analysis-run.ts`): D60 (j) as fix round 1 built it, now authorised. **Interpretation, not the owner's
-  words (Q7, open):** the meaning given says "in every scorer", but the rescoring of the PoC's own dumps
-  (`bench poc-check`, `g1.bench-harness`) keeps the PoC's convention (`pocCodeEnd`). That scorer's check
-  is that the harness reproduces the PoC's pinned rows (`bench/baseline/poc-2026-10-16.json`, the
-  acceptance bar pinned by content, D50) field for field, and those rows carry the PoC's own ELF code end;
-  scoring the dumps under `$d` would make the check fail on klonoa (4 bytes), fe7j (8) and tmc (148)
-  unless the pinned rows were rewritten, which no answer authorised. So a romlift row and the PoC's row of
-  the same ROM differ in their ELF code end by design. The owner may overrule this (Q7): then the PoC's
-  pinned rows are re-pinned under `$d` and the rescoring uses `elfCodeEnd`. Measured
-  (`bench run`, against `8fba183`): tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3,
-  pokefirered and pokeruby 0 → 0; no other count and no analysis digest moves.
+  without `.size`) ends at the data mapping symbol (`$d`, `$d.*`) or typed symbol (FUNC with the Thumb bit
+  cleared, OBJECT, SECTION) that closes its last code run: the first one after the last code mapping
+  symbol (`$t`, `$a`, numbered or not) that precedes the next typed symbol, or after the function's start
+  when there is none. A sized one ends at addr + size. One convention for every ROM, tuning and sealed, in
+  every scorer: the tuning scorer (`score.ts` `scoreAnalysis`), the sealed scorer (`seal.ts` through
+  `analysis-run.ts`) and, since fix round 2 of D61, the rescoring of the PoC's own dumps (`score.ts`
+  `scoreRun`: `bench poc-check`, `g1.bench-harness`). Measured (`bench run`, against `8fba183`): tmc +148 →
+  0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3, pokefirered and pokeruby 0 → 0; no other count and
+  no analysis digest moves.
+
+  *Fix round 2 of D61.* (i) Q7 is withdrawn: fix round 1 had kept the PoC-dump rescoring on the PoC's
+  convention (`pocCodeEnd`) and called it an interpretation, but the meaning given with the answer says "in
+  every scorer", which already decides it (gate-honesty-r1-1, overfitting-correctness-r1-4,
+  code-quality-r1-2). Fix round 1's text also said no gate depended on it; that was wrong: the exception is
+  what kept `g1.bench-harness` passing without a re-pin. (ii) The PoC's rows (`bench/baseline/
+  poc-2026-10-16.json`; the PoC's own row of tmc, pinned by digest in `poc-dump-rows.json`) are the PoC's
+  output, pinned by content (D50), and the PoC's fresh run reproduces them, so they are not rewritten.
+  `bench poc-check` compares the rescored row, now under `$d`, with each reference as the scorer measures
+  it (`poc-check.ts` `asScored`: `codeEnd.elf` the `$d` end, the delta recomputed from the reference's own
+  found end, every other field as it is), and checks separately that the reference's `codeEnd.elf` and
+  delta are the PoC's convention's on that ELF (`pocCodeEnd`, now read only there), so the harness still
+  reproduces the PoC's numbers under the PoC's ruler. The two together are the old field-for-field
+  comparison; nothing is excluded. Measured: `bench poc-check` exits 0 on the six; the rescored PoC rows'
+  code end fe7j +8 → 0, klonoa +4 → 0, pokeemerald, sa2, sa3 0; tmc's PoC row (found 0x080B197A) −4,130 →
+  −4,278. romlift's own rows do not move. (iii) The end is the `$d` that closes the last code run rather
+  than the first `$d` (overfitting-correctness-r1-2): hand-written asm often puts an inline pool
+  mid-function and resumes code (1,557 of fe7j's 6,265 unsized FUNCs, sa3 193 of 387, tmc 5 of 249,
+  klonoa 1 of 77, measured by the reviewer), so the first `$d` is not where the assembler stopped emitting
+  the function's instructions. No ROM's maximum moves (fe7j 0x080C0C50, klonoa 0x08051BD4, pokeemerald
+  0x082E952E, sa2 0x080979F6, sa3 0x080CE438, tmc 0x080B2A30, pokefirered and pokeruby code end 0). Unit
+  cases: `$t, $d, $t, $d`; a code mapping symbol past the next typed symbol; a sized function ending past
+  an unsized later one decides (gate-honesty-r1-2, the case `3f7898f` had deleted). The fixture
+  `code-end-unsized-last` now has an untyped pool between the unsized function and the OBJECT, so the
+  `$d` (0x08000108), the next typed symbol (0x08000110) and addr + size (0x08000100) differ
+  (overfitting-correctness-r1-3).
 - (b) **Q4, the family conditions of `g2.held-out`** (`test/gates/held-out-verdict.ts` `FAMILY_WAIVER`). The
   waiver's `grounds.twoFamilies` holds the answer ("Waive both"), so both family conditions are waived and
   printed (`WAIVED: …`) with their grounds, each with its own date and decision (fix round 1 of D61,
@@ -2004,7 +2029,9 @@ skipped or removed.
   or that vanished from a view fails as a changed limitation; any other differing function or claim run
   fails wherever it lies; a known difference gone, all six included (the gate judges every ROM, equal
   digests or not; gate-honesty-r0-2), and a record whose ROM is not a tuning dataset fail as stale; every
-  other ROM must have no difference. **Measured: tmc has eight differing functions at HEAD, not six.** Q3's count was
+  other ROM must have no difference. Since fix round 2 of D61 (code-quality-r1-5) every failure message
+  gives the count and the first four records of each list (uncovered functions, changed functions,
+  extra and changed claim runs). **Measured: tmc has eight differing functions at HEAD, not six.** Q3's count was
   taken at `9c8b282`; `95b257b` (fix round 2 of D60, the pool boundary of `seed.ram-copy`) moved two more,
   0x080B255C (discover ends it at 0x080B299C, confirm at 0x080B280C) and 0x080B2874 (0x080B289C against
   0x080B299C), the same class (two ARM entries proposed by one worklist, read in ascending order, the
@@ -2015,7 +2042,13 @@ skipped or removed.
   (e) were keyed by the dataset name alone. Each now holds the ROM SHA-1 and ELF SHA-256 the answers were
   given on (`test/gates/dataset-binding.ts` `TMC_AT_D61`: `b4bd50e4…`, `7d27e8d9…`), as (b) holds the
   sealed pair; for a dataset of that name with another ROM or ELF the scoping is stale, fails, and the ROM
-  is judged as without it until the owner decides anew.
+  is judged as without it until the owner decides anew. Since fix round 2 of D61 (code-quality-r1-4) the
+  three are checked alike for staleness: a `SCOPED_OUT`, `KNOWN_DIFFERENCES` or `BENCHMARK_ROWS` record
+  whose ROM is not a tuning dataset fails, and so does a `BENCHMARK_ROWS` record whose ROM's PoC
+  reference is not the pinned PoC's own run of it (`staleBenchmarkRows`), which the verdict ignored
+  before. One identity type (`DatasetIdentity`) and one order (`test/gates/order.ts` `byCodeUnit`) serve the
+  three; `test/unit/gates/dataset-binding.test.ts` pins `TMC_AT_D61` to `bench/dataset/real/tmc.json` and
+  tests `bindingMismatch` (code-quality-r1-6, r1-7).
 
 **Consequences.** Measured at `8c60bf5` (phase-2.md, "The closing gate"): the six tuning rows keep
 `8fba183`'s counts and analysis digests, every code end is 0, pokefirered and pokeruby pass sealed with
@@ -2024,8 +2057,9 @@ functions beyond the six of Q3 (owner question Q6). With `phase.json` raised to 
 also fails `g1.provenance` and `bench provenance`, so `phase.json` is back at 1 and phase 2 does not land.
 Nothing beyond the five answers is waived. After fix round 1 of D61, measured at `2c96faa`: the same rows,
 counts and analysis digests, every closing command exits 0 but the real tier, which fails on that gate alone
-(tmc's 0x080B255C and 0x080B2874, Q6), with the six of Q3 matching their pinned records; Q7 (the PoC-dump
-rescoring's code end) is open and decides no gate.
+(tmc's 0x080B255C and 0x080B2874, Q6), with the six of Q3 matching their pinned records. Fix round 2 of
+D61 withdrew Q7 (the meaning given with Q5 answers it, (a)) and applied `$d` to the PoC-dump rescoring;
+the closing measurements are in phase-2.md, "The closing gate".
 
 ---
 

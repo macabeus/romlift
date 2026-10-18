@@ -140,7 +140,7 @@ verbatim, are in D61 with the meaning applied, and each is in the code that appl
 | Q2 `g2.baseline-rows` on tmc | (the same words) | `test/gates/baseline-rows-verdict.ts` `BENCHMARK_ROWS` (D61 d): tmc's rows that the dataset lists with a category are accepted and printed; tp 8,631 of 8,636 (recall 99.94%) is a floor; the five as strict as before |
 | Q3 `g2.confirm-equals-discover` on tmc | "Build resettle, else accept" | `f287b0d` built D8's `resettle`; it changes rows on the other ROMs and the sealed pair, so `af0f75c` reverted it; `test/gates/confirm-differences.ts` `KNOWN_DIFFERENCES` (D61 e) accepts tmc's six differences of Q3, pinned by content (each function's discover and confirm record and the one claim run, as measured at `9c8b282`), printed, and nothing else |
 | Q4 the two-families waiver of `g2.held-out` | "Waive both" | `test/gates/held-out-verdict.ts` `FAMILY_WAIVER.grounds.twoFamilies` (D61 b): both family conditions waived and printed, bound to the sealed pair and the tuning families of D60 |
-| Q5 the code-end convention | "Use $d for every ROM" | `bench/src/truth.ts` `elfCodeEnd` (D61 a): an unsized function ends at the next `$d` or typed symbol, every ROM, tuning and sealed; tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, the others 0; the meaning given says "in every scorer", but the rescoring of the PoC's own dumps keeps the PoC's convention (an interpretation, Q7) |
+| Q5 the code-end convention | "Use $d for every ROM" | `bench/src/truth.ts` `elfCodeEnd` (D61 a): an unsized function ends at the `$d` or typed symbol that closes its last code run, every ROM, tuning and sealed, in every scorer (since fix round 2 of D61 the rescoring of the PoC's own dumps too; Q7 withdrawn); tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, the others 0 |
 
 These are the only gate changes made. No other gate, threshold or check was weakened, skipped or removed.
 Since fix round 1 of D61 each tmc scoping (Q1, Q2, Q3) is bound to tmc's ROM SHA-1 and ELF SHA-256 as well
@@ -164,19 +164,19 @@ as its name (D61 f), and each waived family condition prints its own date and de
    discover and confirm records and the three claim runs, 0x080B2874..0x080B289C, 0x080B2874..0x080B299C and
    0x080B289C..0x080B299C, to `KNOWN_DIFFERENCES.tmc`, as measured.)
 
-### Q7, open
+### Q7, withdrawn (fix round 2 of D61)
 
-7. **The scorer the `$d` code end leaves out** (gate-honesty-r0-3, overfitting-correctness-r0-5, fix round 1 of
-   D61). The meaning given with Q5 reads "for every ROM, tuning and sealed, in every scorer". The tuning and
-   the sealed scorer use `elfCodeEnd`. The rescoring of the PoC's own dumps (`bench poc-check`,
-   `g1.bench-harness`) keeps the PoC's convention (`pocCodeEnd`), because its check is that the harness
-   reproduces the PoC's pinned rows field for field, and those rows carry the PoC's ELF code end: under `$d`
-   the check would fail on klonoa (4 bytes), fe7j (8) and tmc (148) unless the pinned rows were rewritten.
-   That exception is the fixer's reading, recorded in D61 (a), not the owner's words. **May the PoC-dump
-   rescoring keep the PoC's convention, or must it use `$d` too, with the PoC's pinned rows re-pinned under
-   it (`bench/baseline/poc-2026-10-16.json` and `poc-dump-rows.json`)?** No gate depends on the answer
-   today: the exception makes no gate pass that would fail, it keeps one check (`poc-check`) comparing the
-   rows it was pinned with.
+7. **The scorer the `$d` code end left out** (asked in fix round 1 of D61; withdrawn in fix round 2,
+   gate-honesty-r1-1, overfitting-correctness-r1-4, code-quality-r1-2). Fix round 1 kept the rescoring of
+   the PoC's own dumps (`bench poc-check`, `g1.bench-harness`) on the PoC's convention (`pocCodeEnd`) and
+   asked whether it might stay so. The question was not needed: the meaning given with Q5 reads "for every
+   ROM, tuning and sealed, in every scorer", which covers that scorer. Its text was also wrong in saying
+   that no gate depended on the answer: the exception was what kept `g1.bench-harness` passing without a
+   re-pin (scored under `$d` and compared field for field with the PoC's rows, the check would have failed
+   on klonoa by 4 bytes, fe7j by 8 and tmc by 148). Since `921a421` the rescoring uses `elfCodeEnd`; the
+   PoC's rows, the PoC's own output pinned by content (D50), are not rewritten: `poc-check` compares the
+   rescored row with them as the scorer measures them and checks separately that they carry the PoC's
+   convention (D61 a, fix round 2).
 
 ### The questions as asked (fix round 2 of D60)
 
@@ -951,15 +951,39 @@ weakened; four were tightened (the Q3 limitation, the three tmc scopings).
 | code-quality-r0-5 | minor | **Fixed** (`525b324`): `Object.keys(scopedOut).sort(byCodeUnit)`. |
 | code-quality-r0-6 | minor | **Fixed** (`525b324`): `GateSpec.historicalCheck` is removed; a frozen gate runs `run` and records `historical` when it returns, `fail` when it throws. The dead record branch and the duplicated key are gone; `test/gates-index.test.ts` holds a historical gate to `needs: []` and no inputs, since it runs before exports load or inputs are checked. architecture §0, §4.5 and the `GateSpec` sketch updated. |
 | code-quality-r0-7 | minor | **Fixed** (`525b324`): the `gateStep` and harness end-to-end tests are in `test/unit/gates/gate.test.ts`. |
-| overfitting-correctness-r0-1 | major | **Fixed** (`90c4e88`), and it found a defect: the far-`bl` target join never fired, because it looked the far sites up among `blSites`, which holds only the `bl` walked as calls; it now reads each far and noret site's target from the instruction. One unit case per stop, each failing when its own clause is removed and passing otherwise (mutation-checked: drop the exit stop, the far/noret stop, the far-`bl` join, the table join, the branch join): a jump-table case label falling into the copy call; a far-`bl` target falling into it; an exit, and a noret or far `bl` (with r4..r6 carried into r0..r2), laid out right before the entry, which the reading reaches by a backward branch. The exit and far/noret stops are reached without a join only there, at the entry, which is not a join point. phase-2.md's overfitting-r2-1 row corrected. No digest moves. |
+| overfitting-correctness-r0-1 | major | **Fixed** (`90c4e88`), and it found a defect: the far-`bl` target join never fired, because it looked the far sites up among `blSites`, which holds only the `bl` walked as calls; it now reads each far and noret site's target from the instruction. One unit case per stop, each failing when its own clause is removed and passing otherwise (mutation-checked: drop the exit stop, the far/noret stop, the far-`bl` join, the table join, the branch join): a jump-table case label falling into the copy call; a far-`bl` target falling into it; an exit, and a noret or far `bl` (with r4..r6 carried into r0..r2), laid out right before the entry, which the reading reaches by a backward branch. The exit and far/noret stops are reached without a join only there, at the entry, which is not a join point. phase-2.md's overfitting-r2-1 row corrected. No digest moves. **Corrected in fix round 2 of D61** (code-quality-r1-3, overfitting-correctness-r1-1): the noret-target join had no case, and the entry and returning-`bl` targets were not joins; the `bl` target join now covers every `bl` with one clause and a case, the entry is a join, and the exit and far/noret stops decide no case alone (`c2822a8`). |
 | code-quality-r0-9 | minor | **Fixed** (`90c4e88`, reworded): the fixture index says `ram-copy-args-straight-line` covers the two stops together and the unit cases each; the fixture is not split (the unit cases make each stop load-bearing). |
 | gate-honesty-r0-3, overfitting-correctness-r0-5 | minor | **Partly fixed, partly asked.** D61 quotes the Q5 meaning as given ("in every scorer") and names the PoC-dump rescoring's `pocCodeEnd` as an interpretation the owner may overrule (new owner question Q7). Fixed (`2d758ab`): `committed.test.ts` holds every fixture codeEnd to `elfCodeEnd` and needs a fixture where the conventions differ, the new negative fixture `code-end-unsized-last` (an unsized last function, then an OBJECT opening with `$d`: ELF and analysis code end 0x08000108, addr + size 0x08000100); `elfCodeEnd` unit cases for `$d.N` and SECTION. |
 | code-quality-r0-10 | minor | **Fixed** (`3e2480f`, `2d758ab`): the dead ternary went with the rewritten test; `score.test.ts` asserts the exact `{found 0x08000710, elf 0x08000600, delta 0x110}`. |
 
-Observed, not changed: the reading's entry is not a join point of `seed.ram-copy`'s argument scan, so if code
+Observed, not changed (changed in fix round 2 of D61, `c2822a8`): the reading's entry is not a join point of `seed.ram-copy`'s argument scan, so if code
 laid out before an entry falls into it (an entry that is also a loop head reached by a backward branch), the
 scan would read across the entry with the loop's register values. No reviewer finding names it, and changing
 it is an analysis change of its own to measure; it is listed under "Known limitations".
+
+### Fix round 2 of D61
+
+The review of `9262e2a` (gate-honesty, overfitting-correctness and code-quality, round r1) was answered on
+`phase-2` from `490df96` to the record below. The two analysis-side changes (`490df96`, the ELF code end;
+`c2822a8`, `seed.ram-copy`'s join points) were measured with `bench run` on the six tuning ROMs and the
+sealed pair: every row, count, code end and analysis digest equals `2c96faa`'s. No gate, threshold or check
+was weakened: the PoC-dump rescoring now applies `$d` as the meaning given with Q5 says, with the PoC's
+numbers still reproduced under the PoC's ruler, and one check was tightened (stale benchmark rows).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| code-quality-r1-1 | major | **Fixed** (`a2a5e8d`): architecture §4.2 states the pinned-by-content rule of D61 e (exact records, any other claim run fails wherever it lies, every ROM judged, the digests only a cross-check, counts and the first four in every message) and the D61 f binding; §4.5 states the binding of the three tmc scopings next to `BENCHMARK_ROWS` and `SCOPED_OUT`, with the staleness rules; §2's test tree lists the gate helpers; the `g2.confirm-equals-discover` header says the verdict comes from `viewDifferences`/`judgeDifferences`. |
+| code-quality-r1-2 | major | **Fixed** (`921a421`, `a2a5e8d`): Q7 is withdrawn, with the correction that the exception did keep `g1.bench-harness` passing without a re-pin; D61 (a) and the Known limitations say the same. |
+| gate-honesty-r1-1, overfitting-correctness-r1-4 | minor | **Fixed** (`921a421`): `scoreRun` uses `elfCodeEnd`, so every scorer measures the code end with `$d`. The pinned PoC rows are not rewritten (they are the PoC's output, pinned by content, D50, and the PoC's fresh run reproduces them; re-pinning them would make the PoC-row check fail on fe7j and klonoa): `bench poc-check` compares the rescored row with each reference as the scorer measures it (`asScored`: `codeEnd.elf` the `$d` end, the delta from the reference's own found end) and checks separately that the reference carries the PoC's convention on that ELF, the "separate check that the PoC's own convention reproduces the PoC's numbers" the finding allows. Measured: `bench poc-check` exit 0; rescored PoC rows fe7j +8 → 0, klonoa +4 → 0, tmc's PoC row −4,130 → −4,278; romlift's rows unchanged. |
+| gate-honesty-r1-2 | minor | **Fixed** (`490df96`): the case restored (big at 0x08000101 size 0x400, then unsized `only` at 0x08000400: 0x08000500), with the variant that has a `$d` at 0x08000420 after `only`. |
+| overfitting-correctness-r1-2 | minor | **Fixed** (`490df96`): an unsized function ends at the first `$d` or typed symbol after its last code mapping symbol before the next typed symbol; unit cases `$t, $d, $t, $d` and a code mapping symbol past the next typed symbol; docstring corrected. Every code end unchanged on the eight ROMs (fe7j 0x080C0C50, klonoa 0x08051BD4, pokeemerald 0x082E952E, sa2 0x080979F6, sa3 0x080CE438, tmc 0x080B2A30, sealed 0). |
+| overfitting-correctness-r1-3 | minor | **Fixed** (`c97ee32`): `code-end-unsized-last` has an untyped pool (`$d`, no `.type`) between `Last` and the OBJECT: `$d` 0x08000108 (the expectation), next typed symbol 0x08000110, addr + size 0x08000100. Mutation-checked: ending code at typed symbols alone fails `committed.test.ts`. |
+| overfitting-correctness-r1-1 | minor | **Fixed** (`c2822a8`): the reading's entry and the target of every `bl` in blSites are joins. The two cases that asserted the gap now expect nothing (the far-`bl` case walked as a returning call; the entry case with a returning `bl`), and a new assertion reads the same code from +0, where BLOCK + 8 is proposed. The "not a join point" known limitation is removed. The docstring says the exit and far/noret stops lie only right before a join and decide nothing alone. Measured: digests unchanged on the eight ROMs (as the reviewer measured). |
+| code-quality-r1-3 | minor | **Fixed** (`c2822a8`): the noret target is a join through the blSites clause (a noreturn `bl` is recorded there), so the separate noret loop is gone; a unit case has the copy call as the target of a noreturn `bl` that the reading also reaches by fall-through (nothing proposed), and its control (the `bl` aimed past the call: proposed). Mutation-checked: dropping the entry join fails 1 case, the blSites join 2, the far join 1, both stops 0. Header and docstring name every join; fix round 1's disposition corrected above. |
+| code-quality-r1-4 | minor | **Fixed** (`5413db8`): `staleBenchmarkRows` fails a `BENCHMARK_ROWS` record whose ROM is not a tuning dataset or whose PoC reference is not `dump`; unit cases for each. |
+| code-quality-r1-5 | minor | **Fixed** (`5413db8`): uncovered and changed functions and changed claim runs are reported with their count and the first four (the `notCovered` reason kept on the ones shown); a unit case with six uncovered functions. |
+| code-quality-r1-6 | minor | **Fixed** (`5413db8`): one `DatasetIdentity` type from `dataset-binding.ts` in `bindingMismatch`, `judgeDifferences`, `baselineRowsVerdict` and `parityCheck`; `byCodeUnit` in `test/gates/order.ts`, re-exported by `gate.ts`, its twelve private copies in `test/gates` and `dataset-binding.ts`'s export gone. Not done, the optional part: one field set for the four scoping records; their fields print the owner's words and decisions as recorded, and renaming them changes no verdict. |
+| code-quality-r1-7 | minor | **Fixed** (`5413db8`): `test/unit/gates/dataset-binding.test.ts` pins `TMC_AT_D61` to `bench/dataset/real/tmc.json` (static import) and tests `bindingMismatch` directly (equal, other ROM, other ELF, no ELF digest); the pin left `baseline-rows-verdict.test.ts`. |
 
 ## The closing gate
 
@@ -1046,13 +1070,11 @@ only the code end moved (Q5). At `2c96faa` every row, count and analysis digest 
   #21]; bx lr`) is found at the right address in the wrong mode, because the ARM gap scan needs three
   instructions; the bench scores addresses, not modes. The scaffold of phase 3 decides whether that
   matters (its bytes print either way).
-- **The code end of an unsized function** ends at the next `$d` or typed symbol (D61 a); the rescoring of
-  the PoC's own dumps keeps the PoC's convention, so a romlift row and the PoC's row of the same ROM may
-  differ in their ELF code end by design (klonoa 4 bytes, fe7j 8, tmc 148). That exception is an
-  interpretation of "in every scorer", owner question Q7.
-- **`seed.ram-copy`'s argument scan does not treat the reading's entry as a join point**: code laid out
-  before an entry that falls into it (the entry a loop head reached by a backward branch) would be read
-  across the entry. No tuning ROM is known to have such a copy call; unchanged in fix round 1 of D61.
+- **The PoC's pinned rows carry the PoC's code-end convention** (addr + size): every scorer, the PoC-dump
+  rescoring included, measures the code end with `$d` (D61 a), and the PoC's rows, its own output pinned by
+  content, are not rewritten, so `bench poc-check` compares with them as the scorer measures them and
+  checks separately that they carry the PoC's convention; in the files, the PoC's `codeEnd.elf` of klonoa,
+  fe7j and tmc is 4, 8 and 148 bytes below romlift's.
 - **Single-instance rules**: every D60 rule, (a) to (h), decides rows on tmc only (their preconditions hold
   on other ROMs for (a), (e), (g) and (h), but disabling any of them moves no row there); their fixtures
   are self-authored. Generality needs a sealed ROM of a fresh family (D53).

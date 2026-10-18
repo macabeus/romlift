@@ -9,8 +9,10 @@
 // (confirm-differences.ts).
 //
 // Calls the phase-2 API as frozen in architecture §3.3: romFromBytes(bytes, sha1), sha1Of(bytes),
-// profileById('agbcc'), analyze(rom, profile, {mode, seeds, overrides: [], trail: 'off'}); the views are
-// compared by the sha256 of their canonical JSON (canonicalJson, sha256Stream).
+// profileById('agbcc'), analyze(rom, profile, {mode, seeds, overrides: [], trail: 'off'}). The verdict
+// comes from the differences of the two views (viewDifferences, judgeDifferences); the sha256 of their
+// canonical JSON (canonicalJson, sha256Stream) is only a cross-check on their order: digests that differ
+// with no differing function or claim run fail too.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { judgeDifferences, staleRecords, viewDifferences, type ParityView } from './confirm-differences.ts';

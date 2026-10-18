@@ -188,7 +188,9 @@ romlift/
     gates/                          g1.*.test.ts … g6.*.test.ts, gate.ts, phase.json, and the pure helpers the
                                     gates call and test/unit/gates tests: held-out-verdict.ts (g2.held-out's
                                     cross-ROM verdict and the D60 waiver), poc-parity-check.ts
-                                    (g2.poc-parity's one check, run before and after landing)
+                                    (g2.poc-parity's one check, run before and after landing),
+                                    baseline-rows-verdict.ts, confirm-differences.ts, dataset-binding.ts
+                                    (the tmc scopings' binding, D61 f), order.ts (byCodeUnit)
     local/                          tests that need local ROMs or the PoC; report `unavailable` when absent
     fixtures/                       tiny self-authored files for parser tests (an ELF, a map, legacy files)
     helpers/                        thumb`` / arm`` byte builders, prng.ts, temp dirs, fixture loader, dummy profile,
@@ -864,10 +866,20 @@ took the listed entries after the passes held by construction and was withdrawn.
 Q3 ("Build resettle, else accept", D61 e) the `resettle` stage was built and measured: it cuts the cartridge
 entry's extent at the startup piece and the m4a mixer's at its inner entries on the other tuning ROMs and
 moves the sealed pair's counts, so it was reverted, and tmc's six differences of Q3 are a known phase-2
-limitation: the gate (`test/gates/confirm-differences.ts`) compares the views in full and accepts tmc only
-with exactly those six functions and claim runs inside their extents, printed every run. tmc has two more
-at HEAD (0x080B255C, 0x080B2874, moved by `95b257b` after Q3's count); they are not covered and the gate
-fails on them (phase-2.md, owner question Q6).
+limitation, pinned by content (D61 e). The gate (`test/gates/confirm-differences.ts`) compares the two views
+in full on every ROM, equal digests or not, and decides on the differences themselves (`viewDifferences`,
+`judgeDifferences`; the views' digests are only a cross-check). `KNOWN_DIFFERENCES.tmc` holds each of the
+six functions' discover and confirm records (mode, extent, far verdicts) and the one differing claim run
+(0x080087D2..0x08008886), as measured at `9c8b282`; tmc passes only when its differences are exactly those
+records, printed as `KNOWN LIMITATION` every run. A known function whose record changed or that is gone
+from a view fails; any other differing function or claim run fails wherever it lies, inside a known
+extent included; a recorded difference that no longer differs, and a record whose ROM is not a tuning
+dataset, fail as stale; every other ROM must have no difference. Each failure message gives the counts
+and the first four records of each list. The record is bound to tmc's ROM SHA-1 and ELF SHA-256 as the
+answer was given on (`test/gates/dataset-binding.ts` `TMC_AT_D61`, D61 f): for another build of that name
+it is stale and fails, and tmc is judged as without it. tmc has two more differing functions at HEAD
+(0x080B255C, 0x080B2874, moved by `95b257b` after Q3's count); they are not covered and the gate fails on
+them (phase-2.md, owner question Q6).
 
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
@@ -1034,6 +1046,14 @@ the pinned PoC's own run of it; a row that differs from that run and is not a li
 when the dataset lists it with a category (a `labels` or `untyped` row), and is printed; an extent change, an
 unlisted or uncategorised row and a stale accepted diff still fail; and its tp 8,631 of 8,636 (recall
 99.94%) is a floor. The five original ROMs are judged exactly as above.
+
+The three tmc scopings (`BENCHMARK_ROWS` here, `SCOPED_OUT` of `g2.poc-parity` below, `KNOWN_DIFFERENCES` of
+§4.2) are one mechanism (D61 f, `test/gates/dataset-binding.ts`): each holds tmc by name, ROM SHA-1 and ELF
+SHA-256 as the owner's answers were given on (`TMC_AT_D61`, pinned to `bench/dataset/real/tmc.json` by
+`test/unit/gates/dataset-binding.test.ts`), as `g2.held-out`'s waiver holds the sealed pair. A dataset of
+that name with another ROM or ELF ends the scoping, which fails as stale, and tmc is judged as without it;
+a record whose ROM is not a tuning dataset fails as stale too, and so does a benchmark row whose ROM's PoC
+reference is not the pinned PoC's own run of it (`staleBenchmarkRows`).
 
 `'poc-lifo'` was deleted by the phase-2 integration and the oracle in its fix round (D59); `g2.poc-parity`
 checks the committed evidence (the digests and the lockstep summary in `results.json`, tied to the commit
@@ -1691,7 +1711,7 @@ message states the reason, as the working rule requires.
 | Printer | 100% round-trip; raw share never rises; both alignments and every offset extreme agree | 1 |
 | Entries (tuning) | dataset-against-ELF check passes; every miss in `labels`, every false entry in `untyped`; raw precision ≥ 99.7% on every ROM; raw true-positive count never drops; lists only shrink; zero `unreviewed` | 2 |
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
-| Code end | within 16 bytes of the ELF's code end (`bench/src/truth.ts` `elfCodeEnd`): the largest end of its functions, a sized function at addr + size and an unsized one (hand-written asm without `.size`) at the first `$d` mapping symbol or typed symbol after it, one convention for every ROM, tuning and sealed (the owner's answer to Q5, "Use $d for every ROM", D61 a); the rescoring of the PoC's own dumps keeps the PoC's convention (`pocCodeEnd`, addr + size), since it reproduces the PoC's pinned rows | 2 |
+| Code end | within 16 bytes of the ELF's code end (`bench/src/truth.ts` `elfCodeEnd`): the largest end of its functions, a sized function at addr + size and an unsized one (hand-written asm without `.size`) at the `$d` mapping symbol or typed symbol that closes its last code run before the next typed symbol (an inline pool followed by more of its code does not end it), one convention for every ROM, tuning and sealed, in every scorer, the rescoring of the PoC's own dumps included (the owner's answer to Q5, "Use $d for every ROM", D61 a). The PoC's pinned rows keep the PoC's own convention (`pocCodeEnd`, addr + size): `bench poc-check` compares the rescored row with them as the scorer measures them and checks separately that they carry the PoC's convention | 2 |
 | Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (both family conditions waived by the owner, the fresh-family one by the decision of D60 and the two-families one by the answer to Q4, "Waive both" (D61 b), for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
