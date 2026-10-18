@@ -114,12 +114,11 @@ function buildIndex(model: Model): PathIndex {
   const expected: { readonly path: string; readonly addr: Addr }[] = [];
   model.modules.forEach((module, m) => {
     if (!module.generated) return;
-    // A C module's source is the c-stub writer's (phase 4); its function files are laid out all the same.
-    if (module.kind !== 'c') {
-      const source = moduleSource(model, module);
-      targets.set(source, { kind: 'source', module: m });
-      expected.push({ path: source, addr: module.span.start });
-    }
+    // A C module's source is the c-stub writer's (phase 4): the stream must hold it, and its function files are
+    // laid out all the same, but the file itself is not this check's.
+    const source = moduleSource(model, module);
+    if (module.kind !== 'c') targets.set(source, { kind: 'source', module: m });
+    expected.push({ path: source, addr: module.span.start });
     for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
       const path = paths[c];
       const chunk = model.chunks[c];

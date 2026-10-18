@@ -264,3 +264,13 @@ test('a name the printers cannot place (a label inside an instruction) is an und
     /undefined symbol/,
   );
 });
+
+test('a C module needs its source in the stream: without the c-stub writer (phase 4) the check fails (correctness-6)', () => {
+  const c: Model = { ...model, modules: model.modules.map((m) => (m.name === 'main' ? { ...m, kind: 'c' as const } : m)) };
+  const entries = [...fixtureEntries(), ...written(rom, c)].filter((e) => e.path !== 'asm/main.s');
+  const report = checkEntries(rom, c, entries);
+  assert.equal(report.ok, false);
+  const failed = report.checks.find((r) => r.id === 'text-layout');
+  assert.equal(failed?.ok, false);
+  assert.match(failed?.detail ?? '', /^src\/main\.c line 1: the stream emits no such file, which the model needs \(at 0x08000100\)/);
+});
