@@ -31,7 +31,15 @@ unsized function ends at its `$d`, and its six known confirm/discover difference
 limitation. Confirm equals discover then differed on two more Minish Cap functions than the six the owner
 was told of; the owner's answer to that question (Q6, "Yes, cover all 8") adds them to the recorded
 limitation. With that answer every command of the closing list exits 0 at `landed` 2; the merge to `main`
-follows its pull request's CI. The commands so far are `doctor`, `analyze` and `explain`.
+follows its pull request's CI.
+
+Phase 3 (Emission) is built but has not landed ([docs/phase-3.md](docs/phase-3.md)): the model, both printers,
+the writers, the write plan, `model --json` and `verify` turn every committed fixture and all six tuning ROMs into
+trees that pass the four self-checks and link to the ROM's SHA-1 with both the raw and the readable printer, with
+pokeemerald's `generate` within its speed budget. Two gates still fail and wait on the owner's answers (D64):
+`g3.objdiff`, whose remaining differences are naming and comparison artefacts (Q1), and `g3.large-rom`, whose
+peak RSS on the 32 MiB synthetic ROM is about twice the 512 MiB budget (Q2). The commands so far are `doctor`,
+`analyze`, `explain`, `model` and `verify`.
 
 | Phase | Delivers |
 | --- | --- |
@@ -48,10 +56,11 @@ follows its pull request's CI. The commands so far are `doctor`, `analyze` and `
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D61 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D64 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
+| [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate run, deviations, the owner questions Q1 and Q2, and known limitations |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

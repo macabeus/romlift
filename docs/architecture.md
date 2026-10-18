@@ -1201,7 +1201,9 @@ earlier gates.
    byte is in exactly one item.
 2. **Chunks** (`chunks.ts`, ported from the PoC's `tile()`): one chunk per listed function. In confirm
    mode every listed entry starts a chunk, except an entry with `label = true`, which becomes an inner
-   label of the chunk that contains it (a second entry, or a label a signature folded into its parent).
+   label of the chunk that contains it (a second entry, or a label a signature folded into its parent); a
+   `label = true` entry that only the cartridge entry's extent covers still starts a chunk, because the header
+   chunk clips that extent (D64 a).
    Bytes between functions in a code module become an `orphan` chunk named `unk_XXXXXXXX`, with its own
    file and stub line, never glued to a neighbour.
 3. **Modules** (`modules.ts`): taken from the config. Each module carries its build compiler and flags
@@ -1246,7 +1248,9 @@ follows the plan's rule:
   unit's typical size, and `start` stays easy to move.
 
 `core/workflow/config-from-discover.ts` turns a discover result and the inferred modules into an in-memory
-`RomliftConfig` (every found entry listed; entries inside another found extent with `label = true`). It
+`RomliftConfig` (every found entry listed; entries inside another found extent with `label = true`, the
+startup code inside the cartridge entry's included, so the confirm run reads every extent as discover did,
+D64 a). It
 lives in `core/workflow` because the edge table forbids `core/layout` to import `core/config` (D62 c). In
 phase 3 it is what `generate`, `model` and `verify` run on, and every code module it writes is `asm`; in
 phase 4 `init` serialises the same config, with the agbcc-shaped modules as `c`.
@@ -1341,7 +1345,10 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      `E_PROJECT_LOCKED`; a lock whose pid is gone on the same host is taken over with `W_STALE_LOCK`;
    - write `.romlift/journal.json` (`core/write-plan/journal.ts` defines it: every op with its path,
      `baseSha1` and result sha1) before the first op;
-   - apply each op through a temporary file and a rename;
+   - apply each op through a temporary file and a rename; the journal, the manifest, edits and scaffold
+     files are flushed (`fsync`) before their rename, generated files are not, and a generated file whose
+     path does not exist yet is created in place with `O_EXCL`: the next run's snapshot rewrites any generated
+     file a crash left short (D64 d);
    - write the new manifest last, through a temporary file and a rename, then delete the journal.
 
    A run that finds a journal first finishes the interrupted one: generated paths listed in the journal

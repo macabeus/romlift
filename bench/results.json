@@ -1,34 +1,40 @@
 {
   "meta": {
-    "commit": "b0759e7304fd7c2f292aeccf8826e9eb4d2d4946",
-    "dirty": false,
-    "sourceDigest": "6b05fd1300f97d6b3abe794ac68255babd8fba2a7a4ebb1f3f7340ed5ad7d51c",
+    "commit": "682da7212cc9c72858e91c6a40dd4e93cf05c607",
+    "dirty": true,
+    "sourceDigest": "b6295625bc58d21c347d0c66730dd96fb9ba8c6fa29605cb80275decbb0bdb64",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
       "fe7j": {
         "sha1": "037702b1febd5c9535262165bf030551d153de81",
-        "elfSha256": "32b35ebe4ddf5ffa0b1fa438713fad213ea009c36cfae62ae10a9e82f44f983b"
+        "elfSha256": "32b35ebe4ddf5ffa0b1fa438713fad213ea009c36cfae62ae10a9e82f44f983b",
+        "objectsDigest": "040781bd692dadc9450d1edbae55b23e813c78f38a6b7055081b113122003366"
       },
       "klonoa": {
         "sha1": "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b",
-        "elfSha256": "5d57d920b5c48761d885a16c3b8d0c2bd8bdc45f33b9f97d1257d9396638224c"
+        "elfSha256": "5d57d920b5c48761d885a16c3b8d0c2bd8bdc45f33b9f97d1257d9396638224c",
+        "objectsDigest": "337813b302c90d126fe3a71d8b5d5aebb099faa832a997a09be739fa3c5ab8a1"
       },
       "pokeemerald": {
         "sha1": "f3ae088181bf583e55daf962a92bb46f4f1d07b7",
-        "elfSha256": "cb78c9d660f1cc9e5e2bd1897b1c09f63ffcb43c0ddb958f33c9b5efc28be65f"
+        "elfSha256": "cb78c9d660f1cc9e5e2bd1897b1c09f63ffcb43c0ddb958f33c9b5efc28be65f",
+        "objectsDigest": "d95f216bda89bdd2a1a41a65239ca59d46f07e987e2988550f80220aaea5a5bf"
       },
       "sa2": {
         "sha1": "7bcd6a07af7c894746fa28073fe0c0e34408022d",
-        "elfSha256": "34c0c9c5fd817b7d77502235ba3127cd83f023ee6eb15cdfe4bbd18d026ff265"
+        "elfSha256": "34c0c9c5fd817b7d77502235ba3127cd83f023ee6eb15cdfe4bbd18d026ff265",
+        "objectsDigest": "8b5de59d45bec1f4af3c441b31d526bba0828549222185ccedd7ce8a5b3189a0"
       },
       "sa3": {
         "sha1": "685af3a2dc0f1b3f8922e73ec42c1dc92e210e39",
-        "elfSha256": "1c1efc591beab3a95cc5c9d9bab2e520ea96c5e8a53f3925d7c134b58755d2d9"
+        "elfSha256": "1c1efc591beab3a95cc5c9d9bab2e520ea96c5e8a53f3925d7c134b58755d2d9",
+        "objectsDigest": "d254b602ad48b0cb90688fb7d1d4da6e8ec7d928b6137554bfaa5fe1bf799e84"
       },
       "tmc": {
         "sha1": "b4bd50e4131b027c334547b4524e2dbbd4227130",
-        "elfSha256": "7d27e8d999c5f14b11885e530fc99669b08880deda79e98f3e3e8411482005d6"
+        "elfSha256": "7d27e8d999c5f14b11885e530fc99669b08880deda79e98f3e3e8411482005d6",
+        "objectsDigest": "32d4dc71fb6e659fc3ecc0d0b930c44fbd7ed75199fbc49a921cda2c89f23089"
       },
       "pokefirered": {
         "sha1": "41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc",
@@ -43,7 +49,8 @@
     "toolchain": {
       "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
       "ld": "GNU ld (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
-      "objcopy": "GNU objcopy (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126"
+      "objcopy": "GNU objcopy (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
+      "objdiff": "objdiff-cli 3.7.2"
     },
     "families": {
       "fe7j": [
@@ -51,6 +58,7 @@
         "determinism",
         "entries",
         "extents",
+        "readability",
         "scaffold",
         "speed"
       ],
@@ -59,6 +67,7 @@
         "determinism",
         "entries",
         "extents",
+        "readability",
         "scaffold",
         "speed"
       ],
@@ -67,6 +76,7 @@
         "determinism",
         "entries",
         "extents",
+        "readability",
         "scaffold",
         "speed"
       ],
@@ -75,6 +85,7 @@
         "determinism",
         "entries",
         "extents",
+        "readability",
         "scaffold",
         "speed"
       ],
@@ -83,6 +94,7 @@
         "determinism",
         "entries",
         "extents",
+        "readability",
         "scaffold",
         "speed"
       ],
@@ -91,6 +103,7 @@
         "determinism",
         "entries",
         "extents",
+        "readability",
         "scaffold",
         "speed"
       ]
@@ -100,7 +113,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "144770c8c6991f023ff403d92fa25b0b58e19897871c8f2060b52a5030f0158a",
+    "inputsDigest": "7967ad9e0d35e16adb36d7ab6170fc0a6a7be7489619987d9c44fbe68d8da3f8",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1877,6 +1890,24 @@
     },
     "ok": true
   },
+  "memory": {
+    "romBytes": 33554432,
+    "sha1": "b846b9453414ce93afc5e8fd559eaac582dc570e",
+    "runs": [
+      {
+        "command": "init",
+        "exitCode": 0,
+        "maxRssMiB": 1081,
+        "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
+      },
+      {
+        "command": "generate",
+        "exitCode": 0,
+        "maxRssMiB": 1359.25,
+        "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
+      }
+    ]
+  },
   "gates": {
     "real": [
       {
@@ -1985,85 +2016,107 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 1.054; CPU/limit: fe7j 1090/13933 ms, klonoa 273/336 ms, pokeemerald 2075/4631 ms, sa2 634/860 ms, sa3 1069/1638 ms, tmc 1276/1959 ms"
+        "detail": "calibration ratio 1.059; CPU/limit: fe7j 1164/13992 ms, klonoa 248/338 ms, pokeemerald 2126/4651 ms, sa2 729/863 ms, sa3 1107/1645 ms, tmc 1399/1967 ms"
       },
       {
         "id": "g3.link",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: buildModel, emitTree, linkCheck"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
+          "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
+        },
+        "detail": "the readable printer links all 47 fixtures; the readable printer links 6 of 6 tuning ROMs: fe7j, klonoa, pokeemerald, sa2, sa3, tmc"
       },
       {
         "id": "g3.objdiff",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: buildModel, emitTree, linkCheck"
+        "verdict": "fail",
+        "inputs": {
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
+          "objects": "1528d229c866d9104663c0e2d1ba3570454a35e07d54a41af81bf723211817fd",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
+          "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
+        },
+        "detail": "objdiff: fe7j: 1 assemble, 11 instruction, 130 missing-relocation, 26 missing-symbol, 25 relocation, 8 resolved-call; ColorFadeTick assemble source.s:10: Error: internal_relocation (type: OFFSET_IMM) not fixed up | PutUnkSprite instruction +0x232 replace: b 0x2a8 | .hword 0xe039 | TalkInterpret instruction +0x1052 delete: .hword 0x0 | (none) | TalkInterpret instruction +0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText; klonoa: 166 missing-relocation, 21 missing-symbol, 3 relocation, 130 tool; AgbMain missing-relocation +0x254 R_ARM_ABS32: gCallbackQueue | a plain value | AgbMain missing-relocation +0x258 R_ARM_ABS32: gCallbackQueue | a plain value | AthleticChallengeScrollUpdate missing-relocation +0x1640 R_ARM_ABS32: gBgInfo | a plain value | Clear64byte missing-relocation +0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearChain missing-relocation +0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value; pokeemerald: 4 assemble, 243 instruction, 765 missing-relocation, 453 missing-symbol, 544 relocation, 11776 resolved-call; GameCubeMultiBoot_HandleSerialInterrupt assemble source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | GameCubeMultiBoot_Hash assemble source.s:8: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | MPlayJumpTableCopy assemble source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | m4aSoundVSync assemble source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | AddBoxOptionsMenu instruction +0x8cba arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4; sa2: 2 assemble, 132 instruction, 46 missing-relocation, 127 missing-symbol, 52 relocation, 1016 resolved-call; MPlayJumpTableCopy assemble source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | m4aSoundVSync assemble source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | AnimateNewZonePath instruction +0x151a arg-mismatch: bl 0x1538 | bl sub_08035C00-0x4 | CreateEntity_IronBall instruction +0x160 arg-mismatch: bl 0x18c | bl sub_0807EFC4-0x4 | CreateEntity_IronBall instruction +0x166 arg-mismatch: bl 0x2a0 | bl sub_0807F0D8-0x4; sa3: 2 assemble, 123 instruction, 99 missing-relocation, 237 missing-symbol, 39 relocation, 65 resolved-call; MPlayJumpTableCopy assemble source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | m4aSoundVSync assemble source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | CgbSound instruction +0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0 | CreateApeProjectile instruction +0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4 | CreateBreakableWallDebris instruction +0x9fe delete: .hword 0x0 | (none); tmc: 188 missing-relocation, 1 missing-symbol, 383 relocation, 323 resolved-call; CheckAreaDiscovery missing-relocation +0xddc R_ARM_ABS32: gSave | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b0 R_ARM_ABS32: gMapTop | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b4 R_ARM_ABS32: gMapBottom | a plain value | CheckFusionMapMarkerDisabled missing-relocation +0x1308 R_ARM_ABS32: gSave | a plain value | CheckKinstoneFused missing-relocation +0x12ec R_ARM_ABS32: gSave | a plain value"
       },
       {
         "id": "g3.raw-link",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: buildModel, emitTree, linkCheck"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
+          "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
+        },
+        "detail": "the raw printer links to the SHA-1 on 53 ROMs (47 fixtures, 6 tuning ROMs)"
       },
       {
         "id": "g3.readability",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: buildModel, emitTree, printChunk"
+        "verdict": "pass",
+        "inputs": {
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "mnemonic/branch/pool shares: fe7j 99.999%/100.000%/100.000%, klonoa 99.999%/100.000%/100.000%, pokeemerald 100.000%/100.000%/100.000%, sa2 99.999%/100.000%/100.000%, sa3 99.999%/100.000%/100.000%, tmc 99.999%/99.998%/100.000%"
       },
       {
         "id": "g3.self-check",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: buildModel, verifyModel, configFromDiscover"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "tiling, re-encode and module-size pass on 53 ROMs (47 fixtures, 6 tuning ROMs)"
       },
       {
         "id": "g3.speed-budget",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: buildModel, emitTree, planWrites"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "calibration ratio 1.035; fe7j analysis 1149/3106 ms, klonoa analysis 241/3106 ms, pokeemerald analysis 2095/3106 ms, pokeemerald generate 8116/10355 ms, pokeemerald init 9674/15532 ms, sa2 analysis 701/3106 ms, sa3 analysis 1108/3106 ms, tmc analysis 1407/3106 ms"
       },
       {
         "id": "g3.text-layout",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: buildModel, emitTree, checkEntry"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "the text-layout and paths checks pass on 53 ROMs (47 fixtures, 6 tuning ROMs)"
       },
       {
         "id": "g3.tree-determinism",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: configFromDiscover, buildModel, emitTree"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "adr-handler-block tree 6a84bfa6e9b018ec327df4ec22d461df39ef5227ce097a6e7a9e18edf6d8e75b (10 files); adr-label-and-data tree b0bf6b18244e7e8404bdcdc48d75b205b3cfb30237bfc7c720ef16fd96200c5d (15 files); arm-pools-in-front tree c6b1ce4757e5c30fc97db570a87c00bd8b8ceff70166ab5e0b0494bf944fa758 (11 files); bx-lr-stub-chain tree 3d8db6537284e0945ac813a120c19982f8cf7df70c8283ae30b98fa0718a02fb (16 files); bx-pc-veneer tree ba3f66bd1d41aa685172f2a9da92bdaaebb6c1e9473af37d36eea01ebb3309fa (13 files); code-copied-to-ram tree 2d4a53ab7c0576c797242c40e153d665777fcaf19b5b54884ec83cd62a8faab2 (10 files); code-end-data-decodes tree 0889bc4f4d49b150aaec244e7fd29370076e16eea99bd6fb52b351def8847624 (9 files); code-end-unsized-last tree 6ea07bff63475eed54d61a22e44782b5fedd13349f7907aa13e4cf660f80d569 (8 files); computed-jump-callback tree c19a7e988c325792fbd2f322013bc11ced7f4accfc1b56d84952047655b3880f (9 files); data-frame-not-function tree e2795a2e2563ac9033ac036f7a083aea8cf8d46c1e694428184c780666289806 (11 files); data-named-between-data tree 3e035ced6dab582f37e3dc694d6b19f3f92c48b1c974a6046a41ed726cc24f16 (13 files); data-table-between-functions tree 6db52b53dd44ed67e2e64b1305a6baebb82f2dd1470c54fb83474c1e47ed4478 (16 files); data-thumb-push-pop tree a926801d92b35b4afde179ca56c01a9b41dbd9ae6eb37663db18954b97a1efee (17 files); dead-code-in-extent tree 07204be7457a5c219e7b8c295983a90559a7184766af555fd313f35df3c110b5 (12 files); entry-stub-table tree fb42f12cade86ca9fee502fd1e145e21ce5bb8a5291ede78b29cfdaea3bb1cfd (11 files); false-stub-2byte tree a561348687577f89cbbfd2a8f87802dca4034872894aaaa39f14c4c40035cae2 (10 files); far-jump tree e2e58cc571b98b48b7313bbd7bf4a5e48017810b8ba36c425203e91d2fccb517 (8 files); gap-resume-2mod4 tree 3ed5ac8276a0f10c28da9a1cae37eb214adf5d8d6ca419d22bbd9ec2513592b6 (16 files); handwritten-2mod4 tree dddaf3c53066a0dcb9f44a99cdb9770f9c8fada66c6e19a7fc646635a6f0bc9d (13 files); inline-arm-switch tree 4f4f1ff3df8d338a0b01112e14a9794a4c1e8a6947d0d2120e9b2e078bdf5d6f (12 files); large-data-referenced tree 97fcacd49b89ab1a80908b0043e56b01b257702fc1ce828bec386d05ad96cd40 (12 files); leaf-handler-pointer-table tree 250cb49526ff96a6149b863c924bb8c2c145a7154d864b6c107e398c8b5ddf10 (11 files); local-subroutine tree 44e05a0f4793fa02f0b6c8d3f78bbb5393d94329390b9d96d5f850c8fe0110cd (8 files); mixer-tiled-hole tree 593eae98837d77f52516637b88245f6959baa4043b1a3854b2deec15869665ac (22 files); mov-lr-pc-bx tree 1e57cec5746ef9bf7f799a4dfd6368bb3eaaf19597f1fc4469f25eeb0c28f857 (13 files); noreturn-call-then-next tree a095e680bb791dc1f82ebf8697f26a3b9f6fde03f00f2fd0cedd7db0edf0ec0f (9 files); pointer-table-before-leaf tree f81c8a206813290905e8e27fc2ef32e57f0a22fc67132fda16bc53ef31afdac4 (19 files); pointer-word-in-gap tree 40bb284ff293972019d2a5dc49c514679cec7dfaa9866a1348c6dbb404eea357 (13 files); pool-padded-46c0 tree 5036c5c4d6f8170768bcb56fce718c67961e2474bb9413785d9a9a8482278d26 (12 files); pool-word-push-lr tree 80b75815b060b41c283d9b0c96bee3872439f2e5d0aeebe5a61119cdec3e2bd6 (13 files); pops-unpushed-frame tree 9912f2c52f910e6ba1adb70e87247d816e030dd76a232b29e21f6533708f8525 (17 files); prologueless-thumb-over-arm tree 7ebc7bdd3507d44ebde5ddad97e598028bb531ed2a2c15aa7863242dd09f188a (12 files); push-lr-2mod4 tree 298b07edbc7b61b8e5bc6456b9636e82053f15ab0a726b5962c5b460fdd168ec (14 files); ram-code-entries tree 20612e19ae7801fff8003d997cebd9c9f923b58d9f5471e9b593b55f58085605 (15 files); ram-copy-args-straight-line tree 9d5ec7e090d34c7a685e34dfa0db226d149dc9b6b9e3558c3ea316486ccfbed6 (10 files); ram-copy-bios tree e28f6cc923047cd55052d330cf3bb3f5c7e6f8d45ac25f545181a709da5fe07c (16 files); ram-copy-call-via tree b0d581c21a71bf3c42072d433fe4cce9b5901a1682054693dd52925b8c775b31 (15 files); ram-copy-entry-boundaries tree 1debd973a9a89663b0c9f807040d23b34dc5b02fca0432ec1ea06d5c76c44c0b (18 files); ram-copy-memcpy tree 8c1cd69568f1cdaf6275f352f27ae6f407064e292a9a727ee3408801bba9f284 (14 files); ram-copy-setup-bound tree 0d3f0d96ea62906d0ded72727376b0b8a3fa0ad32a6932e331de42ebfcb81bf3 (15 files); recursive-far-call tree a5299c733080a896e6f2d7a6fc81e9dfb87c114f86237cf2ffbe2a27ff560015 (9 files); shared-tail tree d62f11ad95c62361eed93f243dedc1edccfd18f946f9ab8a386798e910d0e22e (11 files); swi-reset tree 028a755a39e126110e456b6604b3e445b81103e31d382e41c9f9653de863f690 (9 files); table-jump-hoisted tree 60bd6be3dc00403dc8a4d78662e8877ec3df7e520c6522213a48a682bd10f4cf (10 files); thumb-pointer-run tree 822428a8419c0a551061ce6709847845e555f81292bc6126898454fd94006a7e (17 files); unreferenced-leaf tree 765618845094c4d96886ce268a0a3f6ef6033120275fff9c3a35cea14b7f4cc8 (10 files); veneer-array tree ce2816b9a7d12b7c10d597cd37c378189140055b7449ade81978c4b6bd10233b (17 files); fe7j tree ad2ee4a2f840d67150e3a0d49a9ce482601d12cc4a72ce0e7c40f9c11f3f308d (9346 files); klonoa tree 917a55c72967b17f1c7f38aafa1fdf2bad5348728ddf03ac797a696d2c7ce452 (668 files); pokeemerald tree 13f71c438345a061042f6bfc8db213cf31f7b049ce6702b0a79fbbaa5bd54a27 (19121 files); sa2 tree 116b1bb3b5f3d0011a586193b0807d7f05c7eb08415c25b8fb5b09d0bd8fe9a1 (3380 files); sa3 tree 4390a358156bc90b968af58317a4ff6635e7988de9595eba6590f3c29989121e (5602 files); tmc tree 9ea550e9f0055e2b3fd68906f2371c51d4ce1b8e81740a94c236c2af8ccb9d64 (10970 files); 53 trees identical across cwd, project path, TZ and locale; no file names a project path"
       },
       {
         "id": "g4.e2e-real",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: init, generate"
+        "detail": "not exported yet: init"
       },
       {
         "id": "g4.generate-idempotent",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: init, generate"
+        "detail": "not exported yet: init"
       },
       {
         "id": "g4.toml-mutations",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: init, generate, parseConfig, serializeConfig, legalBorders"
+        "detail": "not exported yet: init, parseConfig, serializeConfig"
       },
       {
         "id": "g4.worktree",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: init, generate"
+        "detail": "not exported yet: init"
       },
       {
         "id": "g5.expected-bytes",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: init, generate, emitTree"
+        "detail": "not exported yet: init"
       },
       {
         "id": "g5.import-legacy",
@@ -2075,7 +2128,7 @@
         "id": "g5.klonoa-rehearsal",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: importLegacy, generate"
+        "detail": "not exported yet: importLegacy"
       },
       {
         "id": "g5.klonoa-switch",
@@ -2087,7 +2140,7 @@
         "id": "g6.ram-code-mapped",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: parseTrace, runTrace, analyzeUpdate, buildModel"
+        "detail": "not exported yet: parseTrace, runTrace, analyzeUpdate"
       },
       {
         "id": "g6.signatures-heldout",
@@ -2330,7 +2383,188 @@
       "parity": {
         "digest": "d2c87e513af3721b8116b31b1abd726c68f4c4b13c0084ad52aef0ca08279555",
         "expected": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a"
-      }
+      },
+      "readability": {
+        "mnemonicShare": 0.9999938145413947,
+        "symbolicBranchShare": 1,
+        "symbolicPoolShare": 1,
+        "floor": {
+          "mnemonicShare": 0.9999938145413947,
+          "symbolicBranchShare": 1,
+          "symbolicPoolShare": 1
+        }
+      },
+      "objdiff": {
+        "linked": true,
+        "scored": 1471,
+        "differences": {
+          "assemble": 1,
+          "instruction": 11,
+          "missing-relocation": 130,
+          "missing-symbol": 26,
+          "relocation": 25,
+          "resolved-call": 8,
+          "unnamed-target": 55
+        },
+        "examples": [
+          {
+            "function": "ColorFadeTick",
+            "kind": "assemble",
+            "detail": "source.s:10: Error: internal_relocation (type: OFFSET_IMM) not fixed up"
+          },
+          {
+            "function": "PutUnkSprite",
+            "kind": "instruction",
+            "detail": "+0x232 replace: b 0x2a8 | .hword 0xe039"
+          },
+          {
+            "function": "TalkInterpret",
+            "kind": "instruction",
+            "detail": "+0x1052 delete: .hword 0x0 | (none)"
+          },
+          {
+            "function": "TalkInterpret",
+            "kind": "instruction",
+            "detail": "+0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText"
+          },
+          {
+            "function": "TalkInterpret",
+            "kind": "instruction",
+            "detail": "+0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText"
+          },
+          {
+            "function": "TalkInterpret",
+            "kind": "instruction",
+            "detail": "+0xcc0 arg-mismatch: .word 0x30000c8 | .word sTalkText"
+          },
+          {
+            "function": "AtMenu_Reinitialize",
+            "kind": "missing-relocation",
+            "detail": "+0x480 R_ARM_ABS32: gPrepMainMenuTexts | a plain value"
+          },
+          {
+            "function": "AtMenu_Reinitialize",
+            "kind": "missing-relocation",
+            "detail": "+0x484 R_ARM_ABS32: gPrepMainMenuTexts | a plain value"
+          },
+          {
+            "function": "AtMenu_Reinitialize",
+            "kind": "missing-relocation",
+            "detail": "+0x4b8 R_ARM_ABS32: gBg1Tm | a plain value"
+          },
+          {
+            "function": "BanimSetFrontPaletteForDragon",
+            "kind": "missing-relocation",
+            "detail": "+0x2dc R_ARM_ABS32: gPal | a plain value"
+          },
+          {
+            "function": "BanimSetFrontPaletteForDragon",
+            "kind": "missing-relocation",
+            "detail": "+0x2f8 R_ARM_ABS32: gPal | a plain value"
+          },
+          {
+            "function": "__ashldi3",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "__div0",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "__divsi3",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "__modsi3",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "__muldi3",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "BattleAIS_ExecCommands",
+            "kind": "relocation",
+            "detail": "+0x448 R_ARM_ABS32: gAnims | gTitleSt"
+          },
+          {
+            "function": "BattleAIS_ExecCommands",
+            "kind": "relocation",
+            "detail": "+0x70 R_ARM_ABS32: gAnims | gTitleSt"
+          },
+          {
+            "function": "BattleAIS_ExecCommands",
+            "kind": "relocation",
+            "detail": "+0x990 R_ARM_ABS32: gAnims | gTitleSt"
+          },
+          {
+            "function": "BattleAIS_ExecCommands",
+            "kind": "relocation",
+            "detail": "+0x9c8 R_ARM_ABS32: gAnims | gTitleSt"
+          },
+          {
+            "function": "BattleAIS_ExecCommands",
+            "kind": "relocation",
+            "detail": "+0xa54 R_ARM_ABS32: gAnims | gTitleSt"
+          },
+          {
+            "function": "DisplaySpriteAnim",
+            "kind": "resolved-call",
+            "detail": "+0x68 arg-mismatch: bl 0x7c | bl PutAnim-0x4 (PutAnim is at that offset of the reference object)"
+          },
+          {
+            "function": "InitAnim",
+            "kind": "resolved-call",
+            "detail": "+0x460 arg-mismatch: bl 0x414 | bl SetAnimInfo-0x4 (SetAnimInfo is at that offset of the reference object)"
+          },
+          {
+            "function": "PutAnim",
+            "kind": "resolved-call",
+            "detail": "+0x9a arg-mismatch: bl 0x1c8 | bl PutAnimAffine-0x4 (PutAnimAffine is at that offset of the reference object)"
+          },
+          {
+            "function": "PutAnim",
+            "kind": "resolved-call",
+            "detail": "+0xca arg-mismatch: bl 0x304 | bl SyncAnimImg-0x4 (SyncAnimImg is at that offset of the reference object)"
+          },
+          {
+            "function": "SetSpriteAnimId",
+            "kind": "resolved-call",
+            "detail": "+0x2d8 arg-mismatch: bl 0x438 | bl AnimRunFirstFrame-0x4 (AnimRunFirstFrame is at that offset of the reference object)"
+          },
+          {
+            "function": "ApplyFactionFacePal",
+            "kind": "unnamed-target",
+            "detail": "+0xad8 R_ARM_ABS32: section .rodata | gUnk_0818F920"
+          },
+          {
+            "function": "BattleCheckTriangleAttack",
+            "kind": "unnamed-target",
+            "detail": "+0x1054 R_ARM_ABS32: section .rodata | gUnk_081C94C0"
+          },
+          {
+            "function": "CanActiveUnitStillMove",
+            "kind": "unnamed-target",
+            "detail": "+0x1214 R_ARM_ABS32: section .rodata | gUnk_081C922F"
+          },
+          {
+            "function": "DisplayBwl",
+            "kind": "unnamed-target",
+            "detail": "+0x5d8 R_ARM_ABS32: section .rodata | gUnk_0841CD78"
+          },
+          {
+            "function": "DisplayBwl",
+            "kind": "unnamed-target",
+            "detail": "+0x5dc R_ARM_ABS32: section .rodata | gUnk_0841CD7C"
+          }
+        ]
+      },
+      "treeDigest": "ad2ee4a2f840d67150e3a0d49a9ce482601d12cc4a72ce0e7c40f9c11f3f308d"
     },
     {
       "name": "klonoa",
@@ -2412,7 +2646,120 @@
       "parity": {
         "digest": "49c426765a00a227935e5e3d7a6a3fe2225333a047211ddf21eba0ebf9dd4d85",
         "expected": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2"
-      }
+      },
+      "readability": {
+        "mnemonicShare": 0.9999854158311153,
+        "symbolicBranchShare": 1,
+        "symbolicPoolShare": 1,
+        "floor": {
+          "mnemonicShare": 0.9999854158311153,
+          "symbolicBranchShare": 1,
+          "symbolicPoolShare": 1
+        }
+      },
+      "objdiff": {
+        "linked": true,
+        "scored": 485,
+        "differences": {
+          "missing-relocation": 166,
+          "missing-symbol": 21,
+          "relocation": 3,
+          "tool": 130
+        },
+        "examples": [
+          {
+            "function": "AgbMain",
+            "kind": "missing-relocation",
+            "detail": "+0x254 R_ARM_ABS32: gCallbackQueue | a plain value"
+          },
+          {
+            "function": "AgbMain",
+            "kind": "missing-relocation",
+            "detail": "+0x258 R_ARM_ABS32: gCallbackQueue | a plain value"
+          },
+          {
+            "function": "AthleticChallengeScrollUpdate",
+            "kind": "missing-relocation",
+            "detail": "+0x1640 R_ARM_ABS32: gBgInfo | a plain value"
+          },
+          {
+            "function": "Clear64byte",
+            "kind": "missing-relocation",
+            "detail": "+0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value"
+          },
+          {
+            "function": "ClearChain",
+            "kind": "missing-relocation",
+            "detail": "+0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value"
+          },
+          {
+            "function": "__div0",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "__divsi3",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "__modsi3",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "__udivsi3",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "__umodsi3",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "LevelOrWorldInit",
+            "kind": "relocation",
+            "detail": "+0x1ee0 R_ARM_ABS32: gUnk_080520E4 | gUnk_08051FE8"
+          },
+          {
+            "function": "TitleScreenLogoAnimationUpdate",
+            "kind": "relocation",
+            "detail": "+0x2094 R_ARM_ABS32: gUnk_081177A4 | gUnk_081177A6"
+          },
+          {
+            "function": "sub_0804575C",
+            "kind": "relocation",
+            "detail": "+0x1cc8 R_ARM_ABS32: gUnk_0811717C | gUnk_0811717D"
+          },
+          {
+            "function": "sub_0804B254",
+            "kind": "tool",
+            "detail": "src/code_0804B254.o: Invalid instruction size 1"
+          },
+          {
+            "function": "sub_0804B260",
+            "kind": "tool",
+            "detail": "src/code_0804B254.o: Invalid instruction size 1"
+          },
+          {
+            "function": "sub_0804B270",
+            "kind": "tool",
+            "detail": "src/code_0804B254.o: Invalid instruction size 1"
+          },
+          {
+            "function": "sub_0804B288",
+            "kind": "tool",
+            "detail": "src/code_0804B254.o: Invalid instruction size 1"
+          },
+          {
+            "function": "sub_0804B2A0",
+            "kind": "tool",
+            "detail": "src/code_0804B254.o: Invalid instruction size 1"
+          }
+        ]
+      },
+      "treeDigest": "917a55c72967b17f1c7f38aafa1fdf2bad5348728ddf03ac797a696d2c7ce452"
     },
     {
       "name": "pokeemerald",
@@ -2534,7 +2881,203 @@
       "parity": {
         "digest": "d7348336a0825f6627bc2976e025247d06913ea3622ccb23bbe9569f54702df8",
         "expected": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17"
-      }
+      },
+      "readability": {
+        "mnemonicShare": 0.9999974644805418,
+        "symbolicBranchShare": 1,
+        "symbolicPoolShare": 1,
+        "floor": {
+          "mnemonicShare": 0.9999974644805418,
+          "symbolicBranchShare": 1,
+          "symbolicPoolShare": 1
+        }
+      },
+      "objdiff": {
+        "linked": true,
+        "scored": 15850,
+        "differences": {
+          "assemble": 4,
+          "instruction": 243,
+          "missing-relocation": 765,
+          "missing-symbol": 453,
+          "relocation": 544,
+          "resolved-call": 11776,
+          "unnamed-target": 2758
+        },
+        "examples": [
+          {
+            "function": "GameCubeMultiBoot_HandleSerialInterrupt",
+            "kind": "assemble",
+            "detail": "source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
+          },
+          {
+            "function": "GameCubeMultiBoot_Hash",
+            "kind": "assemble",
+            "detail": "source.s:8: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
+          },
+          {
+            "function": "MPlayJumpTableCopy",
+            "kind": "assemble",
+            "detail": "source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
+          },
+          {
+            "function": "m4aSoundVSync",
+            "kind": "assemble",
+            "detail": "source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
+          },
+          {
+            "function": "AddBoxOptionsMenu",
+            "kind": "instruction",
+            "detail": "+0x8cba arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4"
+          },
+          {
+            "function": "AddItemQuantityWindow",
+            "kind": "instruction",
+            "detail": "+0x10dc arg-mismatch: bl 0x10e4 | bl sub_081ABC54-0x4"
+          },
+          {
+            "function": "AddWallpaperSetsMenu",
+            "kind": "instruction",
+            "detail": "+0x405a arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4"
+          },
+          {
+            "function": "AddWallpapersMenu",
+            "kind": "instruction",
+            "detail": "+0x4094 arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4"
+          },
+          {
+            "function": "AllocMatchCallSprites",
+            "kind": "instruction",
+            "detail": "+0x1020 arg-mismatch: bl 0x1110 | bl sub_081CC370-0x4"
+          },
+          {
+            "function": "AbilityBattleEffects",
+            "kind": "missing-relocation",
+            "detail": "+0x5b94 R_ARM_ABS32: gBattleMons | a plain value"
+          },
+          {
+            "function": "ActivatePerStepCallback",
+            "kind": "missing-relocation",
+            "detail": "+0x158 R_ARM_ABS32: gTasks | a plain value"
+          },
+          {
+            "function": "AddRegistryMenuScrollArrows",
+            "kind": "missing-relocation",
+            "detail": "+0x1398 R_ARM_ABS32: gTasks | a plain value"
+          },
+          {
+            "function": "AddScrollIndicatorArrowPair",
+            "kind": "missing-relocation",
+            "detail": "+0x103c R_ARM_ABS32: gTasks | a plain value"
+          },
+          {
+            "function": "AddSpriteToOamBuffer",
+            "kind": "missing-relocation",
+            "detail": "+0x1f74 R_ARM_ABS32: gMain | a plain value"
+          },
+          {
+            "function": "ArcTan2",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "BgAffineSet",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "CpuFastSet",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "CpuSet",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "Div",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "AnimTask_LoadPokeblockGfx",
+            "kind": "relocation",
+            "detail": "+0x2e60 R_ARM_ABS32: gBattleAnimPicTable | gUnk_085253AC"
+          },
+          {
+            "function": "AnimTask_LoadPokeblockGfx",
+            "kind": "relocation",
+            "detail": "+0x2e64 R_ARM_ABS32: gBattleAnimPaletteTable | gUnk_08525CB4"
+          },
+          {
+            "function": "AnyStorageMonWithMove",
+            "kind": "relocation",
+            "detail": "+0xb66e R_ARM_THM_PC22: GetBoxMonData3 | GetBoxMonData2"
+          },
+          {
+            "function": "AskUsePokeblock",
+            "kind": "relocation",
+            "detail": "+0xb62 R_ARM_THM_PC22: GetMonData3 | GetMonData2"
+          },
+          {
+            "function": "BagAction_Toss",
+            "kind": "relocation",
+            "detail": "+0x1460 R_ARM_ABS32: Task_ChooseHowManyToToss | sub_081C64B4"
+          },
+          {
+            "function": "AI_TrySwitchOrUseItem",
+            "kind": "resolved-call",
+            "detail": "+0xcbe arg-mismatch: bl 0xa1c | bl ShouldSwitch-0x4 (ShouldSwitch is at that offset of the reference object)"
+          },
+          {
+            "function": "AI_TrySwitchOrUseItem",
+            "kind": "resolved-call",
+            "detail": "+0xde4 arg-mismatch: bl 0x12e8 | bl ShouldUseItem-0x4 (ShouldUseItem is at that offset of the reference object)"
+          },
+          {
+            "function": "AI_TypeCalc",
+            "kind": "resolved-call",
+            "detail": "+0x184a arg-mismatch: bl 0x1530 | bl ModulateDmgByType2-0x4 (ModulateDmgByType2 is at that offset of the reference object)"
+          },
+          {
+            "function": "AI_TypeCalc",
+            "kind": "resolved-call",
+            "detail": "+0x185c arg-mismatch: bl 0x1530 | bl ModulateDmgByType2-0x4 (ModulateDmgByType2 is at that offset of the reference object)"
+          },
+          {
+            "function": "AccuracyCalcHelper",
+            "kind": "resolved-call",
+            "detail": "+0x63c arg-mismatch: bl 0x3b0 | bl JumpIfMoveFailed-0x4 (JumpIfMoveFailed is at that offset of the reference object)"
+          },
+          {
+            "function": "AddBerryTagTextToBg0",
+            "kind": "unnamed-target",
+            "detail": "+0x4d8 R_ARM_ABS32: section ewram_data | sBerryTag"
+          },
+          {
+            "function": "AddJumpScore",
+            "kind": "unnamed-target",
+            "detail": "+0x1d00 R_ARM_ABS32: section ewram_data | sPokemonJump"
+          },
+          {
+            "function": "AddPokeblockToConditions",
+            "kind": "unnamed-target",
+            "detail": "+0xefc R_ARM_ABS32: section ewram_data | sInfo"
+          },
+          {
+            "function": "AddScrollIndicatorArrowObject",
+            "kind": "unnamed-target",
+            "detail": "+0xf24 R_ARM_ABS32: section .rodata | sScrollIndicatorTemplates"
+          },
+          {
+            "function": "AddScrollIndicatorArrowPair",
+            "kind": "unnamed-target",
+            "detail": "+0xf74 R_ARM_ABS32: section .rodata | gUnk_086142C8"
+          }
+        ]
+      },
+      "treeDigest": "13f71c438345a061042f6bfc8db213cf31f7b049ce6702b0a79fbbaa5bd54a27"
     },
     {
       "name": "sa2",
@@ -2650,7 +3193,193 @@
       "parity": {
         "digest": "ae83e802213876014f5629ef8db2daefd382fe70ed2a56d30ab64bdbfcf1a022",
         "expected": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19"
-      }
+      },
+      "readability": {
+        "mnemonicShare": 0.9999924056304655,
+        "symbolicBranchShare": 1,
+        "symbolicPoolShare": 1,
+        "floor": {
+          "mnemonicShare": 0.9999924056304655,
+          "symbolicBranchShare": 1,
+          "symbolicPoolShare": 1
+        }
+      },
+      "objdiff": {
+        "linked": true,
+        "scored": 2887,
+        "differences": {
+          "assemble": 2,
+          "instruction": 132,
+          "missing-relocation": 46,
+          "missing-symbol": 127,
+          "relocation": 52,
+          "resolved-call": 1016,
+          "unnamed-target": 143
+        },
+        "examples": [
+          {
+            "function": "MPlayJumpTableCopy",
+            "kind": "assemble",
+            "detail": "source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
+          },
+          {
+            "function": "m4aSoundVSync",
+            "kind": "assemble",
+            "detail": "source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
+          },
+          {
+            "function": "AnimateNewZonePath",
+            "kind": "instruction",
+            "detail": "+0x151a arg-mismatch: bl 0x1538 | bl sub_08035C00-0x4"
+          },
+          {
+            "function": "CreateEntity_IronBall",
+            "kind": "instruction",
+            "detail": "+0x160 arg-mismatch: bl 0x18c | bl sub_0807EFC4-0x4"
+          },
+          {
+            "function": "CreateEntity_IronBall",
+            "kind": "instruction",
+            "detail": "+0x166 arg-mismatch: bl 0x2a0 | bl sub_0807F0D8-0x4"
+          },
+          {
+            "function": "CreateMultiplayerLobbyScreen",
+            "kind": "instruction",
+            "detail": "+0x42 arg-mismatch: bl 0x78 | bl sub_08087478-0x4"
+          },
+          {
+            "function": "CreateRaceProgressIndicator",
+            "kind": "instruction",
+            "detail": "+0x5a arg-mismatch: bl 0x80 | bl sub_08086D68-0x4"
+          },
+          {
+            "function": "Clear64byte",
+            "kind": "missing-relocation",
+            "detail": "+0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value"
+          },
+          {
+            "function": "ClearChain",
+            "kind": "missing-relocation",
+            "detail": "+0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value"
+          },
+          {
+            "function": "CreateFinalEndingLandingCutScene",
+            "kind": "missing-relocation",
+            "detail": "+0x9c8 R_ARM_ABS32: gBgPalette | a plain value"
+          },
+          {
+            "function": "CreateSpecialStagePlayer",
+            "kind": "missing-relocation",
+            "detail": "+0x294 R_ARM_ABS32: gOamBuffer | a plain value"
+          },
+          {
+            "function": "CreateStageBg_ZoneFinal_0",
+            "kind": "missing-relocation",
+            "detail": "+0x1f88 R_ARM_ABS32: gStageBackgroundsRam | a plain value"
+          },
+          {
+            "function": "ArcTan2",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "CpuFastSet",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "CpuSet",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "Div",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "LZ77UnCompWram",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "BeginPipeSequence",
+            "kind": "relocation",
+            "detail": "+0x180 R_ARM_ABS32: Task_Active | sub_08077A3C"
+          },
+          {
+            "function": "CheckBossDestruction",
+            "kind": "relocation",
+            "detail": "+0x14c2 R_ARM_THM_PC22: HandleBossHit | sub_0803D88C"
+          },
+          {
+            "function": "CheckBossDestruction",
+            "kind": "relocation",
+            "detail": "+0x154e R_ARM_THM_PC22: HandleBossHit | sub_0803D88C"
+          },
+          {
+            "function": "CreateEntity_BounceBlock",
+            "kind": "relocation",
+            "detail": "+0x114 R_ARM_ABS32: TaskDestructor_NoteBlock | sub_08079CC8"
+          },
+          {
+            "function": "CreateEntity_Cannon",
+            "kind": "relocation",
+            "detail": "+0x74 R_ARM_ABS32: Task_Idle | sub_0807E770"
+          },
+          {
+            "function": "ActivatePlayerGrab",
+            "kind": "resolved-call",
+            "detail": "+0x266 arg-mismatch: bl 0x604 | bl UpdatePlayerPos-0x4 (UpdatePlayerPos is at that offset of the reference object)"
+          },
+          {
+            "function": "Coll_Player_Interactable",
+            "kind": "resolved-call",
+            "detail": "+0x172 arg-mismatch: bl 0x1dc | bl sub_800CE94-0x4 (sub_800CE94 is at that offset of the reference object)"
+          },
+          {
+            "function": "Coll_Player_Platform",
+            "kind": "resolved-call",
+            "detail": "+0x72 arg-mismatch: bl 0x1dc | bl sub_800CE94-0x4 (sub_800CE94 is at that offset of the reference object)"
+          },
+          {
+            "function": "CourseSelectionScreenOnDestroy",
+            "kind": "resolved-call",
+            "detail": "+0x1982 arg-mismatch: bl 0x1700 | bl DestroyUI-0x4 (DestroyUI is at that offset of the reference object)"
+          },
+          {
+            "function": "CreateAndTryWriteNewSaveGame",
+            "kind": "resolved-call",
+            "detail": "+0xc38 arg-mismatch: bl 0x25c | bl GenerateNewSaveGame-0x4 (GenerateNewSaveGame is at that offset of the reference object)"
+          },
+          {
+            "function": "BoostEffect_StorePlayerState",
+            "kind": "unnamed-target",
+            "detail": "+0x130 R_ARM_ABS32: section .data | sPlayerStateBuffer"
+          },
+          {
+            "function": "BreakWheels",
+            "kind": "unnamed-target",
+            "detail": "+0x784 R_ARM_ABS32: section .rodata | gUnk_080D7B50"
+          },
+          {
+            "function": "CalcGuardRoboPointerAngle",
+            "kind": "unnamed-target",
+            "detail": "+0xbe4 R_ARM_ABS32: section .rodata | gUnknown_080DF794"
+          },
+          {
+            "function": "CreateActor",
+            "kind": "unnamed-target",
+            "detail": "+0x95c R_ARM_ABS32: section .rodata | gUnknown_080D7540"
+          },
+          {
+            "function": "CreateAngledNoteParticle",
+            "kind": "unnamed-target",
+            "detail": "+0x130 R_ARM_ABS32: section .rodata | gUnknown_080E0140"
+          }
+        ]
+      },
+      "treeDigest": "116b1bb3b5f3d0011a586193b0807d7f05c7eb08415c25b8fb5b09d0bd8fe9a1"
     },
     {
       "name": "sa3",
@@ -2766,7 +3495,193 @@
       "parity": {
         "digest": "396939bfb6f130c0f2e7fc6f69429ba76e37a6fbcd8753a7991521724bdf5bfb",
         "expected": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad"
-      }
+      },
+      "readability": {
+        "mnemonicShare": 0.9999944731838882,
+        "symbolicBranchShare": 1,
+        "symbolicPoolShare": 1,
+        "floor": {
+          "mnemonicShare": 0.9999944731838882,
+          "symbolicBranchShare": 1,
+          "symbolicPoolShare": 1
+        }
+      },
+      "objdiff": {
+        "linked": true,
+        "scored": 4305,
+        "differences": {
+          "assemble": 2,
+          "instruction": 123,
+          "missing-relocation": 99,
+          "missing-symbol": 237,
+          "relocation": 39,
+          "resolved-call": 65,
+          "unnamed-target": 44
+        },
+        "examples": [
+          {
+            "function": "MPlayJumpTableCopy",
+            "kind": "assemble",
+            "detail": "source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
+          },
+          {
+            "function": "m4aSoundVSync",
+            "kind": "assemble",
+            "detail": "source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
+          },
+          {
+            "function": "CgbSound",
+            "kind": "instruction",
+            "detail": "+0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0"
+          },
+          {
+            "function": "CreateApeProjectile",
+            "kind": "instruction",
+            "detail": "+0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4"
+          },
+          {
+            "function": "CreateBreakableWallDebris",
+            "kind": "instruction",
+            "detail": "+0x9fe delete: .hword 0x0 | (none)"
+          },
+          {
+            "function": "CreateCharacterSelect",
+            "kind": "instruction",
+            "detail": "+0xe2 arg-mismatch: bl 0x208 | bl sub_08097E5C-0x4"
+          },
+          {
+            "function": "CreateCondorProjectile",
+            "kind": "instruction",
+            "detail": "+0x8e2 arg-mismatch: bl 0x5dc | bl sub_0805944C-0x4"
+          },
+          {
+            "function": "CharSelect_DestroyTransition_TimeAttacks",
+            "kind": "missing-relocation",
+            "detail": "+0x1060 R_ARM_ABS32: gPlayers | a plain value"
+          },
+          {
+            "function": "CharSelect_DestroyTransition_TimeAttacks",
+            "kind": "missing-relocation",
+            "detail": "+0x1068 R_ARM_ABS32: gPlayers | a plain value"
+          },
+          {
+            "function": "CharSelect_DestroyTransition_TimeAttacks",
+            "kind": "missing-relocation",
+            "detail": "+0x106c R_ARM_ABS32: gPlayers | a plain value"
+          },
+          {
+            "function": "CharSelect_DestroyTransition_TimeAttacks",
+            "kind": "missing-relocation",
+            "detail": "+0x1074 R_ARM_ABS32: gPlayers | a plain value"
+          },
+          {
+            "function": "CharSelect_DestroyTransition_TimeAttacks",
+            "kind": "missing-relocation",
+            "detail": "+0x1078 R_ARM_ABS32: gPlayers | a plain value"
+          },
+          {
+            "function": "ArcTan2",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "CpuFastSet",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "CpuSet",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "Div",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "LZ77UnCompWram",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "CreateBuzzerProjectile",
+            "kind": "relocation",
+            "detail": "+0x68a R_ARM_THM_PC22: InitSpriteProjectile | sub_0805A12C"
+          },
+          {
+            "function": "CreateEntity_Marun",
+            "kind": "relocation",
+            "detail": "+0x9c R_ARM_THM_PC22: InitSprite | sub_080636B4"
+          },
+          {
+            "function": "DisplaySprite",
+            "kind": "relocation",
+            "detail": "+0x13b8 R_ARM_ABS32: iwram_end | end"
+          },
+          {
+            "function": "DisplaySprite",
+            "kind": "relocation",
+            "detail": "+0x13cc R_ARM_ABS32: gOamShapesSizes | gUnk_082B52ED"
+          },
+          {
+            "function": "DisplaySprites",
+            "kind": "relocation",
+            "detail": "+0x1bcc R_ARM_ABS32: iwram_end | end"
+          },
+          {
+            "function": "CreateButtonPlatform",
+            "kind": "resolved-call",
+            "detail": "+0x10e arg-mismatch: bl 0x2f8 | bl sub_8038910-0x4 (sub_8038910 is at that offset of the reference object)"
+          },
+          {
+            "function": "CreateCharacterSelect",
+            "kind": "resolved-call",
+            "detail": "+0xdc arg-mismatch: bl 0x42c | bl InitBackgrounds-0x4 (InitBackgrounds is at that offset of the reference object)"
+          },
+          {
+            "function": "CreateEggHammerTankIII",
+            "kind": "resolved-call",
+            "detail": "+0x92 arg-mismatch: bl 0x7a8 | bl InitSpriteGroundPlate-0x4 (InitSpriteGroundPlate is at that offset of the reference object)"
+          },
+          {
+            "function": "CreateEggHammerTankIII",
+            "kind": "resolved-call",
+            "detail": "+0x98 arg-mismatch: bl 0x8d0 | bl InitSpriteHammerHead-0x4 (InitSpriteHammerHead is at that offset of the reference object)"
+          },
+          {
+            "function": "CreateEntity_ActRing",
+            "kind": "resolved-call",
+            "detail": "+0xd2 arg-mismatch: bl 0x2a4 | bl RenderRingDuringInit-0x4 (RenderRingDuringInit is at that offset of the reference object)"
+          },
+          {
+            "function": "ChaoMap_InitSprites",
+            "kind": "unnamed-target",
+            "detail": "+0x1e0 R_ARM_ABS32: section .rodata | gUnk_080CEECC"
+          },
+          {
+            "function": "CreateEntity_Rocket",
+            "kind": "unnamed-target",
+            "detail": "+0x194 R_ARM_ABS32: section .rodata | gUnk_080D0328"
+          },
+          {
+            "function": "CreateEntity_Rocket",
+            "kind": "unnamed-target",
+            "detail": "+0x198 R_ARM_ABS32: section .rodata | gUnk_080D0330"
+          },
+          {
+            "function": "CreateIceShiver",
+            "kind": "unnamed-target",
+            "detail": "+0x53c R_ARM_ABS32: section .rodata | gUnk_080D03D8"
+          },
+          {
+            "function": "GBPlayerSioInterrupt",
+            "kind": "unnamed-target",
+            "detail": "+0x26c R_ARM_ABS32: section .data | sGbPlayerComm"
+          }
+        ]
+      },
+      "treeDigest": "4390a358156bc90b968af58317a4ff6635e7988de9595eba6590f3c29989121e"
     },
     {
       "name": "tmc",
@@ -3211,7 +4126,136 @@
       "parity": {
         "digest": "ea700ad02d22c2ba68766d36f87cc204a1e6bfa23b8929dbb777e4db6b4a27ed",
         "expected": ""
-      }
+      },
+      "readability": {
+        "mnemonicShare": 0.9999850544392052,
+        "symbolicBranchShare": 0.9999786489025536,
+        "symbolicPoolShare": 1,
+        "floor": {
+          "mnemonicShare": 0.9999850544392052,
+          "symbolicBranchShare": 0.9999786489025536,
+          "symbolicPoolShare": 1
+        }
+      },
+      "objdiff": {
+        "linked": true,
+        "scored": 8388,
+        "differences": {
+          "missing-relocation": 188,
+          "missing-symbol": 1,
+          "relocation": 383,
+          "resolved-call": 323,
+          "unnamed-target": 357
+        },
+        "examples": [
+          {
+            "function": "CheckAreaDiscovery",
+            "kind": "missing-relocation",
+            "detail": "+0xddc R_ARM_ABS32: gSave | a plain value"
+          },
+          {
+            "function": "CheckDirectPathUnblocked",
+            "kind": "missing-relocation",
+            "detail": "+0x6b0 R_ARM_ABS32: gMapTop | a plain value"
+          },
+          {
+            "function": "CheckDirectPathUnblocked",
+            "kind": "missing-relocation",
+            "detail": "+0x6b4 R_ARM_ABS32: gMapBottom | a plain value"
+          },
+          {
+            "function": "CheckFusionMapMarkerDisabled",
+            "kind": "missing-relocation",
+            "detail": "+0x1308 R_ARM_ABS32: gSave | a plain value"
+          },
+          {
+            "function": "CheckKinstoneFused",
+            "kind": "missing-relocation",
+            "detail": "+0x12ec R_ARM_ABS32: gSave | a plain value"
+          },
+          {
+            "function": "memcpy",
+            "kind": "missing-symbol",
+            "detail": "no reference object defines it"
+          },
+          {
+            "function": "AdvanceIntroSequence",
+            "kind": "relocation",
+            "detail": "+0x28 R_ARM_ABS32: gIntroState | gChooseFileState"
+          },
+          {
+            "function": "AgbMain",
+            "kind": "relocation",
+            "detail": "+0x100 R_ARM_ABS32: sTaskHandlers | gUnk_08100CBC"
+          },
+          {
+            "function": "AuxCutscene_Init",
+            "kind": "relocation",
+            "detail": "+0x98 R_ARM_ABS32: gMenu | gChooseFileState"
+          },
+          {
+            "function": "AuxCutscene_Main",
+            "kind": "relocation",
+            "detail": "+0xd4 R_ARM_ABS32: gMenu | gChooseFileState"
+          },
+          {
+            "function": "ChuchuBossCutscene_Action7",
+            "kind": "relocation",
+            "detail": "+0x1e8 R_ARM_ABS32: gMenu | gChooseFileState"
+          },
+          {
+            "function": "AcroBandit",
+            "kind": "resolved-call",
+            "detail": "+0x1e arg-mismatch: bl 0xad4 | bl sub_08032338-0x4 (sub_08032338 is at that offset of the reference object)"
+          },
+          {
+            "function": "AcroBandit_OnCollision",
+            "kind": "resolved-call",
+            "detail": "+0x176 arg-mismatch: bl 0xad4 | bl sub_08032338-0x4 (sub_08032338 is at that offset of the reference object)"
+          },
+          {
+            "function": "AcroBandit_Type0Action3",
+            "kind": "resolved-call",
+            "detail": "+0x338 arg-mismatch: bl 0x5a0 | bl sub_08031E04-0x4 (sub_08031E04 is at that offset of the reference object)"
+          },
+          {
+            "function": "AcroBandit_Type0Action5",
+            "kind": "resolved-call",
+            "detail": "+0x448 arg-mismatch: bl 0x5e4 | bl sub_08031E48-0x4 (sub_08031E48 is at that offset of the reference object)"
+          },
+          {
+            "function": "AcroBandit_Type0Action5",
+            "kind": "resolved-call",
+            "detail": "+0x468 arg-mismatch: bl 0x5e4 | bl sub_08031E48-0x4 (sub_08031E48 is at that offset of the reference object)"
+          },
+          {
+            "function": "AcroBandit",
+            "kind": "unnamed-target",
+            "detail": "+0x5c R_ARM_ABS32: section .rodata | AcroBandit_Functions"
+          },
+          {
+            "function": "AcroBandit_OnCollision",
+            "kind": "unnamed-target",
+            "detail": "+0x1f8 R_ARM_ABS32: section .rodata | AcroBandit_Functions"
+          },
+          {
+            "function": "AmbientClouds",
+            "kind": "unnamed-target",
+            "detail": "+0x28 R_ARM_ABS32: section .rodata | AmbientClouds_Actions.3"
+          },
+          {
+            "function": "AngryStatue",
+            "kind": "unnamed-target",
+            "detail": "+0x14 R_ARM_ABS32: section .rodata | AngryStatue_Actions.3"
+          },
+          {
+            "function": "AngryStatueManager_Main",
+            "kind": "unnamed-target",
+            "detail": "+0x14 R_ARM_ABS32: section .rodata | AngryStatueManager_Actions.3"
+          }
+        ]
+      },
+      "treeDigest": "9ea550e9f0055e2b3fd68906f2371c51d4ce1b8e81740a94c236c2af8ccb9d64"
     }
   ],
   "sealed": [

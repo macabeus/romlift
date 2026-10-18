@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -2281,6 +2281,63 @@ hand-written assembly either way. Leaving the data start at the code end and exe
 readable tree would still not assemble.
 
 ---
+
+## D64. Closing phase 3: what the fix round changed, and the two gates it could not close
+
+**Context.** The closing run of phase 3 (phase-3.md, "The closing gate") found, at `52ad363`: every
+`generate`, `verify` and `init` run over the config `configFromDiscover` builds failed with
+`E_PATH_CASE_COLLISION` (asm/crt0.s emitted twice; the two `todo` tests of wave 3); `g3.objdiff` failed on all
+six tuning ROMs (45,414 differences on pokeemerald, 4,560 on klonoa, most of them pool words holding RAM
+addresses that the base printed as plain values); `g3.speed-budget` measured pokeemerald's `generate` at
+22.3 s and `init` at 26.9 s CPU (budgets 10 s and 15 s, calibrated 9.4 s and 14.1 s); `g3.large-rom`
+measured 1,845.7 MiB (`init`) and 1,366.3 MiB (`generate`) peak RSS (budget 512 MiB); `g3.readability` had
+no floor file. The orchestrator's brief takes every owner decision of architecture §12 with its safe default
+and forbids weakening a gate.
+
+**Decision.**
+
+- (a) **`configFromDiscover` labels every entry inside another found extent, nothing clipped**
+  (`coveredEntries`, the listed set `g2.confirm-equals-discover` builds), so the startup code inside the
+  cartridge entry's extent is `label = true`. Without it the confirm run cut the cartridge entry at the
+  startup code, read its `b` as a tail call and accepted the startup code as origin `call` before
+  `seed.rom-entry` proposed it, the startup region shrank to four bytes, and the `crt0` module held a
+  function chunk. The model and `codeLayout` keep the header clip of correctness-6 where they place chunks:
+  a `label = true` entry that only the cartridge entry's extent covers (`headerCoveredEntries`) still
+  starts a chunk (`isLabelEntry`). On the 47 fixtures the confirm run's functions, extents and startup region
+  equal the discover run's, and the tree `generate` emits is the discover model's.
+- (b) **A `[symbols]` entry outside the ROM names the pool words equal to its address.** It is a global data
+  label that no file places and `symbols.ld` defines; the text-layout check resolves it through `[symbols]`
+  as before. This is architecture §5's `ldr r0, _08001A3C @ =gFoo`, which the model did not implement (its
+  labels held only the symbols inside the ROM). `configFromDiscover` writes no symbol, so no default tree
+  and no golden changes.
+- (c) **The objdiff base names the RAM symbols an ELF section defines**, beside the ROM data symbols D34
+  already named, and leaves out absolute symbols (`REG_DMA3`, `INTR_VECTOR`), which the reference objects
+  hold as plain constants. Differences per ROM, before and after (b) and (c): fe7j 1,296 → 256, klonoa
+  4,560 → 320, pokeemerald 45,414 → 16,543, sa2 8,392 → 1,518, sa3 7,174 → 609, tmc 6,241 → 1,252.
+- (d) **Generated files are written without a flush, an absent one in place.** architecture §6.4's "apply
+  each op through a temporary file and a rename" is replaced by: the journal, the manifest, every `edit` and
+  every scaffold or c-stub file go through a temporary file, an `fsync` and a rename; a generated file goes
+  through a temporary file and a rename without the `fsync`, and one whose path does not exist yet is created
+  in place with `O_EXCL` (synchronous calls). Recovery is unchanged in substance: the next run snapshots the
+  sha1 of every generated path and the journal names its paths owned, so a file a crash left short or empty
+  is rewritten; nothing a user wrote is touched without the flush. Measured on pokeemerald: `generate` and
+  its write 22.3 s CPU (bench speed median, with the flushes) → 8.2 to 9.1 s warm with (d) and (e).
+- (e) **Result-neutral speed and memory changes**: a built Reading keeps its instruction lengths in one byte
+  array over its span, or a binary-searched pair of typed arrays when the span is sparse
+  (`core/analysis/insn-lookup.ts`), not the walker's 4 KiB pages (210 MiB in 37,140 readings on the 32 MiB
+  synthetic ROM); rejection keys are numbers (`2 * addr + arm`), not `${at}:${mode}` strings (47 MiB there);
+  `factFrom` finds the dead runs of an extent with a native scan; the layout memo is keyed by slot (state,
+  address mod 4) and then by the text itself; `hex()` formats eight digits from a byte table. The fixture
+  goldens, `npm test`, the PoC parity and lockstep evidence and `epoch-reuse` are unchanged.
+- (f) **The first readability floors** (`bench/baseline/readability.json`, D62 a) are the closing run's shares.
+
+**Consequences.** `generate`, `verify --link` and `init` work on every fixture with the config
+`configFromDiscover` builds, and the two `todo` tests pass; `g3.speed-budget` passes (pokeemerald `generate`
+8,116 of 10,355 ms and `init` 9,674 of 15,532 ms CPU in the gate's own run) and `g3.readability` passes on its
+floors. Two gates still fail and are owner questions in phase-3.md: `g3.objdiff` (Q1: what remains are naming
+and comparison artefacts, classified there, which the gate as D34 writes it counts as failures) and
+`g3.large-rom` (Q2: 1,019 to 1,495 MiB peak RSS measured against 512 MiB). Phase 3 does not land until the owner
+answers them; nothing is waived.
 
 ## Review findings index
 
