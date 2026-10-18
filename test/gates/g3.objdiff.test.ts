@@ -13,7 +13,7 @@
 //               scored: number,               functions compared (agreeing entry and extent)
 //               differences: {<kind>: count}, e.g. 'unnamed-target', 'instruction', 'relocation', 'missing-symbol'
 //               examples: [{function, kind, detail}]}
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, byCodeUnit, gate } from './gate.ts';
 
 interface Objdiff {
   readonly linked: boolean;
@@ -34,9 +34,6 @@ interface BenchRun {
 
 const REPORTED_ONLY = 'unnamed-target';
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');

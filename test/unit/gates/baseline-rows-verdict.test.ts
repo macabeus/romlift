@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BENCHMARK_ROWS, baselineRowsVerdict as verdictOf, type BaselineRowsInput } from '../../gates/baseline-rows-verdict.ts';
-import { TMC_AT_D61 } from '../../gates/dataset-binding.ts';
+import { BENCHMARK_ROWS, baselineRowsVerdict as verdictOf, staleBenchmarkRows, type BaselineRowsInput } from '../../gates/baseline-rows-verdict.ts';
+import { TMC_AT_D61, type DatasetIdentity } from '../../gates/dataset-binding.ts';
 
 /** The verdict on tmc's dataset as the owner decided on it, or on `dataset`. */
-const baselineRowsVerdict = (r: BaselineRowsInput, dataset: { readonly sha1: string; readonly elfSha256?: string } = TMC_AT_D61, rows = BENCHMARK_ROWS) => verdictOf(r, dataset, rows);
+const baselineRowsVerdict = (r: BaselineRowsInput, dataset: DatasetIdentity = TMC_AT_D61, rows = BENCHMARK_ROWS) => verdictOf(r, dataset, rows);
 
 function rom(over: Partial<BaselineRowsInput> = {}): BaselineRowsInput {
   return {
@@ -90,9 +90,14 @@ test('the benchmark row holds only for the ROM and ELF it was decided on (overfi
   assert.deepEqual(BENCHMARK_ROWS['tmc']?.rom, TMC_AT_D61);
 });
 
-test('TMC_AT_D61 is the committed tmc dataset', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const d = JSON.parse(await readFile(new URL('../../../bench/dataset/real/tmc.json', import.meta.url), 'utf8')) as Record<string, unknown>;
-  assert.equal(d['sha1'], TMC_AT_D61.sha1);
-  assert.equal(d['elfSha256'], TMC_AT_D61.elfSha256);
+test('a benchmark row whose ROM is not a tuning dataset, or whose PoC reference is not the PoC\'s own run, is stale (code-quality-r1-4)', () => {
+  const tuning = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc'];
+  assert.deepEqual(staleBenchmarkRows(tuning, [rom()]), []);
+  assert.deepEqual(staleBenchmarkRows(tuning.filter((n) => n !== 'tmc'), []), ['tmc: a benchmark row (D61 d) is recorded but tmc is not a tuning dataset, the record is stale']);
+  assert.deepEqual(staleBenchmarkRows(tuning, [rom({ poc: { source: 'baseline' } })]), [
+    "tmc: a benchmark row (D61 d) is recorded but tmc's PoC reference is 'baseline', not the pinned PoC's own run of it ('dump'), the record is stale",
+  ]);
+  assert.equal(staleBenchmarkRows(tuning, [rom({ poc: { source: 'none' } })]).length, 1);
+  // A ROM the run did not score is reported by the gate as not scored, not here.
+  assert.deepEqual(staleBenchmarkRows(tuning, []), []);
 });

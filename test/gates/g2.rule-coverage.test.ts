@@ -11,7 +11,7 @@
 // Rule ids come from `RULES` (romlift/internal, see g2.rule-registry).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, byCodeUnit, gate } from './gate.ts';
 
 interface Ablation {
   readonly schema: string;
@@ -22,9 +22,6 @@ interface Ablation {
 
 type Rules = Readonly<Record<string, unknown>>;
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 function tail(run: ExecResult, lines = 20): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');

@@ -11,7 +11,7 @@
 //   RULES, SIGNATURE_RULES (romlift/internal): records keyed by rule id
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, byCodeUnit, gate } from './gate.ts';
 
 type Rules = Readonly<Record<string, unknown>>;
 
@@ -28,9 +28,6 @@ function tail(run: ExecResult, lines = 40): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 async function goldens(dir: string, prefix = ''): Promise<readonly Golden[]> {
   const out: Golden[] = [];

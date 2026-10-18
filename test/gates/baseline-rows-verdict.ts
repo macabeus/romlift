@@ -10,9 +10,11 @@
 // unaccepted row (an extent change, an unlisted or uncategorised row) still fails, stale accepted diffs
 // still fail, and the run's row must not fall below the floor the owner kept. A benchmark row is bound to
 // the ROM and ELF it was decided on (dataset-binding.ts): for another build of that name it is stale and
-// fails, and the ROM is judged as without it.
+// fails, and the ROM is judged as without it; a benchmark row whose ROM is not a tuning dataset, or whose
+// PoC reference is not the PoC's own run of it, is stale and fails too (staleBenchmarkRows).
 
-import { bindingMismatch, TMC_AT_D61, type DatasetBinding } from './dataset-binding.ts';
+import { bindingMismatch, TMC_AT_D61, type DatasetBinding, type DatasetIdentity } from './dataset-binding.ts';
+import { byCodeUnit } from './order.ts';
 
 export interface RowDiff {
   readonly kind: string;
@@ -77,6 +79,28 @@ export interface BaselineRowsVerdict {
   readonly note: string;
 }
 
+/**
+ * Benchmark rows that no longer apply, each a stale record (code-quality-r1-4), as SCOPED_OUT
+ * (poc-parity-check.ts) and KNOWN_DIFFERENCES (confirm-differences.ts staleRecords) report theirs: a name
+ * that is not a tuning dataset, and a ROM whose PoC reference is not the pinned PoC's own run of it
+ * (`poc.source` 'dump'), for which the verdict would silently ignore the record. `roms` are the run's rows.
+ */
+export function staleBenchmarkRows(
+  tuning: readonly string[],
+  roms: readonly Pick<BaselineRowsInput, 'name' | 'poc'>[],
+  benchmarkRows: Readonly<Record<string, BenchmarkRow>> = BENCHMARK_ROWS,
+): readonly string[] {
+  const problems: string[] = [];
+  for (const name of Object.keys(benchmarkRows).sort(byCodeUnit)) {
+    const decision = benchmarkRows[name]?.decision ?? '?';
+    const rom = roms.find((r) => r.name === name);
+    if (!tuning.includes(name)) problems.push(`${name}: a benchmark row (${decision}) is recorded but ${name} is not a tuning dataset, the record is stale`);
+    else if (rom !== undefined && rom.poc.source !== 'dump')
+      problems.push(`${name}: a benchmark row (${decision}) is recorded but ${name}'s PoC reference is '${rom.poc.source}', not the pinned PoC's own run of it ('dump'), the record is stale`);
+  }
+  return problems;
+}
+
 function rows(list: readonly RowDiff[]): string {
   return list.slice(0, 8).map((d) => `${d.kind} ${d.addr}`).join(', ');
 }
@@ -84,7 +108,7 @@ function rows(list: readonly RowDiff[]): string {
 /** The verdict on one ROM's rows against its PoC reference; `dataset` is the ROM's dataset (its ROM SHA-1 and ELF SHA-256). */
 export function baselineRowsVerdict(
   rom: BaselineRowsInput,
-  dataset: { readonly sha1: string; readonly elfSha256?: string | undefined },
+  dataset: DatasetIdentity,
   benchmarkRows: Readonly<Record<string, BenchmarkRow>> = BENCHMARK_ROWS,
 ): BaselineRowsVerdict {
   const { diffs, unaccepted, staleAccepted } = rom.baselineRows;

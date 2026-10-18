@@ -387,13 +387,13 @@ test('gateStep: a frozen gate still runs its run and is historical only when it 
 });
 
 test('the harness end to end: at landed 2 a historical gate whose run throws records fail, one whose run returns records historical', () => {
-  // A copy of the real harness (gate.ts imports only node:*) in a temporary repository whose phase.json is
+  // A copy of the real harness (gate.ts imports only node:* and order.ts) in a temporary repository whose phase.json is
   // { "landed": 2 }, running two gates frozen after phase 2, one per outcome of their run.
   const root = mkdtempSync(path.join(tmpdir(), 'romlift-historical-'));
   try {
     const gates = path.join(root, 'test', 'gates');
     mkdirSync(gates, { recursive: true });
-    writeFileSync(path.join(gates, 'gate.ts'), readFileSync(path.join(repoRoot, 'test', 'gates', 'gate.ts')));
+    for (const name of ['gate.ts', 'order.ts']) writeFileSync(path.join(gates, name), readFileSync(path.join(repoRoot, 'test', 'gates', name)));
     writeFileSync(path.join(gates, 'phase.json'), '{ "landed": 2 }\n');
     const file = (id: string, body: string): string => `import { gate } from './gate.ts';\ngate({ id: '${id}', phase: 2, tier: 'ci', needs: [], historicalAfter: 2, async run() { ${body} } });\n`;
     writeFileSync(path.join(gates, 'g2.failing.test.ts'), file('g2.failing', "throw new Error('rows differ');"));

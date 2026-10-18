@@ -3,7 +3,9 @@
 // listed improvement is stale (one that no longer differs from the baseline fails). tmc, revealed after
 // the baseline was pinned, is a benchmark row by the owner's answer to Q1 and Q2 (D61 d, "Keep tmc as
 // 99.94%. It's a benchmark row that we can improve later"): its rows that the dataset lists with a category
-// are accepted and printed, and its tp 8,631 of 8,636 is a floor (baseline-rows-verdict.ts).
+// are accepted and printed, and its tp 8,631 of 8,636 is a floor (baseline-rows-verdict.ts); the record is
+// bound to tmc's ROM and ELF, and fails as stale when tmc is not a tuning dataset or its PoC reference is
+// not the PoC's own run of it (staleBenchmarkRows, as g2.poc-parity and g2.confirm-equals-discover do).
 //
 // Expected output, for the phase-2 lead to align (architecture §8.5):
 //   npm run bench -- run --json   exit 0; the last stdout line is romlift/bench-run@1; --json writes no
@@ -20,7 +22,7 @@
 //   name the bench gives a change.
 //   For a ROM the owner kept as a benchmark row (baseline-rows-verdict.ts BENCHMARK_ROWS: tmc, D61 d) it
 //   also reads tp, elfFunctions, recall and misses[]/falseEntries[] ({addr, listed, category}).
-import { baselineRowsVerdict, type BaselineRowsInput } from './baseline-rows-verdict.ts';
+import { baselineRowsVerdict, staleBenchmarkRows, type BaselineRowsInput } from './baseline-rows-verdict.ts';
 import { gate, noPocReference, type ExecResult } from './gate.ts';
 
 interface BenchRun {
@@ -43,7 +45,7 @@ gate({
     if (run.code !== 0) throw new Error(`bench run --json exited ${run.code}:\n${tail(run)}`);
     const result = cx.lastJson<BenchRun>(run.stdout);
     if (result.schema !== 'romlift/bench-run@1') throw new Error(`bench run printed schema '${String(result.schema)}'`);
-    const problems: string[] = [];
+    const problems: string[] = [...staleBenchmarkRows(cx.datasets.map((d) => d.name), result.roms)];
     const notes: string[] = [];
     for (const dataset of cx.datasets) {
       const rom = result.roms.find((r) => r.name === dataset.name);

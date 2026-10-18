@@ -12,7 +12,8 @@
 // scoping is bound to the ROM and ELF it was decided on (dataset-binding.ts): for another build of that
 // name it is stale and fails, and the ROM is judged as without it.
 
-import { bindingMismatch, byCodeUnit, TMC_AT_D61, type DatasetBinding } from './dataset-binding.ts';
+import { bindingMismatch, TMC_AT_D61, type DatasetBinding, type DatasetIdentity } from './dataset-binding.ts';
+import { byCodeUnit } from './order.ts';
 
 export interface LockstepSet {
   readonly set: string;
@@ -61,10 +62,8 @@ export interface ScopedOut {
 }
 
 /** A tuning dataset as the check reads it. */
-export interface TuningRom {
+export interface TuningRom extends DatasetIdentity {
   readonly name: string;
-  readonly sha1: string;
-  readonly elfSha256?: string | undefined;
 }
 
 export interface ParityInput {

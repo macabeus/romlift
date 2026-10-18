@@ -3,6 +3,8 @@
 // the code that decides the gate. Gates import only romlift's entry points, node:* and test/gates/**
 // (architecture §2), so it lives here rather than in bench/src.
 
+import { byCodeUnit } from './order.ts';
+
 /** One sealed dataset's judged run: its family (empty when the dataset names none) and its per-ROM verdict. */
 export interface SealedResult {
   readonly name: string;
@@ -84,10 +86,6 @@ export interface HeldOutVerdict {
   readonly waived?: readonly string[];
   /** Why a given waiver did not apply, when the family conditions failed and it was bound to other facts. */
   readonly waiverRefused?: string;
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function bindingKey(b: SealedBinding): string {

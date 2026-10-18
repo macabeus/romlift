@@ -82,26 +82,31 @@ test('tmc fails when a known function changes its extent, mode or far verdicts, 
   const e = FIRST.entry;
   const extent = judge(views((c) => (c.functions = c.functions.map((f) => (f.entry === e ? fn(e, e + 4) : f)))));
   assert.deepEqual(extent.problems, [
-    'tmc: the known difference changed (D61 e): function 0x08004274: discover 0x08004274 thumb 0x08004274..0x08004356, confirm 0x08004274 thumb 0x08004274..0x08004278; recorded function 0x08004274: discover 0x08004274 thumb 0x08004274..0x08004356, confirm 0x08004274 thumb 0x08004274..0x080042AC',
+    'tmc: 1 known differences changed (D61 e): function 0x08004274: discover 0x08004274 thumb 0x08004274..0x08004356, confirm 0x08004274 thumb 0x08004274..0x08004278 (recorded: function 0x08004274: discover 0x08004274 thumb 0x08004274..0x08004356, confirm 0x08004274 thumb 0x08004274..0x080042AC)',
   ]);
   const mode = judge(views((c) => (c.functions = c.functions.map((f) => (f.entry === e ? { ...f, mode: 'arm' } : f)))));
   assert.equal(mode.problems.length, 1);
-  assert.match(mode.problems[0] ?? '', /^tmc: the known difference changed \(D61 e\): function 0x08004274: discover .*, confirm 0x08004274 arm /);
+  assert.match(mode.problems[0] ?? '', /^tmc: 1 known differences changed \(D61 e\): function 0x08004274: discover .*, confirm 0x08004274 arm /);
   const far = judge(views((c) => (c.functions = c.functions.map((f) => (f.entry === e ? { ...f, far: [{ site: e + 2, target: 0x0800_0100 }] } : f)))));
   assert.equal(far.problems.length, 1);
-  assert.match(far.problems[0] ?? '', /changed .* far 0x08004276->0x08000100; recorded/);
+  assert.match(far.problems[0] ?? '', /changed .* far 0x08004276->0x08000100 \(recorded: /);
   const vanished = judge(views((c) => (c.functions = c.functions.filter((f) => f.entry !== SECOND.entry))));
   assert.equal(vanished.problems.length, 1);
-  assert.match(vanished.problems[0] ?? '', /^tmc: the known difference changed \(D61 e\): function 0x080042B8: discover 0x080042B8 thumb .*, confirm none; recorded/);
+  assert.match(vanished.problems[0] ?? '', /^tmc: 1 known differences changed \(D61 e\): function 0x080042B8: discover 0x080042B8 thumb .*, confirm none \(recorded: /);
 });
 
 test('tmc fails on a function beyond the six: the two of Q6 with their reason, any other with a neutral text', () => {
   const q6 = judge(views((c) => c.functions.push({ ...fn(0x080b_255c, 0x080b_280c), mode: 'arm' })));
   assert.deepEqual(q6.problems, [
-    "tmc: function 0x080B255C: discover none, confirm 0x080B255C arm 0x080B255C..0x080B280C: not covered by D61 e, moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md",
+    "tmc: 1 functions differ, not covered by D61 e: function 0x080B255C: discover none, confirm 0x080B255C arm 0x080B255C..0x080B280C (moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md)",
   ]);
   const other = judge(views((c) => c.functions.push(fn(0x0800_2000, 0x0800_2010))));
-  assert.deepEqual(other.problems, ['tmc: function 0x08002000: discover none, confirm 0x08002000 thumb 0x08002000..0x08002010: not covered by D61 e']);
+  assert.deepEqual(other.problems, ['tmc: 1 functions differ, not covered by D61 e: function 0x08002000: discover none, confirm 0x08002000 thumb 0x08002000..0x08002010']);
+  // Six uncovered functions: the count and the first four, never one line each (code-quality-r1-5).
+  const six = judge(views((c) => c.functions.push(...[0, 1, 2, 3, 4, 5].map((i) => fn(0x0800_2000 + 0x20 * i, 0x0800_2010 + 0x20 * i)))));
+  assert.equal(six.problems.length, 1);
+  assert.match(six.problems[0] ?? '', /^tmc: 6 functions differ, not covered by D61 e: function 0x08002000: .*; function 0x08002060: discover none, confirm 0x08002060 thumb 0x08002060\.\.0x08002070; …$/);
+  assert.equal((six.problems[0] ?? '').split('; function ').length, 4);
 });
 
 test('tmc fails on a claim run beyond the recorded one, even inside a known extent, or on the recorded one changed', () => {
@@ -109,7 +114,7 @@ test('tmc fails on a claim run beyond the recorded one, even inside a known exte
   assert.deepEqual(inside.problems, ['tmc: 1 claim runs differ, not covered by D61 e: claim 0x08004280..0x08004290: discover none, confirm 0x08004280..0x08004290 kind 1 owner none']);
   const kind = judge(views((c) => (c.claims = c.claims.map((x) => (x.span.start === 0x0800_87d2 ? { ...x, kind: 2 } : x)))));
   assert.equal(kind.problems.length, 1);
-  assert.match(kind.problems[0] ?? '', /^tmc: the known claim difference changed \(D61 e\): claim 0x080087D2\.\.0x08008886: discover .*, confirm 0x080087D2\.\.0x08008886 kind 2 owner none; recorded/);
+  assert.match(kind.problems[0] ?? '', /^tmc: 1 known claim differences changed \(D61 e\): claim 0x080087D2\.\.0x08008886: discover .*, confirm 0x080087D2\.\.0x08008886 kind 2 owner none \(recorded: /);
   const same = judge(views((c) => (c.claims = c.claims.map((x) => (x.span.start === 0x0800_87d2 ? { ...x, owner: 0x0800_8790 } : x)))));
   assert.deepEqual(same.problems, ['tmc: known claim differences no longer differ, the record is stale (D61 e): 0x080087D2..0x08008886']);
 });

@@ -15,7 +15,8 @@
 // record when the dataset's ROM or ELF is not the one it was decided on (dataset-binding.ts). It prints
 // the limitation every run. Every other ROM must have no difference at all.
 
-import { bindingMismatch, byCodeUnit, TMC_AT_D61, type DatasetBinding } from './dataset-binding.ts';
+import { bindingMismatch, TMC_AT_D61, type DatasetBinding, type DatasetIdentity } from './dataset-binding.ts';
+import { byCodeUnit } from './order.ts';
 
 export interface ViewFunction {
   readonly entry: number;
@@ -167,8 +168,16 @@ export function viewDifferences(discover: ParityView, confirm: ParityView): View
   return { functions, claims };
 }
 
+/** How many records a failure message shows of each list; it gives the list's count too (code-quality-r0-3, r1-5). */
+const FIRST = 4;
+
+/** The marker that a message shows only the first FIRST of `list`. */
+function more(list: readonly unknown[]): string {
+  return list.length > FIRST ? '; …' : '';
+}
+
 /** How many differ of each, and the first few, for a message (code-quality-r0-3). */
-export function summarize(d: ViewDifferences, first = 4): string {
+export function summarize(d: ViewDifferences, first = FIRST): string {
   const shown = [...d.functions.slice(0, first).map(fnDiffText), ...d.claims.slice(0, first).map(claimDiffText)];
   const more = d.functions.length > first || d.claims.length > first ? '; …' : '';
   return `${d.functions.length} functions and ${d.claims.length} claim runs differ: ${shown.join('; ')}${more}`;
@@ -177,7 +186,7 @@ export function summarize(d: ViewDifferences, first = 4): string {
 /** The verdict on one ROM: problems (empty when it passes) and, for a ROM with a known limitation, the note it prints. */
 export function judgeDifferences(
   name: string,
-  dataset: { readonly sha1: string; readonly elfSha256?: string | undefined },
+  dataset: DatasetIdentity,
   d: ViewDifferences,
   known: Readonly<Record<string, KnownDifferences>> = KNOWN_DIFFERENCES,
 ): { readonly problems: readonly string[]; readonly note?: string } {
@@ -195,11 +204,18 @@ export function judgeDifferences(
     const got = actualFn.get(f.entry);
     return got !== undefined && fnDiffText(got) !== fnDiffText(f);
   });
-  for (const f of d.functions.filter((x) => !knownFn.has(x.entry))) {
-    const why = k.notCovered?.[f.entry];
-    problems.push(`${name}: ${fnDiffText(f)}: not covered by ${k.decision}${why === undefined ? '' : `, ${why}`}`);
+  const uncovered = d.functions.filter((x) => !knownFn.has(x.entry));
+  if (uncovered.length > 0) {
+    const shown = uncovered.slice(0, FIRST).map((f) => {
+      const why = k.notCovered?.[f.entry];
+      return `${fnDiffText(f)}${why === undefined ? '' : ` (${why})`}`;
+    });
+    problems.push(`${name}: ${uncovered.length} functions differ, not covered by ${k.decision}: ${shown.join('; ')}${more(uncovered)}`);
   }
-  for (const f of changed) problems.push(`${name}: the known difference changed (${k.decision}): ${fnDiffText(actualFn.get(f.entry) ?? f)}; recorded ${fnDiffText(f)}`);
+  if (changed.length > 0) {
+    const shown = changed.slice(0, FIRST).map((f) => `${fnDiffText(actualFn.get(f.entry) ?? f)} (recorded: ${fnDiffText(f)})`);
+    problems.push(`${name}: ${changed.length} known differences changed (${k.decision}): ${shown.join('; ')}${more(changed)}`);
+  }
   if (gone.length > 0) problems.push(`${name}: known differences no longer differ, the record is stale (${k.decision}): ${gone.map((f) => hex(f.entry)).join(', ')}`);
 
   const actualClaim = new Map(d.claims.map((c) => [spanKey(c.span), c]));
@@ -210,8 +226,11 @@ export function judgeDifferences(
     const got = actualClaim.get(spanKey(c.span));
     return got !== undefined && claimDiffText(got) !== claimDiffText(c);
   });
-  if (extraClaims.length > 0) problems.push(`${name}: ${extraClaims.length} claim runs differ, not covered by ${k.decision}: ${extraClaims.slice(0, 4).map(claimDiffText).join('; ')}`);
-  for (const c of changedClaims) problems.push(`${name}: the known claim difference changed (${k.decision}): ${claimDiffText(actualClaim.get(spanKey(c.span)) ?? c)}; recorded ${claimDiffText(c)}`);
+  if (extraClaims.length > 0) problems.push(`${name}: ${extraClaims.length} claim runs differ, not covered by ${k.decision}: ${extraClaims.slice(0, FIRST).map(claimDiffText).join('; ')}${more(extraClaims)}`);
+  if (changedClaims.length > 0) {
+    const shown = changedClaims.slice(0, FIRST).map((c) => `${claimDiffText(actualClaim.get(spanKey(c.span)) ?? c)} (recorded: ${claimDiffText(c)})`);
+    problems.push(`${name}: ${changedClaims.length} known claim differences changed (${k.decision}): ${shown.join('; ')}${more(changedClaims)}`);
+  }
   if (goneClaims.length > 0) problems.push(`${name}: known claim differences no longer differ, the record is stale (${k.decision}): ${goneClaims.map((c) => span(c.span)).join(', ')}`);
 
   const held = k.functions.length - gone.length - changed.length;

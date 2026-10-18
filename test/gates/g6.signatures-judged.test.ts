@@ -17,7 +17,7 @@
 //     "names":{"reference":boolean,"total","equal","differ"}}]}
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, byCodeUnit, gate } from './gate.ts';
 
 interface LibraryCount {
   readonly library: string;
@@ -65,9 +65,6 @@ function perLibrary(rows: readonly LibraryCount[]): ReadonlyMap<string, { readon
   return out;
 }
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 gate({
   id: 'g6.signatures-judged',

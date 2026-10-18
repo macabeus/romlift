@@ -11,27 +11,23 @@ export interface DatasetBinding {
   readonly elfSha256: string;
 }
 
+/** A dataset as a scoping is checked against it: its ROM SHA-1 and, when it has one, its ELF SHA-256. */
+export interface DatasetIdentity {
+  readonly sha1: string;
+  readonly elfSha256?: string | undefined;
+}
+
 /** tmc as the owner's answers of 18 October 2026 (D61) were given on: bench/dataset/real/tmc.json then. */
 export const TMC_AT_D61: DatasetBinding = {
   sha1: 'b4bd50e4131b027c334547b4524e2dbbd4227130',
   elfSha256: '7d27e8d999c5f14b11885e530fc99669b08880deda79e98f3e3e8411482005d6',
 };
 
-/** Code-unit order (AGENTS.md, Determinism). */
-export function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
 /**
  * Why the scoping `decision` of `name`, bound to `bound`, does not hold for `dataset`, or undefined when it
  * does. A dataset without an ELF digest never matches.
  */
-export function bindingMismatch(
-  name: string,
-  decision: string,
-  bound: DatasetBinding,
-  dataset: { readonly sha1: string; readonly elfSha256?: string | undefined },
-): string | undefined {
+export function bindingMismatch(name: string, decision: string, bound: DatasetBinding, dataset: DatasetIdentity): string | undefined {
   if (dataset.sha1 === bound.sha1 && dataset.elfSha256 === bound.elfSha256) return undefined;
   return (
     `${name}: the ${decision} scoping was decided on ROM SHA-1 ${bound.sha1} and ELF SHA-256 ${bound.elfSha256}, ` +

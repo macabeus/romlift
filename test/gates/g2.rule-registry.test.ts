@@ -9,7 +9,7 @@
 // driver/ may import that index) and `PROFILES` (romlift), whose pipelines follow architecture §4.3.
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { gate } from './gate.ts';
+import { byCodeUnit, gate } from './gate.ts';
 
 interface RuleMeta {
   readonly id: string;
@@ -31,9 +31,6 @@ type Profiles = Readonly<Record<string, { readonly id: string; readonly pipeline
 
 const ORIGIN_FAMILIES: ReadonlySet<string> = new Set(['seed', 'gap']);
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /** Every rule id named by a pipeline, in slot order; `passes` names passes, not rules. */
 function pipelineIds(pipeline: Readonly<Record<string, unknown>>): readonly string[] {

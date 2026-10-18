@@ -20,6 +20,8 @@ import path from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { byCodeUnit } from './order.ts';
+export { byCodeUnit } from './order.ts';
 
 export type GateTier = 'ci' | 'real';
 export type GateInput = 'roms' | 'elfs' | 'objects' | 'poc' | 'toolchain' | 'klonoa';
@@ -146,9 +148,6 @@ const ENTRY_SOURCES: Readonly<Record<EntryPoint, string>> = {
 // ---------------------------------------------------------------------------------------------------
 // Pure decisions.
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /** The tier selected by ROMLIFT_GATE_TIER; `ci` when unset. */
 export function selectedTier(env: Readonly<Record<string, string | undefined>>): GateTier {
