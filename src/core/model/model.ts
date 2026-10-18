@@ -124,7 +124,7 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   const collisions = nameCollisions(defined, modules);
 
   const runOffsets = chunkPlans.map((c) => runOffsetAt(relocated, c.span.start));
-  const built = buildItems({ rom, chunks: chunkPlans, modules, segments, labels: labelled.labels, labelStarts: labelled.starts, runOffsets });
+  const built = buildItems({ rom, chunks: chunkPlans, modules, segments, labels: labelled.labels, labelStarts: labelled.starts, runOffsets, refs });
   const inner = innerLabelsOf(chunkPlans, placed, labelled.functions);
 
   const chunks = chunkPlans.map((c, i): Chunk => {

@@ -27,6 +27,7 @@ import type { AnalysisResult } from '../analysis/types.ts';
 import { Claim } from '../analysis/types.ts';
 import { alignUp } from '../layout/borders.ts';
 import type { ChunkPlan } from './chunks.ts';
+import type { CodeRef } from './labels.ts';
 import { ModelCodes } from './codes.ts';
 import { itemTableBuilder } from './item-table.ts';
 import { isDefaultSpelling } from './names.ts';
@@ -203,30 +204,38 @@ export interface KnownPrinting {
 export interface PrintingCache {
   known(mode: Mode, word: number): KnownPrinting | undefined;
   reasonOf(insn: Insn, resolver: SymbolResolver): RawReason | null;
+  /**
+   * reasonOf for an instruction that names `target`, known by its row, word and run address: `insn` decodes it
+   * when the round trip has to run.
+   */
+  reasonOfNaming(mode: Mode, specId: SpecId, word: number, addr: Addr, target: Addr, resolver: SymbolResolver, insn: () => Insn): RawReason | null;
 }
 
 export function printingCache(): PrintingCache {
   const free: Record<Mode, Map<number, KnownPrinting>> = { thumb: new Map(), arm: new Map() };
   const labelled: Record<Mode, Map<number, RawReason | null>> = { thumb: new Map(), arm: new Map() };
+  const reasonOfNaming: PrintingCache['reasonOfNaming'] = (mode, specId, word, addr, target, resolver, insn) => {
+    const name = resolver.labelFor(target, addr);
+    if (name === undefined || !isDefaultSpelling(name) || resolver.addressOf(name) !== target) return rawReason(insn(), resolver);
+    const mask = offsetMask(specId);
+    const key = ((word & ~mask) >>> 0) * 8 + (addr & 3) * 2 + ((word & mask) === 0 ? 1 : 0);
+    const hit = labelled[mode].get(key);
+    if (hit !== undefined) return hit;
+    const reason = rawReason(insn(), resolver);
+    labelled[mode].set(key, reason);
+    return reason;
+  };
   return {
     known: (mode, word) => free[mode].get(word),
+    reasonOfNaming,
     reasonOf(insn, resolver) {
-      const mask = offsetMask(insn.specId);
       const target = targetOf(insn.flow);
-      if (mask === 0 && target === undefined && insn.flow.kind !== 'mode-switch') {
-        const hit = free[insn.mode].get(insn.word);
-        if (hit !== undefined) return hit.reason;
-        const reason = rawReason(insn, resolver);
-        free[insn.mode].set(insn.word, { specId: insn.specId, reason });
-        return reason;
-      }
-      const name = target === undefined ? undefined : resolver.labelFor(target, insn.addr);
-      if (name === undefined || !isDefaultSpelling(name) || resolver.addressOf(name) !== target) return rawReason(insn, resolver);
-      const key = ((insn.word & ~mask) >>> 0) * 8 + (insn.addr & 3) * 2 + ((insn.word & mask) === 0 ? 1 : 0);
-      const hit = labelled[insn.mode].get(key);
-      if (hit !== undefined) return hit;
+      if (target !== undefined) return reasonOfNaming(insn.mode, insn.specId, insn.word, insn.addr, target, resolver, () => insn);
+      if (offsetMask(insn.specId) !== 0 || insn.flow.kind === 'mode-switch') return rawReason(insn, resolver);
+      const hit = free[insn.mode].get(insn.word);
+      if (hit !== undefined) return hit.reason;
       const reason = rawReason(insn, resolver);
-      labelled[insn.mode].set(key, reason);
+      free[insn.mode].set(insn.word, { specId: insn.specId, reason });
       return reason;
     },
   };
@@ -259,6 +268,8 @@ export interface ItemsInputs {
   readonly labelStarts: readonly Addr[];
   /** The load-to-run offset of each chunk (0 outside runs_at). */
   readonly runOffsets: readonly number[];
+  /** The references of the code (labels.ts codeRefs), by site: their instructions need no second decode. */
+  readonly refs: readonly CodeRef[];
 }
 
 export interface ItemsResult {
@@ -302,6 +313,7 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   let segmentAt = 0;
   let noteAt = 0;
   let extentAt = 0;
+  let refAt = 0;
 
   /** Data over [a, b), split at labels; with notes when `noted`. */
   const fillData = (a: Addr, b: Addr, noted: boolean): void => {
@@ -357,6 +369,15 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
         continue;
       }
       const run = at + offset;
+      while (refAt < inputs.refs.length && (inputs.refs[refAt]?.site ?? Infinity) < at) refAt++;
+      const ref = inputs.refs[refAt];
+      if (ref !== undefined && ref.site === at && ref.run === run && ref.size <= room && specOf(ref.specId).raw === undefined) {
+        const reason = refReason(ref, mode, c, resolver);
+        if (reason === null) table.append({ kind: 'insn', start: at, length: ref.size, specId: ref.specId });
+        else table.append({ kind: 'raw-insn', start: at, length: ref.size, specId: ref.specId, reason });
+        at += ref.size;
+        continue;
+      }
       let insn = decode(mode, mode === 'thumb' ? (room >= 4 ? word32(rom, at) : word) : word, run);
       if (insn.size > room) insn = decode('thumb', word, run);
       const length = insn.size;
@@ -367,22 +388,30 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
     }
   };
 
+  /** Whether a short branch at `site` to `target` leaves chunk `c`'s module; W_CROSS_MODULE_SHORT_BRANCH when it does. */
+  const crossesModule = (site: Addr, target: Addr, c: ChunkPlan): boolean => {
+    const module = runModuleAt(inputs.modules, relocated, target);
+    if (module < 0 || module === c.module) return false;
+    diagnostics.push(
+      diagnostic(ModelCodes, 'W_CROSS_MODULE_SHORT_BRANCH', `the branch at ${hexAddr(site)} reaches ${hexAddr(target)} in module ${inputs.modules[module]?.name ?? ''} from module ${inputs.modules[c.module]?.name ?? ''}; it prints raw`, {
+        addr: site,
+        cites: [target],
+      }),
+    );
+    return true;
+  };
+
   const itemReason = (insn: Insn, c: ChunkPlan, resolver: SymbolResolver): ItemRawReason | null => {
     const encoding = specOf(insn.specId).raw?.(insn.fields) ?? null;
     if (encoding !== null) return encoding;
-    if (insn.mode === 'thumb' && insn.size === 2 && insn.flow.kind === 'branch') {
-      const target = runModuleAt(inputs.modules, relocated, insn.flow.target);
-      if (target >= 0 && target !== c.module) {
-        diagnostics.push(
-          diagnostic(ModelCodes, 'W_CROSS_MODULE_SHORT_BRANCH', `the branch at ${hexAddr(insn.addr)} reaches ${hexAddr(insn.flow.target)} in module ${inputs.modules[target]?.name ?? ''} from module ${inputs.modules[c.module]?.name ?? ''}; it prints raw`, {
-            addr: insn.addr,
-            cites: [insn.flow.target],
-          }),
-        );
-        return 'cross-module-short-branch';
-      }
-    }
+    if (insn.mode === 'thumb' && insn.size === 2 && insn.flow.kind === 'branch' && crossesModule(insn.addr, insn.flow.target, c)) return 'cross-module-short-branch';
     return cache.reasonOf(insn, resolver);
+  };
+
+  /** itemReason for an instruction codeRefs decoded already (its row has no encoding reason). */
+  const refReason = (ref: CodeRef, mode: Mode, c: ChunkPlan, resolver: SymbolResolver): ItemRawReason | null => {
+    if (ref.kind === 'short-branch' && crossesModule(ref.run, ref.target, c)) return 'cross-module-short-branch';
+    return cache.reasonOfNaming(mode, ref.specId, ref.word, ref.run, ref.target, resolver, () => decode(mode, ref.word, ref.run));
   };
 
   /** One concrete segment clipped to [a, b). */

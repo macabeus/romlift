@@ -9,7 +9,7 @@
 // pool load, a pool word naming it, its Thumb form included, a table entry), else 'module'. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
 import { decode } from '../../foundation/isa/decode.ts';
-import type { Insn } from '../../foundation/isa/types.ts';
+import type { Insn, SpecId } from '../../foundation/isa/types.ts';
 import { contains } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -39,24 +39,32 @@ function word32(rom: Rom, a: Addr): number {
 /** What an instruction names: a short Thumb branch, another branch, a bl, an adr or a pool load. */
 export type CodeRefKind = 'short-branch' | 'branch' | 'bl' | 'adr' | 'pool-load';
 
-/** One reference from an instruction: its load address and the run address it names. */
+/**
+ * One reference from an instruction: its load address, the run address it names, and what items.ts needs to
+ * classify it without decoding it again (its row, size, word and the run address it was decoded at).
+ */
 export interface CodeRef {
   readonly site: Addr;
   readonly target: Addr;
   readonly kind: CodeRefKind;
+  readonly specId: SpecId;
+  readonly size: 2 | 4;
+  readonly word: number;
+  readonly run: Addr;
 }
 
 function refOf(insn: Insn, site: Addr): CodeRef | undefined {
   const flow = insn.flow;
+  const ref = (target: Addr, kind: CodeRefKind): CodeRef => ({ site, target, kind, specId: insn.specId, size: insn.size, word: insn.word, run: insn.addr });
   switch (flow.kind) {
     case 'branch':
-      return { site, target: flow.target, kind: insn.mode === 'thumb' && insn.size === 2 ? 'short-branch' : 'branch' };
+      return ref(flow.target, insn.mode === 'thumb' && insn.size === 2 ? 'short-branch' : 'branch');
     case 'bl':
-      return { site, target: flow.target, kind: 'bl' };
+      return ref(flow.target, 'bl');
     case 'adr':
-      return { site, target: flow.target, kind: 'adr' };
+      return ref(flow.target, 'adr');
     case 'pool-load':
-      return { site, target: flow.pool, kind: 'pool-load' };
+      return ref(flow.pool, 'pool-load');
     default:
       return undefined;
   }
