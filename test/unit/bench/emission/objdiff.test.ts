@@ -165,6 +165,11 @@ test('resolvedCall: the reference resolved a bl to a function of its own object 
   assert.equal(resolvedCall('arg-mismatch', 'bl 0x7c', 'bl Other-0x4', functions), undefined);
   assert.equal(resolvedCall('replace', 'bl 0x7c', 'bl PutAnim-0x4', functions), undefined);
   assert.equal(resolvedCall('arg-mismatch', 'bl 0x7c', 'bl PutAnim-0x4', undefined), undefined);
+  // A Thumb tail branch and an ARM bl (PC addend -8) to a function of the same object; the mnemonics must agree.
+  assert.equal(resolvedCall('arg-mismatch', 'b 0x7c', 'b PutAnim-0x4', functions), 'PutAnim');
+  assert.equal(resolvedCall('arg-mismatch', 'bl 0x7c', 'bl PutAnim-0x8', functions), 'PutAnim');
+  assert.equal(resolvedCall('arg-mismatch', 'b 0x7c', 'bl PutAnim-0x4', functions), undefined);
+  assert.equal(resolvedCall('arg-mismatch', 'b 0x7c', 'b _0800007C-0x4', functions), undefined, 'a local label is no function of the object');
   const diff: FunctionDiff = { ...PAIRED, matchPercent: 99, instructionDifferences: [{ offset: 0x68, kind: 'arg-mismatch', reference: 'bl 0x7c', base: 'bl PutAnim-0x4' }] };
   assert.deepEqual(functionDifferences({ name: 'f', diff, referenceFunctions: functions }), [
     { function: 'f', kind: 'resolved-call', detail: '+0x68 arg-mismatch: bl 0x7c | bl PutAnim-0x4 (PutAnim is at that offset of the reference object)' },

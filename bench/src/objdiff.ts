@@ -9,8 +9,8 @@
 // Each difference has a kind; `unnamed-target` (a relocation whose reference side targets a section symbol)
 // is reported and not gated, every other kind fails g3.objdiff:
 //   instruction         a row whose instruction differs
-//   resolved-call       a `bl` the reference's assembler resolved inside its object, which the base, holding one
-//                       function, relocates against the same callee (the same call, counted apart)
+//   resolved-call       a `bl` or `b` the reference's assembler resolved inside its object, which the base, holding
+//                       one function, relocates against the same target (the same call, counted apart)
 //   relocation          a relocation whose targets differ, or that only the base carries
 //   missing-relocation  the reference relocates to a named symbol where the base holds a plain value
 //   missing-symbol      no reference object defines the name, or objdiff paired nothing with it
@@ -27,6 +27,7 @@ import {
   compareCodeUnits,
   configFromDiscover,
   contains,
+  itemAt,
   MACROS_PATH,
   parseElf,
   printChunk,
@@ -81,20 +82,24 @@ export type ComparedFunction =
     }
   | { readonly name: string; readonly failure: { readonly kind: 'missing-symbol' | 'assemble' | 'tool'; readonly detail: string } };
 
-const RESOLVED_BL = /^bl 0x([0-9a-f]+)$/;
-const RELOCATED_BL = /^bl ([A-Za-z_.$][A-Za-z0-9_.$]*)-0x4$/;
+/** A call or branch `as` resolved inside its object: the mnemonic (`bl`, `b`) and the target's offset. */
+const RESOLVED_BRANCH = /^(bl|b) 0x([0-9a-f]+)$/;
+/** The same branch relocated against a symbol: the mnemonic, the name and the PC addend (-4 Thumb, -8 ARM). */
+const RELOCATED_BRANCH = /^(bl|b) ([A-Za-z_.$][A-Za-z0-9_.$]*)-0x[48]$/;
 
 /**
- * The callee when a differing row is one call spelled two ways: the reference's `bl <offset>`, which `as`
- * resolved because the callee lies in the same object, and the base's `bl <name>-0x4`, a relocation against
- * that callee because the base holds one function, where the reference object defines <name> at <offset>.
+ * The callee when a differing row is one call or branch spelled two ways: the reference's `bl <offset>` or
+ * `b <offset>`, which `as` resolved because the target lies in the same object, and the base's `bl <name>-0x4`
+ * (`-0x8` in ARM state) or `b <name>-0x4`, a relocation against that target because the base holds one
+ * function, where the reference object defines <name> at <offset>.
  */
 export function resolvedCall(kind: string, reference: string | null, base: string | null, functions: ReadonlyMap<string, number> | undefined): string | undefined {
   if (kind !== 'arg-mismatch' || functions === undefined) return undefined;
-  const target = RESOLVED_BL.exec(reference ?? '')?.[1];
-  const callee = RELOCATED_BL.exec(base ?? '')?.[1];
-  if (target === undefined || callee === undefined) return undefined;
-  return functions.get(callee) === Number.parseInt(target, 16) ? callee : undefined;
+  const resolved = RESOLVED_BRANCH.exec(reference ?? '');
+  const relocated = RELOCATED_BRANCH.exec(base ?? '');
+  if (resolved === null || relocated === null || resolved[1] !== relocated[1]) return undefined;
+  const callee = relocated[2] ?? '';
+  return functions.get(callee) === Number.parseInt(resolved[2] ?? '', 16) ? callee : undefined;
 }
 
 const offsetText = (offset: number | null): string => (offset === null ? 'base only' : `+0x${offset.toString(16)}`);
@@ -210,10 +215,64 @@ export function namedConfig(config: RomliftConfig, rom: Rom, symbols: readonly E
   return { ...config, functions, symbols: named };
 }
 
-/** The base text of the function chunk at `chunk`: the dialect preamble, then the function writer's text. */
+/** The chunks of its module that hold a word chunk `chunk`'s PC-relative loads and adrs reach outside it. */
+function reachedChunks(rom: Rom, model: Model, chunk: number): number[] {
+  const c = model.chunks[chunk];
+  if (c === undefined) return [];
+  const offset = c.runAt === undefined ? 0 : c.runAt - c.span.start;
+  const out: number[] = [];
+  for (let i = c.items.first; i < c.items.first + c.items.count; i++) {
+    const item = itemAt(model.items, i, rom, offset);
+    if (item.kind !== 'insn' && item.kind !== 'raw-insn') continue;
+    const flow = item.insn?.flow;
+    const reached = flow?.kind === 'pool-load' ? flow.pool : flow?.kind === 'adr' ? flow.target : undefined;
+    if (reached === undefined) continue;
+    const load = reached - offset;
+    if (load >= c.span.start && load < c.span.end) continue;
+    const at = model.chunks.findIndex((k) => k.module === c.module && load >= k.span.start && load < k.span.end);
+    if (at >= 0) out.push(at);
+  }
+  return out;
+}
+
+/**
+ * The chunks a function chunk must be assembled with: the smallest run of chunks of its module around it that
+ * holds every word a PC-relative load or adr of any chunk of the run reaches (a far pool, an adr target). GNU as
+ * cannot relocate a PC-relative reference into another object (D63), so a function assembled alone would not
+ * assemble; with the chunks between, every distance is the tree's.
+ */
+export function pcRelativeChunkRange(rom: Rom, model: Model, chunk: number): { readonly first: number; readonly last: number } {
+  let first = chunk;
+  let last = chunk;
+  const done = new Set<number>();
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (let k = first; k <= last; k++) {
+      if (done.has(k)) continue;
+      done.add(k);
+      for (const at of reachedChunks(rom, model, k)) {
+        if (at < first || at > last) grew = true;
+        first = Math.min(first, at);
+        last = Math.max(last, at);
+      }
+    }
+  }
+  return { first, last };
+}
+
+/**
+ * The base text of the function chunk at `chunk`: the dialect preamble, then the function writer's text, with the
+ * chunks of its pcRelativeChunkRange around it, so a function whose pool lies in another chunk assembles. When
+ * the first of them starts off a word (a Thumb entry at 2 mod 4), as many zero bytes come first, so every
+ * PC-relative distance (Align(PC, 4) based) is the one it has in the ROM.
+ */
 export function functionSource(rom: Rom, model: Model, chunk: number): string {
   const c = model.chunks[chunk];
-  return `${DIALECT.preamble(c?.mode ?? 'thumb')}${printChunk(rom, model, chunk, 'readable').lines.join('\n')}\n`;
+  const { first, last } = pcRelativeChunkRange(rom, model, chunk);
+  const start = model.chunks[first]?.span.start ?? 0;
+  const lines: string[] = start % 4 === 0 ? [] : [`\t.space ${start % 4}`];
+  for (let k = first; k <= last; k++) for (const line of printChunk(rom, model, k, 'readable').lines) lines.push(line);
+  return `${DIALECT.preamble(model.chunks[first]?.mode ?? c?.mode ?? 'thumb')}${lines.join('\n')}\n`;
 }
 
 // ---------------------------------------------------------------------------------------------------

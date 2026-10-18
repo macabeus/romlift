@@ -217,7 +217,7 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
 }
 
 /** The reference ELF's symbols (readRealInputs already checked its digest). */
-async function elfSymbols(cx: BenchContext, d: Dataset): Promise<readonly ElfSymbol[]> {
+export async function elfSymbols(cx: BenchContext, d: Dataset): Promise<readonly ElfSymbol[]> {
   const elf = parseElf(await readFileBytes(join(cx.benchRoot, d.elf)));
   if (!elf.ok) throw new BenchError(`${d.name}: ${d.elf}: ${elf.error}`);
   return elf.value.symbols;
@@ -228,7 +228,7 @@ async function elfSymbols(cx: BenchContext, d: Dataset): Promise<readonly ElfSym
  * (D50), with the objects its map links when it records a map (doctor-real's `<rom>.objects-linked` checks
  * they are the linked ones).
  */
-async function referenceObjects(cx: BenchContext, d: Dataset): Promise<{ readonly dir: string; readonly digest: string; readonly linked?: ReadonlySet<string> }> {
+export async function referenceObjects(cx: BenchContext, d: Dataset): Promise<{ readonly dir: string; readonly digest: string; readonly linked?: ReadonlySet<string> }> {
   if (d.objectsDir === undefined || d.objectsDigest === undefined) throw new BenchError(`${d.name}: the dataset records no objectsDir and objectsDigest, which --scaffold's objdiff family needs`);
   const dir = join(cx.benchRoot, d.objectsDir);
   const digest = await objectsDigest(dir).catch((error: unknown) => {
