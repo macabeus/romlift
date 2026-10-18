@@ -2,7 +2,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BENCHMARK_ROWS, baselineRowsVerdict, type BaselineRowsInput } from '../../gates/baseline-rows-verdict.ts';
+import { BENCHMARK_ROWS, baselineRowsVerdict as verdictOf, type BaselineRowsInput } from '../../gates/baseline-rows-verdict.ts';
+import { TMC_AT_D61 } from '../../gates/dataset-binding.ts';
+
+/** The verdict on tmc's dataset as the owner decided on it, or on `dataset`. */
+const baselineRowsVerdict = (r: BaselineRowsInput, dataset: { readonly sha1: string; readonly elfSha256?: string } = TMC_AT_D61, rows = BENCHMARK_ROWS) => verdictOf(r, dataset, rows);
 
 function rom(over: Partial<BaselineRowsInput> = {}): BaselineRowsInput {
   return {
@@ -69,8 +73,26 @@ test('every other ROM is as strict as before: a listed row is not accepted witho
   assert.deepEqual(baselineRowsVerdict(five).problems, ['sa2: 3 rows differ from the PoC baseline without an accepted diff: false-entry-added 0x080B1AA8, miss-changed 0x080B20AC, false-entry-added 0x080B2718']);
   // A revealed ROM the owner did not make a benchmark row is strict too, and so is tmc without the decision.
   assert.equal(baselineRowsVerdict(rom({ name: 'kirby' })).problems.length, 1);
-  assert.equal(baselineRowsVerdict(rom(), {}).problems.length, 1);
+  assert.equal(baselineRowsVerdict(rom(), TMC_AT_D61, {}).problems.length, 1);
   // tmc with a baseline reference (a PoC row in the pinned baseline) would be judged as the five.
   assert.equal(baselineRowsVerdict(rom({ poc: { source: 'baseline' } })).problems.length, 1);
   assert.deepEqual(baselineRowsVerdict(rom({ name: 'sa2', poc: { source: 'baseline' }, baselineRows: { diffs: [], unaccepted: [], staleAccepted: [] } })).problems, []);
+});
+
+test('the benchmark row holds only for the ROM and ELF it was decided on (overfitting-correctness-r0-4)', () => {
+  const rebuilt = baselineRowsVerdict(rom(), { ...TMC_AT_D61, elfSha256: '0'.repeat(64) });
+  assert.equal(rebuilt.problems.length, 2);
+  assert.match(rebuilt.problems[0] ?? '', /^tmc: the D61 d scoping was decided on ROM SHA-1 b4bd50e4.*the scoping is stale, a new owner decision is needed$/);
+  assert.equal(rebuilt.problems[1], 'tmc: 3 rows differ from the PoC baseline without an accepted diff: false-entry-added 0x080B1AA8, miss-changed 0x080B20AC, false-entry-added 0x080B2718');
+  assert.deepEqual(rebuilt.acceptedListed, []);
+  assert.equal(baselineRowsVerdict(rom(), { sha1: 'c'.repeat(40), elfSha256: TMC_AT_D61.elfSha256 }).problems.length, 2);
+  assert.equal(baselineRowsVerdict(rom(), { sha1: TMC_AT_D61.sha1 }).problems.length, 2);
+  assert.deepEqual(BENCHMARK_ROWS['tmc']?.rom, TMC_AT_D61);
+});
+
+test('TMC_AT_D61 is the committed tmc dataset', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const d = JSON.parse(await readFile(new URL('../../../bench/dataset/real/tmc.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+  assert.equal(d['sha1'], TMC_AT_D61.sha1);
+  assert.equal(d['elfSha256'], TMC_AT_D61.elfSha256);
 });

@@ -56,7 +56,7 @@ gate({
         problems.push(missing);
         continue;
       }
-      const verdict = baselineRowsVerdict(rom);
+      const verdict = baselineRowsVerdict(rom, dataset);
       problems.push(...verdict.problems);
       notes.push(verdict.note);
     }

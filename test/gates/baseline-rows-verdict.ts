@@ -8,7 +8,11 @@
 // (BENCHMARK_ROWS): then a non-improvement row that the dataset lists with a category (a `labels` or
 // `untyped` row the run's row carries as `listed` with its `category`) is accepted and printed, every other
 // unaccepted row (an extent change, an unlisted or uncategorised row) still fails, stale accepted diffs
-// still fail, and the run's row must not fall below the floor the owner kept.
+// still fail, and the run's row must not fall below the floor the owner kept. A benchmark row is bound to
+// the ROM and ELF it was decided on (dataset-binding.ts): for another build of that name it is stale and
+// fails, and the ROM is judged as without it.
+
+import { bindingMismatch, TMC_AT_D61, type DatasetBinding } from './dataset-binding.ts';
 
 export interface RowDiff {
   readonly kind: string;
@@ -38,6 +42,8 @@ export interface BenchmarkRow {
   readonly decided: string;
   readonly decision: string;
   readonly words: string;
+  /** The dataset it was decided on. */
+  readonly rom: DatasetBinding;
   /** The row later work must not regress: true positives and ELF functions when it was decided. */
   readonly floor: { readonly tp: number; readonly elfFunctions: number };
 }
@@ -51,6 +57,7 @@ export const BENCHMARK_ROWS: Readonly<Record<string, BenchmarkRow>> = {
     decided: '2026-10-18',
     decision: 'D61 d',
     words: "Keep tmc as 99.94%. It's a benchmark row that we can improve later",
+    rom: TMC_AT_D61,
     floor: { tp: 8631, elfFunctions: 8636 },
   },
 };
@@ -74,11 +81,17 @@ function rows(list: readonly RowDiff[]): string {
   return list.slice(0, 8).map((d) => `${d.kind} ${d.addr}`).join(', ');
 }
 
-/** The verdict on one ROM's rows against its PoC reference. */
-export function baselineRowsVerdict(rom: BaselineRowsInput, benchmarkRows: Readonly<Record<string, BenchmarkRow>> = BENCHMARK_ROWS): BaselineRowsVerdict {
+/** The verdict on one ROM's rows against its PoC reference; `dataset` is the ROM's dataset (its ROM SHA-1 and ELF SHA-256). */
+export function baselineRowsVerdict(
+  rom: BaselineRowsInput,
+  dataset: { readonly sha1: string; readonly elfSha256?: string | undefined },
+  benchmarkRows: Readonly<Record<string, BenchmarkRow>> = BENCHMARK_ROWS,
+): BaselineRowsVerdict {
   const { diffs, unaccepted, staleAccepted } = rom.baselineRows;
-  const bench = rom.poc.source === 'dump' ? benchmarkRows[rom.name] : undefined;
-  const problems: string[] = [];
+  const named = rom.poc.source === 'dump' ? benchmarkRows[rom.name] : undefined;
+  const unbound = named === undefined ? undefined : bindingMismatch(rom.name, named.decision, named.rom, dataset);
+  const bench = unbound === undefined ? named : undefined;
+  const problems: string[] = unbound === undefined ? [] : [unbound];
   const acceptedListed: (RowDiff & { readonly category: string })[] = [];
   const left: RowDiff[] = bench === undefined ? [...unaccepted] : [];
   if (bench !== undefined) {
