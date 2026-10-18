@@ -62,6 +62,27 @@ test('the gate record is kept only when the source digest and inputs are unchang
   assert.deepEqual(keptGates(undefined, previous.meta), []);
 });
 
+test('a phase-3 row and artifact round-trip: readability, objdiff, the tree digest, the memory member, objdiff-cli and the objects digest', () => {
+  const shares = { mnemonicShare: 0.99, symbolicBranchShare: 1, symbolicPoolShare: 0.5 };
+  const objdiff = { linked: true, scored: 4, differences: { relocation: 1, 'unnamed-target': 2 }, examples: [{ function: 'f', kind: 'relocation', detail: '+0x4 R_ARM_ABS32: a | b' }] };
+  const phase3 = row({ readability: { ...shares, floor: null }, objdiff, treeDigest: 't'.repeat(64) });
+  const floored = row({ name: 'sa2', readability: { ...shares, floor: shares } });
+  const memory = { romBytes: 33554432, sha1: 'b'.repeat(40), runs: [{ command: 'init', exitCode: 0, maxRssMiB: 300.5 }, { command: 'generate', exitCode: 0, maxRssMiB: 280, treeDigest: 'c'.repeat(64) }] };
+  const m = meta({ toolchain: { as: 'GNU assembler 2.45', ld: 'GNU ld 2.45', objcopy: 'GNU objcopy 2.45', objdiff: 'objdiff-cli 3.7.2' }, inputs: { tiny: { sha1: 'a', elfSha256: 'b', objectsDigest: 'o'.repeat(64) }, pocSourceDigest: 'p' } });
+  const r = results([phase3, floored], { meta: m, memory });
+  const text = resultsText(r);
+  assert.deepEqual(parseResultsText(text, 'x'), { ...r, roms: [floored, phase3] });
+  assert.deepEqual(Object.keys(JSON.parse(text) as object), ['meta', 'memory', 'gates', 'roms']);
+  assert.throws(() => parseResults({ meta: meta(), roms: [{ ...phase3, objdiff: { ...objdiff, linked: 'yes' } }] }, 'x'), /objdiff\.linked: must be a boolean/);
+  assert.throws(() => parseResults({ meta: meta(), roms: [{ ...phase3, readability: { ...shares } }] }, 'x'), /readability\.floor: must be an object/);
+  assert.throws(() => parseResults({ meta: meta(), roms: [], memory: { ...memory, runs: [{ command: 'init' }] } }, 'x'), /memory\.runs\[0\]\.exitCode: must be a number/);
+  // A phase-2 artifact (no objdiff-cli, no phase-3 member) still reads: it is a regression base.
+  const old = parseResults({ meta: meta(), roms: [row()] }, 'x');
+  assert.equal(old.meta.toolchain.objdiff, undefined);
+  assert.equal(old.memory, undefined);
+  assert.equal(old.roms[0]?.readability, undefined);
+});
+
 test('families: printer and scaffold from phase 1, entries, extents and code end from phase 2', () => {
   assert.deepEqual(liveFamilies(0, 'rom'), []);
   assert.deepEqual(liveFamilies(1, 'rom'), ['scaffold']);

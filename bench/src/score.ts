@@ -18,6 +18,28 @@ export function extentAgrees(elfSize: number, extent: number): boolean {
   return elfSize === extent || elfSize === extent + ((4 - (extent & 3)) & 3);
 }
 
+/**
+ * How the extents family judges a found function: undefined when it is not sized (its entry is before the
+ * startup end, is not an ELF function, or the ELF gives it no size); else the ELF function and whether the
+ * extent agrees. The objdiff family scores exactly the functions this says agree (D34).
+ */
+export function extentJudgement(f: Pick<FoundFunction, 'entry' | 'end'>, truth: Pick<Truth, 'byAddr'>, startupEnd: number): { readonly elf: Truth['functions'][number]; readonly agrees: boolean } | undefined {
+  if (f.entry < startupEnd) return undefined;
+  const t = truth.byAddr.get(f.entry);
+  if (t === undefined || t.size === 0) return undefined;
+  return { elf: t, agrees: extentAgrees(t.size, f.end - f.entry) };
+}
+
+/** The found functions whose entry and extent agree with the ELF, with their ELF function, in entry order. */
+export function agreeingFunctions<F extends Pick<FoundFunction, 'entry' | 'end'>>(found: readonly F[], truth: Pick<Truth, 'byAddr'>, startupEnd: number): { readonly found: F; readonly elf: Truth['functions'][number] }[] {
+  const out: { readonly found: F; readonly elf: Truth['functions'][number] }[] = [];
+  for (const f of [...found].sort((a, b) => compareNumbers(a.entry, b.entry))) {
+    const judged = extentJudgement(f, truth, startupEnd);
+    if (judged?.agrees === true) out.push({ found: f, elf: judged.elf });
+  }
+  return out;
+}
+
 /** A function a run found: its entry, the end of its extent, its mode and its origin. */
 export interface FoundFunction {
   readonly entry: number;
@@ -91,10 +113,10 @@ export function scoreParts(run: RunParts, { truth, dataset, sha1 }: ScoreContext
   let sized = 0;
   let agree = 0;
   for (const f of found) {
-    const t = truth.byAddr.get(f.entry);
-    if (t === undefined || !truthFromAddr.has(f.entry) || t.size === 0) continue;
+    const judged = extentJudgement(f, truth, startupEnd);
+    if (judged === undefined) continue;
     sized++;
-    if (extentAgrees(t.size, f.end - f.entry)) agree++;
+    if (judged.agrees) agree++;
   }
   // The PoC lists extent mismatches over every ELF function, startup included.
   const mismatches: ExtentRow[] = [];

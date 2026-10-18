@@ -13,6 +13,7 @@ import { currentNodeMajor, sourceDigest } from './digest.ts';
 import { liveFamilies, type Family } from './families.ts';
 import { BenchError, isRecord, readJson } from './files.ts';
 import { discoverGateFiles, type GateFile } from './gate-files.ts';
+import type { BenchRow } from './row.ts';
 
 export type ProvenanceCheckId = 'source-digest' | 'gate-record' | 'families' | 'dataset-rows' | 'heldout-rows';
 
@@ -75,7 +76,11 @@ export function checkFamilies(artifact: Results | undefined, landed: number, dat
   const problems: string[] = [];
   for (const d of datasets.filter((x) => !isSealed(x))) {
     const ran = new Set(artifact.meta.families[d.name] ?? []);
-    for (const f of romFamilies) if (!ran.has(f)) problems.push(`${d.name}: family ${f} did not run`);
+    const row = artifact.roms.find((r) => r.name === d.name);
+    for (const f of romFamilies) {
+      if (!ran.has(f)) problems.push(`${d.name}: family ${f} did not run`);
+      else if (row !== undefined && !romMemberPresent(row, f)) problems.push(`${d.name}: family ${f} ran but its row holds no ${f} member`);
+    }
   }
   for (const f of globalFamilies) if (!globalFamilyPresent(artifact, f)) problems.push(`the ${f} family is absent from the artifact`);
   if (problems.length > 0) return { id: 'families', ok: false, detail: problems.join('; ') };
@@ -83,11 +88,29 @@ export function checkFamilies(artifact: Results | undefined, landed: number, dat
   return { id: 'families', ok: true, detail: live.length === 0 ? `no family is live at phase ${landed}` : `live: ${live.join(', ')}` };
 }
 
+/**
+ * Whether a tuning row holds the member of a per-ROM family that has one: `readability` (from phase 3) and
+ * `scaffold` (the PoC's verdict in phases 1 and 2, romlift's raw link from phase 3); the other families are
+ * the row itself.
+ */
+export function romMemberPresent(row: BenchRow, family: Family): boolean {
+  switch (family) {
+    case 'readability':
+      return row.readability !== undefined;
+    case 'scaffold':
+      return row.scaffold !== undefined;
+    default:
+      return true;
+  }
+}
+
 /** Whether the artifact holds the top-level member of a global family; a family whose member the artifact cannot hold yet is absent. */
 export function globalFamilyPresent(artifact: Results, family: Family): boolean {
   switch (family) {
     case 'printer':
       return artifact.printer !== undefined;
+    case 'memory':
+      return artifact.memory !== undefined;
     default:
       return false;
   }
