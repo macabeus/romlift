@@ -1,0 +1,12 @@
+==> asm/nonmatchings/main/unk_08000124.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 4 bytes
+.global unk_08000124
+unk_08000124: @ 08000124
+	.4byte 0x0000E7FC
+==> asm/nonmatchings/main/unk_0800012E.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 2 bytes
+.global unk_0800012E
+unk_0800012E: @ 0800012E
+	.2byte 0x46C0

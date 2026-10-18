@@ -1,20 +1,36 @@
-// The synthetic-tier analysis digests of one CI job (architecture §8.6, D30), and their comparison
-// across jobs:
+// The synthetic-tier analysis and tree digests of one CI job (architecture §8.6, §13 g3.tree-determinism,
+// D30), and their comparison across jobs:
 //
 //   node --conditions=source bench/tools/ci-digests.ts
-//     prints one line {schema: 'romlift-bench/ci-digests@1', node, os, digests: {<fixture>: sha256}}: for
-//     each committed fixture (bench/dataset/synthetic/<name>/build/<name>.gba), the sha256 of
-//     encodeAnalysis of romlift's seedless discover analysis with profileById('agbcc'). The digests
-//     depend on nothing but the sources and the fixtures, so the line is the same from any working
+//     prints one line {schema: 'romlift-bench/ci-digests@2', node, os, digests: {<fixture>: sha256},
+//     trees: {<fixture>: sha256}}: for each committed fixture (bench/dataset/synthetic/<name>/build/<name>.gba),
+//     `digests` holds the sha256 of encodeAnalysis of romlift's seedless discover analysis with
+//     profileById('agbcc'), and `trees` the digest g3.tree-determinism computes of the tree emitted from it
+//     (configFromDiscover, buildModel, emitTree with the readable printer and an empty DecompState): the
+//     sha256 over path, NUL, content (a reconciled entry's edits as JSON), NUL, per entry in stream order.
+//     Both depend on nothing but the sources and the fixtures, so the line is the same from any working
 //     directory, time zone or locale on one machine (ci.yml's determinism run compares two).
 //   node --conditions=source bench/tools/ci-digests.ts --compare <file>... [--expect <n>]
-//     exit 0 when the files (one per job) hold the same fixtures with the same digests, and there are
-//     exactly n of them when --expect is given; exit 1 naming every disagreement otherwise.
+//     exit 0 when the files (one per job) hold the same fixtures with the same analysis and tree digests,
+//     and there are exactly n of them when --expect is given; exit 1 naming every disagreement otherwise.
 import { readFile } from 'node:fs/promises';
 import { arch, platform } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-import { analyze, compareCodeUnits, encodeAnalysis, profileById, romFromBytes, type CompilerProfile } from 'romlift';
+import {
+  analyze,
+  buildModel,
+  compareCodeUnits,
+  configFromDiscover,
+  emitTree,
+  encodeAnalysis,
+  profileById,
+  romFromBytes,
+  type AnalysisResult,
+  type CompilerProfile,
+  type FileEntry,
+  type Rom,
+} from 'romlift';
 import { sha1Of, sha256Stream } from 'romlift/node';
 
 import { listFixtures } from '../src/ablate.ts';
@@ -23,7 +39,7 @@ import { parseArgs, UsageError } from '../src/args.ts';
 import { contextFromEnv, type BenchContext } from '../src/context.ts';
 import { BenchError, isRecord, readFileBytes } from '../src/files.ts';
 
-export const CI_DIGESTS_SCHEMA = 'romlift-bench/ci-digests@1';
+export const CI_DIGESTS_SCHEMA = 'romlift-bench/ci-digests@2';
 
 /** What one job uploads. */
 export interface CiDigests {
@@ -34,6 +50,8 @@ export interface CiDigests {
   readonly os: string;
   /** sha256 of the encoded analysis, per fixture, in fixture-name order. */
   readonly digests: Readonly<Record<string, string>>;
+  /** The g3.tree-determinism digest of the emitted tree, per fixture, in fixture-name order. */
+  readonly trees: Readonly<Record<string, string>>;
 }
 
 export interface Machine {
@@ -54,8 +72,28 @@ function agbcc(): CompilerProfile {
 
 /** The sha256 of encodeAnalysis of the seedless discover analysis of `bytes` (D24). */
 export function fixtureDigest(bytes: Uint8Array, profile: CompilerProfile = agbcc()): string {
-  const result = analyze(romFromBytes(bytes, sha1Of(bytes)), profile, discoverOptions());
-  return sha256Stream(encodeAnalysis(result));
+  return fixtureDigests(bytes, profile).analysis;
+}
+
+function* treeParts(entries: Iterable<FileEntry>): Generator<string> {
+  for (const entry of entries) yield `${entry.path}\0${entry.ownership === 'reconciled' ? JSON.stringify(entry.edits) : entry.text}\0`;
+}
+
+/**
+ * The g3.tree-determinism digest of the tree emitted from `analysis`: configFromDiscover, buildModel and
+ * emitTree with the readable printer and an empty DecompState, hashed as the sha256 over path, NUL, content
+ * (a reconciled entry's edits as JSON), NUL, per entry in stream order.
+ */
+export function treeDigest(rom: Rom, analysis: AnalysisResult): string {
+  const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
+  return sha256Stream(treeParts(emitTree(rom, model, { decomp: { defined: new Set<string>() } })));
+}
+
+/** The analysis digest of `bytes` and the tree digest emitted from the same analysis. */
+export function fixtureDigests(bytes: Uint8Array, profile: CompilerProfile = agbcc()): { readonly analysis: string; readonly tree: string } {
+  const rom = romFromBytes(bytes, sha1Of(bytes));
+  const result = analyze(rom, profile, discoverOptions());
+  return { analysis: sha256Stream(encodeAnalysis(result)), tree: treeDigest(rom, result) };
 }
 
 /** The digests of every committed fixture of `cx`; refuses a checkout without fixtures. */
@@ -64,28 +102,38 @@ export async function collectCiDigests(cx: BenchContext, machine: Machine): Prom
   if (fixtures.length === 0) throw new BenchError('no committed fixture under bench/dataset/synthetic');
   const profile = agbcc();
   const digests: Record<string, string> = {};
-  for (const f of fixtures) digests[f.name] = fixtureDigest(await readFileBytes(f.rom), profile);
-  return { schema: CI_DIGESTS_SCHEMA, node: machine.node, os: machine.os, digests };
+  const trees: Record<string, string> = {};
+  for (const f of fixtures) {
+    const both = fixtureDigests(await readFileBytes(f.rom), profile);
+    digests[f.name] = both.analysis;
+    trees[f.name] = both.tree;
+  }
+  return { schema: CI_DIGESTS_SCHEMA, node: machine.node, os: machine.os, digests, trees };
 }
 
 const SHA256 = /^[0-9a-f]{64}$/;
+
+/** One `{<fixture>: sha256}` member, keys sorted; throws a BenchError naming `where.key`. */
+function digestMap(value: unknown, where: string, key: string): Record<string, string> {
+  if (!isRecord(value)) throw new BenchError(`${where}: ${key} is not an object`);
+  const out: Record<string, string> = {};
+  for (const name of Object.keys(value).sort(compareCodeUnits)) {
+    const digest = value[name];
+    if (typeof digest !== 'string' || !SHA256.test(digest)) throw new BenchError(`${where}: ${key}.${name} is not a sha256`);
+    out[name] = digest;
+  }
+  if (Object.keys(out).length === 0) throw new BenchError(`${where}: ${key} is empty`);
+  return out;
+}
 
 /** Reads one uploaded file's JSON; throws a BenchError naming `where` and the first problem. */
 export function parseCiDigests(value: unknown, where: string): CiDigests {
   if (!isRecord(value)) throw new BenchError(`${where}: not a JSON object`);
   if (value['schema'] !== CI_DIGESTS_SCHEMA) throw new BenchError(`${where}: schema is ${JSON.stringify(value['schema'])}, expected ${CI_DIGESTS_SCHEMA}`);
-  const { node, os, digests } = value;
+  const { node, os } = value;
   if (typeof node !== 'string' || node === '') throw new BenchError(`${where}: node is not a non-empty string`);
   if (typeof os !== 'string' || os === '') throw new BenchError(`${where}: os is not a non-empty string`);
-  if (!isRecord(digests)) throw new BenchError(`${where}: digests is not an object`);
-  const out: Record<string, string> = {};
-  for (const name of Object.keys(digests).sort(compareCodeUnits)) {
-    const digest = digests[name];
-    if (typeof digest !== 'string' || !SHA256.test(digest)) throw new BenchError(`${where}: digests.${name} is not a sha256`);
-    out[name] = digest;
-  }
-  if (Object.keys(out).length === 0) throw new BenchError(`${where}: digests is empty`);
-  return { schema: CI_DIGESTS_SCHEMA, node, os, digests: out };
+  return { schema: CI_DIGESTS_SCHEMA, node, os, digests: digestMap(value['digests'], where, 'digests'), trees: digestMap(value['trees'], where, 'trees') };
 }
 
 export interface JobDigests {
@@ -96,26 +144,34 @@ export interface JobDigests {
 
 const jobName = (j: JobDigests): string => `${j.report.os} Node ${j.report.node} (${j.source})`;
 
+/** The two digest kinds a job reports, with the words a disagreement is named by. */
+const KINDS: readonly { readonly key: 'digests' | 'trees'; readonly what: string; readonly missing: string }[] = [
+  { key: 'digests', what: 'the analysis digests differ', missing: 'missing' },
+  { key: 'trees', what: 'the tree digests differ', missing: 'tree digest missing' },
+];
+
 /**
  * Every way the jobs disagree: a count other than `expect`, a fixture some job lacks, a fixture whose
- * digest differs between jobs. Empty when they all agree.
+ * analysis digest or tree digest differs between jobs. Empty when they all agree.
  */
 export function compareCiDigests(jobs: readonly JobDigests[], expect?: number): string[] {
   const problems: string[] = [];
   if (expect !== undefined && jobs.length !== expect) problems.push(`${jobs.length} digest file(s), expected ${expect}`);
   if (jobs.length === 0) return problems.length > 0 ? problems : ['no digest file to compare'];
-  const names = [...new Set(jobs.flatMap((j) => Object.keys(j.report.digests)))].sort(compareCodeUnits);
+  const names = [...new Set(jobs.flatMap((j) => [...Object.keys(j.report.digests), ...Object.keys(j.report.trees)]))].sort(compareCodeUnits);
   for (const name of names) {
-    const lacking = jobs.filter((j) => j.report.digests[name] === undefined);
-    if (lacking.length > 0) problems.push(`${name}: missing on ${lacking.map(jobName).join(', ')}`);
-    const seen = new Map<string, JobDigests[]>();
-    for (const j of jobs) {
-      const digest = j.report.digests[name];
-      if (digest !== undefined) seen.set(digest, [...(seen.get(digest) ?? []), j]);
-    }
-    if (seen.size > 1) {
-      const groups = [...seen.keys()].sort(compareCodeUnits).map((digest) => `${digest} on ${(seen.get(digest) ?? []).map(jobName).join(', ')}`);
-      problems.push(`${name}: the analysis digests differ: ${groups.join('; ')}`);
+    for (const kind of KINDS) {
+      const lacking = jobs.filter((j) => j.report[kind.key][name] === undefined);
+      if (lacking.length > 0) problems.push(`${name}: ${kind.missing} on ${lacking.map(jobName).join(', ')}`);
+      const seen = new Map<string, JobDigests[]>();
+      for (const j of jobs) {
+        const digest = j.report[kind.key][name];
+        if (digest !== undefined) seen.set(digest, [...(seen.get(digest) ?? []), j]);
+      }
+      if (seen.size > 1) {
+        const groups = [...seen.keys()].sort(compareCodeUnits).map((digest) => `${digest} on ${(seen.get(digest) ?? []).map(jobName).join(', ')}`);
+        problems.push(`${name}: ${kind.what}: ${groups.join('; ')}`);
+      }
     }
   }
   return problems;
@@ -138,7 +194,7 @@ async function compareFiles(files: readonly string[], expect: number | undefined
     return 1;
   }
   const fixtures = Object.keys(jobs[0]?.report.digests ?? {}).length;
-  process.stdout.write(`${fixtures} fixture digest(s) agree across ${jobs.length} job(s): ${jobs.map((j) => `${j.report.os} Node ${j.report.node}`).join(', ')}\n`);
+  process.stdout.write(`${fixtures} fixture analysis and tree digest(s) agree across ${jobs.length} job(s): ${jobs.map((j) => `${j.report.os} Node ${j.report.node}`).join(', ')}\n`);
   return 0;
 }
 

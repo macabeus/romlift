@@ -4,9 +4,12 @@
 // mode merged first, so a bl pair is never split between two functions' readings), pool words from `pools`
 // and `farPools`, table entries from the jump tables, padding (zeros up to a word boundary) and data from the
 // region rules' claims. Where two facts overlap, the earlier start wins, then code over pools, tables,
-// padding and data. Every other byte is data, noted `dead` (claim.dead-code-in-extent), `mixer-hole` (a hole
-// kept inside an extent) or `unreached` (any other byte inside an extent); the header and data chunks carry
-// no notes, and data items are split only at labels, so a data module is a few large items.
+// padding and data. Inside a code chunk, the free zero bytes from a non-word address up to a pool word or
+// table entry at the next word boundary are padding too (D16: zero bytes up to a word boundary print as
+// `.align 2, 0`; agbcc's `.align 2, 0` before a literal pool, which no walk reaches). Every other byte is
+// data, noted `dead` (claim.dead-code-in-extent), `mixer-hole` (a hole kept inside an extent) or `unreached`
+// (any other byte inside an extent); the header and data chunks carry no notes, and data items are split
+// only at labels, so a data module is a few large items.
 //
 // An instruction is an `insn` item when it prints as a mnemonic: its text, parsed and assembled at its run
 // address with the labels its module sees, gives back its bytes (foundation/isa roundtrip). Otherwise it is a
@@ -414,6 +417,17 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
     return cache.reasonOfNaming(mode, ref.specId, ref.word, ref.run, ref.target, resolver, () => decode(mode, ref.word, ref.run));
   };
 
+  /**
+   * Whether the free bytes [a, b) of a code chunk are the zeros up to a word boundary before the pool word or
+   * table entry `s` (D16), with no label inside them: they are then a padding item, printed `.align 2, 0`.
+   */
+  const alignsTo = (a: Addr, b: Addr, s: Segment): boolean => {
+    if ((s.kind !== 'pool' && s.kind !== 'table') || s.start !== b || b % 4 !== 0 || b - a >= 4) return false;
+    for (let at = a; at < b; at++) if (rom.bytes[at - rom.base] !== 0) return false;
+    const label = labelStarts[firstAbove(labelStarts, a)];
+    return label === undefined || label >= b;
+  };
+
   /** One concrete segment clipped to [a, b). */
   const fillSegment = (s: Segment, a: Addr, b: Addr, c: ChunkPlan, offset: number): void => {
     const whole = a === s.start && b === s.end;
@@ -453,7 +467,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
         const s = segments.concrete[k] as Segment;
         if (s.start >= end) break;
         const a = Math.max(s.start, start);
-        if (a > at) fillData(at, a, noted);
+        if (a > at && noted && alignsTo(at, a, s)) table.append({ kind: 'padding', start: at, length: a - at });
+        else if (a > at) fillData(at, a, noted);
         const b = Math.min(s.end, end);
         fillSegment(s, a, b, c, offset);
         at = b;

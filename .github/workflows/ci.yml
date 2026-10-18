@@ -7,6 +7,10 @@
 # varied environment and another working directory, and one file of synthetic-tier analysis digests per
 # job (bench/tools/ci-digests.ts), which the final job compares across Linux, macOS and both Node
 # versions.
+#
+# Phase 3 adds the tree digest per fixture to the same file (ci-digests@2: the digest g3.tree-determinism
+# computes of the tree emitted from the discover model), so the varied-environment run and the final job
+# compare the emitted trees too: g3.tree-determinism's "Linux and macOS agree".
 name: ci
 
 on:
@@ -52,10 +56,10 @@ jobs:
         run: npm run bench -- gates --require "$(node -p "require('./test/gates/phase.json').landed")" --tier ci
       - name: Regression against the merge-base with main
         run: npm run bench -- regression
-      - name: Synthetic-tier analysis digests
+      - name: Synthetic-tier analysis and tree digests
         run: node --conditions=source bench/tools/ci-digests.ts > "$RUNNER_TEMP/ci-digests.json"
-      # The same digests from another working directory, in another time zone and locale, must be the
-      # same bytes (the ci tier of g2.determinism runs the CLI the same way once phase 2 has landed).
+      # The same analysis and tree digests from another working directory, in another time zone and locale,
+      # must be the same bytes (the ci tiers of g2.determinism and g3.tree-determinism run the same way).
       - name: Determinism with a varied environment and another working directory
         env:
           TZ: Pacific/Kiritimati
@@ -66,7 +70,7 @@ jobs:
           cd "$RUNNER_TEMP/elsewhere/second run"
           node --conditions=source "$GITHUB_WORKSPACE/bench/tools/ci-digests.ts" > varied.json
           cmp "$RUNNER_TEMP/ci-digests.json" varied.json
-      - name: Upload the analysis digests
+      - name: Upload the analysis and tree digests
         uses: actions/upload-artifact@v4
         with:
           name: ci-digests-${{ matrix.os }}-node-${{ matrix.node }}
@@ -75,7 +79,7 @@ jobs:
           retention-days: 7
 
   digests:
-    name: Analysis digests agree across Linux, macOS and both Node versions
+    name: Analysis and tree digests agree across Linux, macOS and both Node versions
     needs: check
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest

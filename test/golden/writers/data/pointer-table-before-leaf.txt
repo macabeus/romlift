@@ -1,0 +1,10 @@
+==> data/data.s (generated, data) <==
+.syntax unified
+.include "include/macros.inc"
+.thumb
+
+@ data module data: 0x0800014C..0x08000150, 4 bytes
+
+	.global gUnk_0800014C
+gUnk_0800014C: @ 0x0800014C
+	.incbin "baserom.gba", 0x14C, 0x4

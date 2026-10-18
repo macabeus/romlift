@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
-import { layoutStatements } from '../../../src/foundation/asm/layout.ts';
-import type { Layout, LayoutInput } from '../../../src/foundation/asm/layout.ts';
+import { layoutMemo, layoutStatements } from '../../../src/foundation/asm/layout.ts';
+import type { Layout, LayoutInput, LayoutMemo } from '../../../src/foundation/asm/layout.ts';
 import { parseStatements } from '../../../src/foundation/asm/statements.ts';
 import type { Statement } from '../../../src/foundation/asm/statements.ts';
 import type { Mode } from '../../../src/foundation/rom/span.ts';
@@ -26,6 +26,8 @@ interface Options {
   readonly symbols?: Readonly<Record<string, number>>;
   readonly files?: Readonly<Record<string, Uint8Array>>;
   readonly includes?: Readonly<Record<string, string>>;
+  readonly memo?: LayoutMemo;
+  readonly sameObject?: (name: string) => boolean;
 }
 
 function lay(text: string, options: Options = {}): Layout {
@@ -42,6 +44,8 @@ function lay(text: string, options: Options = {}): Layout {
       const inner = includes[path];
       return inner === undefined ? undefined : statementsOf(inner);
     },
+    ...(options.memo === undefined ? {} : { memo: options.memo }),
+    ...(options.sameObject === undefined ? {} : { sameObject: options.sameObject }),
   };
   return layoutStatements(input);
 }
@@ -322,4 +326,53 @@ test('an instruction at an address its state cannot hold is refused', () => {
   const arm = lay('.arm\n\t.byte 0\n\tbx lr', { mode: 'arm' });
   assert.deepEqual(arm.errors, [{ line: 3, at: BASE + 1, message: 'arm instruction at an unaligned address' }]);
   assert.equal(arm.end, BASE + 5);
+});
+
+test('a memo shared across layouts changes no byte: texts naming no symbol are reused, named ones are not', () => {
+  const text = `.thumb
+push {lr}
+adds r0, r1, #0
+ldr r0, Far
+bl Callee
+lsls r1, r0, #3
+pop {r0}
+bx r0
+`;
+  const memo = layoutMemo();
+  const cases: readonly Options[] = [
+    { start: BASE + 0x100, symbols: { Far: BASE + 0x200, Callee: BASE + 0x400 } },
+    { start: BASE + 0x102, symbols: { Far: BASE + 0x204, Callee: BASE + 0x80 } },
+    { start: BASE + 0x104, symbols: { Far: BASE + 0x10c, Callee: BASE + 0x1000 } },
+    { start: BASE + 0x100, symbols: { Far: BASE + 0x3fc, Callee: BASE + 0x100 } },
+  ];
+  for (const options of cases) {
+    const alone = clean(text, options);
+    const shared = clean(text, { ...options, memo });
+    assert.deepEqual(shared.bytes, alone.bytes, `start 0x${(options.start ?? BASE).toString(16)}`);
+  }
+  // The named texts (`ldr r0, Far`, `bl Callee`) stay out of the word memo; the others are in it once per word alignment.
+  assert.ok([...memo.words.keys()].every((key) => !key.includes('Far') && !key.includes('Callee')));
+  assert.ok(memo.words.has('t0push {lr}') && memo.words.has('t2push {lr}'));
+  // An unparsable or unencodable text is refused with or without the memo.
+  const bad = lay('.thumb\nadds r0, #999\n', { memo });
+  assert.deepEqual(
+    bad.errors.map((e) => e.message),
+    lay('.thumb\nadds r0, #999\n').errors.map((e) => e.message),
+  );
+  assert.ok(bad.errors.length > 0);
+});
+
+test('a PC-relative load or adr naming a symbol of another object is refused; a branch or a data word is not', () => {
+  const text = '.thumb\nldr r0, Pool\nbl Callee\n.4byte Pool\n.align 2, 0\nadr r1, Pool\n';
+  const symbols = { Pool: BASE + 0x40, Callee: BASE + 0x201 };
+  clean(text, { symbols });
+  clean(text, { symbols, sameObject: (name) => name === 'Pool' });
+  const out = lay(text, { symbols, sameObject: (name) => name !== 'Pool' });
+  assert.deepEqual(
+    out.errors.map((e) => [e.line, e.at - BASE, e.message]),
+    [
+      [2, 0, '`ldr r0, Pool` reaches `Pool` PC-relatively in another object, which `as` cannot relocate'],
+      [6, 0xc, '`adr r1, Pool` reaches `Pool` PC-relatively in another object, which `as` cannot relocate'],
+    ],
+  );
 });

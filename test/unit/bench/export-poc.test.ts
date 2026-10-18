@@ -7,9 +7,15 @@ import {
   deterministicDigest,
   isExportMode,
   parityFromChild,
+  pocChunkFile,
+  pocChunkLines,
   pocDigestsDocument,
   pocDigestsText,
+  pocRawDump,
+  POC_RAW_SCHEMA,
   queriesFromChild,
+  rawFromChild,
+  type PocRawChunk,
 } from '../../../bench/tools/export-poc.ts';
 
 const SOURCE = 'a'.repeat(64);
@@ -27,8 +33,8 @@ function rawView(codeEnd = 0x0800_0010): Record<string, unknown> {
 
 const view = (codeEnd?: number): ParityView => parseParityView(rawView(codeEnd), 'v');
 
-test('export-poc accepts the three modes only', () => {
-  assert.ok(isExportMode('scored') && isExportMode('parity') && isExportMode('queries'));
+test('export-poc accepts the four modes only', () => {
+  assert.ok(isExportMode('scored') && isExportMode('parity') && isExportMode('queries') && isExportMode('raw'));
   assert.ok(!isExportMode('all') && !isExportMode(undefined));
 });
 
@@ -82,4 +88,57 @@ test('a queries run is refused unless its parity digest is the committed one', (
   assert.throws(() => checkCommittedDigest('tiny', parityDigest(view(0x0800_0014)), committed, SOURCE), /tiny: the instrumented run has parity digest/);
   assert.throws(() => checkCommittedDigest('sa2', digest, committed, SOURCE), /sa2: .* has no digest for it; run --mode parity first/);
   assert.throws(() => checkCommittedDigest('tiny', digest, committed, OTHER_SOURCE), /pins another PoC checkout/);
+});
+
+// ---------------------------------------------------------------- --mode raw
+
+const FUNC: PocRawChunk = { start: 0x0800_00f4, end: 0x0800_0104, name: 'sub_080000F4', kind: 'func', mode: 'thumb', module: 'main', labels: [] };
+const GAP: PocRawChunk = { start: 0x0800_0104, end: 0x0800_0106, name: 'unk_08000104', kind: 'gap', mode: 'none', module: 'main', labels: [] };
+const START: PocRawChunk = { start: 0x0800_00c0, end: 0x0800_00f4, name: 'sub_080000C0', kind: 'func', mode: 'arm', module: 'crt0', labels: [] };
+
+// The files exactly as the PoC's writeGenerated() lays them out (romlift-poc src/emit.ts, chunkLines).
+const FUNC_FILE = '\tthumb_func_start sub_080000F4\nsub_080000F4: @ 080000F4\n\t.2byte 0xB500, 0x2001\nloc_080000F8: @ 080000F8, thumb entry\n\t.4byte 0x02000000\n\tthumb_func_end sub_080000F4\n';
+const GAP_FILE = '@ bytes between functions: 2 bytes\n.global unk_08000104\nunk_08000104: @ 08000104\n\t.2byte 0x0000\n';
+const CRT0_FILE =
+  '.include "include/macros.inc"\n.syntax unified\n.text\n\n@ startup region 080000C0..080000F4: the entry\n\n\tarm_func_start sub_080000C0\nsub_080000C0: @ 080000C0\n\t.2byte 0x0012, 0xE3A0\n\tarm_func_end sub_080000C0\n\n@ bytes between functions: 4 bytes\n.global unk_080000F0\nunk_080000F0: @ 080000F0\n\t.4byte 0x080000F5\n';
+
+test('a raw chunk lives in its module file, the startup region in asm/crt0.s', () => {
+  assert.equal(pocChunkFile(FUNC), 'asm/nonmatchings/main/sub_080000F4.s');
+  assert.equal(pocChunkFile(GAP), 'asm/nonmatchings/main/unk_08000104.s');
+  assert.equal(pocChunkFile(START), 'asm/crt0.s');
+});
+
+test("a chunk's body is cut between its label line and its func_end, or the end of a gap", () => {
+  assert.deepEqual(pocChunkLines(FUNC_FILE, FUNC), ['\t.2byte 0xB500, 0x2001', 'loc_080000F8: @ 080000F8, thumb entry', '\t.4byte 0x02000000']);
+  assert.deepEqual(pocChunkLines(GAP_FILE, GAP), ['\t.2byte 0x0000']);
+  assert.deepEqual(pocChunkLines(CRT0_FILE, START), ['\t.2byte 0x0012, 0xE3A0']);
+  const crt0Gap: PocRawChunk = { ...GAP, start: 0x0800_00f0, end: 0x0800_00f4, name: 'unk_080000F0', module: 'crt0' };
+  assert.deepEqual(pocChunkLines(CRT0_FILE, crt0Gap), ['\t.4byte 0x080000F5']);
+  assert.throws(() => pocChunkLines(GAP_FILE, FUNC), /sub_080000F4: no line "sub_080000F4: @ 080000F4" in asm\/nonmatchings\/main\/sub_080000F4\.s/);
+  assert.throws(() => pocChunkLines(FUNC_FILE.replace('\tthumb_func_end sub_080000F4\n', ''), FUNC), /no "thumb_func_end sub_080000F4" line/);
+});
+
+test("the child's raw document is validated: chunks, labels and claim kinds", () => {
+  const doc = { summary: 's', chunks: [FUNC, { ...GAP, labels: [{ addr: 0x0800_0104, name: 'x', note: 'n' }] }], claims: [0, 1, 2, 3, 4] };
+  const child = rawFromChild(doc, 'tiny');
+  assert.equal(child.chunks.length, 2);
+  assert.deepEqual(child.chunks[1]?.labels, [{ addr: 0x0800_0104, name: 'x', note: 'n' }]);
+  assert.throws(() => rawFromChild({ ...doc, claims: [5] }, 'tiny'), /tiny: claims holds a value other than a claim kind/);
+  assert.throws(() => rawFromChild({ ...doc, chunks: [GAP, FUNC] }, 'tiny'), /tiny: chunks\[1\] starts inside chunks\[0\]/);
+  assert.throws(() => rawFromChild({ ...doc, chunks: [{ ...FUNC, kind: 'data' }] }, 'tiny'), /tiny: chunks\[0\]\.kind/);
+  assert.throws(() => rawFromChild({ ...doc, chunks: [{ ...FUNC, end: FUNC.start }] }, 'tiny'), /not a non-empty span/);
+  assert.throws(() => rawFromChild({ ...doc, chunks: [{ ...FUNC, labels: [{ addr: 1 }] }] }, 'tiny'), /tiny: chunks\[0\]\.labels\[0\]/);
+  assert.throws(() => rawFromChild({ chunks: [] }, 'tiny'), /printed no \{summary, chunks, claims\}/);
+});
+
+test('raw.json carries every chunk with its body lines, the fixture SHA-1 and the PoC checkout', () => {
+  const child = rawFromChild({ summary: 's', chunks: [FUNC, GAP], claims: [] }, 'tiny');
+  const files: Readonly<Record<string, string>> = { [pocChunkFile(FUNC)]: FUNC_FILE, [pocChunkFile(GAP)]: GAP_FILE };
+  const dump = pocRawDump('tiny', 'c'.repeat(40), SOURCE, child, (file) => files[file] ?? '');
+  assert.equal(dump.schema, POC_RAW_SCHEMA);
+  assert.deepEqual([dump.fixture, dump.sha1, dump.pocSourceDigest], ['tiny', 'c'.repeat(40), SOURCE]);
+  assert.deepEqual(
+    dump.chunks.map((c) => c.lines.length),
+    [3, 1],
+  );
 });

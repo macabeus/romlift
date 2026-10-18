@@ -14,8 +14,19 @@
 // `.thumb_func` precedes or `.type name, %function` names is a Thumb function and stands for its
 // address plus one, as ld writes it for `.4byte Func`. Other names go to `resolve`, which returns symbol
 // VALUES (the caller adds the Thumb bit to Thumb function symbols). A branch drops the Thumb bit of its
-// target, as ld does for a branch relocation; any other instruction operand takes the value as is.
-// Errors are values with the line and address of the statement; nothing throws for content.
+// target, as ld does for a branch relocation; any other instruction operand takes the value as is. A
+// PC-relative load or `adr` (flows pc-load and adr) may name another object's symbol only where `sameObject`
+// says the name is in this object: `as` has no relocation for one that reaches into another (D63), so the
+// layout refuses it as `as` would. Errors are values with the line and address of the statement; nothing
+// throws for content.
+//
+// A layout memoises the instruction texts it reads (a ROM repeats `push {lr}` and `adds r0, r1, #0`
+// thousands of times) in a LayoutMemo, its own or one the caller shares across layouts: pass 1's size of a
+// text by its state and its address mod 4, and pass 2's word of a text that names no symbol by the same key.
+// Every operand an instruction encodes relative to its address is relative to Align(PC, 4), so a text that
+// names no symbol encodes alike at every address of one word alignment, and a text whose names all read as
+// its own address (the sizing resolver) has one size there. The memo holds no symbol value, so one memo
+// serves layouts with different symbols.
 import { assemble } from '../isa/assemble.ts';
 import { parse } from '../isa/parse.ts';
 import { specOf } from '../isa/rows.ts';
@@ -23,6 +34,19 @@ import type { Assembled, FlowKind, SymbolResolver } from '../isa/types.ts';
 import type { Addr, Mode } from '../rom/span.ts';
 import { hex } from '../util/hex.ts';
 import type { Expr, Statement } from './statements.ts';
+
+/** What layouts remember of instruction texts (see the header); layoutMemo() makes an empty one. */
+export interface LayoutMemo {
+  /** Pass 1: the size of a text, undefined when no row reads it, by memoKey. */
+  readonly sizes: Map<string, number | undefined>;
+  /** Pass 2: the word of a text that names no symbol, by memoKey. */
+  readonly words: Map<string, number>;
+}
+
+/** An empty LayoutMemo, to share across the layouts of one run. */
+export function layoutMemo(): LayoutMemo {
+  return { sizes: new Map(), words: new Map() };
+}
 
 export interface LayoutInput {
   readonly statements: readonly Statement[];
@@ -36,6 +60,13 @@ export interface LayoutInput {
   incbin(file: string, offset: number, length: number): Uint8Array | undefined;
   /** The statements of an included file, laid out in place; absent or undefined: an unknown include. */
   include?(path: string): readonly Statement[] | undefined;
+  /** A memo shared with other layouts; absent: this layout's own. */
+  readonly memo?: LayoutMemo;
+  /**
+   * Whether a name the statements do not define is in the object they are assembled into (another file of
+   * one module); absent: every resolvable name is. A PC-relative load or `adr` naming one that is not fails.
+   */
+  sameObject?(name: string): boolean;
 }
 
 /** The padding one statement emitted: each `.align` (length may be 0) and each nonzero pad of a switch to ARM state. */
@@ -75,6 +106,9 @@ const UNFILLED_ALIGN = '`.align` without a fill byte pads with no-ops of the fra
 /** The row flows whose target is a branch destination, so ld drops the Thumb bit of the symbol. */
 const BRANCH_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['branch', 'cond-branch', 'bl']);
 
+/** The row flows that reach their operand PC-relatively with no relocation `as` could emit to another object. */
+const PC_RELATIVE_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['pc-load', 'adr']);
+
 interface LocalLabel {
   readonly addr: Addr;
   readonly mode: Mode;
@@ -103,6 +137,7 @@ interface Pass1 {
 
 interface Walker {
   readonly input: LayoutInput;
+  readonly memo: LayoutMemo;
   readonly placed: Placed[];
   readonly labels: Map<string, LocalLabel>;
   readonly functions: Set<string>;
@@ -117,6 +152,20 @@ interface Walker {
 function padding(addr: Addr, power: number): number {
   const unit = 2 ** power;
   return (unit - (addr % unit)) % unit;
+}
+
+/** The key the memo of one layout files an instruction text under: its state, its address mod 4, the text. */
+function memoKey(text: string, mode: Mode, addr: Addr): string {
+  return `${mode === 'arm' ? 'a' : 't'}${addr & 3}${text}`;
+}
+
+/** insnSize through the layout's memo. */
+function sizeOf(w: Walker, text: string, mode: Mode, addr: Addr): number | undefined {
+  const key = memoKey(text, mode, addr);
+  if (w.memo.sizes.has(key)) return w.memo.sizes.get(key);
+  const size = insnSize(text, mode, addr);
+  w.memo.sizes.set(key, size);
+  return size;
 }
 
 /** The byte size of an instruction text in `mode` at `addr`, or undefined when no row reads it. */
@@ -186,7 +235,7 @@ function place(w: Walker, stmt: Statement, where: string, depth: number, stack: 
       break;
     }
     case 'insn': {
-      const found = insnSize(stmt.text, w.mode, at);
+      const found = sizeOf(w, stmt.text, w.mode, at);
       size = found ?? (w.mode === 'arm' ? 4 : 2);
       if (found === undefined) fail(`unparsable ${w.mode} instruction \`${stmt.text}\``);
       else if (!insnAligned(w.mode, at)) fail(`${w.mode} instruction at an unaligned address`);
@@ -216,9 +265,10 @@ function includeAt(w: Walker, stmt: Statement & { readonly kind: 'include' }, wh
   for (const s of statements) place(w, s, inner, depth + 1, [...stack, stmt.path]);
 }
 
-function pass1(input: LayoutInput, errors: LayoutError[], aligns: LayoutAlign[]): Pass1 {
+function pass1(input: LayoutInput, memo: LayoutMemo, errors: LayoutError[], aligns: LayoutAlign[]): Pass1 {
   const w: Walker = {
     input,
+    memo,
     placed: [],
     labels: new Map(),
     functions: new Set(),
@@ -265,6 +315,11 @@ class Symbols {
     return label !== undefined && label.mode === 'arm' && this.#functions.has(name);
   }
 
+  /** Whether a name the statements do not define is in their object (the caller's answer; yes when it gives none). */
+  sameObject(name: string): boolean {
+    return this.#input.sameObject?.(name) ?? true;
+  }
+
   /** The caller's value of a name the statements do not define. */
   external(name: string): number | undefined {
     const value = this.#input.resolve(name);
@@ -284,14 +339,23 @@ interface Lookups {
   readonly missing: string[];
   readonly odd: string[];
   readonly locals: string[];
+  /** The names the caller resolved (not defined by the statements). */
+  readonly external: string[];
 }
 
 /** One parse-and-assemble of an instruction; `dropThumbBit` clears bit 0 of odd external values. */
-function attempt(text: string, p: Placed, symbols: Symbols, dropThumbBit: boolean): { readonly lookups: Lookups; readonly parsed: boolean; readonly assembled: Assembled | undefined } {
-  const lookups: Lookups = { missing: [], odd: [], locals: [] };
+function attempt(
+  text: string,
+  p: Placed,
+  symbols: Symbols,
+  dropThumbBit: boolean,
+  onName: () => void,
+): { readonly lookups: Lookups; readonly parsed: boolean; readonly assembled: Assembled | undefined } {
+  const lookups: Lookups = { missing: [], odd: [], locals: [], external: [] };
   const resolver: SymbolResolver = {
     labelFor: () => undefined,
     addressOf: (name) => {
+      onName();
       const local = symbols.local(name);
       if (local !== undefined) {
         lookups.locals.push(name);
@@ -299,7 +363,8 @@ function attempt(text: string, p: Placed, symbols: Symbols, dropThumbBit: boolea
       }
       const value = symbols.external(name);
       if (value === undefined) lookups.missing.push(name);
-      else if (value % 2 !== 0) {
+      else lookups.external.push(name);
+      if (value !== undefined && value % 2 !== 0) {
         lookups.odd.push(name);
         return dropThumbBit ? value - 1 : value;
       }
@@ -322,15 +387,15 @@ function veneerReason(mode: Mode, lookups: Lookups, symbols: Symbols): string | 
 }
 
 /** Pass 2 for an instruction text: the word, or an error message. */
-function encodeInsn(text: string, p: Placed, symbols: Symbols): { readonly word: number } | string {
-  let result = attempt(text, p, symbols, false);
+function encodeInsn(text: string, p: Placed, symbols: Symbols, onName: () => void): { readonly word: number } | string {
+  let result = attempt(text, p, symbols, false, onName);
   if (!result.parsed) {
     const missing = result.lookups.missing;
     return missing.length > 0 ? `undefined symbol \`${missing.join('`, `')}\`` : `unparsable ${p.mode} instruction \`${text}\``;
   }
   let dropped = false;
   if (result.assembled === undefined && result.lookups.odd.length > 0) {
-    const retry = attempt(text, p, symbols, true);
+    const retry = attempt(text, p, symbols, true, onName);
     if (retry.assembled !== undefined && BRANCH_FLOWS.has(specOf(retry.assembled.specId).flow)) {
       result = retry;
       dropped = true;
@@ -339,9 +404,14 @@ function encodeInsn(text: string, p: Placed, symbols: Symbols): { readonly word:
   const assembled = result.assembled;
   if (assembled === undefined) return `cannot encode \`${text}\` at 0x${hex(p.at)} (operand out of range or unencodable)`;
   if (assembled.size !== p.size) return `\`${text}\` encodes to ${assembled.size} bytes, not the ${p.size} pass 1 placed`;
-  if (dropped || BRANCH_FLOWS.has(specOf(assembled.specId).flow)) {
+  const flow = specOf(assembled.specId).flow;
+  if (dropped || BRANCH_FLOWS.has(flow)) {
     const reason = veneerReason(p.mode, result.lookups, symbols);
     if (reason !== undefined) return reason;
+  }
+  if (PC_RELATIVE_FLOWS.has(flow)) {
+    const far = result.lookups.external.find((name) => !symbols.sameObject(name));
+    if (far !== undefined) return `\`${text}\` reaches \`${far}\` PC-relatively in another object, which \`as\` cannot relocate`;
   }
   return { word: assembled.word };
 }
@@ -353,13 +423,29 @@ function exprValue(expr: Expr, symbols: Symbols): number | string {
   return value === undefined ? `undefined symbol \`${expr.name}\`` : value + expr.addend;
 }
 
+/**
+ * encodeInsn through the layout's memo of the words of texts that name no symbol (`words`, by memoKey): such
+ * a text consults no resolver, so its word is the same at every address of its word alignment.
+ */
+function encodeMemo(text: string, p: Placed, symbols: Symbols, words: Map<string, number>): { readonly word: number } | string {
+  const key = memoKey(text, p.mode, p.at);
+  const hit = words.get(key);
+  if (hit !== undefined) return { word: hit };
+  let named = false;
+  const encoded = encodeInsn(text, p, symbols, () => {
+    named = true;
+  });
+  if (typeof encoded !== 'string' && !named) words.set(key, encoded.word);
+  return encoded;
+}
+
 /** Pass 2 for one placed statement: writes its bytes, or returns an error message. */
-function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array): string | undefined {
+function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array, words: Map<string, number>): string | undefined {
   const offset = p.at - input.start;
   const stmt = p.stmt;
   switch (stmt.kind) {
     case 'insn': {
-      const encoded = encodeInsn(stmt.text, p, symbols);
+      const encoded = encodeMemo(stmt.text, p, symbols, words);
       if (typeof encoded === 'string') return encoded;
       writeLE(bytes, offset, encoded.word, p.size);
       return undefined;
@@ -403,12 +489,13 @@ function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array
 export function layoutStatements(input: LayoutInput): Layout {
   const errors: LayoutError[] = [];
   const aligns: LayoutAlign[] = [];
-  const pass = pass1(input, errors, aligns);
+  const memo = input.memo ?? layoutMemo();
+  const pass = pass1(input, memo, errors, aligns);
   const bytes = new Uint8Array(pass.size);
   const symbols = new Symbols(input, pass);
   for (const p of pass.placed) {
     if (p.failed) continue;
-    const message = emit(p, symbols, input, bytes);
+    const message = emit(p, symbols, input, bytes, memo.words);
     if (message !== undefined) errors.push({ line: p.stmt.line, at: p.at, message: `${p.where}${message}` });
   }
   const labels = new Map<string, Addr>();
