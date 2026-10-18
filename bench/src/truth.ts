@@ -84,9 +84,9 @@ export function elfCodeEnd(truth: Pick<Truth, 'functions' | 'ends' | 'typed' | '
 }
 
 /**
- * The PoC's code end (the largest addr + size, an unsized function ending where it starts): only for
- * rescoring the PoC's own dumps against its baseline (poc-check, g1.bench-harness), which must reproduce
- * the PoC's scoring.
+ * The PoC's code end (the largest addr + size, an unsized function ending where it starts). No scorer uses
+ * it (D61 a): poc-check reads it only to check that the PoC's own rows carry it, so that the harness still
+ * reproduces the PoC's numbers under the PoC's ruler (poc-check.ts asScored).
  */
 export function pocCodeEnd(truth: Pick<Truth, 'functions'>): number {
   return truth.functions.reduce((e, t) => Math.max(e, t.addr + t.size), 0);

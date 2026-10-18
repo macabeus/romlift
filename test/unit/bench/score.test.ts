@@ -8,7 +8,7 @@ import type { MissDiagnosis } from 'romlift/internal';
 
 import { missQueries } from '../../../bench/src/analysis-run.ts';
 import { dumpFunctions, extentAgrees, insideFoundFunction, scoreAnalysis, scoreRun, staleExceptions } from '../../../bench/src/score.ts';
-import { elfTruth } from '../../../bench/src/truth.ts';
+import { elfTruth, pocCodeEnd } from '../../../bench/src/truth.ts';
 import { analysisResult, dataset, dump, elfFile, fact, fn } from './fixtures.ts';
 
 // Table order matters: `big` precedes `outer`, which also contains 0x08000310.
@@ -121,7 +121,8 @@ test('scoreRun counts from the startup end and classifies every miss and false e
       { addr: '0x08000300', name: 'big', elf: 0x40, found: 0x30 },
     ],
   });
-  assert.deepEqual(row.codeEnd, { found: '0x08000710', elf: '0x08000500', delta: 0x210 });
+  // Under the one convention of every scorer (D61 a): the unsized 'label' ends at the OBJECT 'table'.
+  assert.deepEqual(row.codeEnd, { found: '0x08000710', elf: '0x08000600', delta: 0x110 });
   assert.equal(row.deterministic, true);
   assert.deepEqual(row.scaffold, { ok: true });
 });
@@ -170,14 +171,13 @@ const DIAGNOSES: readonly MissDiagnosis[] = [
 test("scoreAnalysis scores romlift's result exactly as scoreRun scores the same PoC run", () => {
   const truth = elfTruth(ELF, ROM_SIZE);
   const row = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth, dataset: DATASET, sha1: 'f'.repeat(40), deterministic: true, scaffold: { ok: true } });
-  // Equal but for the ELF code end: romlift's rows end the unsized last function ('label', 0x08000500) at
-  // the next code-ending symbol (truth.ts elfCodeEnd, D60 j, the owner's answer to Q5, D61 a), the PoC's
-  // rescoring where it starts (pocCodeEnd), as the PoC's pinned rows do.
+  // Equal, the ELF code end included: both end the unsized last function ('label', 0x08000500) at the next
+  // code-ending symbol, the OBJECT 'table' at 0x08000600 (truth.ts elfCodeEnd, the owner's answer to Q5,
+  // "in every scorer", D61 a); the PoC's convention would end it where it starts.
   const poc = scoreRun({ dump: DUMP, truth, dataset: DATASET, sha1: 'f'.repeat(40) });
-  assert.deepEqual({ ...row, codeEnd: poc.codeEnd }, poc);
-  assert.deepEqual(poc.codeEnd, { found: '0x08000710', elf: '0x08000500', delta: 0x210 });
-  // 'label' has no size; the next code-ending symbol after it is the OBJECT 'table' at 0x08000600.
+  assert.deepEqual(row, poc);
   assert.deepEqual(row.codeEnd, { found: '0x08000710', elf: '0x08000600', delta: 0x110 });
+  assert.equal(pocCodeEnd(truth), 0x0800_0500);
   // Counted from the startup end; the owner of a false entry is the first containing ELF function in table order.
   assert.equal(row.entries, 5);
   assert.equal(row.tp, 3);

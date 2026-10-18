@@ -1,7 +1,7 @@
 // Scores one run against the ELF truth (architecture §8.1, the PoC's score.ts and runRom): entries and
 // ELF functions counted from the end of the startup region, true positives, false entries with their
 // origin and owning ELF function (the first containing one in symbol-table order), misses with their
-// reason, extents with the 4-byte padding allowance, and the code end. Two runs are scored the same way:
+// reason, extents with the 4-byte padding allowance, and the code end (truth.ts elfCodeEnd, D61 a). Two runs are scored the same way:
 // romlift's own AnalysisResult with its miss diagnoses (scoreAnalysis, `bench run`), and a PoC dump
 // (scoreRun, `bench poc-check`). Pure: the run, the truth and the dataset in, one row out.
 import { compareCodeUnits, compareNumbers, hexAddr, type AnalysisResult, type MissReason, type Mode, type Origin } from 'romlift';
@@ -11,7 +11,7 @@ import type { Dataset } from './dataset.ts';
 import { BenchError } from './files.ts';
 import type { BenchRow, ExtentRow, FalseRow, MissRow, StaleException } from './row.ts';
 import { dumpAddr, missReasonId, originId, type ScoredRun } from './scored-run.ts';
-import { elfCodeEnd, pocCodeEnd, type Truth } from './truth.ts';
+import { elfCodeEnd, type Truth } from './truth.ts';
 
 /** An extent agrees when the ELF size equals it, or equals it padded to a multiple of 4. */
 export function extentAgrees(elfSize: number, extent: number): boolean {
@@ -177,7 +177,11 @@ export interface ScoreInput extends ScoreContext {
   readonly dump: ScoredRun;
 }
 
-/** The row of a PoC dump (poc-check, g1.bench-harness), under the PoC's code-end convention (pocCodeEnd). */
+/**
+ * The row of a PoC dump (poc-check, g1.bench-harness), under the one code-end convention of every scorer
+ * (elfCodeEnd; the owner's answer to Q5, "in every scorer", D61 a). poc-check compares it with the PoC's
+ * rows, which carry the PoC's own convention, through poc-check.ts asScored.
+ */
 export function scoreRun({ dump, truth, dataset, sha1 }: ScoreInput): BenchRow {
   const reasons = new Map(dump.misses.map((m) => [dumpAddr(m.addr), missReasonId(m.reason)]));
   return scoreParts(
@@ -190,7 +194,6 @@ export function scoreRun({ dump, truth, dataset, sha1 }: ScoreInput): BenchRow {
       scaffold: { ok: dump.scaffold.ok },
     },
     { truth, dataset, sha1 },
-    pocCodeEnd(truth),
   );
 }
 
