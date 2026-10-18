@@ -5,6 +5,7 @@
 // g3.link and g3.raw-link before wave 3 lands the commands those gates drive; it found the PC-relative
 // references the legal borders had to stop crossing (D63). Linking skips as unavailable only without binutils.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -19,6 +20,7 @@ import { checkEntries } from '../../../src/core/verify/text-layout.ts';
 import { verifyModel } from '../../../src/core/verify/tiling.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
+import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { findBinutils } from '../../../src/shell/toolchain/binutils.ts';
 import { linkCheck } from '../../../src/shell/toolchain/link-check.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
@@ -77,6 +79,33 @@ for (const fixture of listSyntheticFixtures()) {
       const result = await linkCheck({ dir: await writeTree(entries), rom, units: buildUnits(model), ...('code' in tools ? {} : { tools }) });
       assert.ok(result.ok, `${result.detail} ${result.diagnostics.map((d) => d.message).join('; ')}`);
       assert.equal(result.sha1, rom.sha1);
+    });
+  }
+}
+
+// correctness-4: GNU as pads each object's section to its alignment and ld places it on one, so a ROM whose size
+// is not a multiple of its last unit's alignment links to a longer image. The text-layout check must say so
+// exactly when the link does: on the first fixture whose last module is data and the first whose last is code,
+// cut by 0 to 3 bytes, the check passes exactly when the readable tree links to the cut ROM's SHA-1.
+for (const lastKind of ['data', 'asm'] as const) {
+  const fixture = listSyntheticFixtures().find((f) => {
+    const rom = readFixtureRom(f);
+    return configFromDiscover(rom, discover(rom, { profile })).modules.at(-1)?.kind === lastKind;
+  });
+  if (fixture === undefined) continue;
+  for (const cut of [0, 1, 2, 3]) {
+    test(`${fixture.name} cut by ${cut} byte(s) (last module ${lastKind}): the text-layout check agrees with the link`, { skip }, async () => {
+      const whole = readFixtureRom(fixture);
+      const bytes = whole.bytes.slice(0, whole.bytes.length - cut);
+      const rom = romFromBytes(bytes, createHash('sha1').update(bytes).digest('hex'));
+      const analysis = discover(rom, { profile });
+      const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
+      const entries = [...emitTree(rom, model, { decomp: { defined: new Set<string>() }, printer: 'readable' })];
+      const report = checkEntries(rom, model, entries);
+      const linked = await linkCheck({ dir: await writeTree(entries), rom, units: buildUnits(model), ...('code' in tools ? {} : { tools }) });
+      assert.equal(report.ok, linked.ok, `check: ${failures(report) || 'ok'}; link: ${linked.detail}`);
+      assert.equal(report.ok, lastKind === 'data' ? cut % 2 === 0 : cut === 0, 'exactly the cuts the alignment of the last unit does not divide fail');
+      if (!report.ok) assert.match(failures(report), /GNU as pads the object's section to a multiple of [24] bytes/);
     });
   }
 }

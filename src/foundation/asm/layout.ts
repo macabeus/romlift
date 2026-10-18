@@ -4,7 +4,7 @@
 //
 // Pass 1 walks the statements (includes expanded in place through `include`) and fixes every
 // statement's address and size and every local label's address: a Thumb instruction is 2 bytes, a
-// Thumb `bl` pair 4, an ARM instruction 4; `.align p` pads to 2^p from the running absolute address,
+// Thumb `bl` pair 4, an ARM instruction 4; `.align p` pads to 2^p (`.align 0` to 4, as GNU as on ARM) from the running absolute address,
 // which is where ld puts a word-aligned object; a switch from Thumb to ARM state pads to a word with
 // zeros, as GNU as does; an `.align` without a fill byte is accepted only where it pads nothing. Pass 2
 // encodes: an instruction text through foundation/isa `parse` and `assemble` (the encoder that agrees
@@ -98,6 +98,13 @@ export interface Layout {
   readonly bytes: Uint8Array;
   /** start + bytes.length. */
   readonly end: Addr;
+  /**
+   * The alignment (a power of two) GNU as records for the section these statements are assembled into: 1 once
+   * Thumb state is entered or a Thumb instruction placed, 2 for an ARM instruction, p for `.align p` (2 for
+   * `.align 0`, as GNU as reads it on ARM); 0 for data alone. GNU as pads the section's end to a multiple of
+   * 2^sectionAlign, and ld places the section at a multiple of it (sectionAlign below).
+   */
+  readonly sectionAlign: number;
   /** Every local label's address (even for a Thumb function: the Thumb bit is a data-value matter). */
   readonly labels: ReadonlyMap<string, Addr>;
   readonly aligns: readonly LayoutAlign[];
@@ -145,6 +152,7 @@ interface Pass1 {
   readonly labels: ReadonlyMap<string, LocalLabel>;
   readonly functions: ReadonlySet<string>;
   readonly size: number;
+  readonly sectionAlign: number;
 }
 
 interface Walker {
@@ -158,6 +166,18 @@ interface Walker {
   addr: Addr;
   mode: Mode;
   thumbFuncPending: boolean;
+  /** Layout.sectionAlign so far. */
+  sectionAlign: number;
+}
+
+/** Records that the section needs at least 2^power. */
+function needAlign(w: Walker, power: number): void {
+  if (power > w.sectionAlign) w.sectionAlign = power;
+}
+
+/** The power `.align p` aligns to: GNU as on ARM reads `.align 0` as `.align 2`. */
+export function alignPower(power: number): number {
+  return power === 0 ? 2 : power;
 }
 
 /** The bytes `.align power` adds at `addr`. */
@@ -213,6 +233,7 @@ function place(w: Walker, stmt: Statement, where: string, depth: number, stack: 
       w.thumbFuncPending = false;
       break;
     case 'mode':
+      if (stmt.mode === 'thumb' || w.mode === 'thumb') needAlign(w, 1);
       if (stmt.mode === 'arm' && w.mode === 'thumb') {
         size = padding(at, 2);
         if (size > 0) w.aligns.push({ line: stmt.line, at, length: size });
@@ -221,6 +242,7 @@ function place(w: Walker, stmt: Statement, where: string, depth: number, stack: 
       break;
     case 'symbol':
       if (stmt.directive === '.thumb_func') {
+        needAlign(w, 1);
         w.mode = 'thumb';
         w.thumbFuncPending = true;
       } else if (stmt.directive === '.type' && stmt.args[1] === '%function' && stmt.args[0] !== undefined) {
@@ -228,7 +250,8 @@ function place(w: Walker, stmt: Statement, where: string, depth: number, stack: 
       }
       break;
     case 'align':
-      size = padding(at, stmt.power);
+      needAlign(w, alignPower(stmt.power));
+      size = padding(at, alignPower(stmt.power));
       w.aligns.push({ line: stmt.line, at, length: size });
       if (size > 0 && stmt.fill === undefined) fail(UNFILLED_ALIGN);
       break;
@@ -236,6 +259,7 @@ function place(w: Walker, stmt: Statement, where: string, depth: number, stack: 
       size = stmt.width * stmt.values.length;
       break;
     case 'inst': {
+      needAlign(w, w.mode === 'arm' ? 2 : 1);
       size = stmt.width;
       const refusal = instRefusal(stmt.directive, w.mode);
       if (refusal !== undefined) fail(refusal);
@@ -243,6 +267,7 @@ function place(w: Walker, stmt: Statement, where: string, depth: number, stack: 
       break;
     }
     case 'insn': {
+      needAlign(w, w.mode === 'arm' ? 2 : 1);
       const found = sizeOf(w, stmt.text, w.mode, at);
       size = found ?? (w.mode === 'arm' ? 4 : 2);
       if (found === undefined) fail(`unparsable ${w.mode} instruction \`${stmt.text}\``);
@@ -285,9 +310,10 @@ function pass1(input: LayoutInput, memo: LayoutMemo, errors: LayoutError[], alig
     addr: input.start,
     mode: input.mode,
     thumbFuncPending: false,
+    sectionAlign: input.mode === 'thumb' ? 1 : 0,
   };
   for (const stmt of input.statements) place(w, stmt, '', 0, []);
-  return { placed: w.placed, labels: w.labels, functions: w.functions, size: w.addr - input.start };
+  return { placed: w.placed, labels: w.labels, functions: w.functions, size: w.addr - input.start, sectionAlign: w.sectionAlign };
 }
 
 /** Writes `size` bytes of `value` little-endian at `offset`. */
@@ -508,5 +534,5 @@ export function layoutStatements(input: LayoutInput): Layout {
   }
   const labels = new Map<string, Addr>();
   for (const [name, label] of pass.labels) labels.set(name, label.addr);
-  return { bytes, end: input.start + pass.size, labels, aligns, errors };
+  return { bytes, end: input.start + pass.size, sectionAlign: pass.sectionAlign, labels, aligns, errors };
 }

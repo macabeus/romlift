@@ -23,6 +23,9 @@
 //   model puts between them (a header, startup or data chunk it holds inline).
 // - Every laid-out file must reproduce its ROM range byte for byte, and every `.align` (and every pad of a
 //   switch to ARM state) that emits bytes must emit exactly the padding item at that address.
+// - Each build unit must start and end on a multiple of its section's alignment (the largest any of its files
+//   asks, foundation/asm/layout.ts sectionAlign): GNU as pads a section's end to it and ld places a section on
+//   it, so an odd-sized ROM's last unit, or a unit at a misaligned border, would link to other bytes.
 // - ldscript.txt and symbols.ld are checked structurally: each build unit once, in ROM order, a runs_at
 //   unit at its run address loaded at its load address with its __load_ symbol; each symbol outside the
 //   ROM defined once with the model's value, and nothing else.
@@ -40,6 +43,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
+import { pushAll } from '../../foundation/util/arrays.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, specIdAt } from '../model/item-table.ts';
@@ -233,8 +237,15 @@ function addressBefore(job: Job, line: number): Addr {
   ).end;
 }
 
+/** What checking one file found: its problems, and the section alignment its statements ask of their unit. */
+interface FileCheck {
+  readonly diagnostics: Diagnostic[];
+  /** Layout.sectionAlign of the file; 0 when it was not laid out. */
+  readonly sectionAlign: number;
+}
+
 /** Every difference between a laid-out file and the model: bytes, length and padding. */
-function compareLayout(rom: Rom, model: Model, job: Job, parseErrors: readonly { readonly line: number; readonly message: string }[]): Diagnostic[] {
+function compareLayout(rom: Rom, model: Model, job: Job, parseErrors: readonly { readonly line: number; readonly message: string }[]): FileCheck {
   const out: Diagnostic[] = [];
   const load = (at: Addr): Addr => at - job.runOffset;
   // Each parse error costs a layout of the statements before it, so only as many as an entry reports.
@@ -273,7 +284,7 @@ function compareLayout(rom: Rom, model: Model, job: Job, parseErrors: readonly {
       out.push(textError(job.path, a.line, at, `the alignment emits ${a.length} bytes, but ${what}`));
     }
   }
-  return out;
+  return { diagnostics: out, sectionAlign: layout.sectionAlign };
 }
 
 function parse(text: string): { readonly statements: readonly Statement[]; readonly errors: readonly { readonly line: number; readonly message: string }[] } {
@@ -299,10 +310,10 @@ function macrosIncludeLine(text: string): number | undefined {
 }
 
 /** A function or orphan file: laid out from its chunk's start. */
-function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { readonly path: string; readonly text: string }, m: number, c: number): Diagnostic[] {
+function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { readonly path: string; readonly text: string }, m: number, c: number): FileCheck {
   const module = model.modules[m] as Module;
   const chunk = model.chunks[c];
-  if (chunk === undefined) return [];
+  if (chunk === undefined) return { diagnostics: [], sectionAlign: 0 };
   const runOffset = chunk.runAt === undefined ? 0 : chunk.runAt - chunk.span.start;
   const parsed = parse(asIncluded(entry.text));
   const job: Job = {
@@ -316,7 +327,7 @@ function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { reado
 }
 
 /** A module's source: laid out from the module's start, each include of a chunk file standing for its bytes. */
-function checkSourceFile(rom: Rom, model: Model, index: PathIndex, entry: { readonly path: string; readonly text: string }, m: number): Diagnostic[] {
+function checkSourceFile(rom: Rom, model: Model, index: PathIndex, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
   const module = model.modules[m] as Module;
   const runOffset = module.runAt === undefined ? 0 : module.runAt - module.span.start;
   const files = new Map<string, Span>();
@@ -353,7 +364,7 @@ function checkSourceFile(rom: Rom, model: Model, index: PathIndex, entry: { read
   const macrosLine = macrosIncludeLine(entry.text);
   if (firstInclude !== undefined && (macrosLine === undefined || macrosLine > firstInclude.line)) {
     // Its chunk files use the macros without including them (asIncluded): the module file defines them once.
-    return [textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`)];
+    return { diagnostics: [textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`)], sectionAlign: 0 };
   }
   for (let k = 0; k < Math.max(includes.length, order.length); k++) {
     const got = includes[k];
@@ -368,7 +379,7 @@ function checkSourceFile(rom: Rom, model: Model, index: PathIndex, entry: { read
           ? `does not include "${want.path}", the chunk file at ${hexAddr(want.span.start)}`
           : `includes "${got.path}" where the module's chunk file in ROM order is "${want.path}"`;
     // The order is wrong from here on; the byte comparison would only repeat it.
-    return [textError(entry.path, line, addr, message)];
+    return { diagnostics: [textError(entry.path, line, addr, message)], sectionAlign: 0 };
   }
   return compareLayout(rom, model, job, parsed.errors);
 }
@@ -529,31 +540,62 @@ function checkSymbolsFile(model: Model, path: string, text: string): Diagnostic[
 // ---------------------------------------------------------------------------------------------------
 // The check.
 
-/** The text-layout check of one entry of the emission stream; [] when it is not this check's or it passes. */
-export function checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[] {
-  if (entry.ownership !== 'generated') return [];
+/** What one entry contributes: its problems (at most MAX_PER_ENTRY), and for a file of a unit the alignment it asks. */
+interface EntryCheck {
+  readonly diagnostics: readonly Diagnostic[];
+  /** The unit (model.modules index) the file is assembled into, and its Layout.sectionAlign. */
+  readonly unit?: { readonly module: number; readonly sectionAlign: number };
+}
+
+function checkOne(rom: Rom, model: Model, entry: FileEntry): EntryCheck {
+  if (entry.ownership !== 'generated') return { diagnostics: [] };
   const index = indexOf(model);
   const target = index.targets.get(entry.path);
-  let found: Diagnostic[];
   if (target === undefined) {
-    found = CHECKED_WRITERS.has(entry.writer) ? [textError(entry.path, 1, ROM_BASE, `the ${entry.writer} writer emits a file no chunk or module of the model has`)] : [];
-  } else {
-    switch (target.kind) {
-      case 'chunk':
-        found = checkChunkFile(rom, model, index, entry, target.module, target.chunk);
-        break;
-      case 'source':
-        found = checkSourceFile(rom, model, index, entry, target.module);
-        break;
-      case 'ldscript':
-        found = checkLdscript(model, entry.path, entry.text);
-        break;
-      case 'symbols':
-        found = checkSymbolsFile(model, entry.path, entry.text);
-        break;
-    }
+    return { diagnostics: CHECKED_WRITERS.has(entry.writer) ? [textError(entry.path, 1, ROM_BASE, `the ${entry.writer} writer emits a file no chunk or module of the model has`)] : [] };
   }
-  return found.slice(0, MAX_PER_ENTRY);
+  let file: FileCheck;
+  switch (target.kind) {
+    case 'chunk':
+      file = checkChunkFile(rom, model, index, entry, target.module, target.chunk);
+      break;
+    case 'source':
+      file = checkSourceFile(rom, model, index, entry, target.module);
+      break;
+    case 'ldscript':
+      return { diagnostics: checkLdscript(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
+    case 'symbols':
+      return { diagnostics: checkSymbolsFile(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
+  }
+  return { diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY), unit: { module: target.module, sectionAlign: file.sectionAlign } };
+}
+
+/** The text-layout check of one entry of the emission stream; [] when it is not this check's or it passes. */
+export function checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[] {
+  return checkOne(rom, model, entry).diagnostics;
+}
+
+/**
+ * The unit-level part of the check, once the stream has passed: GNU as pads each object's section to a multiple
+ * of its alignment (the largest any of the unit's files asks, Layout.sectionAlign) and ld places it at a
+ * multiple of it, so a unit whose start or length is not one links to an image that is longer or shifted.
+ */
+function unitAlignment(model: Model, aligns: ReadonlyMap<number, number>): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  model.modules.forEach((module, m) => {
+    const power = aligns.get(m);
+    if (power === undefined || !module.generated) return;
+    const unit = 2 ** power;
+    const source = moduleSource(model, module);
+    const length = module.span.end - module.span.start;
+    if ((module.span.start - ROM_BASE) % unit !== 0) {
+      out.push(textError(source, 1, module.span.start, `the object's section is aligned to ${unit} bytes, so ld places it past ${hexAddr(module.span.start)}, the module's start`));
+    } else if (length % unit !== 0) {
+      const pad = unit - (length % unit);
+      out.push(textError(source, 1, module.span.end, `GNU as pads the object's section to a multiple of ${unit} bytes, ${pad} past the module's end ${hexAddr(module.span.end)}, so the image is longer than the ROM range`));
+    }
+  });
+  return out;
 }
 
 /** The 'text-layout' CheckResult of the diagnostics of `files` checked entries. */
@@ -570,14 +612,18 @@ export function textLayoutResult(diagnostics: readonly Diagnostic[], files: numb
 export function checkEntries(rom: Rom, model: Model, entries: Iterable<FileEntry>): VerifyReport {
   const diagnostics: Diagnostic[] = [];
   const paths: string[] = [];
+  const aligns = new Map<number, number>();
   for (const entry of entries) {
     paths.push(entry.path);
-    diagnostics.push(...checkEntry(rom, model, entry));
+    const found = checkOne(rom, model, entry);
+    pushAll(diagnostics, found.diagnostics);
+    if (found.unit !== undefined) aligns.set(found.unit.module, Math.max(aligns.get(found.unit.module) ?? 0, found.unit.sectionAlign));
   }
   const emitted = new Set(paths);
   for (const { path, addr } of indexOf(model).expected) {
     if (!emitted.has(path)) diagnostics.push(textError(path, 1, addr, 'the stream emits no such file, which the model needs'));
   }
+  pushAll(diagnostics, unitAlignment(model, aligns));
   const checks = [textLayoutResult(diagnostics, paths.length), pathsCheck(paths)];
   return { ok: checks.every((c) => c.ok), checks };
 }

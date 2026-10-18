@@ -376,3 +376,24 @@ test('a PC-relative load or adr naming a symbol of another object is refused; a 
     ],
   );
 });
+
+test('sectionAlign: the alignment GNU as records for the section (binutils 2.45.1, objdump -h)', () => {
+  // Each row was measured with arm-none-eabi-as -mcpu=arm7tdmi: the text, the start state, then the power.
+  const rows: readonly (readonly [string, Mode, number])[] = [
+    ['.byte 1, 2, 3\n', 'arm', 0],
+    ['.4byte 1\n.byte 1\n', 'arm', 0],
+    ['.arm\n.byte 1, 2, 3\n', 'arm', 0],
+    ['.thumb\n.byte 1, 2, 3\n', 'arm', 1],
+    ['.thumb\n.arm\n.byte 1\n', 'arm', 1],
+    ['.thumb_func\nf:\n.byte 1\n', 'arm', 1],
+    ['bx lr\n.byte 1\n', 'arm', 2],
+    ['.inst 0xe12fff1e\n.byte 1\n', 'arm', 2],
+    ['.align 1, 0\n.byte 1\n', 'arm', 1],
+    ['.align 0, 0\n.byte 1\n', 'arm', 2],
+    ['.align 2, 0\n.byte 1, 2, 3\n', 'arm', 2],
+    ['movs r0, #0\n.byte 1\n', 'thumb', 1],
+  ];
+  for (const [text, mode, power] of rows) assert.equal(clean(`.syntax unified\n${text}`, { mode }).sectionAlign, power, text);
+  // `.align 0` pads to a word, as GNU as on ARM reads it.
+  assert.deepEqual(clean('.syntax unified\n.byte 1\n.align 0, 0\n.byte 2\n', { mode: 'arm' }).bytes, Uint8Array.from([1, 0, 0, 0, 2]));
+});
