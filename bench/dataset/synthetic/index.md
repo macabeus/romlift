@@ -60,7 +60,7 @@ The rule column names the rules the fixture is built to make load-bearing. Each 
 merged analysis with that one rule disabled (`npm run bench -- ablate <rule> --tier synthetic`): an
 entry, an extent or the code end of that fixture moves, and its `expect.json` fails.
 `test/unit/fixtures/coverage.test.ts` holds the table of every rule of `RULES` and asserts it.
-`code-copied-to-ram` guards the code end, which no single rule decides.
+`code-copied-to-ram` and `code-end-unsized-last` guard the code end, which no single rule decides.
 
 | Fixture | Kind | Phenomenon | Rule made load-bearing |
 | --- | --- | --- | --- |
@@ -109,6 +109,7 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 | `pool-word-push-lr` | negative | a far literal 0xBD00B500 (`push {lr}; pop {pc}`) | `claim.far-pools`, `valid.no-claimed-code` |
 | `pool-padded-46c0` | negative | a pool after 0x46C0 padding whose word reads as a stub | `walk.pc-load-is-pool`, `claim.adjacent-pools` |
 | `code-end-data-decodes` | negative | stub-shaped data after the last function; a `main` loop with no prologue | `seed.startup-pointer` (code end) |
+| `code-end-unsized-last` | negative | the last function is hand-written asm without `.size` (FUNC size 0), an OBJECT and its `$d` right after it | (code end: the bench's ELF code end is that `$d`, D61 a; addr + size would put it at the function's entry, 8 bytes before) |
 | `false-stub-2byte` | negative | a lone `b` fragment after a jump table's cases | `accept.tiny-anchored-at-start` (its not-a-branch condition), `walk.table-by-register` |
 
 `seed.rom-entry`, `seed.call` and `walk.pc-load-is-pool` move outcomes in every fixture,

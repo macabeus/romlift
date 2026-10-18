@@ -11,6 +11,7 @@ import { test } from 'node:test';
 
 import { checkRom, elfFunctions, parseElf, ROM_BASE, type ElfFile, type ElfFunction } from 'romlift';
 
+import { elfCodeEnd, elfTruth, pocCodeEnd } from '../../../bench/src/truth.ts';
 import { parseToolchainRecord } from '../../../bench/tools/fixtures.ts';
 import { listSyntheticFixtures, parseExpect, readExpect, SYNTHETIC_ROOT, type SyntheticFixture } from '../../helpers/fixtures.ts';
 
@@ -35,6 +36,7 @@ const RULE_SPECIFIC = [
 const NEGATIVE = [
   'code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pointer-table-before-leaf', 'pool-padded-46c0',
   'pool-word-push-lr', 'thumb-pointer-run', 'adr-label-and-data', 'data-frame-not-function', 'ram-copy-args-straight-line',
+  'code-end-unsized-last',
 ];
 
 /** The startup region of common/crt0.s: these FUNC symbols, both ARM, which every expect.json lists first. */
@@ -79,7 +81,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
-test('the 46 fixtures are committed, and common/ is not one', () => {
+test('the 47 fixtures are committed, and common/ is not one', () => {
   const names = FIXTURES.map((f) => f.name);
   assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE].sort(byCodeUnit));
   assert.ok(!names.includes('common'));
@@ -183,17 +185,21 @@ test('every expect.json is exhaustive: negative, so no entry beyond its real fun
   for (const name of NEGATIVE) assert.ok(exhaustive.includes(name), name);
 });
 
-test('a code end, where given, is the end of the last ELF function in the ROM', () => {
+test('a code end, where given, is the ELF code end of the bench (elfCodeEnd, D61 a)', () => {
   let withCodeEnd = 0;
+  let unsizedLast = 0;
   for (const f of FIXTURES) {
     const expect = readExpect(f);
     if (expect.codeEnd === undefined) continue;
     withCodeEnd++;
-    const last = Math.max(...functionsOf(f).map((fn) => fn.addr + fn.size));
-    assert.equal(hex(expect.codeEnd), hex(last), f.name);
+    const truth = elfTruth(elfOf(f), romSize(f));
+    assert.equal(hex(expect.codeEnd), hex(elfCodeEnd(truth)), f.name);
     assert.ok(expect.codeEnd < ROM_BASE + romSize(f), `${f.name}: data follows the code end`);
+    // A fixture where the conventions differ: the last function is unsized, so addr + size is its entry.
+    if (elfCodeEnd(truth) !== pocCodeEnd(truth)) unsizedLast++;
   }
   assert.ok(withCodeEnd >= 2);
+  assert.ok(unsizedLast >= 1, 'code-end-unsized-last: an unsized last function followed by a $d');
 });
 
 test('code copied to RAM has its FUNC symbol outside the ROM', () => {

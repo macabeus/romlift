@@ -116,6 +116,11 @@ test('the ELF code end (D60 j, D61 a): a sized function at addr + size, an unsiz
   // A sized last function ends at addr + size, its pool included.
   const sized = elfTruth(elfFile([{ name: 'host', value: 0x0800_0101, size: 0x40 }, { name: 'last', value: 0x0800_0200, size: 0x30 }, { name: '$d', value: 0x0800_0220, size: 0, type: 'notype' }]), 0x1000);
   assert.equal(elfCodeEnd(sized), 0x0800_0230);
+  // A numbered data mapping symbol ($d.N) and a SECTION symbol end an unsized function too; $t and $a do not.
+  const numbered = elfTruth(elfFile([{ name: 'a', value: 0x0800_0501, size: 0 }, { name: '$t', value: 0x0800_0504, size: 0, type: 'notype' }, { name: '$d.7', value: 0x0800_0510, size: 0, type: 'notype' }]), 0x1000);
+  assert.equal(elfCodeEnd(numbered), 0x0800_0510);
+  const section = elfTruth(elfFile([{ name: 'a', value: 0x0800_0601, size: 0 }, { name: '$a', value: 0x0800_0604, size: 0, type: 'notype' }, { name: '.rodata', value: 0x0800_0620, size: 0, type: 'section' }]), 0x1000);
+  assert.equal(elfCodeEnd(section), 0x0800_0620);
   // An unsized function with nothing after it ends where it starts.
   assert.equal(elfCodeEnd(elfTruth(elfFile([{ name: 'only', value: 0x0800_0400, size: 0 }]), 0x1000)), 0x0800_0400);
 });

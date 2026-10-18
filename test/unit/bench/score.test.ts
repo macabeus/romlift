@@ -176,8 +176,8 @@ test("scoreAnalysis scores romlift's result exactly as scoreRun scores the same 
   const poc = scoreRun({ dump: DUMP, truth, dataset: DATASET, sha1: 'f'.repeat(40) });
   assert.deepEqual({ ...row, codeEnd: poc.codeEnd }, poc);
   assert.deepEqual(poc.codeEnd, { found: '0x08000710', elf: '0x08000500', delta: 0x210 });
-  assert.equal(row.codeEnd.found, '0x08000710');
-  assert.notEqual(row.codeEnd.elf, '0x08000500');
+  // 'label' has no size; the next code-ending symbol after it is the OBJECT 'table' at 0x08000600.
+  assert.deepEqual(row.codeEnd, { found: '0x08000710', elf: '0x08000600', delta: 0x110 });
   // Counted from the startup end; the owner of a false entry is the first containing ELF function in table order.
   assert.equal(row.entries, 5);
   assert.equal(row.tp, 3);
