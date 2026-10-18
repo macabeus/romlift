@@ -1,0 +1,200 @@
+// `romlift verify --rom <rom> [--assemble] [--link] [--printer raw] [--json]` (architecture §2.1, §6.4, D49):
+// the self-checks of the tree romlift would emit for a ROM. Phase 3 has no project, so --rom is required and the
+// config is the one configFromDiscover builds from the ROM's discover analysis; `generate` then runs the confirm
+// analysis, builds the model and makes the check pass (tiling, re-encode, module size, text layout, paths).
+// --assemble and --link write the tree into a fresh temporary directory, never the working directory
+// (planWrites with no manifest over an empty disk, then applyWrites), and run `as` per module against its ROM
+// range and the full link against the ROM's SHA-1; they run only when the self-checks passed, since a write
+// follows a passing check pass (§6.4). Output (frozen by the g3.self-check, g3.text-layout, g3.link and
+// g3.raw-link headers): with --json, one {"type":"check","id","status":"ok"|"fail","detail"} line per check in
+// CHECK_IDS order, the {"type":"diagnostic"} lines, then {"type":"summary","ok","exitCode","sha1"?,"counts"};
+// text mode prints the same as lines, the diagnostics on stderr. Exit codes: 0 every check passed, 3 a check
+// failed (a self-check, an object that differs, a linked SHA-1 that differs), 1 an error diagnostic of the input
+// or the toolchain (an unreadable file, E_ROM_NOT_GBA, a model error, binutils missing), 2 usage.
+import { configFromDiscover } from '../../api/layout.ts';
+import { buildUnits, modulePathPrefixes } from '../../api/model.ts';
+import type { Model } from '../../api/model.ts';
+import { applyWrites, assembleCheck, linkCheck } from '../../api/project.ts';
+import { readRom, sha1Of } from '../../api/files.ts';
+import type { Diagnostic, Rom } from '../../api/rom.ts';
+import { findBinutils } from '../../api/toolchain.ts';
+import type { Printer } from '../../api/emit.ts';
+import { combineReports, VerifyCodes } from '../../api/verify.ts';
+import type { CheckId, CheckResult, VerifyReport } from '../../api/verify.ts';
+import { planWrites } from '../../api/write-plan.ts';
+import { discover } from '../../core/workflow/discover.ts';
+import { generate } from '../../core/workflow/generate.ts';
+import type { GenerateResult } from '../../core/workflow/generate.ts';
+import { withTempDir } from '../../shell/temp-dir.ts';
+import { ExitCode } from '../exit-codes.ts';
+import type { RunSummary } from '../exit-codes.ts';
+import type { CliIo, CommandSpec } from '../registry.ts';
+import { diagnosticLine, recordLine } from '../reporters/ndjson.ts';
+import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
+import { exitCodeOf, printDiagnosticsOnly, usageError } from './analysis-records.ts';
+
+const PRINTERS: readonly Printer[] = ['readable', 'raw'];
+const VERIFY_CODES: ReadonlySet<string> = new Set(Object.keys(VerifyCodes));
+/** Where the tree of --assemble and --link is written: under os.tmpdir(), never the working directory. */
+export const VERIFY_TEMP_PREFIX = 'romlift-verify-';
+
+/** What the toolchain part of a run adds: its checks and the linked image's SHA-1. */
+interface ToolchainOutcome {
+  readonly checks: readonly CheckResult[];
+  readonly sha1?: string;
+}
+
+/** The outcome of one verify run, before it is printed. */
+export interface VerifyOutcome {
+  readonly report: VerifyReport;
+  /** The analysis and model diagnostics; each check's own are in `report`. */
+  readonly diagnostics: readonly Diagnostic[];
+  readonly files: number;
+  readonly sha1?: string;
+}
+
+function notRun(id: CheckId, detail: string, diagnostics: readonly Diagnostic[] = []): CheckResult {
+  return { id, ok: false, detail, diagnostics };
+}
+
+/** Every diagnostic of an outcome: the analysis and model ones, then each check's, in report order. */
+export function allDiagnostics(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): readonly Diagnostic[] {
+  return [...outcome.diagnostics, ...outcome.report.checks.flatMap((c) => c.diagnostics)];
+}
+
+/**
+ * 1 when an error diagnostic is not a self-check's (the input, the model or the toolchain is wrong), else 3 when
+ * a check failed, else 0 (architecture §2.1, D33).
+ */
+export function verifyExitCode(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): ExitCode {
+  if (allDiagnostics(outcome).some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))) return ExitCode.errors;
+  return outcome.report.ok ? ExitCode.ok : ExitCode.verifyFailed;
+}
+
+/** The assemble units of a model: one per module, in link order, with the ROM range its object must reproduce. */
+function assembleUnits(model: Model): Parameters<typeof assembleCheck>[0]['units'] {
+  return buildUnits(model).flatMap((unit, i) => {
+    const m = model.modules[i];
+    return m === undefined ? [] : [{ ...unit, span: m.span }];
+  });
+}
+
+/** Writes the tree into `dir` and runs the requested toolchain checks there. */
+async function checkInDir(dir: string, rom: Rom, result: GenerateResult, flags: { readonly assemble: boolean; readonly link: boolean }, io: CliIo): Promise<ToolchainOutcome> {
+  const ids: CheckId[] = [...(flags.assemble ? (['assemble'] as const) : []), ...(flags.link ? (['link'] as const) : [])];
+  const { model } = result;
+  const retained = model.modules.filter((m) => !m.generated).flatMap((m) => modulePathPrefixes(model, m));
+  const plan = planWrites({
+    entries: result.entries(),
+    manifest: null,
+    disk: new Map(result.paths.map((p) => [p, 'absent'] as const)),
+    reconciledTexts: new Map(),
+    hash: sha1Of,
+    retained,
+  });
+  const applied = await applyWrites(dir, plan);
+  if (!applied.ok) return { checks: ids.map((id) => notRun(id, 'the tree could not be written', applied.diagnostics)) };
+  const tools = findBinutils(io.env);
+  if ('code' in tools) return { checks: ids.map((id) => notRun(id, 'binutils not found', [tools])) };
+  const checks: CheckResult[] = [];
+  if (flags.assemble) checks.push(await assembleCheck({ dir, rom, units: assembleUnits(model), tools }));
+  if (!flags.link) return { checks };
+  const linked = await linkCheck({ dir, rom, units: buildUnits(model), tools });
+  checks.push(linked);
+  return linked.sha1 === null ? { checks } : { checks, sha1: linked.sha1 };
+}
+
+/** The toolchain checks of a run, in a temporary directory; not run when the self-checks or the model failed. */
+export async function toolchainChecks(rom: Rom, result: GenerateResult, flags: { readonly assemble: boolean; readonly link: boolean }, io: CliIo): Promise<ToolchainOutcome> {
+  const ids: CheckId[] = [...(flags.assemble ? (['assemble'] as const) : []), ...(flags.link ? (['link'] as const) : [])];
+  if (ids.length === 0) return { checks: [] };
+  if (!result.report.ok || result.diagnostics.some((d) => d.severity === 'error')) {
+    return { checks: ids.map((id) => notRun(id, 'not run: nothing is written while a self-check or the model fails')) };
+  }
+  const ran = await withTempDir(VERIFY_TEMP_PREFIX, (dir) => checkInDir(dir, rom, result, flags, io));
+  return ran.ok ? ran.value : { checks: ids.map((id) => notRun(id, 'no temporary directory', [ran.diagnostic])) };
+}
+
+/** Verifies a ROM: discover, configFromDiscover, generate, then the toolchain checks asked for. */
+export async function verifyRom(rom: Rom, options: { readonly printer: Printer; readonly assemble: boolean; readonly link: boolean }, io: CliIo): Promise<VerifyOutcome | { readonly refused: readonly Diagnostic[] }> {
+  const found = discover(rom);
+  if (found.diagnostics.some((d) => d.severity === 'error')) return { refused: found.diagnostics };
+  const result = generate({ rom, config: configFromDiscover(rom, found), decomp: { defined: new Set() }, printer: options.printer });
+  const toolchain = await toolchainChecks(rom, result, options, io);
+  const report = combineReports(result.report, { ok: toolchain.checks.every((c) => c.ok), checks: toolchain.checks });
+  return { report, diagnostics: result.diagnostics, files: result.paths.length, ...(toolchain.sha1 === undefined ? {} : { sha1: toolchain.sha1 }) };
+}
+
+/** The summary of a run: its exit code, the counts, and the linked SHA-1 when there is one. */
+export function verifySummary(outcome: VerifyOutcome, exitCode: ExitCode): RunSummary & { readonly sha1?: string } {
+  return {
+    ok: exitCode === ExitCode.ok,
+    exitCode,
+    counts: { checks: outcome.report.checks.length, failed: outcome.report.checks.filter((c) => !c.ok).length, files: outcome.files, diagnostics: allDiagnostics(outcome).length },
+    ...(outcome.sha1 === undefined ? {} : { sha1: outcome.sha1 }),
+  };
+}
+
+/** The --json output: one check line per check, the diagnostics, then the summary. */
+export function verifyNdjson(outcome: VerifyOutcome, summary: RunSummary & { readonly sha1?: string }): string {
+  return [
+    ...outcome.report.checks.map((c) => recordLine('check', { id: c.id, status: c.ok ? 'ok' : 'fail', detail: c.detail })),
+    ...allDiagnostics(outcome).map(diagnosticLine),
+    recordLine('summary', { ok: summary.ok, exitCode: summary.exitCode, sha1: summary.sha1, counts: summary.counts }),
+  ].join('');
+}
+
+/** The text output: one line per check and the summary on stdout, the diagnostics on stderr. */
+export function verifyText(outcome: VerifyOutcome, summary: RunSummary & { readonly sha1?: string }): { readonly stdout: string; readonly stderr: string } {
+  const width = Math.max(0, ...outcome.report.checks.map((c) => c.id.length));
+  let stdout = outcome.report.checks.map((c) => `${c.id.padEnd(width)}  ${c.ok ? 'ok  ' : 'FAIL'}  ${c.detail}\n`).join('');
+  if (summary.sha1 !== undefined) stdout += `linked SHA-1 ${summary.sha1}\n`;
+  stdout += `verify: ${formatSummaryText(summary)}\n`;
+  return { stdout, stderr: allDiagnostics(outcome).map((d) => `${formatDiagnosticText(d)}\n`).join('') };
+}
+
+function isPrinter(text: string): text is Printer {
+  return (PRINTERS as readonly string[]).includes(text);
+}
+
+export const verifyCommand: CommandSpec = {
+  name: 'verify',
+  summary: 'Self-checks the tree romlift emits for a ROM: tiling, re-encode, module size, text layout, paths; with --assemble and --link, the toolchain',
+  usage: 'verify --rom <rom> [--assemble] [--link] [--printer readable|raw] [--json]',
+  positionals: [],
+  options: [
+    { name: 'rom', kind: 'string', summary: 'The ROM to verify (required in phase 3: the config is built from its discover analysis)', value: '<rom>' },
+    { name: 'assemble', kind: 'boolean', summary: "Assembles each module in a temporary directory and compares its object with the module's ROM range" },
+    { name: 'link', kind: 'boolean', summary: "Links the whole tree in a temporary directory and compares the image's SHA-1 with the ROM's" },
+    { name: 'printer', kind: 'string', summary: "The printer: 'readable' (default) or 'raw' (every chunk as data)", value: '<printer>' },
+    { name: 'json', kind: 'boolean', summary: 'Prints NDJSON: one line per check, the diagnostics, then a summary' },
+  ],
+  async run(args, io) {
+    const json = args.flags['json'] === true;
+    const path = args.options['rom'];
+    if (path === undefined) return usageError(io, 'verify', 'needs --rom <rom> (phase 3 has no project)');
+    const printer = args.options['printer'] ?? 'readable';
+    if (!isPrinter(printer)) return usageError(io, 'verify', `--printer is 'readable' or 'raw', not '${printer}'`);
+    const loaded = await readRom(path);
+    if (!loaded.ok) {
+      printDiagnosticsOnly(io, json, 'verify', [loaded.diagnostic], { ok: false, exitCode: ExitCode.errors });
+      return ExitCode.errors;
+    }
+    const outcome = await verifyRom(loaded.value, { printer, assemble: args.flags['assemble'] === true, link: args.flags['link'] === true }, io);
+    if ('refused' in outcome) {
+      const exitCode = exitCodeOf(outcome.refused);
+      printDiagnosticsOnly(io, json, 'verify', outcome.refused, { ok: exitCode === ExitCode.ok, exitCode });
+      return exitCode;
+    }
+    const exitCode = verifyExitCode(outcome);
+    const summary = verifySummary(outcome, exitCode);
+    if (json) {
+      io.stdout(verifyNdjson(outcome, summary));
+    } else {
+      const text = verifyText(outcome, summary);
+      if (text.stderr !== '') io.stderr(text.stderr);
+      io.stdout(text.stdout);
+    }
+    return exitCode;
+  },
+};

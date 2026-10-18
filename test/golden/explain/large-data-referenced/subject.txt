@@ -3,6 +3,8 @@
   owner: 0x08001174 (origin call)
   provenance:
     seed.call round 0 cites 0x080000F6
+  chunk: sub_08001174 (function) in module main
+  item: insn 0x08001174..0x08001176: .inst.n 0x2000 @ movs r0, #0
   proposals (1):
     0x08001174 seed.call round 0 cites 0x080000F6: thumb
   accepts (2):

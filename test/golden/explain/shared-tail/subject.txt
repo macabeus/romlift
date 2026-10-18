@@ -3,6 +3,8 @@
   owner: 0x08000120 (origin pool-pointer)
   provenance:
     seed.pool-pointer round 1 cites 0x08000120: accepted by accept.tiles-after-accepted
+  chunk: sub_08000120 (function) in module asm_08000110
+  item: insn 0x08000120..0x08000122: .inst.n 0xB510 @ push {r4, lr}
   proposals (2):
     0x08000110 seed.call round 0 cites 0x080000F8: thumb
     0x08000120 seed.pool-pointer round 1 cites 0x08000120: thumb
