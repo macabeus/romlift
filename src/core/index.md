@@ -23,3 +23,16 @@ reconciliation, emission, verification, the write plan, the scaffold and the wor
 | `analysis/walk/` | the Thumb and ARM walks (`thumb.ts`, `arm.ts`), the cursor and walk environment (`cursor.ts`), the record a walk fills (`record.ts`), the reading queries rules share (`predicates.ts`) and the paged instruction index (`insn-index.ts`) |
 | `analysis/driver/` | the PoC's control flow (D48): `run`, `grow`, `fill-gaps`, `accept`, `settle`, `validity`, `epoch`, `worklist`, `confirm`, `diagnose`, `reuse`; the state (`state.ts`), its derived facts (`facts.ts`), the trail and rejections (`trail.ts`), the view (`view.ts`); and `rules.ts`, the only importer of `rules/index.ts` |
 | `analysis/rules/` | `define-rule.ts`, `index.ts` and one directory per family, one file per rule (§4.1) |
+
+## Phase 3: emission
+
+| Path | Responsibility |
+| --- | --- |
+| `config/` | the in-memory project config and its zod schema (`schema.ts`), the build compilers (`compilers.ts`, D47) |
+| `proposals/types.ts` | the one proposal shape, its sources (signature, evidence, legacy, analysis, layout) and `sourceKey` |
+| `layout/` | module inference options (`types.ts`); legal borders and `inferModules` (D20) |
+| `model/` | the frozen model (`types.ts`), the struct-of-arrays item table and `itemAt` (`item-table.ts`), labels per module (`resolver.ts`), the paths writers and checks share (`paths.ts`), and `buildModel` with its parts and codes (D62 b) |
+| `emit/` | the emission stream's data and writer contract (`tree.ts`), `emitTree`, the printer (`print/`) and one file per writer (`writers/`, registry in `writers/index.ts`) |
+| `verify/` | the self-checks (tiling, re-encode, module size, text layout, paths) and their report (`report.ts`) |
+| `write-plan/` | the write policy (`plan-writes.ts`), its types and owned roots (`types.ts`), the manifest and journal codecs |
+| `workflow/config-from-discover.ts` | the in-memory config of a discover run (D62 c) |
