@@ -178,6 +178,31 @@ test('data notes: dead, mixer-hole and unreached inside extents, none outside th
   ]);
 });
 
+test('the zeros up to a word before a pool word inside a function are padding (D16); other free bytes stay data', () => {
+  const code = thumbAt(BASE + 0x100)`
+    ldr r0, _08000108
+    adds r0, #1
+    bx lr
+  `;
+  const pool = Uint8Array.of(0x00, 0x00, 0x00, 0x02);
+  const cases: readonly { readonly gap: Uint8Array; readonly expect: readonly (readonly [string, number, number])[] }[] = [
+    { gap: Uint8Array.of(0, 0), expect: [['padding', 0x106, 0x108], ['pool', 0x108, 0x10c]] },
+    { gap: Uint8Array.of(0xc0, 0x46), expect: [['data', 0x106, 0x108], ['pool', 0x108, 0x10c]] },
+  ];
+  for (const { gap, expect } of cases) {
+    const rom = romWith([{ at: BASE + 0x100, bytes: code }, { at: BASE + 0x106, bytes: gap }, { at: BASE + 0x108, bytes: pool }], { size: 0x200 });
+    const analysis = analysisOf(rom, {
+      functions: [fact({ entry: BASE + 0x100, end: BASE + 0x10c, code: [{ start: BASE + 0x100, end: BASE + 0x106 }], dead: [{ start: BASE + 0x106, end: BASE + 0x108 }], pools: [BASE + 0x108] })],
+    });
+    const model = buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x10c, kind: 'data', generated: true }], functions: [[BASE + 0x100, 'F']] }));
+    const tail = itemsOf(model, rom).filter((i) => i.span.start >= BASE + 0x106 && i.span.start < BASE + 0x10c);
+    assert.deepEqual(
+      tail.map((i) => [i.kind, i.span.start - BASE, i.span.end - BASE]),
+      expect,
+    );
+  }
+});
+
 test('a data module is a few large items, split where a label starts', () => {
   const code = thumbAt(BASE + 0x100)`
     ldr r0, _08000108
