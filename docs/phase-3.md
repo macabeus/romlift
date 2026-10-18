@@ -25,7 +25,7 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 | `p3-generate` | 3 | `phase-3-generate` | merged (`2c0c7c9`) | `generate` (phase-3 form), `model --json`, `verify`, `explain`'s item and chunk, `bench/src/large-rom.ts` |
 | `p3-bench-scaffold` | 3 | `phase-3-bench-scaffold` | merged (`340c95a`) | `bench run --scaffold` (both printers), readability, objdiff, `bench speed` emission timings, `bench large-rom` |
 | `p3-fixture-goldens` | 3 | `phase-3-fixture-goldens` | merged (`f726652`) | the writer goldens, `export-poc --mode raw` and the raw printer's PoC parity, the six-ROM emission test, the tree digests in CI, the emission fixes of wave 3 |
-| closing fix round | lead | `phase-3` | committed (`c5d42cf`, `bd68585`, `acdf44c`, `682da72`) | the confirm-mode startup fix, `[symbols]` outside the ROM as labels, the objdiff base's RAM names, the write and analysis speed and memory changes, the readability floors (D64) |
+| closing fix round | lead | `phase-3` | committed (`c5d42cf`, `962fbb8`, `34a77cd`, `682da72`) | the confirm-mode startup fix, `[symbols]` outside the ROM as labels, the objdiff base's RAM names, the write and analysis speed and memory changes, the readability floors (D64) |
 
 ### p3-lead (wave 1)
 
@@ -252,18 +252,19 @@ without it:
   where the model and `codeLayout` place chunks. On all 47 fixtures the confirm run's functions, extents and
   startup region equal discover's; the two `todo` tests pass (no `todo` left in `npm test`); `verify --link`
   exits 0 with the SHA-1 on every fixture and both printers.
-- `bd68585` **a `[symbols]` entry outside the ROM names its pool words** (D64 b, c): global data labels no file
+- `962fbb8` **a `[symbols]` entry outside the ROM names its pool words** (D64 b, c): global data labels no file
   places, defined by `symbols.ld` (architecture §5's `@ =gFoo`); the objdiff base names the RAM symbols an ELF
   section defines and leaves out absolute ones. objdiff differences fe7j 1,296 → 256, klonoa 4,560 → 320,
   pokeemerald 45,414 → 16,543, sa2 8,392 → 1,518, sa3 7,174 → 609, tmc 6,241 → 1,252.
-- `acdf44c` **emission speed and analysis memory** (D64 d, e): generated files are written without an `fsync`,
+- `34a77cd` **emission speed and analysis memory** (D64 d, e): generated files are written without an `fsync`,
   an absent one created in place; compact instruction lookups in readings; numeric rejection keys; a native
   dead-run scan; the layout memo keyed by slot and text; table-driven `hex()`. Result-neutral: the goldens, PoC
   parity, lockstep and `epoch-reuse` are unchanged. pokeemerald `generate` 22,339 → 8,069 ms, `init`
   26,936 → 9,968 ms CPU (bench speed); large ROM 1,845.7 → 1,081.0 to 1,122.5 MiB (`init`), 1,366.3 → 1,019.0
   to 1,359.3 MiB (`generate`), still above the budget.
 - `682da72` **the first readability floors** (`bench/baseline/readability.json`, D62 a, D64 f), written by
-  `run --scaffold --write-readability-floor`.
+  `run --scaffold --write-readability-floor` at `34a77cd` (its commit message names `acdf44c`, the same tree
+  before its message was amended).
 
 ## Deviations from the roadmap
 
