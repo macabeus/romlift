@@ -172,14 +172,18 @@ export const AGBCC: CompilerProfile = {
   anchorSlack: 3,
   extentPoolGap: 8,
   // seed.ram-copy (D60 e), both windows set from the tuning set's distribution with a stated margin, not
-  // derived from a codegen property (an argument can take any number of instructions). argInsns: the
-  // shortest window that recovers all three arguments of each of the 15 copy calls seed.ram-copy
-  // recognises on the six tuning ROMs is 3 (6 calls), 4 (2), 6 (6, the m4a CpuSet on every ROM) or 7 (1,
-  // a size computed as the difference of two pool literals behind a cmp; beq guard); the window is the
-  // maximum plus five, 12, so the tuning set's longest setup is not its edge (7, 8, 12 and 16 give the same
-  // rows on all six; 6 loses a 4,956-byte block). Fixture ram-copy-setup-bound has a setup of exactly 12.
-  // jumpInsns: from an IWRAM pointer load to the jump through it, the 39 jumps measured take 1 (33), 2
-  // (2), 3 (2) or 5 (1) instructions; the window is 8, the maximum plus three.
+  // derived from a codegen property (an argument can take any number of instructions); measured with the
+  // straight-line argument scan, one count per call or load site. argInsns: the shortest window that
+  // recovers all three arguments of each of the 15 copy calls seed.ram-copy recognises on the six tuning
+  // ROMs (fe7j 2, klonoa 1, pokeemerald 1, sa2 3, sa3 5, tmc 3) is 3 (6 calls), 4 (2), 6 (6, the m4a
+  // CpuSet on every ROM) or 7 (1, a size computed as the difference of two pool literals behind a cmp; beq
+  // guard), 6 + 2 + 6 + 1 = 15; the window is the maximum plus five, 12, so the tuning set's longest setup
+  // is not its edge (7, 8, 12 and 16 give the same functions on all six; 6 loses tmc's 4,956-byte block).
+  // Fixture ram-copy-setup-bound has a setup of exactly 12, so 11 fails it. jumpInsns: from an IWRAM
+  // pointer load to the jump through it, the 46 load sites the rule finds on the six (fe7j 1, klonoa 1,
+  // pokeemerald 1, sa2 2, sa3 2, tmc 39) take 1 (40), 2 (2), 3 (3) or 5 (1) instructions, 40 + 2 + 3 + 1
+  // = 46; the window is 8, the maximum plus three. Only jumps at 1 decide a function on the six (1 to 16
+  // give the same functions); the unit test pins 8 (found) and 7 (missed) on a jump 8 instructions out.
   ramCopy: { argInsns: 12, jumpInsns: 8 },
   gapScan: {
     backwardWindow: 4096,

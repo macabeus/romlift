@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import rule from '../../../../../src/core/analysis/rules/seed/ram-copy.ts';
 import { Claim, type AnalysisView, type Reading } from '../../../../../src/core/analysis/types.ts';
 import type { Rom } from '../../../../../src/foundation/rom/rom.ts';
+import { AGBCC } from '../../../../../src/core/profile/agbcc.ts';
 import { romWith, viewWith, words } from '../../../../helpers/analysis.ts';
 import { armAt } from '../../../../helpers/arm.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
@@ -238,4 +239,30 @@ test('the argument scan is straight-line: it stops at an unconditional exit and 
   assert.deepEqual(queue(setupRom(call), VENEER, [MAIN, VENEER]), [], 'the call in between forgets the arguments');
   const plain = thumbAt(MAIN)`push {lr}; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; bl _08000240; pop {pc}`;
   assert.deepEqual(queue(setupRom(plain), VENEER, [MAIN, VENEER]), B, 'the same setup, straight-line');
+});
+
+test('the jump window is the profile\'s ramCopy.jumpInsns: a jump that many instructions after the load is found, one window shorter it is not (code-quality-r2-1)', () => {
+  const n = AGBCC.ramCopy.jumpInsns;
+  assert.equal(n, 8, 'the profile value this test pins');
+  // The veneer loads IWRAM + 8 into r3, runs n - 1 instructions that leave r3 alone, then `bx r3`: the jump is
+  // the n-th instruction after the load. Its pool word follows at VENEER + 0x14.
+  const fillers = Array.from({ length: n - 1 }, () => 'movs r0, #1').join('; ');
+  const veneer = thumbAt(VENEER)`ldr r3, _08000274; ${fillers}; bx r3`;
+  assert.equal(veneer.length, 2 * (n + 1));
+  const rom = romWith([
+    { at: MAIN, bytes: thumbAt(MAIN)`push {lr}; ldr r0, _08000210; ldr r1, _08000214; ldr r2, _08000218; bl _08000240; pop {pc}` },
+    { at: MAIN + 0x10, bytes: words(BLOCK, IWRAM, 0x20) },
+    { at: COPY, bytes: CALLEES['src-first'] },
+    { at: VENEER, bytes: veneer },
+    { at: VENEER + 0x14, bytes: words(IWRAM + 8) },
+    { at: BLOCK, bytes: armAt(BLOCK)`mov r0, #0; bx lr; add r0, r0, #1; add r0, r0, #2; bx lr; mov r0, #3; bx lr` },
+  ]);
+  const run = (jumpInsns: number) => {
+    const profile = { ...AGBCC, ramCopy: { ...AGBCC.ramCopy, jumpInsns } };
+    const plain = viewWith({ rom, profile });
+    const v = viewWith({ rom, profile, functions: [MAIN, VENEER], readings: [MAIN, VENEER].map((e) => plain.read(e, 'thumb')) });
+    return rule.queue(factOf(v.read(VENEER, 'thumb')), v);
+  };
+  assert.deepEqual(run(n), B, 'an adequate window: the profile\'s');
+  assert.deepEqual(run(n - 1), [], 'a window one shorter misses the jump');
 });

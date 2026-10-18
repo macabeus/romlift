@@ -1706,9 +1706,17 @@ sealed ROM of a fresh family passes.
   calls the rule recognises on the six tuning ROMs is 3 (6 calls), 4 (2), 6 (6, the m4a CpuSet on every
   ROM) or 7 (1, tmc); `argInsns` is the maximum plus five, 12 (7, 8, 12 and 16 give the same rows on all
   six; 6 loses tmc's 4,956-byte block), and fixture `ram-copy-setup-bound` has a setup of exactly 12, so
-  11 fails it. The jump after an IWRAM pointer load has its own window, `jumpInsns` 8: the 39 jumps the
-  rule finds on the six ROMs take 1 (33), 2 (2), 3 (2) or 5 (1, tmc) instructions; 8 is the maximum
-  plus three. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
+  11 fails it. The jump after an IWRAM pointer load has its own window, `jumpInsns` 8. Fix round 2 wrote
+  "the 39 jumps … take 1 (33), 2 (2), 3 (2) or 5 (1)", which does not add up (38) and counted tmc's load
+  sites alone; re-measured after the review of `8fba183` (code-quality-r2-1, overfitting-r2-2,
+  gate-honesty-r2-5, code-quality-r2-3), one count per load site (the cartridge entry's extent shares the
+  startup's load, two tmc entries share one): the 46 sites the rule finds on the six ROMs (fe7j 1, klonoa
+  1, pokeemerald 1, sa2 2, sa3 2, tmc 39) take 1 (40), 2 (2), 3 (3) or 5 (1) instructions, 40 + 2 + 3 + 1
+  = 46, and the copy calls of the argument window are 15 per site as above (fe7j 2, klonoa 1, pokeemerald
+  1, sa2 3, sa3 5, tmc 3; 6 + 2 + 6 + 1). 8 is the maximum plus three. Only the jumps at 1 decide a
+  function on the six (every window from 1 to 16 gives the same functions), so the window rests on the
+  distribution and on a unit test that pins it: a jump exactly 8 instructions after its load is found
+  with the profile's 8 and missed with 7. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
   (`bx`, `mov pc`, `bl` to a `bx rN` stub of that register, libgcc's `_call_via_rN`) names the entry S +
   (P − D), Thumb when P is odd, when it opens a function: the instruction before it is an unconditional
   exit, or the word before it is a literal pool (claimed as one, or a pool of the reading of another

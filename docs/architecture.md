@@ -916,7 +916,8 @@ export interface CompilerProfile {
   readonly gapScan: { readonly backwardWindow: number; readonly fillSlack: number;
                       readonly armFrontPoolWords: number; readonly armMinInsnsForSkip: number;
                       readonly prologueDistance: number };
-  readonly ramCopy: { readonly argInsns: number };   // seed.ram-copy (D60 e): 8; a copy fits IWRAM (the memory map)
+  readonly ramCopy: { readonly argInsns: number; readonly jumpInsns: number };  // seed.ram-copy (D60 e): 12 and 8,
+                    // from the tuning set's distribution with a margin; a copy fits IWRAM (the memory map)
   readonly alignment: { readonly thumbFunction: number; readonly armFunction: number; readonly cFunction: number;
                         readonly pool: number; readonly object: number };
   // misfitThreshold returns with the first raiser of W_PROFILE_MISFIT (D59)
