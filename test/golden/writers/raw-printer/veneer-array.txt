@@ -1,0 +1,146 @@
+==> asm/rom_header.s (generated, header) <==
+.syntax unified
+.include "include/macros.inc"
+.thumb
+.thumb
+@ GBA cartridge header
+.global rom_header
+rom_header:
+.type sub_08000000, %function
+sub_08000000:
+	.byte 0x2E, 0x00, 0x00, 0xEA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	.byte 0x52, 0x4F, 0x4D, 0x4C, 0x49, 0x46, 0x54, 0x46, 0x49, 0x58, 0x54, 0x52, 0x52, 0x4C, 0x46, 0x58
+	.byte 0x30, 0x31, 0x96, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00
+==> asm/crt0.s (generated, crt0) <==
+.syntax unified
+.include "include/macros.inc"
+.arm
+@ startup region 080000C0..080000F4
+
+.arm
+	arm_func_start sub_080000C0
+sub_080000C0: @ 080000C0
+	.2byte 0x0012, 0xE3A0, 0xF000, 0xE129, 0xD018, 0xE59F, 0x001F, 0xE3A0
+	.2byte 0xF000, 0xE129, 0xD010, 0xE59F, 0x1010, 0xE59F, 0xE00F, 0xE1A0
+	.2byte 0xFF11, 0xE12F, 0xFFF5, 0xEAFF
+	.4byte 0x03007FA0
+	.4byte 0x03007F00
+	.4byte 0x080000F5
+	arm_func_end sub_080000C0
+==> asm/main.s (generated, module) <==
+.syntax unified
+.include "include/macros.inc"
+.thumb
+.include "asm/nonmatchings/main/sub_080000F4.s"
+.include "asm/nonmatchings/main/unk_08000102.s"
+.include "asm/nonmatchings/main/sub_08000114.s"
+.include "asm/nonmatchings/main/sub_08000118.s"
+.include "asm/nonmatchings/main/sub_0800011C.s"
+.include "asm/nonmatchings/main/sub_08000120.s"
+.include "asm/nonmatchings/main/unk_08000124.s"
+.include "asm/nonmatchings/main/sub_08000134.s"
+.include "asm/nonmatchings/main/sub_08000138.s"
+.include "asm/nonmatchings/main/sub_0800013C.s"
+.include "asm/nonmatchings/main/sub_08000140.s"
+==> asm/nonmatchings/main/sub_080000F4.s (generated, function) <==
+.thumb
+	thumb_func_start sub_080000F4
+sub_080000F4: @ 080000F4
+	.2byte 0xB500, 0xF000, 0xF811, 0xF000, 0xF811, 0xBC02, 0x4708
+	thumb_func_end sub_080000F4
+==> asm/nonmatchings/main/sub_08000114.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_08000114
+sub_08000114: @ 08000114
+	.2byte 0x4B03, 0x4718
+	thumb_func_end sub_08000114
+==> asm/nonmatchings/main/sub_08000118.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_08000118
+sub_08000118: @ 08000118
+	.2byte 0x4B03, 0x4718
+	thumb_func_end sub_08000118
+==> asm/nonmatchings/main/sub_0800011C.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_0800011C
+sub_0800011C: @ 0800011C
+	.2byte 0x4B03, 0x4718
+	thumb_func_end sub_0800011C
+==> asm/nonmatchings/main/sub_08000120.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_08000120
+sub_08000120: @ 08000120
+	.2byte 0x4B03, 0x4718
+	thumb_func_end sub_08000120
+==> asm/nonmatchings/main/sub_08000134.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_08000134
+sub_08000134: @ 08000134
+	.2byte 0x2000, 0x4770
+	thumb_func_end sub_08000134
+==> asm/nonmatchings/main/sub_08000138.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_08000138
+sub_08000138: @ 08000138
+	.2byte 0x2001, 0x4770
+	thumb_func_end sub_08000138
+==> asm/nonmatchings/main/sub_0800013C.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_0800013C
+sub_0800013C: @ 0800013C
+	.2byte 0x2002, 0x4770
+	thumb_func_end sub_0800013C
+==> asm/nonmatchings/main/sub_08000140.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_08000140
+sub_08000140: @ 08000140
+	.2byte 0x2003, 0x4770
+	thumb_func_end sub_08000140
+==> asm/nonmatchings/main/unk_08000102.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 18 bytes
+.global unk_08000102
+unk_08000102: @ 08000102
+	.2byte 0x0000, 0xE800, 0xE800, 0xE800, 0xE800, 0xE800, 0xE800, 0xE800
+	.2byte 0xE800
+==> asm/nonmatchings/main/unk_08000124.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 16 bytes
+.global unk_08000124
+unk_08000124: @ 08000124
+	.4byte 0x08000135
+	.4byte 0x08000139
+	.4byte 0x0800013D
+	.4byte 0x08000141
+==> data/data.s (generated, data) <==
+.syntax unified
+.include "include/macros.inc"
+.thumb
+
+@ data module data: 0x08000144..0x0800014C, 8 bytes
+
+	.global gUnk_08000144
+gUnk_08000144: @ 0x08000144
+	.incbin "baserom.gba", 0x144, 0x8
+==> ldscript.txt (generated, ldscript) <==
+/* ldscript.txt: the build units in ROM order, generated by romlift. */
+SECTIONS {
+    . = 0x08000000;
+    .text : {
+        build/rom_header.o(.text);
+        build/crt0.o(.text);
+        build/main.o(.text);
+        build/data.o(.text);
+    }
+}
+==> symbols.ld (generated, symbols) <==
+/* symbols.ld: the RAM and absolute symbols, generated by romlift; edit [symbols] in the TOML instead. */

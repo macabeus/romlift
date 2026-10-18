@@ -1,0 +1,29 @@
+==> asm/nonmatchings/main/sub_080000F4.s (generated, function) <==
+.thumb
+	thumb_func_start sub_080000F4
+sub_080000F4: @ 080000F4
+	push {lr}
+	movs r0, #4
+	bl sub_08000118
+	pop {r1}
+	bx r1
+	thumb_func_end sub_080000F4
+==> asm/nonmatchings/asm_08000100/sub_0800010A.s (generated, function) <==
+.thumb
+	non_word_aligned_thumb_func_start_local sub_0800010A
+sub_0800010A: @ 0800010A
+	push {r4, lr}
+	movs r4, #3
+	adds r0, r0, r4
+	pop {r4}
+	pop {r1}
+	bx r1
+	thumb_func_end sub_0800010A
+==> asm/nonmatchings/main_2/sub_08000118.s (generated, function) <==
+.thumb
+	thumb_func_start sub_08000118
+sub_08000118: @ 08000118
+	movs r1, #2
+	muls r0, r1
+	bx lr
+	thumb_func_end sub_08000118

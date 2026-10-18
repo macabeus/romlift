@@ -1,0 +1,18 @@
+==> asm/nonmatchings/main/sub_080000F4.s (generated, function) <==
+.thumb
+	thumb_func_start sub_080000F4
+sub_080000F4: @ 080000F4
+	ldr r0, _080000FC @ =gUnk_08000110
+	bl sub_08000100
+	b sub_080000F4
+_080000FC: .4byte gUnk_08000110
+	thumb_func_end sub_080000F4
+==> asm/nonmatchings/main/sub_08000100.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_08000100
+sub_08000100: @ 08000100
+	ldr r0, [r0]
+	adds r0, #1
+	movs r1, #0
+	bx lr
+	thumb_func_end sub_08000100
