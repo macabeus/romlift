@@ -1928,8 +1928,12 @@ verbatim, and the meaning applied:
 - **Q4** (`g2.held-out`'s family conditions), the option chosen: **"Waive both"**. Both family conditions
   are waived with these grounds; pokefirered and pokeruby must still pass sealed, and the gate prints the
   waiver.
-- **Q5** (the code-end convention), the option chosen: **"Use $d for every ROM"**. The ELF's code end ends
-  an unsized function at the next `$d` mapping symbol (or typed symbol), for every ROM, tuning and sealed.
+- **Q5** (the code-end convention), the option chosen: **"Use $d for every ROM"**. Meaning given: the ELF's
+  code end ends an unsized function at the next `$d` mapping symbol (or typed symbol), for every ROM,
+  tuning and sealed, in every scorer; record the before/after per ROM (tmc +148 → 0, klonoa +4 → 0, fe7j
+  +8 → 0, others 0). (Fix round 1 of D61 restored "in every scorer", which this record had dropped,
+  gate-honesty-r0-3; the one scorer kept on the PoC's convention is in (a), an interpretation the owner
+  is asked to confirm or overrule as Q7 of phase-2.md.)
 
 These are the only gate changes the answers authorise; no other gate, threshold or check is weakened,
 skipped or removed.
@@ -1940,26 +1944,35 @@ skipped or removed.
   without `.size`) ends at the first data mapping symbol (`$d`, `$d.*`) or typed symbol (FUNC with the
   Thumb bit cleared, OBJECT, SECTION) after it; a sized one at addr + size. One convention for every ROM,
   tuning and sealed, in the tuning scorer (`score.ts`) and the sealed scorer (`seal.ts` through
-  `analysis-run.ts`): D60 (j) as fix round 1 built it, now authorised. The rescoring of the PoC's own dumps
-  (`bench poc-check`, `g1.bench-harness`) keeps the PoC's convention (`pocCodeEnd`), because its check is
-  that the harness reproduces the PoC's pinned rows field for field; that check is unchanged. Measured
+  `analysis-run.ts`): D60 (j) as fix round 1 built it, now authorised. **Interpretation, not the owner's
+  words (Q7, open):** the meaning given says "in every scorer", but the rescoring of the PoC's own dumps
+  (`bench poc-check`, `g1.bench-harness`) keeps the PoC's convention (`pocCodeEnd`). That scorer's check
+  is that the harness reproduces the PoC's pinned rows (`bench/baseline/poc-2026-10-16.json`, the
+  acceptance bar pinned by content, D50) field for field, and those rows carry the PoC's own ELF code end;
+  scoring the dumps under `$d` would make the check fail on klonoa (4 bytes), fe7j (8) and tmc (148)
+  unless the pinned rows were rewritten, which no answer authorised. So a romlift row and the PoC's row of
+  the same ROM differ in their ELF code end by design. The owner may overrule this (Q7): then the PoC's
+  pinned rows are re-pinned under `$d` and the rescoring uses `elfCodeEnd`. Measured
   (`bench run`, against `8fba183`): tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3,
   pokefirered and pokeruby 0 → 0; no other count and no analysis digest moves.
 - (b) **Q4, the family conditions of `g2.held-out`** (`test/gates/held-out-verdict.ts` `FAMILY_WAIVER`). The
   waiver's `grounds.twoFamilies` holds the answer ("Waive both"), so both family conditions are waived and
-  printed (`WAIVED: …`) with their grounds; its binding (the sealed pokefirered and pokeruby by name, ROM
+  printed (`WAIVED: …`) with their grounds, each with its own date and decision (fix round 1 of D61,
+  gate-honesty-r0-4: the two-families condition prints 2026-10-18 and D61 b, the fresh-family condition
+  2026-10-17 and D60; the unused `pending` field is gone); its binding (the sealed pokefirered and pokeruby by name, ROM
   SHA-1 and ELF SHA-256, and the tuning families of D60) is unchanged, and the count of passing sealed ROMs
   (at least two) and every per-ROM threshold still decide. Measured: `g2.held-out` passes, pokefirered and
   pokeruby pass sealed with unchanged counts.
 - (c) **Q1, `g2.poc-parity`** (`test/gates/poc-parity-check.ts`). `SCOPED_OUT` holds tmc with the owner's
   words; the gate judges the five ROMs of the M1 evidence exactly as before (parity digest, rows, every
   lockstep set, the commit an ancestor of HEAD, the pinned PoC source) and prints "tmc: not applicable, no
-  M1 lockstep run". With the review of `8fba183` (gate-honesty-r2-1) the gate's `historicalCheck` is its own
-  check (`parityCheck`, the same function as `run`), not a coverage test, so once `phase.json` is raised it
-  is `historical` only when that check passes on its scope; `test/gates-index.test.ts` holds every
-  historical gate to `historicalCheck === run`, and `test/unit/gates/poc-parity-check.test.ts` runs the
-  harness at `landed` 2 on a gate whose check throws (`fail`) and one whose check returns (`historical`;
-  code-quality-r2-6). A scoped-out name that is no tuning dataset fails as stale.
+  M1 lockstep run". With the review of `8fba183` (gate-honesty-r2-1) the gate's check once frozen is its own
+  check (`parityCheck`), not a coverage test, so once `phase.json` is raised it is `historical` only when
+  that check passes on its scope. Since fix round 1 of D61 (code-quality-r0-6) there is no separate
+  `historicalCheck`: the harness runs every gate's `run` once frozen and records `historical` when it
+  returns, `fail` when it throws (`gate.ts` `gateStep`); `test/unit/gates/gate.test.ts` runs the harness
+  at `landed` 2 on a gate whose run throws (`fail`) and one whose run returns (`historical`). A
+  scoped-out name that is no tuning dataset fails as stale.
 - (d) **Q2, `g2.baseline-rows`** (`test/gates/baseline-rows-verdict.ts`). `BENCHMARK_ROWS` holds tmc with the
   owner's words and its floor, tp 8,631 of 8,636 ELF functions (recall 99.94%). For tmc (its PoC reference
   the pinned PoC's own run, `poc.source` `dump`) an unaccepted row of the kinds a dataset row carries (a
@@ -1982,15 +1995,27 @@ skipped or removed.
   regression` against the commit before it: 8 failures. By the owner's condition it is reverted
   (`af0f75c`). tmc's six differences of Q3 (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790,
   0x080B1A8C) are a known phase-2 limitation: `test/gates/confirm-differences.ts` compares the two views in
-  full (every differing function and claim run, not the first), and the gate accepts tmc only when its
-  differing functions are exactly those six and every differing claim run lies inside one of their extents,
-  printing them as `KNOWN LIMITATION: …` every run; fewer is a stale record and fails, and every other ROM
-  must have no difference. **Measured: tmc has eight differing functions at HEAD, not six.** Q3's count was
+  full (every differing function and claim run, not the first). Since fix round 1 of D61
+  (gate-honesty-r0-1) the limitation is pinned by content: `KNOWN_DIFFERENCES.tmc` holds each of the six
+  functions' discover and confirm records (mode, extent, far verdicts) and the one differing claim run
+  (0x080087D2..0x08008886, owned by 0x08008790 in discover, unowned in confirm), as measured at `9c8b282`
+  (identical at `95b257b^` and `5e18731`), and the gate accepts tmc only when its differences equal those
+  records exactly, printing them as `KNOWN LIMITATION: …` every run. A known function whose record changed
+  or that vanished from a view fails as a changed limitation; any other differing function or claim run
+  fails wherever it lies; a known difference gone, all six included (the gate judges every ROM, equal
+  digests or not; gate-honesty-r0-2), and a record whose ROM is not a tuning dataset fail as stale; every
+  other ROM must have no difference. **Measured: tmc has eight differing functions at HEAD, not six.** Q3's count was
   taken at `9c8b282`; `95b257b` (fix round 2 of D60, the pool boundary of `seed.ram-copy`) moved two more,
   0x080B255C (discover ends it at 0x080B299C, confirm at 0x080B280C) and 0x080B2874 (0x080B289C against
   0x080B299C), the same class (two ARM entries proposed by one worklist, read in ascending order, the
   lower one's reading running over the higher). The owner's answer names six, so the two are not covered:
-  the gate fails on them, printing why, and they are owner question Q6 of phase-2.md.
+  the gate fails on them, printing why (that text for these two addresses only; any other extra function
+  is printed as "not covered by D61 e"), and they are owner question Q6 of phase-2.md.
+- (f) **The binding of the tmc scopings** (fix round 1 of D61, overfitting-correctness-r0-4). (c), (d) and
+  (e) were keyed by the dataset name alone. Each now holds the ROM SHA-1 and ELF SHA-256 the answers were
+  given on (`test/gates/dataset-binding.ts` `TMC_AT_D61`: `b4bd50e4…`, `7d27e8d9…`), as (b) holds the
+  sealed pair; for a dataset of that name with another ROM or ELF the scoping is stale, fails, and the ROM
+  is judged as without it until the owner decides anew.
 
 **Consequences.** Measured at `8c60bf5` (phase-2.md, "The closing gate"): the six tuning rows keep
 `8fba183`'s counts and analysis digests, every code end is 0, pokefirered and pokeruby pass sealed with
