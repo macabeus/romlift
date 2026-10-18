@@ -116,7 +116,7 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   const refs = codeRefs(rom, segments, relocated);
   const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols: inRom, segments, refs });
 
-  const defined: DefinedName[] = labelled.labels.map((l) => ({ name: l.name, addr: l.addr, scope: l.scope }));
+  const defined: DefinedName[] = [...labelled.labels];
   for (const [entry, f] of sortedEntries(functions)) {
     const label = labelled.functions.get(entry);
     if (label !== undefined) for (const alias of f.aliases) defined.push({ name: alias, addr: label.addr, scope: label.scope });

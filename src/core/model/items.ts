@@ -14,11 +14,11 @@
 // 'cross-module-short-branch' and W_CROSS_MODULE_SHORT_BRANCH (D15; architecture §12 item 3's safe default).
 import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { decode, thumbWordAt } from '../../foundation/isa/decode.ts';
+import { decode } from '../../foundation/isa/decode.ts';
 import { rawReason } from '../../foundation/isa/roundtrip.ts';
 import { specOf } from '../../foundation/isa/rows.ts';
 import type { Flow, Insn, RawReason, SpecId, SymbolResolver } from '../../foundation/isa/types.ts';
-import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
+import { contains, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
@@ -235,6 +235,17 @@ export function printingCache(): PrintingCache {
 // ---------------------------------------------------------------------------------------------------
 // Items per chunk.
 
+/** The halfword at `a`, read without a bounds check: callers pass addresses of segments clipped to the ROM. */
+function half(rom: Rom, a: Addr): number {
+  const k = a - rom.base;
+  return (rom.bytes[k] ?? 0) | ((rom.bytes[k + 1] ?? 0) << 8);
+}
+
+/** The word at `a`, read like `half`. */
+function word32(rom: Rom, a: Addr): number {
+  return (half(rom, a) | (half(rom, a + 2) << 16)) >>> 0;
+}
+
 export interface ItemsInputs {
   readonly rom: Rom;
   /** In address order, tiling the ROM. */
@@ -279,7 +290,9 @@ function firstAbove(sorted: readonly Addr[], a: Addr): number {
 /** The items of every chunk, in address order, with the chunks' item ranges. */
 export function buildItems(inputs: ItemsInputs): ItemsResult {
   const { rom, segments, labelStarts } = inputs;
-  const table = itemTableBuilder(Math.max(1024, inputs.segments.concrete.length * 4));
+  // Room for every item up front: one per code halfword at most, one per other segment, two per chunk for data.
+  const capacity = segments.concrete.reduce((n, s) => n + (s.kind === 'code' ? (s.end - s.start) >>> 1 : 1), 2 * inputs.chunks.length);
+  const table = itemTableBuilder(Math.max(1024, capacity));
   const diagnostics: Diagnostic[] = [];
   const ranges: { first: number; count: number }[] = [];
   const cache = printingCache();
@@ -334,7 +347,7 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
         fillData(at, b, false);
         return;
       }
-      const word = mode === 'thumb' ? u16(rom, at) : u32(rom, at);
+      const word = mode === 'thumb' ? half(rom, at) : word32(rom, at);
       const known = cache.known(mode, word);
       if (known !== undefined) {
         const length = mode === 'thumb' ? 2 : 4;
@@ -344,8 +357,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
         continue;
       }
       const run = at + offset;
-      let insn = decode(mode, mode === 'thumb' ? (room >= 4 ? thumbWordAt(rom, at) : u16(rom, at)) : u32(rom, at), run);
-      if (insn.size > room) insn = decode('thumb', u16(rom, at), run);
+      let insn = decode(mode, mode === 'thumb' ? (room >= 4 ? word32(rom, at) : word) : word, run);
+      if (insn.size > room) insn = decode('thumb', word, run);
       const length = insn.size;
       const reason = itemReason(insn, c, resolver);
       if (reason === null) table.append({ kind: 'insn', start: at, length, specId: insn.specId });

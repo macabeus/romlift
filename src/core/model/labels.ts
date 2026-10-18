@@ -8,9 +8,9 @@
 // Scope: a label is 'global' when something in another module references it (a call, a branch, an adr, a
 // pool load, a pool word naming it, its Thumb form included, a table entry), else 'module'. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
-import { decode, thumbWordAt } from '../../foundation/isa/decode.ts';
+import { decode } from '../../foundation/isa/decode.ts';
 import type { Insn } from '../../foundation/isa/types.ts';
-import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
+import { contains } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
@@ -19,11 +19,22 @@ import type { ChunkPlan } from './chunks.ts';
 import type { Segments } from './items.ts';
 import { loadAddressOf, loadModuleAt, runModuleAt, runOffsetAt } from './modules.ts';
 import { dataName, localName } from './names.ts';
-import { compareLabels, LABEL_KIND_ORDER, wordValueOf } from './resolver.ts';
+import { LABEL_KIND_ORDER, wordValueOf } from './resolver.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
 // References from code.
+
+/** The halfword at `a`, read without a bounds check: callers pass addresses of segments clipped to the ROM. */
+function half(rom: Rom, a: Addr): number {
+  const k = a - rom.base;
+  return (rom.bytes[k] ?? 0) | ((rom.bytes[k + 1] ?? 0) << 8);
+}
+
+/** The word at `a`, read like `half`. */
+function word32(rom: Rom, a: Addr): number {
+  return (half(rom, a) | (half(rom, a + 2) << 16)) >>> 0;
+}
 
 /** What an instruction names: a short Thumb branch, another branch, a bl, an adr or a pool load. */
 export type CodeRefKind = 'short-branch' | 'branch' | 'bl' | 'adr' | 'pool-load';
@@ -68,15 +79,15 @@ export function codeRefs(rom: Rom, segments: Segments, relocated: readonly Modul
     const offset = runOffsetAt(relocated, s.start);
     if (s.mode === 'arm') {
       for (let a = s.start; a + 4 <= s.end; a += 4) {
-        const ref = refOf(decode('arm', u32(rom, a), a + offset), a);
+        const ref = refOf(decode('arm', word32(rom, a), a + offset), a);
         if (ref !== undefined) out.push(ref);
       }
       continue;
     }
     for (let a = s.start; a + 2 <= s.end; ) {
-      const hw = u16(rom, a);
-      if ((hw & 0xf800) === 0xf000 && a + 4 <= s.end && (u16(rom, a + 2) & 0xf800) === 0xf800) {
-        const ref = refOf(decode('thumb', thumbWordAt(rom, a), a + offset), a);
+      const hw = half(rom, a);
+      if ((hw & 0xf800) === 0xf000 && a + 4 <= s.end && (half(rom, a + 2) & 0xf800) === 0xf800) {
+        const ref = refOf(decode('thumb', word32(rom, a), a + offset), a);
         if (ref !== undefined) out.push(ref);
         a += 4;
         continue;
@@ -126,9 +137,16 @@ interface Candidate {
   readonly thumb: boolean;
 }
 
-/** A kind's place in LABEL_KIND_ORDER: the label printed first at a shared address. */
+/** Each kind's place in LABEL_KIND_ORDER: the label printed first at a shared address has the lowest. */
+const KIND_RANK = Object.fromEntries(LABEL_KIND_ORDER.map((kind, i) => [kind, i])) as Readonly<Record<LabelKind, number>>;
+
 function kindRank(kind: LabelKind): number {
-  return LABEL_KIND_ORDER.indexOf(kind);
+  return KIND_RANK[kind];
+}
+
+/** resolver.ts compareLabels, with the kind's rank looked up rather than searched. */
+function compareLabelsFast(a: Label, b: Label): number {
+  return compareNumbers(a.addr, b.addr) || compareNumbers(kindRank(a.kind), kindRank(b.kind)) || compareCodeUnits(a.name, b.name);
 }
 
 function compareCandidates(a: Candidate, b: Candidate): number {
@@ -244,9 +262,9 @@ export function buildLabels(inputs: LabelInputs): LabelsResult {
     kept.push(...keep(candidates.slice(i, j)));
     i = j;
   }
-  const pairs = kept
-    .map((c) => ({ load: c.load, label: { addr: c.load + runOffsetAt(inputs.relocated, c.load), name: c.name, kind: c.kind, thumb: c.thumb, scope: 'module' } satisfies Label }))
-    .sort((a, b) => compareLabels(a.label, b.label));
+  const pairs = kept.map((c) => ({ load: c.load, label: { addr: c.load + runOffsetAt(inputs.relocated, c.load), name: c.name, kind: c.kind, thumb: c.thumb, scope: 'module' } satisfies Label }));
+  // The candidates are in (load address, kind, name) order, which is compareLabels' order unless a run address moved.
+  if (inputs.relocated.length > 0) pairs.sort((a, b) => compareLabelsFast(a.label, b.label));
   const index: LabelIndex = { byAddr: pairs.map((p) => p.label) };
   const global = scopes(inputs, index);
   const functions = new Map<Addr, Label>();

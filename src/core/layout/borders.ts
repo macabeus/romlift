@@ -13,7 +13,7 @@
 // The borders rest only on ARM words and the ROM layout, not on a compiler profile: buildModel, which has no
 // profile, must compute the same set as init and the TOML patcher (D62).
 import { decode } from '../../foundation/isa/decode.ts';
-import { contains, HEADER_END, u16 } from '../../foundation/rom/rom.ts';
+import { HEADER_END } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
@@ -189,12 +189,14 @@ function maybeShortBranch(hw: number): boolean {
  */
 export function shortBranches(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>): ShortBranch[] {
   const out: ShortBranch[] = [];
+  const bytes = rom.bytes;
   for (const f of analysis.functions) {
     if (f.mode !== 'thumb') continue;
     for (const span of f.code) {
-      for (let a = span.start; a + 2 <= span.end; a += 2) {
-        if (!contains(rom, a, 2)) break;
-        const hw = u16(rom, a);
+      const end = Math.min(span.end, rom.end);
+      for (let a = Math.max(span.start, rom.base); a + 2 <= end; a += 2) {
+        const k = a - rom.base;
+        const hw = (bytes[k] ?? 0) | ((bytes[k + 1] ?? 0) << 8);
         if (!maybeShortBranch(hw)) continue;
         const flow = decode('thumb', hw, a).flow;
         if (flow.kind === 'branch') out.push({ site: a, target: flow.target });
