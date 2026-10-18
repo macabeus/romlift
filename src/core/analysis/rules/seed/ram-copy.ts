@@ -383,39 +383,34 @@ function loopCall(callee: Reading, v: AnalysisView): CopyCall | undefined {
   if (source === undefined || dest === undefined) return undefined;
   const size = [0, 1, 2].find((a) => a !== source && a !== dest);
   if (size === undefined) return undefined;
-  const width = stores.get(dest) ?? 0;
-  if (!ends.has(pairKey(source, size)) && !ends.has(pairKey(dest, size))) {
-    // The size argument is the end itself when a copy pointer is compared with it: L = end - that pointer.
-    const from = compares.has(pairKey(dest, size)) ? dest : compares.has(pairKey(source, size)) ? source : undefined;
-    if (from !== undefined) {
-      return {
-        source,
-        dest,
-        bytes: (args) => {
-          const end = args[size];
-          const start = args[from];
-          return end === undefined || start === undefined ? undefined : (end - start) | 0;
-        },
-      };
-    }
-  }
-  let unit: number | undefined;
-  if (ends.has(pairKey(source, size)) || ends.has(pairKey(dest, size))) unit = 1;
-  else {
-    const by = sortedKeys(steps.get(size) ?? new Set<number>());
-    const k = by.length === 1 ? (by[0] ?? 0) : 0;
-    if (k > 0 && width % k === 0) unit = width / k;
-  }
-  if (unit === undefined) return undefined;
-  const perUnit = unit;
-  return {
+  // The size is in bytes when it is added to a copy pointer (an end pointer is computed from it).
+  const counts = (unit: number): CopyCall => ({
     source,
     dest,
     bytes: (args) => {
       const n = args[size];
-      return n === undefined ? undefined : n * perUnit;
+      return n === undefined ? undefined : n * unit;
     },
-  };
+  });
+  if (ends.has(pairKey(source, size)) || ends.has(pairKey(dest, size))) return counts(1);
+  // The size argument is the end itself when a copy pointer is compared with it: L = end - that pointer.
+  const from = compares.has(pairKey(dest, size)) ? dest : compares.has(pairKey(source, size)) ? source : undefined;
+  if (from !== undefined) {
+    return {
+      source,
+      dest,
+      bytes: (args) => {
+        const end = args[size];
+        const start = args[from];
+        return end === undefined || start === undefined ? undefined : (end - start) | 0;
+      },
+    };
+  }
+  // Else a count of units, stepped down by one amount: the store width over that amount, in bytes per unit.
+  const width = stores.get(dest) ?? 0;
+  const by = sortedKeys(steps.get(size) ?? new Set<number>());
+  const k = by.length === 1 ? (by[0] ?? 0) : 0;
+  return k > 0 && width % k === 0 ? counts(width / k) : undefined;
 }
 
 /** How the call to `target` copies: a BIOS stub (the `swi` of a copy call, then a return) or a copy loop. */
@@ -552,9 +547,9 @@ function opensFunction(entry: Addr, mode: Mode, copy: Copy, isPool: (word: Addr)
   const prev = entry - size;
   if (entry === copy.source || prev < copy.source) return true;
   if (contains(v.rom, prev, size) && exits(decodedAt(prev, mode, v))) return true;
-  // Pool words are word-aligned, so only a word-aligned entry can follow one.
+  // A literal pool sits on the profile's pool alignment, so only an entry on it can follow one.
   const word = entry - 4;
-  return (entry & 3) === 0 && word >= copy.source && (v.claimAt(word) === Claim.pool || isPool(word));
+  return entry % v.profile.alignment.pool === 0 && word >= copy.source && (v.claimAt(word) === Claim.pool || isPool(word));
 }
 
 /** The entry a jump names in a copied block, and its mode; undefined when it names none. */
@@ -592,8 +587,11 @@ export default defineRule({
     const own = copiesOf(f.entry, r, v);
     const jumps = jumpsOf(f.entry, r, v);
     if (own.length === 0 && jumps.length === 0) return [];
+    // Every accepted jump, computed at most once per call: for the copies of `f`, and for the pool test.
+    let every: readonly Jump[] | undefined;
+    const everyJump = (): readonly Jump[] => (every ??= allJumps(v));
     const pairs: [Copy, Jump][] = [];
-    if (own.length > 0) for (const j of allJumps(v)) for (const c of own) pairs.push([c, j]);
+    if (own.length > 0) for (const j of everyJump()) for (const c of own) pairs.push([c, j]);
     if (jumps.length > 0) for (const c of allCopies(v)) if (c.by !== f.entry) for (const j of jumps) pairs.push([c, j]);
     const named = new Map<Addr, { readonly mode: Mode; readonly copy: Copy; readonly cites: readonly Addr[] }>();
     for (const [c, j] of pairs) {
@@ -611,7 +609,7 @@ export default defineRule({
       let pools = poolsOf.get(copy);
       if (pools === undefined) {
         pools = new Set<Addr>();
-        for (const j of allJumps(v)) {
+        for (const j of everyJump()) {
           const e = namedEntry(copy, j);
           if (e !== undefined) for (const q of v.read(e.entry, e.mode).pools) pools.add(q.addr);
         }
