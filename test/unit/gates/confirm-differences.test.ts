@@ -2,64 +2,140 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { judgeDifferences, KNOWN_DIFFERENCES, viewDifferences, type ParityView, type ViewFunction } from '../../gates/confirm-differences.ts';
+import {
+  judgeDifferences,
+  KNOWN_DIFFERENCES,
+  staleRecords,
+  viewDifferences,
+  type KnownDifferences,
+  type ParityView,
+  type ViewClaim,
+  type ViewFunction,
+} from '../../gates/confirm-differences.ts';
+import { TMC_AT_D61 } from '../../gates/dataset-binding.ts';
 
 const fn = (entry: number, end: number, far: ViewFunction['far'] = []): ViewFunction => ({ entry, mode: 'thumb', extent: { start: entry, end }, far });
 
-const SIX = KNOWN_DIFFERENCES['tmc']?.functions ?? [];
+const TMC: KnownDifferences = KNOWN_DIFFERENCES['tmc'] ?? assert.fail('no tmc record');
+const SIX = TMC.functions;
+const OTHER = { sha1: 'a'.repeat(40), elfSha256: 'b'.repeat(64) };
 
-/** Both views with the six known tmc functions differing in extent (confirm cuts them), plus `extra` functions equal in both. */
-function views(over: { readonly confirmExtra?: readonly ViewFunction[]; readonly claimOutside?: boolean } = {}): { discover: ParityView; confirm: ParityView } {
+/**
+ * Views whose differences are exactly tmc's recorded ones (each known function's discover and confirm
+ * records, the known claim run), plus a function and a claim run equal in both. `edit` changes the confirm view.
+ */
+function views(edit: (confirm: { functions: ViewFunction[]; claims: ViewClaim[] }) => void = () => {}): { discover: ParityView; confirm: ParityView } {
+  const same = fn(0x0800_1000, 0x0800_1010);
+  const sameClaim: ViewClaim = { span: { start: 0x0800_1000, end: 0x0800_1010 }, kind: 1, owner: 0x0800_1000 };
   const discover: ParityView = {
-    functions: [fn(0x0800_1000, 0x0800_1010), ...SIX.map((e) => fn(e, e + 0x40))],
-    claims: [{ span: { start: 0x0800_1000, end: 0x0800_1010 }, kind: 1, owner: 0x0800_1000 }, ...SIX.map((e) => ({ span: { start: e, end: e + 0x40 }, kind: 1, owner: e }))],
+    functions: [same, ...SIX.flatMap((f) => (f.discover === null ? [] : [f.discover]))],
+    claims: [sameClaim, ...TMC.claims.flatMap((c) => (c.discover === null ? [] : [c.discover]))],
   };
-  const confirm: ParityView = {
-    functions: [fn(0x0800_1000, over.claimOutside === true ? 0x0800_1010 : 0x0800_1010), ...SIX.map((e) => fn(e, e + 0x10)), ...(over.confirmExtra ?? [])],
-    claims: [
-      { span: { start: 0x0800_1000, end: over.claimOutside === true ? 0x0800_100c : 0x0800_1010 }, kind: 1, owner: 0x0800_1000 },
-      ...SIX.flatMap((e) => [{ span: { start: e, end: e + 0x10 }, kind: 1, owner: e }, { span: { start: e + 0x10, end: e + 0x40 }, kind: 1 }]),
-    ],
+  const confirm = {
+    functions: [same, ...SIX.flatMap((f) => (f.confirm === null ? [] : [f.confirm]))],
+    claims: [sameClaim, ...TMC.claims.flatMap((c) => (c.confirm === null ? [] : [c.confirm]))],
   };
+  edit(confirm);
   return { discover, confirm };
 }
 
-test('the known limitation is exactly the six functions Q3 named, on tmc only', () => {
+function judge(v: { readonly discover: ParityView; readonly confirm: ParityView }): ReturnType<typeof judgeDifferences> {
+  return judgeDifferences('tmc', TMC_AT_D61, viewDifferences(v.discover, v.confirm));
+}
+
+const FIRST = SIX[0] ?? assert.fail('no first known function');
+const SECOND = SIX[1] ?? assert.fail('no second known function');
+
+test('the known limitation is exactly the six functions Q3 named and one claim run, on tmc only, pinned by content', () => {
   assert.deepEqual(Object.keys(KNOWN_DIFFERENCES), ['tmc']);
-  assert.deepEqual(SIX.map((a) => a.toString(16)), ['8004274', '80042b8', '80042ba', '80043ac', '8008790', '80b1a8c']);
+  assert.deepEqual(SIX.map((f) => f.entry.toString(16)), ['8004274', '80042b8', '80042ba', '80043ac', '8008790', '80b1a8c']);
+  for (const f of SIX) assert.ok(f.discover !== null && f.confirm !== null, `${f.entry.toString(16)} is in both views`);
+  assert.deepEqual(TMC.claims.map((c) => [c.span.start.toString(16), c.span.end.toString(16)]), [['80087d2', '8008886']]);
+  assert.deepEqual(TMC.rom, TMC_AT_D61);
 });
 
-test('equal views have no difference; any difference fails a ROM without a known limitation', () => {
+test('equal views have no difference; any difference fails a ROM without a known limitation, with its counts', () => {
   const v = views();
   assert.deepEqual(viewDifferences(v.discover, v.discover), { functions: [], claims: [] });
-  assert.deepEqual(judgeDifferences('sa2', viewDifferences(v.discover, v.discover), { discover: v.discover, confirm: v.discover }), { problems: [] });
+  assert.deepEqual(judgeDifferences('sa2', OTHER, viewDifferences(v.discover, v.discover)), { problems: [] });
   const d = viewDifferences(v.discover, v.confirm);
-  assert.deepEqual(d.functions, [...SIX]);
-  const sa2 = judgeDifferences('sa2', d, v);
+  assert.deepEqual(d.functions.map((f) => f.entry), SIX.map((f) => f.entry));
+  const sa2 = judgeDifferences('sa2', OTHER, d);
   assert.equal(sa2.problems.length, 1);
-  assert.match(sa2.problems[0] ?? '', /^sa2: function 0x08004274: discover /);
+  assert.match(sa2.problems[0] ?? '', /^sa2: 6 functions and 1 claim runs differ: function 0x08004274: discover 0x08004274 thumb 0x08004274\.\.0x08004356, confirm 0x08004274 thumb 0x08004274\.\.0x080042AC; .*; …$/);
+  assert.equal(sa2.note, undefined);
   // A far verdict alone is a difference too.
   const far = viewDifferences({ functions: [fn(0x0800_1000, 0x0800_1010)], claims: [] }, { functions: [fn(0x0800_1000, 0x0800_1010, [{ site: 1, target: 2 }])], claims: [] });
-  assert.deepEqual(far.functions, [0x0800_1000]);
+  assert.deepEqual(far.functions.map((f) => f.entry), [0x0800_1000]);
 });
 
-test('tmc passes with exactly its six functions and their claims, and prints them', () => {
-  const v = views();
-  const j = judgeDifferences('tmc', viewDifferences(v.discover, v.confirm), v);
+test('tmc passes with exactly its recorded differences, and prints them', () => {
+  const j = judge(views());
   assert.deepEqual(j.problems, []);
-  assert.match(j.note ?? '', /^tmc: 6 known functions differ \(0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C\) with \d+ claim runs inside their extents: known phase-2 limitation .*Build resettle, else accept.*D61 e$/);
+  assert.match(
+    j.note ?? '',
+    /^tmc: 6 of 6 known functions differ as recorded \(0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C\), 1 of 1 known claim runs \(0x080087D2\.\.0x08008886\): known phase-2 limitation .*Build resettle, else accept.*D61 e$/,
+  );
 });
 
-test('tmc fails on a seventh function, a claim outside the six, or a known difference gone', () => {
-  const seventh = views({ confirmExtra: [fn(0x080b_255c, 0x080b_280c)] });
-  const a = judgeDifferences('tmc', viewDifferences(seventh.discover, seventh.confirm), seventh);
-  assert.equal(a.problems.length, 1);
-  assert.match(a.problems[0] ?? '', /^tmc: functions differ beyond the known limitation \(D61 e, 6 functions\): 0x080B255C \(not covered: .*owner question Q6/);
-  const outside = views({ claimOutside: true });
-  const b = judgeDifferences('tmc', viewDifferences(outside.discover, outside.confirm), outside);
-  assert.ok(b.problems.some((p) => /^tmc: claim runs differ outside the known functions' extents: 0x08001000\.\.0x0800100C/.test(p)));
+test('tmc fails when a known function changes its extent, mode or far verdicts, or vanishes from confirm', () => {
+  const e = FIRST.entry;
+  const extent = judge(views((c) => (c.functions = c.functions.map((f) => (f.entry === e ? fn(e, e + 4) : f)))));
+  assert.deepEqual(extent.problems, [
+    'tmc: the known difference changed (D61 e): function 0x08004274: discover 0x08004274 thumb 0x08004274..0x08004356, confirm 0x08004274 thumb 0x08004274..0x08004278; recorded function 0x08004274: discover 0x08004274 thumb 0x08004274..0x08004356, confirm 0x08004274 thumb 0x08004274..0x080042AC',
+  ]);
+  const mode = judge(views((c) => (c.functions = c.functions.map((f) => (f.entry === e ? { ...f, mode: 'arm' } : f)))));
+  assert.equal(mode.problems.length, 1);
+  assert.match(mode.problems[0] ?? '', /^tmc: the known difference changed \(D61 e\): function 0x08004274: discover .*, confirm 0x08004274 arm /);
+  const far = judge(views((c) => (c.functions = c.functions.map((f) => (f.entry === e ? { ...f, far: [{ site: e + 2, target: 0x0800_0100 }] } : f)))));
+  assert.equal(far.problems.length, 1);
+  assert.match(far.problems[0] ?? '', /changed .* far 0x08004276->0x08000100; recorded/);
+  const vanished = judge(views((c) => (c.functions = c.functions.filter((f) => f.entry !== SECOND.entry))));
+  assert.equal(vanished.problems.length, 1);
+  assert.match(vanished.problems[0] ?? '', /^tmc: the known difference changed \(D61 e\): function 0x080042B8: discover 0x080042B8 thumb .*, confirm none; recorded/);
+});
+
+test('tmc fails on a function beyond the six: the two of Q6 with their reason, any other with a neutral text', () => {
+  const q6 = judge(views((c) => c.functions.push({ ...fn(0x080b_255c, 0x080b_280c), mode: 'arm' })));
+  assert.deepEqual(q6.problems, [
+    "tmc: function 0x080B255C: discover none, confirm 0x080B255C arm 0x080B255C..0x080B280C: not covered by D61 e, moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md",
+  ]);
+  const other = judge(views((c) => c.functions.push(fn(0x0800_2000, 0x0800_2010))));
+  assert.deepEqual(other.problems, ['tmc: function 0x08002000: discover none, confirm 0x08002000 thumb 0x08002000..0x08002010: not covered by D61 e']);
+});
+
+test('tmc fails on a claim run beyond the recorded one, even inside a known extent, or on the recorded one changed', () => {
+  const inside = judge(views((c) => c.claims.push({ span: { start: 0x0800_4280, end: 0x0800_4290 }, kind: 1 })));
+  assert.deepEqual(inside.problems, ['tmc: 1 claim runs differ, not covered by D61 e: claim 0x08004280..0x08004290: discover none, confirm 0x08004280..0x08004290 kind 1 owner none']);
+  const kind = judge(views((c) => (c.claims = c.claims.map((x) => (x.span.start === 0x0800_87d2 ? { ...x, kind: 2 } : x)))));
+  assert.equal(kind.problems.length, 1);
+  assert.match(kind.problems[0] ?? '', /^tmc: the known claim difference changed \(D61 e\): claim 0x080087D2\.\.0x08008886: discover .*, confirm 0x080087D2\.\.0x08008886 kind 2 owner none; recorded/);
+  const same = judge(views((c) => (c.claims = c.claims.map((x) => (x.span.start === 0x0800_87d2 ? { ...x, owner: 0x0800_8790 } : x)))));
+  assert.deepEqual(same.problems, ['tmc: known claim differences no longer differ, the record is stale (D61 e): 0x080087D2..0x08008886']);
+});
+
+test('a known difference gone is a stale record: one of the six, or all of them (equal views)', () => {
+  const discover = FIRST.discover ?? assert.fail('no discover record');
+  const one = judge(views((c) => (c.functions = c.functions.map((f) => (f.entry === FIRST.entry ? discover : f)))));
+  assert.deepEqual(one.problems, ['tmc: known differences no longer differ, the record is stale (D61 e): 0x08004274']);
   const v = views();
-  const fewer = { discover: v.discover, confirm: { ...v.confirm, functions: v.confirm.functions.map((f) => (f.entry === SIX[0] ? fn(f.entry, f.entry + 0x40) : f)) } };
-  const c = judgeDifferences('tmc', viewDifferences(fewer.discover, fewer.confirm), fewer);
-  assert.ok(c.problems.some((p) => p === 'tmc: known differences no longer differ, the record is stale (D61 e): 0x08004274'));
+  const all = judgeDifferences('tmc', TMC_AT_D61, viewDifferences(v.discover, v.discover));
+  assert.deepEqual(all.problems, [
+    'tmc: known differences no longer differ, the record is stale (D61 e): 0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C',
+    'tmc: known claim differences no longer differ, the record is stale (D61 e): 0x080087D2..0x08008886',
+  ]);
+  assert.match(all.note ?? '', /^tmc: 0 of 6 known functions differ as recorded/);
+});
+
+test('the record holds only for the dataset it was decided on, and only while that dataset is a tuning ROM', () => {
+  const v = views();
+  const rebuilt = judgeDifferences('tmc', { ...TMC_AT_D61, elfSha256: '0'.repeat(64) }, viewDifferences(v.discover, v.confirm));
+  assert.equal(rebuilt.problems.length, 2);
+  assert.match(rebuilt.problems[0] ?? '', /^tmc: the D61 e scoping was decided on ROM SHA-1 b4bd50e4.* the scoping is stale, a new owner decision is needed$/);
+  assert.match(rebuilt.problems[1] ?? '', /^tmc: 6 functions and 1 claim runs differ: /);
+  assert.equal(rebuilt.note, undefined);
+  const otherRegion = judgeDifferences('tmc', { sha1: 'c'.repeat(40), elfSha256: TMC_AT_D61.elfSha256 }, viewDifferences(v.discover, v.discover));
+  assert.equal(otherRegion.problems.length, 1);
+  assert.deepEqual(staleRecords(['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc']), []);
+  assert.deepEqual(staleRecords(['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3']), ['tmc: a known limitation (D61 e) is recorded but tmc is not a tuning dataset, the record is stale']);
 });

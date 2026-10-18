@@ -1,16 +1,19 @@
 // g2.confirm-equals-discover (architecture §4.2, §13, D8): on every tuning ROM, a confirm run seeded with
 // exactly the functions a discover run found (entries and modes, `label` for an entry inside another found
 // extent, no sizes) gives the same parity view: functions, extents, far `bl` verdicts and claims. tmc's six
-// differing functions are a known phase-2 limitation (D61 e, the owner's answer to Q3): the gate accepts
-// them only as exactly those functions with their claims, prints them every time, and fails on any other
-// difference there and on any difference on another ROM (confirm-differences.ts).
+// differing functions are a known phase-2 limitation (D61 e, the owner's answer to Q3), pinned by content:
+// the gate judges every ROM in full, equal digests or not, accepts tmc only when its differences are
+// exactly the recorded ones (each function's and claim run's records in both views), prints them every
+// time, and fails on any other difference there, on a recorded difference that changed or is gone, on a
+// record whose dataset is absent or another build, and on any difference on another ROM
+// (confirm-differences.ts).
 //
 // Calls the phase-2 API as frozen in architecture §3.3: romFromBytes(bytes, sha1), sha1Of(bytes),
 // profileById('agbcc'), analyze(rom, profile, {mode, seeds, overrides: [], trail: 'off'}); the views are
 // compared by the sha256 of their canonical JSON (canonicalJson, sha256Stream).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { judgeDifferences, viewDifferences, type ParityView } from './confirm-differences.ts';
+import { judgeDifferences, staleRecords, viewDifferences, type ParityView } from './confirm-differences.ts';
 import { gate } from './gate.ts';
 
 type Mode = 'thumb' | 'arm';
@@ -117,8 +120,9 @@ gate({
     const profile = cx.need<ProfileById>('profileById')('agbcc');
     if (profile === undefined) throw new Error("profileById('agbcc') returned undefined");
 
-    const problems: string[] = [];
-    const notes: string[] = [];
+    const problems: string[] = [...staleRecords(cx.datasets.map((d) => d.name))];
+    const known: string[] = [];
+    const counts: string[] = [];
     for (const dataset of cx.datasets) {
       const bytes = new Uint8Array(await readFile(path.resolve(cx.benchRoot, dataset.rom)));
       const rom = romFromBytes(bytes, sha1Of(bytes));
@@ -129,15 +133,17 @@ gate({
       const a = sha256Stream(canonicalJson(views.discover));
       const b = sha256Stream(canonicalJson(views.confirm));
       const labels = seeds.filter((s) => s.label === true).length;
-      if (a !== b) {
-        const judged = judgeDifferences(dataset.name, viewDifferences(views.discover, views.confirm), views);
-        problems.push(...judged.problems);
-        if (judged.note !== undefined) notes.push(`KNOWN LIMITATION: ${judged.note}`);
-      }
-      notes.push(`${dataset.name} ${seeds.length} listed (${labels} labels), ${confirm.unlisted?.length ?? 0} unlisted, ${confirm.listedInvalid?.length ?? 0} listed-invalid`);
+      // Judged on every ROM, equal digests included, so a known limitation that no longer differs is stale.
+      const differences = viewDifferences(views.discover, views.confirm);
+      if (a !== b && differences.functions.length === 0 && differences.claims.length === 0) problems.push(`${dataset.name}: the views' digests differ but no function or claim run does (their order)`);
+      const judged = judgeDifferences(dataset.name, dataset, differences);
+      problems.push(...judged.problems);
+      if (judged.note !== undefined) known.push(`KNOWN LIMITATION: ${judged.note}`);
+      counts.push(`${dataset.name} ${seeds.length} listed (${labels} labels), ${confirm.unlisted?.length ?? 0} unlisted, ${confirm.listedInvalid?.length ?? 0} listed-invalid, ${differences.functions.length} functions and ${differences.claims.length} claim runs differ`);
     }
-    for (const n of notes.filter((x) => x.startsWith('KNOWN LIMITATION'))) cx.note(n);
+    // Noted before any failure, so the failure detail keeps the per-ROM measurements (D59 q).
+    for (const n of known) cx.note(n);
+    cx.note(counts.join('; '));
     if (problems.length > 0) throw new Error(`confirm differs from discover: ${problems.join('; ')}`);
-    cx.note(notes.filter((x) => !x.startsWith('KNOWN LIMITATION')).join('; '));
   },
 });
