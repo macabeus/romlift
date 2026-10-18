@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Dataset } from '../../../bench/src/dataset.ts';
-import { parseTrailers, regressionFailures, type RegressionInput } from '../../../bench/src/regression.ts';
+import { parseTrailers, regressionFailures, regressionProblems, regressionReport, type RegressionInput } from '../../../bench/src/regression.ts';
 import type { BenchRow } from '../../../bench/src/row.ts';
 import { dataset, results, row } from './fixtures.ts';
 
@@ -68,4 +68,50 @@ test('a dataset row added without a Bench-Exception trailer fails; with one it p
 test('trailers are parsed from commit messages', () => {
   const messages = ['Add a row\n\nBench-Exception: sa2 0x080945EC inside umul3232H32, a mixer helper\nCo-Authored-By: x', 'Bench-Exception: bad 0x8000 short', 'no trailer'];
   assert.deepEqual(parseTrailers(messages), [{ rom: 'sa2', addr: '0x080945EC', reason: 'inside umul3232H32, a mixer helper' }]);
+});
+
+const ROMLIFT = { ...results([BASE_ROW]).meta, source: 'romlift' as const };
+
+test('every problem has a kind; the text form is <rom>: <detail>', () => {
+  const problems = regressionProblems({
+    fresh: results([{ ...BASE_ROW, tp: 9, deterministic: false }]),
+    base: results([BASE_ROW]),
+    datasets: [dataset()],
+    baseDatasets: undefined,
+    trailers: [],
+  });
+  assert.deepEqual(problems, [
+    { kind: 'nondeterministic', rom: 'tiny', detail: 'two runs disagree' },
+    { kind: 'true-positives', rom: 'tiny', detail: 'true positives fell from 10 to 9' },
+  ]);
+});
+
+test('a PoC-sourced base against romlift rows: fixed fields must be equal and the rows may only improve', () => {
+  const miss = { addr: '0x08000500', name: 'm', size: 4, reason: 'inside-code' as const, listed: true, category: 'loop-label' as const };
+  const falseEntry = { addr: '0x08000700', origin: 'gap-scan' as const, size: 8, listed: true, category: 'veneer' as const };
+  const pocRow = { ...BASE_ROW, misses: [miss], falseEntries: [falseEntry] };
+  const input = (fresh: BenchRow): RegressionInput => ({ fresh: { ...results([fresh]), meta: ROMLIFT }, base: results([pocRow]), datasets: [dataset()], baseDatasets: undefined, trailers: [] });
+  // Equal rows and pure improvements pass.
+  assert.deepEqual(regressionProblems(input(pocRow)), []);
+  assert.deepEqual(regressionProblems(input({ ...pocRow, misses: [], falseEntries: [], extents: { sized: 10, agree: 10, mismatches: [] } })), []);
+  // A changed reason, a changed false entry, a changed extent and a moved startup are each named.
+  const moved = regressionProblems(
+    input({
+      ...pocRow,
+      startup: { ...pocRow.startup, end: '0x08000104' },
+      misses: [{ ...miss, reason: 'unanchored' }],
+      falseEntries: [{ ...falseEntry, size: 6 }],
+      extents: { sized: 10, agree: 9, mismatches: [{ ...MISMATCH, found: 40 }] },
+    }),
+  );
+  assert.deepEqual(moved.map((p) => p.kind), ['row-field', 'extent-changed', 'miss-changed', 'false-entry-changed']);
+  assert.match(moved[0]?.detail ?? '', /^startup is .*0x08000104.*, the PoC row has .*0x08000100/);
+  // A PoC base against PoC rows is not compared field by field.
+  assert.deepEqual(regressionProblems({ ...input({ ...pocRow, misses: [{ ...miss, reason: 'unanchored' }] }), fresh: results([{ ...pocRow, misses: [{ ...miss, reason: 'unanchored' }] }]) }), []);
+});
+
+test('the --json report: ok only without problems, the base named', () => {
+  const outcome = { baseLabel: 'abc', notes: [], failures: ['tiny: x'], problems: [{ kind: 'k', rom: 'tiny', detail: 'x' }] };
+  assert.deepEqual(regressionReport(outcome), { schema: 'romlift/bench-regression@1', ok: false, base: 'abc', problems: [{ kind: 'k', rom: 'tiny', detail: 'x' }] });
+  assert.equal(regressionReport({ ...outcome, failures: [], problems: [] }).ok, true);
 });

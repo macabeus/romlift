@@ -1,0 +1,81 @@
+0x08000144
+  claim: code
+  owner: 0x08000144 (origin call)
+  provenance:
+    seed.call round 0 cites 0x08000106
+  proposals (7):
+    0x0800011C seed.call round 0 cites 0x080000F6: thumb
+    0x08000120 seed.call round 0 cites 0x080000FA: thumb
+    0x08000124 seed.call round 0 cites 0x080000FE: thumb
+    0x08000128 seed.call round 0 cites 0x08000102: thumb
+    0x08000144 seed.call round 0 cites 0x08000106: thumb
+    0x08000110 gap.tiled-hole round 2 cites 0x08000110: thumb
+    0x0800013C seed.call round 2 cites 0x08000112: thumb
+  accepts (8):
+    0x0800011C seed.call round 0 cites 0x080000F6
+    0x08000120 seed.call round 0 cites 0x080000FA
+    0x08000124 seed.call round 0 cites 0x080000FE
+    0x08000128 seed.call round 0 cites 0x08000102
+    0x08000144 seed.call round 0 cites 0x08000106
+    0x08000110 gap.tiled-hole round 2 cites 0x08000110
+    0x0800013C seed.call round 2 cites 0x08000112
+    0x08000110 gap.tiled-hole-inner round 2 cites 0x08000110, 0x0800011A, 0x0800011C: takes the gap.tiled-hole head
+  rejections (4):
+    0x0800012C valid.not-pointer-table round 1 cites 0x0800012C: pointer-table: its words are Thumb code pointers: a table, not code (4 of 5)
+    0x08000130 valid.returns-or-prologue round 2 cites 0x08000130: no-return-no-prologue: no return and no push {.., lr}
+    0x08000134 valid.returns-or-prologue round 2 cites 0x08000134: no-return-no-prologue: no return and no push {.., lr}
+    0x08000138 valid.returns-or-prologue round 2 cites 0x08000138: no-return-no-prologue: no return and no push {.., lr}
+  verdicts (18):
+    0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x0800011C: call
+    0x080000FA bl.near-is-call round 0 cites 0x080000FA, 0x08000120: call
+    0x080000FE bl.near-is-call round 0 cites 0x080000FE, 0x08000124: call
+    0x08000102 bl.near-is-call round 0 cites 0x08000102, 0x08000128: call
+    0x08000106 bl.near-is-call round 0 cites 0x08000106, 0x08000144: call
+    0x08000112 bl.near-is-call round 2 cites 0x08000112, 0x0800013C: call
+    0x0800012C gap.skip-padding-and-pointers round 2 cites 0x0800012C, 0x08000130: skips to 0x08000130
+    0x08000130 gap.skip-padding-and-pointers round 2 cites 0x08000130, 0x08000134: skips to 0x08000134
+    0x08000134 gap.skip-padding-and-pointers round 2 cites 0x08000134, 0x08000138: skips to 0x08000138
+    0x08000138 gap.skip-padding-and-pointers round 2 cites 0x08000138, 0x0800013C: skips to 0x0800013C
+    0x0800012C gap.skip-padding-and-pointers round 4 cites 0x0800012C, 0x08000130: skips to 0x08000130
+    0x08000130 gap.skip-padding-and-pointers round 4 cites 0x08000130, 0x08000134: skips to 0x08000134
+    0x08000134 gap.skip-padding-and-pointers round 4 cites 0x08000134, 0x08000138: skips to 0x08000138
+    0x08000138 gap.skip-padding-and-pointers round 4 cites 0x08000138, 0x0800013C: skips to 0x0800013C
+    0x0800012C gap.skip-padding-and-pointers round 6 cites 0x0800012C, 0x08000130: skips to 0x08000130
+    0x08000130 gap.skip-padding-and-pointers round 6 cites 0x08000130, 0x08000134: skips to 0x08000134
+    0x08000134 gap.skip-padding-and-pointers round 6 cites 0x08000134, 0x08000138: skips to 0x08000138
+    0x08000138 gap.skip-padding-and-pointers round 6 cites 0x08000138, 0x0800013C: skips to 0x0800013C
+  waits: none
+  claims (7):
+    0x0800011C claim.dead-code-in-extent round 0 cites 0x0800011C: 1 edits
+    0x08000120 claim.dead-code-in-extent round 0 cites 0x08000120: 1 edits
+    0x08000124 claim.dead-code-in-extent round 0 cites 0x08000124: 1 edits
+    0x08000128 claim.dead-code-in-extent round 0 cites 0x08000128: 1 edits
+    0x08000144 claim.dead-code-in-extent round 0 cites 0x08000144: 1 edits
+    0x08000110 claim.dead-code-in-extent round 2 cites 0x08000110: 1 edits
+    0x0800013C claim.dead-code-in-extent round 2 cites 0x0800013C: 1 edits
+  rules (8):
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    gap.skip-padding-and-pointers: the forward chain steps 4 bytes over a zero word or an odd word pointing into the ROM, and stops at anything else
+      rests on: between compiled functions sit only alignment zeros and small tables of Thumb code pointers; other bytes are data
+      recovers: functions after padding or a callback table inside a gap, without walking through data that would chain false entries
+    gap.tiled-hole: a gap's head reads as a function failing at most density or stack balance, with at least gapScan.minInsns instructions, its code inside the gap
+      rests on: hand-written mixers keep ARM blocks and tables inside a Thumb function, so their extent has holes and their paths may not balance the stack
+      recovers: SoundMainRAM and other mixers on all five tuning ROMs
+    gap.tiled-hole-inner: the hole head at a forward-chain cursor is accepted when it ends within fillSlack of the gap end or is anchored at its end
+      rests on: compiled and hand-written code tiles the ROM: a reading that ends where the next function starts is that hole's function, dense or not
+      recovers: mixers and table-carrying functions in the middle of a gap, after the forward chain has taken the functions before them
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    valid.not-pointer-table: the words of the reading are not mostly Thumb code pointers
+      rests on: two Thumb instructions rarely form an odd word pointing at a word-aligned ROM address
+      recovers: tables of function pointers decoded as code
+    valid.returns-or-prologue: the reading returns somewhere, or opens with push {.., lr}
+      rests on: a compiled function either returns or pushes lr before calling what never returns
+      recovers: runs of data that decode without ever returning
+explain: ok (exit 0)

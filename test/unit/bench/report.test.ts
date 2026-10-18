@@ -35,3 +35,8 @@ test('baselineText prints the row and where the artifact came from', () => {
   assert.match(text ?? '', /^tiny .*\nbaseline: HEAD, commit none, source digest s+, Node 24, rows from poc$/);
   assert.equal(baselineText(results(), 'nope', 'HEAD'), undefined);
 });
+
+test('summaryLine says n/a for a row without a scaffold verdict', () => {
+  const { scaffold: _scaffold, ...bare } = row();
+  assert.match(summaryLine(bare), /make n\/a$/);
+});

@@ -1,0 +1,70 @@
+{
+  "negative": true,
+  "entries": [
+    {
+      "addr": "0x08000000",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000C0",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x08000108"
+      }
+    },
+    {
+      "addr": "0x08000108",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000108",
+        "end": "0x0800010C"
+      }
+    },
+    {
+      "addr": "0x0800010C",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x0800010C",
+        "end": "0x0800010E"
+      }
+    },
+    {
+      "addr": "0x0800010E",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x0800010E",
+        "end": "0x08000110"
+      }
+    },
+    {
+      "addr": "0x08000110",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000110",
+        "end": "0x08000112"
+      }
+    },
+    {
+      "addr": "0x08000112",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000112",
+        "end": "0x08000114"
+      }
+    },
+    {
+      "addr": "0x08000114",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000114",
+        "end": "0x0800011A"
+      }
+    }
+  ],
+  "codeEnd": "0x0800011A"
+}

@@ -9,7 +9,7 @@
 //
 // The ARM rows are enumerated through the public decoder: one word per (bits 27..20, bits 7..4) bucket
 // key under four fills of the other bits, which reaches every row the decode buckets can select.
-import { gate, withLock, type ExecResult, type GateContext } from './gate.ts';
+import { type ExecResult, type GateContext, byCodeUnit, gate, withLock } from './gate.ts';
 
 type RawReason = 'undefined' | 'unpredictable' | 'sbz-set' | 'as-alias' | 'no-roundtrip';
 const RAW_REASONS: readonly RawReason[] = ['undefined', 'unpredictable', 'sbz-set', 'as-alias', 'no-roundtrip'];
@@ -66,9 +66,6 @@ type SpecOf = (id: string) => { readonly id: string; readonly mode: string } | u
 const ARM_SAMPLE_FLOOR = 1 << 20;
 const FILLS: readonly number[] = [0x00000000, 0x000fff0f, 0x0005a50a, 0x000a5a05];
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /** The ids of the ARM rows the decoder selects for some word, invalid decodings excluded. */
 function reachableArmRows(decode: Decode): readonly string[] {

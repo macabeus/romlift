@@ -1,0 +1,56 @@
+0x08000130
+  claim: code
+  owner: 0x08000130 (origin call)
+  provenance:
+    seed.call round 0 cites 0x080000FA
+  proposals (4):
+    0x08000104 seed.call round 0 cites 0x080000F6: thumb
+    0x08000130 seed.call round 0 cites 0x080000FA: thumb
+    0x08000118 seed.data-pointer round 1 cites 0x08000118: thumb
+    0x08000104 seed.call round 1 cites 0x0800011A: thumb
+  accepts (4):
+    0x08000104 seed.call round 0 cites 0x080000F6
+    0x08000130 seed.call round 0 cites 0x080000FA
+    0x08000118 seed.data-pointer round 1 cites 0x08000118: accepted by accept.prologue-and-calls-accepted
+    0x08000118 accept.prologue-and-calls-accepted round 1 cites 0x08000118, 0x08000104: takes the seed.data-pointer candidate
+  rejections (8):
+    0x08000108 valid.decodes round 3 cites 0x08000108: decode-error: decodes to nothing
+    0x08000114 valid.decodes round 3 cites 0x08000114: decode-error: decodes to nothing
+    0x08000110 valid.decodes round 3 cites 0x08000110: decode-error: decodes to nothing
+    0x0800010C valid.decodes round 3 cites 0x0800010C: decode-error: decodes to nothing
+    0x08000120 valid.decodes round 3 cites 0x08000120: decode-error: decodes to nothing
+    0x0800012C valid.decodes round 3 cites 0x0800012C: decode-error: decodes to nothing
+    0x08000128 valid.decodes round 3 cites 0x08000128: decode-error: decodes to nothing
+    0x08000124 valid.decodes round 3 cites 0x08000124: decode-error: decodes to nothing
+  verdicts (3):
+    0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000104: call
+    0x080000FA bl.near-is-call round 0 cites 0x080000FA, 0x08000130: call
+    0x0800011A bl.self-or-accepted round 1 cites 0x0800011A, 0x08000104: call
+  waits: none
+  claims (3):
+    0x08000104 claim.dead-code-in-extent round 0 cites 0x08000104: 1 edits
+    0x08000130 claim.dead-code-in-extent round 0 cites 0x08000130: 1 edits
+    0x08000118 claim.dead-code-in-extent round 1 cites 0x08000118: 1 edits
+  rules (7):
+    accept.prologue-and-calls-accepted: a valid candidate named by data, with a prologue, a return and calls that all reach accepted functions, is a function
+      rests on: a function opens with push {.., lr} on a word boundary and returns, and each of its calls enters a function; data that decodes with a frame, a return and every bl on a known entry does not occur by chance
+      recovers: functions named only from data (script commands, tables the harvest reads) that sit between data, anchored on neither side
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    bl.self-or-accepted: a bl to the caller itself or to an accepted function is a call
+      rests on: a function entry is only ever called (recursion included); agbcc never uses bl to jump to a function start
+      recovers: calls to known functions misread as far jumps, which would glue the callee into the caller
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    seed.data-pointer: Thumb pointers in words outside code are candidate functions
+      rests on: tables of handlers and callbacks in data hold func+1 for every Thumb function they name
+      recovers: functions named only from data, such as the entries of a command or state table
+    valid.decodes: the walk from the entry decodes at least one instruction and hits no decode error
+      rests on: every path of a compiled function decodes until it returns or jumps away
+      recovers: data and text decoded as code
+explain: ok (exit 0)

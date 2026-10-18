@@ -22,3 +22,10 @@ export function formatSummaryText(summary: RunSummary): string {
   if (keys.length === 0) return head;
   return `${head}: ${keys.map((key) => `${key} ${counts[key] ?? 0}`).join(', ')}`;
 }
+
+/** Rows of cells as lines, every column but the last padded to its widest cell plus two spaces. */
+export function columns(rows: readonly (readonly string[])[], indent = ''): string {
+  const widths: number[] = [];
+  for (const row of rows) row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
+  return rows.map((row) => `${indent}${row.map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0))).join('  ')}`.trimEnd() + '\n').join('');
+}

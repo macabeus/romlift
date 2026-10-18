@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "9f6dd9606a006b582dff1710850e874f9b656dfb",
+    "commit": "b0759e7304fd7c2f292aeccf8826e9eb4d2d4946",
     "dirty": false,
-    "sourceDigest": "3d80eb6de11be8a05beac9d7f0e6cc360f1f75d28d06f924713b0f3ca18e0a5a",
+    "sourceDigest": "6b05fd1300f97d6b3abe794ac68255babd8fba2a7a4ebb1f3f7340ed5ad7d51c",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -26,6 +26,18 @@
         "sha1": "685af3a2dc0f1b3f8922e73ec42c1dc92e210e39",
         "elfSha256": "1c1efc591beab3a95cc5c9d9bab2e520ea96c5e8a53f3925d7c134b58755d2d9"
       },
+      "tmc": {
+        "sha1": "b4bd50e4131b027c334547b4524e2dbbd4227130",
+        "elfSha256": "7d27e8d999c5f14b11885e530fc99669b08880deda79e98f3e3e8411482005d6"
+      },
+      "pokefirered": {
+        "sha1": "41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc",
+        "elfSha256": "bbe723fd5723f311f45b1d5db7a71e9f0284dd54f57ab0f700162d7a88346b5e"
+      },
+      "pokeruby": {
+        "sha1": "f28b6ffc97847e94a6c21a63cacf633ee5c8df1e",
+        "elfSha256": "51cfc8cf2654880e0cd6e20f3801e8c816624dc202c67d0cce8cdc6915128dde"
+      },
       "pocSourceDigest": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345"
     },
     "toolchain": {
@@ -36,40 +48,59 @@
     "families": {
       "fe7j": [
         "code-end",
+        "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ],
       "klonoa": [
         "code-end",
+        "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ],
       "pokeemerald": [
         "code-end",
+        "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ],
       "sa2": [
         "code-end",
+        "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
       ],
       "sa3": [
         "code-end",
+        "determinism",
         "entries",
         "extents",
-        "scaffold"
+        "scaffold",
+        "speed"
+      ],
+      "tmc": [
+        "code-end",
+        "determinism",
+        "entries",
+        "extents",
+        "scaffold",
+        "speed"
       ]
     },
-    "source": "poc"
+    "source": "romlift",
+    "profile": "agbcc"
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "9c092dd01c5568f3618edb8ab06fc6b20f6e7be2171c84e9c2962c0cbe22f3c8",
+    "inputsDigest": "144770c8c6991f023ff403d92fa25b0b58e19897871c8f2060b52a5030f0158a",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1852,9 +1883,9 @@
         "id": "g1.bench-harness",
         "verdict": "pass",
         "inputs": {
-          "elfs": "70cabe8ed36c31f82d238c81a223c089a9ebefc0e11981471bcbf74ab56d8546",
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "poc": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345",
-          "roms": "dc7adfe48a5f0fc0493337f6c436d420c7ce504a600f40d30f32ca2091a08b66",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
         "detail": "5 tuning ROMs: rows equal the baseline, PoC rows equal, scaffold SHA-1 ok, deterministic, PoC source pinned"
@@ -1863,71 +1894,98 @@
         "id": "g1.dataset-elf",
         "verdict": "pass",
         "inputs": {
-          "elfs": "70cabe8ed36c31f82d238c81a223c089a9ebefc0e11981471bcbf74ab56d8546",
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "poc": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345",
-          "roms": "dc7adfe48a5f0fc0493337f6c436d420c7ce504a600f40d30f32ca2091a08b66"
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "labels and untyped rows of 5 tuning datasets agree with their ELFs"
+        "detail": "labels and untyped rows of 6 tuning datasets agree with their ELFs"
       },
       {
         "id": "g2.baseline-rows",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: analyze, discover"
+        "verdict": "pass",
+        "inputs": {
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "fe7j 0 accepted improvements, klonoa 0 accepted improvements, pokeemerald 1 accepted improvements, sa2 1 accepted improvements, sa3 1 accepted improvements, tmc 51 accepted improvements against the PoC's own run, and 8 rows the PoC's run did not have accepted as listed with a category (0x08008B2E unreached-tail, 0x080B197C pointer-entry, 0x080B1AA8 pointer-entry, 0x080B1B0C pointer-entry, 0x080B20AC split-after-returning-call, 0x080B21B0 pointer-entry, 0x080B2718 local-subroutine, 0x080B27E4 local-subroutine): a benchmark row by the owner on 2026-10-18 (D61 d: \"Keep tmc as 99.94%. It's a benchmark row that we can improve later\"), floor tp 8631 of 8636 (recall 99.94%), now tp 8631 (99.94%)"
       },
       {
         "id": "g2.code-end",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: analyze, discover"
+        "verdict": "pass",
+        "inputs": {
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "code-end deltas in bytes: fe7j 0, klonoa 0, pokeemerald 0, sa2 0, sa3 0, tmc 0"
       },
       {
         "id": "g2.confirm-equals-discover",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: profileById, analyze"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "KNOWN LIMITATION: tmc: 8 of 8 known functions differ as recorded (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C, 0x080B255C, 0x080B2874), 4 of 4 known claim runs (0x080087D2..0x08008886, 0x080B2874..0x080B289C, 0x080B2874..0x080B299C, 0x080B289C..0x080B299C): known phase-2 limitation (the owner's answer to Q3 on 2026-10-18, \"Build resettle, else accept\": the resettle stage changed rows on the other tuning ROMs and the sealed pair and was reverted; and to Q6 on 2026-10-18, \"Yes, cover all 8\": 0x080B255C and 0x080B2874 with their three claim runs), D61 e; fe7j 7739 listed (7 labels), 0 unlisted, 5 listed-invalid, 0 functions and 0 claim runs differ; klonoa 560 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; pokeemerald 15866 listed (9 labels), 0 unlisted, 6 listed-invalid, 0 functions and 0 claim runs differ; sa2 2901 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; sa3 4702 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; tmc 8645 listed (36 labels), 1 unlisted, 24 listed-invalid, 8 functions and 4 claim runs differ"
       },
       {
         "id": "g2.determinism",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: analyze, discover"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "adr-handler-block analysis ef613b6620a178402aaffbc77a11b297283825dbcb0a5032f173a1dcfd8fde88; adr-label-and-data analysis db2e32556d9d99ae6f874758f20af7c8b0c24ca0d00ac2c87ec37f458ebd462c; arm-pools-in-front analysis 68249e12fbb9b9ad66a6e5ecbc912be6b694282093f0138f352bac0f2ed335a7; bx-lr-stub-chain analysis 7a5597c9ed8a64bcd2ab7e4836409ba6871e71d1616a64b63fee6f8f7c42a3ed; bx-pc-veneer analysis 07c3c1ea09cf5e56f65ba139fbac835380b1610148a5eccd2b1ce9c2846d0bc9; code-copied-to-ram analysis 07ab2215be00ad9e3151e6b3657657a67dc13e39fef00d99868b4d101f222266; code-end-data-decodes analysis b4036ed17f4e196f60b443cc97d787423a47cf3246acfaaac067097977856976; code-end-unsized-last analysis 6b7648d012f2f11e5df3c6c3dfb767c42e31f5f117cecf0587f5ca988c1e8590; computed-jump-callback analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; data-frame-not-function analysis 240eaca07e3a5f68b1dd1617251b5ae89d3cde20f85bc03a446c21c5629056ab; data-named-between-data analysis fabc470a9f8161b33b5b2e84b7e0db47ca9092bfa63ec501c387b3dbf74e534b; data-table-between-functions analysis 9b499f33f5faf3637c95a2b91bfd6654cc9c80c234d57e5d2d6704a1621ca955; data-thumb-push-pop analysis 1d15a57b1928a3cc2f7ef7df4a2d8519cec15399de47dc28d98651560d448bbc; dead-code-in-extent analysis 18171b6c6c33d3225932391dde7ac551fe85ecd2c67bb9a28a8ade3ad4a0d1ab; entry-stub-table analysis 41d78e4b60afefb9393feea7cc8dd9b32fbf802937f8092bccf91c76e4fd1e29; false-stub-2byte analysis f2c7ee9c63fb6481c5de2a4e697b67667f30e7887a53e41378e98260f6fb5d68; far-jump analysis 4e50937ca8c537db1abbd8308919668334570eed4de2d59fa6be6093c55015ea; gap-resume-2mod4 analysis 49211dd17bcc3672af2ae287ea825859db50fb4cce372ad30512abae69806b8b; handwritten-2mod4 analysis 2d104964e6a1adbc6a83de34dfcced3379c2224175d3e1be9d6fd4c2ca1cae77; inline-arm-switch analysis d8727d12635915a90c01a0236173db1a4ca1d5f66b71875622caf5fdd92c757a; large-data-referenced analysis ec16106f49eab822ee2f1ca0d00a5360bd5da248ef2432c3053737145c7fa40f; leaf-handler-pointer-table analysis 067d6172056cb75d8c8dddea8d9834dbd8b2aa691c24fc15dcb61cf3d48a4501; local-subroutine analysis a11a501053a4cb9da888945ebee59f328e42f4c78005ab2b54c129dabec64658; mixer-tiled-hole analysis 9071fb40528be44c1984ee407ae660fb11203b9c11820ab54488c0ea277a5c43; mov-lr-pc-bx analysis 3cfc147086867f9d7979616d4814eff8b6e2a0dee56a918d70773dd2bcbc0fb8; noreturn-call-then-next analysis 35f2752004414edbbccf089f99024729aea1a682ef6710df9f02bf6ef61a4d5b; pointer-table-before-leaf analysis 667f386801afd2e8394e824f3d6b02c1b9e974e0585757b46d60151fdcca4029; pointer-word-in-gap analysis 1105594c989fab7464bd78cd102e0f1410be6c268a76253f7ce202f061191ed7; pool-padded-46c0 analysis 8bcf3e0fdd683104a501fe7a90a30f9b78acd20d8ab6ccade235f0e0c89986ea; pool-word-push-lr analysis 3507d529de1e5e588c66b10c0f63b89723a2114a2e523e1731d29cd5afcec0d6; pops-unpushed-frame analysis 203a9e54a3ddcb3e5fd646a018339d4c8027d942f3c5f765f4fd895fcd97f3e8; prologueless-thumb-over-arm analysis 2cd1b2c2fa6a8835695a2443e7f2fe0a1b74cd3f4a5a8942e7b2b59323146672; push-lr-2mod4 analysis d9d97666d63c242d981eacc164ab40da4dc1a97fae70209ed7174f5282b70cce; ram-code-entries analysis 574089e7cece8a902afa962f85133839a818311540a3b3f46fc3f69d0ed503bb; ram-copy-args-straight-line analysis 4c70a70fc964679d898662e96fbe345d67b552974b18377d2ee2494c8e784138; ram-copy-bios analysis a25ad5db7b9cd4f5f47b13fc79ed02ed9670c33ef75e749d7a9d4170ac6d1654; ram-copy-call-via analysis b54a383d8c9f7f12847be178bf7790fa71ed184026a5fe8b15a26882714b168b; ram-copy-entry-boundaries analysis e8eefe889f7ada78201d704b646f1c6a94908d935be5b080367a4cea3019a44a; ram-copy-memcpy analysis 3862ba15a11ddcf221548aec2c4273d769626e7777efa13c424a207983d7d4e7; ram-copy-setup-bound analysis f1ea5d0b01383161a56bb1c72557a5061039bb50c0bca160defbfae539ea54fc; recursive-far-call analysis 40a9b3e12322d99f3fea1e95d1657fa8f4fa70e848a371c091b706e1b45d1ac0; shared-tail analysis fef3171278edb3593775309f2c085ae78fe98bac2259c01c517a915332426626; swi-reset analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; table-jump-hoisted analysis 588bbb98973ee3e2dc2b2b6b4edfd00c2c369af0ed6ccb6d2ddae9caf19ccb4c; thumb-pointer-run analysis 97535043a45077de76713453e06364d1f71e5ff03a0e4169b859f53ded08a27c; unreferenced-leaf analysis 364407a31586fd13bd6cfc324f682426c1e773555cbca4151efdf6dc7f456714; veneer-array analysis 8230ca742f8d4b2ac25f69369eb16887e4fd0699ba707a8dbf64db88d4a270df; fe7j analysis d54052e815955473fdb9f8bd25830df66aadb5dd72288323b6b1ae2ecd1c0654; klonoa analysis 56f30105f39603117aeaf7b2a617308543b160b672fb82d9e029861f809aa11b; pokeemerald analysis 4db9129f6a1bbaa8180f3c36e73e9080b0b132e59455f25bbc1c568ba66b93e5; sa2 analysis b34fcd0d9dc175466dc5eafbf14f9ce9b8efa0fd60e347d789cf7d4111ef336d; sa3 analysis 6e12ff19fca85ae1803e757e362f4001cb4804c4079904c1678c016cc5c862d1; tmc analysis 0584d85ff13a31bd5559c28c2e940312976799a7a6d6aa64df55466e56953f85; 53 analyses identical across cwd, project path, TZ and locale"
       },
       {
         "id": "g2.entries",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: analyze, discover"
+        "verdict": "pass",
+        "inputs": {
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "fe7j precision 99.86%, tp 7724 (PoC 7724), 11 misses, 11 false; klonoa precision 99.82%, tp 556 (PoC 556), 3 misses, 1 false; pokeemerald precision 99.96%, tp 15856 (PoC 15856), 0 misses, 6 false; sa2 precision 99.79%, tp 2892 (PoC 2892), 0 misses, 6 false; sa3 precision 99.87%, tp 4693 (PoC 4693), 0 misses, 6 false; tmc precision 99.86%, tp 8631 (PoC 8582, the PoC's own run: no pinned baseline row), 5 misses, 12 false"
       },
       {
         "id": "g2.extents",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: analyze, discover"
+        "verdict": "pass",
+        "inputs": {
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "agreeing extents: fe7j 1471/1471 (100.000%), klonoa 485/485 (100.000%), pokeemerald 15850/15853 (99.981%), sa2 2887/2889 (99.931%), sa3 4305/4307 (99.954%), tmc 8388/8388 (100.000%, lost against the PoC's own run)"
       },
       {
         "id": "g2.held-out",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: analyze, discover"
+        "verdict": "pass",
+        "inputs": {
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "pokefirered [pret-gen3] pass: precision 99.95%, recall 100.00%, glued 0 (inside an extent 0, outside every extent 0, past the code end 0), label candidates 0, extents 99.976%, code end 0, false entries adrCallback 0, insideElfFunction 6, other 0, startup 4, veneer 0; pokeruby [pret-gen3] pass: precision 99.95%, recall 100.00%, glued 0 (inside an extent 0, outside every extent 0, past the code end 0), label candidates 0, extents 99.974%, code end 0, false entries adrCallback 0, insideElfFunction 6, other 0, startup 4, veneer 0; WAIVED: the passing ROMs span 1 codebase families, at least two must: waived by the owner, Bruno Macabeus (architecture section 12 item 4) on 2026-10-18 (D61 b; the owner's answer to Q4 of phase-2.md, the option chosen: \"Waive both\"); WAIVED: no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus (architecture section 12 item 4) on 2026-10-17 (D60; the owner's words: the gate is recorded as having no held-out ROM from a family absent from the tuning set); 2 sealed ROMs pass, families pret-gen3 (absent from tuning: none)"
       },
       {
         "id": "g2.no-unreviewed",
-        "verdict": "pending",
+        "verdict": "pass",
         "inputs": {},
-        "detail": "not exported yet: analyze, explain"
+        "detail": "8 datasets, 61 exception rows, none unreviewed"
       },
       {
         "id": "g2.poc-parity",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: analyzeTuned, encodeAnalysis"
+        "verdict": "historical",
+        "inputs": {
+          "parity:fe7j": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
+          "parity:klonoa": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
+          "parity:pokeemerald": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17",
+          "parity:sa2": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
+          "parity:sa3": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad"
+        },
+        "detail": "frozen since phase 2 landed; tmc: not applicable, no M1 lockstep run (the owner's answer to Q1 on 2026-10-18, D61 c: \"Keep tmc as 99.94%. It's a benchmark row that we can improve later\"); 5 tuning ROMs (fe7j, klonoa, pokeemerald, sa2, sa3): parity digests equal the PoC's, rows equal the PoC baseline, 5 lockstep sets follow the log (committed evidence recorded at e867dae with uncommitted M1 wiring, an ancestor of HEAD; not re-run)"
       },
       {
         "id": "g2.speed",
-        "verdict": "pending",
-        "inputs": {},
-        "detail": "not exported yet: analyze"
+        "verdict": "pass",
+        "inputs": {
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
+        },
+        "detail": "calibration ratio 1.054; CPU/limit: fe7j 1090/13933 ms, klonoa 273/336 ms, pokeemerald 2075/4631 ms, sa2 634/860 ms, sa3 1069/1638 ms, tmc 1276/1959 ms"
       },
       {
         "id": "g3.link",
@@ -1975,7 +2033,7 @@
         "id": "g3.tree-determinism",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: profileById, analyze, configFromDiscover, buildModel, emitTree"
+        "detail": "not exported yet: configFromDiscover, buildModel, emitTree"
       },
       {
         "id": "g4.e2e-real",
@@ -1993,7 +2051,7 @@
         "id": "g4.toml-mutations",
         "verdict": "pending",
         "inputs": {},
-        "detail": "not exported yet: init, generate, parseConfig, serializeConfig, legalBorders, profileById, analyze"
+        "detail": "not exported yet: init, generate, parseConfig, serializeConfig, legalBorders"
       },
       {
         "id": "g4.worktree",
@@ -2081,7 +2139,7 @@
           "size": 0,
           "reason": "inside-code",
           "listed": true,
-          "category": "continuation-after-noreturn-call"
+          "category": "split-after-returning-call"
         },
         {
           "addr": "0x0800D4AC",
@@ -2089,7 +2147,7 @@
           "size": 0,
           "reason": "inside-code",
           "listed": true,
-          "category": "continuation-after-noreturn-call"
+          "category": "split-after-returning-call"
         },
         {
           "addr": "0x0800D840",
@@ -2097,7 +2155,7 @@
           "size": 0,
           "reason": "inside-code",
           "listed": true,
-          "category": "continuation-after-noreturn-call"
+          "category": "split-after-returning-call"
         },
         {
           "addr": "0x0800D864",
@@ -2105,7 +2163,7 @@
           "size": 0,
           "reason": "inside-code",
           "listed": true,
-          "category": "continuation-after-noreturn-call"
+          "category": "split-after-returning-call"
         },
         {
           "addr": "0x08010DC4",
@@ -2121,7 +2179,7 @@
           "size": 0,
           "reason": "inside-code",
           "listed": true,
-          "category": "continuation-after-noreturn-call"
+          "category": "disassembler-split"
         },
         {
           "addr": "0x08064AD0",
@@ -2129,7 +2187,7 @@
           "size": 0,
           "reason": "inside-code",
           "listed": true,
-          "category": "continuation-after-noreturn-call"
+          "category": "split-after-returning-call"
         },
         {
           "addr": "0x080BE488",
@@ -2170,35 +2228,35 @@
           "origin": "call",
           "size": 34,
           "listed": true,
-          "category": "unreviewed"
+          "category": "untyped-leaf"
         },
         {
           "addr": "0x080BE7C6",
           "origin": "call",
           "size": 2,
           "listed": true,
-          "category": "unreviewed"
+          "category": "mixer-internal"
         },
         {
           "addr": "0x080BE804",
           "origin": "data-pointer",
           "size": 46,
           "listed": true,
-          "category": "unreviewed"
+          "category": "mixer-internal"
         },
         {
           "addr": "0x080BE84E",
           "origin": "call",
           "size": 26,
           "listed": true,
-          "category": "unreviewed"
+          "category": "second-entry"
         },
         {
           "addr": "0x080BE874",
           "origin": "data-pointer",
           "size": 32,
           "listed": true,
-          "category": "unreviewed"
+          "category": "mixer-internal"
         },
         {
           "addr": "0x080C0C24",
@@ -2246,16 +2304,32 @@
       "extents": {
         "sized": 1471,
         "agree": 1471,
-        "mismatches": []
+        "mismatches": [],
+        "lost": []
       },
       "codeEnd": {
         "found": "0x080C0C50",
-        "elf": "0x080C0C48",
-        "delta": 8
+        "elf": "0x080C0C50",
+        "delta": 0
       },
       "deterministic": true,
       "scaffold": {
         "ok": true
+      },
+      "analysisDigest": "a1e91da50b55b4d0dba09f3a50c1474fd36ce8d073bab60338bc4bb268dd3245",
+      "poc": {
+        "tp": 7724,
+        "source": "baseline"
+      },
+      "staleExceptions": [],
+      "baselineRows": {
+        "diffs": [],
+        "unaccepted": [],
+        "staleAccepted": []
+      },
+      "parity": {
+        "digest": "d2c87e513af3721b8116b31b1abd726c68f4c4b13c0084ad52aef0ca08279555",
+        "expected": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a"
       }
     },
     {
@@ -2306,22 +2380,38 @@
           "origin": "call",
           "size": 26,
           "listed": true,
-          "category": "unreviewed"
+          "category": "second-entry"
         }
       ],
       "extents": {
         "sized": 485,
         "agree": 485,
-        "mismatches": []
+        "mismatches": [],
+        "lost": []
       },
       "codeEnd": {
         "found": "0x08051BD4",
-        "elf": "0x08051BD0",
-        "delta": 4
+        "elf": "0x08051BD4",
+        "delta": 0
       },
       "deterministic": true,
       "scaffold": {
         "ok": true
+      },
+      "analysisDigest": "518d95721bb0808e3d54ce2a53f32416c877771ed81a856fe6fd53e5fe4f5855",
+      "poc": {
+        "tp": 556,
+        "source": "baseline"
+      },
+      "staleExceptions": [],
+      "baselineRows": {
+        "diffs": [],
+        "unaccepted": [],
+        "staleAccepted": []
+      },
+      "parity": {
+        "digest": "49c426765a00a227935e5e3d7a6a3fe2225333a047211ddf21eba0ebf9dd4d85",
+        "expected": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2"
       }
     },
     {
@@ -2393,7 +2483,7 @@
       ],
       "extents": {
         "sized": 15853,
-        "agree": 15849,
+        "agree": 15850,
         "mismatches": [
           {
             "addr": "0x082DED84",
@@ -2408,18 +2498,13 @@
             "found": 46
           },
           {
-            "addr": "0x082DF04C",
-            "name": "umul3232H32",
-            "elf": 16,
-            "found": 4
-          },
-          {
             "addr": "0x082DF880",
             "name": "ld_r3_tp_adr_i",
             "elf": 1826,
             "found": 10
           }
-        ]
+        ],
+        "lost": []
       },
       "codeEnd": {
         "found": "0x082E952E",
@@ -2429,6 +2514,26 @@
       "deterministic": true,
       "scaffold": {
         "ok": true
+      },
+      "analysisDigest": "698343b9bac9aaca662a68bcfcc3fc6c5338d82397ce00658bba7327b26accd7",
+      "poc": {
+        "tp": 15856,
+        "source": "baseline"
+      },
+      "staleExceptions": [],
+      "baselineRows": {
+        "diffs": [
+          {
+            "kind": "extent-agrees",
+            "addr": "0x082DF04C"
+          }
+        ],
+        "unaccepted": [],
+        "staleAccepted": []
+      },
+      "parity": {
+        "digest": "d7348336a0825f6627bc2976e025247d06913ea3622ccb23bbe9569f54702df8",
+        "expected": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17"
       }
     },
     {
@@ -2500,7 +2605,7 @@
       ],
       "extents": {
         "sized": 2889,
-        "agree": 2886,
+        "agree": 2887,
         "mismatches": [
           {
             "addr": "0x0800020C",
@@ -2509,18 +2614,13 @@
             "found": 288
           },
           {
-            "addr": "0x080945E8",
-            "name": "umul3232H32",
-            "elf": 16,
-            "found": 4
-          },
-          {
             "addr": "0x08094ABC",
             "name": "ld_r3_tp_adr_i",
             "elf": 1822,
             "found": 10
           }
-        ]
+        ],
+        "lost": []
       },
       "codeEnd": {
         "found": "0x080979F6",
@@ -2530,6 +2630,26 @@
       "deterministic": true,
       "scaffold": {
         "ok": true
+      },
+      "analysisDigest": "bfa0a805eb66b5c0ffa149364831c39fa40a7d68a503de9cdfedcd3f772e2d1f",
+      "poc": {
+        "tp": 2892,
+        "source": "baseline"
+      },
+      "staleExceptions": [],
+      "baselineRows": {
+        "diffs": [
+          {
+            "kind": "extent-agrees",
+            "addr": "0x080945E8"
+          }
+        ],
+        "unaccepted": [],
+        "staleAccepted": []
+      },
+      "parity": {
+        "digest": "ae83e802213876014f5629ef8db2daefd382fe70ed2a56d30ab64bdbfcf1a022",
+        "expected": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19"
       }
     },
     {
@@ -2601,14 +2721,8 @@
       ],
       "extents": {
         "sized": 4307,
-        "agree": 4304,
+        "agree": 4305,
         "mismatches": [
-          {
-            "addr": "0x080B9838",
-            "name": "umul3232H32",
-            "elf": 16,
-            "found": 4
-          },
           {
             "addr": "0x080B9D0C",
             "name": "ld_r3_tp_adr_i",
@@ -2621,7 +2735,8 @@
             "elf": 280,
             "found": 288
           }
-        ]
+        ],
+        "lost": []
       },
       "codeEnd": {
         "found": "0x080CE438",
@@ -2631,7 +2746,999 @@
       "deterministic": true,
       "scaffold": {
         "ok": true
+      },
+      "analysisDigest": "9c0fb9645564567c9fa7f1cf01dfda9bd9e9b1118df31838cef806a392092dc2",
+      "poc": {
+        "tp": 4693,
+        "source": "baseline"
+      },
+      "staleExceptions": [],
+      "baselineRows": {
+        "diffs": [
+          {
+            "kind": "extent-agrees",
+            "addr": "0x080B9838"
+          }
+        ],
+        "unaccepted": [],
+        "staleAccepted": []
+      },
+      "parity": {
+        "digest": "396939bfb6f130c0f2e7fc6f69429ba76e37a6fbcd8753a7991521724bdf5bfb",
+        "expected": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad"
+      }
+    },
+    {
+      "name": "tmc",
+      "sha1": "b4bd50e4131b027c334547b4524e2dbbd4227130",
+      "elfCommit": "6fb6dfb",
+      "elfFunctions": 8636,
+      "entries": 8643,
+      "startup": {
+        "end": "0x08000108",
+        "pieces": 2,
+        "elfFunctions": 1
+      },
+      "thumb": 8603,
+      "arm": 40,
+      "tp": 8631,
+      "precision": 0.9986115931968067,
+      "recall": 0.9994210282538212,
+      "misses": [
+        {
+          "addr": "0x080AF3F0",
+          "name": "sub_080AF3F0",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080AF40E",
+          "name": "sub_080AF40E",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080AF6B0",
+          "name": "sub_080AF6B0",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "mixer-internal"
+        },
+        {
+          "addr": "0x080AF900",
+          "name": "sub_080AF900",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "split-after-returning-call"
+        },
+        {
+          "addr": "0x080B20AC",
+          "name": "sub_080B20AC",
+          "size": 0,
+          "reason": "inside-code",
+          "listed": true,
+          "category": "split-after-returning-call"
+        }
+      ],
+      "falseEntries": [
+        {
+          "addr": "0x080040F2",
+          "origin": "call",
+          "size": 118,
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x0800432A",
+          "origin": "call",
+          "size": 44,
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x08008936",
+          "origin": "call",
+          "size": 12,
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x08008A60",
+          "origin": "tiled-hole",
+          "size": 6,
+          "listed": true,
+          "category": "unreached-tail"
+        },
+        {
+          "addr": "0x08008B2E",
+          "origin": "tiled-hole",
+          "size": 10,
+          "listed": true,
+          "category": "unreached-tail"
+        },
+        {
+          "addr": "0x080AF75E",
+          "origin": "call",
+          "size": 26,
+          "listed": true,
+          "category": "second-entry"
+        },
+        {
+          "addr": "0x080B197C",
+          "origin": "gap-scan",
+          "size": 80,
+          "listed": true,
+          "category": "pointer-entry"
+        },
+        {
+          "addr": "0x080B1AA8",
+          "origin": "ram-copy",
+          "size": 72,
+          "listed": true,
+          "category": "pointer-entry"
+        },
+        {
+          "addr": "0x080B1B0C",
+          "origin": "ram-copy",
+          "size": 72,
+          "listed": true,
+          "category": "pointer-entry"
+        },
+        {
+          "addr": "0x080B21B0",
+          "origin": "arm-gap-scan",
+          "size": 28,
+          "listed": true,
+          "category": "pointer-entry"
+        },
+        {
+          "addr": "0x080B2718",
+          "origin": "call",
+          "size": 24,
+          "listed": true,
+          "category": "local-subroutine"
+        },
+        {
+          "addr": "0x080B27E4",
+          "origin": "call",
+          "size": 40,
+          "listed": true,
+          "category": "local-subroutine"
+        }
+      ],
+      "extents": {
+        "sized": 8388,
+        "agree": 8388,
+        "mismatches": [],
+        "lost": []
+      },
+      "codeEnd": {
+        "found": "0x080B2A30",
+        "elf": "0x080B2A30",
+        "delta": 0
+      },
+      "deterministic": true,
+      "scaffold": {
+        "ok": true
+      },
+      "analysisDigest": "5c747e554bfec4642d293dbdf792355109f05f6dfa1c2a6693ded3e0d63e7e83",
+      "poc": {
+        "tp": 8582,
+        "source": "dump"
+      },
+      "staleExceptions": [],
+      "baselineRows": {
+        "diffs": [
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000288"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x0800028C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000290"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000294"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000298"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000E92"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000F02"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000F04"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000F06"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000F08"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000F0A"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000F0C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08000F0E"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080043B0"
+          },
+          {
+            "kind": "false-entry-removed",
+            "addr": "0x08007DCC"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x08007DCE"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x08008B2E"
+          },
+          {
+            "kind": "false-entry-removed",
+            "addr": "0x08008B30"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x0801637C"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B197C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B19CC"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1A0C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1A60"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1A8C"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B1AA8"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1AF0"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B1B0C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1B54"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1B68"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1B84"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1BA4"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1BCC"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1C54"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1C7C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1D98"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1F30"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1F5C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1F88"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1FA4"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B1FE4"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B201C"
+          },
+          {
+            "kind": "miss-changed",
+            "addr": "0x080B20AC"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B20EC"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B2124"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B21B0"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B21CC"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B227C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B237C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B23F0"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B2448"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B2478"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B2534"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B255C"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B2718"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B27E4"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B27F4"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B280C"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B2874"
+          },
+          {
+            "kind": "miss-removed",
+            "addr": "0x080B299C"
+          }
+        ],
+        "unaccepted": [
+          {
+            "kind": "false-entry-added",
+            "addr": "0x08008B2E"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B197C"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B1AA8"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B1B0C"
+          },
+          {
+            "kind": "miss-changed",
+            "addr": "0x080B20AC"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B21B0"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B2718"
+          },
+          {
+            "kind": "false-entry-added",
+            "addr": "0x080B27E4"
+          }
+        ],
+        "staleAccepted": []
+      },
+      "parity": {
+        "digest": "ea700ad02d22c2ba68766d36f87cc204a1e6bfa23b8929dbb777e4db6b4a27ed",
+        "expected": ""
       }
     }
-  ]
+  ],
+  "sealed": [
+    {
+      "name": "pokefirered",
+      "entries": 12395,
+      "elfFunctions": 12389,
+      "tp": 12389,
+      "glued": 0,
+      "gluedWhere": {
+        "insideExtent": 0,
+        "outsideExtents": 0,
+        "pastCodeEnd": 0
+      },
+      "labelCandidates": 0,
+      "falseEntries": {
+        "startup": 4,
+        "veneer": 0,
+        "adrCallback": 0,
+        "insideElfFunction": 6,
+        "other": 0
+      },
+      "extents": {
+        "sized": 12386,
+        "agree": 12383
+      },
+      "codeEnd": {
+        "delta": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "pokeruby",
+      "entries": 11461,
+      "elfFunctions": 11455,
+      "tp": 11455,
+      "glued": 0,
+      "gluedWhere": {
+        "insideExtent": 0,
+        "outsideExtents": 0,
+        "pastCodeEnd": 0
+      },
+      "labelCandidates": 0,
+      "falseEntries": {
+        "startup": 4,
+        "veneer": 0,
+        "adrCallback": 0,
+        "insideElfFunction": 6,
+        "other": 0
+      },
+      "extents": {
+        "sized": 11452,
+        "agree": 11449
+      },
+      "codeEnd": {
+        "delta": 0
+      },
+      "pass": true
+    }
+  ],
+  "parity": {
+    "schema": "romlift-bench/parity-evidence@1",
+    "commit": "e867dae6498fdbad4bb93b7388fddd5def9bd044",
+    "dirty": true,
+    "worklist": "poc-lifo",
+    "pocSourceDigest": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345",
+    "roms": {
+      "fe7j": {
+        "digest": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
+        "expected": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
+        "rowDiffs": 0,
+        "lockstep": [
+          {
+            "set": "driver",
+            "real": [],
+            "queries": 1426819,
+            "matched": 536147,
+            "answered": 528316,
+            "compared": 0,
+            "markers": 7831,
+            "skipped": 890672,
+            "recalled": 0,
+            "parityDigest": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
+            "divergence": null
+          },
+          {
+            "set": "walk+bl+claim",
+            "real": [
+              "walk",
+              "bl",
+              "claim"
+            ],
+            "queries": 1426819,
+            "matched": 536211,
+            "answered": 357190,
+            "compared": 1312,
+            "markers": 7831,
+            "skipped": 890608,
+            "recalled": 169878,
+            "parityDigest": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
+            "divergence": null
+          },
+          {
+            "set": "seed+valid+accept",
+            "real": [
+              "seed",
+              "valid",
+              "accept"
+            ],
+            "queries": 1426819,
+            "matched": 1063083,
+            "answered": 547105,
+            "compared": 508132,
+            "markers": 7831,
+            "skipped": 363736,
+            "recalled": 15,
+            "parityDigest": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
+            "divergence": null
+          },
+          {
+            "set": "gap+region",
+            "real": [
+              "gap",
+              "region"
+            ],
+            "queries": 1426819,
+            "matched": 543946,
+            "answered": 513657,
+            "compared": 22458,
+            "markers": 7831,
+            "skipped": 882873,
+            "recalled": 0,
+            "parityDigest": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
+            "divergence": null
+          },
+          {
+            "set": "all",
+            "real": [
+              "seed",
+              "walk",
+              "bl",
+              "valid",
+              "accept",
+              "gap",
+              "claim",
+              "region"
+            ],
+            "queries": 1426819,
+            "matched": 1082218,
+            "answered": 0,
+            "compared": 1074387,
+            "markers": 7831,
+            "skipped": 344601,
+            "recalled": 0,
+            "parityDigest": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
+            "divergence": null
+          }
+        ]
+      },
+      "klonoa": {
+        "digest": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
+        "expected": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
+        "rowDiffs": 0,
+        "lockstep": [
+          {
+            "set": "driver",
+            "real": [],
+            "queries": 6948,
+            "matched": 4061,
+            "answered": 3489,
+            "compared": 0,
+            "markers": 572,
+            "skipped": 2887,
+            "recalled": 0,
+            "parityDigest": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
+            "divergence": null
+          },
+          {
+            "set": "walk+bl+claim",
+            "real": [
+              "walk",
+              "bl",
+              "claim"
+            ],
+            "queries": 6948,
+            "matched": 4086,
+            "answered": 2559,
+            "compared": 142,
+            "markers": 572,
+            "skipped": 2862,
+            "recalled": 813,
+            "parityDigest": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
+            "divergence": null
+          },
+          {
+            "set": "seed+valid+accept",
+            "real": [
+              "seed",
+              "valid",
+              "accept"
+            ],
+            "queries": 6948,
+            "matched": 6166,
+            "answered": 3157,
+            "compared": 2432,
+            "markers": 572,
+            "skipped": 782,
+            "recalled": 5,
+            "parityDigest": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
+            "divergence": null
+          },
+          {
+            "set": "gap+region",
+            "real": [
+              "gap",
+              "region"
+            ],
+            "queries": 6948,
+            "matched": 4275,
+            "answered": 2649,
+            "compared": 1054,
+            "markers": 572,
+            "skipped": 2673,
+            "recalled": 0,
+            "parityDigest": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
+            "divergence": null
+          },
+          {
+            "set": "all",
+            "real": [
+              "seed",
+              "walk",
+              "bl",
+              "valid",
+              "accept",
+              "gap",
+              "claim",
+              "region"
+            ],
+            "queries": 6948,
+            "matched": 6593,
+            "answered": 0,
+            "compared": 6021,
+            "markers": 572,
+            "skipped": 355,
+            "recalled": 0,
+            "parityDigest": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
+            "divergence": null
+          }
+        ]
+      },
+      "pokeemerald": {
+        "digest": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17",
+        "expected": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17",
+        "rowDiffs": 0,
+        "lockstep": [
+          {
+            "set": "driver",
+            "real": [],
+            "queries": 310185,
+            "matched": 179875,
+            "answered": 163974,
+            "compared": 0,
+            "markers": 15901,
+            "skipped": 130310,
+            "recalled": 0,
+            "parityDigest": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17",
+            "divergence": null
+          },
+          {
+            "set": "walk+bl+claim",
+            "real": [
+              "walk",
+              "bl",
+              "claim"
+            ],
+            "queries": 310185,
+            "matched": 180012,
+            "answered": 123738,
+            "compared": 4520,
+            "markers": 15901,
+            "skipped": 130173,
+            "recalled": 35853,
+            "parityDigest": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17",
+            "divergence": null
+          },
+          {
+            "set": "seed+valid+accept",
+            "real": [
+              "seed",
+              "valid",
+              "accept"
+            ],
+            "queries": 310185,
+            "matched": 260625,
+            "answered": 143047,
+            "compared": 101669,
+            "markers": 15901,
+            "skipped": 49560,
+            "recalled": 8,
+            "parityDigest": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17",
+            "divergence": null
+          },
+          {
+            "set": "gap+region",
+            "real": [
+              "gap",
+              "region"
+            ],
+            "queries": 310185,
+            "matched": 189078,
+            "answered": 116043,
+            "compared": 57134,
+            "markers": 15901,
+            "skipped": 121107,
+            "recalled": 0,
+            "parityDigest": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17",
+            "divergence": null
+          },
+          {
+            "set": "all",
+            "real": [
+              "seed",
+              "walk",
+              "bl",
+              "valid",
+              "accept",
+              "gap",
+              "claim",
+              "region"
+            ],
+            "queries": 310185,
+            "matched": 275845,
+            "answered": 0,
+            "compared": 259944,
+            "markers": 15901,
+            "skipped": 34340,
+            "recalled": 0,
+            "parityDigest": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17",
+            "divergence": null
+          }
+        ]
+      },
+      "sa2": {
+        "digest": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
+        "expected": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
+        "rowDiffs": 0,
+        "lockstep": [
+          {
+            "set": "driver",
+            "real": [],
+            "queries": 35999,
+            "matched": 20131,
+            "answered": 17214,
+            "compared": 0,
+            "markers": 2917,
+            "skipped": 15868,
+            "recalled": 0,
+            "parityDigest": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
+            "divergence": null
+          },
+          {
+            "set": "walk+bl+claim",
+            "real": [
+              "walk",
+              "bl",
+              "claim"
+            ],
+            "queries": 35999,
+            "matched": 20160,
+            "answered": 11755,
+            "compared": 421,
+            "markers": 2917,
+            "skipped": 15839,
+            "recalled": 5067,
+            "parityDigest": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
+            "divergence": null
+          },
+          {
+            "set": "seed+valid+accept",
+            "real": [
+              "seed",
+              "valid",
+              "accept"
+            ],
+            "queries": 35999,
+            "matched": 30999,
+            "answered": 17073,
+            "compared": 11009,
+            "markers": 2917,
+            "skipped": 5000,
+            "recalled": 0,
+            "parityDigest": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
+            "divergence": null
+          },
+          {
+            "set": "gap+region",
+            "real": [
+              "gap",
+              "region"
+            ],
+            "queries": 35999,
+            "matched": 20805,
+            "answered": 12820,
+            "compared": 5068,
+            "markers": 2917,
+            "skipped": 15194,
+            "recalled": 0,
+            "parityDigest": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
+            "divergence": null
+          },
+          {
+            "set": "all",
+            "real": [
+              "seed",
+              "walk",
+              "bl",
+              "valid",
+              "accept",
+              "gap",
+              "claim",
+              "region"
+            ],
+            "queries": 35999,
+            "matched": 32309,
+            "answered": 0,
+            "compared": 29392,
+            "markers": 2917,
+            "skipped": 3690,
+            "recalled": 0,
+            "parityDigest": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
+            "divergence": null
+          }
+        ]
+      },
+      "sa3": {
+        "digest": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad",
+        "expected": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad",
+        "rowDiffs": 0,
+        "lockstep": [
+          {
+            "set": "driver",
+            "real": [],
+            "queries": 51966,
+            "matched": 31262,
+            "answered": 26544,
+            "compared": 0,
+            "markers": 4718,
+            "skipped": 20704,
+            "recalled": 0,
+            "parityDigest": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad",
+            "divergence": null
+          },
+          {
+            "set": "walk+bl+claim",
+            "real": [
+              "walk",
+              "bl",
+              "claim"
+            ],
+            "queries": 51966,
+            "matched": 31336,
+            "answered": 18310,
+            "compared": 844,
+            "markers": 4718,
+            "skipped": 20630,
+            "recalled": 7464,
+            "parityDigest": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad",
+            "divergence": null
+          },
+          {
+            "set": "seed+valid+accept",
+            "real": [
+              "seed",
+              "valid",
+              "accept"
+            ],
+            "queries": 51966,
+            "matched": 45157,
+            "answered": 25959,
+            "compared": 14480,
+            "markers": 4718,
+            "skipped": 6809,
+            "recalled": 0,
+            "parityDigest": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad",
+            "divergence": null
+          },
+          {
+            "set": "gap+region",
+            "real": [
+              "gap",
+              "region"
+            ],
+            "queries": 51966,
+            "matched": 32400,
+            "answered": 18239,
+            "compared": 9443,
+            "markers": 4718,
+            "skipped": 19566,
+            "recalled": 0,
+            "parityDigest": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad",
+            "divergence": null
+          },
+          {
+            "set": "all",
+            "real": [
+              "seed",
+              "walk",
+              "bl",
+              "valid",
+              "accept",
+              "gap",
+              "claim",
+              "region"
+            ],
+            "queries": 51966,
+            "matched": 47408,
+            "answered": 0,
+            "compared": 42690,
+            "markers": 4718,
+            "skipped": 4558,
+            "recalled": 0,
+            "parityDigest": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad",
+            "divergence": null
+          }
+        ]
+      }
+    }
+  }
 }

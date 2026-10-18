@@ -1,14 +1,15 @@
 // g2.rule-registry (architecture §4.1, §13, D7): every analysis rule has complete metadata (summary,
 // restsOn, recovers, reads, adds, and origin for seed and gap rules) whose id is its registry key; every
 // rule sits in exactly one pipeline slot of every shipped profile; every pipeline id has an
-// implementation; and every rule has a unit test file test/unit/analysis/<family>/<name>[.*].test.ts.
+// implementation; and every rule has a unit test file test/unit/analysis/rules/<family>/<name>[.*].test.ts (the
+// test tree mirrors src/core/analysis/rules, D59).
 //
 // Expected exports, for the phase-2 lead to align: `RULES` (romlift/internal; the concatenated family
 // records of core/analysis/rules/index.ts, keyed by rule id, re-exported through the driver because only
 // driver/ may import that index) and `PROFILES` (romlift), whose pipelines follow architecture §4.3.
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { gate } from './gate.ts';
+import { byCodeUnit, gate } from './gate.ts';
 
 interface RuleMeta {
   readonly id: string;
@@ -30,9 +31,6 @@ type Profiles = Readonly<Record<string, { readonly id: string; readonly pipeline
 
 const ORIGIN_FAMILIES: ReadonlySet<string> = new Set(['seed', 'gap']);
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /** Every rule id named by a pipeline, in slot order; `passes` names passes, not rules. */
 function pipelineIds(pipeline: Readonly<Record<string, unknown>>): readonly string[] {
@@ -110,9 +108,9 @@ gate({
     for (const id of ids) {
       const family = id.split('.')[0] ?? '';
       const name = id.slice(family.length + 1);
-      const files = await testFiles(path.join(cx.repoRoot, 'test', 'unit', 'analysis', family));
+      const files = await testFiles(path.join(cx.repoRoot, 'test', 'unit', 'analysis', 'rules', family));
       if (!files.some((file) => file === `${name}.test.ts` || (file.startsWith(`${name}.`) && file.endsWith('.test.ts')))) {
-        problems.push(`${id}: no unit test test/unit/analysis/${family}/${name}.test.ts`);
+        problems.push(`${id}: no unit test test/unit/analysis/rules/${family}/${name}.test.ts`);
       }
     }
 

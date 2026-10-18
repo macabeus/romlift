@@ -9,9 +9,12 @@ import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   checkInput,
+  decideHistorical,
   decideVerdict,
   exec,
+  failureDetail,
   formatRecord,
+  gateStep,
   inputsFor,
   jsonLines,
   lastJson,
@@ -365,5 +368,51 @@ test('gate() registers one test per gate and appends one NDJSON line per recorde
     assert.match(output, /^ok \d+ - g1\.passes$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a failing gate records its notes after the failure, so the measurements that explain it survive (D59 q)', () => {
+  assert.equal(failureDetail('held-out: 1 family', []), 'held-out: 1 family');
+  assert.equal(failureDetail('held-out: 1 family', ['tmc [zeldaret-tmc] fail: glued 51', 'pokeruby pass']), 'held-out: 1 family; tmc [zeldaret-tmc] fail: glued 51; pokeruby pass');
+});
+
+test('gateStep: a frozen gate still runs its run and is historical only when it returns; pending and unavailable run nothing', () => {
+  const frozen = decideHistorical({ needs: [], historicalAfter: 2 }, 2);
+  assert.equal(frozen?.verdict, 'historical');
+  assert.deepEqual(gateStep(frozen), { kind: 'run', onReturn: 'historical', detail: 'frozen since phase 2 landed' });
+  // Before landing, run runs and passes.
+  assert.deepEqual(gateStep(decideHistorical({ needs: [], historicalAfter: 2 }, 1)), { kind: 'run', onReturn: 'pass' });
+  assert.deepEqual(gateStep({ verdict: 'unavailable', detail: 'roms: missing', missing: ['roms'] }), { kind: 'record', verdict: 'unavailable', detail: 'roms: missing', missing: ['roms'] });
+  assert.deepEqual(gateStep({ verdict: 'pending', detail: 'not exported yet: x', missing: ['x'] }), { kind: 'record', verdict: 'pending', detail: 'not exported yet: x', missing: ['x'] });
+});
+
+test('the harness end to end: at landed 2 a historical gate whose run throws records fail, one whose run returns records historical', () => {
+  // A copy of the real harness (gate.ts imports only node:* and order.ts) in a temporary repository whose phase.json is
+  // { "landed": 2 }, running two gates frozen after phase 2, one per outcome of their run.
+  const root = mkdtempSync(path.join(tmpdir(), 'romlift-historical-'));
+  try {
+    const gates = path.join(root, 'test', 'gates');
+    mkdirSync(gates, { recursive: true });
+    for (const name of ['gate.ts', 'order.ts']) writeFileSync(path.join(gates, name), readFileSync(path.join(repoRoot, 'test', 'gates', name)));
+    writeFileSync(path.join(gates, 'phase.json'), '{ "landed": 2 }\n');
+    const file = (id: string, body: string): string => `import { gate } from './gate.ts';\ngate({ id: '${id}', phase: 2, tier: 'ci', needs: [], historicalAfter: 2, async run() { ${body} } });\n`;
+    writeFileSync(path.join(gates, 'g2.failing.test.ts'), file('g2.failing', "throw new Error('rows differ');"));
+    writeFileSync(path.join(gates, 'g2.holding.test.ts'), file('g2.holding', 'return;'));
+    const report = path.join(root, 'report.ndjson');
+    const { NODE_TEST_CONTEXT: _context, ...outer } = process.env;
+    const child = spawnSync(process.execPath, ['--test', path.join(gates, 'g2.failing.test.ts'), path.join(gates, 'g2.holding.test.ts')], {
+      cwd: root,
+      env: { ...outer, ROMLIFT_GATE_TIER: 'ci', ROMLIFT_GATE_REPORT: report, ROMLIFT_BENCH_ROOT: root, ROMLIFT_POC: root },
+      encoding: 'utf8',
+    });
+    assert.notEqual(child.status, 0, 'the failing historical gate fails the test run');
+    const lines = readFileSync(report, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { readonly id: string; readonly verdict: string; readonly detail: string });
+    const byId = new Map(lines.map((l) => [l.id, l]));
+    assert.equal(byId.get('g2.failing')?.verdict, 'fail');
+    assert.match(byId.get('g2.failing')?.detail ?? '', /rows differ/);
+    assert.equal(byId.get('g2.holding')?.verdict, 'historical');
+    assert.match(byId.get('g2.holding')?.detail ?? '', /^frozen since phase 2 landed/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

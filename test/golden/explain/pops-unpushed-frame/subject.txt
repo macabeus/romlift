@@ -1,0 +1,93 @@
+0x08000DC8
+  claim: code
+  owner: 0x08000DC8 (origin call)
+  provenance:
+    seed.call round 0 cites 0x080000FC
+  proposals (4):
+    0x08000DC8 seed.call round 0 cites 0x080000FC: thumb
+    0x08000DB8 seed.call round 0 cites 0x08000756: thumb
+    0x08000DC4 seed.call round 0 cites 0x0800075E: thumb
+    0x08000DC4 seed.call round 0 cites 0x08000DCC: thumb
+  accepts (3):
+    0x08000DB8 seed.call round 0 cites 0x08000756
+    0x08000DC4 seed.call round 0 cites 0x0800075E
+    0x08000DC8 seed.call round 0 cites 0x080000FC
+  rejections (44):
+    0x08000DAC valid.decodes round 2 cites 0x08000DAC: decode-error: decodes to nothing
+    0x08000DA8 valid.decodes round 2 cites 0x08000DA8: decode-error: decodes to nothing
+    0x08000DA4 valid.decodes round 2 cites 0x08000DA4: decode-error: decodes to nothing
+    0x08000DA0 valid.decodes round 2 cites 0x08000DA0: decode-error: decodes to nothing
+    0x08000D9C valid.decodes round 2 cites 0x08000D9C: decode-error: decodes to nothing
+    0x08000D98 valid.decodes round 2 cites 0x08000D98: decode-error: decodes to nothing
+    0x08000D94 valid.decodes round 2 cites 0x08000D94: decode-error: decodes to nothing
+    0x08000D90 valid.decodes round 2 cites 0x08000D90: decode-error: decodes to nothing
+    0x08000D8C valid.decodes round 2 cites 0x08000D8C: decode-error: decodes to nothing
+    0x08000D88 valid.decodes round 2 cites 0x08000D88: decode-error: decodes to nothing
+    0x08000D84 valid.decodes round 2 cites 0x08000D84: decode-error: decodes to nothing
+    0x08000D80 valid.decodes round 2 cites 0x08000D80: decode-error: decodes to nothing
+    0x08000D7C valid.decodes round 2 cites 0x08000D7C: decode-error: decodes to nothing
+    0x08000D78 valid.decodes round 2 cites 0x08000D78: decode-error: decodes to nothing
+    0x08000D74 valid.decodes round 2 cites 0x08000D74: decode-error: decodes to nothing
+    0x08000D70 valid.decodes round 2 cites 0x08000D70: decode-error: decodes to nothing
+    0x08000D6C valid.decodes round 2 cites 0x08000D6C: decode-error: decodes to nothing
+    0x08000D68 valid.decodes round 2 cites 0x08000D68: decode-error: decodes to nothing
+    0x08000D64 valid.decodes round 2 cites 0x08000D64: decode-error: decodes to nothing
+    0x08000D60 valid.decodes round 2 cites 0x08000D60: decode-error: decodes to nothing
+    0x08000D5C valid.decodes round 2 cites 0x08000D5C: decode-error: decodes to nothing
+    0x08000D58 valid.decodes round 2 cites 0x08000D58: decode-error: decodes to nothing
+    0x08000D54 valid.decodes round 2 cites 0x08000D54: decode-error: decodes to nothing
+    0x08000D50 valid.decodes round 2 cites 0x08000D50: decode-error: decodes to nothing
+    0x08000D4C valid.decodes round 2 cites 0x08000D4C: decode-error: decodes to nothing
+    0x08000D48 valid.decodes round 2 cites 0x08000D48: decode-error: decodes to nothing
+    0x08000D44 valid.decodes round 2 cites 0x08000D44: decode-error: decodes to nothing
+    0x08000D40 valid.decodes round 2 cites 0x08000D40: decode-error: decodes to nothing
+    0x08000D3C valid.decodes round 2 cites 0x08000D3C: decode-error: decodes to nothing
+    0x08000D38 valid.decodes round 2 cites 0x08000D38: decode-error: decodes to nothing
+    0x08000D34 valid.decodes round 2 cites 0x08000D34: decode-error: decodes to nothing
+    0x08000D30 valid.decodes round 2 cites 0x08000D30: decode-error: decodes to nothing
+    0x08000D2C valid.decodes round 2 cites 0x08000D2C: decode-error: decodes to nothing
+    0x08000D28 valid.decodes round 2 cites 0x08000D28: decode-error: decodes to nothing
+    0x08000D24 valid.decodes round 2 cites 0x08000D24: decode-error: decodes to nothing
+    0x08000D20 valid.decodes round 2 cites 0x08000D20: decode-error: decodes to nothing
+    0x08000D1C valid.decodes round 2 cites 0x08000D1C: decode-error: decodes to nothing
+    0x08000D18 valid.decodes round 2 cites 0x08000D18: decode-error: decodes to nothing
+    0x08000D14 valid.decodes round 2 cites 0x08000D14: decode-error: decodes to nothing
+    0x08000D10 valid.decodes round 2 cites 0x08000D10: decode-error: decodes to nothing
+    0x08000D0C valid.decodes round 2 cites 0x08000D0C: decode-error: decodes to nothing
+    0x08000D08 valid.decodes round 2 cites 0x08000D08: decode-error: decodes to nothing
+    0x08000D04 valid.decodes round 2 cites 0x08000D04: decode-error: decodes to nothing
+    0x08000D00 valid.decodes round 2 cites 0x08000D00: decode-error: decodes to nothing
+  verdicts (5):
+    0x080000FC bl.target-has-prologue round 0 cites 0x080000FC, 0x08000DC8: call
+    0x08000756 bl.target-has-prologue round 0 cites 0x08000756, 0x08000DB8: call
+    0x0800075E bl.target-beyond-callee round 0 cites 0x0800075E, 0x08000DC4: call
+    0x08000766 bl.target-pops-unpushed-frame round 0 cites 0x08000766, 0x08000DB0: far
+    0x08000DCC bl.self-or-accepted round 0 cites 0x08000DCC, 0x08000DC4: call
+  waits: none
+  claims (3):
+    0x08000DB8 claim.dead-code-in-extent round 0 cites 0x08000DB8: 1 edits
+    0x08000DC4 claim.dead-code-in-extent round 0 cites 0x08000DC4: 1 edits
+    0x08000DC8 claim.dead-code-in-extent round 0 cites 0x08000DC8: 1 edits
+  rules (7):
+    bl.self-or-accepted: a bl to the caller itself or to an accepted function is a call
+      rests on: a function entry is only ever called (recursion included); agbcc never uses bl to jump to a function start
+      recovers: calls to known functions misread as far jumps, which would glue the callee into the caller
+    bl.target-beyond-callee: a bl to an address beyond the entry of another function the caller calls is a call
+      rests on: a far jump reaches the caller's own tail, and a function never contains the entry of a function it calls
+      recovers: callees that pop a frame they never pushed, misread as the caller's tail when the caller is settled before them
+    bl.target-has-prologue: a bl to a word-aligned Thumb `push {.., lr}` is a call
+      rests on: agbcc opens every function that calls or spills with `push {.., lr}` on a word boundary; the tail of a function never does
+      recovers: calls to functions not yet found, misread as far jumps when they are far from the caller
+    bl.target-pops-unpushed-frame: a bl whose target, read alone, pops a frame it never pushed is a far jump; otherwise a call
+      rests on: the far tail of an agbcc function ends with the epilogue of the frame its head pushed, so read alone it pops more than it pushes
+      recovers: far tails without a prologue split off as functions, and calls to plain functions misread as jumps
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    valid.decodes: the walk from the entry decodes at least one instruction and hits no decode error
+      rests on: every path of a compiled function decodes until it returns or jumps away
+      recovers: data and text decoded as code
+explain: ok (exit 0)

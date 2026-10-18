@@ -2,7 +2,7 @@
 // category `unreviewed`; milestone M5 classifies the six such rows, each confirmed with `bench explain`.
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate } from './gate.ts';
+import { byCodeUnit, gate } from './gate.ts';
 
 interface DatasetRow {
   readonly addr: string;
@@ -15,9 +15,6 @@ interface DatasetLists {
   readonly untyped?: readonly DatasetRow[];
 }
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 gate({
   id: 'g2.no-unreviewed',

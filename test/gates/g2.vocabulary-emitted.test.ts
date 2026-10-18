@@ -4,7 +4,7 @@
 //
 // Expected exports: MISS_REASONS and ORIGINS (romlift, phase 1; a list of ids, a list of {id}, or a record
 // keyed by id), and RULES (romlift/internal, see g2.rule-registry).
-import { gate } from './gate.ts';
+import { byCodeUnit, gate } from './gate.ts';
 
 interface RegisteredRule {
   readonly meta: { readonly id: string; readonly origin?: string };
@@ -15,9 +15,6 @@ interface RegisteredRule {
 
 type Rules = Readonly<Record<string, RegisteredRule>>;
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /** The ids of a closed vocabulary, whichever of the three shapes it has. */
 function idsOf(name: string, value: unknown): readonly string[] {

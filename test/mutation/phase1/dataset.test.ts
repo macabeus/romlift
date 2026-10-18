@@ -5,10 +5,11 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+import type { AnalysisResult } from 'romlift';
+
 import { main, type BenchIo } from '../../../bench/src/cli.ts';
 import { withTempDir } from '../../unit/bench/fixtures.ts';
-import { syntheticTier, tinyDump } from '../../unit/bench/harness.ts';
-import type { ScoredRun } from '../../../bench/src/scored-run.ts';
+import { syntheticTier, tinyDeps, tinyResult } from '../../unit/bench/harness.ts';
 
 interface Problem {
   readonly dataset: string;
@@ -19,12 +20,13 @@ interface Problem {
 
 const NEEDED = { addr: '0x08000010', category: 'unreviewed', note: 'inside thumb_two' };
 
-async function datasetCheck(name: string, overrides: Record<string, unknown>, dump?: ScoredRun): Promise<{ readonly code: number; readonly problems: readonly Problem[] }> {
+/** Runs dataset-check on the synthetic tier with `overrides` applied to its dataset and `result` as romlift's run. */
+async function datasetCheck(name: string, overrides: Record<string, unknown>, result: AnalysisResult = tinyResult()): Promise<{ readonly code: number; readonly problems: readonly Problem[] }> {
   return withTempDir(`romlift-mut-dataset-${name}-`, async (root) => {
-    const cx = await syntheticTier(join(root, 't'), { datasetOverrides: overrides, ...(dump === undefined ? {} : { dump }) });
+    const cx = await syntheticTier(join(root, 't'), { datasetOverrides: overrides });
     const lines: string[] = [];
     const io: BenchIo = { out: (l) => lines.push(l), err: () => {} };
-    const code = await main(['dataset-check', '--json'], cx, io);
+    const code = await main(['dataset-check', '--json'], cx, io, tinyDeps(result));
     const last = JSON.parse(lines.at(-1) ?? '{}') as { ok: boolean; problems: Problem[] };
     assert.equal(last.ok, code === 0);
     return { code, problems: last.problems };
@@ -64,8 +66,7 @@ test('an unknown category is reported as unknown-category', async () => {
 });
 
 test('a row the run no longer needs is reported as stale-exception', async () => {
-  const base = tinyDump();
-  const fixed: ScoredRun = { ...base, analysis: { ...base.analysis, functions: base.analysis.functions.filter((f) => f.entry !== '0x08000010') } };
+  const fixed = tinyResult([0x0800_0010]);
   const { code, problems } = await datasetCheck('stale', {}, fixed);
   assert.equal(code, 1);
   assert.deepEqual(problems, [{ dataset: 'tiny', list: 'untyped', addr: '0x08000010', problem: 'stale-exception' }]);

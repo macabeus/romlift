@@ -1,7 +1,9 @@
 // The gate framework (architecture §10, D29, D50). Every `test/gates/gN.<name>.test.ts` calls `gate()`
 // once; `gate()` registers one node:test test named by the gate id and decides its verdict:
 //
-//   historical   a PoC-parity gate once phase.json.landed >= historicalAfter
+//   historical   a PoC-parity gate once phase.json.landed >= historicalAfter whose `run` still returns:
+//                a frozen gate keeps running its own check (gateStep), and its failure makes the verdict
+//                `fail`
 //   pending      a name in `needs` is exported by none of romlift, romlift/node, romlift/isa, romlift/internal
 //   unavailable  a declared local input (`inputs`, plus `realInputs` on the real tier) is missing or its
 //                digest differs from the recorded one
@@ -18,6 +20,8 @@ import path from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { byCodeUnit } from './order.ts';
+export { byCodeUnit } from './order.ts';
 
 export type GateTier = 'ci' | 'real';
 export type GateInput = 'roms' | 'elfs' | 'objects' | 'poc' | 'toolchain' | 'klonoa';
@@ -37,7 +41,11 @@ export interface GateSpec {
    * in the ci tier and adds the local ROMs in the real tier, so its ci verdict must not need them.
    */
   readonly realInputs?: readonly GateInput[];
-  /** PoC-parity gates: frozen as `historical` once this phase has landed. */
+  /**
+   * PoC-parity gates: recorded as `historical` instead of `pass` once this phase has landed. `run` still
+   * runs, and its failure still records `fail`, so landing cannot freeze a gate that was failing (D60,
+   * gate-honesty-r1-3, r2-1, code-quality-r0-6).
+   */
   readonly historicalAfter?: 2;
   /** Throws on failure. */
   run(cx: GateContext): Promise<void>;
@@ -140,9 +148,6 @@ const ENTRY_SOURCES: Readonly<Record<EntryPoint, string>> = {
 // ---------------------------------------------------------------------------------------------------
 // Pure decisions.
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /** The tier selected by ROMLIFT_GATE_TIER; `ci` when unset. */
 export function selectedTier(env: Readonly<Record<string, string | undefined>>): GateTier {
@@ -241,6 +246,22 @@ export function decideVerdict(
   },
 ): Precondition | undefined {
   return decideHistorical(spec, facts.landed) ?? decidePending(spec, facts.exported) ?? decideInputs(spec, facts.checks);
+}
+
+/**
+ * What the harness does once the precondition is known: record a `pending` or `unavailable` verdict
+ * without running anything; else run `run`, recording `pass` when it returns, or `historical` for a frozen
+ * gate, and `fail` when it throws, so a frozen gate's verdict still comes from its own check
+ * (gate-honesty-r2-1, code-quality-r0-6).
+ */
+export function gateStep(
+  precondition: Precondition | undefined,
+):
+  | { readonly kind: 'record'; readonly verdict: 'pending' | 'unavailable'; readonly detail: string; readonly missing: readonly string[] }
+  | { readonly kind: 'run'; readonly onReturn: 'pass' | 'historical'; readonly detail?: string } {
+  if (precondition === undefined) return { kind: 'run', onReturn: 'pass' };
+  if (precondition.verdict === 'historical') return { kind: 'run', onReturn: 'historical', detail: precondition.detail };
+  return { kind: 'record', verdict: precondition.verdict, detail: precondition.detail, missing: precondition.missing };
 }
 
 /** How a verdict shows in node:test: passed, skipped with `<verdict>: <detail>`, or failed. */
@@ -762,6 +783,23 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * The problem of a bench row with no PoC reference (`poc.source` 'none': no baseline row and no PoC dump),
+ * shared by g2.entries, g2.extents and g2.baseline-rows, which must fail rather than judge against a
+ * vacuous 0; undefined when the row has one.
+ */
+export function noPocReference(rom: { readonly name: string; readonly poc?: { readonly source?: string } }, what = ''): string | undefined {
+  return rom.poc?.source === 'none' ? `${rom.name}: no PoC reference (no baseline row and no PoC dump)${what}: run npm run export-poc -- --mode scored` : undefined;
+}
+
+/**
+ * The detail a failing gate records: the failure, then the notes the gate wrote before it failed (a
+ * sealed ROM's counts, say), so a failure keeps the measurements that explain it (D59 q).
+ */
+export function failureDetail(failure: string, notes: readonly string[]): string {
+  return [failure, ...notes].join('; ');
+}
+
 // ---------------------------------------------------------------------------------------------------
 // gate()
 
@@ -810,9 +848,10 @@ export function gate(spec: GateSpec): void {
       throw error;
     }
 
-    if (precondition !== undefined) {
-      const missing = precondition.verdict === 'historical' ? [] : precondition.missing;
-      const outcome = testOutcome(record(precondition.verdict, precondition.detail, missing), precondition.detail);
+    // A historical gate still runs `run`, and records `historical` when it holds.
+    const step = gateStep(precondition);
+    if (step.kind === 'record') {
+      const outcome = testOutcome(record(step.verdict, step.detail, step.missing), step.detail);
       if (outcome.kind === 'skip') t.skip(outcome.message);
       return;
     }
@@ -856,11 +895,12 @@ export function gate(spec: GateSpec): void {
     try {
       await spec.run(cx);
     } catch (error) {
-      record('fail', message(error), []);
+      record('fail', failureDetail(message(error), notes), []);
       throw error;
     } finally {
       for (const dir of temporary) await rm(dir, { recursive: true, force: true });
     }
-    record('pass', notes.join('; '), []);
+    if (step.onReturn === 'historical') record('historical', [step.detail ?? '', ...notes].join('; '), []);
+    else record('pass', notes.join('; '), []);
   });
 }

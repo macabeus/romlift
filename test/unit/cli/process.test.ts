@@ -40,3 +40,28 @@ test('importing main.ts does not run it', async () => {
   const module = await import('../../../src/cli/main.ts');
   assert.equal(typeof module.main, 'function');
 });
+
+test('a reader that closes the pipe early is no error: analyze | head exits quietly, with no EPIPE trace', async () => {
+  const { spawn } = await import('node:child_process');
+  const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { romWith, words } = await import('../../helpers/analysis.ts');
+  // 4,096 Thumb pointers to undecodable halfwords: one rejection line each, far more than a pipe buffer.
+  const targets = Array.from({ length: 4096 }, (_, i) => 0x0801_0000 + 4 * i + 1);
+  const rom = romWith([{ at: 0x0800_1000, bytes: words(...targets) }, { at: 0x0801_0000, bytes: new Uint8Array(4 * 4096).fill(0xff) }]);
+  const dir = mkdtempSync(join(tmpdir(), 'romlift-epipe-'));
+  try {
+    const path = join(dir, 'many.gba');
+    writeFileSync(path, rom.bytes);
+    const child = spawn(process.execPath, ['--conditions=source', 'src/cli/main.ts', 'analyze', path, '--json'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')));
+    child.stdout.once('data', () => child.stdout.destroy());
+    const status = await new Promise<number | null>((resolve) => child.on('close', (code) => resolve(code)));
+    assert.equal(status, 0, stderr);
+    assert.doesNotMatch(stderr, /EPIPE|Error/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

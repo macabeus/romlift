@@ -1,0 +1,113 @@
+{
+  "name": "tmc",
+  "rom": "tmc/tmc.gba",
+  "elf": "tmc/tmc.elf",
+  "map": "tmc/build/USA/tmc.map",
+  "sha1": "b4bd50e4131b027c334547b4524e2dbbd4227130",
+  "elfCommit": "6fb6dfb",
+  "elfSha256": "7d27e8d999c5f14b11885e530fc99669b08880deda79e98f3e3e8411482005d6",
+  "family": "zeldaret-tmc",
+  "buildNote": "unchanged",
+  "heldout": true,
+  "revealed": [
+    {
+      "at": "2026-10-17T18:25:03.955Z",
+      "commit": "d6451607ae6716833027eedddc998f77aef3da42",
+      "reason": "owner decision 2026-10-17 (Bruno Macabeus, architecture section 12 item 4): tune on tmc, no new ROM; tmc moves from the sealed held-out set into the tuning set"
+    }
+  ],
+  "labels": [
+    {
+      "addr": "0x080AF3F0",
+      "name": "sub_080AF3F0",
+      "category": "mixer-internal",
+      "note": "m4a_asm.s, reviewed with objdump on 2026-10-17: the Thumb code the mixer returns to from its ARM block with `add r0, pc, #31; bx r0`, inside the hand-written mixer whose extent romlift starts at 0x080AF3A4; reason inside-code"
+    },
+    {
+      "addr": "0x080AF40E",
+      "name": "sub_080AF40E",
+      "category": "mixer-internal",
+      "note": "m4a_asm.s: the instruction after the mixer loop's `bgt _080AF402`, inside the same hand-written mixer; reason inside-code"
+    },
+    {
+      "addr": "0x080AF6B0",
+      "name": "sub_080AF6B0",
+      "category": "mixer-internal",
+      "note": "m4a_asm.s: the Thumb code after `add r0, pc, #1; bx r0` back from an ARM block of the mixer; reason inside-code"
+    },
+    {
+      "addr": "0x080AF900",
+      "name": "sub_080AF900",
+      "category": "split-after-returning-call",
+      "note": "inside ply_port (0x080AF8F0), right after `bl sub_080AF77A`, which returns; reason inside-code"
+    },
+    {
+      "addr": "0x080B20AC",
+      "name": "sub_080B20AC",
+      "category": "split-after-returning-call",
+      "note": "inside IntrMain (0x080B201C, IWRAM code linked at its load address), right after `mov lr, pc; bx r0`, an indirect call that returns (`ldmfd sp!, {lr}` follows); reason inside-code"
+    }
+  ],
+  "untyped": [
+    {
+      "addr": "0x080040F2",
+      "category": "local-subroutine",
+      "note": "_080040F2 (`push {r2, r3, r4, lr}`), a local label of hand-written code after `b _080040F2` at 0x080040F0, reached by `bl` from 0x080040DA; the ELF folds it into sub_080040EC; origin call, 118 bytes"
+    },
+    {
+      "addr": "0x0800432A",
+      "category": "local-subroutine",
+      "note": "FrameZero, a local label of the hand-written animation code after `bx lr` at 0x08004328, reached by `bl FrameZero` from 0x080042A0; the ELF folds it into the code before it; origin call, 44 bytes"
+    },
+    {
+      "addr": "0x08008936",
+      "category": "local-subroutine",
+      "note": "_UpdateIcePlayerVelocity, a local label after `pop {r4, r5, r6, pc}` at 0x08008934, reached by `bl` from 0x08008930; the ELF folds it into the function before it; origin call, 12 bytes"
+    },
+    {
+      "addr": "0x08008A60",
+      "category": "unreached-tail",
+      "note": "_08008A60: `eors r3, r3; strh r3, [r1]; pop {pc}` right after AddPlayerVelocity's `pop {pc}` at 0x08008A5E; nothing calls, branches to or points at it; found as a tiled hole (gap.tiled-hole), 6 bytes"
+    },
+    {
+      "addr": "0x08008B2E",
+      "category": "unreached-tail",
+      "note": "_play_snd (`push {r0, lr}; adds r0, r2, #0; ...`), after PlayerCheckNEastTile's return, commented as unused in the tmc source; nothing reaches it; tiled hole, 10 bytes (it was 0x08008B30 before the gap scan resumed on 2 mod 4)"
+    },
+    {
+      "addr": "0x080AF75E",
+      "category": "second-entry",
+      "note": "sub_080AF75C + 2: the m4a helper's second entry (`push {r0}` after `ldrb r3, [r2]`), reached by `bl` from 0x080AF74C, as klonoa's 0x0804F73E and fe7j's 0x080BE84E; origin call, 26 bytes"
+    },
+    {
+      "addr": "0x080B197C",
+      "category": "pointer-entry",
+      "note": "sub_080B197C (NOTYPE, RAMFUNCS_BASE): the Thumb leaf at the start of the block InitOverlays copies to IWRAM 0x030056F0, reached by `bl _call_via_r4` with r4 = its IWRAM address; found by the gap scan once seed.ram-copy put the block inside the code; 80 bytes"
+    },
+    {
+      "addr": "0x080B1AA8",
+      "category": "pointer-entry",
+      "note": "arm_GetActTileAtEntity (a local label): an entry of the collision chain after `b arm_GetActTileAtWorldCoords` at 0x080B1AA4 in arm_GetActTileRelativeToEntity (0x080B1A8C), reached by the veneer at 0x080002B8 through IWRAM 0x0300581C; origin ram-copy, 72 bytes"
+    },
+    {
+      "addr": "0x080B1B0C",
+      "category": "pointer-entry",
+      "note": "arm_GetCollisionDataAtEntity (a local label): after `b arm_GetCollisionDataAtWorldCoords` at 0x080B1B08 in arm_GetCollisionDataRelativeTo (0x080B1AF0), reached by the veneer at 0x080002D0 through IWRAM 0x03005880; origin ram-copy, 72 bytes"
+    },
+    {
+      "addr": "0x080B21B0",
+      "category": "pointer-entry",
+      "note": "arm_ClearAndUpdateEntities (a local label): an entry that falls into arm_UpdateEntities (0x080B21CC), after a pool word, reached through its IWRAM address 0x03005F24 by code at 0x0805E780; origin arm-gap-scan, 28 bytes"
+    },
+    {
+      "addr": "0x080B2718",
+      "category": "local-subroutine",
+      "note": "_080B2718, a local label of the hand-written ARM OAM code, reached by `bl` from 0x080B2620; the ELF folds it into sub_080B255C; origin call, 24 bytes"
+    },
+    {
+      "addr": "0x080B27E4",
+      "category": "local-subroutine",
+      "note": "_080B27E4, a local label of the same ARM code, reached by `bl` from 0x080B27D8; the ELF folds it into sub_080B255C; origin call, 40 bytes"
+    }
+  ]
+}

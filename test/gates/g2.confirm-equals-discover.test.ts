@@ -1,12 +1,21 @@
 // g2.confirm-equals-discover (architecture §4.2, §13, D8): on every tuning ROM, a confirm run seeded with
 // exactly the functions a discover run found (entries and modes, `label` for an entry inside another found
-// extent, no sizes) gives the same parity view: functions, extents, far `bl` verdicts and claims.
+// extent, no sizes) gives the same parity view: functions, extents, far `bl` verdicts and claims. tmc's eight
+// differing functions are a known phase-2 limitation (D61 e, the owner's answers to Q3 and Q6), pinned by content:
+// the gate judges every ROM in full, equal digests or not, accepts tmc only when its differences are
+// exactly the recorded ones (each function's and claim run's records in both views), prints them every
+// time, and fails on any other difference there, on a recorded difference that changed or is gone, on a
+// record whose dataset is absent or another build, and on any difference on another ROM
+// (confirm-differences.ts).
 //
 // Calls the phase-2 API as frozen in architecture §3.3: romFromBytes(bytes, sha1), sha1Of(bytes),
-// profileById('agbcc'), analyze(rom, profile, {mode, seeds, overrides: [], trail: 'off'}); the views are
-// compared by the sha256 of their canonical JSON (canonicalJson, sha256Stream).
+// profileById('agbcc'), analyze(rom, profile, {mode, seeds, overrides: [], trail: 'off'}). The verdict
+// comes from the differences of the two views (viewDifferences, judgeDifferences); the sha256 of their
+// canonical JSON (canonicalJson, sha256Stream) is only a cross-check on their order: digests that differ
+// with no differing function or claim run fail too.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { judgeDifferences, staleRecords, viewDifferences, type ParityView } from './confirm-differences.ts';
 import { gate } from './gate.ts';
 
 type Mode = 'thumb' | 'arm';
@@ -56,9 +65,6 @@ type Analyze = (rom: Rom, profile: object, options: AnalysisOptions) => Analysis
 type CanonicalJson = (value: unknown) => Iterable<string>;
 type Sha256Stream = (chunks: Iterable<string>) => string;
 
-function hex(addr: number): string {
-  return `0x${addr.toString(16).toUpperCase().padStart(8, '0')}`;
-}
 
 /** The listed set: every found entry and mode; `label` when it lies strictly inside another found extent. */
 function listedSeeds(functions: readonly FunctionFact[]): readonly Seed[] {
@@ -89,7 +95,7 @@ function listedSeeds(functions: readonly FunctionFact[]): readonly Seed[] {
   return seeds;
 }
 
-function parityView(result: AnalysisResult): { readonly functions: readonly unknown[]; readonly claims: readonly unknown[] } {
+function parityView(result: AnalysisResult): ParityView {
   return {
     functions: result.functions.map((f) => ({
       entry: f.entry,
@@ -99,23 +105,6 @@ function parityView(result: AnalysisResult): { readonly functions: readonly unkn
     })),
     claims: result.claims.map((c) => ({ span: { start: c.span.start, end: c.span.end }, kind: c.kind, owner: c.owner })),
   };
-}
-
-/** The first function or claim where the two views differ, for the failure message. */
-function firstDifference(discover: AnalysisResult, confirm: AnalysisResult): string {
-  const a = parityView(discover);
-  const b = parityView(confirm);
-  if (a.functions.length !== b.functions.length) return `${a.functions.length} functions in discover, ${b.functions.length} in confirm`;
-  for (let i = 0; i < a.functions.length; i++) {
-    if (JSON.stringify(a.functions[i]) !== JSON.stringify(b.functions[i])) {
-      return `function ${hex(discover.functions[i]?.entry ?? 0)}: discover ${JSON.stringify(a.functions[i])}, confirm ${JSON.stringify(b.functions[i])}`;
-    }
-  }
-  if (a.claims.length !== b.claims.length) return `${a.claims.length} claim runs in discover, ${b.claims.length} in confirm`;
-  for (let i = 0; i < a.claims.length; i++) {
-    if (JSON.stringify(a.claims[i]) !== JSON.stringify(b.claims[i])) return `claim ${i}: discover ${JSON.stringify(a.claims[i])}, confirm ${JSON.stringify(b.claims[i])}`;
-  }
-  return 'the views differ';
 }
 
 gate({
@@ -133,21 +122,30 @@ gate({
     const profile = cx.need<ProfileById>('profileById')('agbcc');
     if (profile === undefined) throw new Error("profileById('agbcc') returned undefined");
 
-    const problems: string[] = [];
-    const notes: string[] = [];
+    const problems: string[] = [...staleRecords(cx.datasets.map((d) => d.name))];
+    const known: string[] = [];
+    const counts: string[] = [];
     for (const dataset of cx.datasets) {
       const bytes = new Uint8Array(await readFile(path.resolve(cx.benchRoot, dataset.rom)));
       const rom = romFromBytes(bytes, sha1Of(bytes));
       const discover = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
       const seeds = listedSeeds(discover.functions);
       const confirm = analyze(rom, profile, { mode: 'confirm', seeds, overrides: [], trail: 'off' });
-      const a = sha256Stream(canonicalJson(parityView(discover)));
-      const b = sha256Stream(canonicalJson(parityView(confirm)));
+      const views = { discover: parityView(discover), confirm: parityView(confirm) };
+      const a = sha256Stream(canonicalJson(views.discover));
+      const b = sha256Stream(canonicalJson(views.confirm));
       const labels = seeds.filter((s) => s.label === true).length;
-      if (a !== b) problems.push(`${dataset.name}: ${firstDifference(discover, confirm)}`);
-      notes.push(`${dataset.name} ${seeds.length} listed (${labels} labels), ${confirm.unlisted?.length ?? 0} unlisted, ${confirm.listedInvalid?.length ?? 0} listed-invalid`);
+      // Judged on every ROM, equal digests included, so a known limitation that no longer differs is stale.
+      const differences = viewDifferences(views.discover, views.confirm);
+      if (a !== b && differences.functions.length === 0 && differences.claims.length === 0) problems.push(`${dataset.name}: the views' digests differ but no function or claim run does (their order)`);
+      const judged = judgeDifferences(dataset.name, dataset, differences);
+      problems.push(...judged.problems);
+      if (judged.note !== undefined) known.push(`KNOWN LIMITATION: ${judged.note}`);
+      counts.push(`${dataset.name} ${seeds.length} listed (${labels} labels), ${confirm.unlisted?.length ?? 0} unlisted, ${confirm.listedInvalid?.length ?? 0} listed-invalid, ${differences.functions.length} functions and ${differences.claims.length} claim runs differ`);
     }
+    // Noted before any failure, so the failure detail keeps the per-ROM measurements (D59 q).
+    for (const n of known) cx.note(n);
+    cx.note(counts.join('; '));
     if (problems.length > 0) throw new Error(`confirm differs from discover: ${problems.join('; ')}`);
-    cx.note(notes.join('; '));
   },
 });

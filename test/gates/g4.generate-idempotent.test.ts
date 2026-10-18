@@ -11,7 +11,7 @@
 import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+import { type ExecResult, type GateContext, byCodeUnit, gate } from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -34,9 +34,6 @@ function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 async function snapshot(dir: string, prefix = ''): Promise<Map<string, FileState>> {
   const out = new Map<string, FileState>();

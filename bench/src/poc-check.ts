@@ -1,26 +1,52 @@
 // `bench poc-check [--json]` (g1.bench-harness, architecture §13): per tuning ROM, rescoring the PoC's
-// scored.json with score.ts reproduces bench/baseline/poc-2026-10-16.json field for field, the PoC's
+// scored.json with score.ts reproduces bench/baseline/poc-2026-10-16.json field for field (the code end as
+// below), the PoC's
 // own fresh row equals the baseline too, its scaffold rebuilt the ROM, its two analyses have one
 // digest and that digest is the one of the analysis the dump stores, and the dump was made from the
-// pinned PoC source.
-import { readBaseline, jsonDiffs, withoutPaths, type JsonRecord } from './baseline.ts';
+// pinned PoC source. The rescored row is compared without the `category` of its misses and false
+// entries: categories describe the dataset, not the analysis (baseline-rows.ts), and milestone M5
+// reclassified the rows the baseline still names `unreviewed` and `continuation-after-noreturn-call`.
+// A tuning ROM that became tuning data by a reveal after the baseline was pinned (tmc, D60) has no
+// baseline row: its rescored row is compared with the PoC's own fresh row of it instead (the harness
+// still reproduces the PoC's scoring), and that row with the one pinned by content in
+// bench/baseline/poc-dump-rows.json (`pinnedRow`: the dump made on the dataset of today, its row's digest
+// the pinned one), so the PoC reference of such a ROM cannot drift unseen; its scaffold, determinism and
+// pinned source are checked as for the others.
+//
+// The code end (the owner's answer to Q5, D61 a, "in every scorer"): the rescored row measures the ELF's
+// code end with `$d` (truth.ts elfCodeEnd), as every scorer does; the PoC's rows (the baseline, the PoC's
+// own row) carry the PoC's convention (pocCodeEnd), and they are the PoC's output, pinned by content
+// (D50), so they are not rewritten. The rescored row is compared with the reference as romlift's scorer
+// measures it (asScored: its ELF code end replaced by the `$d` one, its delta recomputed from its own found
+// end, every other field as it is), and, separately, the reference's ELF code end and delta must be the
+// PoC's convention's on this ELF, so the harness still reproduces the PoC's numbers under the PoC's ruler.
+// Both together are the old field-for-field comparison, with the reported row under `$d`.
+import { hexAddr } from 'romlift';
+
+import { baselineRowOf, readBaseline, jsonDiffs, withoutPaths, type JsonRecord } from './baseline.ts';
 import type { BenchContext } from './context.ts';
-import { loadDatasets, tuningDatasets } from './dataset.ts';
+import { loadDatasets, tuningDatasets, type Dataset } from './dataset.ts';
 import { BenchError } from './files.ts';
+import { dumpRowMismatch, POC_ROW_EXCLUDED, readPocDumpRows, type PocDumpRows } from './poc-dump-rows.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 import { readDatasetInputs, rowOf } from './rescore.ts';
 import type { BenchRow } from './row.ts';
-import { analysisDigest, type ScoredRun } from './scored-run.ts';
+import { analysisDigest, dumpAddr, type ScoredRun } from './scored-run.ts';
+import { elfCodeEnd, pocCodeEnd } from './truth.ts';
 
 /** Row fields the rescored row is not compared on: volatile, judged later, or not produced by score.ts. */
 export const ROW_EXCLUDED: readonly string[] = ['seconds', 'signatures', 'scaffold.summary', 'datasetProblems'];
-/** The PoC's own row is compared on everything but its volatile seconds and the signatures (phase 6). */
-export const POC_ROW_EXCLUDED: readonly string[] = ['seconds', 'signatures'];
+export { POC_ROW_EXCLUDED };
 
 export interface PocCheckRom {
   readonly name: string;
   readonly rowsEqual: boolean;
+  /** The PoC's fresh row equals the baseline row, or, for a ROM revealed after the baseline, the row pinned in poc-dump-rows.json; false for any other ROM (it has no PoC reference). */
   readonly pocRowEqual: boolean;
+  /** Whether the pinned baseline holds a row of this ROM. */
+  readonly baselineRow: boolean;
+  /** Whether bench/baseline/poc-dump-rows.json pins the PoC's row of this ROM (a ROM revealed after the baseline). */
+  readonly pinnedRow?: boolean;
   readonly diffs: readonly string[];
   readonly scaffoldOk: boolean;
   readonly deterministic: boolean;
@@ -41,19 +67,89 @@ export function dumpDeterministic(dump: ScoredRun): boolean {
   return dump.digests[0] === dump.digests[1] && analysisDigest(dump.analysis) === dump.digests[0];
 }
 
-/** The verdict of one ROM from its rescored row, its dump and its baseline row. */
-export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseline: JsonRecord | undefined, pinnedDigest: string): PocCheckRom {
+/** The ELF code end of one ROM under the convention every scorer uses (`$d`, elfCodeEnd) and under the PoC's (pocCodeEnd). */
+export interface CodeEndRulers {
+  readonly elf: number;
+  readonly poc: number;
+}
+
+/**
+ * A row the PoC scored (`reference`, its code end under the PoC's convention) as romlift's scorer measures
+ * it: its `codeEnd.elf` the `$d` end, its delta its own found end minus that, every other field as it is.
+ * `pocRuler` says why the reference's ELF code end or delta is not the PoC's convention's on this ELF, or is
+ * undefined when it is: the check that the PoC's numbers are reproduced under the PoC's ruler.
+ */
+export function asScored(reference: JsonRecord, rulers: CodeEndRulers): { readonly row: JsonRecord; readonly pocRuler: string | undefined } {
+  const codeEnd = reference['codeEnd'];
+  if (typeof codeEnd !== 'object' || codeEnd === null || Array.isArray(codeEnd)) return { row: reference, pocRuler: 'codeEnd: the reference row has none' };
+  const end = codeEnd as Record<string, unknown>;
+  const found = typeof end['found'] === 'string' ? dumpAddr(end['found']) : undefined;
+  if (found === undefined) return { row: reference, pocRuler: 'codeEnd.found: the reference row has none' };
+  const pocRuler =
+    end['elf'] === hexAddr(rulers.poc) && end['delta'] === found - rulers.poc
+      ? undefined
+      : `codeEnd under the PoC's convention: expected elf ${hexAddr(rulers.poc)} and delta ${found - rulers.poc}, the reference has ${String(end['elf'])} and ${String(end['delta'])}`;
+  return { row: { ...reference, codeEnd: { ...end, elf: hexAddr(rulers.elf), delta: found - rulers.elf } } as JsonRecord, pocRuler };
+}
+
+/** The row without the dataset's categories on its misses and false entries. */
+export function withoutCategories(row: JsonRecord): JsonRecord {
+  const strip = (list: unknown): unknown =>
+    Array.isArray(list)
+      ? list.map((item: unknown) => {
+          if (typeof item !== 'object' || item === null || Array.isArray(item)) return item;
+          const { category: _category, ...rest } = item as Record<string, unknown>;
+          return rest;
+        })
+      : list;
+  return { ...row, misses: strip(row['misses']), falseEntries: strip(row['falseEntries']) } as JsonRecord;
+}
+
+/**
+ * What a ROM without a baseline row is checked against: for a ROM revealed after the baseline was pinned,
+ * why its dump's PoC row is not the one pinned in poc-dump-rows.json (poc-dump-rows.ts dumpRowMismatch;
+ * undefined when it is); undefined for every other ROM.
+ */
+export interface RevealedReference {
+  readonly pinnedMismatch: string | undefined;
+}
+
+/** The differences of the rescored row from `reference` measured as romlift's scorer measures it, the PoC-convention check first. */
+function rescoredDiffs(reference: JsonRecord, rescored: JsonRecord, rulers: CodeEndRulers): string[] {
+  const { row, pocRuler } = asScored(reference, rulers);
+  return [...(pocRuler === undefined ? [] : [pocRuler]), ...jsonDiffs(withoutCategories(withoutPaths(row, ROW_EXCLUDED)), rescored, '')];
+}
+
+/**
+ * The verdict of one ROM from its rescored row, its dump, its baseline row and its ELF's code end under both
+ * conventions. A ROM without a baseline row passes only when it was revealed after the baseline was pinned
+ * (`revealed` given): its rescored row is compared with the dump's own PoC row, and that row with the pinned
+ * one; any other ROM without one fails.
+ */
+export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseline: JsonRecord | undefined, pinnedDigest: string, rulers: CodeEndRulers, revealed?: RevealedReference): PocCheckRom {
   const deterministic = dumpDeterministic(dump);
-  if (baseline === undefined) {
-    return { name, rowsEqual: false, pocRowEqual: false, diffs: [`no baseline row for ${name}`], scaffoldOk: dump.scaffold.ok, deterministic, pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest };
-  }
   const rowRecord: JsonRecord = { ...row };
-  const rowDiffs = jsonDiffs(withoutPaths(baseline, ROW_EXCLUDED), withoutPaths(rowRecord, ROW_EXCLUDED), '');
+  const rescored = withoutCategories(withoutPaths(rowRecord, ROW_EXCLUDED));
+  if (baseline === undefined) {
+    const common = { name, baselineRow: false, scaffoldOk: dump.scaffold.ok, deterministic, pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest };
+    if (revealed === undefined) return { ...common, pocRowEqual: false, rowsEqual: false, diffs: [`no baseline row for ${name}, and it was not revealed after the baseline was pinned`] };
+    const ownDiffs = rescoredDiffs(dump.pocRow, rescored, rulers);
+    const mismatch = revealed.pinnedMismatch;
+    return {
+      ...common,
+      rowsEqual: ownDiffs.length === 0,
+      pocRowEqual: mismatch === undefined,
+      pinnedRow: true,
+      diffs: [...ownDiffs.map((d) => `row (against the PoC's own row) ${d}`), ...(mismatch === undefined ? [] : [`pocRow ${mismatch}`])],
+    };
+  }
+  const rowDiffs = rescoredDiffs(baseline, rescored, rulers);
   const pocDiffs = jsonDiffs(withoutPaths(baseline, POC_ROW_EXCLUDED), withoutPaths(dump.pocRow, POC_ROW_EXCLUDED), '');
   return {
     name,
     rowsEqual: rowDiffs.length === 0,
     pocRowEqual: pocDiffs.length === 0,
+    baselineRow: true,
     diffs: [...rowDiffs.map((d) => `row ${d}`), ...pocDiffs.map((d) => `pocRow ${d}`)],
     scaffoldOk: dump.scaffold.ok,
     deterministic,
@@ -61,8 +157,14 @@ export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseli
   };
 }
 
+/** The reference of a revealed `d` without a baseline row (its pinned PoC row), or undefined for any other dataset. */
+function revealedReference(d: Dataset, base: JsonRecord | undefined, dump: ScoredRun, rows: PocDumpRows | undefined): RevealedReference | undefined {
+  if (base !== undefined || d.revealed.length === 0) return undefined;
+  return { pinnedMismatch: dumpRowMismatch(d, rows, dump.pocSourceDigest, dump.datasetDigest, dump.pocRow) };
+}
+
 function unavailable(name: string, why: string): PocCheckRom {
-  return { name, rowsEqual: false, pocRowEqual: false, diffs: [why], scaffoldOk: false, deterministic: false, pocSourceDigestOk: false };
+  return { name, rowsEqual: false, pocRowEqual: false, baselineRow: false, diffs: [why], scaffoldOk: false, deterministic: false, pocSourceDigestOk: false };
 }
 
 export async function pocCheck(cx: BenchContext): Promise<PocCheckReport> {
@@ -70,12 +172,14 @@ export async function pocCheck(cx: BenchContext): Promise<PocCheckReport> {
   if (problems.length > 0) throw new BenchError(`malformed datasets: ${problems.map((p) => p.detail).join('; ')}`);
   const baseline = await readBaseline(cx);
   const pinned = await readPinnedPocSource(cx);
+  const rows = await readPocDumpRows(cx);
   const roms: PocCheckRom[] = [];
   for (const d of tuningDatasets(datasets)) {
     try {
       const inputs = await readDatasetInputs(cx, d);
-      const base = baseline.roms.find((r) => r['name'] === d.name);
-      roms.push(checkPocRom(d.name, rowOf(inputs), inputs.dump, base, pinned.digest));
+      const base = baselineRowOf(baseline, d.name);
+      const rulers = { elf: elfCodeEnd(inputs.truth), poc: pocCodeEnd(inputs.truth) };
+      roms.push(checkPocRom(d.name, rowOf(inputs), inputs.dump, base, pinned.digest, rulers, revealedReference(d, base, inputs.dump, rows)));
     } catch (error) {
       if (!(error instanceof BenchError)) throw error;
       roms.push(unavailable(d.name, error.message));

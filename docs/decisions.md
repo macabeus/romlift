@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -212,6 +212,10 @@ two modes is proven in the phase that builds the driver, not two phases later.
 
 **Rejected.** Config entries as ordinary seeds in one mode (silent split changes). A `settle` stage that
 resumes discovery with seeds (reorders acceptance inside the phase-2 port).
+
+**Revision (18 October 2026, the owner's answer to Q3, D61 e).** The `resettle` stage was built and measured
+(`f287b0d`); it changes rows on every other tuning ROM and on the sealed pair, so it was reverted
+(`af0f75c`) and tmc's six differences of Q3 are a known phase-2 limitation the gate prints.
 
 ## D9. One proposal shape; the TOML decides and records the source
 
@@ -1116,7 +1120,7 @@ depend on the day it runs.
 Gen-3 siblings of a tuning ROM. Diagnosing a failure requires revealing the ROM, which makes it tuning data,
 and the first version named no source of fresh pairs.
 
-**Decision.** Every dataset records its engine `family`. At least two sealed ROMs must pass, from at least
+**Decision.** Every dataset records its codebase `family` (D55 i). At least two sealed ROMs must pass, from at least
 two families, one of them absent from the tuning set (tmc, or a reserve-pool ROM listed in
 benchmark-roms.md). If the gate fails, phase 2 does not land unless the owner records a decision that
 accepts the failure (architecture §12); the failure is fixed by a rule change justified by its `restsOn`
@@ -1128,6 +1132,13 @@ improvised.
 
 **Rejected.** Landing automatically on a recorded failure (weakens the plan's gate without the owner).
 Counting siblings of a tuning ROM as independent.
+
+**Revision (17 October 2026, the owner's decision, D60).** The owner answered architecture §12 item 4:
+"Tune on tmc, no new ROM". tmc is revealed and tuned on; while no sealed dataset is of a family absent
+from the tuning set, `g2.held-out` waives its two family conditions and prints each waiver; every other
+condition stands, and a fresh sealed pair is still needed before release 1 claims generality. Fix round 2
+of D60 waived only the fresh-family condition (the owner's words); the owner's answer to Q4 on 18 October
+2026, "Waive both" (D61 b), waives the two-families condition too.
 
 ## D54. Phase-1 component boundaries as executed
 
@@ -1259,6 +1270,816 @@ A fixed directory list for the digest (it already missed `foundation/util`, `fou
 `foundation/diagnostics` and the shell runner). Keeping the `CorpusIsa` seam documented (it had no
 user). Rewriting the pool-load into an indirect Flow (it would lose the pool address the walker needs
 and break PoC parity).
+
+
+## D56. Phase-2 component boundaries, and the contract members the driver port needs
+
+**Context.** Roadmap 2.0–2.I splits phase 2 into a lead, five parallel components and an integrator. As
+in phase 1 (D54), a parallel component cannot typecheck against exports that are not merged: every
+rule component needs a running `analyze` to be proven alone, and lockstep needs the driver. Porting the
+PoC's control flow onto the frozen contracts of architecture §4.1 also showed places where its logic
+does not fit "first answer wins" or where a rule needs a fact the view did not expose.
+
+**Decision.** Phase 2 runs as thirteen components in three waves (roadmap.md, "As executed"):
+
+- (a) The walk skeleton (`walk/{cursor,thumb,arm}.ts`) and the whole driver are in wave 1, in
+  `p2-driver` (named `p2-engine` while it ran, D59), with the lead's frozen types, so `analyze` exists
+  for wave 2; the rule files stay with the rule components, and `RULES` starts as eight empty family
+  records.
+- (b) The codec (`core/analysis/codec.ts`) and the parity view go to `p2-lockstep`, which implements
+  `RuleOracle` over the log of `p2-poc-export`; `core/analysis/explain.ts` goes to `p2-bench`; the
+  `bench run` rewrite, the held-out datasets and the fixture coverage are components of their own.
+  `npm run export-poc -- --mode scored` joins the phase-2 exit list, because `bench run` still reads the
+  PoC's scaffold family from its dumps until phase 3.
+- (c) Contract members added to architecture §4.1, each the minimum the PoC's logic needs:
+  - `WalkStep` gains `continue` (an indirect call: `mov lr, pc; bx rN`) and `padding` (a trailing
+    zero halfword at a stop). The walk slot is asked for pool loads, branches, returns, indirect jumps
+    and mode switches, and, in Thumb, at a stop on non-code with the run's last instruction
+    (`WalkCursor.phase` 'stop', `stop` 'invalid' | 'pool'). Without an answer the decoder's Flow
+    decides; an exit no rule decided carries `DECODER_FLOW` ('walk.decoder-flow'); an indirect jump
+    other than `bx rN` that no rule explains is not code, so `walk.mov-pc-without-table` decides.
+  - `BlVerdictRule.refines`: `bl.noreturn-before-noncode` runs after the verdict, for a call or a
+    deferred site in the caller's dead ends, as the PoC's settle() does.
+  - `ValidityRule.checkEntry`: `valid.in-rom-unclaimed` judges the entry before any reading, so
+    whyInvalid() asks settle() exactly where the PoC does.
+  - A rule kind `accept-veto` in the accept slot: `accept.tiny-anchored-at-start` is the tiny-candidate
+    veto inside thumbCandidate(); the driver applies the vetoes to the forward proposals.
+  - `ClaimRule.extentEnd`: the PoC's `Func.end`, computed by `claim.adjacent-pools` when a reading is
+    built (the code end when no claim rule has one); `ClaimEdit.when` ('always' | 'start-free' |
+    'free-bytes') states how the PoC's claim() writes. `RegionRule.startup` returns the startup region.
+  - `AnalysisView` gains `seeds`, `overrides`, `functions()` (acceptance order, for
+    `seed.startup-pointer`), `accepted(entry)`, `whyInvalid(entry)` (for `gap.tiled-hole`),
+    `inProgress(entry)` (for the 'defer' of `bl.target-pops-unpushed-frame`) and `adrOwner(a)` (for
+    `gap.adr-block-absorb`).
+  - Gap slots: forward[0] and forward[1] are the pair asked at one cursor (thumbCandidate, armAhead) and
+    compared by `prefer`; the proposers after them see `GapCursor.head`, the head rule's reading at the
+    cursor (tryTiledHole); the endAnchor proposer sees the gap's head; the end-anchor and backward
+    proposers return one candidate per call and the driver shrinks `end`. `GapProposer.reason` lets
+    `gap.arm-scan` emit 'arm-unreached'.
+  - The `Reading` carries the walk order of pools and tables, the settle verdicts, the exits, the
+    branch targets and the PoC's dense() holes, all computed once by `makeReading` (milestone M2 (a)).
+  - Shared reading queries live in `walk/cursor.ts` (`isDense`, `popsCallersFrame`, `anchoredAtStart`,
+    `anchoredAtEnd`, `fillsTo`), since rule files may import `walk/` but never each other.
+- (d) Profile fields added for the PoC's remaining constants: `pointerWords` (4 pointers, a share of
+  1/4), `anchorSlack` (3), `extentPoolGap` (8), `gapScan.minInsns` (3), `gapScan.prologueDistance`
+  (4,096, the backward chain's window), and the idiom `opensWithPushLr` (the raw `push {.., lr}` test of
+  whyInvalid and the backward chain) beside `isPrologue` (`opensWithPrologue`: also word-aligned).
+  `ClaimCode`, `BlSite`, `ReadingSummary` and `JumpTableMatch` are defined in `core/profile/types.ts`
+  because the profile may not import the analysis; agbcc's `isPadding` ignores `next` for PoC parity.
+- (e) Parity details of the port: an ARM reading is a fresh walk at every read, as the PoC's
+  analyzeArm() (only Thumb readings are memoised per epoch); the driver peeks at the reading a proposer
+  just computed instead of asking for it again; the calls of an absorbed block are accepted one by one as
+  `seed.call` proposals; the ARM walk uses the PoC's class for the encodings the decoder classifies
+  otherwise on purpose (test/local/poc-decoder-differential.test.ts).
+- (f) The oracle protocol (core/analysis/oracle.ts): one typed query per PoC method in its own units;
+  the walk family's answers cover `bl`; `claim` and `forgetCandidates` are markers, never answered;
+  couldBeCode() and inPointerTable() live inside rules and are never asked, while the settle and valid
+  queries those rules make through the view are; an answered tryTiledHole or absorbBlock still has its
+  PoC side effects applied. A rule absent because its family is answered gets its origin from
+  `ORACLE_ORIGINS`; a registered rule's origin is always its own `meta.origin`.
+- (g) `diagnoseMisses` (romlift/internal) runs the analysis and diagnoses each miss at its final state,
+  so the bench needs no access to the driver.
+- (h) The component branches are flat (`phase-2-p2-rules-gap-region`): Git cannot hold `phase-2/<component>`
+  beside the branch `phase-2`.
+
+**Consequences.** Every wave-1 component typechecks and runs end to end against merged code; the
+per-rule assignments are written next to each contract in `core/analysis/types.ts`, so the rule
+components cannot drift; `analyze` with the shipped profile throws `RomliftInvariantError` until the
+wave-1 rules register every pipeline id, and runs on any registry through `runAnalysis`.
+
+**Rejected.** Running the driver against stubbed rules in the product (stubs are what "nothing is
+stubbed early" forbids). Wrapping the PoC's composite conditions into single rules (the slot orders
+would no longer be the PoC's call order). Caching ARM readings per epoch like Thumb ones (the PoC
+re-walks them, and a cached reading would miss acceptances within the epoch).
+
+**Revision (phase-2 review, D59).** (c)'s shared reading queries moved from `walk/cursor.ts` to
+`walk/predicates.ts`; (d)'s `ClaimCode` and the unread `next` of `isPadding` are gone; (e)'s PoC
+classes of the ARM walk are gone (the walk follows the table); (f)'s oracle protocol and
+`ORACLE_ORIGINS` are deleted; the waves of (a) are numbered 1 to 3, as the roadmap's table numbers them.
+
+
+## D57. Eight rules that no seedless fixture run can make load-bearing
+
+**Context.** `g2.rule-coverage` requires every analysis rule to be cited as decisive in a fixture trail
+and to move a fixture outcome when `bench ablate <rule> --tier synthetic` disables it, or a decision
+record that names the rule and says why it stays. The outcome ablation compares is the entries with
+their modes, the extents and the code end of the bench's seedless discover run (D24). Measured on the
+29 committed fixtures of phase 2 (bench/dataset/synthetic/index.md, wave 3), and again on all 31 after
+D58 added two, eight rules move that
+outcome on no fixture, and by construction on no ROM:
+
+- `region.startup`, `region.padding`, `region.data-after-code` run after the passes (driver/run.ts,
+  runDriver), when no function or extent can change any more, and write only claims or the startup
+  region, which the outcome does not contain. Their effect is judged where it is used: the startup
+  region by the startup exclusion of every dataset and the held-out classifier's `startupEnd` (§8.4),
+  the padding and data claims by the emission of phase 3 (`.align` and data slices).
+- `seed.listed`, `seed.override`, `seed.evidence-hint` seed only from `AnalysisOptions` (the TOML's
+  listed functions, overrides, evidence hints), which a seedless discover run never has. They are
+  proven by their unit tests, by `g2.confirm-equals-discover` (the listed set) and by the phase-4 to
+  phase-6 gates that pass options.
+- `valid.in-rom-unclaimed` never fails in discover mode: valid() (driver/validity.ts) answers false
+  for an entry outside the ROM, odd or claimed before whyInvalid runs, as the PoC's valid() does, and
+  the only rule that asks whyInvalid directly, the gap head, asks only at a free cursor. The rule
+  decides in confirm mode, where a listed entry inside other code reaches whyInvalid
+  (`W_LISTED_INVALID`), and in diagnoseMisses, which gives a miss inside found code the reason
+  'inside-code'.
+- `bl.noreturn-before-noncode` re-labels as never-returning a call after which the caller's walk
+  already stopped on non-code (the walk records that dead end itself), and the walk with or without
+  the mark reads the same instructions, so no entry, extent or code end moves. It is decisive in the
+  trail of `noreturn-call-then-next` (a 'verdict' event: the `bl` at 0x08000122 in Abort is 'noreturn';
+  disabled, it is 'call' by another bl rule, with identical entries and extents). What it changes is
+  the verdict record, from which the held-out classifier reads the never-returning sites of label
+  clause (a) (bench/src/analysis-run.ts, noReturnSites): without it a label right after such a call is
+  classified glued.
+
+**Decision.** These eight rules stay without a fixture that moves an outcome, and this record exempts
+them from `g2.rule-coverage`. It exempts no other rule: a rule that moves an outcome on some fixture
+but that no trail event cites is a defect of the trail to fix in the driver, never a reason for a
+record here. Three fixtures were added for rules the first 26 fixtures did not make load-bearing
+(`pointer-table-before-leaf`, `computed-jump-callback`, `large-data-referenced`); the coverage table
+of bench/dataset/synthetic/index.md names the fixture of every other rule.
+
+**Consequences.** test/unit/fixtures/coverage.test.ts asserts that disabling each of the eight moves
+no fixture outcome, so a change that makes one load-bearing (a region rule moved before a pass, a
+bench run with seeds) fails until its exemption is replaced by a fixture.
+
+**Revision (phase-2 review, D59).** `valid()` no longer repeats `valid.in-rom-unclaimed`'s test: the slot
+judges outside, odd and claimed entries in discover mode too, and its rejection names the rule. Disabling
+it still moves no fixture outcome (the reading rules reject the same entries), so the exemption stands
+on the measurement, which test/unit/fixtures/coverage.test.ts repeats.
+
+**Rejected.** Adding the claims and the startup region to the ablation outcome (every claim edit would
+then count, which says nothing about the entries the gate protects). Ablating with TOML seeds or
+options (the bench scores a seedless run by D24; the seed rules have their own gates). Fixtures that
+reach `valid.in-rom-unclaimed` through confirm mode (ablation runs discover only).
+
+
+## D58. The trail cites every decision a rule makes, walk steps included
+
+**Context.** g2.rule-coverage requires a decision event of the trail (accept, reject, verdict, claim,
+absorb) to name each rule that moves a fixture outcome. After wave 3, fifteen load-bearing rules were
+named by none: the driver emitted an acceptance under the proposing rule and named the acceptance rule
+only in its note; the gap slots prefer and skip emitted nothing; and a walk-slot answer left no trace
+but an exit record, with no rule at all for a pool, a table, an indirect call or dropped padding. D57
+says such a rule is a defect of the trail to fix in the driver, never a reason for an exemption.
+
+**Decision.**
+
+- (a) In grow, when an acceptance rule takes a harvested candidate, the driver emits a second 'accept'
+  event under that rule beside the proposer's (detail: which proposer's candidate it took).
+- (b) The prefer slot's Thumb/ARM choice at a cursor and the skip slot's next cursor are 'verdict' events
+  (fill-gaps.ts, `preferred`, `skip`).
+- (c) `Reading.steps` (frozen type `WalkDecision {at, rule, step}`) lists the walk-slot answers a walk
+  applied, in walk order. The walkers record them only when `WalkEnv.trace` is set, which the driver sets
+  when a trail sink is given and the level is not 'off', so a normal run walks and allocates exactly as
+  before and no digest moves (FunctionFact and the codec do not carry steps). The settle loop keeps the
+  answers of every round, deduplicated: an earlier round's noreturn-call or padding answer decides the
+  bl verdict that the last walk only applies. The driver emits one 'verdict' event per step when it
+  takes or absorbs a reading, so only the readings that became functions are cited.
+- (d) 'verdict' now means a rule's decision at one instruction or cursor: a bl site, a walk step, the
+  Thumb/ARM choice or a gap skip. `romlift explain` prints them under "verdicts" (it said "bl
+  verdicts").
+- (e) Two fixtures make the last two uncovered rules load-bearing: inline-arm-switch (m4a's
+  umul3232H32 shape) and recursive-far-call (agbcc C: a recursive call 2.4 KiB past the entry after a
+  guard that calls a never-returning function, so the only return follows the call).
+
+**Consequences.** Every rule of RULES is either cited and load-bearing on a named fixture or exempted
+by D57; the explain goldens grew by the walk and gap verdicts of their 256-byte buckets.
+
+**Rejected.** Renaming the acceptance event to the acceptance rule (the seed and harvest rules would
+lose their citation). Emitting walk events from inside every walk (the readings of rejected candidates
+and every settle round would flood a 'decisions' trail with answers that changed nothing). Recording
+steps unconditionally (it costs the walk an allocation per pool load with no reader when the trail is
+off).
+
+## D59. Phase-2 review: the oracle deleted, every decision through its slot, the walk bounded
+
+**Context.** The adversarial review of phase 2 (17 October 2026; every finding's disposition is in
+[phase-2.md](phase-2.md), "Review") found that the driver repeated two rules' predicates inline and
+hard-coded rule ids and slot counts, that the retired lockstep oracle was still threaded through the
+pure driver and brought back the PoC's LIFO order, that the ARM walk and a profile table kept PoC flow
+classes and Thumb register effects outside the ISA rows, that a valid cartridge with a large zero
+region ran the analysis out of memory, and that two rules and several contract members had shipped
+with no decision record.
+
+**Decision.**
+
+- (a) **The lockstep oracle is deleted.** `RuleOracle`, `consult`, `ORACLE_ORIGINS`, `OracleQueries`,
+  the oracle branch of `resolveRules`, `bench/src/lockstep.ts` and their tests are gone; the lockstep of
+  architecture §4.5 is historical. Its evidence (milestone M1, the `parity` member of `results.json`)
+  stays committed and `g2.poc-parity` checks it, now also that the commit it names is an ancestor of
+  HEAD; it is never re-run, because the driver no longer runs in the PoC's order (`'poc-lifo'` was
+  deleted by `c608a33`). `export-poc --mode queries` still writes the log and re-reads it through
+  `bench/src/poc-log.ts`, which stays as that command's validator. This supersedes D56 (f).
+- (b) **Every decision is a slot's.** The driver repeats no rule's predicate and names no rule id: the
+  gap's head is accepted only through the proposers after the pair (`gap.tiled-hole-inner`), at the gap
+  start and after the end-anchor loop, proposed by the head rule with a second 'accept' event under the
+  proposer (D58 a); `valid()` judges outside, odd and claimed entries through the validity slot
+  (`valid.in-rom-unclaimed`'s `checkEntry`); `pointerCandidates` returns one list per resolved harvest
+  rule; the calls of an absorbed block go through the queue slot; an unanchored candidate is rejected
+  under the rule that proposed it. Proposers return a `Proposal` and accept rules an `AcceptHold`; the
+  driver stamps the id of the slot it called, so no rule spells its own id, and accept rules judge a
+  candidate by its origin (`v.originOf(proposedBy)`), never by another rule's id.
+- (c) **The ISA rows are the only source of flow classes and register effects.** The ARM walk and
+  `gap.arm-scan` follow the decoder's Flow; the PoC's classes (`add/sub pc, pc, #imm` as adr, the
+  ARMv4T-undefined encodings as other or pc_write) are gone. On the five tuning ROMs and the 31 fixtures
+  no analysis digest moves; test/local/poc-decoder-differential.test.ts still lists every difference
+  from the PoC with its count. `InsnSpec.registers` (`RegisterSpec`: written operands, a written
+  register list, fixed clobbers, and the operands a written value is followed to) replaces
+  `core/profile/thumb-registers.ts`; `registerEffect` (foundation/isa/registers.ts, `romlift/isa`)
+  reads it. This supersedes D56 (e).
+- (d) **The walk is bounded.** `LIMITS.zeroRun` (64): a path over more consecutive all-zero
+  instructions stops with a 'zero-run' error and no diagnostic (the bytes are not code).
+  `LIMITS.walkInsns` (65,536, five times klonoa's largest function): a walk that records that many
+  instructions stops with a 'walk-limit' error and raises `W_WALK_LIMIT`. Both are decode errors to
+  `valid.decodes`. A unit test analyses a 32 MiB mostly-zero image under a 256 MiB V8 heap. This
+  applies D42 to the analysis ahead of phase 3's `g3.large-rom`.
+- (e) **The rules and contract members phase 2 added**, now in architecture §4.1:
+  `walk.inline-arm-switch` (walk slot, after `walk.bx-pc-veneer`; a Thumb `bx rN` after `add rN, pc, #0`
+  enters ARM code right after it, which is this function's tail; restsOn: hand-written code enters ARM
+  in place and runs the ARM body as one function; WalkStep `'arm-tail'`, `Reading.armTails`,
+  `ReadingShape.armTails`) and `bl.target-beyond-callee` (bl slot, before
+  `bl.target-pops-unpushed-frame`; a far `bl` past the entry of another function the caller calls is a
+  call; restsOn: a far jump reaches the caller's own tail, and a function never contains the entry of a
+  function it calls; it removes the order dependence milestone M4 exposed in `pops-unpushed-frame`);
+  `WalkCursor.back`, `InsnLookup` for `Reading.insnAt`; `WalkDecision`, `Reading.steps` and
+  `WalkEnv.trace` (D58); `withVerdicts` (reading.ts) builds the settled reading, so only reading.ts
+  builds readings; `CLAIM_KINDS` and `claimName` derive from `Claim`, the one claim enumeration;
+  `SealedCounts` counts the `other` false entries and splits the glued misses (`gluedWhere`: inside a
+  found extent, outside every extent, past the code end), counts only (D25); `shell/rom.ts` `readRom`.
+- (f) **Confirm mode's labels** (milestone M6): a listed entry with `label = true` is a walk boundary
+  only once it is taken, as discover's walk of the function around it saw it (driver/state.ts
+  `isListedBoundary`).
+- (g) **Removed until their phase:** the profile's `misfitThreshold` (`W_PROFILE_MISFIT` has no raiser,
+  and no rejection rate measured on the tuning ROMs separates a fitting profile: fe7j rejects more
+  candidates than it accepts) and `isPadding`'s `next` (never read; "0x46C0 only before a pool" returns
+  with the emission that needs it).
+- (h) **`defineRule` stays internal** (`romlift/internal`): a rule runs only from the registry of this
+  repository, so there is no public extension point to version; roadmap 2.0 lists it there.
+- (i) **Names.** The phase-2 component that built the driver is `p2-driver` (it ran as `p2-engine`, a
+  term the naming rule forbids); D53 says codebase `family`.
+
+**Consequences.** On the five tuning ROMs and the 31 fixtures functions, extents and claims are
+unchanged; rejections change (rule ids, zero-run and walk-limit details) and sa3 raises four
+`W_WALK_LIMIT` (tile-map data that decodes as 128 KiB of shifts). Analysis CPU drops on pokeemerald
+(4.8 s to 2.9 s) and klonoa (0.70 s to 0.27 s). `g2.checks-fail` has four mutation files (the lockstep
+reporter's is gone). `g2.held-out` still fails on tmc ([phase-2.md](phase-2.md)); D53 is unchanged.
+
+**Rejected.** Keeping the oracle behind one driver hook (it would keep the PoC's LIFO order alive in the
+product for evidence that is already committed). Keeping the PoC's ARM classes as a table override (no
+reading of the tuning set depends on them). An instruction cap alone (klonoa padded with 4 MiB of zeros
+still peaked at 2 GB: 294 candidates in the zeros each walked 65,536 instructions). Raising
+`W_WALK_LIMIT` for zero runs (every tuning ROM would warn on its data candidates).
+
+**Revision (fix round 2 of the phase-2 review).** The re-review of fix round 1 found that (b) still had
+exceptions and that memory was still unbounded in the number of candidates. Added:
+
+- (j) **fillGaps counts what it adds.** Its return value, the fixpoint test of a pass, is the sum of what
+  `accept()` reports, the calls an absorbed block adds included (`absorb` returns them). A hole head
+  taken mid-gap is accepted under the head rule as at the gap start (the PoC's `tryTiledHole` and
+  `fillGaps` both say 'tiled hole'), so its provenance no longer depends on its position. Before, an
+  unlisted mid-gap head counted as one function in every round and a confirm run spun to
+  `W_FIXPOINT_LIMIT` (10,000 rounds per pass).
+- (k) **(b) without exceptions.** `grow` asks the validity slot about every harvest target that is not a
+  function, claimed ones included: `valid.in-rom-unclaimed` rejects them before any reading, so
+  disabling it changes the verdict; its unanchored rejection names the accept rules that declined,
+  not the driver's reading of a prologue. An accept veto's decision is a rejection under the veto's id
+  (`AcceptVeto.reason` is read), and `diagnoseMiss` names the veto of a vetoed miss.
+- (l) **The gap scan's remaining code is traversal and format.** Stepping over bytes a claim rule
+  already claimed, and never standing in the cartridge header (a fact of the GBA format, as `contains`
+  is; phase 3 claims the header, correctness-6), are not rule decisions and stay in the driver. The
+  absorb retries (a block a claimed halfword or one zero halfword on) moved into `gap.adr-block-absorb`.
+  Gap positions are bus addresses. The forward slot is typed `{ thumb, arm, after }` instead of by
+  position, with the ranks of the old list (0, 1, 2…), so the worklist order is unchanged.
+- (m) **Analysis memory is bounded in the number of candidates.** `LIMITS.candidateBudget` (262,144)
+  binds the distinct harvest targets grow judges in a whole run (revised in fix round 3; it bound each
+  grow round at first, and since the targets that fail intrinsically leave the next snapshot, every
+  later round judged a fresh 262,144, so rejections, time and memory grew with the rounds times the
+  budget: fe7j plus a 16 MiB flood left 4.2 M rejections). Past it a fresh target is not judged, a
+  target judged before still is, and `W_CANDIDATE_BUDGET` is raised once. The tuning ROMs judge at most
+  13,431 distinct targets in a run (pokeemerald; 13,423 on the six at `8fba183`'s successors, measured
+  on 18 October 2026, tmc 9,673). `LIMITS.epochReadingBytes` (256 MiB by `readingBytes`' estimate; the
+  "about 105 MB at most" first recorded here was wrong: measured on 18 October 2026, pokeemerald holds
+  208,344,064 bytes in one epoch, 78% of the budget, and already held 206 MB at `22cbc77`; fe7j 120 MB, tmc
+  113 MB): past it the candidate readings an
+  epoch holds are dropped, their verdicts staying memoised and their 'epoch-reuse' facts dropped with
+  them (`forget` in epoch.ts is the one path out of `settled`), and `W_READING_BUDGET` is raised once;
+  a dropped reading asked for again is walked again, so (D13) holds exactly below the budget. A flood's
+  rejections and verdicts are bounded by the budget; its time still grows with the grow rounds, because
+  each round's harvest enumerates the flood (fe7j plus 16 MiB: 160 s, 1.9 GB peak RSS, 261,475
+  rejections). The flood tests are a stress tier in `test:local`.
+- (n) **`AnalysisTuning.worklist` is removed**: it had one value and no reader.
+- (o) **No hand decoding outside the ISA.** `isConditional` (from the row's `cond` field) and
+  `thumbWordAt` (foundation/isa/decode.ts) replace `word >>> 28 !== 0xe` in the ARM walk and
+  `gap.arm-scan` and the halfword pairs of the Thumb walk and `accept.tiny-anchored-at-start`.
+  `registerEffect` throws `RomliftInvariantError` for an operand name its row lacks, and a table test
+  checks every RegisterSpec name of every row.
+- (p) **The glued split uses the label classifier's functions**: a glued miss is `insideExtent` only
+  inside the extent of a found function that has an ELF entry (`classify.ts` `gluedWhere`).
+- (q) **A failing gate keeps its notes.** `failureDetail` (test/gates/gate.ts) appends the notes a gate
+  wrote before it failed to its failure message, so the gate record carries the measurements that
+  explain a failure (a sealed ROM's counts).
+- (r) **Seeds are checked before round 0** (fix round 3). A seed whose entry is not a non-negative safe
+  integer, whose mode is neither `thumb` nor `arm`, or whose size is not a positive integer that fits the
+  ROM from its entry is left out with `W_SEED_MALFORMED` (new) and is absent from the result's options;
+  an entry of NaN ran a confirm run out of heap, a negative size made an extent that misses its entry. An
+  entry that is odd, outside the ROM or listed twice is well formed and judged by validity
+  (`W_LISTED_INVALID`).
+- (s) **`seed.rom-entry` proposes the startup target only when its first ARM word is wholly in the
+  ROM** (fix round 3): a truncated image (the header plus a halfword) gave a function with an empty
+  extent. The rule cannot raise a diagnostic; the image's single function at 0x08000000 says what was
+  found.
+- (t) **`bench run` never drops the printer member silently** (fix round 3). It records the local corpus
+  summary when it is current; otherwise the previous artifact's member while its inputs digest still
+  equals `corpusInputsDigest` (computed from the source tree, no corpus run needed); otherwise it refuses
+  to write and says to run `npm run corpus`. The phase-2 exit list runs `npm run corpus` before
+  `bench run`.
+
+Consequences: functions, extents, claims and the parity view are unchanged on the five tuning ROMs and
+the 31 fixtures; rejections change (claimed harvest targets, veto rejections, the unanchored detail), so
+every analysis digest moves in fix round 2; tmc's glued split reads 2 inside an extent, 15 outside, 34
+past the code end (its verdict is unchanged). (q) to (t) change no analysis digest of the tuning ROMs:
+no tuning run reaches either budget, passes a malformed seed or is truncated.
+
+## D60. The owner's answer to §12 item 4: tune on tmc, with the rules and conventions it needed
+
+**Status (the owner's answers, 18 October 2026).** The owner answered Q1 to Q5 (D61): (j) is restored for
+every ROM ("Use $d for every ROM"), the two-families condition is waived ("Waive both"), `g2.poc-parity` is
+scoped to the five ROMs of the M1 evidence and tmc is a benchmark row in `g2.baseline-rows` ("Keep tmc as
+99.94%. It's a benchmark row that we can improve later"), and D8's `resettle` was built, measured and
+reverted, tmc's six differences of Q3 recorded as a known limitation ("Build resettle, else accept"). The
+gates D60 left open below are answered there; the rules (a) to (i) are unchanged, but for the
+straight-line argument scan of (e) (overfitting-r2-1).
+
+**Status (fix round 2, 17 October 2026).** The adversarial review of `f802822` found one more gate change
+the owner had not authorised (the code-end convention of (j), the only reading under which tmc passes
+`g2.code-end`) and a waiver applied on an inference (the two-families condition of `g2.held-out`), and
+that fix round 1 had claimed generality from preconditions rather than decisions. Fix round 2 withdrew
+(j) (owner question Q5), waived only the fresh-family condition (Q4 stays open and the gate fails on the
+other), made `g2.poc-parity` check its coverage once historical, recorded each rule's decisive effect
+(on tmc only: every rule is single-instance), widened `seed.ram-copy` to end-pointer copies and pool
+boundaries with windows set from the measured distribution, added fixtures for the untested clauses, and
+pinned tmc's PoC reference by content. Phase 2 does not land until the owner answers Q1 to Q5.
+
+**Status (fix round 1, 17 October 2026).** The adversarial review of `74ec273` found that the landing at
+`808513f` rested on three gate changes the owner had not authorised (a `g2.poc-parity` fail frozen by
+raising `phase.json`, the `scaffold` family not asked of tmc, a confirm mode that made
+`g2.confirm-equals-discover` pass by construction) and on rules whose generality was asserted, not
+measured. The fix round reverted the unauthorised changes ((k), (l), `phase.json` back to 1), measured the
+PoC on tmc, made the code-end convention uniform (j), rewrote `seed.ram-copy`'s copy recognition (e),
+added one fixture per rule branch and recorded each rule's counter-check below. Phase 2 does not land
+until the owner answers the questions of phase-2.md ("Owner questions").
+
+**Context.** Phase 2 did not land because `g2.held-out` failed on tmc (zeldaret-tmc, the only sealed ROM
+of a codebase family absent from the tuning set): raw recall 99.37% below 99.46%, 51 `glued` misses (2
+inside a found extent, 15 outside every extent, 34 past the code end), 3 label candidates, and a code end
+4,130 bytes before the ELF's; pokefirered and pokeruby passed but are both `pret-gen3`, a family of the
+tuning set. D53's safe default held. On 17 October 2026 the owner, Bruno Macabeus, answered architecture
+§12 item 4: **"Tune on tmc, no new ROM."**
+
+**Decision.**
+
+- **The owner's decision.** tmc is revealed (`bench run --reveal tmc`, `306eaf2`) and is tuning data; its
+  misses are fixed with general rules and its remaining rows are classified like those of the other five
+  tuning datasets. pokefirered and pokeruby stay sealed and must keep passing. `g2.held-out` is recorded as
+  having no held-out ROM of a family absent from the tuning set: that waives its fresh-family condition
+  (one passing ROM from a family absent from the tuning set), and the gate prints the waived condition with
+  its grounds (`WAIVED: …, by the owner … on 2026-10-17 (D60; the owner's words …)`). The two-families
+  condition (the passing ROMs span two codebase families) is not in the owner's words: fix round 1 waived
+  it by inference (pokefirered and pokeruby, both `pret-gen3`, must pass and phase 2 then lands), and fix
+  round 2 withdrew that (gate-honesty-r1-2, code-quality-r1-2), so the condition still applies and the gate
+  fails on it, printing that it waits for owner question Q4 (phase-2.md, "Owner questions"). Once the
+  owner confirms, the waiver's `grounds` gain the answer and the condition is waived with it. The waiver is bound to the facts it was decided on: the sealed datasets
+  pokefirered and pokeruby by name, ROM SHA-1 and ELF SHA-256, and the tuning families fe-gba, kleod,
+  pret-gen3, sat-r and zeldaret-tmc; any change to either ends it and needs a new decision. Every per-ROM
+  threshold, the seal and "at least two sealed ROMs pass" still decide. The verdict is one function,
+  `heldOutVerdict` in `test/gates/held-out-verdict.ts`, which the gate calls and the unit tests cover. This
+  is the only gate change the decision authorises. A sealed pair of a fresh family is still needed before release 1 claims
+  generality (D53).
+Each rule below names its fixture (each `expect.json` fails with the branch reverted, checked by forcing
+the branch's condition off) and its counter-check: where on the six tuning ROMs its condition holds, and,
+since fix round 2 (overfitting-r1-1), where it decides an outcome (disabling it moves a row). Fix round 1
+claimed generality for (e), (g) and (h) from the count of a precondition on several ROMs; that was wrong:
+**the measured effect of the whole D60 rule set is on tmc only.** Each branch disabled at `f802822` moves
+only tmc rows (review of `f802822`: the veneer array, the 2-mod-4 halfwords, the stub copies, the
+forward-chain pointer test, the resume, the adr tests); with `seed.ram-copy` and
+`accept.prologue-and-calls-accepted` both disabled, fe7j, klonoa, pokeemerald, sa2 and sa3 keep their
+rows (tp 7,724, 556, 15,856, 2,892, 4,693, the same false entries, extents and code end) and tmc drops to
+tp 8,597. So every rule (a) to (h) is single-instance in the sense of D53: its decisive conditions hold
+on one ROM, its fixtures are self-authored, and tmc's after-numbers are no evidence of generality until a
+sealed ROM of a fresh family passes.
+
+- (a) **The gap scan resumes through the profile** (fill-gaps.ts `resume`): after a reading, at the
+  halfword where it ends when `alignment.thumbFunction` allows a Thumb function there and the halfword is
+  not padding (`idioms.isPadding` on both bytes), else at the next `alignment.cFunction` boundary. The PoC
+  always took the next word, so libgcc's `_call_via_r8` … `_call_via_lr` (2-byte stubs at 2 mod 4) and an
+  alternative entry `movs r3, #1; b …` right after a function were never candidates. Traversal, not a rule
+  (D59 l): the profile decides where a function may start, the proposers what starts there. Fixture
+  `gap-resume-2mod4`. Counter-check: fires once on pokeemerald (0x082DF012, found without it too, so it
+  decides nothing there) and 9 times on tmc (8 entries recovered): decisive on tmc only, single-instance.
+- (b) **`gap.end-anchor` takes a veneer-array element**: a two-instruction `ldr rN, [pc, #k]; bx rN` whose
+  code ends exactly where an accepted stub of the same shape starts counts without `gapScan.minInsns` and
+  without filling the hole (its pool lies after the array). Fixture `veneer-array`. Counter-check: 5
+  times, all on tmc, in one array: single-instance.
+- (c) **`gap.end-anchor` takes the halfword between two words** as a candidate when the profile lets Thumb
+  functions sit there and it opens with `push {.., lr}` (`idioms.opensWithPushLr`), ranked as a prologue
+  with the word candidates by the end anchor's one rule (fix round 1: it no longer skips the word
+  candidate). Fixture `push-lr-2mod4` (both readings valid). Counter-check: once, on tmc (0x08007DCE):
+  single-instance.
+- (d) **`claim.dead-code-in-extent` leaves an unreached copy of the reading's own entry stub free**: when
+  the reading opens with `movs rX, #k; b T`, an unreached `movs rX, #k'; b T` (same register, same target)
+  inside its extent is another entry of a stub table that shares one tail, not dead code. Fixture
+  `entry-stub-table`. Counter-check: once, on tmc (CreateSwampDrownFx): single-instance.
+- (e) **`seed.ram-copy`** (new queue rule, origin `ram-copy`, profile field `ramCopy: { argInsns: 12,
+  jumpInsns: 8 }`; copy recognition rewritten in fix round 1, `f39242a`, and widened in fix round 2):
+  accepted Thumb code that calls a copy names [S, S + L) as the load image of code that runs at D. The
+  copy is recognised by what the callee does, never by a fixed argument order: a BIOS CpuSet or
+  CpuFastSet (an inline `swi 0x0B/0x0C`, or a `bl` to a stub that is the swi and a return;
+  `foundation/rom/bios.ts`: r0 source, r1 destination, r2 a control word whose count and unit give L,
+  CpuFastSet's count rounded up to a multiple of 8 words as the BIOS moves it, a fill copying nothing), or
+  a copy loop (forward data flow over the callee tags the argument registers; a load through one
+  argument's register makes it the source, a store through another's the destination, and the third is
+  the size: in bytes when added to a pointer; the end itself when a copy pointer is compared with it,
+  `cmp`, so L = end − that pointer's argument (fix round 2, overfitting-r1-3: `CopyWords(src, dest, end)`
+  of the `code-copied-to-ram` fixture was declined before); else the store width over the one amount it
+  is decremented by). S, D and L are the argument values in the straight-line run of at most `argInsns`
+  instructions before the call (pool literals, `movs`, register copies, `adds`/`subs`, `negs`, `ands`,
+  `orrs`, shifts; a call forgets r0..r3, r12 and lr). Since the review of `8fba183` (overfitting-r2-1) the
+  run is straight-line in fact: it stops before a join point (a branch, jump-table or far-`bl` target of
+  the reading; since fix round 2 of D61, overfitting-correctness-r1-1, also the reading's entry and the
+  target of every `bl` of the reading, returning or noreturn) and at an instruction that does not fall
+  into the next (an unconditional exit: a return, a register jump, a branch, a `bl` walked as a jump or
+  that never returns; with every join in, it lies only right before a join and decides nothing alone);
+  before, it walked back by
+  layout across both and could read S, D and L from code that never flows into the call. Negative fixture
+  `ram-copy-args-straight-line` (arguments loaded before a `pop {pc}`, the call reached only from a `beq`:
+  the old scan maps a veneer's IWRAM pointer into a data object and proposes the false ARM entry
+  0x08000138), and unit cases for each stop (the join test alone decides the case where the setup falls
+  into a call that a `bne` also reaches; in a walked reading an instruction after an exit is always a join
+  point, so the exit test is the straight line's definition rather than a separate decision). Measured: no
+  row, extent, code end or analysis digest moves on the six tuning ROMs or the sealed pair. D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB). **The windows are
+  set from the tuning set's distribution with a stated margin, not derived from codegen** (fix round 2,
+  overfitting-r1-2: the "3 × 2 + 2" derivation was contradicted by tmc's own setup, whose size argument
+  takes three instructions): the shortest window recovering all three arguments of each of the 15 copy
+  calls the rule recognises on the six tuning ROMs is 3 (6 calls), 4 (2), 6 (6, the m4a CpuSet on every
+  ROM) or 7 (1, tmc); `argInsns` is the maximum plus five, 12 (7, 8, 12 and 16 give the same rows on all
+  six; 6 loses tmc's 4,956-byte block), and fixture `ram-copy-setup-bound` has a setup of exactly 12, so
+  11 fails it. The jump after an IWRAM pointer load has its own window, `jumpInsns` 8. Fix round 2 wrote
+  "the 39 jumps … take 1 (33), 2 (2), 3 (2) or 5 (1)", which does not add up (38) and counted tmc's load
+  sites alone; re-measured after the review of `8fba183` (code-quality-r2-1, overfitting-r2-2,
+  gate-honesty-r2-5, code-quality-r2-3), one count per load site (the cartridge entry's extent shares the
+  startup's load, two tmc entries share one): the 46 sites the rule finds on the six ROMs (fe7j 1, klonoa
+  1, pokeemerald 1, sa2 2, sa3 2, tmc 39) take 1 (40), 2 (2), 3 (3) or 5 (1) instructions, 40 + 2 + 3 + 1
+  = 46, and the copy calls of the argument window are 15 per site as above (fe7j 2, klonoa 1, pokeemerald
+  1, sa2 3, sa3 5, tmc 3; 6 + 2 + 6 + 1). 8 is the maximum plus three. Only the jumps at 1 decide a
+  function on the six (every window from 1 to 16 gives the same functions), so the window rests on the
+  distribution and on a unit test that pins it: a jump exactly 8 instructions after its load is found
+  with the profile's 8 and missed with 7. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
+  (`bx`, `mov pc`, `bl` to a `bx rN` stub of that register, libgcc's `_call_via_rN`) names the entry S +
+  (P − D), Thumb when P is odd, when it opens a function: the instruction before it is an unconditional
+  exit, or the word before it is a literal pool (claimed as one, or a pool of the reading of another
+  entry the accepted jumps name in the block; fix round 2, overfitting-r1-5: a pool word decodes as
+  whatever instruction it happens to be, so the exit test alone declined every entry after a pool), and
+  no lower entry proposed with it reaches it. A pointer equal to D is not used: the copy names the
+  block's start already, and mapping a block from its start is phase 6's `runs_at` (§6.7). Re-measured in
+  fix round 2, now that the end-pointer loop is recognised: mapping it changes no bench row on the six
+  tuning ROMs (only origins: the analysis digests of fe7j, klonoa, sa2 and sa3 move) and adds the false
+  entry 0x0800012C to `code-copied-to-ram`, the load image of a routine the ELF types only at its IWRAM
+  address. IWRAM only and jumps only: EWRAM copies and stored pointers gave false entries on pokeemerald
+  and fe7j. Stateless: each (copy, jump) pair is proposed when the later of its two functions is accepted;
+  a callee is read only for a call whose r0..r2 hold an IWRAM address, a ROM address and a third known
+  value. Fixtures: `ram-code-entries` (a source-first copy routine), `ram-copy-memcpy` (agbcc C
+  `CopyBytes(dest, src, n)`), `ram-copy-bios` (CpuSet in 32-bit units and CpuFastSet of 10 words),
+  `ram-copy-setup-bound` (the argument window), `ram-copy-call-via` (the `bl _call_via_r3` jump; without
+  it tmc loses 9 true positives at fix round 2, 24 before the pool boundary; code-quality-r1-1), `ram-copy-entry-boundaries` (the
+  end-pointer loop, a declined fall-through entry, an entry after a pool); each fails with its branch
+  reverted, and the unit tests cover the CpuFastSet rounding and the clause that declines an entry inside
+  a lower proposed entry's code. Counter-check (where the rule's condition holds, and where it decides):
+  the copies are recognised on all six ROMs (fe7j 2, klonoa 1, pokeemerald 1, sa2 3, sa3 5: the m4a
+  SoundMainRAM CpuSet on all five, plus game copies to IWRAM; tmc 3), but on the five every jump points at
+  its block's start, so the rule names 0 entries there and disabling it (`bench run --disable
+  seed.ram-copy`) leaves their analysis digests unchanged: **its decisive effect is on tmc only**, where one copy (InitOverlays' MemCopy of the 4,956-byte block) names
+  38 entries, 11 accepted. Single-instance in the sense of D53: one block of one ROM. Its own count on tmc:
+  of those 11 proposals 2 are labels the ELF does not type (0x080B1AA8, 0x080B1B0C, `pointer-entry`:
+  genuine entries reached through veneers); disabled, tmc loses 33 true positives and 6 false entries
+  (those two and four that other rules find inside the block it brings into the code). The fix-round-2
+  changes leave every bench row of the six ROMs and both sealed ROMs unchanged; on tmc the pool boundary
+  moves origins and two unsized extents (analysis digest `d8aac78c…` → `5c747e55…`: arm_CalcCollisionDirection
+  and arm_DrawEntities are now taken by this rule, `sub_080B255C`'s extent ends at 0x080B299C instead of
+  0x080B280C and `sub_080B2874`'s at 0x080B289C instead of 0x080B299C, both FUNCs of size 0, so no extent
+  row moves). (e), (f) and (g) form one chain: (f) and (g) decline words and labels inside the same
+  copied block of the same ROM, which only (e) brings into the code.
+- (f) **`gap.forward-chain` declines a word holding an accepted Thumb function + 1** (word-aligned, odd,
+  the word − 1 a function): a literal pool word, not code; the skip slot steps over it. Fixture
+  `pointer-word-in-gap`. Counter-check: declines 6 words, all in one pointer table of tmc's copied block:
+  single-instance (part of the (e) chain).
+- (g) **`seed.adr` proposes only unclaimed words that read as ARM code**: an adr onto claimed words (code,
+  the function's own extent included, since an accepted function's code is claimed when its queue rules
+  run: a return address, a table of its own; a pool or a table) names a label or data, and one onto
+  undecodable words names data. Fix round 2 (overfitting-r1-6) removed the separate own-extent clause of
+  `72e97d8`: deleting it changed no fixture and no row on the eight ROMs, because the claim test already
+  declines those targets. Fixture `adr-label-and-data` (negative). Counter-check, per sub-condition: the
+  claim test declines the startup code's adr onto the interrupt handler on all six ROMs, a target that is
+  already a function (no decision), and 2 targets on tmc inside their own function's extent (0x080B2440,
+  0x080B286C, claimed as that function's code); the decode test declines 3 targets on tmc (0x080B1D8C, 0x080B1FEC,
+  0x080B1FFC), the only declines that move rows (without it tmc gains 15 false entries, 3 unlisted, review
+  of `f802822`). On the five the rule keeps every adr target (fe7j 2, klonoa 1, pokeemerald 2, sa2 1, sa3
+  1: the interrupt handlers). Its decisive effect is on tmc only, inside the block (e) brings into the
+  code: single-instance.
+- (h) **`accept.prologue-and-calls-accepted`** (new accept rule, after `accept.pointer-table-run`): a
+  valid data-pointer candidate with a word-aligned prologue, a return and at least one call, every call on
+  an accepted function, is taken: three independent signs of a function that bytes of data do not show by
+  chance. Fixtures: `data-named-between-data` (positive: disabling the rule loses ScriptCallback) and,
+  since fix round 2 (overfitting-r1-4), `data-frame-not-function` (negative: three blocks of data named by
+  a command table that decode as a word-aligned `push {lr}` frame; dropping the call clause takes the one
+  without a call, `some` instead of `every` takes the one calling the middle of a function, dropping the
+  return clause takes the one that spins). Counter-check (where each condition decides, measured by
+  disabling it on the six tuning ROMs): the prologue clause decides on the real ROMs (without it fe7j has tp
+  7,720 instead of 7,724, pokeemerald 15,855 instead of 15,856, and a sealed ROM fails; review of `f802822`); the call and return clauses decide no bench row
+  on any of the six (without both, rows identical, only origins move), so the measured false-acceptance
+  rate below (967 candidates on the six ROMs: fe7j 392, klonoa 5, pokeemerald 288, sa2 98, sa3 98, tmc 86,
+  346 with exactly one call, every one an ELF function) is a measure of "data-pointer origin plus a
+  word-aligned prologue" on real code, and the call and return clauses rest on the negative fixture
+  alone. Its side effect on the five: those 881 candidates were functions of the result already, taken
+  later by other rules; the rule takes them in an earlier grow round, which moves the origins of their
+  callees (fe7j 2,122 functions, pokeemerald 1,234, sa3 202, sa2 149, klonoa 13) and shortens fe7j's grow
+  (8.6 s → 1.2 s), with no row change. Its decisive effect on a row is one tmc function
+  (CreateDustFromScript): single-instance.
+- (i) **Categories.** `unreached-tail` (code after a hand-written function's return that nothing reaches,
+  folded into that function by the ELF) and `pointer-entry` (another entry point of hand-written code,
+  reached by a jump through its address: a veneer, `bl _call_via_rN` with its address, or a stored
+  function pointer, which the ELF only labels; fix round 1) are new, and both are carried by tmc's rows
+  only (unreached-tail 2, pointer-entry 4): they are categories of one ROM, shown on no other tuning ROM and
+  in no fixture. `second-entry` keeps its M5 definition (bl-reached helpers: fix round 1 reverted the
+  widening that covered `seed.ram-copy`'s own false entries), and so, since fix round 2, does
+  `untyped-leaf` (a leaf reached by `bl`; gate-honesty-r1-8): its widening to "through `bl _call_via_rN`"
+  covered tmc's 0x080B197C, which no `bl` reaches at its ROM address (code reaches its IWRAM address
+  through `bl _call_via_r4`), so that row is `pointer-entry`. `split-after-returning-call` keeps its
+  widening from "after `bl _call_via_rN`" to any call whose callee returns (a `bl` to a returning helper,
+  or `mov lr, pc; bx rN`), recorded here as different from the reverted ones: it names the same split of
+  the truth's disassembler by another call instruction, and the rows it covers on tmc (0x080AF900,
+  0x080B20AC) are misses the pinned PoC's own run of tmc has too, not entries a D60 rule added. The cost of
+  (e) to (g) in false entries is reported, not hidden by the categories (overfitting-r1-8): tmc's false
+  entries went from 8 at `d645160` (the PoC's own run: 7) to 12, precision 99.92% to 99.86%; all 12 are
+  listed, 6 of them inside or reached from the block (e) brings into the code. (`unsized-last-function`,
+  the category of the withdrawn `codeEnd` row, is gone with it.)
+- (j) **Restored by the owner's answer to Q5 (18 October 2026, D61 a: "Use $d for every ROM"); the record of its withdrawal follows.** Withdrawn (fix round 2 of D60): the code-end convention stays the one of phase 1. Fix round 1
+  replaced the dataset `codeEnd` row of `80762ff` with a scorer convention, `elfCodeEnd` in
+  `bench/src/truth.ts`, that ended an unsized function (hand-written asm without `.size`) at the first data
+  mapping (`$d`) or typed symbol after it, in the tuning and the sealed scorer. The review of `f802822`
+  (gate-honesty-r1-1, a blocker) found that this changed the ruler of `g2.code-end` and of the sealed
+  verdict without the owner: romlift's tmc output is the same under every reading (analysis digest
+  `d8aac78c…`), and only the `$d` reading lets tmc pass. Measured on tmc (`sub_080B299C`, FUNC size 0 at
+  0x080B299C, `$d` at 0x080B2A30, the next typed symbol at 0x080B2A70): +148 under the phase-1 convention
+  (fail), −64 under the pool-inclusive one (fail), 0 under the `$d` one (pass); klonoa +4 and fe7j +8
+  under the phase-1 convention, 0 under the `$d` one; pokefirered and pokeruby 0 under both. So
+  `elfCodeEnd` is again the largest addr + size of the ELF's functions (an unsized function ends where it
+  starts), the PoC's convention and that of every scorer since phase 1, and `g2.code-end` and `bench
+  regression` fail on tmc at +148. Whether the convention may change for every ROM, tuning and sealed, is
+  owner question Q5 (phase-2.md); the rejected reasons of fix round 1 (the pool-inclusive reading puts the
+  end 64 bytes past every reading of the shared pool's last user) are facts for that answer, not a choice
+  made here.
+- (k) **Withdrawn (fix round 1 of D60).** `747293f` made confirm mode take the listed entries after the
+  passes, in discover's order, revising D8 without the owner; with the gate's listed set being discover's
+  own output, confirm then replayed discover step for step and `g2.confirm-equals-discover` held by
+  construction (0 unlisted on every ROM). It is reverted: D8 stands (a listed entry that is not a label is
+  a function from round 0). The gate fails on tmc, on six functions of hand-written code with several
+  entries (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C; one, 0x08004274, already
+  at `d645160`), and passes on the five other tuning ROMs. A fresh reading at take time (dropping the
+  epoch's candidate reading) removes two of the six (0x08004274, 0x080043AC) and changes epoch semantics
+  (§4.2); D8's `resettle` stage, re-reading under the final function set, would make every entry inside
+  another found extent a boundary of the function around it (34 such entries on tmc, 7 to 9 on each other
+  tuning ROM: the startup piece and the m4a mixer's inner entries). Which remedy, if any, is the owner's
+  (phase-2.md, "Owner questions").
+- (l) **The pinned PoC measures tmc too** (fix round 1 of D60, replacing the exemption of `72e6049`, under
+  which the `scaffold` family was not asked of tmc and its PoC floors were a vacuous 0). The pinned PoC's
+  results never covered tmc, but its code runs on it: `export-poc --mode scored` gives the child romlift's
+  dataset (name, ROM, ELF, SHA-1 and lists) for a ROM the PoC checkout has no file of, never writing into
+  the checkout. Measured at the pinned PoC source: 8,591 functions, tp 8,582, 54 misses, extents 8,388 /
+  8,388, deterministic, and its scaffold rebuilds tmc's SHA-1 (scaffold OK). So the `scaffold` family runs
+  on tmc like on the five; `bench poc-check` checks tmc's dump (romlift's rescoring equals the PoC's own
+  row of it, scaffold, determinism, pinned source; `baselineRow` false, no baseline row to compare); and
+  `bench run` takes that row as tmc's PoC reference (`poc.source` `dump`): `g2.entries`' floor (tp 8,582),
+  `g2.extents`' `lost` and `g2.baseline-rows`' diffs are measured, not vacuous, and a tuning ROM with no
+  reference at all (`poc.source` `none`) fails those gates. Fix round 2 (gate-honesty-r1-5, code-quality-r1-4)
+  pins that reference by content, as the baseline pins the five: `bench/baseline/poc-dump-rows.json` holds,
+  per revealed ROM, the digest of the dataset romlift handed the PoC and the digest of the PoC's row
+  (tmc: tp 8,582); the dump records the dataset digest it was made on; `bench run` and `bench poc-check`
+  refuse a dump made on another dataset or whose row's digest is not the pinned one, and `export-poc
+  --mode scored` checks a fresh dump against the file, rewriting it only with `--pin` (the Git diff is the
+  review). `bench poc-check` now prints tmc's PoC row as equal to the pinned one, not n/a. The parity and queries modes, and
+  `g2.poc-parity`, still cover the five: their evidence is the M1 lockstep at a commit that predates tmc's
+  reveal, and `g2.poc-parity` fails on tmc at `landed` 1 (phase-2.md, "Owner questions").
+- (m) **`bench/baseline/speed.json` holds tmc**, measured in the baseline's calibration.
+- (n) **tmc's improvements over the PoC's own run are accepted diffs** (fix round 1): 49 misses removed
+  and 2 false entries removed, each with its commit and reason in `bench/baseline/accepted-diffs.json`.
+  The other 8 differences (7 false entries the PoC did not have, one miss whose reason changed) are not
+  improvements and cannot be accepted, so `g2.baseline-rows` fails on tmc (phase-2.md, "Owner questions").
+
+**Consequences.** tmc at `d645160` (sealed): 8,589 entries for 8,636 ELF functions, tp 8,582, recall
+99.37%, 51 glued, 3 label candidates, 8 false entries, code end −4,130. After (a) to (n) and fix round 2:
+8,643 entries, tp 8,631, precision 99.86%, recall 99.94%, 5 misses (`labels`), 12 false entries
+(`untyped`), extents 8,388/8,388, code end +148 under the convention of phase 1 (romlift's code end is
+where the unsized last function's instructions stop, the convention ends it where it starts; Q5). The pinned PoC's own run of tmc: tp 8,582, 54
+misses, 7 false entries, extents 8,388/8,388, scaffold OK, pinned by content in
+`bench/baseline/poc-dump-rows.json`. On fe7j, klonoa, pokeemerald, sa2 and sa3 every bench row is
+unchanged (entries, true positives, misses, false entries with their origins, extents, code end: klonoa
++4, fe7j +8); analysis digests move only through (c) (two rejections on pokeemerald) and (h) (origins).
+pokefirered and pokeruby still pass sealed with unchanged counts. 59 rules, 45 fixtures. Known
+limitation: tmc's `arm_sub_080B1FE4`, a two-instruction ARM leaf after an ARM function, is read as Thumb
+(the ARM gap scan needs three instructions; the bench scores addresses, not modes). Gates the decision
+does not cover, each an owner question of phase-2.md: `g2.poc-parity` (no M1 evidence for tmc; Q1),
+`g2.baseline-rows` (8 rows tmc has and the PoC's run of it does not; Q2), `g2.confirm-equals-discover`
+(6 functions on tmc; Q3), `g2.held-out`'s two-families condition (Q4), `g2.code-end` on tmc (+148; Q5);
+phase 2 does not land until the owner answers them. (Answered on 18 October 2026: D61.)
+
+**Rejected.** A per-dataset `codeEnd` row (`80762ff`; a switch only tmc carried, replaced by (j)).
+Confirm mode taking the listed entries after the passes (`747293f`; it made the gate hold by
+construction, replaced by D8 again, (k)). Not asking the `scaffold` family of tmc, and a vacuous PoC floor
+for it (`72e6049`; replaced by the PoC's own run of tmc, (l)). Narrowing the roadmap's PoC thresholds to
+the five ROMs (`28b9005`; not authorised; the thresholds apply to all six). Raising `phase.json` while
+`g2.poc-parity` fails on tmc at `landed` 1 (`808513f`; it froze a fail). Mapping a pointer equal to the
+copy's destination (measured at fix round 2, with `code-copied-to-ram`'s end-pointer copy recognised: it
+adds a false entry there, the load image of a routine the ELF types only at its IWRAM address, and moves
+no bench row on the tuning ROMs; mapping a block from its start is phase 6's `runs_at`). Trusting every
+mapped pointer (the measured prototype: second entries accepted before their heads, three Thumb readings
+of ARM code at 0x080B19CC..0x080B19D4). Declining a mapped entry whose previous `b` jumps into its own
+straight line, or whose straight line falls into code a lower entry holds (measured in fix round 1: the
+gap scan then finds 0x080B1AA8 and 0x080B1B0C in Thumb mode, the wrong mode, with the same counts).
+Requiring two calls in (h) (its measured false-acceptance rate is 0 of 967). Pre-settling every listed
+seed in confirm mode (10 differences on tmc), and deferring the listed seeds while keeping them functions
+from round 0 (11 differences).
+
+
+## D61. The owner's answers of 18 October 2026 to the phase-2 owner questions
+
+**Context.** Fix rounds 1 and 2 of D60 withdrew every gate change the owner had not authorised, and left
+five owner questions (phase-2.md, "Owner questions", Q1 to Q5): four gates failed on tmc and `g2.held-out`
+on its two-families condition. On 18 October 2026 the owner, Bruno Macabeus, answered them. His words,
+verbatim, and the meaning applied:
+
+- **Q1 and Q2** (`g2.poc-parity` and `g2.baseline-rows` on tmc): **"Keep tmc as 99.94%. It's a benchmark
+  row that we can improve later"**. Meaning applied: tmc is a benchmark row at its current numbers, not
+  held to the PoC-comparison gates. `g2.poc-parity` is scoped to the five ROMs of the M1 evidence and
+  prints "tmc: not applicable, no M1 lockstep run"; `g2.baseline-rows` accepts tmc's rows that are listed
+  with a category (the PoC never ran tmc when it was pinned), and tmc's current row (tp 8,631, recall
+  99.94%) is the baseline later work must not regress. The five original ROMs stay exactly as strict.
+- **Q3** (`g2.confirm-equals-discover` on tmc), the option chosen: **"Build resettle, else accept"**. D8's
+  `resettle` stage is built as the architecture designs it; if it changes any row, extent or code end on
+  the other tuning ROMs or the sealed pair, it is reverted and the 6 tmc differences are recorded as a
+  known phase-2 limitation that the gate reports explicitly (not a silent pass), scoped to tmc only.
+- **Q4** (`g2.held-out`'s family conditions), the option chosen: **"Waive both"**. Both family conditions
+  are waived with these grounds; pokefirered and pokeruby must still pass sealed, and the gate prints the
+  waiver.
+- **Q5** (the code-end convention), the option chosen: **"Use $d for every ROM"**. Meaning given: the ELF's
+  code end ends an unsized function at the next `$d` mapping symbol (or typed symbol), for every ROM,
+  tuning and sealed, in every scorer; record the before/after per ROM (tmc +148 → 0, klonoa +4 → 0, fe7j
+  +8 → 0, others 0). (Fix round 1 of D61 restored "in every scorer", which this record had dropped,
+  gate-honesty-r0-3. It kept one scorer on the PoC's convention and asked the owner about it as Q7 of
+  phase-2.md; fix round 2 of D61 withdrew that reading and the question, because the meaning given
+  already answers it: "in every scorer" covers the rescoring of the PoC's dumps too, (a).)
+- **Q6** (`g2.confirm-equals-discover` on two more tmc functions, asked in fix round 3 of D60 and kept open
+  through fix rounds 1 and 2 of D61), answered by the owner on 18 October 2026, the option chosen: **"Yes,
+  cover all 8"**. Meaning given: the known limitation of `g2.confirm-equals-discover` on tmc (e) also covers
+  0x080B255C and 0x080B2874: pin their discover and confirm records and the three claim runs
+  (0x080B2874..0x080B289C, 0x080B2874..0x080B299C, 0x080B289C..0x080B299C) by content in
+  `KNOWN_DIFFERENCES.tmc` next to the six, as measured at HEAD, printed like the six. This is the only gate
+  change the answer authorises; (g).
+
+These are the only gate changes the answers authorise; no other gate, threshold or check is weakened,
+skipped or removed.
+
+**Decision.**
+
+- (a) **Q5, the code end** (`bench/src/truth.ts` `elfCodeEnd`). An unsized function (hand-written asm
+  without `.size`) ends at the data mapping symbol (`$d`, `$d.*`) or typed symbol (FUNC with the Thumb bit
+  cleared, OBJECT, SECTION) that closes its last code run: the first one after the last code mapping
+  symbol (`$t`, `$a`, numbered or not) that precedes the next typed symbol, or after the function's start
+  when there is none. A sized one ends at addr + size. One convention for every ROM, tuning and sealed, in
+  every scorer: the tuning scorer (`score.ts` `scoreAnalysis`), the sealed scorer (`seal.ts` through
+  `analysis-run.ts`) and, since fix round 2 of D61, the rescoring of the PoC's own dumps (`score.ts`
+  `scoreRun`: `bench poc-check`, `g1.bench-harness`). Measured (`bench run`, against `8fba183`): tmc +148 →
+  0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3, pokefirered and pokeruby 0 → 0; no other count and
+  no analysis digest moves.
+
+  *Fix round 2 of D61.* (i) Q7 is withdrawn: fix round 1 had kept the PoC-dump rescoring on the PoC's
+  convention (`pocCodeEnd`) and called it an interpretation, but the meaning given with the answer says "in
+  every scorer", which already decides it (gate-honesty-r1-1, overfitting-correctness-r1-4,
+  code-quality-r1-2). Fix round 1's text also said no gate depended on it; that was wrong: the exception is
+  what kept `g1.bench-harness` passing without a re-pin. (ii) The PoC's rows (`bench/baseline/
+  poc-2026-10-16.json`; the PoC's own row of tmc, pinned by digest in `poc-dump-rows.json`) are the PoC's
+  output, pinned by content (D50), and the PoC's fresh run reproduces them, so they are not rewritten.
+  `bench poc-check` compares the rescored row, now under `$d`, with each reference as the scorer measures
+  it (`poc-check.ts` `asScored`: `codeEnd.elf` the `$d` end, the delta recomputed from the reference's own
+  found end, every other field as it is), and checks separately that the reference's `codeEnd.elf` and
+  delta are the PoC's convention's on that ELF (`pocCodeEnd`, now read only there), so the harness still
+  reproduces the PoC's numbers under the PoC's ruler. The two together are the old field-for-field
+  comparison; nothing is excluded. Measured: `bench poc-check` exits 0 on the six; the rescored PoC rows'
+  code end fe7j +8 → 0, klonoa +4 → 0, pokeemerald, sa2, sa3 0; tmc's PoC row (found 0x080B197A) −4,130 →
+  −4,278. romlift's own rows do not move. (iii) The end is the `$d` that closes the last code run rather
+  than the first `$d` (overfitting-correctness-r1-2): hand-written asm often puts an inline pool
+  mid-function and resumes code (1,557 of fe7j's 6,265 unsized FUNCs, sa3 193 of 387, tmc 5 of 249,
+  klonoa 1 of 77, measured by the reviewer), so the first `$d` is not where the assembler stopped emitting
+  the function's instructions. No ROM's maximum moves (fe7j 0x080C0C50, klonoa 0x08051BD4, pokeemerald
+  0x082E952E, sa2 0x080979F6, sa3 0x080CE438, tmc 0x080B2A30, pokefirered and pokeruby code end 0). Unit
+  cases: `$t, $d, $t, $d`; a code mapping symbol past the next typed symbol; a sized function ending past
+  an unsized later one decides (gate-honesty-r1-2, the case `3f7898f` had deleted). The fixture
+  `code-end-unsized-last` now has an untyped pool between the unsized function and the OBJECT, so the
+  `$d` (0x08000108), the next typed symbol (0x08000110) and addr + size (0x08000100) differ
+  (overfitting-correctness-r1-3).
+- (b) **Q4, the family conditions of `g2.held-out`** (`test/gates/held-out-verdict.ts` `FAMILY_WAIVER`). The
+  waiver's `grounds.twoFamilies` holds the answer ("Waive both"), so both family conditions are waived and
+  printed (`WAIVED: …`) with their grounds, each with its own date and decision (fix round 1 of D61,
+  gate-honesty-r0-4: the two-families condition prints 2026-10-18 and D61 b, the fresh-family condition
+  2026-10-17 and D60; the unused `pending` field is gone); its binding (the sealed pokefirered and pokeruby by name, ROM
+  SHA-1 and ELF SHA-256, and the tuning families of D60) is unchanged, and the count of passing sealed ROMs
+  (at least two) and every per-ROM threshold still decide. Measured: `g2.held-out` passes, pokefirered and
+  pokeruby pass sealed with unchanged counts.
+- (c) **Q1, `g2.poc-parity`** (`test/gates/poc-parity-check.ts`). `SCOPED_OUT` holds tmc with the owner's
+  words; the gate judges the five ROMs of the M1 evidence exactly as before (parity digest, rows, every
+  lockstep set, the commit an ancestor of HEAD, the pinned PoC source) and prints "tmc: not applicable, no
+  M1 lockstep run". With the review of `8fba183` (gate-honesty-r2-1) the gate's check once frozen is its own
+  check (`parityCheck`), not a coverage test, so once `phase.json` is raised it is `historical` only when
+  that check passes on its scope. Since fix round 1 of D61 (code-quality-r0-6) there is no separate
+  `historicalCheck`: the harness runs every gate's `run` once frozen and records `historical` when it
+  returns, `fail` when it throws (`gate.ts` `gateStep`); `test/unit/gates/gate.test.ts` runs the harness
+  at `landed` 2 on a gate whose run throws (`fail`) and one whose run returns (`historical`). A
+  scoped-out name that is no tuning dataset fails as stale.
+- (d) **Q2, `g2.baseline-rows`** (`test/gates/baseline-rows-verdict.ts`). `BENCHMARK_ROWS` holds tmc with the
+  owner's words and its floor, tp 8,631 of 8,636 ELF functions (recall 99.94%). For tmc (its PoC reference
+  the pinned PoC's own run, `poc.source` `dump`) an unaccepted row of the kinds a dataset row carries (a
+  miss added or changed, a false entry added or changed) passes when the run's row lists it with a category,
+  and the gate prints each such row with its category; any other unaccepted row (an extent change, an
+  unlisted or uncategorised row) and any stale accepted diff still fail, and tp or recall below the floor
+  fails. Every other ROM, and any revealed ROM the owner did not name, is judged exactly as before. Measured:
+  tmc's 8 rows (0x08008B2E `unreached-tail`; 0x080B197C, 0x080B1AA8, 0x080B1B0C, 0x080B21B0
+  `pointer-entry`; 0x080B20AC `split-after-returning-call`; 0x080B2718, 0x080B27E4 `local-subroutine`) are
+  accepted as listed, 51 improvements as before, tp 8,631 at the floor; the five unchanged. The roadmap's
+  narrowing of `28b9005` (D60, Rejected) stays rejected for every ROM but tmc.
+- (e) **Q3, `g2.confirm-equals-discover`.** D8's `resettle` stage was built (`f287b0d`: after the passes, in
+  both modes, every accepted function read again under the final function set, its own claims released
+  while it is read, until no reading changes, then every reading claimed again) and measured: it cuts the
+  cartridge entry's extent at the startup piece on every ROM (the startup region shrinks to one 4-byte
+  piece, the startup pieces become unlisted false entries: fe7j 0x080000C0 and 0x080001F8, pokeemerald
+  0x08000204, 0x08000248 and 0x08000374, sa2, sa3 and tmc 0x080000C0), changes the m4a mixer's extents on
+  pokeemerald, sa2 and sa3, moves the sealed pair's counts (entries 12,395 → 12,398 and 11,461 → 11,464),
+  makes the gate fail on klonoa, pokeemerald, sa2 and sa3, and leaves tmc's 0x080042BA different; `bench
+  regression` against the commit before it: 8 failures. By the owner's condition it is reverted
+  (`af0f75c`). tmc's six differences of Q3 (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790,
+  0x080B1A8C) are a known phase-2 limitation: `test/gates/confirm-differences.ts` compares the two views in
+  full (every differing function and claim run, not the first). Since fix round 1 of D61
+  (gate-honesty-r0-1) the limitation is pinned by content: `KNOWN_DIFFERENCES.tmc` holds each of the six
+  functions' discover and confirm records (mode, extent, far verdicts) and the one differing claim run
+  (0x080087D2..0x08008886, owned by 0x08008790 in discover, unowned in confirm), as measured at `9c8b282`
+  (identical at `95b257b^` and `5e18731`), and the gate accepts tmc only when its differences equal those
+  records exactly, printing them as `KNOWN LIMITATION: …` every run. A known function whose record changed
+  or that vanished from a view fails as a changed limitation; any other differing function or claim run
+  fails wherever it lies; a known difference gone, all six included (the gate judges every ROM, equal
+  digests or not; gate-honesty-r0-2), and a record whose ROM is not a tuning dataset fail as stale; every
+  other ROM must have no difference. Since fix round 2 of D61 (code-quality-r1-5) every failure message
+  gives the count and the first four records of each list (uncovered functions, changed functions,
+  extra and changed claim runs). **Measured: tmc has eight differing functions at HEAD, not six.** Q3's count was
+  taken at `9c8b282`; `95b257b` (fix round 2 of D60, the pool boundary of `seed.ram-copy`) moved two more,
+  0x080B255C (discover ends it at 0x080B299C, confirm at 0x080B280C) and 0x080B2874 (0x080B289C against
+  0x080B299C), the same class (two ARM entries proposed by one worklist, read in ascending order, the
+  lower one's reading running over the higher). The owner's answer names six, so the two are not covered:
+  the gate fails on them, printing why (that text for these two addresses only; any other extra function
+  is printed as "not covered by D61 e"), and they are owner question Q6 of phase-2.md, answered in (g).
+- (f) **The binding of the tmc scopings** (fix round 1 of D61, overfitting-correctness-r0-4). (c), (d) and
+  (e) were keyed by the dataset name alone. Each now holds the ROM SHA-1 and ELF SHA-256 the answers were
+  given on (`test/gates/dataset-binding.ts` `TMC_AT_D61`: `b4bd50e4…`, `7d27e8d9…`), as (b) holds the
+  sealed pair; for a dataset of that name with another ROM or ELF the scoping is stale, fails, and the ROM
+  is judged as without it until the owner decides anew. Since fix round 2 of D61 (code-quality-r1-4) the
+  three are checked alike for staleness: a `SCOPED_OUT`, `KNOWN_DIFFERENCES` or `BENCHMARK_ROWS` record
+  whose ROM is not a tuning dataset fails, and so does a `BENCHMARK_ROWS` record whose ROM's PoC
+  reference is not the pinned PoC's own run of it (`staleBenchmarkRows`), which the verdict ignored
+  before. One identity type (`DatasetIdentity`) and one order (`test/gates/order.ts` `byCodeUnit`) serve the
+  three; `test/unit/gates/dataset-binding.test.ts` pins `TMC_AT_D61` to `bench/dataset/real/tmc.json` and
+  tests `bindingMismatch` (code-quality-r1-6, r1-7).
+- (g) **Q6, two more tmc functions** (`test/gates/confirm-differences.ts`). By the answer ("Yes, cover all
+  8") `KNOWN_DIFFERENCES.tmc` holds, next to the six of Q3 and their claim run, the records of 0x080B255C
+  (discover arm 0x080B255C..0x080B299C, confirm arm 0x080B255C..0x080B280C) and 0x080B2874 (discover arm
+  0x080B2874..0x080B289C, confirm arm 0x080B2874..0x080B299C), no far verdicts in either, and the three claim
+  runs: 0x080B2874..0x080B289C (kind 1, owner 0x080B2874, discover only), 0x080B2874..0x080B299C (kind 1,
+  owner 0x080B2874, confirm only) and 0x080B289C..0x080B299C (kind 1, owner 0x080B255C, discover only), as
+  measured at `51ea4ee`. The gate prints the eight and four claim runs as `KNOWN LIMITATION` every run, and
+  everything (e) and (f) say holds for the two as for the six: exact records, any other difference fails
+  wherever it lies, a gone or changed record fails, the binding to `TMC_AT_D61`. The `notCovered` text that
+  printed the Q6 reason is gone with the question. `test/unit/gates/confirm-differences.test.ts` pins the
+  eight and the four, and a ninth differing function (an ARM entry between the two of Q6) still fails as
+  "not covered by D61 e".
+
+**Consequences.** Measured at `8c60bf5` (phase-2.md, "The closing gate"): the six tuning rows keep
+`8fba183`'s counts and analysis digests, every code end is 0, pokefirered and pokeruby pass sealed with
+unchanged counts, and every g1 and g2 gate passes but `g2.confirm-equals-discover`, which fails on two tmc
+functions beyond the six of Q3 (owner question Q6). With `phase.json` raised to 2 (`e1c3f64`) that gate
+also fails `g1.provenance` and `bench provenance`, so `phase.json` is back at 1 and phase 2 does not land.
+Nothing beyond the five answers is waived. After fix round 1 of D61, measured at `2c96faa`: the same rows,
+counts and analysis digests, every closing command exits 0 but the real tier, which fails on that gate alone
+(tmc's 0x080B255C and 0x080B2874, Q6), with the six of Q3 matching their pinned records. Fix round 2 of
+D61 withdrew Q7 (the meaning given with Q5 answers it, (a)) and applied `$d` to the PoC-dump rescoring.
+The owner's answer to Q6 ("Yes, cover all 8", (g)) is the last gate change of phase 2; the closing
+measurements and the landing are in phase-2.md, "The closing gate".
 
 ---
 

@@ -1,0 +1,11 @@
+{
+  "pocSourceDigest": "86776e78148c08a547aa55990f5f0f2f5b06f5dc4e807f06d760b73d20c79345",
+  "roms": {
+    "tmc": {
+      "datasetDigest": "9d840f51d5cda239451b1aa3faadee12e2a37243a4639aa0ccf8159efd99e853",
+      "rowDigest": "cbce3136f794b40d6c0ffbc9a31dbbe5b20be9474a25bac2215ca0057dc6d8cb",
+      "tp": 8582
+    }
+  },
+  "schema": "romlift-bench/poc-dump-rows@1"
+}

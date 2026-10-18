@@ -1,6 +1,8 @@
 // g2.synthetic-analysis (architecture §8.1, §13): every committed fixture's expect.json holds: each
 // expected entry is found with its mode and, where given, its extent; the code end matches; a negative
-// fixture gets zero entries beyond the expected ones.
+// fixture gets zero entries beyond the expected ones. As on every dataset (§8.4, milestone M5), entries
+// are counted from the end of the startup region: the cartridge entry and the startup code of the
+// shared crt0.s are the startup region, not entries a fixture expects.
 //
 // Calls the phase-2 API as frozen in architecture §3.3: romFromBytes(bytes, sha1), sha1Of(bytes),
 // profileById('agbcc'), analyze(rom, profile, {mode: 'discover', seeds: [], overrides: [], trail: 'off'}).
@@ -31,6 +33,7 @@ interface FunctionFact {
 interface AnalysisResult {
   readonly functions: readonly FunctionFact[];
   readonly codeEnd: number;
+  readonly startup: { readonly span: { readonly start: number; readonly end: number } };
 }
 
 interface Rom {
@@ -95,11 +98,13 @@ gate({
       }
       if (expect.negative === true) {
         negatives++;
-        const extra = result.functions.filter((f) => !expected.has(f.entry)).map((f) => hex(f.entry));
+        const extra = result.functions.filter((f) => f.entry >= result.startup.span.end && !expected.has(f.entry)).map((f) => hex(f.entry));
         if (extra.length > 0) problems.push(`${fixture.name} (negative): ${extra.length} extra entries ${extra.slice(0, 8).join(', ')}`);
       }
     }
     if (problems.length > 0) throw new Error(`fixture expectations fail: ${problems.join('; ')}`);
-    cx.note(`${cx.fixtures.length} fixtures hold their expect.json (${negatives} negative)`);
+    // `negative` is the flag that forbids extra entries; every committed fixture sets it (bench/dataset/synthetic/index.md,
+    // "Exhaustive"), so the note says how many allow none, not how many are negative fixtures in the §8.1 sense.
+    cx.note(`${cx.fixtures.length} fixtures hold their expect.json, no extra entries allowed in ${negatives}`);
   },
 });

@@ -31,6 +31,7 @@ export const ORIGINS = {
   'gap-scan': 'unreferenced Thumb code between functions',
   'arm-gap-scan': 'unreferenced ARM code between functions',
   'tiled-hole': 'the reading that fills a gap exactly',
+  'ram-copy': 'code copied to IWRAM, at the load address of a RAM pointer accepted code jumps through',
   listed: 'listed in the project TOML',
   override: 'an override in the project TOML',
   evidence: 'an external fact: a trace, an ELF, a map or a legacy cfg',

@@ -1,0 +1,79 @@
+0x0800017C
+  claim: code
+  owner: 0x0800017C (origin call)
+  provenance:
+    seed.call round 0 cites 0x08000106
+  proposals (5):
+    0x08000120 seed.call round 0 cites 0x080000F6: thumb
+    0x08000134 seed.call round 0 cites 0x080000FA: thumb
+    0x08000154 seed.call round 0 cites 0x080000FE: thumb
+    0x08000168 seed.call round 0 cites 0x08000102: thumb
+    0x0800017C seed.call round 0 cites 0x08000106: thumb
+  accepts (5):
+    0x08000120 seed.call round 0 cites 0x080000F6
+    0x08000134 seed.call round 0 cites 0x080000FA
+    0x08000154 seed.call round 0 cites 0x080000FE
+    0x08000168 seed.call round 0 cites 0x08000102
+    0x0800017C seed.call round 0 cites 0x08000106
+  rejections (15):
+    0x08000110 valid.calls-code round 2 cites 0x08000110: calls-non-code: calls 0x0800011A, which is not code
+    0x08000118 valid.balanced-stack round 2 cites 0x08000118: pops-frame: a return path pops more than it pushed
+    0x08000114 valid.balanced-stack round 2 cites 0x08000114: pops-frame: a return path pops more than it pushed
+    0x08000128 valid.decodes round 2 cites 0x08000128: decode-error: decode error not-code at 0x0800012A
+    0x08000130 valid.decodes round 2 cites 0x08000130: decode-error: decodes to nothing
+    0x0800012C valid.balanced-stack round 2 cites 0x0800012C: pops-frame: a return path pops more than it pushed
+    0x0800015C valid.pool-not-code round 2 cites 0x0800015C: pool-claimed: its pool at 0x0800017C is claimed code
+    0x08000164 valid.decodes round 2 cites 0x08000164: decode-error: decodes to nothing
+    0x08000160 valid.balanced-stack round 2 cites 0x08000160: pops-frame: a return path pops more than it pushed
+    0x08000170 valid.decodes round 2 cites 0x08000170: decode-error: decodes to nothing
+    0x08000178 valid.balanced-stack round 2 cites 0x08000178: pops-frame: a return path pops more than it pushed
+    0x08000174 valid.balanced-stack round 2 cites 0x08000174: pops-frame: a return path pops more than it pushed
+    0x08000110 valid.calls-code round 4 cites 0x08000110: calls-non-code: calls 0x0800011A, which is not code
+    0x0800013C valid.dense round 4 cites 0x0800013C: not-dense: not dense: holes inside its extent (14 bytes in 20)
+    0x08000150 valid.decodes round 4 cites 0x08000150: decode-error: decodes to nothing
+  verdicts (8):
+    0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000120: call
+    0x080000FA bl.near-is-call round 0 cites 0x080000FA, 0x08000134: call
+    0x080000FE bl.near-is-call round 0 cites 0x080000FE, 0x08000154: call
+    0x08000102 bl.near-is-call round 0 cites 0x08000102, 0x08000168: call
+    0x08000106 bl.near-is-call round 0 cites 0x08000106, 0x0800017C: call
+    0x08000114 bl.near-is-call round 2 cites 0x08000114, 0x0800011A: call
+    0x08000114 bl.near-is-call round 2 cites 0x08000114, 0x0800011A: call
+    0x08000114 bl.near-is-call round 4 cites 0x08000114, 0x0800011A: call
+  waits (1):
+    0x0800013C gap.tiled-hole round 2 cites 0x0800013C, 0x08000150: no proposer takes it yet: its end is not anchored
+  claims (5):
+    0x08000120 claim.dead-code-in-extent round 0 cites 0x08000120: 1 edits
+    0x08000134 claim.dead-code-in-extent round 0 cites 0x08000134: 1 edits
+    0x08000154 claim.dead-code-in-extent round 0 cites 0x08000154: 1 edits
+    0x08000168 claim.dead-code-in-extent round 0 cites 0x08000168: 1 edits
+    0x0800017C claim.dead-code-in-extent round 0 cites 0x0800017C: 1 edits
+  rules (9):
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    gap.tiled-hole: a gap's head reads as a function failing at most density or stack balance, with at least gapScan.minInsns instructions, its code inside the gap
+      rests on: hand-written mixers keep ARM blocks and tables inside a Thumb function, so their extent has holes and their paths may not balance the stack
+      recovers: SoundMainRAM and other mixers on all five tuning ROMs
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    valid.balanced-stack: no return path pops more than the function pushed
+      rests on: a compiled function returns with the stack it was entered with
+      recovers: entries in the middle of a function, after its push, and data decoded as code
+    valid.calls-code: every Thumb callee that is not a function could be code
+      rests on: a compiled function calls only code
+      recovers: data decoded as code whose bl pairs point into pools, tables, blank or undecodable bytes
+    valid.decodes: the walk from the entry decodes at least one instruction and hits no decode error
+      rests on: every path of a compiled function decodes until it returns or jumps away
+      recovers: data and text decoded as code
+    valid.dense: holes inside the extent stay within max(minHoles, extent >> holeShift)
+      rests on: a compiled function is one contiguous run of code, pools and tables
+      recovers: data decoded as code, whose walk skips over bytes it never reaches
+    valid.pool-not-code: no literal-pool word the reading loads is claimed as code
+      rests on: agbcc keeps literal pools out of the instruction stream
+      recovers: readings whose pc-relative loads point into accepted code
+explain: ok (exit 0)

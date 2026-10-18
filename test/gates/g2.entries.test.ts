@@ -10,11 +10,13 @@
 //     name
 //     entries          entries found, counted from the end of the startup region
 //     tp               entries that are ELF FUNC symbols (raw, before the exception lists)
-//     poc: {tp}        the PoC baseline's true positives (bench/baseline/poc-2026-10-16.json)
+//     poc: {tp, source} the PoC's true positives and where they come from: 'baseline' (bench/baseline/
+//                      poc-2026-10-16.json), 'dump' (the pinned PoC's own run of a ROM revealed after the
+//                      baseline was pinned, D60), 'none' (no PoC reference: the gate fails, never a vacuous 0)
 //     misses:          [{addr, reason, listed}]   listed: the row is in the dataset's `labels`
 //     falseEntries:    [{addr, origin, listed}]   listed: the row is in the dataset's `untyped`
 //     staleExceptions: [{list, addr}]             `labels`/`untyped` rows this run no longer needs
-import { gate, type ExecResult } from './gate.ts';
+import { gate, noPocReference, type ExecResult } from './gate.ts';
 
 interface Miss {
   readonly addr: string;
@@ -32,7 +34,7 @@ interface BenchRunRom {
   readonly name: string;
   readonly entries: number;
   readonly tp: number;
-  readonly poc: { readonly tp: number };
+  readonly poc: { readonly tp: number; readonly source?: 'baseline' | 'dump' | 'none' };
   readonly misses: readonly Miss[];
   readonly falseEntries: readonly FalseEntry[];
   readonly staleExceptions: readonly { readonly list: string; readonly addr: string }[];
@@ -86,13 +88,15 @@ gate({
       }
       const precision = rom.entries === 0 ? 0 : rom.tp / rom.entries;
       if (precision < MIN_PRECISION) problems.push(`${rom.name}: raw precision ${percent(precision)} (${rom.tp}/${rom.entries}) < 99.70%`);
-      if (rom.tp < rom.poc.tp) problems.push(`${rom.name}: ${rom.tp} true positives, fewer than the PoC's ${rom.poc.tp}`);
+      const missing = noPocReference(rom);
+      if (missing !== undefined) problems.push(missing);
+      else if (rom.tp < rom.poc.tp) problems.push(`${rom.name}: ${rom.tp} true positives, fewer than the PoC's ${rom.poc.tp}`);
       const unlistedMisses = rom.misses.filter((m) => !m.listed);
       if (unlistedMisses.length > 0) problems.push(`${rom.name}: misses not in labels: ${unlistedMisses.slice(0, 8).map((m) => `${m.addr} (${m.reason})`).join(', ')}`);
       const unlistedFalse = rom.falseEntries.filter((f) => !f.listed);
       if (unlistedFalse.length > 0) problems.push(`${rom.name}: false entries not in untyped: ${unlistedFalse.slice(0, 8).map((f) => `${f.addr} (${f.origin})`).join(', ')}`);
       if (rom.staleExceptions.length > 0) problems.push(`${rom.name}: stale-exception rows: ${rom.staleExceptions.slice(0, 8).map((s) => `${s.list} ${s.addr}`).join(', ')}`);
-      notes.push(`${rom.name} precision ${percent(precision)}, tp ${rom.tp} (PoC ${rom.poc.tp}), ${rom.misses.length} misses, ${rom.falseEntries.length} false`);
+      notes.push(`${rom.name} precision ${percent(precision)}, tp ${rom.tp} (PoC ${rom.poc.tp}${rom.poc.source === 'dump' ? ", the PoC's own run: no pinned baseline row" : ''}), ${rom.misses.length} misses, ${rom.falseEntries.length} false`);
     }
     if (problems.length > 0) throw new Error(`entries: ${problems.join('; ')}`);
     cx.note(notes.join('; '));

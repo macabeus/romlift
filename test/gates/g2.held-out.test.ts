@@ -5,14 +5,27 @@
 // tuning set. Only counts and verdicts are read and printed: never an address or a name, and never the
 // bench's raw output.
 //
+// The owner's decision of 17 October 2026 (Bruno Macabeus, architecture §12 item 4, D60), "Tune on tmc, no
+// new ROM", moved tmc, the only sealed ROM of a family absent from the tuning set, into the tuning set, and
+// records the gate as having no held-out ROM of such a family: that waives the fresh-family condition. The
+// owner's answer to Q4 of phase-2.md on 18 October 2026 (D61), the option chosen: "Waive both", waives the
+// two-families condition too, with those words as its grounds. The verdict is held-out-verdict.ts's
+// heldOutVerdict, the unit-tested function: the waiver is bound to the sealed datasets (name, ROM SHA-1,
+// ELF SHA-256) and the tuning families it was decided on, and any change to either ends it. It is printed
+// in the gate's note every time it applies, with its grounds, and it never covers a per-ROM threshold or the
+// count of passing ROMs (at least two).
+//
 // Expected output, for the phase-2 lead to align (architecture §8.5):
 //   npm run bench -- run --only <sealed dataset> --json   exit 0; the last stdout line is romlift/bench-run@1
 //   whose `sealed[]` holds one entry of counts for that dataset:
-//     {name, entries, elfFunctions, tp, glued, labelCandidates,
-//      falseEntries: {startup, veneer, adrCallback, insideElfFunction},
+//     {name, entries, elfFunctions, tp, glued, gluedWhere: {insideExtent, outsideExtents, pastCodeEnd},
+//      labelCandidates, falseEntries: {startup, veneer, adrCallback, insideElfFunction, other},
 //      extents: {sized, agree}, codeEnd: {delta}}
+//   gluedWhere splits the glued misses (inside a found extent: a glued split; in no extent or past the code
+//   end: code the run never reached) and is printed, never judged: zero glued is the threshold.
 //   entries and elfFunctions are counted from the end of the startup region, startup entries excluded.
 import { gate, type DatasetRef, type GateContext } from './gate.ts';
+import { FAMILY_WAIVER, heldOutVerdict, type SealedResult } from './held-out-verdict.ts';
 
 interface SealedCounts {
   readonly name: string;
@@ -20,6 +33,7 @@ interface SealedCounts {
   readonly elfFunctions: number;
   readonly tp: number;
   readonly glued: number;
+  readonly gluedWhere?: { readonly insideExtent: number; readonly outsideExtents: number; readonly pastCodeEnd: number };
   readonly labelCandidates: number;
   readonly falseEntries: Readonly<Record<string, number>>;
   readonly extents: { readonly sized: number; readonly agree: number };
@@ -75,7 +89,9 @@ async function judge(cx: GateContext, dataset: DatasetRef): Promise<{ readonly p
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
     .map((k) => `${k} ${counts.falseEntries[k] ?? 0}`)
     .join(', ');
-  const measured = `precision ${pct(precision)}, recall ${pct(recall)}, glued ${counts.glued}, label candidates ${counts.labelCandidates}, extents ${pct(extents, 3)}, code end ${counts.codeEnd.delta}, false entries ${falseByClass}`;
+  const g = counts.gluedWhere;
+  const where = g === undefined ? '' : ` (inside an extent ${g.insideExtent}, outside every extent ${g.outsideExtents}, past the code end ${g.pastCodeEnd})`;
+  const measured = `precision ${pct(precision)}, recall ${pct(recall)}, glued ${counts.glued}${where}, label candidates ${counts.labelCandidates}, extents ${pct(extents, 3)}, code end ${counts.codeEnd.delta}, false entries ${falseByClass}`;
   const verdict = failures.length === 0 ? 'pass' : `fail (${failures.join('; ')})`;
   return { pass: failures.length === 0, summary: `${dataset.name} [${dataset.family ?? 'no family'}] ${verdict}: ${measured}` };
 }
@@ -88,20 +104,18 @@ gate({
   needs: ['analyze', 'discover'],
   async run(cx) {
     if (cx.sealed.length < 2) throw new Error(`${cx.sealed.length} sealed datasets; the gate needs at least two`);
-    const tuningFamilies = new Set(cx.datasets.map((d) => d.family ?? ''));
-    const passing: DatasetRef[] = [];
+    const tuningFamilies = cx.datasets.map((d) => d.family ?? '');
+    const results: SealedResult[] = [];
     for (const dataset of cx.sealed) {
       const { pass, summary } = await judge(cx, dataset);
       cx.note(summary);
-      if (pass) passing.push(dataset);
+      results.push({ name: dataset.name, family: dataset.family ?? '', pass });
     }
-    const families = [...new Set(passing.map((d) => d.family ?? ''))].filter((f) => f !== '');
-    const fresh = families.filter((f) => !tuningFamilies.has(f));
-    const problems: string[] = [];
-    if (passing.length < 2) problems.push(`${passing.length} of ${cx.sealed.length} sealed ROMs pass, at least two must`);
-    if (families.length < 2) problems.push(`the passing ROMs span ${families.length} codebase families, at least two must`);
-    if (fresh.length === 0) problems.push('no passing ROM is from a family absent from the tuning set');
-    if (problems.length > 0) throw new Error(`held-out: ${problems.join('; ')}`);
-    cx.note(`${passing.length} sealed ROMs pass, families ${families.join(', ')} (absent from tuning: ${fresh.join(', ')})`);
+    const sealed = cx.sealed.map((d) => ({ name: d.name, sha1: d.sha1, elfSha256: d.elfSha256 ?? '' }));
+    const verdict = heldOutVerdict(results, tuningFamilies, { waiver: FAMILY_WAIVER, sealed });
+    if (verdict.waiverRefused !== undefined) cx.note(verdict.waiverRefused);
+    for (const w of verdict.waived ?? []) cx.note(`WAIVED: ${w}`);
+    if (!verdict.pass) throw new Error(`held-out: ${verdict.problems.join('; ')}`);
+    cx.note(`${verdict.passing.length} sealed ROMs pass, families ${verdict.families.join(', ')} (absent from tuning: ${verdict.freshFamilies.length === 0 ? 'none' : verdict.freshFamilies.join(', ')})`);
   },
 });

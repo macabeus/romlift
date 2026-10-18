@@ -1,0 +1,50 @@
+{
+  "negative": true,
+  "entries": [
+    {
+      "addr": "0x08000000",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000C0",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x08000104"
+      }
+    },
+    {
+      "addr": "0x08000104",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000104",
+        "end": "0x08000108"
+      }
+    },
+    {
+      "addr": "0x08000108",
+      "mode": "thumb"
+    },
+    {
+      "addr": "0x0800010C",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x0800010C",
+        "end": "0x08000110"
+      }
+    },
+    {
+      "addr": "0x08000110",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000110",
+        "end": "0x0800011E"
+      }
+    }
+  ],
+  "codeEnd": "0x0800011E"
+}

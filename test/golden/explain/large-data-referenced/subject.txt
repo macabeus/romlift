@@ -1,0 +1,30 @@
+0x08001174
+  claim: code
+  owner: 0x08001174 (origin call)
+  provenance:
+    seed.call round 0 cites 0x080000F6
+  proposals (1):
+    0x08001174 seed.call round 0 cites 0x080000F6: thumb
+  accepts (2):
+    0x08001174 seed.call round 0 cites 0x080000F6
+    0x08000104 accept.prologue-and-end-anchored round 1 cites 0x08000104, 0x08001172: takes the seed.data-pointer candidate
+  rejections: none
+  verdicts (1):
+    0x080000F6 bl.target-pops-unpushed-frame round 0 cites 0x080000F6, 0x08001174: call
+  waits: none
+  claims (1):
+    0x08001174 claim.dead-code-in-extent round 0 cites 0x08001174: 1 edits
+  rules (4):
+    accept.prologue-and-end-anchored: a valid candidate with a prologue whose extent ends at an accepted function is a function
+      rests on: agbcc opens non-leaf functions with push {.., lr}, and the linker lays functions out back to back
+      recovers: data-referenced functions whose neighbour above is already known
+    bl.target-pops-unpushed-frame: a bl whose target, read alone, pops a frame it never pushed is a far jump; otherwise a call
+      rests on: the far tail of an agbcc function ends with the epilogue of the frame its head pushed, so read alone it pops more than it pushes
+      recovers: far tails without a prologue split off as functions, and calls to plain functions misread as jumps
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+explain: ok (exit 0)

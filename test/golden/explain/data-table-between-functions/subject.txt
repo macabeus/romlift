@@ -1,0 +1,65 @@
+0x0800014C
+  claim: code
+  owner: 0x0800014C (origin call)
+  provenance:
+    seed.call round 0 cites 0x08000100
+  proposals (5):
+    0x08000138 seed.call round 0 cites 0x080000FC: thumb
+    0x0800014C seed.call round 0 cites 0x08000100: thumb
+    0x0800011C seed.pool-pointer round 1 cites 0x0800011C: thumb
+    0x08000130 gap.end-anchor round 3 cites 0x08000130, 0x08000138: thumb
+    0x08000148 gap.backward-prologue-chain round 3 cites 0x08000148, 0x0800014C: thumb
+  accepts (6):
+    0x08000138 seed.call round 0 cites 0x080000FC
+    0x0800014C seed.call round 0 cites 0x08000100
+    0x0800011C seed.pool-pointer round 1 cites 0x0800011C: accepted by accept.prologue-and-loaded
+    0x0800011C accept.prologue-and-loaded round 1 cites 0x0800011C: takes the seed.pool-pointer candidate
+    0x08000130 gap.end-anchor round 3 cites 0x08000130, 0x08000138
+    0x08000148 gap.backward-prologue-chain round 3 cites 0x08000148, 0x0800014C
+  rejections (7):
+    0x08000110 valid.returns-or-prologue round 3 cites 0x08000110: no-return-no-prologue: no return and no push {.., lr}
+    0x08000118 valid.returns-or-prologue round 3 cites 0x08000118: no-return-no-prologue: no return and no push {.., lr}
+    0x08000114 valid.returns-or-prologue round 3 cites 0x08000114: no-return-no-prologue: no return and no push {.., lr}
+    0x08000128 valid.decodes round 3 cites 0x08000128: decode-error: decodes to nothing
+    0x0800012C valid.decodes round 3 cites 0x0800012C: decode-error: decodes to nothing
+    0x08000140 valid.decodes round 3 cites 0x08000140: decode-error: decodes to nothing
+    0x08000144 valid.decodes round 3 cites 0x08000144: decode-error: decodes to nothing
+  verdicts (2):
+    0x080000FC bl.near-is-call round 0 cites 0x080000FC, 0x08000138: call
+    0x08000100 bl.near-is-call round 0 cites 0x08000100, 0x0800014C: call
+  waits: none
+  claims (5):
+    0x08000138 claim.dead-code-in-extent round 0 cites 0x08000138: 1 edits
+    0x0800014C claim.dead-code-in-extent round 0 cites 0x0800014C: 1 edits
+    0x0800011C claim.dead-code-in-extent round 1 cites 0x0800011C: 1 edits
+    0x08000130 claim.dead-code-in-extent round 3 cites 0x08000130: 1 edits
+    0x08000148 claim.dead-code-in-extent round 3 cites 0x08000148: 1 edits
+  rules (9):
+    accept.prologue-and-loaded: a valid candidate with a prologue that accepted code loads as a pointer is a function
+      rests on: agbcc opens every non-leaf function with push {.., lr} on a word boundary, and code takes a function address from a pool
+      recovers: callbacks and handlers that accepted code installs by pointer
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    gap.backward-prologue-chain: the highest push {.., lr} below the gap end, within prologueDistance, that is valid and ends within fillSlack of the end
+      rests on: agbcc opens every function that calls with push {.., lr}, and functions tile the ROM up to the next one
+      recovers: a run of unreferenced functions before an accepted one, taken from the back when the forward chain stopped at data
+    gap.end-anchor: the highest valid reading below the gap end that ends at it (fillSlack) or is anchored there, a prologue (or `push {.., lr}` on 2 mod 4) preferred, within backwardWindow; a load-and-jump stub that ends at an accepted stub of the same shape counts below minInsns
+      rests on: functions tile the ROM, so the code just before an accepted function ends exactly where it starts; a veneer array is a run of two-instruction `ldr rN, [pc, #k]; bx rN` stubs laid end to end, so a stub ending exactly at the next stub of the array is code; hand-written Thumb may start on 2 mod 4, where `push {.., lr}` opens it as it opens a compiled function on a word
+      recovers: unreferenced functions at the end of a gap that the forward chain cannot reach past data (hand-written ones on 2 mod 4 too), and the unreferenced head of a veneer array that follows data
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    seed.pool-pointer: Thumb pointers loaded from the pools of accepted functions are candidate functions
+      rests on: compiled code takes the address of a Thumb function as a pool word holding func+1 (callbacks, tables of handlers)
+      recovers: functions reached only through a pointer that accepted code loads
+    valid.decodes: the walk from the entry decodes at least one instruction and hits no decode error
+      rests on: every path of a compiled function decodes until it returns or jumps away
+      recovers: data and text decoded as code
+    valid.returns-or-prologue: the reading returns somewhere, or opens with push {.., lr}
+      rests on: a compiled function either returns or pushes lr before calling what never returns
+      recovers: runs of data that decode without ever returning
+explain: ok (exit 0)

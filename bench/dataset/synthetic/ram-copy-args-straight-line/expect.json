@@ -1,0 +1,33 @@
+{
+  "negative": true,
+  "entries": [
+    {
+      "addr": "0x08000000",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000C0",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x08000118"
+      }
+    },
+    {
+      "addr": "0x08000118",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000118",
+        "end": "0x08000126"
+      }
+    },
+    {
+      "addr": "0x08000128",
+      "mode": "thumb"
+    }
+  ]
+}

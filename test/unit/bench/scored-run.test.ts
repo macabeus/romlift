@@ -51,7 +51,11 @@ test('export-poc builds the frozen document: digests of each analysis, the row w
   const row = { name: 'tiny', seconds: 1.5, tp: 1, scaffold: { ok: true, seconds: 2, summary: 'built' } };
   const scored = scoredFromChild({ analyses: [analysis, other], misses: [{ addr: '0x08000020', reason: 'inside code' }], row }, 'tiny', 'f'.repeat(40), 'p'.repeat(64));
   assert.equal(scored.schema, 'romlift-bench/poc-scored@1');
-  assert.deepEqual(Object.keys(scored), ['schema', 'rom', 'sha1', 'pocSourceDigest', 'analysis', 'misses', 'digests', 'scaffold', 'pocRow']);
+  assert.deepEqual(Object.keys(scored), ['schema', 'rom', 'sha1', 'pocSourceDigest', 'datasetDigest', 'analysis', 'misses', 'digests', 'scaffold', 'pocRow']);
+  // The dataset digest is recorded only when the child ran on the dataset romlift handed it.
+  assert.equal(scored.datasetDigest, null);
+  assert.equal(scoredFromChild({ analyses: [analysis, other], misses: [], row, dataset: 'poc' }, 'tiny', 'f'.repeat(40), 'p'.repeat(64), 'd'.repeat(64)).datasetDigest, null);
+  assert.equal(scoredFromChild({ analyses: [analysis, other], misses: [], row, dataset: 'given' }, 'tiny', 'f'.repeat(40), 'p'.repeat(64), 'd'.repeat(64)).datasetDigest, 'd'.repeat(64));
   assert.equal(scored.digests[0], analysisDigest(analysis));
   assert.notEqual(scored.digests[0], scored.digests[1]);
   // Canonical JSON: the digest does not depend on key order.

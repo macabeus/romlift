@@ -16,10 +16,11 @@ export type IoResult<T> = { readonly ok: true; readonly value: T } | { readonly 
 /** Bytes gathered from a stream of string chunks before one write call. */
 const WRITE_BATCH = 1 << 20;
 
+/** The error's message, led by its code once (Node's own message often starts with it). */
 function reason(error: unknown): string {
   if (error instanceof Error) {
     const code = (error as NodeJS.ErrnoException).code;
-    return code === undefined ? error.message : `${code}: ${error.message}`;
+    return code === undefined || error.message.startsWith(`${code}:`) ? error.message : `${code}: ${error.message}`;
   }
   return String(error);
 }

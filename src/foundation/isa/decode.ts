@@ -4,10 +4,11 @@
 // 27..20 and 7..4, each listing the rows those bits allow, in table order. Decode never throws: every
 // word matches a row, because each table ends with a catch-all row, resolved once at module load.
 import { RomliftInvariantError } from '../diagnostics/diagnostic.ts';
+import type { Rom } from '../rom/rom.ts';
 import type { Addr, Mode } from '../rom/span.ts';
 import { flowOf } from './flow.ts';
 import type { Row } from './row.ts';
-import { ROWS } from './rows.ts';
+import { ROWS, rowOf } from './rows.ts';
 import { THUMB_BL } from './thumb-table.ts';
 import type { Fields, Insn } from './types.ts';
 
@@ -92,4 +93,30 @@ export function decode(mode: Mode, word: number, addr: Addr): Insn {
     fields,
     flow: flowOf(row.spec.flow, mode, row.toOps(fields, addr), addr),
   };
+}
+
+/**
+ * The Thumb decode word at `a`: the halfword at `a`, with the one at a + 2 above it when that is in the
+ * ROM (a bl pair decodes as one instruction). A halfword outside the ROM reads as zero.
+ */
+export function thumbWordAt(rom: Rom, a: Addr): number {
+  const b = rom.bytes;
+  const k = a - rom.base;
+  const lo = (b[k] ?? 0) | ((b[k + 1] ?? 0) << 8);
+  const hi = a + 4 <= rom.end ? (b[k + 2] ?? 0) | ((b[k + 3] ?? 0) << 8) : 0;
+  return (lo | (hi << 16)) >>> 0;
+}
+
+/** The condition field's value that means 'always' (al). */
+const COND_AL = 0xe;
+
+/**
+ * Whether `insn` executes only under a condition, read from its row's 'cond' field: a value other than
+ * al. A row without one is unconditional in Thumb; in ARM only the NV space and the undefined catch-all
+ * lack it, and they never execute as code, so they count as conditional.
+ */
+export function isConditional(insn: Insn): boolean {
+  const field = rowOf(insn.specId).spec.fields.find((f) => f.kind === 'cond');
+  if (field === undefined) return insn.mode === 'arm';
+  return insn.fields[field.name] !== COND_AL;
 }

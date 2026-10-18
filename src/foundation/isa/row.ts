@@ -5,7 +5,7 @@
 import type { Addr, Mode } from '../rom/span.ts';
 import { compileForm } from './template.ts';
 import type { CompiledForm } from './template.ts';
-import type { Field, FieldKind, Fields, FlowKind, InsnSpec, RawReason, SpecId } from './types.ts';
+import type { Field, FieldKind, Fields, FlowKind, InsnSpec, RawReason, RegisterSpec, SpecId } from './types.ts';
 
 /** Field bits to operand values (registers, immediates in bytes, label addresses). */
 export type ToOperands = (f: Fields, addr: Addr) => Fields;
@@ -35,6 +35,7 @@ export interface RowOptions {
   readonly asPriority?: number;
   readonly stack?: (f: Fields) => number;
   readonly raw?: (f: Fields) => RawReason | null;
+  readonly registers?: RegisterSpec;
   /** The row always prints raw for this reason. */
   readonly rawOnly?: RawReason;
   readonly toOps?: ToOperands;
@@ -80,6 +81,7 @@ export function row(id: SpecId, mode: Mode, options: RowOptions): Row {
     asPriority: options.asPriority ?? 0,
     ...(options.stack === undefined ? {} : { stack: options.stack }),
     ...(raw === undefined ? {} : { raw }),
+    ...(options.registers === undefined ? {} : { registers: options.registers }),
   };
   return {
     spec,

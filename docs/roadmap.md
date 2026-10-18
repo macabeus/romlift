@@ -194,6 +194,32 @@ ROMs; the PoC's scaffold reproduces the SHA-1 on all five; all twelve `g1.*` gat
 Entry: phase 1 landed. Branch `phase/2-analysis`. Seven components: 2.0, then 2.A–2.E in parallel, then
 2.I, which runs milestones M1–M7 (architecture §4.5).
 
+### As executed (D56)
+
+Phase 2 ran as thirteen components in three waves on the branch `phase-2`, each on its own flat branch
+`phase-2-<component>` and worktree (D55 j); sections 2.0–2.I below still describe what the phase
+delivers. D56 records each deviation and why; [phase-2.md](phase-2.md) records the milestones, their
+numbers and the deviations of the milestone component. The lockstep gates of 2.A to 2.D were met by
+milestone M1's run, whose evidence is committed in `bench/results.json`; the oracle that ran them was
+deleted in the fix round of phase 2 (D59), so they are historical and `g2.poc-parity` checks the
+evidence.
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p2-driver` | 1 | 2.0's `src` part (provenance, profile, the analysis types and contracts, `address-map`, `limits`, `codes`, `define-rule`, `rules/index.ts` and the eight empty family indexes, the barrels), 2.A's driver (`driver/**`, `pointers.ts`, `foundation/util/{interval-index,csr,min-heap}.ts`) plus `reading.ts`, `oracle.ts` (deleted in the fix round, D59) and `diagnose.ts`, and the walk skeleton of 2.B (`walk/{cursor,thumb,arm}.ts`); `test/helpers/analysis.ts` |
+| `p2-poc-export` | 1 | 2.0's `parity` and `queries` modes of `bench/tools/export-poc.ts` (the log format `romlift-bench/poc-queries@1`), their readers `bench/src/{parity-view,poc-log}.ts` and `bench/baseline/poc-digests.json` |
+| `p2-fixtures` | 1 | 2.E's synthetic fixtures (`bench/dataset/synthetic/**`, `fixtures.yml`, `test/helpers/fixtures.ts`) |
+| `p2-heldout` | 1 | 2.E's sealed held-out datasets (`bench/dataset/real/{pokefirered,pokeruby,tmc}.json`), the seal tool `bench/tools/seal-dataset.ts` and the sealed classifiers and counts `bench/src/{classify,seal}.ts` |
+| `p2-rules-walk-bl-claim` | 2 | 2.B's rules: `rules/{walk,bl,claim}/**` and their tests, on the walk skeleton of `p2-driver` |
+| `p2-rules-seed-valid-accept` | 2 | 2.C: `rules/{seed,valid,accept}/**` and their tests |
+| `p2-rules-gap-region` | 2 | 2.D: `rules/{gap,region}/**` and their tests; `test/helpers/dummy-profile.ts` |
+| `p2-lockstep` | 2 | 2.0's `bench/src/{parity,lockstep}.ts` (`lockstep.ts` deleted in the fix round, D59) and `test/local/{poc-lockstep,poc-parity}.test.ts`, 2.A's codec (`core/analysis/codec.ts`, `src/api/analysis-codec.ts`) |
+| `p2-bench` | 2 | the `bench run` rewrite (the bench scores romlift's own analysis; the scaffold family still reads the PoC's dumps until phase 3), 2.E's `core/analysis/explain.ts` (`src/api/analysis-explain.ts`) and `bench/src/{ablate,speed}.ts`; `bench run` on the sealed datasets, `--reveal` and `adopt` |
+| `p2-commands` | 3 | 2.E's `core/workflow/{discover,explain}.ts`, `cli/commands/{analyze,explain}.ts`, `cli/commands/lists/analysis.ts`, `src/api/workflow-discover.ts`, `test/golden/explain/**` |
+| `p2-fixture-coverage` | 3 | fixture coverage of every rule (`g2.rule-coverage`) |
+| `p2-mutation-ci` | 3 | `test/mutation/phase2/**` (`g2.checks-fail`) and the phase-2 CI |
+| `p2-milestones` | 3 | 2.I's milestones M1–M7 on the merged tree: the parity wiring and evidence, M2's fixes and `epoch-reuse`, `walk.table-by-register`, the ascending default, the extents and M4 rule fixes, the M5 dataset rewrite, M6, the deletion of `'poc-lifo'`, the sealed runs; `bench/baseline/{accepted-diffs,speed}.json`, `docs/phase-2.md`. The closing sequence (raising `test/gates/phase.json`, the closing real-tier run, provenance, the pull request) runs on `phase-2` after wave 3 merges, and only once `g2.held-out` passes (D53) |
+
 ### 2.0 Analysis interfaces, profile and lockstep harness (lead)
 
 - **Owns:** `src/core/provenance/{rule-id,provenance,trail}.ts`, `src/core/profile/{types,registry,agbcc}.ts`
@@ -208,8 +234,9 @@ Entry: phase 1 landed. Branch `phase/2-analysis`. Seven components: 2.0, then 2.
 - **Public API:** `RuleId`, `RuleMeta`, `Fact`, `Provenance`, `Rejection`, `TrailEvent`, `TrailSink`,
   `TrailLevel`, `CompilerProfile`, `Pipeline`, `ProfileId`, `PROFILES`, `profileById`, `AddressMap`,
   `addressMap`, `toRun`, `toLoad`, `AnalysisView`, `Candidate`, every rule contract, `Reading`,
-  `FunctionFact`, `AnalysisResult`, `AnalysisOptions`, `Seed`, `OverrideFact`, `defineRule`;
-  `romlift/internal`: `AnalysisTuning`, `RuleOracle`.
+  `FunctionFact`, `AnalysisResult`, `AnalysisOptions`, `Seed`, `OverrideFact`;
+  `romlift/internal`: `AnalysisTuning`, `defineRule` (internal: rules run only from this repository's
+  registry, D59), `RuleOracle` (deleted with the oracle once the lockstep evidence was committed, D59).
 - **Gated by:** typecheck; unit tests of `address-map.ts` (identity) and of the oracle reader on a
   hand-written log.
 - **Ports from the PoC:** the numbers of `analysis.ts` into `agbcc.ts`; nothing else.
@@ -300,24 +327,45 @@ npm ci
 npm run typecheck
 npm test
 npm run fixtures -- check
+npm run export-poc -- --mode scored
 npm run export-poc -- --mode parity
 npm run export-poc -- --mode queries
 npm run test:local
 npm run bench -- doctor-real
+npm run corpus
 npm run bench -- run
 npm run bench -- speed
 npm run bench -- regression
-npm run bench -- gates --require 2 --tier ci
 npm run bench -- gates --require 2 --tier real
+npm run bench -- gates --require 2 --tier ci
 ```
+
+`npm run corpus` comes before `bench run` because the artifact's `printer` member is the corpus summary
+while its inputs digest is current; without a fresh summary `bench run` keeps the previous member only
+when it is still current, and otherwise refuses to write rather than drop it (D59 t). The real tier runs
+before the ci tier (AGENTS.md).
 
 Thresholds: on each tuning ROM, raw precision ≥ 99.7%, every miss in `labels` and every false entry in
 `untyped`, raw true positives ≥ the PoC's, zero `unreviewed`, no agreeing extent lost and ≥ 99.9% of sized
 functions agreeing, code end within 16 bytes; rows equal the PoC baseline except listed improvements;
-confirm equals discover on all five; `bench speed` ≤ 1.5 × `baseline/speed.json` per ROM; on the sealed
+confirm equals discover on every tuning ROM; `bench speed` ≤ 1.5 × `baseline/speed.json` per ROM; on the sealed
 ROMs, at least two pass (raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued`, ≤ 11 label candidates,
-extents ≥ 99.9%, code end ≤ 16 bytes), from two families, one of them not `pret-gen3`; all seventeen
-`g2.*` gates `pass` or `historical`.
+extents ≥ 99.9%, code end ≤ 16 bytes), from two families, one of them absent from the tuning set
+(architecture §8.4, D53); all seventeen
+`g2.*` gates `pass` or `historical`. Since the owner's decision of 17 October 2026 (D60) the tuning set is
+six ROMs (tmc revealed); every threshold above applies to all six except where the owner's answers of 18
+October 2026 (D61) say otherwise, which is exactly this, each printed by its gate: tmc has no row in the
+pinned PoC baseline, so its PoC reference is the pinned PoC's own run of it (`export-poc --mode scored`;
+`poc.source` `dump`), and it is a benchmark row ("Keep tmc as 99.94%. It's a benchmark row that we can
+improve later"): `g2.poc-parity` covers the five ROMs of the M1 evidence (tmc not applicable), and
+`g2.baseline-rows` accepts tmc's rows that the dataset lists with a category, with tmc's tp 8,631 of 8,636
+as a floor; `g2.confirm-equals-discover` accepts tmc's eight differences of Q3 and Q6 as a known limitation
+and nothing else ("Build resettle, else accept": the resettle stage was measured and reverted; "Yes, cover
+all 8"); both held-out
+family conditions are waived for the sealed pokefirered and pokeruby and the tuning families of D60 only
+("Waive both"); and the ELF code end ends an unsized function at the next `$d` or typed symbol on every
+ROM ("Use $d for every ROM"). Every other threshold, and every threshold on the five original ROMs and the
+sealed pair, is as above.
 
 ---
 

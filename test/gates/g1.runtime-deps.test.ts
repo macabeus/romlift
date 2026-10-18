@@ -6,7 +6,7 @@
 // trusted (npm 11 redacts UUID-like path segments in --parseable output).
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult } from './gate.ts';
+import { type ExecResult, byCodeUnit, gate } from './gate.ts';
 
 const EXPECTED = ['@match-kit/decomp-yaml', 'smol-toml', 'zod'] as const;
 const INSTALL_SCRIPTS = ['preinstall', 'install', 'postinstall'] as const;
@@ -41,9 +41,6 @@ interface PackageJson {
   readonly gypfile?: boolean;
 }
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 function tail(run: ExecResult, lines = 20): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');

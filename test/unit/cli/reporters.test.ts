@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { Diagnostic } from '../../../src/api/rom.ts';
 import { ExitCode, isExitCode } from '../../../src/cli/exit-codes.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../../../src/cli/reporters/ndjson.ts';
-import { formatDiagnosticText, formatSummaryText } from '../../../src/cli/reporters/text.ts';
+import { columns, formatDiagnosticText, formatSummaryText } from '../../../src/cli/reporters/text.ts';
 
 const full: Diagnostic = {
   code: 'E_ROM_NOT_GBA',
@@ -101,4 +101,8 @@ test('summaryLine and recordLine', () => {
 test('isExitCode accepts exactly the five codes', () => {
   for (const code of [0, 1, 2, 3, 70]) assert.ok(isExitCode(code));
   for (const value of [4, -1, 70.5, '0', null, undefined]) assert.ok(!isExitCode(value));
+});
+
+test('columns pads every column but the last and trims the line end', () => {
+  assert.equal(columns([['a', 'bbb', 'c'], ['dddd', 'e', '']], '  '), '  a     bbb  c\n  dddd  e\n');
 });

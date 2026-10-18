@@ -14,7 +14,8 @@ Four principles drive it:
 - **Every gate is an executable test from the first commit.** A gate reports one of five verdicts:
   `pass`, `fail`, `pending` (its exports are not public yet), `unavailable` (a local input such as a
   ROM, an ELF or the PoC checkout is missing; the input is named) and `historical` (a PoC-parity gate
-  frozen after phase 2 lands, its evidence committed). A phase lands when every gate of that phase and
+  frozen after phase 2 lands, its evidence committed; its `run` still runs and fails the gate when its
+  check fails). A phase lands when every gate of that phase and
   of all earlier phases is `pass` or `historical` on both tiers (D29, D50).
 - **Nothing ships before its phase.** A command, a TOML key or a writer appears in the phase that
   gates it. Nothing is stubbed early.
@@ -33,7 +34,7 @@ extent and code-end gates of §8. Requirements R1–R9 of the plan apply unchang
 
 | # | Requirement | Where this architecture meets it |
 | --- | --- | --- |
-| R1 | One shot, split into functions | `init` (§2.1); gates `g4.e2e-fixtures`, `g4.e2e-real` (all five tuning ROMs), `g4.packed-e2e` (the published tarball) |
+| R1 | One shot, split into functions | `init` (§2.1); gates `g4.e2e-fixtures`, `g4.e2e-real` (every tuning ROM: six since D60, tmc included), `g4.packed-e2e` (the published tarball) |
 | R2 | Node and TypeScript only | Node ≥ 22.18 type stripping, three runtime dependencies (D2, D38); `g1.runtime-deps` |
 | R3 | One TOML; `generate` never writes it | `generate` runs in confirm mode and takes every name, extent and border from the TOML (D8, D9); `g4.no-toml-write` |
 | R4 | Generated `.s` regenerated and gitignored; two runs identical | one emission stream, one write plan, a manifest (§6.3, §6.4); `g3.tree-determinism` on Linux and macOS with a varied environment (D30) |
@@ -70,8 +71,8 @@ artifacts, and a structural `diff` command (D18).
 **One npm package, `romlift`, with four entry points** (D1, D37): `romlift` (the pure library API:
 analysis, model, emission, explain, formats; browser-safe), `romlift/node` (the file-backed API:
 locate and load a project, apply a write plan, run the toolchain), `romlift/isa` (the instruction set,
-importable alone so gba-kit can share it) and `romlift/internal` (analysis tuning, the PoC oracle hook,
-and ablation; outside semver, documented as such, imported only by the CLI's `--disable`, the bench,
+importable alone so gba-kit can share it) and `romlift/internal` (analysis tuning, the rule registry,
+`defineRule` and ablation; outside semver, documented as such, imported only by the CLI's `--disable`, the bench,
 the gate tests and `test/local`). Templates ship inside the package. Signature specs ship; built
 signature files ship only once the owner decides (D40). The bench, fixtures and tests are not published.
 
@@ -104,9 +105,9 @@ romlift/
     index.ts, node.ts, isa.ts, internal.ts   barrels: only `export * from './api/<component>.ts'` lines
     api/                            one barrel per component, created empty by its phase's component 0 (D43)
     foundation/                     no project knowledge; imports nothing outside foundation/
-      rom/                          span.ts, rom.ts, header.ts, memory-map.ts, codes.ts
+      rom/                          span.ts, rom.ts, header.ts, memory-map.ts, bios.ts, codes.ts
       isa/                          types.ts, thumb-table.ts, arm-table.ts, decode.ts, encode.ts, format.ts,
-                                    parse.ts, assemble.ts, roundtrip.ts
+                                    parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59)
       corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
                                     as round-trip corpus, counts only (D54 c, D55)
       asm/                          dialect.ts (file preamble, macros.inc text), statements.ts (parser of the
@@ -119,10 +120,11 @@ romlift/
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
       profile/                      types.ts, registry.ts, agbcc.ts
-      analysis/                     types.ts, address-map.ts, pointers.ts, limits.ts, codec.ts, explain.ts, codes.ts
-        driver/                     run.ts, grow.ts, fill-gaps.ts, accept.ts, settle.ts, validity.ts, epoch.ts,
-                                    worklist.ts, confirm.ts, view.ts
-        walk/                       cursor.ts, thumb.ts, arm.ts
+      analysis/                     types.ts, address-map.ts, pointers.ts, limits.ts, codec.ts, explain.ts, codes.ts,
+                                    reading.ts
+        driver/                     run.ts, state.ts, facts.ts, trail.ts, view.ts, grow.ts, fill-gaps.ts, accept.ts,
+                                    settle.ts, validity.ts, epoch.ts, worklist.ts, confirm.ts, diagnose.ts, reuse.ts
+        walk/                       cursor.ts, record.ts, predicates.ts, insn-index.ts, thumb.ts, arm.ts
         rules/                      define-rule.ts, index.ts (concatenates the family registries)
           seed/ walk/ bl/ valid/ accept/ gap/ claim/ region/     index.ts + one file per rule (§4.1)
       proposals/                    types.ts (Proposal, ProposalSource, LibraryRegion, sourceKey)
@@ -149,6 +151,7 @@ romlift/
       codes.ts                      the shell's diagnostic codes
       hash.ts                       sha1/sha256 via node:crypto, incremental
       fs.ts                         listDir (sorted by code unit), atomic write (temp and rename)
+      rom.ts                        readRom: a ROM file read, hashed and wrapped (D59)
       project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts
       config/                       load.ts, save.ts
       evidence/                     read-elf.ts, read-map.ts, read-legacy.ts, read-trace.ts
@@ -161,7 +164,7 @@ romlift/
       commands/                     index.ts, lists/<component>.ts (one command list per component), one file per command
       reporters/                    text.ts, ndjson.ts
   bench/                            dev only; imports only romlift, romlift/node, romlift/isa, romlift/internal
-    src/                            cli.ts, run.ts, score.ts, parity.ts, lockstep.ts, classify.ts, seal.ts,
+    src/                            cli.ts, run.ts, score.ts, parity.ts, classify.ts, seal.ts,
                                     dataset.ts, dataset-check.ts, vocabulary.ts, gates.ts, provenance.ts,
                                     digest.ts, regression.ts, ablate.ts, speed.ts, readability.ts, objdiff.ts,
                                     large-rom.ts, migration.ts, signatures.ts, doctor-real.ts, report.ts, serve.ts
@@ -170,7 +173,8 @@ romlift/
     tools/convert-poc-signatures.ts converts the PoC's signature files to schema 3 into bench/.local/ (phase 6)
     dataset/real/<rom>.json         tuning and held-out datasets (§8.2)
     dataset/synthetic/<name>/       fixture sources, build.mk, expect.json, build/ (committed)
-    baseline/                       poc-2026-10-16.json (the PoC's rows), poc-digests.json, poc-source.json,
+    baseline/                       poc-2026-10-16.json (the PoC's rows), poc-dump-rows.json (the pinned PoC
+                                    rows of ROMs revealed later, D60), poc-digests.json, poc-source.json,
                                     accepted-diffs.json, speed.json
     migration/                      klonoa.json (pinned commits), klonoa.sh (rehearsal), klonoa-import.json (counts)
     results.json                    the committed artifact; refreshed only by a phase lead (D43)
@@ -181,7 +185,12 @@ romlift/
     corpus/                         generate.ts (the as round-trip corpus driver over runCorpus; output never
                                     committed; imports only the entry points and bench/src/args.ts, D55)
     mutation/                       fault injection into every checker (§10)
-    gates/                          g1.*.test.ts … g6.*.test.ts, gate.ts, phase.json
+    gates/                          g1.*.test.ts … g6.*.test.ts, gate.ts, phase.json, and the pure helpers the
+                                    gates call and test/unit/gates tests: held-out-verdict.ts (g2.held-out's
+                                    cross-ROM verdict and the D60 waiver), poc-parity-check.ts
+                                    (g2.poc-parity's one check, run before and after landing),
+                                    baseline-rows-verdict.ts, confirm-differences.ts, dataset-binding.ts
+                                    (the tmc scopings' binding, D61 f), order.ts (byCodeUnit)
     local/                          tests that need local ROMs or the PoC; report `unavailable` when absent
     fixtures/                       tiny self-authored files for parser tests (an ELF, a map, legacy files)
     helpers/                        thumb`` / arm`` byte builders, prng.ts, temp dirs, fixture loader, dummy profile,
@@ -533,11 +542,9 @@ export function analyze(rom: Rom, profile: CompilerProfile, options: AnalysisOpt
   sink?: TrailSink): AnalysisResult;
 
 // exported from romlift/internal only, outside semver (D37)
-export interface AnalysisTuning {
-  readonly worklist: 'poc-lifo' | 'ascending';   // 'poc-lifo' exists only until phase 2 lands (D10)
+export interface AnalysisTuning {               // no worklist member: it is always ascending (D10, D59 n)
   readonly cache: 'epoch' | 'epoch-reuse';       // §4.2, D13
   readonly disabled: readonly RuleId[];          // `analyze --disable`, `bench ablate`
-  readonly oracle?: RuleOracle;                  // lockstep against the PoC's recorded answers (§4.5)
 }
 export function analyzeTuned(rom: Rom, profile: CompilerProfile, options: AnalysisOptions,
   tuning: AnalysisTuning, sink?: TrailSink): AnalysisResult;
@@ -741,26 +748,32 @@ export interface AnalysisView {                       // what a rule may read; t
   read(entry: Addr, mode: Mode): Reading;              // cached for the current epoch (§4.2)
   valid(entry: Addr): boolean;                         // the driver's validity service (driver/validity.ts)
   neverValid(entry: Addr): boolean;                    // intrinsic failures, remembered for the analysis
+  originOf(rule: RuleId): Origin | undefined;          // a proposer's meta.origin (D59)
   readonly pointers: PointerIndex;
+  // D56 added seeds, overrides, functions(), accepted(), whyInvalid(), inProgress() and adrOwner()
 }
-export interface Candidate { readonly entry: Addr; readonly mode: Mode; readonly proposedBy: RuleId;
-  readonly cites: readonly Addr[] }
+// A proposer returns a Proposal; the driver stamps the id of the slot it called (D59), so no rule spells
+// its own id and accept rules judge a candidate by its origin, never by another rule's id.
+export interface Proposal  { readonly entry: Addr; readonly mode: Mode; readonly cites: readonly Addr[] }
+export interface Candidate extends Proposal { readonly proposedBy: RuleId }
 
-export interface SeedRule    { kind: 'seed';    seeds(v: AnalysisView): readonly Candidate[] }            // round 0, sorted
+export interface SeedRule    { kind: 'seed';    seeds(v: AnalysisView): readonly Proposal[] }             // round 0, sorted
 export interface HarvestRule { kind: 'harvest'; harvest(v: AnalysisView, earlier: ReadonlySet<Addr>): readonly Addr[] }
-export interface QueueRule   { kind: 'queue';   queue(f: FunctionFact, v: AnalysisView): readonly Candidate[] }  // at accept
+export interface QueueRule   { kind: 'queue';   queue(f: FunctionFact, v: AnalysisView): readonly Proposal[] }   // at accept, and for an absorbed block
 export interface WalkPolicy  { kind: 'walk';    onInsn(insn: Insn, cursor: WalkCursor): WalkStep | undefined }
 export type WalkStep =
   | { readonly step: 'end-path'; readonly exit: Exit['kind'] }
   | { readonly step: 'pool'; readonly addr: Addr }
   | { readonly step: 'table'; readonly table: JumpTable }
-  | { readonly step: 'switch-mode'; readonly target: Addr };
+  | { readonly step: 'switch-mode'; readonly target: Addr }
+  | { readonly step: 'continue' } | { readonly step: 'padding' }          // D56
+  | { readonly step: 'arm-tail'; readonly target: Addr };                 // walk.inline-arm-switch (D59)
 export interface BlVerdictRule { kind: 'bl';
   decide(site: BlSite, caller: Reading, v: AnalysisView): BlVerdict | 'defer' | undefined }
 export interface ValidityRule { kind: 'valid'; readonly reason: MissReason; readonly intrinsic: boolean;
   check(r: Reading, v: AnalysisView): string | undefined }                  // the detail on failure
-export interface AcceptRule { kind: 'accept';
-  holds(c: Candidate, r: Reading, v: AnalysisView): Provenance | undefined }
+export interface AcceptRule { kind: 'accept';                              // the driver records the provenance
+  holds(c: Candidate, r: Reading, v: AnalysisView): { readonly cites: readonly Addr[]; readonly note: string } | undefined }
 export interface ClaimRule  { kind: 'claim';  claims(f: FunctionFact, r: Reading, v: AnalysisView): readonly ClaimEdit[] }
 export interface RegionRule { kind: 'region'; classify(v: AnalysisView): readonly ClaimEdit[] }
 
@@ -769,7 +782,7 @@ export interface GapCursor { readonly gap: Span; readonly at: Addr; readonly end
   readonly head?: Reading; readonly pass: 'patient' | 'impatient' }
 export interface GapAbsorb   { kind: 'gap-absorb';   absorb(c: GapCursor, v: AnalysisView): { readonly into: Addr; readonly span: Span } | undefined }
 export interface GapHead     { kind: 'gap-head';     head(c: GapCursor, v: AnalysisView): Reading | undefined }
-export interface GapProposer { kind: 'gap';          propose(c: GapCursor, v: AnalysisView): Candidate | undefined }
+export interface GapProposer { kind: 'gap';          propose(c: GapCursor, v: AnalysisView): Proposal | undefined }
 export interface GapPrefer   { kind: 'gap-prefer';   prefer(thumb: Reading, arm: Reading, v: AnalysisView): 'thumb' | 'arm' }
 export interface GapSkip     { kind: 'gap-skip';     skip(c: GapCursor, v: AnalysisView): Addr | undefined }   // next cursor, or stop
 ```
@@ -778,13 +791,13 @@ The rules, with the PoC source each one is ported from (`romlift-poc/src/analysi
 
 | Family | Rule ids (contract) | PoC call site |
 | --- | --- | --- |
-| seed | `seed.rom-entry`, `seed.startup-pointer`, `seed.listed`, `seed.override`, `seed.evidence-hint` (SeedRule); `seed.pool-pointer`, `seed.data-pointer` (HarvestRule); `seed.call`, `seed.veneer`, `seed.adr` (QueueRule) | `run()`; `pointerCandidates()` (one snapshot per `grow` round, data list filtered by the pool set and `neverValid`); the `accept()` worklist |
-| walk | `walk.pc-load-is-pool`, `walk.table-nearest-pool-load` (until milestone M3, then `walk.table-by-register`), `walk.mov-lr-pc-bx-is-call`, `walk.noreturn-call-before-noncode`, `walk.swi-before-noncode`, `walk.mov-pc-without-table`, `walk.branch-into-function`, `walk.bx-pc-veneer`, `walk.trailing-zero-padding` | `analyzeThumb`, `analyzeArm` |
-| bl | `bl.self-or-accepted`, `bl.target-before-entry`, `bl.near-is-call`, `bl.target-inside-caller`, `bl.target-has-prologue`, `bl.target-pops-unpushed-frame`, `bl.noreturn-before-noncode` | `settle()` |
+| seed | `seed.rom-entry`, `seed.startup-pointer`, `seed.listed`, `seed.override`, `seed.evidence-hint` (SeedRule); `seed.pool-pointer`, `seed.data-pointer` (HarvestRule); `seed.call`, `seed.veneer`, `seed.adr`, `seed.ram-copy` (QueueRule; `seed.ram-copy` has no PoC counterpart, D60 e) | `run()`; `pointerCandidates()` (one snapshot per `grow` round, data list filtered by the pool set and `neverValid`); the `accept()` worklist; `seed.ram-copy` maps the IWRAM pointers accepted code jumps through to the load image of a block accepted code copies to IWRAM (a BIOS CpuSet/CpuFastSet, or a callee whose loads and stores name the source and the destination), and `seed.adr` proposes only past the function's extent (D60 g) |
+| walk | `walk.pc-load-is-pool`, `walk.table-nearest-pool-load` (until milestone M3, then `walk.table-by-register`), `walk.mov-lr-pc-bx-is-call`, `walk.noreturn-call-before-noncode`, `walk.swi-before-noncode`, `walk.mov-pc-without-table`, `walk.branch-into-function`, `walk.bx-pc-veneer`, `walk.trailing-zero-padding`; `walk.inline-arm-switch` (no PoC counterpart, D59) | `analyzeThumb`, `analyzeArm`; `walk.inline-arm-switch` answers a Thumb `bx rN` after `add rN, pc, #0` (the walk of the ARM code after it gives the extent, `Reading.armTails`) |
+| bl | `bl.self-or-accepted`, `bl.target-before-entry`, `bl.near-is-call`, `bl.target-inside-caller`, `bl.target-has-prologue`, `bl.target-beyond-callee` (no PoC counterpart, D59), `bl.target-pops-unpushed-frame`, `bl.noreturn-before-noncode` | `settle()`; `bl.target-beyond-callee` sits before the frame check: a far `bl` past the entry of another function the caller calls is a call |
 | valid | `valid.in-rom-unclaimed`, `valid.decodes`, `valid.balanced-stack`, `valid.returns-or-prologue`, `valid.no-claimed-code`, `valid.pool-not-code`, `valid.not-pointer-table`, `valid.dense`, `valid.calls-code` | `whyInvalid()` in this order; `dense()`, `looksLikePointerTable()`, `couldBeCode()` |
-| accept | `accept.tiles-after-accepted`, `accept.prologue-and-loaded`, `accept.prologue-and-end-anchored`, `accept.pointer-table-run`, `accept.tiny-anchored-at-start` | `acceptable()`, `inPointerTable()`, `thumbCandidate()` |
-| gap | `gap.adr-block-absorb` (GapAbsorb), `gap.tiled-hole` (GapHead), `gap.tiled-hole-inner`, `gap.forward-chain`, `gap.arm-scan`, `gap.end-anchor`, `gap.backward-prologue-chain` (GapProposer), `gap.arm-over-prologueless-thumb` (GapPrefer), `gap.skip-padding-and-pointers` (GapSkip) | `fillGaps()`: `absorbRun`, `holeHead`, `tryTiledHole`, `thumbCandidate`, `armAhead`, the comparison at the same cursor, the end-anchor loop, the backward prologue chain, the padding and pointer-word step |
-| claim | `claim.adjacent-pools`, `claim.far-pools`, `claim.dead-code-in-extent` | `claim()`, `Func.end` |
+| accept | `accept.tiles-after-accepted`, `accept.prologue-and-loaded`, `accept.prologue-and-end-anchored`, `accept.pointer-table-run`, `accept.prologue-and-calls-accepted` (no PoC counterpart, D60 h), `accept.tiny-anchored-at-start` | `acceptable()`, `inPointerTable()`, `thumbCandidate()`; `accept.prologue-and-calls-accepted` takes a data-named candidate with a prologue, a return and calls only to accepted functions |
+| gap | `gap.adr-block-absorb` (GapAbsorb), `gap.tiled-hole` (GapHead), `gap.tiled-hole-inner`, `gap.forward-chain`, `gap.arm-scan`, `gap.end-anchor`, `gap.backward-prologue-chain` (GapProposer), `gap.arm-over-prologueless-thumb` (GapPrefer), `gap.skip-padding-and-pointers` (GapSkip) | `fillGaps()`: `absorbRun`, `holeHead`, `tryTiledHole` and the head acceptance (both through the proposers after the pair, `gap.tiled-hole-inner`, D59), `thumbCandidate`, `armAhead`, the comparison at the same cursor, the end-anchor loop, the backward prologue chain, the padding and pointer-word step; since D60 `gap.end-anchor` also takes a veneer-array element and a `push {.., lr}` on 2 mod 4, and `gap.forward-chain` declines a word holding an accepted function's address |
+| claim | `claim.adjacent-pools`, `claim.far-pools`, `claim.dead-code-in-extent` | `claim()`, `Func.end`; `claim.dead-code-in-extent` leaves an unreached copy of the reading's own `movs rX, #k; b T` entry stub free (D60 d) |
 | region | `region.startup`, `region.padding`, `region.data-after-code` | `startup` getter, classification |
 | sig (§7) | `sig.unique-fit`, `sig.link-order-run`, `sig.neighbour-spacing`, `sig.pinned-both-sides`, `sig.short-member-window` | `signatures/apply.ts`; their own registry in `core/signatures/rules/` |
 
@@ -800,10 +813,21 @@ The signature registry is merged with `RULES` only for `explain`.
 `fill-gaps.ts` (`fillGaps()`: `hi` computed once per call, the gap head computed once per gap, absorb at
 the gap start and at every forward-chain position, the Thumb/ARM choice at the same cursor, the
 backward end-anchor loop that shrinks `end`, the late head acceptance, and the patient pass skipping a
-whole gap), `accept.ts` (`accept()` and `claim()`), `settle.ts` (the per-function `bl` fixpoint),
+whole gap; positions are bus addresses, the hole head is accepted under the head rule wherever a
+proposer after the pair takes it, and the count it returns is what `accept()` reports, absorbed blocks'
+calls included, so a confirm run whose candidates are unlisted reaches its fixpoint; after a reading the scan
+resumes on the halfword where it ends when `alignment.thumbFunction` allows a Thumb function there and that
+halfword is not padding, else on the next `alignment.cFunction` boundary, D60 a), `accept.ts` (`accept()` and `claim()`), `settle.ts` (the per-function `bl` fixpoint),
 `validity.ts` (`valid()`: the optimistic memo set before the check, intrinsic failures kept in
-`neverValid`, which also filters harvests), `epoch.ts` and `worklist.ts`. The rule slots are called at
-the PoC's call sites, in the order the profile's pipeline gives. Stage control stays code because it is
+`neverValid`, which also filters harvests), `epoch.ts` and `worklist.ts`; `state.ts` (the state and
+`createDriver`), `facts.ts` (`FunctionFact`, the extent end, the owner), `trail.ts` (events, rejections)
+and `view.ts` (the view). The rule slots are called at the PoC's call sites, in the order the profile's
+pipeline gives, and every decision is a slot's: the driver repeats no rule's predicate and names no
+rule id (D59). `grow` asks the validity slot about every harvest target that is not yet a function,
+claimed ones included (`valid.in-rom-unclaimed` rejects those before any reading); an accept veto's
+decision is a rejection under the veto's id. What the gap scan does without a slot is traversal and
+format, not a decision: it steps over bytes a claim rule already claimed, and it never stands in the
+cartridge header (D59 l). Stage control stays code because it is
 the PoC's code; only the slot orders are data, so a reorder is a diff of the profile.
 
 **Epochs** (D13). An epoch begins at every `grow` round and every `fillGaps` call, where the PoC calls
@@ -813,7 +837,9 @@ readings of non-accepted entries and the validity memo are dropped; intrinsic fa
 readings stay. This is the semantics, not an optimisation: `cache: 'epoch'` is the only production
 mode. `cache: 'epoch-reuse'` (internal, built at milestone M2 only if a ROM misses the budget) may carry
 a reading across a boundary when every fact it read is unchanged, and a local test requires its digests
-to equal `'epoch'` on all five tuning ROMs. No cache evicts by capacity.
+to equal `'epoch'` on every tuning ROM. One bound evicts by capacity, and only on pathological input:
+the readings an epoch holds for entries not accepted are limited to `epochReadingBytes` (below), past
+which they are dropped (their verdicts stay memoised) and re-walked when asked for.
 
 **Two modes, one driver** (D8):
 
@@ -830,15 +856,48 @@ to equal `'epoch'` on all five tuning ROMs. No cache evicts by capacity.
 
 `g2.confirm-equals-discover` (tier real, phase 2) runs discover, builds the listed set from it (entries,
 modes, `label` for entries inside another found extent, no sizes), runs confirm, and requires the parity
-view (functions, extents, far verdicts, claims) to be equal on all five tuning ROMs. If it fails on a ROM,
+view (functions, extents, far verdicts, claims) to be equal on every tuning ROM. If it fails on a ROM,
 the remedy is a final `resettle` stage in discover that recomputes `bl` verdicts and readings against the
 final function set until stable; it then runs in both modes and lands as its own commit with its bench
-diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on the files.
+diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on the files. The gate
+holds on fe7j, klonoa, pokeemerald, sa2 and sa3 and fails on tmc, on six functions of hand-written code
+with several entries whose shared code goes to whichever entry is taken first (D60 k); a confirm mode that
+took the listed entries after the passes held by construction and was withdrawn. By the owner's answer to
+Q3 ("Build resettle, else accept", D61 e) the `resettle` stage was built and measured: it cuts the cartridge
+entry's extent at the startup piece and the m4a mixer's at its inner entries on the other tuning ROMs and
+moves the sealed pair's counts, so it was reverted, and tmc's six differences of Q3 are a known phase-2
+limitation, pinned by content (D61 e); by the owner's answer to Q6 ("Yes, cover all 8") the limitation also
+covers 0x080B255C and 0x080B2874, which `95b257b` moved after Q3's count, and their three claim runs. The gate (`test/gates/confirm-differences.ts`) compares the two views
+in full on every ROM, equal digests or not, and decides on the differences themselves (`viewDifferences`,
+`judgeDifferences`; the views' digests are only a cross-check). `KNOWN_DIFFERENCES.tmc` holds each of the
+eight functions' discover and confirm records (mode, extent, far verdicts) and the four differing claim runs
+(0x080087D2..0x08008886, as measured at `9c8b282` with the six of Q3; 0x080B2874..0x080B289C,
+0x080B2874..0x080B299C and 0x080B289C..0x080B299C, as measured at `51ea4ee` with the two of Q6); tmc passes only when its differences are exactly those
+records, printed as `KNOWN LIMITATION` every run. A known function whose record changed or that is gone
+from a view fails; any other differing function or claim run fails wherever it lies, inside a known
+extent included; a recorded difference that no longer differs, and a record whose ROM is not a tuning
+dataset, fail as stale; every other ROM must have no difference. Each failure message gives the counts
+and the first four records of each list. The record is bound to tmc's ROM SHA-1 and ELF SHA-256 as the
+answer was given on (`test/gates/dataset-binding.ts` `TMC_AT_D61`, D61 f): for another build of that name
+it is stale and fails, and tmc is judged as without it. A ninth differing function fails.
 
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
-returns what was accepted; a round that proposes more than `candidateBudget` candidates raises
-`W_CANDIDATE_BUDGET`. `RomliftInvariantError` (exit 70) is reserved for broken internal invariants, such
+returns what was accepted; grow judges at most `candidateBudget` (262,144) distinct harvest targets
+in a whole run, so past it a fresh target is never judged (a target judged before still is) and
+`W_CANDIDATE_BUDGET` is raised once; the candidate readings one epoch holds are limited to
+`epochReadingBytes` (256 MiB by estimate) and raise `W_READING_BUDGET` once when dropped, together with
+their 'epoch-reuse' facts. The tuning ROMs stay below both (measured on all six on 18 October 2026:
+13,423 distinct targets in a run at most, pokeemerald, against 262,144; and 208,344,064 bytes held in one
+epoch at most, pokeemerald, 78% of the 256 MiB, the next fe7j at 120 MB; the "about 105 MB" recorded
+before was wrong, pokeemerald already held 206 MB at `22cbc77`), so they bound only a flood of pointers: its rejections and verdicts are bounded by
+the budget whatever the number of grow rounds, while its time still grows with the rounds, because each
+round's harvest enumerates the flood (a 32 MiB image of self-referencing Thumb pointers analyses under a
+512 MiB heap). Seeds are checked before round 0: one whose entry is not an address, whose mode is
+unknown or whose size does not fit the ROM is left out with `W_SEED_MALFORMED`. A path that runs over more than `zeroRun` (64) consecutive all-zero instructions
+stops with a 'zero-run' error, and a walk that records `walkInsns` (65,536) instructions stops with a
+'walk-limit' error and raises `W_WALK_LIMIT`, which bounds the memory a candidate's reading holds
+(D42, D59). `RomliftInvariantError` (exit 70) is reserved for broken internal invariants, such
 as a claim overlap or a tiling gap, never for the shape of a ROM.
 
 ### 4.3 Profile
@@ -857,7 +916,8 @@ export interface Pipeline {
   readonly validity: readonly RuleId[];               // first failure is the rejection
   readonly accept: readonly RuleId[];                 // first that holds
   readonly claim: readonly RuleId[];
-  readonly gap: { readonly absorb: RuleId; readonly head: RuleId; readonly forward: readonly RuleId[];
+  readonly gap: { readonly absorb: RuleId; readonly head: RuleId;
+                  readonly forward: { readonly thumb: RuleId; readonly arm: RuleId; readonly after: readonly RuleId[] };
                   readonly prefer: RuleId; readonly skip: RuleId; readonly endAnchor: RuleId; readonly backward: RuleId };
   readonly region: readonly RuleId[];
   readonly passes: readonly ('patient' | 'impatient')[];   // each runs grow + fillGaps until stable
@@ -874,12 +934,14 @@ export interface CompilerProfile {
   readonly gapScan: { readonly backwardWindow: number; readonly fillSlack: number;
                       readonly armFrontPoolWords: number; readonly armMinInsnsForSkip: number;
                       readonly prologueDistance: number };
+  readonly ramCopy: { readonly argInsns: number; readonly jumpInsns: number };  // seed.ram-copy (D60 e): 12 and 8,
+                    // from the tuning set's distribution with a margin; a copy fits IWRAM (the memory map)
   readonly alignment: { readonly thumbFunction: number; readonly armFunction: number; readonly cFunction: number;
                         readonly pool: number; readonly object: number };
-  readonly misfitThreshold: number;                   // rejection rate above which W_PROFILE_MISFIT is raised
+  // misfitThreshold returns with the first raiser of W_PROFILE_MISFIT (D59)
   readonly idioms: {
     isPrologue(rom: Rom, a: Addr, mode: Mode): boolean;
-    isPadding(rom: Rom, a: Addr, next: ClaimKind | undefined): boolean;   // 0x46C0 counts only before a pool
+    isPadding(rom: Rom, a: Addr): boolean;            // zero, or a byte of 0x46C0 (D59: `next` dropped, unread)
     matchTableJump(insns: readonly Insn[], cursor: number, rom: Rom): JumpTableMatch | undefined;
     matchFarJump(site: BlSite, caller: ReadingSummary): boolean;
   };
@@ -902,8 +964,8 @@ numbers and a reordered `validity` slot, and requires it to typecheck and run on
   architecture test enforces that iteration goes through `sortedKeys`/`sortedEntries` (§2).
 - The worklist key is total (D10): `'ascending'` pops the minimum of `(addr, modeRank, ruleRank, seq)`,
   where `modeRank` is 0 for Thumb and 1 for ARM, `ruleRank` is the proposing rule's index in its
-  pipeline slot, and `seq` is the proposal counter. `'poc-lifo'` reproduces the PoC's `work.pop()` and
-  exists only until phase 2 lands.
+  pipeline slot, and `seq` is the proposal counter. `'poc-lifo'`, which reproduced the PoC's
+  `work.pop()`, was deleted by the phase-2 integration (D59).
 - No clock, environment, locale, `os` or path value reaches core. Text is LF only, paths are POSIX, and
   numbers print through `foundation/util/hex.ts`. Generated files never contain the project's absolute
   path.
@@ -938,12 +1000,15 @@ over the sorted list. `bench/tools/export-poc.ts` refuses to run when the checko
   `armAhead`, `holeHead`, `tryTiledHole`, `absorbBlock` and `pointerCandidates` of the PoC's `Analyzer`
   prototype, and records each call's sequence number, arguments and result.
 
-**Lockstep** (`bench/src/lockstep.ts`, `test/local/poc-lockstep.test.ts`). Because the driver calls the
-rule slots at the PoC's call sites, the k-th query of our run corresponds to the k-th query of the
-PoC's. With `tuning.oracle` set, a rule family that is not implemented yet is answered from the log, and
-an implemented family is compared with it; the first divergence is reported with its sequence number,
-the query, both answers and the epoch. So each component proves its own family on all five tuning
-ROMs before integration, with the other families answered by the PoC (D48).
+**Lockstep** (historical: `bench/src/lockstep.ts` and the driver's oracle were deleted in the fix round of
+phase 2, D59; `test/local/poc-lockstep.test.ts` checks the committed summary). Because the driver called
+the rule slots at the PoC's call sites, the k-th query of our run corresponded to the k-th query of the
+PoC's. With `tuning.oracle` set, a rule family that was not implemented yet was answered from the log,
+and an implemented family was compared with it; the first divergence was reported with its sequence
+number, the query, both answers and the epoch. So each component proved its own family on all five
+tuning ROMs before integration, with the other families answered by the PoC (D48); milestone M1 recorded
+the result in `results.json` (`romlift-bench/parity-evidence@1`). The log (`export-poc --mode queries`)
+is still written and re-read through its validating reader; nothing replays it.
 
 **Milestones**, in order, on the phase branch after the components merge:
 
@@ -974,10 +1039,32 @@ record only improvements against the PoC baseline: a row removed from the misses
 or an extent that now agrees, each with the commit and a reason. A regression is fixed in the rules,
 never accepted as a diff. A listed improvement that no longer differs from the PoC baseline fails as
 stale. From then on `g2.baseline-rows` holds: the bench rows equal the baseline except the improvements
-listed in `accepted-diffs.json`.
+listed in `accepted-diffs.json`. One ROM is a benchmark row instead (`test/gates/baseline-rows-verdict.ts`
+`BENCHMARK_ROWS`): tmc, revealed after the baseline was pinned, by the owner's answer to Q1 and Q2 of
+phase-2.md (D61 d), "Keep tmc as 99.94%. It's a benchmark row that we can improve later". Its reference is
+the pinned PoC's own run of it; a row that differs from that run and is not a listed improvement passes only
+when the dataset lists it with a category (a `labels` or `untyped` row), and is printed; an extent change, an
+unlisted or uncategorised row and a stale accepted diff still fail; and its tp 8,631 of 8,636 (recall
+99.94%) is a floor. The five original ROMs are judged exactly as above.
 
-When phase 2 lands, `'poc-lifo'` is deleted and `g2.poc-parity` becomes `historical`: its evidence (the
-committed digests and the lockstep summary in `results.json`) stays, and it is no longer re-run.
+The three tmc scopings (`BENCHMARK_ROWS` here, `SCOPED_OUT` of `g2.poc-parity` below, `KNOWN_DIFFERENCES` of
+§4.2) are one mechanism (D61 f, `test/gates/dataset-binding.ts`): each holds tmc by name, ROM SHA-1 and ELF
+SHA-256 as the owner's answers were given on (`TMC_AT_D61`, pinned to `bench/dataset/real/tmc.json` by
+`test/unit/gates/dataset-binding.test.ts`), as `g2.held-out`'s waiver holds the sealed pair. A dataset of
+that name with another ROM or ELF ends the scoping, which fails as stale, and tmc is judged as without it;
+a record whose ROM is not a tuning dataset fails as stale too, and so does a benchmark row whose ROM's PoC
+reference is not the pinned PoC's own run of it (`staleBenchmarkRows`).
+
+`'poc-lifo'` was deleted by the phase-2 integration and the oracle in its fix round (D59); `g2.poc-parity`
+checks the committed evidence (the digests and the lockstep summary in `results.json`, tied to the commit
+it names) and becomes `historical` when phase 2 lands. It is never re-run. One check
+(`test/gates/poc-parity-check.ts` `parityCheck`) decides it before and after landing: once historical the
+harness still runs the gate's `run` and records `historical` only when it passes, so raising `phase.json`
+cannot freeze a fail (D60, gate-honesty-r1-3, r2-1; a separate `historicalCheck` was removed in fix round 1
+of D61, code-quality-r0-6). Its scope is the five ROMs of the
+M1 evidence: the owner's answer to Q1 of phase-2.md (D61 c), "Keep tmc as 99.94%. It's a benchmark row that
+we can improve later", scopes tmc out (its M1 evidence cannot exist: the lockstep ran under `poc-lifo`
+before tmc was revealed), and the gate prints "tmc: not applicable, no M1 lockstep run".
 
 ## 5. The printer
 
@@ -1063,7 +1150,7 @@ same corpus through the user's `as`. The same check on whole writer output (a Th
   `.2byte`/`.4byte`/`.byte` with a comment naming their note (`@ dead`, `@ mixer hole`, `@ unreached`),
   inside the owning function's file.
 - **Raw printer.** `--printer raw` keeps the PoC's all-data emission (`rawLines`, ported) as a
-  bisection baseline. A raw build must always match, and `g3.raw-link` proves it on all five tuning ROMs
+  bisection baseline. A raw build must always match, and `g3.raw-link` proves it on every tuning ROM
   from the first model onwards.
 
 ## 6. Emission and project model
@@ -1522,8 +1609,8 @@ Emerald). Each version names its references; a library with a single reference h
 | Tier | Inputs | Truth | Runs |
 | --- | --- | --- | --- |
 | Synthetic | `bench/dataset/synthetic/<name>/`: one phenomenon each, built from our C and asm with agbcc, binutils and a shared tiny `crt0.s` | `expect.json` (entries, extents, code end, and for negative fixtures zero extra entries) plus the fixture's ELF | every CI run, from the committed builds (D28) |
-| Real, tuning | the five pairs of benchmark-roms.md under `ROMLIFT_BENCH_ROOT` (default `..`) | ELF `FUNC` symbols counted from the end of the startup region, minus `labels`, plus `untyped` | locally; CI checks the artifact's provenance and its gate record |
-| Real, held-out | pokefirered, pokeruby, tmc (each once its build reproduces its SHA-1), and the reserve pool of benchmark-roms.md | the same ELF symbols, judged by classifiers only (§8.4) | locally, sealed |
+| Real, tuning | the six pairs of benchmark-roms.md under `ROMLIFT_BENCH_ROOT` (default `..`): the PoC's five and tmc, revealed by the owner's decision (D60) | ELF `FUNC` symbols counted from the end of the startup region, minus `labels`, plus `untyped` | locally; CI checks the artifact's provenance and its gate record |
+| Real, held-out | pokefirered, pokeruby (each once its build reproduces its SHA-1; tmc until its reveal, D60), and the reserve pool of benchmark-roms.md | the same ELF symbols, judged by classifiers only (§8.4) | locally, sealed |
 
 **Fixtures.** Each directory holds the sources, `build.mk`, `expect.json` and `build/<name>.gba`,
 `build/<name>.elf` (a few KiB, self-authored, committed; `.gitignore` re-includes exactly
@@ -1624,12 +1711,12 @@ message states the reason, as the working rule requires.
 | Printer | 100% round-trip; raw share never rises; both alignments and every offset extreme agree | 1 |
 | Entries (tuning) | dataset-against-ELF check passes; every miss in `labels`, every false entry in `untyped`; raw precision ≥ 99.7% on every ROM; raw true-positive count never drops; lists only shrink; zero `unreviewed` | 2 |
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
-| Code end | within 16 bytes of the ELF | 2 |
-| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set | 2 |
+| Code end | within 16 bytes of the ELF's code end (`bench/src/truth.ts` `elfCodeEnd`): the largest end of its functions, a sized function at addr + size and an unsized one (hand-written asm without `.size`) at the `$d` mapping symbol or typed symbol that closes its last code run before the next typed symbol (an inline pool followed by more of its code does not end it), one convention for every ROM, tuning and sealed, in every scorer, the rescoring of the PoC's own dumps included (the owner's answer to Q5, "Use $d for every ROM", D61 a). The PoC's pinned rows keep the PoC's own convention (`pocCodeEnd`, addr + size): `bench poc-check` compares the rescored row with them as the scorer measures them and checks separately that they carry the PoC's convention | 2 |
+| Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (both family conditions waived by the owner, the fresh-family one by the decision of D60 and the two-families one by the answer to Q4, "Waive both" (D61 b), for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
-| Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on all five tuning ROMs and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and all five tuning ROMs (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
-| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on all five tuning ROMs; objdiff score 0 (below) | 3 |
+| Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
+| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM; objdiff score 0 (below) | 3 |
 | Memory | peak RSS < 512 MiB on the deterministic 32 MiB synthetic ROM (`g3.large-rom`) | 3 |
 | Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance); on a reference ROM every name equals that reference's own symbol; leave-one-reference-out adds or moves no placement; sealed held-out counts | 6 |
 
@@ -1649,7 +1736,7 @@ side targets a section symbol rather than a named symbol is counted as `unnamed-
 not gated; every other difference fails. A fixture test misnames one pool word and requires the gate to
 fail.
 
-**Held-out runs** (`bench/src/seal.ts`, `classify.ts`, D25, D53). A dataset with `heldout: true` and an
+**Held-out runs** (`bench/src/seal.ts` and `classify.ts` for the sealed counts of one ROM, `test/gates/held-out-verdict.ts` for the verdict across the sealed ROMs and the D60 waiver, D25, D53). A dataset with `heldout: true` and an
 empty `revealed` runs sealed: `bench run` stores and prints only counts and gate verdicts, never an
 address or a name. Its exceptions are judged by ELF-checkable classifiers, not lists. A miss M (an ELF
 `FUNC` the run did not report) is:
@@ -1674,7 +1761,14 @@ never counts toward `g2.held-out` again. The provenance check fails if `results.
 held-out dataset. If `g2.held-out` fails, phase 2 does not land unless the owner records a decision that
 accepts the failure (§12); the failure is then fixed by a rule change justified by its `restsOn` and
 validated on the tuning set alone, and a fresh sealed pair from the reserve pool is needed before any
-claim of generality (D53).
+claim of generality (D53). The owner answered §12 item 4 on 17 October 2026 (D60): tmc is revealed and
+tuned on, and the owner's words record the gate as having no held-out ROM of a family absent from the
+tuning set, so `g2.held-out` (through `test/gates/held-out-verdict.ts`) waives the fresh-family condition
+for the sealed pokefirered and pokeruby (bound by name, ROM SHA-1 and ELF SHA-256) and the tuning families
+of D60, printing the waiver with its grounds; any change to either needs a new decision. The owner's answer
+to Q4 of phase-2.md on 18 October 2026 (D61 b), the option chosen: "Waive both", waives the two-families
+condition too (both sealed ROMs are `pret-gen3`), under the same binding and printed with those words; the
+per-ROM thresholds and "at least two sealed ROMs pass" still decide.
 
 ### 8.5 Commands
 
@@ -1742,7 +1836,7 @@ defined. The codes:
 | `E_ROM_NOT_GBA`, `E_ROM_SHA1_MISMATCH` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER` | `core/config` |
 | `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_NAME_COLLISION`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH` | `core/model` |
-| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET` | `core/analysis` |
+| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
 | `W_C_ORDER` | `core/reconcile` |
@@ -1800,11 +1894,11 @@ Emerald (`g3.speed-budget`). Levers, in the order milestone M2 applies them (D13
 1. **Computed-once facts.** A `Reading` is immutable, so its `codeEnd`, `end` and extent are computed
    when it is built, which removes the measured quadratic loop without changing a result.
 2. **Indexed lookups.** `owner()` uses a nesting-aware interval index (`foundation/util/interval-index.ts`)
-   and returns the innermost extent covering an address; a test compares its answer with the PoC's
-   first-match choice on every query of the lockstep log and records the cases where they differ. The
+   and returns the innermost extent covering an address (the PoC took the first match; the lockstep of
+   milestone M1 compared the two on every query of its log). The
    pointer index is CSR (sorted target `Uint32Array` plus offsets, `foundation/util/csr.ts`).
 3. **Epoch reuse**, only if a ROM still misses the budget after a re-measure: `cache: 'epoch-reuse'`
-   (§4.2), with digest equality to `'epoch'` on all five tuning ROMs.
+   (§4.2), with digest equality to `'epoch'` on every tuning ROM.
 
 There is no LRU and no capacity-based eviction: a reading cache that evicted and recomputed under newer
 claims would make results depend on the capacity. `bench run --cpu-prof` and `bench speed` back every
@@ -1836,7 +1930,7 @@ seeded data and requires peak RSS < 512 MiB for `init` and `generate`, recording
 | Mutation: each checker is shown to fail on an injected fault (tiling overlap, a flipped byte in a `FileEntry`, a dataset row the run no longer needs, a held-out row in `results.json`, `bench adopt` on a sealed dataset, a reconciled file whose sha1 changed, a stale digest, an illegal import) with the exact code and exit code | `test/mutation/**`; gates `g1.checks-fail`, `g2.checks-fail`, `g3.checks-fail`, `g4.checks-fail` | no | yes |
 | Round-trip corpus against `as` | `printer.yml` | no | yes |
 | Synthetic analysis and end to end | `fixtures.yml`, `packed.yml`, `g2.synthetic-analysis`, `g4.e2e-fixtures` | committed fixtures | yes |
-| Local: PoC lockstep and parity, cache modes, large ROM | `test/local/**` | local ROMs and the PoC | no |
+| Local: the PoC decoder differential, the committed PoC-parity evidence, cache modes | `test/local/**` | local ROMs and the PoC | no |
 | Real tier and real gates | `bench run`, `bench gates --tier real` | local ROMs | provenance and gate record only |
 
 **Gates as tests.** Each `test/gates/gN.<name>.test.ts` calls `gate()` from `test/gates/gate.ts`:
@@ -1848,7 +1942,7 @@ export interface GateSpec {
   readonly tier: 'ci' | 'real';
   readonly needs: readonly string[];      // public exports the gate calls, e.g. ['analyze', 'explain']
   readonly inputs?: readonly ('roms' | 'elfs' | 'objects' | 'poc' | 'toolchain' | 'klonoa')[];
-  readonly historicalAfter?: 2;           // PoC-parity gates: frozen once that phase lands
+  readonly historicalAfter?: 2;           // PoC-parity gates: `historical` once that phase lands; run still runs
   run(cx: GateContext): Promise<void>;    // throws on failure
 }
 export type Verdict = 'pass' | 'fail' | 'pending' | 'unavailable' | 'historical';
@@ -1878,7 +1972,7 @@ family registries and codes files, updates the phase's gate files (written in ph
 and must typecheck. Then three to five
 components run in parallel in separate worktrees, each owning a disjoint set of files (roadmap.md lists
 them), and each proven alone: by its unit tests, its goldens, and, in phase 2, by lockstep against the
-PoC with the other families answered from the log (§4.5). A component changes a frozen type only through
+PoC with the other families answered from the log (§4.5; deleted once its evidence was committed, D59). A component changes a frozen type only through
 a commit to the phase branch that all components rebase on. A last component, the integrator, merges
 them, runs the milestones that need everything together, regenerates `bench/results.json` (no component
 commits it), and runs the exit commands.
@@ -1890,7 +1984,7 @@ in roadmap.md pass. The gates per phase are those of §1.
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
-| The rules overfit the five tuning ROMs | wrong splits on a new game | sealed held-out runs with ELF-checkable classifiers that cannot hide a glued function (§8.4); two codebase families must pass; `bench ablate` and `g2.rule-coverage` per rule; every rule carries `restsOn` |
+| The rules overfit the tuning ROMs | wrong splits on a new game | sealed held-out runs with ELF-checkable classifiers that cannot hide a glued function (§8.4); two codebase families must pass; `bench ablate` and `g2.rule-coverage` per rule; every rule carries `restsOn` |
 | Semantics-first porting keeps PoC quirks (LIFO order, a 40-instruction table window, windows of 4,096, 16 and 64 bytes) | behaviour rests on accidents | every constant is a named profile field; the table window is replaced by register tracking at M3 and the order at M4, each one reviewed commit with its diff (D10, D12) |
 | The driver cannot reach parity | phase 2 stalls | the driver ports the PoC's control flow verbatim and lockstep reports the first divergent query (D48) |
 | Confirm mode diverges from discover mode | `generate` splits differently from `init` | `g2.confirm-equals-discover` in the phase that builds the driver; `g4.generate-idempotent` on the files |
@@ -1913,7 +2007,22 @@ in roadmap.md pass. The gates per phase are those of §1.
    branch is left raw; `init` never produces such a border. Approve the exception, or make such a border
    an error?
 4. If `g2.held-out` fails, may phase 2 land with the failure recorded, while release 1 stays blocked until
-   a fresh sealed pair passes (D53)?
+   a fresh sealed pair passes (D53)? **Answered by the owner on 17 October 2026: "Tune on tmc, no new
+   ROM"** (D60). tmc is revealed and tuned on with general rules; pokefirered and pokeruby stay sealed and
+   pass; `g2.held-out` is recorded as having no held-out ROM of a family absent from the tuning set.
+   Release 1 still needs a fresh sealed pair of such a family before it claims generality (D53). Fix
+   rounds 1 and 2 of D60 withdrew every gate reading the decision did not cover and asked the owner five
+   questions (phase-2.md, Q1 to Q5); **the owner answered them on 18 October 2026** (D61): Q1 and Q2,
+   "Keep tmc as 99.94%. It's a benchmark row that we can improve later" (`g2.poc-parity` scoped to the five
+   ROMs of the M1 evidence, tmc printed as not applicable; tmc a benchmark row in `g2.baseline-rows`, its
+   rows listed with a category accepted and tp 8,631 a floor); Q3, "Build resettle, else accept" (the
+   `resettle` stage was built, changed rows on the other ROMs and the sealed pair, and was reverted; tmc's
+   six differences of Q3 are a printed known limitation); Q4, "Waive both" (both family conditions of
+   `g2.held-out` waived, printed, for the sealed pair and tuning families of D60 only); Q5, "Use $d for
+   every ROM" (the code-end convention of §8.4). `g2.confirm-equals-discover` then failed on two more tmc
+   functions (0x080B255C, 0x080B2874) that Q3's count of six, taken before `95b257b`, did not include
+   (phase-2.md, Q6); the owner answered Q6 on 18 October 2026, "Yes, cover all 8", and the known limitation
+   covers the eight with their records. Nothing else is waived.
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
    about 16,000 lines).
 6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export.
@@ -1942,13 +2051,13 @@ one is missing.
 | `g1.dataset-elf` | real | every `labels` row is an ELF `FUNC` inside a found function, every `untyped` row is not a `FUNC` |
 | `g1.provenance` | ci | the source digest, gate record, family and held-out checks of §8.6 run and agree with the committed artifact |
 | `g1.checks-fail` | ci | mutation tests of the phase-1 checkers (architecture, corpus comparator, dataset check, provenance) |
-| `g2.poc-parity` | real (historical after phase 2) | M1: parity-view digests equal `poc-digests.json`; rows equal the PoC baseline |
-| `g2.baseline-rows` | real | rows equal the baseline except the improvements in `accepted-diffs.json`; no stale improvement |
+| `g2.poc-parity` | real (historical after phase 2) | M1: parity-view digests equal `poc-digests.json`; rows equal the PoC baseline; the same check runs once historical; scope the five M1 ROMs, tmc not applicable (D61 c) |
+| `g2.baseline-rows` | real | rows equal the baseline except the improvements in `accepted-diffs.json`; no stale improvement; tmc a benchmark row (rows listed with a category accepted, tp 8,631 a floor; D61 d) |
 | `g2.entries` | real | the entries family of §8.4 |
 | `g2.extents` | real | the extents family |
 | `g2.code-end` | real | the code-end family |
 | `g2.no-unreviewed` | real | no dataset row has category `unreviewed` |
-| `g2.confirm-equals-discover` | real | §4.2 |
+| `g2.confirm-equals-discover` | real | §4.2; tmc's eight differences of Q3 and Q6 a known phase-2 limitation, printed, nothing else accepted (D61 e) |
 | `g2.determinism` | ci and real | two processes with a varied environment give one analysis digest; Linux, macOS and both Node versions agree |
 | `g2.synthetic-analysis` | ci | every fixture's `expect.json` holds, negative fixtures included |
 | `g2.rule-registry` | ci | §4.1 registry checks |
@@ -1958,12 +2067,12 @@ one is missing.
 | `g2.held-out` | real (sealed) | the held-out family of §8.4 |
 | `g2.speed` | real | `bench speed` within 1.5 × `baseline/speed.json` (calibrated) |
 | `g2.regression` | ci | `bench regression` against the merge-base passes on the committed artifacts and datasets |
-| `g2.checks-fail` | ci | mutation tests of the classifier, seal, stale-exception, regression and lockstep reporters |
+| `g2.checks-fail` | ci | mutation tests of the classifier, seal, stale-exception and regression reporters (the lockstep reporter was deleted with the oracle, D59) |
 | `g3.self-check` | ci and real | tiling, re-encode and module-size checks pass on every fixture and tuning ROM |
 | `g3.text-layout` | ci and real | the text-layout check passes on every fixture and tuning ROM |
-| `g3.raw-link` | ci and real | the raw printer links to the SHA-1 on every fixture and all five tuning ROMs |
+| `g3.raw-link` | ci and real | the raw printer links to the SHA-1 on every fixture and every tuning ROM |
 | `g3.link` | ci and real | the readable printer links to the SHA-1 on every fixture and on at least three tuning ROMs (target five) |
-| `g3.readability` | real | readability shares only increase, on all five tuning ROMs |
+| `g3.readability` | real | readability shares only increase, on every tuning ROM |
 | `g3.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links |
 | `g3.tree-determinism` | ci and real | two processes with a varied environment give one tree digest; no generated file contains the project path; Linux and macOS agree |
 | `g3.golden-writers` | ci | every writer's output on every fixture equals its golden |
@@ -1971,9 +2080,9 @@ one is missing.
 | `g3.large-rom` | ci | §9.4 |
 | `g3.checks-fail` | ci | mutation tests of the four self-checks and of `planWrites` |
 | `g4.e2e-fixtures` | ci | in a directory holding only the fixture ROM, `npx romlift init <rom> && ./setup.sh && make` ends at the SHA-1; the composite fixture's illegal border fails with `E_MODULE_BORDER` |
-| `g4.e2e-real` | real | the same command on all five tuning ROMs; sealed ROMs report counts only |
+| `g4.e2e-real` | real | the same command on every tuning ROM; sealed ROMs report counts only |
 | `g4.packed-e2e` | ci | the same command from the packed and installed tarball (`packed.yml`) |
-| `g4.generate-idempotent` | ci and real | `generate` right after `init` gives an identical tree on every fixture and all five tuning ROMs |
+| `g4.generate-idempotent` | ci and real | `generate` right after `init` gives an identical tree on every fixture and every tuning ROM |
 | `g4.toml-mutations` | ci and real | seeded random legal TOML edits (move a module start to another legal border, rename, delete a listed function, add a valid override, split a module) keep the self-checks and the link green; each illegal edit (unaligned start, duplicate key, bad key spelling) gives its documented code and writes nothing |
 | `g4.no-toml-write` | ci | `generate` never opens the TOML for writing |
 | `g4.worktree` | ci and real | in a fresh `git worktree` of an initialised project, `./setup.sh` copies the ROM from the main checkout and `make` ends at the SHA-1 |

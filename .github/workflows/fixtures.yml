@@ -1,0 +1,55 @@
+# The rebuild check of the synthetic fixtures (architecture §8.1, D28): builds pret/agbcc at the
+# commit every fixture's build.mk records, rebuilds each fixture under bench/dataset/synthetic, and
+# compares the .gba bytes and the sorted (name, value, size, type) symbol list with the committed
+# build. The unit tests read the committed builds and need no toolchain; this job proves they are
+# reproducible. A different `as --version` than the record is only a note; another agbcc commit fails.
+name: fixtures
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # pret/agbcc master; the commit every build.mk records as AGBCC_COMMIT.
+  AGBCC_COMMIT: da598c1d918402c42c0c0d7128ba14567f3175e9
+
+jobs:
+  rebuild:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install binutils (apt)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
+      - name: Install binutils (Homebrew)
+        if: runner.os == 'macOS'
+        run: brew install arm-none-eabi-binutils
+      - name: Build pret/agbcc at the pinned commit
+        run: |
+          git init -q "$RUNNER_TEMP/agbcc-src"
+          git -C "$RUNNER_TEMP/agbcc-src" fetch -q --depth 1 https://github.com/pret/agbcc.git "$AGBCC_COMMIT"
+          git -C "$RUNNER_TEMP/agbcc-src" checkout -q FETCH_HEAD
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" -j1
+          mkdir -p "$RUNNER_TEMP/agbcc/bin"
+          cp "$RUNNER_TEMP/agbcc-src/gcc/agbcc" "$RUNNER_TEMP/agbcc/bin/agbcc"
+      - name: Install exactly the lock file
+        run: npm ci --ignore-scripts
+      - name: Rebuild every fixture and compare it with the committed build
+        env:
+          ROMLIFT_AGBCC: ${{ runner.temp }}/agbcc
+          ROMLIFT_AGBCC_COMMIT: ${{ env.AGBCC_COMMIT }}
+        run: npm run fixtures -- check --json

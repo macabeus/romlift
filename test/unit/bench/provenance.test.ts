@@ -31,6 +31,16 @@ test('a current artifact passes every check at landed 0', () => {
   assert.deepEqual(verdicts(inputs()), { 'source-digest': true, 'gate-record': true, families: true, 'dataset-rows': true, 'heldout-rows': true });
 });
 
+test('the scaffold family is asked of every tuning ROM, tmc included (D60: no exemption)', () => {
+  const two = [dataset(), dataset({ name: 'tmc' })];
+  const without = results([row(), row({ name: 'tmc' })], { meta: meta({ families: { tiny: ['code-end', 'entries', 'extents', 'scaffold'], tmc: ['code-end', 'entries', 'extents'] } }), printer: printerSummary() });
+  const families = (artifact: typeof without) => provenanceChecks(inputs({ artifact, datasets: two, landed: 1 })).find((c) => c.id === 'families');
+  assert.equal(families(without)?.ok, false);
+  assert.match(families(without)?.detail ?? '', /tmc: family scaffold did not run/);
+  const withScaffold = results([row(), row({ name: 'tmc' })], { meta: meta({ families: { tiny: ['code-end', 'entries', 'extents', 'scaffold'], tmc: ['code-end', 'entries', 'extents', 'scaffold'] } }), printer: printerSummary() });
+  assert.equal(families(withScaffold)?.ok, true);
+});
+
 test('a recomputed digest that differs fails with "re-run the real tier"', () => {
   const [digest] = provenanceChecks(inputs({ recomputedDigest: 't'.repeat(64) }));
   assert.equal(digest?.ok, false);

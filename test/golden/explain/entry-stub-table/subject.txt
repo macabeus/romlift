@@ -1,0 +1,44 @@
+0x08000110
+  claim: code
+  owner: 0x08000110 (origin call)
+  provenance:
+    seed.call round 0 cites 0x080000FC
+  proposals (4):
+    0x08000108 seed.call round 0 cites 0x080000F8: thumb
+    0x08000110 seed.call round 0 cites 0x080000FC: thumb
+    0x08000104 gap.forward-chain round 2 cites 0x08000104, 0x08000108: thumb
+    0x0800010C gap.forward-chain round 2 cites 0x0800010C, 0x08000110: thumb
+  accepts (4):
+    0x08000108 seed.call round 0 cites 0x080000F8
+    0x08000110 seed.call round 0 cites 0x080000FC
+    0x08000104 gap.forward-chain round 2 cites 0x08000104, 0x08000108
+    0x0800010C gap.forward-chain round 2 cites 0x0800010C, 0x08000110
+  rejections: none
+  verdicts (4):
+    0x080000F8 bl.near-is-call round 0 cites 0x080000F8, 0x08000108: call
+    0x080000FC bl.near-is-call round 0 cites 0x080000FC, 0x08000110: call
+    0x08000106 walk.branch-into-function round 2 cites 0x08000104, 0x08000106: end-path
+    0x0800010E walk.branch-into-function round 2 cites 0x0800010C, 0x0800010E: end-path
+  waits: none
+  claims (4):
+    0x08000108 claim.dead-code-in-extent round 0 cites 0x08000108: 2 edits
+    0x08000110 claim.dead-code-in-extent round 0 cites 0x08000110: 1 edits
+    0x08000104 claim.dead-code-in-extent round 2 cites 0x08000104: 1 edits
+    0x0800010C claim.dead-code-in-extent round 2 cites 0x0800010C: 1 edits
+  rules (5):
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    gap.forward-chain: a valid Thumb reading at the cursor, first word nonzero and no pointer to an accepted function, extent inside [gap start, end), chained forward from the gap start
+      rests on: compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment; a literal pool word holding an accepted Thumb function + 1 is that function's address, not code
+      recovers: functions reached only through computed addresses or not at all (dead code, callbacks named in data the harvest missed)
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    walk.branch-into-function: a branch into another function or claimed code (ARM: or below the entry) is a tail exit
+      rests on: a function never jumps into another function except as a tail call; agbcc and hand-written code share epilogues only by tail branches
+      recovers: two functions glued into one by a tail branch, and claims of another function's code
+explain: ok (exit 0)

@@ -11,7 +11,7 @@ framework dependency (D2). Layout (architecture §10):
 | `golden/` | printer, writers, TOML serializer and patcher, reconciler, explain; `UPDATE_GOLDEN=1` rewrites | no | `npm test` |
 | `mutation/` | fault injection proving every checker fails with the right code | no | `npm test` |
 | `gates/` | one file per phase gate `gN.<name>.test.ts`, plus `gate.ts` and `phase.json` | per gate | `npm run bench -- gates` |
-| `local/` | PoC lockstep and parity, large ROM; report `unavailable` when an input is absent | yes | `npm run test:local` |
+| `local/` | the PoC decoder differential, `epoch-reuse` against `epoch`, the committed PoC-parity and lockstep evidence; report `unavailable` when an input is absent | yes | `npm run test:local` |
 | `corpus/`, `fixtures/`, `helpers/` | the `as` round-trip corpus generator, tiny self-authored parser fixtures, shared helpers | no | the tests above |
 
 `gates/`, `local/` and the bench import romlift only through its package entry points (D37).

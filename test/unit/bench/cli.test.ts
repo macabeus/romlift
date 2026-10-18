@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { main, usage, type BenchIo } from '../../../bench/src/cli.ts';
+import { main, takeRepeated, usage, type BenchIo } from '../../../bench/src/cli.ts';
 import { REPO_ROOT } from '../../../bench/src/context.ts';
 import { withTempDir } from './fixtures.ts';
 
@@ -41,6 +41,16 @@ test('a bad option or value is a usage error: exit 2 with the message and the us
     [['run', 'extra'], 'unexpected argument extra'],
     [['baseline'], 'baseline needs a ROM name'],
     [['web', '--port', '-1'], '--port must be a non-negative integer'],
+    [['run', '--disable', 'dense'], '--disable dense is not a rule id'],
+    [['run', '--reveal', 'tmc'], '--reveal needs --reason <text>'],
+    [['run', '--reason', 'why'], '--reason goes with --reveal <rom>'],
+    [['run', '--reveal', 'tmc', '--reason', 'why', '--only', 'tmc'], '--reveal names its dataset; drop --only'],
+    [['speed', 'extra'], 'unexpected argument extra'],
+    [['ablate'], 'ablate needs a rule id'],
+    [['ablate', 'valid.dense', '--tier', 'sealed'], '--tier must be synthetic or real'],
+    [['explain', 'klonoa'], 'explain needs a ROM name and an address'],
+    [['explain', 'klonoa', 'zz'], 'zz is not an address (0x... or decimal)'],
+    [['adopt'], 'adopt needs a dataset name'],
   ];
   for (const [argv, message] of cases) {
     const io = capture();
@@ -69,4 +79,10 @@ test('the process entry exits 2 on an unknown command and prints the usage on st
   assert.equal(run.status, 2);
   assert.equal(run.stdout, '');
   assert.match(run.stderr, /^unknown command frobnicate\nromlift benchmark: npm run bench -- <command>/);
+});
+
+test('takeRepeated collects every value of a repeatable option, comma lists included, and leaves the rest', () => {
+  assert.deepEqual(takeRepeated(['--json', '--disable', 'a.b', '--only', 'x', '--disable', 'c.d,e.f'], ['disable']), { rest: ['--json', '--only', 'x'], values: { disable: ['a.b', 'c.d', 'e.f'] } });
+  assert.deepEqual(takeRepeated(['--json'], []), { rest: ['--json'], values: {} });
+  assert.throws(() => takeRepeated(['--disable', '--json'], ['disable']), /--disable needs a value/);
 });
