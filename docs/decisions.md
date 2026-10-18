@@ -213,6 +213,10 @@ two modes is proven in the phase that builds the driver, not two phases later.
 **Rejected.** Config entries as ordinary seeds in one mode (silent split changes). A `settle` stage that
 resumes discovery with seeds (reorders acceptance inside the phase-2 port).
 
+**Revision (18 October 2026, the owner's answer to Q3, D61 e).** The `resettle` stage was built and measured
+(`f287b0d`); it changes rows on every other tuning ROM and on the sealed pair, so it was reverted
+(`af0f75c`) and tmc's six differences of Q3 are a known phase-2 limitation the gate prints.
+
 ## D9. One proposal shape; the TOML decides and records the source
 
 **Context.** The PoC applies signatures at every `generate` and rewrites the TOML. The first version of
@@ -1956,6 +1960,26 @@ skipped or removed.
   `pointer-entry`; 0x080B20AC `split-after-returning-call`; 0x080B2718, 0x080B27E4 `local-subroutine`) are
   accepted as listed, 51 improvements as before, tp 8,631 at the floor; the five unchanged. The roadmap's
   narrowing of `28b9005` (D60, Rejected) stays rejected for every ROM but tmc.
+- (e) **Q3, `g2.confirm-equals-discover`.** D8's `resettle` stage was built (`f287b0d`: after the passes, in
+  both modes, every accepted function read again under the final function set, its own claims released
+  while it is read, until no reading changes, then every reading claimed again) and measured: it cuts the
+  cartridge entry's extent at the startup piece on every ROM (the startup region shrinks to one 4-byte
+  piece, the startup pieces become unlisted false entries: fe7j 0x080000C0 and 0x080001F8, pokeemerald
+  0x08000204, 0x08000248 and 0x08000374, sa2, sa3 and tmc 0x080000C0), changes the m4a mixer's extents on
+  pokeemerald, sa2 and sa3, moves the sealed pair's counts (entries 12,395 → 12,398 and 11,461 → 11,464),
+  makes the gate fail on klonoa, pokeemerald, sa2 and sa3, and leaves tmc's 0x080042BA different; `bench
+  regression` against the commit before it: 8 failures. By the owner's condition it is reverted
+  (`af0f75c`). tmc's six differences of Q3 (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790,
+  0x080B1A8C) are a known phase-2 limitation: `test/gates/confirm-differences.ts` compares the two views in
+  full (every differing function and claim run, not the first), and the gate accepts tmc only when its
+  differing functions are exactly those six and every differing claim run lies inside one of their extents,
+  printing them as `KNOWN LIMITATION: …` every run; fewer is a stale record and fails, and every other ROM
+  must have no difference. **Measured: tmc has eight differing functions at HEAD, not six.** Q3's count was
+  taken at `9c8b282`; `95b257b` (fix round 2 of D60, the pool boundary of `seed.ram-copy`) moved two more,
+  0x080B255C (discover ends it at 0x080B299C, confirm at 0x080B280C) and 0x080B2874 (0x080B289C against
+  0x080B299C), the same class (two ARM entries proposed by one worklist, read in ascending order, the
+  lower one's reading running over the higher). The owner's answer names six, so the two are not covered:
+  the gate fails on them, printing why, and they are owner question Q6 of phase-2.md.
 
 **Consequences.** See each item; phase-2.md records the closing run under these answers.
 

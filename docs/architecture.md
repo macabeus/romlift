@@ -860,10 +860,14 @@ final function set until stable; it then runs in both modes and lands as its own
 diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on the files. The gate
 holds on fe7j, klonoa, pokeemerald, sa2 and sa3 and fails on tmc, on six functions of hand-written code
 with several entries whose shared code goes to whichever entry is taken first (D60 k); a confirm mode that
-took the listed entries after the passes held by construction and was withdrawn, and a `resettle` stage
-under the final function set would make every entry inside another found extent a boundary (the startup
-piece and the m4a mixer's inner entries on every tuning ROM). Which remedy is taken is the owner's
-(phase-2.md, "Owner questions").
+took the listed entries after the passes held by construction and was withdrawn. By the owner's answer to
+Q3 ("Build resettle, else accept", D61 e) the `resettle` stage was built and measured: it cuts the cartridge
+entry's extent at the startup piece and the m4a mixer's at its inner entries on the other tuning ROMs and
+moves the sealed pair's counts, so it was reverted, and tmc's six differences of Q3 are a known phase-2
+limitation: the gate (`test/gates/confirm-differences.ts`) compares the views in full and accepts tmc only
+with exactly those six functions and claim runs inside their extents, printed every run. tmc has two more
+at HEAD (0x080B255C, 0x080B2874, moved by `95b257b` after Q3's count); they are not covered and the gate
+fails on them (phase-2.md, owner question Q6).
 
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
@@ -2020,13 +2024,13 @@ one is missing.
 | `g1.dataset-elf` | real | every `labels` row is an ELF `FUNC` inside a found function, every `untyped` row is not a `FUNC` |
 | `g1.provenance` | ci | the source digest, gate record, family and held-out checks of §8.6 run and agree with the committed artifact |
 | `g1.checks-fail` | ci | mutation tests of the phase-1 checkers (architecture, corpus comparator, dataset check, provenance) |
-| `g2.poc-parity` | real (historical after phase 2) | M1: parity-view digests equal `poc-digests.json`; rows equal the PoC baseline; once historical, the evidence covers every tuning dataset |
+| `g2.poc-parity` | real (historical after phase 2) | M1: parity-view digests equal `poc-digests.json`; rows equal the PoC baseline; the same check runs once historical; scope the five M1 ROMs, tmc not applicable (D61 c) |
 | `g2.baseline-rows` | real | rows equal the baseline except the improvements in `accepted-diffs.json`; no stale improvement; tmc a benchmark row (rows listed with a category accepted, tp 8,631 a floor; D61 d) |
 | `g2.entries` | real | the entries family of §8.4 |
 | `g2.extents` | real | the extents family |
 | `g2.code-end` | real | the code-end family |
 | `g2.no-unreviewed` | real | no dataset row has category `unreviewed` |
-| `g2.confirm-equals-discover` | real | §4.2 |
+| `g2.confirm-equals-discover` | real | §4.2; tmc's six differences of Q3 a known phase-2 limitation, printed, nothing else accepted (D61 e) |
 | `g2.determinism` | ci and real | two processes with a varied environment give one analysis digest; Linux, macOS and both Node versions agree |
 | `g2.synthetic-analysis` | ci | every fixture's `expect.json` holds, negative fixtures included |
 | `g2.rule-registry` | ci | §4.1 registry checks |
