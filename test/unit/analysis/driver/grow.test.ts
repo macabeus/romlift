@@ -3,6 +3,7 @@
 // that proposed it.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { rejectionKey } from '../../../../src/core/analysis/driver/trail.ts';
 
 import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
 import { grow, pointerCandidates } from '../../../../src/core/analysis/driver/grow.ts';
@@ -87,7 +88,7 @@ test('an accepted candidate is skipped; a claimed one is rejected by valid.in-ro
   const before = checks();
   assert.equal(grow(s), 0);
   assert.equal(checks() - before, 0, 'no reading is taken: valid.in-rom-unclaimed judges the entry alone');
-  const r = s.rejections.get(`${G}:thumb`);
+  const r = s.rejections.get(rejectionKey(G, 'thumb'));
   assert.equal(r?.rule, 'valid.in-rom-unclaimed');
   assert.equal(r?.reason, 'inside-code');
   assert.equal(s.funcs.has(G), false);

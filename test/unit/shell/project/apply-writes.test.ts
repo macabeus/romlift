@@ -18,7 +18,7 @@ import { planWrites } from '../../../../src/core/write-plan/plan-writes.ts';
 import { JOURNAL_PATH, MANIFEST_PATH } from '../../../../src/core/write-plan/types.ts';
 import type { Manifest, WritePlan } from '../../../../src/core/write-plan/types.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
-import { applyWrites } from '../../../../src/shell/project/apply-writes.ts';
+import { applyWrites, durableOp } from '../../../../src/shell/project/apply-writes.ts';
 import { readDiskState, readJournal, readManifest, readReconciledTexts } from '../../../../src/shell/project/disk-state.ts';
 import { withProjectLock } from '../../../../src/shell/project/lock.ts';
 
@@ -243,4 +243,12 @@ test('an op path that is not a project path is refused before anything is writte
   assert.equal(applied.ok, false);
   assert.deepEqual(applied.diagnostics.map((d) => d.code), ['E_IO_WRITE']);
   assert.deepEqual(await filesOf(dir), {});
+});
+
+test('durableOp: an edit and a scaffold or c-stub file are flushed before their rename, a generated file is not', () => {
+  assert.equal(durableOp({ op: 'edit', path: 'src/a.c', baseSha1: 'a', resultSha1: 'b', text: '' }), true);
+  assert.equal(durableOp({ op: 'write', path: 'Makefile', text: '', sha1: 'a', writer: 'scaffold' }), true);
+  assert.equal(durableOp({ op: 'write', path: 'src/a.c', text: '', sha1: 'a', writer: 'c-stub' }), true);
+  assert.equal(durableOp({ op: 'write', path: 'asm/a.s', text: '', sha1: 'a', writer: 'function' }), false);
+  assert.equal(durableOp({ op: 'write', path: 'ldscript.txt', text: '', sha1: 'a', writer: 'ldscript' }), false);
 });

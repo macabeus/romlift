@@ -2,6 +2,7 @@
 // epoch only, and validity rules that judge the entry before any reading.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { rejectionKey } from '../../../../src/core/analysis/driver/trail.ts';
 
 import { createDriver } from '../../../../src/core/analysis/driver/state.ts';
 import { valid, whyInvalid } from '../../../../src/core/analysis/driver/validity.ts';
@@ -71,7 +72,7 @@ test('an entry outside the ROM, odd or claimed is never valid, rejected by the r
   assert.equal(valid(s, F + 1), false);
   assert.equal(s.neverValid.has(F + 1), true);
   assert.equal(s.settled.size, 0, 'checkEntry needs no reading');
-  assert.equal(s.rejections.get(`${F + 1}:thumb`)?.rule, 'valid.in-rom-unclaimed');
+  assert.equal(s.rejections.get(rejectionKey(F + 1, 'thumb'))?.rule, 'valid.in-rom-unclaimed');
   assert.deepEqual(whyInvalid(s, 0x0900_0000), { rule: 'valid.in-rom-unclaimed', reason: 'inside-code', intrinsic: true, detail: 'outside the ROM' });
   assert.equal(s.settled.size, 0, 'checkEntry needs no reading');
   accept(s, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
@@ -96,7 +97,7 @@ test('valid() judges an entry outside the ROM, odd or claimed only through the s
   const on = driver([inRom, decodes]).s;
   accept(on, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
   assert.equal(valid(on, F + 2), false, 'inside the claimed code of F');
-  assert.equal(on.rejections.get(`${F + 2}:thumb`)?.rule, 'valid.in-rom-unclaimed');
+  assert.equal(on.rejections.get(rejectionKey(F + 2, 'thumb'))?.rule, 'valid.in-rom-unclaimed');
   const off = driver([decodes]).s;
   accept(off, { entry: F, mode: 'thumb', proposedBy: 'seed.call', cites: [] });
   assert.equal(valid(off, F + 2), true, 'the bl and pop at F + 2 decode');

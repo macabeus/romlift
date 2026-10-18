@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
-import { layoutMemo, layoutStatements } from '../../../src/foundation/asm/layout.ts';
+import { layoutMemo, layoutStatements, memoSlot } from '../../../src/foundation/asm/layout.ts';
 import type { Layout, LayoutInput, LayoutMemo } from '../../../src/foundation/asm/layout.ts';
 import { parseStatements } from '../../../src/foundation/asm/statements.ts';
 import type { Statement } from '../../../src/foundation/asm/statements.ts';
@@ -351,8 +351,8 @@ bx r0
     assert.deepEqual(shared.bytes, alone.bytes, `start 0x${(options.start ?? BASE).toString(16)}`);
   }
   // The named texts (`ldr r0, Far`, `bl Callee`) stay out of the word memo; the others are in it once per word alignment.
-  assert.ok([...memo.words.keys()].every((key) => !key.includes('Far') && !key.includes('Callee')));
-  assert.ok(memo.words.has('t0push {lr}') && memo.words.has('t2push {lr}'));
+  assert.ok(memo.words.every((slot) => [...slot.keys()].every((text) => !text.includes('Far') && !text.includes('Callee'))));
+  assert.ok(memo.words[memoSlot('thumb', 0)]?.has('push {lr}') && memo.words[memoSlot('thumb', 2)]?.has('push {lr}'));
   // An unparsable or unencodable text is refused with or without the memo.
   const bad = lay('.thumb\nadds r0, #999\n', { memo });
   assert.deepEqual(

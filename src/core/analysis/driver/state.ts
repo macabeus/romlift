@@ -88,7 +88,7 @@ export interface DriverState extends DriverInputs {
   readonly neverValid: Set<Addr>;
   /** The distinct harvest targets grow has judged in this run, against LIMITS.candidateBudget (grow.ts). */
   readonly judged: Set<Addr>;
-  readonly rejections: Map<string, Rejection>;
+  readonly rejections: Map<number, Rejection>;
   readonly adrOwner: Map<Addr, Addr>;
   /** Confirm mode: the listed entries, and their addresses ascending. */
   readonly listed: ReadonlyMap<Addr, Seed>;

@@ -16,9 +16,13 @@ export function emit(s: DriverState, kind: TrailKind, at: Addr, rule: RuleId, ci
   if (trailKeeps(s.options.trail, s.options.trailFilter, e)) s.sink.event(e);
 }
 
-/** The key of the rejection of (at, mode) in DriverState.rejections. */
-export function rejectionKey(at: Addr, mode: Mode): string {
-  return `${at}:${mode}`;
+/**
+ * The key of the rejection of (at, mode) in DriverState.rejections: twice the address, plus one for ARM. A number,
+ * not a string: a run on a 32 MiB image records a million rejections, whose `${at}:${mode}` keys held about 47 MiB
+ * of strings (architecture §9.4).
+ */
+export function rejectionKey(at: Addr, mode: Mode): number {
+  return at * 2 + (mode === 'arm' ? 1 : 0);
 }
 
 /** Records a rejection: the last one per (at, mode), with a count. `cites` are its trail event's (the entry by default). */

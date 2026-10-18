@@ -35,17 +35,29 @@ import type { Addr, Mode } from '../rom/span.ts';
 import { hex } from '../util/hex.ts';
 import type { Expr, Statement } from './statements.ts';
 
-/** What layouts remember of instruction texts (see the header); layoutMemo() makes an empty one. */
+/** The number of memo slots: a state (Thumb, ARM) times an address mod 4. */
+const MEMO_SLOTS = 8;
+
+/**
+ * What layouts remember of instruction texts (see the header); layoutMemo() makes an empty one. Each list holds
+ * one map per memoSlot, keyed by the text itself, so a lookup hashes the text the statement already holds
+ * rather than a new string built per instruction.
+ */
 export interface LayoutMemo {
-  /** Pass 1: the size of a text, undefined when no row reads it, by memoKey. */
-  readonly sizes: Map<string, number | undefined>;
-  /** Pass 2: the word of a text that names no symbol, by memoKey. */
-  readonly words: Map<string, number>;
+  /** Pass 1: the size of a text, undefined when no row reads it, by memoSlot then text. */
+  readonly sizes: readonly Map<string, number | undefined>[];
+  /** Pass 2: the word of a text that names no symbol, by memoSlot then text. */
+  readonly words: readonly Map<string, number>[];
 }
 
 /** An empty LayoutMemo, to share across the layouts of one run. */
 export function layoutMemo(): LayoutMemo {
-  return { sizes: new Map(), words: new Map() };
+  return { sizes: Array.from({ length: MEMO_SLOTS }, () => new Map()), words: Array.from({ length: MEMO_SLOTS }, () => new Map()) };
+}
+
+/** The memo slot of an instruction text: its state and its address mod 4. */
+export function memoSlot(mode: Mode, addr: Addr): number {
+  return (mode === 'arm' ? 4 : 0) + (addr & 3);
 }
 
 export interface LayoutInput {
@@ -154,17 +166,13 @@ function padding(addr: Addr, power: number): number {
   return (unit - (addr % unit)) % unit;
 }
 
-/** The key the memo of one layout files an instruction text under: its state, its address mod 4, the text. */
-function memoKey(text: string, mode: Mode, addr: Addr): string {
-  return `${mode === 'arm' ? 'a' : 't'}${addr & 3}${text}`;
-}
-
 /** insnSize through the layout's memo. */
 function sizeOf(w: Walker, text: string, mode: Mode, addr: Addr): number | undefined {
-  const key = memoKey(text, mode, addr);
-  if (w.memo.sizes.has(key)) return w.memo.sizes.get(key);
+  const sizes = w.memo.sizes[memoSlot(mode, addr)] as Map<string, number | undefined>;
+  const hit = sizes.get(text);
+  if (hit !== undefined || sizes.has(text)) return hit;
   const size = insnSize(text, mode, addr);
-  w.memo.sizes.set(key, size);
+  sizes.set(text, size);
   return size;
 }
 
@@ -424,23 +432,23 @@ function exprValue(expr: Expr, symbols: Symbols): number | string {
 }
 
 /**
- * encodeInsn through the layout's memo of the words of texts that name no symbol (`words`, by memoKey): such
+ * encodeInsn through the layout's memo of the words of texts that name no symbol (`words`, by memoSlot): such
  * a text consults no resolver, so its word is the same at every address of its word alignment.
  */
-function encodeMemo(text: string, p: Placed, symbols: Symbols, words: Map<string, number>): { readonly word: number } | string {
-  const key = memoKey(text, p.mode, p.at);
-  const hit = words.get(key);
+function encodeMemo(text: string, p: Placed, symbols: Symbols, words: readonly Map<string, number>[]): { readonly word: number } | string {
+  const slot = words[memoSlot(p.mode, p.at)] as Map<string, number>;
+  const hit = slot.get(text);
   if (hit !== undefined) return { word: hit };
   let named = false;
   const encoded = encodeInsn(text, p, symbols, () => {
     named = true;
   });
-  if (typeof encoded !== 'string' && !named) words.set(key, encoded.word);
+  if (typeof encoded !== 'string' && !named) slot.set(text, encoded.word);
   return encoded;
 }
 
 /** Pass 2 for one placed statement: writes its bytes, or returns an error message. */
-function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array, words: Map<string, number>): string | undefined {
+function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array, words: readonly Map<string, number>[]): string | undefined {
   const offset = p.at - input.start;
   const stmt = p.stmt;
   switch (stmt.kind) {

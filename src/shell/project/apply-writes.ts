@@ -1,5 +1,7 @@
 // Applies a write plan to a project directory (architecture §6.4 step 4, D17), mechanically: the journal
-// first, each op through a temporary file and a rename, the manifest last, then the journal is removed.
+// first, each op through a temporary file and a rename, the manifest last, then the journal is removed. The
+// journal, the manifest, edits and scaffold files are flushed to disk before their rename; generated files are
+// not, and one whose path does not exist yet is created in place (durableOp).
 // Every decision is planWrites'; a plan with an error diagnostic is refused before anything is touched.
 // The caller holds the project lock (withProjectLock, lock.ts) around the snapshot, the plan and this.
 //
@@ -60,25 +62,45 @@ async function pruneEmptyParents(dir: string, file: string): Promise<void> {
   }
 }
 
-async function writeText(file: string, text: string | Iterable<string>): Promise<Diagnostic | undefined> {
-  try {
-    await mkdir(dirname(file), { recursive: true });
-  } catch (error) {
-    return writeError(file, error);
+/** The directories one applyWrites call has made, so each is made once, not once per file. */
+type MadeDirs = Set<string>;
+
+async function writeText(file: string, text: string | Iterable<string>, durable: boolean, made: MadeDirs): Promise<Diagnostic | undefined> {
+  const parent = dirname(file);
+  if (!made.has(parent)) {
+    try {
+      await mkdir(parent, { recursive: true });
+    } catch (error) {
+      return writeError(file, error);
+    }
+    made.add(parent);
   }
-  const written = await atomicWrite(file, text);
+  const written = await atomicWrite(file, text, { durable, inPlaceWhenAbsent: !durable });
   return written.ok ? undefined : written.diagnostic;
 }
 
-async function applyOp(dir: string, op: WriteOp): Promise<Diagnostic | undefined> {
+/**
+ * Whether an op's file is flushed to disk before its rename: an edit of a user's file and a scaffold file
+ * (written only when absent, so a file a crash left empty would stay empty) are; a generated file is not, because
+ * the next run snapshots every generated path's sha1 and rewrites a file whose content differs from the tree,
+ * the journal naming it owned. Measured on fe7j's 9,346 files, the flushes cost 5.1 s of the 12.6 s CPU of
+ * generate and its write.
+ */
+export function durableOp(op: Extract<WriteOp, { readonly op: 'write' | 'edit' }>): boolean {
+  return op.op === 'edit' || op.writer === 'scaffold' || op.writer === 'c-stub';
+}
+
+async function applyOp(dir: string, op: WriteOp, made: MadeDirs): Promise<Diagnostic | undefined> {
   const file = onDisk(dir, op.path);
   switch (op.op) {
     case 'write':
     case 'edit':
-      return writeText(file, op.text);
+      return writeText(file, op.text, durableOp(op), made);
     case 'delete': {
       const failed = await removeFile(file);
       if (failed === undefined) await pruneEmptyParents(dir, file);
+      // A pruned directory must be made again by a later write.
+      made.clear();
       return failed;
     }
     case 'keep':
@@ -105,15 +127,16 @@ export async function applyWrites(dir: string, plan: WritePlan): Promise<ApplyRe
   } catch (error) {
     return { ok: false, applied: 0, diagnostics: [writeError(join(dir, ROMLIFT_DIR), error)] };
   }
-  const journal = await writeText(onDisk(dir, JOURNAL_PATH), encodeJournal(journalOf(plan.ops)));
+  const made: MadeDirs = new Set();
+  const journal = await writeText(onDisk(dir, JOURNAL_PATH), encodeJournal(journalOf(plan.ops)), true, made);
   if (journal !== undefined) return { ok: false, applied: 0, diagnostics: [journal] };
   let applied = 0;
   for (const op of plan.ops) {
-    const failed = await applyOp(dir, op);
+    const failed = await applyOp(dir, op, made);
     if (failed !== undefined) return { ok: false, applied, diagnostics: [failed] };
     if (op.op !== 'keep') applied++;
   }
-  const manifest = await writeText(onDisk(dir, MANIFEST_PATH), encodeManifest(plan.manifest));
+  const manifest = await writeText(onDisk(dir, MANIFEST_PATH), encodeManifest(plan.manifest), true, made);
   if (manifest !== undefined) return { ok: false, applied, diagnostics: [manifest] };
   const cleared = await removeFile(onDisk(dir, JOURNAL_PATH));
   return cleared === undefined ? { ok: true, applied, diagnostics: [] } : { ok: false, applied, diagnostics: [cleared] };

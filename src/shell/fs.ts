@@ -3,6 +3,8 @@
 // returned as E_IO_READ or E_IO_WRITE diagnostics, never thrown.
 import { randomBytes } from 'node:crypto';
 import { open, readdir, readFile, rename, rm } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
+import { closeSync, openSync, rmSync, writeSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 import { diagnostic } from '../foundation/diagnostics/diagnostic.ts';
@@ -49,30 +51,102 @@ export async function readBytes(path: string): Promise<IoResult<Uint8Array>> {
   }
 }
 
+export interface AtomicWriteOptions {
+  /**
+   * Flush the temporary file to disk before the rename (fsync), so the new content survives a crash; default
+   * true. applyWrites passes false for a generated file, which the next run compares with the tree and
+   * rewrites when it differs, so a crash can cost it nothing but the rewrite (architecture §6.4).
+   */
+  readonly durable?: boolean;
+  /**
+   * When `path` does not exist, create it in place (`O_EXCL`) instead of through a temporary file and a rename;
+   * only without `durable`. There is no old file a reader could lose, and a crash part-way leaves a file the next
+   * run rewrites; an existing file still goes through the temporary file.
+   */
+  readonly inPlaceWhenAbsent?: boolean;
+}
+
+type Data = string | Uint8Array | Iterable<string>;
+
+/** Writes `data` through an open handle, a stream of chunks in batches of WRITE_BATCH. */
+async function writeData(handle: FileHandle, data: Data): Promise<void> {
+  if (typeof data === 'string' || data instanceof Uint8Array) {
+    await handle.writeFile(data);
+    return;
+  }
+  let batch = '';
+  for (const chunk of data) {
+    batch += chunk;
+    if (batch.length >= WRITE_BATCH) {
+      await handle.writeFile(batch);
+      batch = '';
+    }
+  }
+  if (batch.length > 0) await handle.writeFile(batch);
+}
+
 /**
- * Replaces file `path` with `data`: writes a temporary file in the same directory, flushes it to disk,
- * then renames it over `path`, so a reader sees the old file or the new one, never a partial one.
- * The temporary file is removed when any step fails.
+ * Creates `path` with `data` when it does not exist: true when written, false when it exists (nothing touched).
+ * Synchronous on purpose: a fresh tree is thousands of small files, and the synchronous calls skip the thread
+ * pool and its promises (measured on pokeemerald's 19,121 files: 1.6 s against 2.4 s CPU).
  */
-export async function atomicWrite(path: string, data: string | Uint8Array | Iterable<string>): Promise<IoResult<void>> {
+function createInPlace(path: string, data: Data): boolean {
+  let fd: number;
+  try {
+    fd = openSync(path, 'wx');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw error;
+  }
+  try {
+    if (typeof data === 'string' || data instanceof Uint8Array) writeAll(fd, data);
+    else {
+      let batch = '';
+      for (const chunk of data) {
+        batch += chunk;
+        if (batch.length >= WRITE_BATCH) {
+          writeAll(fd, batch);
+          batch = '';
+        }
+      }
+      if (batch.length > 0) writeAll(fd, batch);
+    }
+  } catch (error) {
+    closeSync(fd);
+    rmSync(path, { force: true });
+    throw error;
+  }
+  closeSync(fd);
+  return true;
+}
+
+/** Writes all of `data` at the descriptor's position. */
+function writeAll(fd: number, data: string | Uint8Array): void {
+  const bytes = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  for (let done = 0; done < bytes.length; ) done += writeSync(fd, bytes, done, bytes.length - done);
+}
+
+/**
+ * Replaces file `path` with `data`: writes a temporary file in the same directory, flushes it to disk
+ * (unless `durable` is false), then renames it over `path`, so a reader sees the old file or the new one,
+ * never a partial one. The temporary file is removed when any step fails. With `inPlaceWhenAbsent` and not
+ * `durable`, a path that does not exist yet is created in place.
+ */
+export async function atomicWrite(path: string, data: Data, options: AtomicWriteOptions = {}): Promise<IoResult<void>> {
+  const durable = options.durable !== false;
+  if (!durable && options.inPlaceWhenAbsent === true) {
+    try {
+      if (createInPlace(path, data)) return { ok: true, value: undefined };
+    } catch (error) {
+      return failure('E_IO_WRITE', path, 'cannot write', error);
+    }
+  }
   const temp = join(dirname(path), `.${basename(path)}.${randomBytes(6).toString('hex')}.tmp`);
   try {
     const handle = await open(temp, 'wx');
     try {
-      if (typeof data === 'string' || data instanceof Uint8Array) {
-        await handle.writeFile(data);
-      } else {
-        let batch = '';
-        for (const chunk of data) {
-          batch += chunk;
-          if (batch.length >= WRITE_BATCH) {
-            await handle.writeFile(batch);
-            batch = '';
-          }
-        }
-        if (batch.length > 0) await handle.writeFile(batch);
-      }
-      await handle.sync();
+      await writeData(handle, data);
+      if (durable) await handle.sync();
     } finally {
       await handle.close();
     }
