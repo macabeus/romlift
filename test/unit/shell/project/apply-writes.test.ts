@@ -252,3 +252,42 @@ test('durableOp: an edit and a scaffold or c-stub file are flushed before their 
   assert.equal(durableOp({ op: 'write', path: 'asm/a.s', text: '', sha1: 'a', writer: 'function' }), false);
   assert.equal(durableOp({ op: 'write', path: 'ldscript.txt', text: '', sha1: 'a', writer: 'ldscript' }), false);
 });
+
+test('case-only renames of a module file, a module directory and a chunk file apply on this file system and the next plan keeps everything (correctness-2)', async () => {
+  const dir = await tempDir();
+  const first: FileEntry[] = [
+    { ownership: 'generated', path: 'asm/main.s', text: '.include "asm/nonmatchings/main/sub_08000100.s"\n', writer: 'module' },
+    { ownership: 'generated', path: 'asm/nonmatchings/main/sub_08000100.s', text: 'F\n', writer: 'function' },
+    { ownership: 'generated', path: 'asm/nonmatchings/main/sub_08000200.s', text: 'G\n', writer: 'function' },
+    { ownership: 'generated', path: 'asm/nonmatchings/other/sub_08000300.s', text: 'H\n', writer: 'function' },
+  ];
+  const second: FileEntry[] = [
+    { ownership: 'generated', path: 'asm/Main.s', text: '.include "asm/nonmatchings/Main/sub_08000100.s"\n', writer: 'module' },
+    { ownership: 'generated', path: 'asm/nonmatchings/Main/sub_08000100.s', text: 'F\n', writer: 'function' },
+    { ownership: 'generated', path: 'asm/nonmatchings/Main/sub_08000200.s', text: 'G\n', writer: 'function' },
+    { ownership: 'generated', path: 'asm/nonmatchings/other/SUB_08000300.s', text: 'H\n', writer: 'function' },
+  ];
+  const run = async (entries: readonly FileEntry[]): Promise<WritePlan> => {
+    const manifest = await readManifest(dir);
+    assert.ok(manifest.ok);
+    const disk = await readDiskState(dir, [...entries.map((e) => e.path), ...Object.keys(manifest.value?.files ?? {})]);
+    assert.ok(disk.ok);
+    const plan = planWrites({ entries, manifest: manifest.value, disk: disk.value, reconciledTexts: new Map(), hash: sha1Of, retained: [] });
+    const applied = await applyWrites(dir, plan);
+    assert.ok(applied.ok, applied.diagnostics.map((d) => d.message).join('; '));
+    return plan;
+  };
+  await run(first);
+  await run(second);
+  // Every file of the tree is there, under the spelling the tree gives (also on a case-insensitive file system).
+  for (const e of second) assert.equal(await readFile(join(dir, ...e.path.split('/')), 'utf8'), 'text' in e ? e.text : '', e.path);
+  assert.deepEqual((await readdir(join(dir, 'asm'))).filter((n) => n.endsWith('.s')), ['Main.s']);
+  assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings')), ['Main', 'other']);
+  assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings', 'other')), ['SUB_08000300.s']);
+  const manifest = await readManifest(dir);
+  assert.ok(manifest.ok);
+  assert.deepEqual(Object.keys(manifest.value?.files ?? {}), second.map((e) => e.path).sort());
+  // The run after converges: nothing to write or delete.
+  const again = await run(second);
+  assert.deepEqual([...new Set(again.ops.map((o) => o.op))], ['keep']);
+});

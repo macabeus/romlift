@@ -5,14 +5,12 @@
 // E_PATH_CASE_COLLISION naming both paths.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { foldPath } from '../../foundation/util/fold.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult } from './report.ts';
 import { VerifyCodes } from './codes.ts';
 
-/** The key two paths share when a case-insensitive file system takes them for one file. */
-export function foldPath(path: string): string {
-  return path.toLowerCase();
-}
+export { foldPath } from '../../foundation/util/fold.ts';
 
 function scan(paths: Iterable<string>): { readonly diagnostics: readonly Diagnostic[]; readonly count: number } {
   const seen = new Map<string, string>();

@@ -13,13 +13,19 @@
 //               new manifest drops it: romlift no longer owns it, so it is never deleted later either.
 //   unowned     a file under a generated root that is neither in the tree, the manifest nor the journal is
 //               left in place with W_UNOWNED_FILE.
+//   case rename a tree path that only the case separates from a path romlift owns (the manifest or the journal
+//               lists it, the tree no longer has it: a module or function renamed by case) is the same file on a
+//               case-insensitive file system, where the snapshot reads the old file for the new path. Its op is
+//               always a `write`, and the old path's `delete` comes before every other op, so the delete
+//               cannot remove the new file and a directory left empty is pruned before the new spelling is made.
 //
 // A plan with an error diagnostic must not be applied: applyWrites (shell/project/apply-writes.ts) refuses
 // it and touches nothing, and a caller sees it as `planHasErrors(plan)`. The plan still lists every op it
 // could decide, so `--dry-run --json` shows the whole picture.
 import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { compareCodeUnits, sortedKeys } from '../../foundation/util/sorted.ts';
+import { foldPath } from '../../foundation/util/fold.ts';
+import { compareCodeUnits, compareNumbers, sortedKeys } from '../../foundation/util/sorted.ts';
 import type { FileEntry, TextEdit, WriterId } from '../emit/tree.ts';
 import { WritePlanCodes } from './codes.ts';
 import type { WritePlanCode } from './codes.ts';
@@ -77,10 +83,25 @@ class Planner {
   readonly seen = new Set<string>();
   readonly inputs: WritePlanInputs;
   readonly journal: ReadonlyMap<string, JournalOp>;
+  /** The paths romlift owns (the manifest's and the journal's), by folded key. */
+  readonly ownedFolds = new Map<string, string[]>();
+  /** The owned paths a tree path renames by case only: deleted before every other op. */
+  readonly caseRenamed = new Set<string>();
 
   constructor(inputs: WritePlanInputs) {
     this.inputs = inputs;
     this.journal = journalByPath(inputs.journal);
+    for (const path of [...Object.keys(inputs.manifest?.files ?? {}), ...sortedKeys(this.journal)]) {
+      const key = foldPath(path);
+      const list = this.ownedFolds.get(key);
+      if (list === undefined) this.ownedFolds.set(key, [path]);
+      else if (!list.includes(path)) list.push(path);
+    }
+  }
+
+  /** The owned paths other than `path` that fold to it (a case-only rename of `path`). */
+  caseVariants(path: string): readonly string[] {
+    return (this.ownedFolds.get(foldPath(path)) ?? []).filter((p) => p !== path);
   }
 
   raise(code: WritePlanCode, path: string, message: string): void {
@@ -120,7 +141,13 @@ class Planner {
   generated(path: string, text: string, writer: WriterId): void {
     const sha1 = this.inputs.hash(text);
     const disk = this.diskOf(path);
-    if (disk === sha1) {
+    const variants = this.caseVariants(path);
+    if (variants.length > 0) {
+      // The old spelling is deleted first (finish, plan); on a case-insensitive file system that removes this
+      // file too, whatever the snapshot read for it, so it is written again.
+      for (const v of variants) this.caseRenamed.add(v);
+      this.ops.push({ op: 'write', path, text, sha1, writer });
+    } else if (disk === sha1) {
       this.ops.push({ op: 'keep', path, sha1 });
     } else if (disk === 'absent' || this.owned(path) || underGeneratedRoot(path)) {
       this.ops.push({ op: 'write', path, text, sha1, writer });
@@ -168,6 +195,7 @@ class Planner {
     for (const path of sortedKeys(deletable)) {
       if (this.seen.has(path) || underRetained(path, retained)) continue;
       if (disk.get(path) !== 'absent') this.ops.push({ op: 'delete', path });
+      else this.caseRenamed.delete(path);
     }
     for (const path of sortedKeys(disk)) {
       if (disk.get(path) === 'absent' || !underGeneratedRoot(path) || this.seen.has(path) || deletable.has(path)) continue;
@@ -178,7 +206,9 @@ class Planner {
   }
 
   plan(): WritePlan {
-    const ops = [...this.ops].sort((a, b) => compareCodeUnits(a.path, b.path));
+    // The deletes of case-renamed paths first, then every op by path.
+    const first = (op: WriteOp): number => (op.op === 'delete' && this.caseRenamed.has(op.path) ? 0 : 1);
+    const ops = [...this.ops].sort((a, b) => compareNumbers(first(a), first(b)) || compareCodeUnits(a.path, b.path));
     const files: Record<string, ManifestFile> = {};
     for (const path of sortedKeys(this.files)) {
       const file = this.files.get(path);
@@ -193,7 +223,8 @@ class Planner {
 }
 
 /**
- * The write plan of one run (architecture §6.4 step 3): the ops sorted by path, the manifest to write after
+ * The write plan of one run (architecture §6.4 step 3): the ops sorted by path (the deletes of case-only renames
+ * first), the manifest to write after
  * them (sorted by path), and the diagnostics. Reads `inputs.entries` once, as a stream. An error diagnostic
  * (E_PATH_NOT_OWNED, E_STALE_EDIT) means the plan must not be applied (`planHasErrors`). Throws only
  * RomliftInvariantError, for a broken caller contract: a tree path twice, a path that is not a project

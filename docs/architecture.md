@@ -1323,8 +1323,10 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      `foundation/asm/layout.ts`, and the bytes must equal the ROM range; every `.align` must emit exactly
      its padding item's length. A mismatch is `E_SELF_CHECK_TEXT` with the file, line and address. Paths
      are checked for duplicates and case-folded collisions in the same pass (`paths.ts`,
-     `E_PATH_CASE_COLLISION`). This makes every run on every ROM a link-equivalent check without a
-     toolchain; `verify --link` and the SHA-1 remain the final proof.
+     `E_PATH_CASE_COLLISION`). Each build unit must also start and end on a multiple of its section's
+     alignment, which GNU as pads a section's end to and ld places it on (D65 a). This makes every run on
+     every ROM a link-equivalent check without a toolchain; `verify --link` and the SHA-1 remain the final
+     proof.
 
    The check pass streams the emission once and keeps only paths and digests; the write pass re-runs
    the deterministic emission. Nothing is written unless the check pass completed.
@@ -1338,6 +1340,9 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      `AGENTS.md` and `.gitignore` declare tool-owned; elsewhere it is `E_PATH_NOT_OWNED`. Without a
      manifest nothing is deleted and an unknown file under a generated root is `W_UNOWNED_FILE`. Files of
      a `generated = false` module are never written and never deleted (`WritePlanInputs.retained`, D62 d).
+     A tree path that only the case separates from a path the manifest or the journal lists (a module or
+     function renamed by case) is one file on a case-insensitive file system: it is always `write`n, and the
+     old spelling's `delete` comes before every other op, so it cannot remove the new file (D65 b).
    - **scaffold**: `write` only when absent; `scaffold --diff` shows template drift.
    - **reconciled**: `edit` only if the file's sha1 still equals `baseSha1`, else `E_STALE_EDIT`.
 4. **Apply** (`shell/project/apply-writes.ts`), mechanically:

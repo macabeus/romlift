@@ -297,3 +297,39 @@ test('applyTextEdits applies non-overlapping edits by offset, insertions at one 
   assert.throws(() => applyTextEdits('abc', [{ start: 2, end: 4, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
   assert.throws(() => applyTextEdits('abc', [{ start: 2, end: 1, text: '', reason: 'remove-stub' }]), RomliftInvariantError);
 });
+
+test('a case-only rename: the old spelling is deleted before every other op and the new one is written, even when the snapshot reads the old file (correctness-2)', () => {
+  // A case-insensitive file system: the snapshot of the new spellings reads the old files' bytes.
+  const manifest = manifestOf({ 'asm/nonmatchings/main/sub_0800.s': 'F', 'asm/main.s': 'M', 'asm/nonmatchings/main/z.s': 'Z' });
+  const p = plan({
+    entries: [gen('asm/Main.s', 'M'), gen('asm/nonmatchings/Main/z.s', 'Z'), gen('asm/nonmatchings/main/SUB_0800.s', 'F')],
+    manifest,
+    disk: diskOf({
+      'asm/Main.s': 'M',
+      'asm/main.s': 'M',
+      'asm/nonmatchings/Main/z.s': 'Z',
+      'asm/nonmatchings/main/z.s': 'Z',
+      'asm/nonmatchings/main/SUB_0800.s': 'F',
+      'asm/nonmatchings/main/sub_0800.s': 'F',
+    }),
+  });
+  assert.deepEqual(
+    p.ops.map((o) => [o.op, o.path]),
+    [
+      ['delete', 'asm/main.s'],
+      ['delete', 'asm/nonmatchings/main/sub_0800.s'],
+      ['delete', 'asm/nonmatchings/main/z.s'],
+      ['write', 'asm/Main.s'],
+      ['write', 'asm/nonmatchings/Main/z.s'],
+      ['write', 'asm/nonmatchings/main/SUB_0800.s'],
+    ],
+  );
+  assert.deepEqual(Object.keys(p.manifest.files), ['asm/Main.s', 'asm/nonmatchings/Main/z.s', 'asm/nonmatchings/main/SUB_0800.s']);
+  assert.deepEqual(p.diagnostics, []);
+  // A case-sensitive file system: the new spellings are absent, the old ones still deleted first.
+  const q = plan({ entries: [gen('asm/Main.s', 'M')], manifest: manifestOf({ 'asm/main.s': 'M' }), disk: diskOf({ 'asm/Main.s': null, 'asm/main.s': 'M' }) });
+  assert.deepEqual(q.ops.map((o) => [o.op, o.path]), [['delete', 'asm/main.s'], ['write', 'asm/Main.s']]);
+  // The old spelling already gone (an interrupted run): only the write.
+  const r = plan({ entries: [gen('asm/Main.s', 'M')], manifest: manifestOf({ 'asm/main.s': 'M' }), disk: diskOf({ 'asm/Main.s': null, 'asm/main.s': null }) });
+  assert.deepEqual(r.ops.map((o) => [o.op, o.path]), [['write', 'asm/Main.s']]);
+});
