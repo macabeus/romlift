@@ -96,7 +96,7 @@ test("dataset-check runs romlift's analysis: the synthetic tier passes, a row th
   });
 });
 
-test('the ELF code end (D60 j): a sized function at addr + size, an unsized one at the first data mapping or typed symbol after it', () => {
+test('the ELF code end (D60 j, D61 a): a sized function at addr + size, an unsized one at the first data mapping or typed symbol after it', () => {
   const elf = elfFile([
     { name: 'host', value: 0x0800_0101, size: 0x40 },
     { name: 'last', value: 0x0800_0200, size: 0 },

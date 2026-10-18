@@ -171,7 +171,8 @@ test("scoreAnalysis scores romlift's result exactly as scoreRun scores the same 
   const truth = elfTruth(ELF, ROM_SIZE);
   const row = scoreAnalysis({ result: RESULT, diagnoses: DIAGNOSES, truth, dataset: DATASET, sha1: 'f'.repeat(40), deterministic: true, scaffold: { ok: true } });
   // Equal but for the ELF code end: romlift's rows end the unsized last function ('label', 0x08000500) at
-  // the next code-ending symbol (truth.ts elfCodeEnd, D60 j), the PoC's rescoring where it starts (pocCodeEnd).
+  // the next code-ending symbol (truth.ts elfCodeEnd, D60 j, the owner's answer to Q5, D61 a), the PoC's
+  // rescoring where it starts (pocCodeEnd), as the PoC's pinned rows do.
   const poc = scoreRun({ dump: DUMP, truth, dataset: DATASET, sha1: 'f'.repeat(40) });
   assert.deepEqual({ ...row, codeEnd: poc.codeEnd }, poc);
   assert.deepEqual(poc.codeEnd, { found: '0x08000710', elf: '0x08000500', delta: 0x210 });

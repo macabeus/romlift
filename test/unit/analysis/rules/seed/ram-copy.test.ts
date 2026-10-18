@@ -1,7 +1,9 @@
 // seed.ram-copy (D60 e): a copy of a ROM block to IWRAM by accepted code, and the IWRAM pointers accepted
 // code jumps through, name entries of the block at their load addresses; each pair is proposed when the
 // later of the two functions is accepted. The copy is recognised by what the callee does: a copy loop in
-// either argument order, a BIOS CpuSet or CpuFastSet stub, or an inline swi.
+// either argument order (a byte count, an end pointer computed from it, an end compared with a copy
+// pointer, or a count of units), a BIOS CpuSet or CpuFastSet stub, or an inline swi; its arguments come
+// from the straight-line run before the call (argInsns), and a jump from within jumpInsns of its load.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
