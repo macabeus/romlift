@@ -185,14 +185,17 @@ function namesByAddr(symbols: readonly ElfSymbol[], keep: (s: ElfSymbol) => bool
 
 /**
  * The discover config with the reference ELF's names by address (D34): each listed function takes the ELF
- * `FUNC` name at its entry, and every `OBJECT` or untyped symbol of the ROM outside every function's extent
- * becomes a symbol, so the data labels the code names carry the reference's names. A name the ELF uses at
+ * `FUNC` name at its entry, and every `OBJECT` or untyped symbol of the ROM outside every function's extent,
+ * and every one outside the ROM that a section of the ELF defines (RAM; symbols.ld defines them), becomes a
+ * symbol, so the data labels and the RAM addresses the code names carry the reference's names. An absolute
+ * symbol (an I/O register such as REG_DMA3, INTR_VECTOR) is left out: the reference's code holds those as plain
+ * constants, never as relocations. A name the ELF uses at
  * two addresses (two static definitions) is given to neither, so the model keeps one name per label.
  */
 export function namedConfig(config: RomliftConfig, rom: Rom, symbols: readonly ElfSymbol[], extents: readonly { readonly entry: number; readonly end: number }[]): RomliftConfig {
   const inside = (addr: number): boolean => extents.some((f) => addr >= f.entry && addr < f.end);
   const funcs = namesByAddr(symbols, (s) => s.type === 'func' && config.functions.has(s.addr));
-  const data = namesByAddr(symbols, (s) => s.type !== 'func' && contains(rom, s.addr) && !config.functions.has(s.addr) && !inside(s.addr));
+  const data = namesByAddr(symbols, (s) => s.type !== 'func' && (contains(rom, s.addr) ? !config.functions.has(s.addr) && !inside(s.addr) : s.sectionName !== undefined));
   const uses = new Map<string, number>();
   for (const name of [...funcs.values(), ...data.values()]) uses.set(name, (uses.get(name) ?? 0) + 1);
   const unique = (name: string): boolean => uses.get(name) === 1;

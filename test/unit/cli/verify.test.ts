@@ -241,3 +241,30 @@ test('a child process with stdin closed prints the NDJSON contract and exits wit
   assert.ok(result.status === ExitCode.ok || result.status === ExitCode.verifyFailed, result.stderr);
   assertContract(result.stdout, result.status as ExitCode);
 });
+
+test('a [symbols] entry in RAM names every pool word equal to its address, which symbols.ld defines, and the tree links to the SHA-1', { skip: noToolchain }, async () => {
+  const rom = readFixtureRom(FAR_JUMP);
+  const base = discovered(rom);
+  const config: RomliftConfig = {
+    ...base,
+    symbols: new Map([
+      [0x0200_0000, { name: 'gEwramStart', aliases: [] }],
+      [0x0300_7fa0, { name: 'gIrqStackTop', aliases: [] }],
+    ]),
+  };
+  for (const printer of PRINTERS) {
+    const result = generate({ rom, config, decomp: { defined: new Set() }, printer });
+    assert.ok(result.report.ok, `${printer}: ${result.report.checks.map((c) => c.detail).join('; ')}`);
+    const texts = [...result.entries()].map((e) => ('text' in e ? e.text : ''));
+    const all = texts.join('\n');
+    assert.match(all, /gEwramStart = 0x02000000;\ngIrqStackTop = 0x03007FA0;/);
+    if (printer === 'readable') {
+      assert.match(all, /\.4byte gEwramStart\b/);
+      assert.match(all, /\.4byte gIrqStackTop\b/);
+      assert.doesNotMatch(all, /\.4byte 0x0(2000000|3007FA0)\b/);
+    }
+    const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: process.env });
+    assert.deepEqual(outcome.checks.map((c) => [c.id, c.ok]), [['assemble', true], ['link', true]], printer);
+    assert.equal(outcome.sha1, rom.sha1, printer);
+  }
+});

@@ -99,11 +99,11 @@ test('the verdict: counts per kind in code-unit order, at most EXAMPLES_PER_KIND
   assert.deepEqual(unlinkedSummary(), { linked: false, scored: 0, differences: {}, examples: [] });
 });
 
-function symbol(name: string, addr: number, type: ElfSymbol['type'], bind: ElfSymbol['bind'] = 'global'): ElfSymbol {
-  return { name, value: addr, addr, size: 4, type, bind, thumb: false, sectionIndex: 1 };
+function symbol(name: string, addr: number, type: ElfSymbol['type'], bind: ElfSymbol['bind'] = 'global', sectionName: string | null = '.text'): ElfSymbol {
+  return { name, value: addr, addr, size: 4, type, bind, thumb: false, sectionIndex: sectionName === null ? 0xfff1 : 1, ...(sectionName === null ? {} : { sectionName }) };
 }
 
-test('namedConfig: functions take the ELF FUNC name, data outside every extent becomes a symbol, a shared name is given to neither', () => {
+test('namedConfig: functions take the ELF FUNC name, data outside every extent and RAM a section defines become symbols, an absolute one does not, a shared name is given to neither', () => {
   const rom = romFromBytes(new Uint8Array(0x200), 'f'.repeat(40));
   const f = (name: string): FunctionConfig => ({ name, mode: 'thumb', aliases: ['old'] });
   const config: RomliftConfig = {
@@ -128,7 +128,8 @@ test('namedConfig: functions take the ELF FUNC name, data outside every extent b
     symbol('$t', 0x0800_0140, 'notype'),
     symbol('gTable', 0x0800_01a0, 'object'),
     symbol('label_in_code', 0x0800_0104, 'notype'),
-    symbol('gRam', 0x0300_0000, 'object'),
+    symbol('gRam', 0x0300_0000, 'object', 'global', '.bss'),
+    symbol('REG_IE', 0x0400_0200, 'notype', 'global', null),
     symbol('.Lpool', 0x0800_01b0, 'notype'),
     symbol('bad name', 0x0800_01c0, 'object'),
     symbol('sNoType', 0x0800_01d0, 'notype'),
@@ -141,6 +142,7 @@ test('namedConfig: functions take the ELF FUNC name, data outside every extent b
   ]);
   assert.deepEqual([...named.symbols].map(([a, s]) => [a, s.name]), [
     [0x0800_01a0, 'gTable'],
+    [0x0300_0000, 'gRam'],
     [0x0800_01d0, 'sNoType'],
   ]);
 });

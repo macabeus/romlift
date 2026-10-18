@@ -124,7 +124,11 @@ export interface LabelInputs {
   readonly chunks: readonly ChunkPlan[];
   /** Every listed function inside the ROM. */
   readonly functions: ReadonlyMap<Addr, FunctionConfig>;
-  /** The symbols inside the ROM. */
+  /**
+   * Every symbol of the config: one inside the ROM is a data label of the file that holds its bytes; one outside
+   * (RAM, I/O, an absolute address) is a global label no file places, which symbols.ld defines, so a pool word
+   * equal to its address prints as its name (§5: `ldr r0, _08001A3C @ =gFoo`).
+   */
   readonly symbols: readonly ModelSymbol[];
   readonly segments: Segments;
   readonly refs: readonly CodeRef[];
@@ -315,11 +319,13 @@ export function buildLabels(inputs: LabelInputs): LabelsResult {
   const global = scopes(inputs, index);
   const functions = new Map<Addr, Label>();
   const labels = pairs.map((p, i): Label => {
-    const label: Label = global[i] === true ? { ...p.label, scope: 'global' } : p.label;
+    const label: Label = global[i] === true || !contains(inputs.rom, p.load) ? { ...p.label, scope: 'global' } : p.label;
     if (label.kind === 'func' && inputs.functions.get(p.load)?.name === label.name) functions.set(p.load, label);
     return label;
   });
   labels.sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
-  const starts = kept.map((c) => c.load).filter((a, i, all) => i === 0 || all[i - 1] !== a);
+  const starts = kept
+    .map((c) => c.load)
+    .filter((a, i, all) => contains(inputs.rom, a) && (i === 0 || all[i - 1] !== a));
   return { labels, functions, starts };
 }

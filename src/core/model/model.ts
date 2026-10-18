@@ -115,7 +115,7 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   });
   const segments = segmentsOf(rom, analysis, layout.headerEnd);
   const refs = codeRefs(rom, segments, relocated);
-  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols: inRom, segments, refs });
+  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols, segments, refs });
 
   const defined: DefinedName[] = [...labelled.labels];
   for (const [entry, f] of sortedEntries(functions)) {

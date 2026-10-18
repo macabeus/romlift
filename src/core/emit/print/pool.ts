@@ -2,9 +2,10 @@
 // only when the linker writes the same word for `.4byte Name` (resolver.ts wordValueOf): an odd value equal
 // to a Thumb function's address plus one prints that function; an even value equal to a Thumb function's
 // address stays numeric (the linker would set the Thumb bit); a value equal to an ARM function, a table, a
-// pool or a data label prints that name. A local label (a branch target) never names a word, and a label is
-// a candidate only where the module can see it (global, or lying in the module). Anything else, RAM and
-// I/O addresses included, prints `0xXXXXXXXX`.
+// pool or a data label prints that name, and so does a RAM, I/O or absolute address the config's [symbols]
+// names (a global label symbols.ld defines). A local label (a branch target) never names a word, and a label
+// is a candidate only where the module can see it (global, or lying in the module). Anything else prints
+// `0xXXXXXXXX`.
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 import { compareLabels, moduleAt, wordValueOf } from '../../model/resolver.ts';
