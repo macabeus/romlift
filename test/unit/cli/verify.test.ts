@@ -41,14 +41,6 @@ const noToolchain = 'code' in tools ? 'unavailable: toolchain' : false;
 const PRINTERS: readonly Printer[] = ['readable', 'raw'];
 const SELF_CHECKS = CHECK_IDS.filter((id) => id !== 'assemble' && id !== 'link');
 
-/**
- * Known defect of the phase-3 dependencies, reported to the orchestrator (p3-generate): the confirm analysis of the
- * config configFromDiscover builds does not keep the discover run's startup region (the startup code at the
- * cartridge entry's `b` target is accepted as origin 'call', not 'rom-entry'), so the 'crt0' module holds a function
- * chunk, and the module and crt0 writers both emit asm/crt0.s (E_PATH_CASE_COLLISION) on every fixture and tuning
- * ROM; klonoa and sa2 also get E_MODULE_BORDER. The tests that need a clean run are marked todo until it is fixed.
- */
-const CONFIRM_STARTUP_DEFECT = 'confirm-mode startup region: asm/crt0.s emitted twice (reported, owned by the model/analysis)';
 
 async function run(argv: readonly string[], env: Readonly<Record<string, string | undefined>> = {}): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
   const io = { ...capturingIo(), env };
@@ -174,10 +166,9 @@ test('an injected failing check prints status fail and its diagnostic, and exits
   assert.match(text.stderr, /^E_PATH_CASE_COLLISION error asm\/a\.s: the stream emits asm\/a\.s twice\n$/);
 });
 
-/** The fixture's config with its startup module renamed, a legal user edit that sidesteps CONFIRM_STARTUP_DEFECT. */
-function renamedStartup(rom: Rom): RomliftConfig {
-  const config = configFromDiscover(rom, discover(rom));
-  return { ...config, modules: config.modules.map((m) => (m.name === 'crt0' ? { ...m, name: 'startup' } : m)) };
+/** The fixture's config, as configFromDiscover builds it from the discover run. */
+function discovered(rom: Rom): RomliftConfig {
+  return configFromDiscover(rom, discover(rom));
 }
 
 test('the toolchain checks write the tree into a fresh temporary directory, assemble every module and link to the SHA-1', { skip: noToolchain }, async () => {
@@ -185,7 +176,7 @@ test('the toolchain checks write the tree into a fresh temporary directory, asse
   for (const fixture of FIXTURES.filter((f) => ['far-jump', 'code-copied-to-ram', 'arm-pools-in-front', 'adr-label-and-data'].includes(f.name))) {
     const rom = readFixtureRom(fixture);
     for (const printer of PRINTERS) {
-      const result = generate({ rom, config: renamedStartup(rom), decomp: { defined: new Set() }, printer });
+      const result = generate({ rom, config: discovered(rom), decomp: { defined: new Set() }, printer });
       assert.ok(result.report.ok, `${fixture.name} ${printer}: ${result.report.checks.map((c) => c.detail).join('; ')}`);
       const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: process.env });
       assert.deepEqual(
@@ -204,7 +195,7 @@ test('the toolchain checks write the tree into a fresh temporary directory, asse
 
 test('binutils missing from the environment is E_TOOLCHAIN_MISSING on both toolchain checks, which exits 1', async () => {
   const rom = readFixtureRom(FAR_JUMP);
-  const result = generate({ rom, config: renamedStartup(rom), decomp: { defined: new Set() }, printer: 'readable' });
+  const result = generate({ rom, config: discovered(rom), decomp: { defined: new Set() }, printer: 'readable' });
   const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: { PATH: '' } });
   assert.deepEqual(
     outcome.checks.map((c) => [c.id, c.ok, c.diagnostics.map((d) => d.code)]),
@@ -218,7 +209,7 @@ test('binutils missing from the environment is E_TOOLCHAIN_MISSING on both toolc
 
 test('nothing is written and no toolchain check runs while a self-check fails', async () => {
   const rom = readFixtureRom(FAR_JUMP);
-  const result = generate({ rom, config: renamedStartup(rom), decomp: { defined: new Set() }, printer: 'readable' });
+  const result = generate({ rom, config: discovered(rom), decomp: { defined: new Set() }, printer: 'readable' });
   const broken = { ...result, report: { ok: false, checks: [checkResult('tiling', [diagnostic(VerifyCodes, 'E_SELF_CHECK_TILING', 'gap')], 'gap')] } };
   const outcome = await toolchainChecks(rom, broken, { assemble: false, link: true }, { ...capturingIo(), env: process.env });
   assert.deepEqual(
@@ -229,7 +220,7 @@ test('nothing is written and no toolchain check runs while a self-check fails', 
   assert.deepEqual(await toolchainChecks(rom, result, { assemble: false, link: false }, capturingIo()), { checks: [] });
 });
 
-test('verify exits 0 on every fixture with both printers and --link reproduces the SHA-1', { todo: CONFIRM_STARTUP_DEFECT, skip: noToolchain }, async () => {
+test('verify exits 0 on every fixture with both printers and --link reproduces the SHA-1', { skip: noToolchain }, async () => {
   for (const fixture of FIXTURES) {
     for (const printer of PRINTERS) {
       const out = await run(['verify', '--rom', fixture.rom, '--link', '--printer', printer, '--json'], process.env);

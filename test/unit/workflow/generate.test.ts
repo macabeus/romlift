@@ -1,7 +1,6 @@
 // The phase-3 generate workflow (architecture §6.4, §9.4, D17, D62 c): the confirm options it builds from a
 // config; on every committed fixture, with the config configFromDiscover builds, an ok report (tiling, re-encode,
-// module size, text layout, paths) for both printers and the very tree the discover run's model emits (todo until
-// the confirm-mode startup defect is fixed; the layout checks are asserted now); `entries()` re-emits the stream the check pass read; and an image that is
+// module size, text layout, paths) for both printers and the very tree the discover run's model emits; `entries()` re-emits the stream the check pass read; and an image that is
 // not a cartridge is a diagnostic, never a throw.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -74,15 +73,6 @@ test('confirmOptions lists every [functions] entry as seed.listed with name, siz
   assert.deepEqual(options.overrides, overrideFactsOf(c));
 });
 
-/**
- * Known defect of the phase-3 dependencies, reported to the orchestrator (p3-generate): the confirm run over the
- * config configFromDiscover builds accepts the startup code at the cartridge entry's `b` target as origin 'call',
- * not 'rom-entry' (the listed cartridge entry's extent is cut at the next listed entry, so its `b` becomes a call
- * the queue accepts before seed.rom-entry proposes it), its startup region shrinks to the entry word, the 'crt0'
- * module holds a function chunk, and the module and crt0 writers both emit asm/crt0.s (E_PATH_CASE_COLLISION),
- * on every fixture. The two tests that need the clean run are todo until it is fixed; they still run.
- */
-const CONFIRM_STARTUP_DEFECT = 'confirm-mode startup region: asm/crt0.s emitted twice (reported, owned by the model/analysis)';
 const MODEL_CHECKS = ['tiling', 'reencode', 'module-size', 'text-layout'];
 const fixtures = listSyntheticFixtures();
 
@@ -111,7 +101,7 @@ for (const fixture of fixtures) {
   }
 }
 
-test('on every fixture the report is ok with no error diagnostic, and the tree is the one of the discover run', { todo: CONFIRM_STARTUP_DEFECT }, () => {
+test('on every fixture the report is ok with no error diagnostic, and the tree is the one of the discover run', () => {
   const problems: string[] = [];
   for (const fixture of fixtures) {
     const rom = readFixtureRom(fixture);

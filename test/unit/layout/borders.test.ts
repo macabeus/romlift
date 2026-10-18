@@ -9,7 +9,10 @@ import {
   asmOnlyRanges,
   asmOnlyReasons,
   codeLayout,
+  coveredEntries,
   factsByEntry,
+  headerCoveredEntries,
+  isLabelEntry,
   legalBorders,
   listedEntriesOf,
   nearestBorders,
@@ -66,6 +69,48 @@ test('nestedEntries: an entry inside an earlier extent is nested; the cartridge 
     fact({ entry: BASE + 0x120, end: BASE + 0x128 }),
   ];
   assert.deepEqual([...nestedEntries(functions, HEADER_END)], [BASE + 0x110]);
+});
+
+test('coveredEntries clips nothing; headerCoveredEntries is what only the cartridge entry covers; isLabelEntry starts a chunk there', () => {
+  const functions = [
+    fact({ entry: BASE, end: BASE + 0xf4, mode: 'arm', code: [{ start: BASE, end: BASE + 4 }] }),
+    fact({ entry: HEADER_END, end: BASE + 0xe0, mode: 'arm' }),
+    fact({ entry: BASE + 0xe0, end: BASE + 0xf4, mode: 'arm' }),
+    fact({ entry: BASE + 0x100, end: BASE + 0x120 }),
+    fact({ entry: BASE + 0x110, end: BASE + 0x118 }),
+  ];
+  assert.deepEqual([...coveredEntries(functions)], [HEADER_END, BASE + 0xe0, BASE + 0x110]);
+  assert.deepEqual([...nestedEntries(functions, HEADER_END)], [BASE + 0x110]);
+  const headerCovered = headerCoveredEntries(functions, HEADER_END);
+  assert.deepEqual([...headerCovered], [HEADER_END, BASE + 0xe0]);
+  assert.equal(isLabelEntry(HEADER_END, true, headerCovered), false);
+  assert.equal(isLabelEntry(BASE + 0x110, true, headerCovered), true);
+  assert.equal(isLabelEntry(BASE + 0x110, undefined, headerCovered), false);
+});
+
+test('listedEntriesOf in confirm mode: a label entry only the cartridge entry covers is not a label', () => {
+  const rom = romWith([], { size: 0x200 });
+  const functions = [
+    fact({ entry: BASE, end: BASE + 0xf4, mode: 'arm', code: [{ start: BASE, end: BASE + 4 }] }),
+    fact({ entry: HEADER_END, end: BASE + 0xf4, mode: 'arm' }),
+    fact({ entry: BASE + 0x100, end: BASE + 0x120 }),
+    fact({ entry: BASE + 0x108, end: BASE + 0x110 }),
+  ];
+  const confirm = analysisOf(rom, {
+    functions,
+    seeds: [
+      { entry: BASE, mode: 'arm', rule: 'seed.listed' },
+      { entry: HEADER_END, mode: 'arm', rule: 'seed.listed', label: true },
+      { entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed' },
+      { entry: BASE + 0x108, mode: 'thumb', rule: 'seed.listed', label: true },
+    ],
+  });
+  assert.deepEqual(listedEntriesOf(confirm, HEADER_END), [
+    { entry: BASE, label: false },
+    { entry: HEADER_END, label: false },
+    { entry: BASE + 0x100, label: false },
+    { entry: BASE + 0x108, label: true },
+  ]);
 });
 
 /** Four Thumb functions; the first branches over the next two into the fourth (a short branch across two chunk starts). */

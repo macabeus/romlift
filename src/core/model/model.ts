@@ -11,7 +11,7 @@ import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import type { FunctionConfig, RomliftConfig } from '../config/schema.ts';
-import { codeLayout, factsByEntry, placeEntries } from '../layout/borders.ts';
+import { codeLayout, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from '../layout/borders.ts';
 import type { ListedEntry, PlacedEntry } from '../layout/borders.ts';
 import type { ChunkPlan } from './chunks.ts';
 import { planChunks } from './chunks.ts';
@@ -98,7 +98,8 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   const relocated = relocatedModules(modules);
 
   const functions = new Map<Addr, FunctionConfig>(sortedEntries(config.functions).filter(([entry]) => contains(rom, entry)));
-  const listed: ListedEntry[] = sortedEntries(functions).map(([entry, f]) => ({ entry, label: f.label === true, ...(f.size === undefined ? {} : { size: f.size }) }));
+  const headerCovered = headerCoveredEntries(analysis.functions, layout.headerEnd);
+  const listed: ListedEntry[] = sortedEntries(functions).map(([entry, f]) => ({ entry, label: isLabelEntry(entry, f.label, headerCovered), ...(f.size === undefined ? {} : { size: f.size }) }));
   const placed = placeEntries(listed, analysis);
   const symbols = modelSymbols(config);
   const inRom = romSymbols(symbols, rom);
