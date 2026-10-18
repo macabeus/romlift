@@ -4,7 +4,9 @@
 // into a fresh temporary directory (planWrites without a manifest, applyWrites) and linked with linkCheck,
 // then the objdiff family over the readable build when it reproduces the SHA-1. The raw link is the row's
 // `scaffold` verdict from phase 3 on (it replaces the PoC dump's); the readable link is `objdiff.linked`.
-// The bench reaches all of it through an EmissionRunner, so its tests run `bench run` on hand-built analyses.
+// The bench reaches all of it through EmissionFamilies (named apart from emission-run.ts EmissionRunner, the
+// generate and init workflows `bench speed` and `bench large-rom` time), so its tests run `bench run` on hand-built
+// analyses.
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -69,8 +71,8 @@ export interface ScaffoldRun {
   readonly timings: Readonly<Record<string, number>>;
 }
 
-/** How `bench run` reaches the emission. */
-export interface EmissionRunner {
+/** How `bench run` reaches the emission families (readability, scaffold, objdiff). */
+export interface EmissionFamilies {
   readability(rom: Rom, analysis: AnalysisResult): ReadabilityRun;
   scaffold(input: ScaffoldInput): Promise<ScaffoldRun>;
 }
@@ -128,7 +130,7 @@ async function inTempDir(rom: Rom, model: Model, printer: Printer): Promise<Link
 const since = (started: number): number => Math.round(performance.now() - started);
 
 /** The emission of romlift itself. */
-export const ROMLIFT_EMISSION: EmissionRunner = {
+export const ROMLIFT_FAMILIES: EmissionFamilies = {
   readability(rom, analysis) {
     const model = discoverModel(rom, analysis);
     return { stats: readableStats(rom, model), treeDigest: treePass(emitTree(rom, model, { decomp: EMPTY_DECOMP })).treeDigest };

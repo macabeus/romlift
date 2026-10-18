@@ -56,7 +56,7 @@ import { runProcess } from './process.ts';
 import { addFloors, readabilityMember, readReadabilityFloors, sharesOf, writeReadabilityFloors, type ReadabilityFloors, type ReadabilityMember, type Shares } from './readability.ts';
 import { readDump } from './rescore.ts';
 import type { PocSource, RomliftRow } from './row.ts';
-import { ROMLIFT_EMISSION, type EmissionRunner } from './scaffold.ts';
+import { ROMLIFT_FAMILIES, type EmissionFamilies } from './scaffold.ts';
 import { analysisFunctions, scoreAnalysis, staleExceptions } from './score.ts';
 import { appendReveal, assertCountsOnly, sealedCounts, sealedPasses } from './seal.ts';
 import { readSpeedBaseline } from './speed.ts';
@@ -89,10 +89,10 @@ export interface RunOptions {
   /** --write-readability-floor: add the floors of the tuning ROMs that have none (the phase lead). */
   readonly writeReadabilityFloor?: boolean;
   readonly runner: AnalysisRunner;
-  /** The emission families; default romlift's (scaffold.ts ROMLIFT_EMISSION). */
-  readonly emission?: EmissionRunner;
+  /** The emission families; default romlift's (scaffold.ts ROMLIFT_FAMILIES). */
+  readonly emission?: EmissionFamilies;
   /** The memory family of a lead run; default runLargeRom (bench/src/large-rom.ts as a child). */
-  readonly largeRom?: (cx: BenchContext) => Promise<LargeRomReport>;
+  readonly largeRom?: (cx: BenchContext) => Promise<MemoryFamilyRun>;
   /** The objdiff-cli of a --scaffold run; default toolchain.ts objdiffTool. */
   readonly objdiffTool?: (cx: BenchContext) => Promise<string>;
   readonly log?: (line: string) => void;
@@ -244,7 +244,7 @@ async function referenceObjects(cx: BenchContext, d: Dataset): Promise<{ readonl
 /** One tuning ROM's emission families: the readability shares always, the scaffold and objdiff with a tool. */
 async function emissionOf(cx: BenchContext, inputs: RealInputs, analysis: DatasetAnalysis, run: TuningRun): Promise<{ readonly emission: RomEmission; readonly objectsDigest?: string; readonly timings: Readonly<Record<string, number>> }> {
   const d = inputs.dataset;
-  const emission = run.options.emission ?? ROMLIFT_EMISSION;
+  const emission = run.options.emission ?? ROMLIFT_FAMILIES;
   let started = performance.now();
   const read = emission.readability(inputs.rom, analysis.result);
   const timings: Record<string, number> = { readabilityMs: Math.round(performance.now() - started) };
@@ -461,11 +461,11 @@ async function writeArtifact(
 // ---------------------------------------------------------------- the memory family
 
 export const LARGE_ROM_SCHEMA = 'romlift/bench-large-rom@1';
-/** p3-generate's script (g3.large-rom), run by path. */
+/** The large-ROM script (g3.large-rom), run by path; its schema and output are large-rom.ts LARGE_ROM_SCHEMA and LargeRomReport. */
 export const LARGE_ROM_SCRIPT = 'bench/src/large-rom.ts';
 
 /** What one run of the large-ROM script gave: the artifact's member, and its volatile values for timings.json. */
-export interface LargeRomReport {
+export interface MemoryFamilyRun {
   readonly member: MemoryMember;
   readonly timings?: Readonly<Record<string, unknown>>;
 }
@@ -474,7 +474,7 @@ export interface LargeRomReport {
 const MEMORY_RUN_FIELDS: ReadonlySet<string> = new Set(['command', 'exitCode', 'maxRssMiB', 'treeDigest']);
 
 /** The script's last stdout line, as the memory member and the volatile rest; a BenchError when it is not one. */
-export function parseLargeRom(stdout: string): LargeRomReport {
+export function parseLargeRom(stdout: string): MemoryFamilyRun {
   const line = stdout.trimEnd().split('\n').at(-1) ?? '';
   let value: unknown;
   try {
@@ -492,12 +492,12 @@ export function parseLargeRom(stdout: string): LargeRomReport {
 /** Runs `node --conditions=source bench/src/large-rom.ts <args>` from the repository root. */
 export async function largeRomProcess(cx: BenchContext, args: readonly string[]): Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }> {
   const script = join(cx.repoRoot, LARGE_ROM_SCRIPT);
-  if (!(await exists(script))) throw new BenchError(`${LARGE_ROM_SCRIPT} is missing (component p3-generate writes it)`);
+  if (!(await exists(script))) throw new BenchError(`${LARGE_ROM_SCRIPT} is missing`);
   return runProcess(process.execPath, ['--conditions=source', script, ...args], { cwd: cx.repoRoot, echoStderr: true });
 }
 
 /** The memory family of a lead run: the script with --json, its peak RSS per command. */
-export async function runLargeRom(cx: BenchContext): Promise<LargeRomReport> {
+export async function runLargeRom(cx: BenchContext): Promise<MemoryFamilyRun> {
   const run = await largeRomProcess(cx, ['--json']);
   try {
     return parseLargeRom(run.stdout);

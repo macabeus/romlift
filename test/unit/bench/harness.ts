@@ -14,8 +14,8 @@ import { stripSeconds } from '../../../bench/src/baseline.ts';
 import { resultParityDigest } from '../../../bench/src/parity.ts';
 import type { BenchDeps } from '../../../bench/src/cli.ts';
 import type { ObjdiffSummary } from '../../../bench/src/objdiff.ts';
-import type { LargeRomReport, RunOptions } from '../../../bench/src/run.ts';
-import type { EmissionRunner, LinkOutcome, ScaffoldInput } from '../../../bench/src/scaffold.ts';
+import type { MemoryFamilyRun, RunOptions } from '../../../bench/src/run.ts';
+import type { EmissionFamilies, LinkOutcome, ScaffoldInput } from '../../../bench/src/scaffold.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import type { ScoredRun } from '../../../bench/src/scored-run.ts';
@@ -84,7 +84,7 @@ export interface FakeEmissionOptions {
 const link = (ok: boolean): LinkOutcome => ({ ok, sha1: ok ? sha1Of(ROM_BYTES) : null, detail: ok ? 'linked' : 'ld exited with 1', treeDigest: TINY_TREE_DIGEST });
 
 /** An emission that prints and links nothing: fixed statistics, digests and links. */
-export function fakeEmission(options: FakeEmissionOptions = {}): EmissionRunner {
+export function fakeEmission(options: FakeEmissionOptions = {}): EmissionFamilies {
   return {
     readability: () => ({ stats: TINY_STATS, treeDigest: TINY_TREE_DIGEST }),
     scaffold: async (input) => {
@@ -101,7 +101,7 @@ export function fakeEmission(options: FakeEmissionOptions = {}): EmissionRunner 
 }
 
 /** The memory family's fake report: the large-ROM script's member and its volatile times. */
-export const TINY_MEMORY: LargeRomReport = {
+export const TINY_MEMORY: MemoryFamilyRun = {
   member: { romBytes: 32 * 1024 * 1024, sha1: 'b846b9453414ce93afc5e8fd559eaac582dc570e', runs: [{ command: 'init', exitCode: 0, maxRssMiB: 300.5 }, { command: 'generate', exitCode: 0, maxRssMiB: 280.25, treeDigest: 'c'.repeat(64) }] },
   timings: { runs: [{ command: 'init', wallMs: 1000 }, { command: 'generate', wallMs: 900 }] },
 };

@@ -22,9 +22,9 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 | `p3-printer` | 2 | `phase-3-printer` | merged (`51634b9`) | `emitTree`, `printChunk`, the header, crt0, function, orphan and module writers |
 | `p3-data-verify` | 2 | `phase-3-data-verify` | merged (`42eabbb`) | the data, ldscript and symbols writers, `verifyModel`, `checkEntry`, `checkEntries`, `checkPaths` |
 | `p3-write-plan` | 2 | `phase-3-write-plan` | merged (`27138d2`) | `planWrites`, `applyWrites`, `withProjectLock`, `linkCheck`, `assembleCheck` |
-| `p3-generate` | 3 | | | `generate` (phase-3 form), `model --json`, `verify`, `explain`'s item and chunk, `bench/src/large-rom.ts` |
-| `p3-bench-scaffold` | 3 | | | `bench run --scaffold` (both printers), readability, objdiff, `bench speed` emission timings, `bench large-rom` |
-| `p3-fixture-goldens` | 3 | `phase-3-fixture-goldens` | ready, not merged | the writer goldens, `export-poc --mode raw` and the raw printer's PoC parity, the six-ROM emission test, the tree digests in CI, the emission fixes of wave 3 |
+| `p3-generate` | 3 | `phase-3-generate` | merged (`2c0c7c9`) | `generate` (phase-3 form), `model --json`, `verify`, `explain`'s item and chunk, `bench/src/large-rom.ts` |
+| `p3-bench-scaffold` | 3 | `phase-3-bench-scaffold` | merged (`340c95a`) | `bench run --scaffold` (both printers), readability, objdiff, `bench speed` emission timings, `bench large-rom` |
+| `p3-fixture-goldens` | 3 | `phase-3-fixture-goldens` | merged (`f726652`) | the writer goldens, `export-poc --mode raw` and the raw printer's PoC parity, the six-ROM emission test, the tree digests in CI, the emission fixes of wave 3 |
 
 ### p3-lead (wave 1)
 
@@ -160,7 +160,7 @@ Branch `phase-3-fixture-goldens` (the brief's `phase-3/p3-fixture-goldens` canno
   `treeDigest` exported beside `fixtureDigest`.
 - `bench/tools/export-poc.ts`: mode `raw`, with `rawFromChild`, `pocChunkFile`, `pocChunkLines`, `pocRawDump`,
   `pocRawDir`, `POC_RAW_SCHEMA`; the child takes `<fixture> raw <rom path> <out dir>`. AGENTS.md's command table
-  still lists `--mode scored|parity|queries` (not this component's file).
+  lists `--mode raw` (written by `p3-generate`, which owned AGENTS.md in wave 3).
 
 #### Fixture tier (47 committed fixtures)
 
@@ -195,6 +195,46 @@ Raw link six of six (`g3.raw-link`), readable link six of six (`g3.link`, floor 
 m4a mixer's `adr r0, X + 1` (D63 d) on every ROM, and on tmc also the two halfwords of the ARM leaf read as Thumb
 (Known limitations). pokeemerald in one process: analysis 1,869 ms, model 764 ms, `verifyModel` 475 ms, readable
 emit 653 ms and text-layout check 2,196 ms, raw emit 479 ms and check 866 ms.
+
+### Wave-3 integration
+
+Merged in order `phase-3-generate` (`2c0c7c9`), `phase-3-bench-scaffold` (`340c95a`), `phase-3-fixture-goldens`
+(`f726652`), each with `--no-ff`; no textual conflict, and no file is changed by two of the three branches.
+Made consistent on the integration commit:
+
+- Two bench modules exported the same names with different shapes: `bench/src/emission-run.ts`
+  (`p3-generate`: `EmissionRunner` `{prepare, generate, init}` and `ROMLIFT_EMISSION`, used by `bench speed` and
+  `bench/src/large-rom.ts`) and `bench/src/scaffold.ts` (`p3-bench-scaffold`: `{readability, scaffold}`, used by
+  `bench run`). The scaffold side is renamed `EmissionFamilies` and `ROMLIFT_FAMILIES` (`run.ts`
+  `RunOptions.emission`, `cli.ts`, `test/unit/bench/harness.ts`, `emission/scaffold.test.ts`); behaviour unchanged.
+- `bench/src/run.ts`'s `LargeRomReport` (the parsed member and volatile timings) is renamed `MemoryFamilyRun`, so
+  it no longer shares its name with `large-rom.ts`'s `LargeRomReport` (the script's printed line); the "missing"
+  error no longer says the script is still to be written. A new test in `test/unit/bench/emission/run.test.ts`
+  ties both sides of the `romlift/bench-large-rom@1` contract: the schema and script path of `run.ts` equal
+  `large-rom.ts`'s, and a `LargeRomReport` as the script prints it parses into the member, its `detail` volatile.
+- AGENTS.md's `ROMLIFT_OBJDIFF` row gives `findObjdiff`'s real order (the repository's, then the main
+  checkout's `bench/.local/objdiff-target` build, then `PATH`, then `$ROMLIFT_BENCH_ROOT/objdiff`).
+- `assembleWithBinutils`'s added `object` (`p3-bench-scaffold`, `061c4db`) and `LayoutInput.memo`/`sameObject`
+  (`p3-fixture-goldens`) are additive; every caller typechecks unchanged.
+
+On the integrated tree `npm run typecheck` (exit 0), `npm run lint` (21 of 21) and `npm test` (1,874 tests:
+1,872 pass, 0 fail, 2 todo) pass. The two `todo` tests stay as `p3-generate` delivered them:
+`test/unit/cli/verify.test.ts` ("verify exits 0 on every fixture …") and
+`test/unit/workflow/generate.test.ts` ("on every fixture the report is ok …"). Both fail on every fixture and both printers with `E_PATH_CASE_COLLISION` ("the stream emits
+asm/crt0.s twice", `paths` check failed, exit 3), and the confirm run differs from the discover run: the
+confirm analysis over `configFromDiscover`'s config accepts the startup code as origin `call`, the startup
+region shrinks, and the module and crt0 writers both emit `asm/crt0.s` (`p3-generate`'s commit `168af18`).
+The fixture-tier and tuning-ROM links above are on the discover-mode model, which `generate` does not use, so
+until this is fixed every `generate`/`verify`/`init` run, and the g3 gates built on them (`g3.speed-budget`,
+`g3.large-rom`, the `verify` contract), fail. Not fixed at integration: the defect is in the model/analysis
+components, for the fix round.
+
+The components also reported, not re-measured at integration: `p3-generate`, that the speed and memory budgets
+fail for causes outside it; `p3-bench-scaffold`, that `g3.readability` fails only because
+`bench/baseline/readability.json` is not written yet (the lead writes it with `--write-readability-floor`), and
+that `g3.objdiff` fails on every tuning ROM, mostly because of an emission rule only the owner can change (its
+candidate owner question Q1; to be written under "Owner questions" with the measured facts once the closing
+run measures it).
 
 ## Deviations from the roadmap
 

@@ -13,7 +13,7 @@ import { discover, emitTree, parseElf, profileById, romFromBytes, type Rom } fro
 import { findBinutils } from 'romlift/node';
 
 import { readableStats, treePass } from '../../../../bench/src/readability.ts';
-import { discoverModel, ROMLIFT_EMISSION, scaffoldTree } from '../../../../bench/src/scaffold.ts';
+import { discoverModel, ROMLIFT_FAMILIES, scaffoldTree } from '../../../../bench/src/scaffold.ts';
 import { agreeingFunctions } from '../../../../bench/src/score.ts';
 import { elfTruth } from '../../../../bench/src/truth.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../../helpers/fixtures.ts';
@@ -36,7 +36,7 @@ test('the discover model is built once per analysis', () => {
 
 test("readability: the readable printer's statistics and the readable stream's digest", () => {
   const model = discoverModel(rom, analysis);
-  assert.deepEqual(ROMLIFT_EMISSION.readability(rom, analysis), {
+  assert.deepEqual(ROMLIFT_FAMILIES.readability(rom, analysis), {
     stats: readableStats(rom, model),
     treeDigest: treePass(emitTree(rom, model, { decomp: { defined: new Set() } })).treeDigest,
   });
@@ -78,7 +78,7 @@ test('the scaffold step: both links, then every agreeing function compared', { s
   );
   assert.ok(agreeing.length > 0);
   await withTempDir('romlift-scaffold-objects-', async (objectsDir) => {
-    const run = await ROMLIFT_EMISSION.scaffold({ rom, analysis, truth, symbols: elf.value.symbols, objectsDir, objdiff: '/nonexistent/objdiff-cli' });
+    const run = await ROMLIFT_FAMILIES.scaffold({ rom, analysis, truth, symbols: elf.value.symbols, objectsDir, objdiff: '/nonexistent/objdiff-cli' });
     assert.ok(run.raw.ok && run.readable.ok, `${run.raw.detail} / ${run.readable.detail}`);
     assert.deepEqual(run.objdiff.linked, true);
     assert.equal(run.objdiff.scored, agreeing.length);

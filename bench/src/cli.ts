@@ -23,7 +23,7 @@ import { provenanceChecks, provenanceInputs } from './provenance.ts';
 import { defaultBase, readBase, readFresh, regression, regressionReport } from './regression.ts';
 import { baselineText, diffResults, formatDiff, moved } from './report.ts';
 import { BENCH_RUN_SCHEMA, benchRun, largeRomProcess, revealDataset, summaryText, type BenchRunReport, type RunOptions } from './run.ts';
-import type { EmissionRunner } from './scaffold.ts';
+import type { EmissionFamilies } from './scaffold.ts';
 import { serve } from './serve.ts';
 import { benchSpeed, speedPasses } from './speed.ts';
 
@@ -42,7 +42,7 @@ export interface BenchDeps {
   readonly now: () => string;
   /** The speed calibration workload; the default is speed.ts's. */
   readonly calibrate?: () => unknown;
-  readonly emission?: EmissionRunner;
+  readonly emission?: EmissionFamilies;
   readonly largeRom?: RunOptions['largeRom'];
   readonly objdiffTool?: RunOptions['objdiffTool'];
   /** How `bench large-rom` runs the script; default run.ts largeRomProcess. */

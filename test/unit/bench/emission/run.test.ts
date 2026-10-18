@@ -13,12 +13,14 @@ import type { BenchContext } from '../../../../bench/src/context.ts';
 import { main, type BenchIo } from '../../../../bench/src/cli.ts';
 import { objectsDigest } from '../../../../bench/src/objects.ts';
 import { readabilityFloorPath, READABILITY_FLOOR_SCHEMA } from '../../../../bench/src/readability.ts';
-import { benchRun, parseLargeRom } from '../../../../bench/src/run.ts';
+import { LARGE_ROM_SCHEMA as SCRIPT_SCHEMA, LARGE_ROM_SCRIPT as SCRIPT_PATH, type LargeRomReport } from '../../../../bench/src/large-rom.ts';
+import { benchRun, LARGE_ROM_SCHEMA, LARGE_ROM_SCRIPT, parseLargeRom } from '../../../../bench/src/run.ts';
 import type { ScaffoldInput } from '../../../../bench/src/scaffold.ts';
 import { withTempDir } from '../fixtures.ts';
 import { EXPECTED_ROMLIFT_ROW, EXPECTED_SCAFFOLD_ROW, runWith, syntheticTier, TINY_DEPS, tinyDeps, TINY_MEMORY, TINY_SHARES, tinyResult } from '../harness.ts';
 
 const REFERENCE_O = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'fixtures', 'objdiff', 'reference.o');
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
 function capture(): BenchIo & { readonly lines: string[]; readonly errors: string[] } {
   const lines: string[] = [];
@@ -120,6 +122,30 @@ test('parseLargeRom keeps the frozen fields in the member and the rest of each r
   assert.deepEqual(parsed.timings, { runs: [{ command: 'init', wallMs: 5, cpuMs: 4 }, { command: 'generate', wallMs: 5, cpuMs: 4 }] });
   assert.throws(() => parseLargeRom('not json\n'), /printed no JSON last line/);
   assert.throws(() => parseLargeRom('{"schema":"other"}\n'), /printed no romlift\/bench-large-rom@1 line/);
+});
+
+test('parseLargeRom reads what bench/src/large-rom.ts prints: the same script and schema, its runs with detail as volatile', () => {
+  assert.equal(LARGE_ROM_SCHEMA, SCRIPT_SCHEMA);
+  assert.equal(join(REPO_ROOT, LARGE_ROM_SCRIPT), SCRIPT_PATH);
+  const report: LargeRomReport = {
+    schema: SCRIPT_SCHEMA,
+    romBytes: 33554432,
+    sha1: 'b846b9453414ce93afc5e8fd559eaac582dc570e',
+    runs: [
+      { command: 'init', exitCode: 0, maxRssMiB: 300.5, treeDigest: 'a'.repeat(64), detail: '12 files written' },
+      { command: 'generate', exitCode: 3, maxRssMiB: 280.25, detail: 'the paths check failed' },
+    ],
+  };
+  const parsed = parseLargeRom(`${JSON.stringify(report)}\n`);
+  assert.deepEqual(parsed.member, {
+    romBytes: 33554432,
+    sha1: 'b846b9453414ce93afc5e8fd559eaac582dc570e',
+    runs: [
+      { command: 'init', exitCode: 0, maxRssMiB: 300.5, treeDigest: 'a'.repeat(64) },
+      { command: 'generate', exitCode: 3, maxRssMiB: 280.25 },
+    ],
+  });
+  assert.deepEqual(parsed.timings, { runs: [{ command: 'init', detail: '12 files written' }, { command: 'generate', detail: 'the paths check failed' }] });
 });
 
 test('the CLI: run --scaffold prints the frozen line with objdiff; large-rom relays the script with its arguments and exit code', async () => {

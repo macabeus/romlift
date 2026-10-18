@@ -50,7 +50,7 @@ Node runs the TypeScript sources directly (type stripping, `--conditions=source`
 | `ROMLIFT_REQUIRE_LOCAL` | unset | `1` makes `test/local/**` tests fail instead of skipping as `unavailable` when an input is missing |
 | `ROMLIFT_GATE_TIER` | `ci` | the tier the gate tests run (`ci` or `real`); `bench gates --tier` passes it to them |
 | `ROMLIFT_GATE_REPORT` | unset | a file each gate test appends its verdict to, one NDJSON line per gate (`test/gates/gate.ts`) |
-| `ROMLIFT_OBJDIFF` | unset | the objdiff-cli executable of the objdiff family (phase 3); without it the bench looks on `PATH`, then at `$ROMLIFT_BENCH_ROOT/objdiff/target/release/objdiff-cli`, and requires the version pinned in `bench/tools/objdiff.version` (D34, D62 j) |
+| `ROMLIFT_OBJDIFF` | unset | the objdiff-cli executable of the objdiff family (phase 3); without it the bench looks for the repository's `bench/.local/objdiff-target` build (then the main checkout's, from a worktree), then on `PATH`, then at `$ROMLIFT_BENCH_ROOT/objdiff/target/release/objdiff-cli`, and requires the version pinned in `bench/tools/objdiff.version` (D34, D62 j) |
 
 There is no separate linter or formatter; `npm run lint` is only a shortcut to the architecture test. Strictness comes from `tsconfig.json`, and the layer rules,
 globals allowlist, `Map` iteration rule, barrel shape and dynamic-import rule are enforced by
