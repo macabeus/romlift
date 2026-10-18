@@ -8,9 +8,13 @@
 //   start, in the state the previous chunk of its module leaves (Thumb before a module's first chunk: the
 //   module file's preamble), at its run address inside a runs_at range, so local labels take the addresses
 //   ld gives them. It is read as `as` reads it, inside its module file, after that file's include of the
-//   macro file: a chunk file that includes the macro file again redefines every macro, which `as` refuses. Names it does not define resolve to the model: a label of its module, else a global
-//   label (resolver.ts wordValueOf: a Thumb function carries the Thumb bit), else a [symbols] entry (what
-//   symbols.ld defines). `.incbin "baserom.gba"` reads the ROM.
+//   macro file: a chunk file that includes the macro file again redefines every macro, which `as` refuses.
+//   Names it does not define resolve to the model: a label of its module, else a global label (resolver.ts
+//   wordValueOf: a Thumb function carries the Thumb bit), else a [symbols] entry (what symbols.ld defines);
+//   only a label a printer can place counts, one at an item's start or inside a data item (chunk.ts places no
+//   other), so a name the tree never defines is an undefined symbol here as for `as`. A PC-relative load or
+//   `adr` may name only a label of its own module, the object `as` assembles it into (D63).
+//   `.incbin "baserom.gba"` reads the ROM.
 // - A module's source (asm/rom_header.s, asm/crt0.s, asm/<module>.s, data/<module>.s; paths.ts
 //   moduleSource) is laid out from the module's start in ARM state (GNU as starts every file in ARM state).
 //   Each `.include` of one of the module's chunk files stands for that chunk's ROM bytes; the includes must
@@ -76,7 +80,7 @@ interface PathIndex {
   readonly chunkPaths: readonly (string | undefined)[];
   /** Every path the stream of the model must hold, in model order, with the address its bytes start at. */
   readonly expected: readonly { readonly path: string; readonly addr: Addr }[];
-  /** Labels by name, each list by address. */
+  /** The labels a printer can place (definable), by name, each list by address. */
   readonly labelsByName: ReadonlyMap<string, readonly Label[]>;
   /** [symbols] entries by name (the first by address). */
   readonly symbolsByName: ReadonlyMap<string, Addr>;
@@ -85,6 +89,20 @@ interface PathIndex {
 }
 
 const INDEXES = new WeakMap<Model, PathIndex>();
+
+/**
+ * Whether a printer can place `label`: its load address is an item's start, or lies inside a data item (the
+ * readable printer splits a data item there, the data writer an `.incbin`, the header its `.byte` lines). An
+ * instruction, pool word or table entry cannot be cut, so a label inside one is never defined (D63 d).
+ */
+function definable(model: Model, label: Label): boolean {
+  const m = moduleIndexAt(model.modules, label.addr);
+  const module = model.modules[m];
+  if (module === undefined) return false;
+  const load = label.addr - (module.runAt ?? module.span.start) + module.span.start;
+  const i = findItem(model.items, load);
+  return i >= 0 && (model.items.start[i] === load || model.items.kind[i] === ItemKind.data);
+}
 
 function buildIndex(model: Model): PathIndex {
   const paths = chunkPaths(model);
@@ -112,6 +130,7 @@ function buildIndex(model: Model): PathIndex {
   expected.push({ path: LDSCRIPT_PATH, addr: ROM_BASE }, { path: SYMBOLS_PATH, addr: ROM_BASE });
   const labelsByName = new Map<string, Label[]>();
   for (const label of model.labels) {
+    if (!definable(model, label)) continue;
     const list = labelsByName.get(label.name);
     if (list === undefined) labelsByName.set(label.name, [label]);
     else list.push(label);
@@ -147,6 +166,11 @@ function resolveIn(model: Model, index: PathIndex, m: number): (name: string) =>
     if (label !== undefined) return wordValueOf(label);
     return index.symbolsByName.get(name);
   };
+}
+
+/** Whether a name a file of module `m` does not define is a label of module `m` itself (one object). */
+function inModule(model: Model, index: PathIndex, m: number): (name: string) => boolean {
+  return (name) => (index.labelsByName.get(name) ?? []).some((l) => moduleIndexAt(model.modules, l.addr) === m);
 }
 
 function romIncbin(rom: Rom): (file: string, offset: number, length: number) => Uint8Array | undefined {
@@ -286,7 +310,7 @@ function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { reado
   const job: Job = {
     path: entry.path,
     statements: parsed.statements,
-    input: { start: chunk.span.start + runOffset, mode: incomingMode(model, module, c), resolve: resolveIn(model, index, m), incbin: romIncbin(rom), include: () => undefined, memo: index.memo },
+    input: { start: chunk.span.start + runOffset, mode: incomingMode(model, module, c), resolve: resolveIn(model, index, m), incbin: romIncbin(rom), include: () => undefined, memo: index.memo, sameObject: inModule(model, index, m) },
     range: chunk.span,
     runOffset,
   };

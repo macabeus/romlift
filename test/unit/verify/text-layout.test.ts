@@ -224,3 +224,43 @@ test('a function file of a runs_at module lays out at its run address, so its ow
   assert.equal(found[0]?.addr, 0x0800_0105);
   assert.match(found[0]?.message ?? '', /line 6: the file lays out 0x01 where the ROM holds 0x00/);
 });
+
+test('a PC-relative load of a label in another module fails, as `as` refuses it (D63); in its own module it passes', () => {
+  const r = romWith([{ at: 0x0800_0100, bytes: thumbAt(0x0800_0100)`push {lr}; ldr r0, _08000108; pop {pc}` }, { at: 0x0800_0108, bytes: words(0x0200_0000) }], { size: 0x200 });
+  const code = [...codeItems(r, 0x0800_0100, 0x0800_0106, 'thumb'), { kind: 'padding' as const, start: 0x0800_0106, length: 2 }];
+  const pool = { kind: 'pool' as const, start: 0x0800_0108, value: 0x0200_0000 };
+  const head = { name: 'head', kind: 'data' as const, chunks: [{ kind: 'data' as const, name: 'head', items: [dataItem(0x0800_0000, 0x100)] }] };
+  const tail = { name: 'tail', kind: 'data' as const, chunks: [{ kind: 'data' as const, name: 'tail', items: [dataItem(0x0800_010c, 0xf4)] }] };
+  const labels = [label('Func', 0x0800_0100, { scope: 'global' }), label('_08000108', 0x0800_0108, { kind: 'pool', thumb: false, scope: 'global' })];
+  const func = { name: 'Func', items: code };
+  const orphan = { kind: 'orphan' as const, name: 'unk_08000108', items: [pool] };
+  const split = modelOf(r, { modules: [head, { name: 'main', chunks: [func] }, { name: 'main_2', chunks: [orphan] }, tail], labels });
+  const joined = modelOf(r, { modules: [head, { name: 'main', chunks: [func, orphan] }, tail], labels });
+  const text = '.thumb\n\tthumb_func_start Func\nFunc: @ 08000100\n\tpush {lr}\n\tldr r0, _08000108\n\tpop {pc}\n\t.align 2, 0\n\tthumb_func_end Func\n';
+  assert.deepEqual(checkEntry(r, joined, entry('asm/nonmatchings/main/Func.s', text)), []);
+  const found = checkEntry(r, split, entry('asm/nonmatchings/main/Func.s', text));
+  assert.equal(found[0]?.code, 'E_SELF_CHECK_TEXT');
+  assert.equal(found[0]?.addr, 0x0800_0102);
+  assert.match(found[0]?.message ?? '', /line 5: `ldr r0, _08000108` reaches `_08000108` PC-relatively in another object, which `as` cannot relocate/);
+});
+
+test('a name the printers cannot place (a label inside an instruction) is an undefined symbol, as for `as` (D63 d)', () => {
+  // FuncPlus1 sits at 0x08000101, inside Func's `push {lr}`: no printer defines it, though its value is the pool word's.
+  const inside = { ...model, labels: [...model.labels, label('FuncPlus1', 0x0800_0101, { kind: 'data', thumb: false, scope: 'global' })] };
+  const dataText = textOf('data/data.s').replace('.4byte Func', '.4byte FuncPlus1');
+  assert.match(
+    checkEntry(rom, inside, entry('data/data.s', dataText, 'data'))
+      .map((d) => d.message)
+      .join('\n'),
+    /undefined symbol `FuncPlus1`/,
+  );
+  // At an item's start (the pool word) a name is defined: its value differs from the word, but it is no undefined symbol.
+  const atStart = { ...model, labels: [...model.labels, label('AtPool', 0x0800_0108, { kind: 'data', thumb: false, scope: 'global' })] };
+  const poolText = textOf('data/data.s').replace('.4byte Func', '.4byte AtPool');
+  assert.doesNotMatch(
+    checkEntry(rom, atStart, entry('data/data.s', poolText, 'data'))
+      .map((d) => d.message)
+      .join('\n'),
+    /undefined symbol/,
+  );
+});

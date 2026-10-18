@@ -27,6 +27,7 @@ interface Options {
   readonly files?: Readonly<Record<string, Uint8Array>>;
   readonly includes?: Readonly<Record<string, string>>;
   readonly memo?: LayoutMemo;
+  readonly sameObject?: (name: string) => boolean;
 }
 
 function lay(text: string, options: Options = {}): Layout {
@@ -44,6 +45,7 @@ function lay(text: string, options: Options = {}): Layout {
       return inner === undefined ? undefined : statementsOf(inner);
     },
     ...(options.memo === undefined ? {} : { memo: options.memo }),
+    ...(options.sameObject === undefined ? {} : { sameObject: options.sameObject }),
   };
   return layoutStatements(input);
 }
@@ -358,4 +360,19 @@ bx r0
     lay('.thumb\nadds r0, #999\n').errors.map((e) => e.message),
   );
   assert.ok(bad.errors.length > 0);
+});
+
+test('a PC-relative load or adr naming a symbol of another object is refused; a branch or a data word is not', () => {
+  const text = '.thumb\nldr r0, Pool\nbl Callee\n.4byte Pool\n.align 2, 0\nadr r1, Pool\n';
+  const symbols = { Pool: BASE + 0x40, Callee: BASE + 0x201 };
+  clean(text, { symbols });
+  clean(text, { symbols, sameObject: (name) => name === 'Pool' });
+  const out = lay(text, { symbols, sameObject: (name) => name !== 'Pool' });
+  assert.deepEqual(
+    out.errors.map((e) => [e.line, e.at - BASE, e.message]),
+    [
+      [2, 0, '`ldr r0, Pool` reaches `Pool` PC-relatively in another object, which `as` cannot relocate'],
+      [6, 0xc, '`adr r1, Pool` reaches `Pool` PC-relatively in another object, which `as` cannot relocate'],
+    ],
+  );
 });

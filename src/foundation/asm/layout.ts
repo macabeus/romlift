@@ -14,8 +14,11 @@
 // `.thumb_func` precedes or `.type name, %function` names is a Thumb function and stands for its
 // address plus one, as ld writes it for `.4byte Func`. Other names go to `resolve`, which returns symbol
 // VALUES (the caller adds the Thumb bit to Thumb function symbols). A branch drops the Thumb bit of its
-// target, as ld does for a branch relocation; any other instruction operand takes the value as is.
-// Errors are values with the line and address of the statement; nothing throws for content.
+// target, as ld does for a branch relocation; any other instruction operand takes the value as is. A
+// PC-relative load or `adr` (flows pc-load and adr) may name another object's symbol only where `sameObject`
+// says the name is in this object: `as` has no relocation for one that reaches into another (D63), so the
+// layout refuses it as `as` would. Errors are values with the line and address of the statement; nothing
+// throws for content.
 //
 // A layout memoises the instruction texts it reads (a ROM repeats `push {lr}` and `adds r0, r1, #0`
 // thousands of times) in a LayoutMemo, its own or one the caller shares across layouts: pass 1's size of a
@@ -59,6 +62,11 @@ export interface LayoutInput {
   include?(path: string): readonly Statement[] | undefined;
   /** A memo shared with other layouts; absent: this layout's own. */
   readonly memo?: LayoutMemo;
+  /**
+   * Whether a name the statements do not define is in the object they are assembled into (another file of
+   * one module); absent: every resolvable name is. A PC-relative load or `adr` naming one that is not fails.
+   */
+  sameObject?(name: string): boolean;
 }
 
 /** The padding one statement emitted: each `.align` (length may be 0) and each nonzero pad of a switch to ARM state. */
@@ -97,6 +105,9 @@ const UNFILLED_ALIGN = '`.align` without a fill byte pads with no-ops of the fra
 
 /** The row flows whose target is a branch destination, so ld drops the Thumb bit of the symbol. */
 const BRANCH_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['branch', 'cond-branch', 'bl']);
+
+/** The row flows that reach their operand PC-relatively with no relocation `as` could emit to another object. */
+const PC_RELATIVE_FLOWS: ReadonlySet<FlowKind> = new Set<FlowKind>(['pc-load', 'adr']);
 
 interface LocalLabel {
   readonly addr: Addr;
@@ -304,6 +315,11 @@ class Symbols {
     return label !== undefined && label.mode === 'arm' && this.#functions.has(name);
   }
 
+  /** Whether a name the statements do not define is in their object (the caller's answer; yes when it gives none). */
+  sameObject(name: string): boolean {
+    return this.#input.sameObject?.(name) ?? true;
+  }
+
   /** The caller's value of a name the statements do not define. */
   external(name: string): number | undefined {
     const value = this.#input.resolve(name);
@@ -323,6 +339,8 @@ interface Lookups {
   readonly missing: string[];
   readonly odd: string[];
   readonly locals: string[];
+  /** The names the caller resolved (not defined by the statements). */
+  readonly external: string[];
 }
 
 /** One parse-and-assemble of an instruction; `dropThumbBit` clears bit 0 of odd external values. */
@@ -333,7 +351,7 @@ function attempt(
   dropThumbBit: boolean,
   onName: () => void,
 ): { readonly lookups: Lookups; readonly parsed: boolean; readonly assembled: Assembled | undefined } {
-  const lookups: Lookups = { missing: [], odd: [], locals: [] };
+  const lookups: Lookups = { missing: [], odd: [], locals: [], external: [] };
   const resolver: SymbolResolver = {
     labelFor: () => undefined,
     addressOf: (name) => {
@@ -345,7 +363,8 @@ function attempt(
       }
       const value = symbols.external(name);
       if (value === undefined) lookups.missing.push(name);
-      else if (value % 2 !== 0) {
+      else lookups.external.push(name);
+      if (value !== undefined && value % 2 !== 0) {
         lookups.odd.push(name);
         return dropThumbBit ? value - 1 : value;
       }
@@ -385,9 +404,14 @@ function encodeInsn(text: string, p: Placed, symbols: Symbols, onName: () => voi
   const assembled = result.assembled;
   if (assembled === undefined) return `cannot encode \`${text}\` at 0x${hex(p.at)} (operand out of range or unencodable)`;
   if (assembled.size !== p.size) return `\`${text}\` encodes to ${assembled.size} bytes, not the ${p.size} pass 1 placed`;
-  if (dropped || BRANCH_FLOWS.has(specOf(assembled.specId).flow)) {
+  const flow = specOf(assembled.specId).flow;
+  if (dropped || BRANCH_FLOWS.has(flow)) {
     const reason = veneerReason(p.mode, result.lookups, symbols);
     if (reason !== undefined) return reason;
+  }
+  if (PC_RELATIVE_FLOWS.has(flow)) {
+    const far = result.lookups.external.find((name) => !symbols.sameObject(name));
+    if (far !== undefined) return `\`${text}\` reaches \`${far}\` PC-relatively in another object, which \`as\` cannot relocate`;
   }
   return { word: assembled.word };
 }
