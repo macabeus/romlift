@@ -1689,7 +1689,17 @@ sealed ROM of a fresh family passes.
   of the `code-copied-to-ram` fixture was declined before); else the store width over the one amount it
   is decremented by). S, D and L are the argument values in the straight-line run of at most `argInsns`
   instructions before the call (pool literals, `movs`, register copies, `adds`/`subs`, `negs`, `ands`,
-  `orrs`, shifts); D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB). **The windows are
+  `orrs`, shifts; a call forgets r0..r3, r12 and lr). Since the review of `8fba183` (overfitting-r2-1) the
+  run is straight-line in fact: it stops before a join point (a branch, jump-table or far-`bl` target of
+  the reading) and at an instruction that does not fall into the next (an unconditional exit: a return, a
+  register jump, a branch, a `bl` walked as a jump or that never returns); before, it walked back by
+  layout across both and could read S, D and L from code that never flows into the call. Negative fixture
+  `ram-copy-args-straight-line` (arguments loaded before a `pop {pc}`, the call reached only from a `beq`:
+  the old scan maps a veneer's IWRAM pointer into a data object and proposes the false ARM entry
+  0x08000138), and unit cases for each stop (the join test alone decides the case where the setup falls
+  into a call that a `bne` also reaches; in a walked reading an instruction after an exit is always a join
+  point, so the exit test is the straight line's definition rather than a separate decision). Measured: no
+  row, extent, code end or analysis digest moves on the six tuning ROMs or the sealed pair. D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB). **The windows are
   set from the tuning set's distribution with a stated margin, not derived from codegen** (fix round 2,
   overfitting-r1-2: the "3 × 2 + 2" derivation was contradicted by tmc's own setup, whose size argument
   takes three instructions): the shortest window recovering all three arguments of each of the 15 copy

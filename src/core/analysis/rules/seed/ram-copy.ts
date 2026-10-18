@@ -14,7 +14,8 @@
 //     other shape declines.
 //
 // S, D and L are the argument values in the straight-line run of at most `ramCopy.argInsns` instructions
-// before the call (the profile): pool literals, `movs`,
+// before the call (the profile), which stops at a join point (a branch or table target) and at an
+// instruction that does not fall into the next (an unconditional exit): pool literals, `movs`,
 // register copies, `adds`/`subs` with an immediate or a register, `negs`, `ands`, `orrs` and shifts of
 // known values. D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB), and [S, S + L) in
 // the ROM. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
@@ -104,11 +105,35 @@ function decodedAt(a: Addr, mode: Mode, v: AnalysisView): Insn {
   return mode === 'arm' ? decode('arm', u32(v.rom, a), a) : decode('thumb', thumbWordAt(v.rom, a), a);
 }
 
-/** The instruction of `r` right before `a` in the straight line (it ends at `a`), or undefined. */
+/** The instruction of `r` that ends at `a` (the one laid out right before it), or undefined. */
 function previous(r: Reading, a: Addr): Addr | undefined {
   if (r.mode === 'arm') return r.insnAt.get(a - 4) === 4 ? a - 4 : undefined;
   if (r.insnAt.get(a - 2) === 2) return a - 2;
   return r.insnAt.get(a - 4) === 4 ? a - 4 : undefined;
+}
+
+/**
+ * The straight-line run of at most `window` instructions that control passes through on every path to
+ * `at`, nearest first: it stops before an instruction control can reach from elsewhere (a branch, jump-table
+ * or far-`bl` target of the reading: a join point, where the registers may hold other values), and at an
+ * instruction laid out before it that does not fall through into it (an unconditional exit: a return, a
+ * register jump, `mov lr, pc; bx rN` included, a branch, or a `bl` the reading walked as a jump or a call
+ * that never returns). Code before either never flows into `at` unchanged, so it says nothing about the
+ * registers there (overfitting-r2-1).
+ */
+function straightLineBefore(r: Reading, at: Addr, window: number, v: AnalysisView): Addr[] {
+  const jumps = new Set<Addr>([...r.far, ...r.noret]);
+  const joins = new Set<Addr>(r.branchTargets);
+  for (const t of r.tables) for (const target of t.targets) joins.add(target & ~1);
+  for (const b of r.blSites) if (jumps.has(b.site)) joins.add(b.target);
+  const run: Addr[] = [];
+  for (let cur = at; run.length < window && !joins.has(cur); ) {
+    const a = previous(r, cur);
+    if (a === undefined || jumps.has(a) || exits(insnAt(r, a, v))) break;
+    run.push(a);
+    cur = a;
+  }
+  return run;
 }
 
 /** The instruction of `r` right after the one at `a` in the straight line, or undefined. */
@@ -179,15 +204,13 @@ function computed(insn: Insn, regs: readonly (number | undefined)[]): number | u
 }
 
 /**
- * The constant values of r0..r15 before the instruction at `at`, from the straight-line run of at most
- * `window` instructions before it: pool literals, register copies and the arithmetic of `computed`; any
- * other write forgets the register.
+ * The constant values of r0..r15 after the straight-line run `run` (straightLineBefore, nearest first):
+ * pool literals, register copies and the arithmetic of `computed`; any other write (a call's included:
+ * r0..r3, r12 and lr) forgets the register.
  */
-function constantsBefore(r: Reading, at: Addr, window: number, v: AnalysisView): (number | undefined)[] {
-  const run: Addr[] = [];
-  for (let a = previous(r, at); a !== undefined && run.length < window; a = previous(r, a)) run.push(a);
+function constantsAlong(r: Reading, run: readonly Addr[], v: AnalysisView): (number | undefined)[] {
   const regs: (number | undefined)[] = new Array<number | undefined>(16).fill(undefined);
-  for (const a of run.reverse()) {
+  for (const a of [...run].reverse()) {
     const insn = insnAt(r, a, v);
     const f = insn.flow;
     if (f.kind === 'pool-load') {
@@ -417,16 +440,11 @@ function copiesOf(by: Addr, r: Reading, v: AnalysisView): Copy[] {
   const out: Copy[] = [];
   for (const site of sites.sort((a, b) => compareNumbers(a.at, b.at))) {
     // The destination is an IWRAM pool literal loaded in the window: without one there is nothing to decode.
-    let loadsIwram = false;
-    let steps = 0;
-    for (let a = previous(r, site.at); a !== undefined && steps < argInsns && !loadsIwram; a = previous(r, a), steps++) {
-      const literal = pcLoadLiteral(a, 'thumb', v);
-      loadsIwram = literal !== undefined && iwram.has(literal);
-    }
-    if (!loadsIwram) continue;
+    const run = straightLineBefore(r, site.at, argInsns, v);
+    if (!run.some((a) => { const literal = pcLoadLiteral(a, 'thumb', v); return literal !== undefined && iwram.has(literal); })) continue;
     // Only a call with an IWRAM address, a ROM address and a third known value among r0..r2 can copy code
     // to IWRAM: the callee is read only then.
-    const args = constantsBefore(r, site.at, argInsns, v);
+    const args = constantsAlong(r, run, v);
     const known = [args[0], args[1], args[2]];
     if (!known.some((x) => x !== undefined && inIwram(x)) || !known.some((x) => x !== undefined && contains(v.rom, x & ~1)) || known.includes(undefined)) continue;
     const call = site.call();

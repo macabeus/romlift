@@ -209,3 +209,33 @@ test('an entry inside the code of a lower entry proposed with it is not proposed
   assert.deepEqual(queue(twoJumps(block, 0x08, 0x14), MAIN, [VENEER, VENEER2, MAIN]), [{ entry: BLOCK + 0x08, mode: 'arm', cites: [VENEER, MAIN] }]);
   assert.deepEqual(queue(twoJumps(block, 0x14, 0x14), MAIN, [VENEER, VENEER2, MAIN]), [{ entry: BLOCK + 0x14, mode: 'arm', cites: [VENEER, MAIN] }], 'alone, L opens after `bx lr`');
 });
+
+/** main is `text` (its literal pool at MAIN + 0x18: BLOCK, IWRAM, 0x20), with the copy loop, the veneer and BLOCK of romFor. */
+function setupRom(main: Uint8Array): Rom {
+  return romWith([
+    { at: MAIN, bytes: main },
+    { at: MAIN + 0x18, bytes: words(BLOCK, IWRAM, 0x20) },
+    { at: COPY, bytes: CALLEES['src-first'] },
+    { at: VENEER, bytes: thumbAt(VENEER)`ldr r3, _08000268; bx r3` },
+    { at: VENEER + 8, bytes: words(IWRAM + 8) },
+    { at: VIA, bytes: thumbAt(VIA)`bx lr` },
+    { at: BLOCK, bytes: armAt(BLOCK)`mov r0, #0; bx lr; add r0, r0, #1; add r0, r0, #2; bx lr; mov r0, #3; bx lr` },
+  ]);
+}
+
+test('the argument scan is straight-line: it stops at an unconditional exit and at a join point (overfitting-r2-1)', () => {
+  // The arguments are loaded on a path that returns (`pop {pc}`); the call is reached only from the `beq`.
+  const exit = thumbAt(MAIN)`push {lr}; cmp r0, #0; beq _0800020E; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; pop {pc}; bl _08000240; pop {pc}`;
+  assert.deepEqual(queue(setupRom(exit), VENEER, [MAIN, VENEER]), [], 'the loads before the return never flow into the call');
+  // The loads fall into the call, but the `bne` reaches it too, with other values: a join point.
+  const join = thumbAt(MAIN)`push {lr}; cmp r0, #0; bne _0800020C; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; bl _08000240; pop {pc}`;
+  assert.deepEqual(queue(setupRom(join), VENEER, [MAIN, VENEER]), [], 'the call is a branch target');
+  // A join point before the whole setup does not matter: the run from it to the call holds all three.
+  const before = thumbAt(MAIN)`push {lr}; cmp r0, #0; beq _08000208; movs r3, #0; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; bl _08000240; pop {pc}`;
+  assert.deepEqual(queue(setupRom(before), VENEER, [MAIN, VENEER]), B, 'the setup starts at the join point');
+  // A call between the setup and the copy clobbers r0..r3.
+  const call = thumbAt(MAIN)`push {lr}; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; bl _08000280; bl _08000240; pop {pc}`;
+  assert.deepEqual(queue(setupRom(call), VENEER, [MAIN, VENEER]), [], 'the call in between forgets the arguments');
+  const plain = thumbAt(MAIN)`push {lr}; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; bl _08000240; pop {pc}`;
+  assert.deepEqual(queue(setupRom(plain), VENEER, [MAIN, VENEER]), B, 'the same setup, straight-line');
+});

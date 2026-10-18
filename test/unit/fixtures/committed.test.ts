@@ -19,7 +19,7 @@ const FIXTURES = listSyntheticFixtures();
 /**
  * The fixtures of architecture §8.1: the thirteen positive ones of the plan, the rule-specific ones that
  * make a rule load-bearing that no other fixture does (seven from the phase-2 brief, four added for
- * g2.rule-coverage), and seven negative ones (six from the brief, one added for g2.rule-coverage).
+ * g2.rule-coverage), and the negative ones (six from the brief, the others added with the rules they bound).
  */
 const POSITIVE = [
   'arm-pools-in-front', 'bx-lr-stub-chain', 'bx-pc-veneer', 'code-copied-to-ram', 'data-table-between-functions',
@@ -34,7 +34,7 @@ const RULE_SPECIFIC = [
 ];
 const NEGATIVE = [
   'code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pointer-table-before-leaf', 'pool-padded-46c0',
-  'pool-word-push-lr', 'thumb-pointer-run', 'adr-label-and-data', 'data-frame-not-function',
+  'pool-word-push-lr', 'thumb-pointer-run', 'adr-label-and-data', 'data-frame-not-function', 'ram-copy-args-straight-line',
 ];
 
 /** The startup region of common/crt0.s: these FUNC symbols, both ARM, which every expect.json lists first. */
@@ -79,7 +79,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
-test('the 45 fixtures are committed, and common/ is not one', () => {
+test('the 46 fixtures are committed, and common/ is not one', () => {
   const names = FIXTURES.map((f) => f.name);
   assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE].sort(byCodeUnit));
   assert.ok(!names.includes('common'));
@@ -177,7 +177,7 @@ test('the entries are exactly the ELF functions in the ROM', () => {
   }
 });
 
-test('every expect.json is exhaustive: negative, so no entry beyond its real functions is allowed, the seven negative fixtures included', () => {
+test('every expect.json is exhaustive: negative, so no entry beyond its real functions is allowed, the negative fixtures included', () => {
   const exhaustive = FIXTURES.filter((f) => readExpect(f).negative).map((f) => f.name);
   assert.deepEqual(exhaustive, FIXTURES.map((f) => f.name));
   for (const name of NEGATIVE) assert.ok(exhaustive.includes(name), name);
