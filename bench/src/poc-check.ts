@@ -28,7 +28,7 @@ export { POC_ROW_EXCLUDED };
 export interface PocCheckRom {
   readonly name: string;
   readonly rowsEqual: boolean;
-  /** The PoC's fresh row equals the baseline row, or the pinned dump row; false and not asked when there is neither. */
+  /** The PoC's fresh row equals the baseline row, or, for a ROM revealed after the baseline, the row pinned in poc-dump-rows.json; false for any other ROM (it has no PoC reference). */
   readonly pocRowEqual: boolean;
   /** Whether the pinned baseline holds a row of this ROM. */
   readonly baselineRow: boolean;
@@ -68,34 +68,35 @@ export function withoutCategories(row: JsonRecord): JsonRecord {
 }
 
 /**
+ * What a ROM without a baseline row is checked against: for a ROM revealed after the baseline was pinned,
+ * why its dump's PoC row is not the one pinned in poc-dump-rows.json (poc-dump-rows.ts dumpRowMismatch;
+ * undefined when it is); undefined for every other ROM.
+ */
+export interface RevealedReference {
+  readonly pinnedMismatch: string | undefined;
+}
+
+/**
  * The verdict of one ROM from its rescored row, its dump and its baseline row. A ROM without a baseline
- * row passes only when it was revealed after the baseline was pinned (`revealed`): its rescored row is
- * compared with the dump's own PoC row, and that row with the pinned one (`pinned`, from
- * poc-dump-rows.ts dumpRowMismatch: undefined when it matches, else why not); any other ROM without one
+ * row passes only when it was revealed after the baseline was pinned (`revealed` given): its rescored row
+ * is compared with the dump's own PoC row, and that row with the pinned one; any other ROM without one
  * fails.
  */
-export function checkPocRom(
-  name: string,
-  row: BenchRow,
-  dump: ScoredRun,
-  baseline: JsonRecord | undefined,
-  pinnedDigest: string,
-  revealed = false,
-  pinned: { readonly mismatch: string | undefined } = { mismatch: 'no pinned PoC row' },
-): PocCheckRom {
+export function checkPocRom(name: string, row: BenchRow, dump: ScoredRun, baseline: JsonRecord | undefined, pinnedDigest: string, revealed?: RevealedReference): PocCheckRom {
   const deterministic = dumpDeterministic(dump);
   const rowRecord: JsonRecord = { ...row };
   const rescored = withoutCategories(withoutPaths(rowRecord, ROW_EXCLUDED));
   if (baseline === undefined) {
     const common = { name, baselineRow: false, scaffoldOk: dump.scaffold.ok, deterministic, pocSourceDigestOk: dump.pocSourceDigest === pinnedDigest };
-    if (!revealed) return { ...common, pocRowEqual: false, rowsEqual: false, diffs: [`no baseline row for ${name}`] };
+    if (revealed === undefined) return { ...common, pocRowEqual: false, rowsEqual: false, diffs: [`no baseline row for ${name}, and it was not revealed after the baseline was pinned`] };
     const ownDiffs = jsonDiffs(withoutCategories(withoutPaths(dump.pocRow, ROW_EXCLUDED)), rescored, '');
+    const mismatch = revealed.pinnedMismatch;
     return {
       ...common,
       rowsEqual: ownDiffs.length === 0,
-      pocRowEqual: pinned.mismatch === undefined,
+      pocRowEqual: mismatch === undefined,
       pinnedRow: true,
-      diffs: [...ownDiffs.map((d) => `row (against the PoC's own row) ${d}`), ...(pinned.mismatch === undefined ? [] : [`pocRow ${pinned.mismatch}`])],
+      diffs: [...ownDiffs.map((d) => `row (against the PoC's own row) ${d}`), ...(mismatch === undefined ? [] : [`pocRow ${mismatch}`])],
     };
   }
   const rowDiffs = jsonDiffs(withoutCategories(withoutPaths(baseline, ROW_EXCLUDED)), rescored, '');
@@ -112,9 +113,10 @@ export function checkPocRom(
   };
 }
 
-/** Why the dump of `d` is not its pinned PoC row (dumpRowMismatch), or undefined when it is. */
-function pinnedMismatch(d: Dataset, dump: ScoredRun, rows: PocDumpRows | undefined): { readonly mismatch: string | undefined } {
-  return { mismatch: dumpRowMismatch(d, rows, dump.pocSourceDigest, dump.datasetDigest, dump.pocRow) };
+/** The reference of a revealed `d` without a baseline row (its pinned PoC row), or undefined for any other dataset. */
+function revealedReference(d: Dataset, base: JsonRecord | undefined, dump: ScoredRun, rows: PocDumpRows | undefined): RevealedReference | undefined {
+  if (base !== undefined || d.revealed.length === 0) return undefined;
+  return { pinnedMismatch: dumpRowMismatch(d, rows, dump.pocSourceDigest, dump.datasetDigest, dump.pocRow) };
 }
 
 function unavailable(name: string, why: string): PocCheckRom {
@@ -132,7 +134,7 @@ export async function pocCheck(cx: BenchContext): Promise<PocCheckReport> {
     try {
       const inputs = await readDatasetInputs(cx, d);
       const base = baselineRowOf(baseline, d.name);
-      roms.push(checkPocRom(d.name, rowOf(inputs), inputs.dump, base, pinned.digest, d.revealed.length > 0, pinnedMismatch(d, inputs.dump, rows)));
+      roms.push(checkPocRom(d.name, rowOf(inputs), inputs.dump, base, pinned.digest, revealedReference(d, base, inputs.dump, rows)));
     } catch (error) {
       if (!(error instanceof BenchError)) throw error;
       roms.push(unavailable(d.name, error.message));

@@ -43,27 +43,27 @@ test('a PoC row that differs, a failed scaffold, two digests and another PoC sou
   assert.equal(checkPocRom('tiny', ROW, { ...DUMP, analysis: edited }, BASELINE, PINNED).deterministic, false);
   assert.equal(checkPocRom('tiny', ROW, DUMP, BASELINE, 'q'.repeat(64)).pocSourceDigestOk, false);
   const none = checkPocRom('tiny', ROW, DUMP, undefined, PINNED);
-  assert.deepEqual(none.diffs, ['no baseline row for tiny']);
+  assert.deepEqual(none.diffs, ['no baseline row for tiny, and it was not revealed after the baseline was pinned']);
   assert.ok(!romPasses(none));
 });
 
 test('a revealed ROM without a baseline row is compared with the PoC\'s own row (D60), and that row with the pinned one', () => {
   // The dump's own PoC row of the ROM stands in for the baseline row it has none of.
   const dump = { ...DUMP, pocRow: { ...BASELINE } };
-  const r = checkPocRom('tiny', ROW, dump, undefined, PINNED, true, { mismatch: undefined });
+  const r = checkPocRom('tiny', ROW, dump, undefined, PINNED, { pinnedMismatch: undefined });
   assert.deepEqual(r, { name: 'tiny', rowsEqual: true, pocRowEqual: true, baselineRow: false, pinnedRow: true, diffs: [], scaffoldOk: true, deterministic: true, pocSourceDigestOk: true });
   assert.ok(romPasses(r));
-  const differs = checkPocRom('tiny', { ...ROW, tp: 9 }, dump, undefined, PINNED, true, { mismatch: undefined });
+  const differs = checkPocRom('tiny', { ...ROW, tp: 9 }, dump, undefined, PINNED, { pinnedMismatch: undefined });
   assert.equal(differs.rowsEqual, false);
   assert.match(differs.diffs[0] ?? '', /^row \(against the PoC's own row\) tp:/);
   assert.ok(!romPasses(differs));
-  assert.ok(!romPasses(checkPocRom('tiny', ROW, { ...dump, scaffold: { ok: false, summary: '' } }, undefined, PINNED, true, { mismatch: undefined })), 'its scaffold still decides');
+  assert.ok(!romPasses(checkPocRom('tiny', ROW, { ...dump, scaffold: { ok: false, summary: '' } }, undefined, PINNED, { pinnedMismatch: undefined })), 'its scaffold still decides');
   // A PoC row that is not the pinned one (or no pinned row at all) fails: the reference cannot drift unseen.
-  const drifted = checkPocRom('tiny', ROW, dump, undefined, PINNED, true, { mismatch: 'the row digest differs' });
+  const drifted = checkPocRom('tiny', ROW, dump, undefined, PINNED, { pinnedMismatch: 'the row digest differs' });
   assert.equal(drifted.pocRowEqual, false);
   assert.deepEqual(drifted.diffs, ['pocRow the row digest differs']);
   assert.ok(!romPasses(drifted));
-  assert.ok(!romPasses(checkPocRom('tiny', ROW, dump, undefined, PINNED, true)), 'no pinned row');
+  assert.ok(!romPasses(checkPocRom('tiny', ROW, dump, undefined, PINNED, { pinnedMismatch: 'no pinned PoC row' })), 'no pinned row');
 });
 
 test('stripSeconds drops every seconds key at any depth, so two dumps of one run are byte-equal', () => {
