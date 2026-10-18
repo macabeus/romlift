@@ -14,9 +14,9 @@
 //
 // The borders rest only on ARM words and the ROM layout, not on a compiler profile: buildModel, which has no
 // profile, must compute the same set as init and the TOML patcher (D62).
-import { decode } from '../../foundation/isa/decode.ts';
+import { decode, thumbMayName } from '../../foundation/isa/decode.ts';
 import type { Flow } from '../../foundation/isa/types.ts';
-import { HEADER_END } from '../../foundation/rom/rom.ts';
+import { HEADER_END, peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
@@ -213,73 +213,45 @@ export interface ShortBranch {
   readonly target: Addr;
 }
 
-/** Whether the Thumb halfword may be a b or bcc (the decoder decides). */
-function maybeShortBranch(hw: number): boolean {
-  return (hw & 0xf000) === 0xd000 || (hw & 0xf800) === 0xe000;
-}
-
-/** Whether the Thumb halfword may be a PC-relative load or an adr (the decoder decides). */
-function maybePcRelative(hw: number): boolean {
-  return (hw & 0xf800) === 0x4800 || (hw & 0xf800) === 0xa000;
+/** The references that bound the legal borders: the short Thumb branches and the PC-relative loads and adrs. */
+export interface BorderRefs {
+  readonly shortBranches: readonly ShortBranch[];
+  readonly pcRelative: readonly ShortBranch[];
 }
 
 /**
- * Every short Thumb branch in the code spans of the analysis' Thumb functions, decoded with foundation/isa
- * at its load address (a branch inside a runs_at range has the same offset in run space). A bl suffix or
- * prefix never looks like a b or bcc, so every halfword of a span is a candidate.
+ * One scan of the code spans of the analysis' functions, decoded with foundation/isa at load addresses (a
+ * reference inside a runs_at range has the same offset in run space): every short Thumb branch (b, bcc), and
+ * every PC-relative load and adr with the address it names (the pool word or the adr target). The PC-relative
+ * ones are the references codeRefs (core/model/labels.ts) names, so a border none of them crosses never leaves
+ * the model a PC-relative instruction whose label lies in another object, which `as` cannot assemble (D63). A
+ * bl half never looks like any of the Thumb forms (foundation/isa thumbMayName), so every halfword of a Thumb
+ * span is a candidate; an ARM span is decoded word by word.
  */
-export function shortBranches(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>): ShortBranch[] {
-  const out: ShortBranch[] = [];
-  const bytes = rom.bytes;
-  for (const f of analysis.functions) {
-    if (f.mode !== 'thumb') continue;
-    for (const span of f.code) {
-      const end = Math.min(span.end, rom.end);
-      for (let a = Math.max(span.start, rom.base); a + 2 <= end; a += 2) {
-        const k = a - rom.base;
-        const hw = (bytes[k] ?? 0) | ((bytes[k + 1] ?? 0) << 8);
-        if (!maybeShortBranch(hw)) continue;
-        const flow = decode('thumb', hw, a).flow;
-        if (flow.kind === 'branch') out.push({ site: a, target: flow.target });
-      }
-    }
-  }
-  return out;
-}
-
-/**
- * Every PC-relative load and adr in the code spans of the analysis' functions, as a site and the address it
- * names (the pool word or the adr target), decoded at its load address like shortBranches. These are the
- * references codeRefs (core/model/labels.ts) names, so a border none of them crosses never leaves the model a
- * PC-relative instruction whose label lies in another object, which `as` cannot assemble (D63). A bl half
- * never looks like either Thumb form; an ARM span is decoded word by word.
- */
-export function pcRelativeRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>): ShortBranch[] {
-  const out: ShortBranch[] = [];
-  const bytes = rom.bytes;
-  const push = (site: Addr, flow: Flow): void => {
-    if (flow.kind === 'pool-load') out.push({ site, target: flow.pool });
-    else if (flow.kind === 'adr') out.push({ site, target: flow.target });
+export function borderRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>): BorderRefs {
+  const shortBranches: ShortBranch[] = [];
+  const pcRelative: ShortBranch[] = [];
+  const pcRef = (site: Addr, flow: Flow): void => {
+    if (flow.kind === 'pool-load') pcRelative.push({ site, target: flow.pool });
+    else if (flow.kind === 'adr') pcRelative.push({ site, target: flow.target });
   };
   for (const f of analysis.functions) {
     for (const span of f.code) {
       const end = Math.min(span.end, rom.end);
       if (f.mode === 'arm') {
-        for (let a = alignUp(Math.max(span.start, rom.base)); a + 4 <= end; a += 4) {
-          const k = a - rom.base;
-          const word = ((bytes[k] ?? 0) | ((bytes[k + 1] ?? 0) << 8) | ((bytes[k + 2] ?? 0) << 16) | ((bytes[k + 3] ?? 0) << 24)) >>> 0;
-          push(a, decode('arm', word, a).flow);
-        }
+        for (let a = alignUp(Math.max(span.start, rom.base)); a + 4 <= end; a += 4) pcRef(a, decode('arm', peek32(rom, a), a).flow);
         continue;
       }
       for (let a = Math.max(span.start, rom.base); a + 2 <= end; a += 2) {
-        const k = a - rom.base;
-        const hw = (bytes[k] ?? 0) | ((bytes[k + 1] ?? 0) << 8);
-        if (maybePcRelative(hw)) push(a, decode('thumb', hw, a).flow);
+        const hw = peek16(rom, a);
+        if (!thumbMayName(hw)) continue;
+        const flow = decode('thumb', hw, a).flow;
+        if (flow.kind === 'branch') shortBranches.push({ site: a, target: flow.target });
+        else pcRef(a, flow);
       }
     }
   }
-  return out;
+  return { shortBranches, pcRelative };
 }
 
 /** Why agbcc cannot have produced a function. */
@@ -376,7 +348,8 @@ function uncrossed(candidates: readonly Addr[], branches: readonly ShortBranch[]
 export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
   const headerEnd = headerEndOf(rom);
   const codeEnd = alignUp(Math.max(analysis.codeEnd, headerEnd));
-  const pcRelative = pcRelativeRefs(rom, analysis);
+  const refs = borderRefs(rom, analysis);
+  const pcRelative = refs.pcRelative;
   const dataStart = Math.min(rom.end, alignUp(pcRelative.reduce((end, r) => (r.site < codeEnd && r.target >= end ? r.target + 1 : end), codeEnd)));
   const startupEnd = Math.min(dataStart, Math.max(headerEnd, analysis.startup.span.end));
   const placed = placeEntries(listedEntriesOf(analysis, headerEnd), analysis).filter((p) => !p.label);
@@ -386,7 +359,7 @@ export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
   const candidates = [rom.base, ...(headerEnd < rom.end ? [headerEnd] : []), ...chunks.map((c) => c.span.start), ...(dataStart < rom.end ? [dataStart] : [])]
     .sort(compareNumbers)
     .filter((a, i, all) => i === 0 || all[i - 1] !== a);
-  const free = uncrossed(candidates, [...shortBranches(rom, analysis), ...pcRelative]);
+  const free = uncrossed(candidates, [...refs.shortBranches, ...pcRelative]);
   const inside = (a: Addr): boolean => asmOnly.some((r) => a > r.start && a < r.end);
   const borders = candidates.filter((a, i) => a % WORD === 0 && free[i] === true && !inside(a));
   return { headerEnd, startupEnd, dataStart, chunks, asmOnly, borders };

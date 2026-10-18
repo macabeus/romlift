@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import {
   asmOnlyRanges,
   asmOnlyReasons,
+  borderRefs,
   codeLayout,
   coveredEntries,
   factsByEntry,
@@ -17,9 +18,7 @@ import {
   listedEntriesOf,
   nearestBorders,
   nestedEntries,
-  pcRelativeRefs,
   placeEntries,
-  shortBranches,
   tileCode,
 } from '../../../src/core/layout/borders.ts';
 import type { PlacedEntry } from '../../../src/core/layout/borders.ts';
@@ -140,9 +139,9 @@ function crossingRom() {
   return { rom, analysis };
 }
 
-test('shortBranches decodes the b and bcc of the Thumb code spans', () => {
+test('borderRefs decodes the b and bcc of the Thumb code spans', () => {
   const { rom, analysis } = crossingRom();
-  assert.deepEqual(shortBranches(rom, analysis), [{ site: BASE + 0x102, target: BASE + 0x110 }]);
+  assert.deepEqual(borderRefs(rom, analysis).shortBranches, [{ site: BASE + 0x102, target: BASE + 0x110 }]);
 });
 
 test('legalBorders: word-aligned chunk starts that no short branch crosses, with the base, the header end and the data start', () => {
@@ -188,9 +187,9 @@ function pcRelativeRom() {
   return { rom, analysis };
 }
 
-test('pcRelativeRefs decodes the PC-relative loads and adrs of the Thumb and ARM code spans', () => {
+test('borderRefs decodes the PC-relative loads and adrs of the Thumb and ARM code spans', () => {
   const { rom, analysis } = pcRelativeRom();
-  assert.deepEqual(pcRelativeRefs(rom, analysis), [
+  assert.deepEqual(borderRefs(rom, analysis).pcRelative, [
     { site: BASE + 0x100, target: BASE + 0x108 },
     { site: BASE + 0x110, target: BASE + 0x118 },
   ]);

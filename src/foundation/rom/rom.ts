@@ -120,6 +120,20 @@ export function u16(rom: Rom, a: Addr): number {
   return (b[i] ?? 0) | ((b[i + 1] ?? 0) << 8);
 }
 
+/**
+ * The halfword at bus address `a` without u16's bounds check, for scans whose addresses are clipped to the ROM
+ * already: a byte outside the ROM reads as 0, nothing throws.
+ */
+export function peek16(rom: Rom, a: Addr): number {
+  const k = a - rom.base;
+  return (rom.bytes[k] ?? 0) | ((rom.bytes[k + 1] ?? 0) << 8);
+}
+
+/** The word at bus address `a` as peek16 reads it (unsigned). */
+export function peek32(rom: Rom, a: Addr): number {
+  return (peek16(rom, a) | (peek16(rom, a + 2) << 16)) >>> 0;
+}
+
 /** The little-endian word at bus address `a` (any alignment), as an unsigned number. */
 export function u32(rom: Rom, a: Addr): number {
   const i = offsetOf(rom, a, 4);
