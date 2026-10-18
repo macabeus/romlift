@@ -1,7 +1,7 @@
 // The emission families of one tuning ROM (architecture §8.4 "Scaffold", "Readability", "objdiff", D34,
-// D62): the model of the seedless discover run (configFromDiscover, buildModel), the readable printer's
-// statistics and tree digest on every `bench run`, and under `--scaffold` both printers' trees each applied
-// into a fresh temporary directory (planWrites without a manifest, applyWrites) and linked with linkCheck,
+// D62): the model of the seedless discover run (romlift's discoverModel: configFromDiscover, buildModel), the
+// readable printer's statistics and tree digest on every `bench run`, and under `--scaffold` both printers' trees
+// each written into a fresh temporary directory (writeFreshTree) and linked with linkCheck,
 // then the objdiff family over the readable build when it reproduces the SHA-1. The raw link is the row's
 // `scaffold` verdict from phase 3 on (it replaces the PoC dump's); the readable link is `objdiff.linked`.
 // The bench reaches all of it through EmissionFamilies (named apart from emission-run.ts EmissionRunner, the
@@ -12,13 +12,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  buildModel,
   buildUnits,
-  configFromDiscover,
+  discoverModel as modelOfDiscover,
   emitTree,
-  modulePathPrefixes,
-  planHasErrors,
-  planWrites,
   type AnalysisResult,
   type ElfSymbol,
   type Model,
@@ -26,7 +22,7 @@ import {
   type PrintStats,
   type Rom,
 } from 'romlift';
-import { applyWrites, linkCheck, readDiskState, sha1Of } from 'romlift/node';
+import { linkCheck, writeFreshTree } from 'romlift/node';
 
 import { scoreObjdiff, unlinkedSummary, type ObjdiffSummary } from './objdiff.ts';
 import { readableStats, treePass } from './readability.ts';
@@ -83,34 +79,25 @@ const MODELS = new WeakMap<AnalysisResult, Model>();
 export function discoverModel(rom: Rom, analysis: AnalysisResult): Model {
   const cached = MODELS.get(analysis);
   if (cached !== undefined) return cached;
-  const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
+  const model = modelOfDiscover(rom, analysis);
   MODELS.set(analysis, model);
   return model;
 }
 
 const EMPTY_DECOMP = { defined: new Set<string>() };
 
-/** The path prefixes of the modules romlift does not generate (none under configFromDiscover). */
-function retained(model: Model): string[] {
-  return model.modules.filter((m) => !m.generated).flatMap((m) => [...modulePathPrefixes(model, m)]);
-}
-
 const messages = (diagnostics: readonly { readonly message: string }[]): string => diagnostics.map((d) => d.message).join('; ');
 
 /**
- * Applies `printer`'s tree of `model` into the empty directory `dir` as a fresh project would be written
- * (no manifest), then links it. The stream runs twice: once for the paths the disk snapshot needs (and the
- * tree digest), once for the plan.
+ * Writes `printer`'s tree of `model` into the empty directory `dir` as a fresh project is written
+ * (writeFreshTree), then links it. The stream runs twice: once for the paths and the tree digest, once for the
+ * write.
  */
 export async function scaffoldTree(rom: Rom, model: Model, printer: Printer, dir: string): Promise<LinkOutcome> {
   const cx = { decomp: EMPTY_DECOMP, printer };
   const pass = treePass(emitTree(rom, model, cx));
   const failed = (detail: string): LinkOutcome => ({ ok: false, sha1: null, detail, treeDigest: pass.treeDigest });
-  const disk = await readDiskState(dir, pass.paths);
-  if (!disk.ok) return failed(`reading ${dir}: ${disk.diagnostic.message}`);
-  const plan = planWrites({ entries: emitTree(rom, model, cx), manifest: null, disk: disk.value, reconciledTexts: new Map(), hash: (text) => sha1Of(text), retained: retained(model) });
-  if (planHasErrors(plan)) return failed(`the write plan has errors: ${messages(plan.diagnostics.filter((d) => d.severity === 'error'))}`);
-  const applied = await applyWrites(dir, plan);
+  const applied = await writeFreshTree(dir, { model, entries: emitTree(rom, model, cx), paths: pass.paths });
   if (!applied.ok) return failed(`applying the plan: ${messages(applied.diagnostics)}`);
   const link = await linkCheck({ dir, rom, units: buildUnits(model) });
   const detail = link.diagnostics.length === 0 ? link.detail : `${link.detail}: ${messages(link.diagnostics)}`;

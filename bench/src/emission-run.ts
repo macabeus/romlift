@@ -6,8 +6,8 @@
 // stream order (g3.tree-determinism's), hashed while planWrites reads the stream, so no tree is held for it.
 import { createHash } from 'node:crypto';
 
-import { configFromDiscover, discover, generate, modulePathPrefixes, planWrites, type FileEntry, type Rom, type RomliftConfig } from 'romlift';
-import { applyWrites, sha1Of } from 'romlift/node';
+import { generate, generatedEntries, initConfig, type FileEntry, type Rom, type RomliftConfig } from 'romlift';
+import { writeFreshTree } from 'romlift/node';
 
 /** What one emission run did. */
 export interface EmissionOutcome {
@@ -41,9 +41,11 @@ function* hashing(entries: Iterable<FileEntry>, hash: ReturnType<typeof createHa
   }
 }
 
-/** The config of a ROM as `init` would write it: configFromDiscover over its discover analysis. */
+/** The config of a ROM as `init` would write it: configFromDiscover over its discover analysis (initConfig). */
 export function configOf(rom: Rom): RomliftConfig {
-  return configFromDiscover(rom, discover(rom));
+  const init = initConfig(rom);
+  if (!init.ok) throw new Error(`the discover run raised errors: ${init.diagnostics.map((d) => `${d.code}: ${d.message}`).join('; ')}`);
+  return init.config;
 }
 
 /** generate over `config`, and when its check pass is clean, the tree written into the empty directory `dir`. */
@@ -54,18 +56,9 @@ export async function generateInto(rom: Rom, config: RomliftConfig, dir: string)
   if (failed !== undefined) return { ok: false, failure: 'check', detail: `the ${failed.id} check failed: ${failed.detail}; nothing written`, files };
   const error = result.diagnostics.find((d) => d.severity === 'error');
   if (error !== undefined) return { ok: false, failure: 'error', detail: `${error.code}: ${error.message}; nothing written`, files };
-  const { model } = result;
   const hash = createHash('sha256');
-  const plan = planWrites({
-    entries: hashing(result.entries(), hash),
-    manifest: null,
-    disk: new Map(result.paths.map((p) => [p, 'absent'] as const)),
-    reconciledTexts: new Map(),
-    hash: sha1Of,
-    retained: model.modules.filter((m) => !m.generated).flatMap((m) => modulePathPrefixes(model, m)),
-  });
+  const applied = await writeFreshTree(dir, { model: result.model, entries: hashing(generatedEntries(rom, result), hash), paths: result.paths });
   const treeDigest = hash.digest('hex');
-  const applied = await applyWrites(dir, plan);
   if (!applied.ok) return { ok: false, failure: 'write', detail: applied.diagnostics.map((d) => d.message).join('; '), files };
   return { ok: true, detail: `${applied.applied} files written`, files, treeDigest };
 }
@@ -74,5 +67,9 @@ export async function generateInto(rom: Rom, config: RomliftConfig, dir: string)
 export const ROMLIFT_EMISSION: EmissionRunner = {
   prepare: configOf,
   generate: generateInto,
-  init: (rom, dir) => generateInto(rom, configOf(rom), dir),
+  async init(rom, dir) {
+    const init = initConfig(rom);
+    if (!init.ok) return { ok: false, failure: 'error', detail: `${init.diagnostics.map((d) => `${d.code}: ${d.message}`).join('; ')}; nothing written`, files: 0 };
+    return generateInto(rom, init.config, dir);
+  },
 };

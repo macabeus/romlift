@@ -21,4 +21,7 @@ From phase 3, `romlift` exports the config, proposal and layout types with `BUIL
 shared paths (`api/model.ts`), the emission stream's types (`api/emit.ts`), the verify report
 (`api/verify.ts`) and the write plan's types with the manifest and journal codecs (`api/write-plan.ts`); the
 phase-3 lead created them, with the empty `api/{layout,internal-emit,project,workflow-generate}.ts` that the
-wave-2 and wave-3 components fill (D62).
+wave-2 and wave-3 components fill (D62). `api/workflow-generate.ts` holds `generate` (its result is plain data;
+`generatedEntries` re-emits its stream), the phase-3 `init` equivalents `initConfig`, `initModel` and
+`generateFromRom`, `discoverModel` and `freshTreePlanInputs`; `romlift/node`'s `api/project.ts` adds
+`writeFreshTree`, the one way a fresh tree is written (D65).

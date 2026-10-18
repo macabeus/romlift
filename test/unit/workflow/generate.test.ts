@@ -1,6 +1,6 @@
 // The phase-3 generate workflow (architecture §6.4, §9.4, D17, D62 c): the confirm options it builds from a
 // config; on every committed fixture, with the config configFromDiscover builds, an ok report (tiling, re-encode,
-// module size, text layout, paths) for both printers and the very tree the discover run's model emits; `entries()` re-emits the stream the check pass read; and an image that is
+// module size, text layout, paths) for both printers and the very tree the discover run's model emits; generatedEntries re-emits the stream the check pass read; and an image that is
 // not a cartridge is a diagnostic, never a throw.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -13,7 +13,19 @@ import { buildModel } from '../../../src/core/model/model.ts';
 import { CHECK_IDS } from '../../../src/core/verify/report.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
-import { confirmModel, confirmOptions, generate, listedSeedsOf, overrideFactsOf } from '../../../src/core/workflow/generate.ts';
+import {
+  confirmModel,
+  confirmOptions,
+  freshTreePlanInputs,
+  generate,
+  generatedEntries,
+  generateFromRom,
+  initConfig,
+  initModel,
+  listedSeedsOf,
+  overrideFactsOf,
+  writable,
+} from '../../../src/core/workflow/generate.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
@@ -82,7 +94,7 @@ for (const fixture of fixtures) {
   const cfg = configFromDiscover(rom, found);
 
   for (const printer of PRINTERS) {
-    test(`${fixture.name} (${printer}): generate's check pass lays every file out, and entries() re-emits the stream it read`, () => {
+    test(`${fixture.name} (${printer}): generate's check pass lays every file out, and generatedEntries re-emits the stream it read`, () => {
       const result = generate({ rom, config: cfg, decomp: NO_C, printer });
       assert.equal(result.analysis.mode, 'confirm');
       const failed = result.report.checks.filter((c) => MODEL_CHECKS.includes(c.id) && !c.ok).map((c) => `${c.id}: ${c.detail}`);
@@ -91,12 +103,12 @@ for (const fixture of fixtures) {
         result.report.checks.map((c) => c.id),
         CHECK_IDS.filter((id) => id !== 'assemble' && id !== 'link'),
       );
-      const first = tree(result.entries());
+      const first = tree(generatedEntries(rom, result));
       assert.deepEqual(
         first.map(([path]) => path),
         result.paths,
       );
-      assert.deepEqual(tree(result.entries()), first);
+      assert.deepEqual(tree(generatedEntries(rom, result)), first);
     });
   }
 }
@@ -114,7 +126,7 @@ test('on every fixture the report is ok with no error diagnostic, and the tree i
       if (failed.length + errors.length > 0) problems.push(`${fixture.name} ${printer}: ${[...failed, ...errors].join('; ')}`);
       // Confirm equals discover: the tree is the one the discover run's own model emits.
       if (shape(result.analysis) !== shape(found)) problems.push(`${fixture.name}: the confirm run differs from discover`);
-      else if (JSON.stringify(tree(result.entries())) !== JSON.stringify(tree(emitTree(rom, buildModel(rom, found, cfg), { decomp: NO_C, printer })))) {
+      else if (JSON.stringify(tree(generatedEntries(rom, result))) !== JSON.stringify(tree(emitTree(rom, buildModel(rom, found, cfg), { decomp: NO_C, printer })))) {
         problems.push(`${fixture.name} ${printer}: the tree differs from the discover run's`);
       }
     }
@@ -140,4 +152,58 @@ test('an image that is not a cartridge gives E_ROM_NOT_GBA and an empty confirm 
   assert.equal(result.analysis.mode, 'confirm');
   assert.deepEqual(result.analysis.functions, []);
   assert.ok(result.diagnostics.some((d) => d.code === 'E_ROM_NOT_GBA'));
+});
+
+test('a generate result is plain data: no function anywhere in it (D19)', () => {
+  const fixture = fixtures.find((f) => f.name === 'far-jump');
+  assert.ok(fixture !== undefined);
+  const rom = readFixtureRom(fixture);
+  const result = generate({ rom, config: configFromDiscover(rom, discover(rom)), decomp: NO_C, printer: 'readable' });
+  const seen = new Set<unknown>();
+  const visit = (value: unknown, path: string): void => {
+    assert.notEqual(typeof value, 'function', path);
+    if (value === null || typeof value !== 'object' || seen.has(value)) return;
+    seen.add(value);
+    if (ArrayBuffer.isView(value)) return;
+    const members = value instanceof Map ? [...value.entries()] : value instanceof Set ? [...value].map((v, i) => [i, v] as const) : Object.entries(value);
+    for (const [k, v] of members) visit(v, `${path}.${String(k)}`);
+  };
+  visit(result, 'result');
+});
+
+test('initConfig, initModel and generateFromRom: the config configFromDiscover builds, refused on a discover error', () => {
+  const fixture = fixtures.find((f) => f.name === 'far-jump');
+  assert.ok(fixture !== undefined);
+  const rom = readFixtureRom(fixture);
+  const found = discover(rom);
+  const init = initConfig(rom);
+  assert.ok(init.ok);
+  assert.deepEqual(init.config, configFromDiscover(rom, found));
+  const model = initModel(rom);
+  assert.ok(model.ok);
+  assert.deepEqual(model.model, confirmModel({ rom, config: init.config }).model);
+  const generated = generateFromRom(rom, { decomp: NO_C, printer: 'raw' });
+  assert.ok(generated.ok);
+  assert.equal(writable(generated), true);
+  const bytes = Uint8Array.from({ length: 0x30 }, (_, i) => (i * 7) & 0xff);
+  const notGba = romFromBytes(bytes, SHA1);
+  for (const refused of [initConfig(notGba), initModel(notGba), generateFromRom(notGba, { decomp: NO_C, printer: 'readable' })]) {
+    assert.equal(refused.ok, false);
+    if (!refused.ok) assert.ok(refused.diagnostics.some((d) => d.code === 'E_ROM_NOT_GBA'));
+  }
+});
+
+test('freshTreePlanInputs: no manifest, every path absent, no reconciled text, the non-generated modules retained', () => {
+  const fixture = fixtures.find((f) => f.name === 'far-jump');
+  assert.ok(fixture !== undefined);
+  const rom = readFixtureRom(fixture);
+  const result = generate({ rom, config: configFromDiscover(rom, discover(rom)), decomp: NO_C, printer: 'readable' });
+  const kept = { ...result.model, modules: result.model.modules.map((m, i) => (i === 1 ? { ...m, generated: false } : m)) };
+  const inputs = freshTreePlanInputs(kept, generatedEntries(rom, result), result.paths, (t) => String(t.length));
+  assert.equal(inputs.manifest, null);
+  assert.deepEqual([...inputs.disk.values()].every((v) => v === 'absent'), true);
+  assert.deepEqual([...inputs.disk.keys()], result.paths);
+  assert.equal(inputs.reconciledTexts.size, 0);
+  assert.ok(inputs.retained.length > 0);
+  assert.equal(inputs.hash('abc'), '3');
 });

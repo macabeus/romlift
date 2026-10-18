@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { configFromDiscover, discover, generate, type Rom, type RomliftConfig } from 'romlift';
+import { configFromDiscover, discover, generate, generatedEntries, type Rom, type RomliftConfig } from 'romlift';
 
 import { configOf, generateInto, ROMLIFT_EMISSION } from '../../../bench/src/emission-run.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
@@ -42,7 +42,7 @@ test('generateInto writes every file of the stream and digests it in stream orde
   const result = generate({ rom, config, decomp: { defined: new Set() }, printer: 'readable' });
   const hash = createHash('sha256');
   const texts = new Map<string, string>();
-  for (const e of result.entries()) {
+  for (const e of generatedEntries(rom, result)) {
     assert.ok('text' in e);
     hash.update(e.path).update('\0').update(e.text).update('\0');
     texts.set(e.path, e.text);

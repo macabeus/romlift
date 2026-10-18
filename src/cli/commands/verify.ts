@@ -3,7 +3,7 @@
 // config is the one configFromDiscover builds from the ROM's discover analysis; `generate` then runs the confirm
 // analysis, builds the model and makes the check pass (tiling, re-encode, module size, text layout, paths).
 // --assemble and --link write the tree into a fresh temporary directory, never the working directory
-// (planWrites with no manifest over an empty disk, then applyWrites), and run `as` per module against its ROM
+// (writeFreshTree: planWrites with no manifest over an empty disk, then applyWrites), and run `as` per module against its ROM
 // range and the full link against the ROM's SHA-1; they run only when the self-checks passed, since a write
 // follows a passing check pass (§6.4). Output (frozen by the g3.self-check, g3.text-layout, g3.link and
 // g3.raw-link headers): with --json, one {"type":"check","id","status":"ok"|"fail","detail"} line per check in
@@ -11,19 +11,16 @@
 // text mode prints the same as lines, the diagnostics on stderr. Exit codes: 0 every check passed, 3 a check
 // failed (a self-check, an object that differs, a linked SHA-1 that differs), 1 an error diagnostic of the input
 // or the toolchain (an unreadable file, E_ROM_NOT_GBA, a model error, binutils missing), 2 usage.
-import { configFromDiscover } from '../../api/layout.ts';
-import { buildUnits, modulePathPrefixes } from '../../api/model.ts';
+import { buildUnits } from '../../api/model.ts';
 import type { Model } from '../../api/model.ts';
-import { applyWrites, assembleCheck, linkCheck } from '../../api/project.ts';
-import { readRom, sha1Of } from '../../api/files.ts';
+import { assembleCheck, linkCheck, writeFreshTree } from '../../api/project.ts';
+import { readRom } from '../../api/files.ts';
 import type { Diagnostic, Rom } from '../../api/rom.ts';
 import { findBinutils } from '../../api/toolchain.ts';
 import type { Printer } from '../../api/emit.ts';
 import { combineReports, VerifyCodes } from '../../api/verify.ts';
 import type { CheckId, CheckResult, VerifyReport } from '../../api/verify.ts';
-import { planWrites } from '../../api/write-plan.ts';
-import { discover } from '../../core/workflow/discover.ts';
-import { generate } from '../../core/workflow/generate.ts';
+import { generatedEntries, generateFromRom, writable } from '../../core/workflow/generate.ts';
 import type { GenerateResult } from '../../core/workflow/generate.ts';
 import { withTempDir } from '../../shell/temp-dir.ts';
 import { ExitCode } from '../exit-codes.ts';
@@ -79,20 +76,17 @@ function assembleUnits(model: Model): Parameters<typeof assembleCheck>[0]['units
   });
 }
 
+/** The toolchain checks a run asks for, in CHECK_IDS order. */
+type ToolchainFlags = { readonly assemble: boolean; readonly link: boolean };
+
+function toolchainIds(flags: ToolchainFlags): readonly CheckId[] {
+  return [...(flags.assemble ? (['assemble'] as const) : []), ...(flags.link ? (['link'] as const) : [])];
+}
+
 /** Writes the tree into `dir` and runs the requested toolchain checks there. */
-async function checkInDir(dir: string, rom: Rom, result: GenerateResult, flags: { readonly assemble: boolean; readonly link: boolean }, io: CliIo): Promise<ToolchainOutcome> {
-  const ids: CheckId[] = [...(flags.assemble ? (['assemble'] as const) : []), ...(flags.link ? (['link'] as const) : [])];
+async function checkInDir(dir: string, rom: Rom, result: GenerateResult, flags: ToolchainFlags, ids: readonly CheckId[], io: CliIo): Promise<ToolchainOutcome> {
   const { model } = result;
-  const retained = model.modules.filter((m) => !m.generated).flatMap((m) => modulePathPrefixes(model, m));
-  const plan = planWrites({
-    entries: result.entries(),
-    manifest: null,
-    disk: new Map(result.paths.map((p) => [p, 'absent'] as const)),
-    reconciledTexts: new Map(),
-    hash: sha1Of,
-    retained,
-  });
-  const applied = await applyWrites(dir, plan);
+  const applied = await writeFreshTree(dir, { model, entries: generatedEntries(rom, result), paths: result.paths });
   if (!applied.ok) return { checks: ids.map((id) => notRun(id, 'the tree could not be written', applied.diagnostics)) };
   const tools = findBinutils(io.env);
   if ('code' in tools) return { checks: ids.map((id) => notRun(id, 'binutils not found', [tools])) };
@@ -105,21 +99,20 @@ async function checkInDir(dir: string, rom: Rom, result: GenerateResult, flags: 
 }
 
 /** The toolchain checks of a run, in a temporary directory; not run when the self-checks or the model failed. */
-export async function toolchainChecks(rom: Rom, result: GenerateResult, flags: { readonly assemble: boolean; readonly link: boolean }, io: CliIo): Promise<ToolchainOutcome> {
-  const ids: CheckId[] = [...(flags.assemble ? (['assemble'] as const) : []), ...(flags.link ? (['link'] as const) : [])];
+export async function toolchainChecks(rom: Rom, result: GenerateResult, flags: ToolchainFlags, io: CliIo): Promise<ToolchainOutcome> {
+  const ids = toolchainIds(flags);
   if (ids.length === 0) return { checks: [] };
-  if (!result.report.ok || result.diagnostics.some((d) => d.severity === 'error')) {
+  if (!writable(result)) {
     return { checks: ids.map((id) => notRun(id, 'not run: nothing is written while a self-check or the model fails')) };
   }
-  const ran = await withTempDir(VERIFY_TEMP_PREFIX, (dir) => checkInDir(dir, rom, result, flags, io));
+  const ran = await withTempDir(VERIFY_TEMP_PREFIX, (dir) => checkInDir(dir, rom, result, flags, ids, io));
   return ran.ok ? ran.value : { checks: ids.map((id) => notRun(id, 'no temporary directory', [ran.diagnostic])) };
 }
 
-/** Verifies a ROM: discover, configFromDiscover, generate, then the toolchain checks asked for. */
-export async function verifyRom(rom: Rom, options: { readonly printer: Printer; readonly assemble: boolean; readonly link: boolean }, io: CliIo): Promise<VerifyOutcome | { readonly refused: readonly Diagnostic[] }> {
-  const found = discover(rom);
-  if (found.diagnostics.some((d) => d.severity === 'error')) return { refused: found.diagnostics };
-  const result = generate({ rom, config: configFromDiscover(rom, found), decomp: { defined: new Set() }, printer: options.printer });
+/** Verifies a ROM: generateFromRom (discover, configFromDiscover, generate), then the toolchain checks asked for. */
+export async function verifyRom(rom: Rom, options: { readonly printer: Printer } & ToolchainFlags, io: CliIo): Promise<VerifyOutcome | { readonly refused: readonly Diagnostic[] }> {
+  const result = generateFromRom(rom, { decomp: { defined: new Set() }, printer: options.printer });
+  if (!result.ok) return { refused: result.diagnostics };
   const toolchain = await toolchainChecks(rom, result, options, io);
   const report = combineReports(result.report, { ok: toolchain.checks.every((c) => c.ok), checks: toolchain.checks });
   return { report, diagnostics: result.diagnostics, files: result.paths.length, ...(toolchain.sha1 === undefined ? {} : { sha1: toolchain.sha1 }) };

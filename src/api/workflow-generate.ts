@@ -1,2 +1,15 @@
-export { confirmModel, confirmOptions, generate, listedSeedsOf, overrideFactsOf } from '../core/workflow/generate.ts';
-export type { ConfirmedModel, GenerateInputs, GenerateResult } from '../core/workflow/generate.ts';
+export {
+  confirmModel,
+  confirmOptions,
+  discoverModel,
+  freshTreePlanInputs,
+  generate,
+  generatedEntries,
+  generateFromRom,
+  initConfig,
+  initModel,
+  listedSeedsOf,
+  overrideFactsOf,
+  writable,
+} from '../core/workflow/generate.ts';
+export type { ConfirmedModel, GenerateFromRom, GenerateInputs, GenerateResult, InitConfig, InitModel } from '../core/workflow/generate.ts';

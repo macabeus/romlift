@@ -21,7 +21,7 @@ import { CHECK_IDS, checkResult } from '../../../src/core/verify/report.ts';
 import type { CheckResult } from '../../../src/core/verify/report.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
-import { generate } from '../../../src/core/workflow/generate.ts';
+import { generate, generatedEntries } from '../../../src/core/workflow/generate.ts';
 import { diagnostic } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { ShellCodes } from '../../../src/shell/codes.ts';
@@ -255,7 +255,7 @@ test('a [symbols] entry in RAM names every pool word equal to its address, which
   for (const printer of PRINTERS) {
     const result = generate({ rom, config, decomp: { defined: new Set() }, printer });
     assert.ok(result.report.ok, `${printer}: ${result.report.checks.map((c) => c.detail).join('; ')}`);
-    const texts = [...result.entries()].map((e) => ('text' in e ? e.text : ''));
+    const texts = [...generatedEntries(rom, result)].map((e) => ('text' in e ? e.text : ''));
     const all = texts.join('\n');
     assert.match(all, /gEwramStart = 0x02000000;\ngIrqStackTop = 0x03007FA0;/);
     if (printer === 'readable') {

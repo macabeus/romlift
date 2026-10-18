@@ -13,19 +13,20 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
+import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import { explainAnalysis, explainBucket, explainFilter } from '../analysis/explain.ts';
 import type { AnalysisExplanation } from '../analysis/explain.ts';
 import { RULES } from '../analysis/driver/rules.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import { findItem, itemAt } from '../model/item-table.ts';
-import { buildModel } from '../model/model.ts';
-import type { Chunk, ChunkKind, Item, Model } from '../model/types.ts';
+import { runOffsetOf } from '../model/modules.ts';
+import type { ChunkKind, Item, Model } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { RuleMeta } from '../provenance/rule-id.ts';
 import { trailKeeps } from '../provenance/trail.ts';
 import type { TrailEvent } from '../provenance/trail.ts';
-import { configFromDiscover } from './config-from-discover.ts';
 import { discover } from './discover.ts';
+import { discoverModel } from './generate.ts';
 import type { DiscoverOptions } from './discover.ts';
 
 export type { AnalysisExplanation } from '../analysis/explain.ts';
@@ -68,36 +69,21 @@ function within(inner: Span, outer: Span): boolean {
   return inner.start >= outer.start && inner.end <= outer.end;
 }
 
-/** The index of the chunk whose span contains `addr` (chunks tile in address order), or -1. */
-function chunkIndexAt(chunks: readonly Chunk[], addr: Addr): number {
-  let lo = 0;
-  let hi = chunks.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const span = chunks[mid]?.span;
-    if (span === undefined || addr < span.start) hi = mid - 1;
-    else if (addr >= span.end) lo = mid + 1;
-    else return mid;
-  }
-  return -1;
-}
-
 /** The item and chunk of `addr` in `model` (phase 3); nothing when no chunk holds it. */
 export function modelPart(rom: Rom, model: Model, addr: Addr): { readonly item?: Item; readonly chunk?: ExplainChunk } {
-  const c = chunkIndexAt(model.chunks, addr);
-  const chunk = model.chunks[c];
+  const chunk = model.chunks[spanIndexAt(model.chunks, addr, (k) => k.span)];
   if (chunk === undefined) return {};
   const part = { chunk: { name: chunk.name, kind: chunk.kind, module: chunk.module } };
   const i = findItem(model.items, addr);
   if (i < 0) return part;
-  return { item: itemAt(model.items, i, rom, chunk.runAt === undefined ? 0 : chunk.runAt - chunk.span.start), ...part };
+  return { item: itemAt(model.items, i, rom, runOffsetOf(chunk)), ...part };
 }
 
 /** The report of `addr`: the analysis part over `events`, then the item and chunk of the discover run's model. */
 function compose(rom: Rom, result: AnalysisResult, events: readonly TrailEvent[], addr: Addr): ExplainReport {
   const analysis = explainAnalysis(result, events, addr, ruleMetas());
   if (checkRom(rom.bytes).length > 0) return analysis;
-  return { ...analysis, ...modelPart(rom, buildModel(rom, result, configFromDiscover(rom, result)), addr) };
+  return { ...analysis, ...modelPart(rom, discoverModel(rom, result), addr) };
 }
 
 /** The explanation of `addr` with the diagnostics of its analysis, for the CLI. */

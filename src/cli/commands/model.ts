@@ -7,13 +7,11 @@
 // codes: 0 ok, 1 an error diagnostic (an unreadable file, E_ROM_NOT_GBA, a model error such as E_MODULE_BORDER),
 // 2 usage.
 import { readRom } from '../../api/files.ts';
-import { configFromDiscover } from '../../api/layout.ts';
 import { encodeModel } from '../../api/model.ts';
 import type { Model } from '../../api/model.ts';
 import { hexAddr } from '../../api/rom.ts';
 import type { Diagnostic } from '../../api/rom.ts';
-import { discover } from '../../core/workflow/discover.ts';
-import { confirmModel } from '../../core/workflow/generate.ts';
+import { initModel } from '../../core/workflow/generate.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
 import type { CommandSpec } from '../registry.ts';
@@ -57,12 +55,12 @@ export const modelCommand: CommandSpec = {
       return ExitCode.errors;
     }
     const rom = loaded.value;
-    const found = discover(rom);
-    if (found.diagnostics.some((d) => d.severity === 'error')) {
-      printDiagnosticsOnly(io, json, 'model', found.diagnostics, { ok: false, exitCode: ExitCode.errors });
+    const init = initModel(rom);
+    if (!init.ok) {
+      printDiagnosticsOnly(io, json, 'model', init.diagnostics, { ok: false, exitCode: ExitCode.errors });
       return ExitCode.errors;
     }
-    const { analysis, model } = confirmModel({ rom, config: configFromDiscover(rom, found) });
+    const { analysis, model } = init;
     const diagnostics: readonly Diagnostic[] = [...analysis.diagnostics, ...model.diagnostics];
     const summary = modelSummary(model, exitCodeOf(diagnostics));
     if (json) {
