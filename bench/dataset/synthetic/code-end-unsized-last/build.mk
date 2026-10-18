@@ -1,7 +1,8 @@
 # code-end-unsized-last (negative: zero entries beyond main and Last; the code ends after Last).
-# Last has no .size (FUNC size 0); the OBJECT gValue right after its `bx lr` starts with a `$d` mapping
-# symbol. The ELF's code end is that `$d` (bench/src/truth.ts elfCodeEnd, D61 a), where the analysis
-# ends the code; addr + size would end it at Last's entry, 8 bytes before.
+# Last has no .size (FUNC size 0); right after its `bx lr` an untyped pool opens with a `$d` mapping
+# symbol, and the OBJECT gValue follows it. The ELF's code end is that `$d` (bench/src/truth.ts
+# elfCodeEnd, D61 a), where the analysis ends the code; addr + size would end it at Last's entry, 8 bytes
+# before, and the next typed symbol at gValue, 8 bytes after.
 # main neither returns nor opens with push {.., lr}, so only crt0's pool pointer finds it.
 # Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := code-end-unsized-last

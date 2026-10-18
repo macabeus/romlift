@@ -1,7 +1,10 @@
 @ The last function is hand-written asm without `.size`, as tmc's intr.s is: its FUNC symbol has size 0,
-@ and the data right after it, which the assembler opens with a `$d` mapping symbol, is an OBJECT. The
-@ ELF's code end is that `$d` (D61 a, the owner's answer to Q5: "Use $d for every ROM"), where the
-@ analysis ends the code too, not the function's start, where addr + size would put it.
+@ and right after it comes an untyped pool (`.word`s with no `.type`), which the assembler opens with a
+@ `$d` mapping symbol, and then an OBJECT, as tmc's `$d` at 0x080B2A30 opens a pool 0x40 bytes before
+@ its next typed symbol. The ELF's code end is that `$d`, 0x08000108 (D61 a, the owner's answer to Q5:
+@ "Use $d for every ROM"), where the analysis ends the code too: not the function's start, 0x08000100,
+@ where addr + size would put it, and not the OBJECT, 0x08000110, where the next typed symbol would
+@ (overfitting-correctness-r1-3).
 	.include "../common/macros.inc"
 	.syntax unified
 	.text
@@ -21,6 +24,8 @@
 	bx lr
 
 	.align 2, 0
+	.word 0xA5A5A5A5, 0x5A5A5A5A
+
 	.global gValue
 	.type gValue, %object
 gValue:
