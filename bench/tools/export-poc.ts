@@ -1,7 +1,7 @@
-// `npm run export-poc -- --mode scored|parity|queries [--only <rom>]` (architecture §4.5, D11, D48,
+// `npm run export-poc -- --mode scored|parity|queries|raw [--only <rom>]` (architecture §4.5, D11, D48,
 // D50): runs the read-only PoC from ROMLIFT_POC with its own tsx (bench/tools/export-poc-child.ts),
-// once per tuning dataset (never a sealed one), and writes what it found to the gitignored
-// bench/.local/poc/<rom>/:
+// once per tuning dataset (never a sealed one), or once per committed fixture for `raw`, and writes what
+// it found to the gitignored bench/.local/poc/<rom>/ (bench/.local/poc/raw/<fixture>/ for `raw`):
 //
 //   scored   scored.json, in the frozen ScoredRun shape (phase 1); a dump made on romlift's dataset (a ROM
 //            the PoC has no dataset file of, D60) is checked against bench/baseline/poc-dump-rows.json,
@@ -12,11 +12,16 @@
 //            produced the same digest; then bench/baseline/poc-digests.json, the digest per ROM;
 //   queries  queries.ndjson and readings.ndjson, the lockstep log (bench/src/poc-log.ts), after
 //            checking that the instrumented run's parity digest is the committed one, and re-reading
-//            the whole log through the validating reader.
+//            the whole log through the validating reader;
+//   raw      per committed fixture (bench/dataset/synthetic/<name>/build/<name>.gba, `--only` names one):
+//            the PoC's writeGenerated() tree in bench/.local/poc/raw/<fixture>/ and raw.json beside it,
+//            per chunk of the PoC's tiling its span, name, kind, mode, module, labels and the body lines
+//            its rawLines printed (cut out of the written file), with the PoC's claim kind of every byte;
+//            test/local/poc-raw-printer.test.ts feeds romlift's printRawRange the same inputs (roadmap 3.B).
 //
 // It refuses a PoC checkout whose files differ from bench/baseline/poc-source.json and a ROM whose
 // SHA-1 differs from its dataset.
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,11 +29,12 @@ import { fileURLToPath } from 'node:url';
 import { compareCodeUnits } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
+import { listFixtures, type SyntheticFixture } from '../src/ablate.ts';
 import { parseArgs, UsageError } from '../src/args.ts';
 import { jsonDiffs, pocRomNames, readBaseline, stripSeconds } from '../src/baseline.ts';
 import { contextFromEnv, scoredPath, type BenchContext } from '../src/context.ts';
 import { loadDatasets, pocDatasets, tuningDatasets, type Dataset } from '../src/dataset.ts';
-import { BenchError, exists, isRecord, prettyJson, readFileBytes, readJson, writeText } from '../src/files.ts';
+import { BenchError, exists, isRecord, prettyJson, readFileBytes, readJson, readText, writeText } from '../src/files.ts';
 import {
   parityDigest,
   parityPath,
@@ -56,10 +62,10 @@ import {
   type PinnedDumpRow,
 } from '../src/poc-dump-rows.ts';
 
-const USAGE = 'usage: npm run export-poc -- --mode scored|parity|queries [--only <rom>] [--pin]';
+const USAGE = 'usage: npm run export-poc -- --mode scored|parity|queries|raw [--only <rom>] [--pin]';
 const CHILD = fileURLToPath(new URL('./export-poc-child.ts', import.meta.url));
 
-export const EXPORT_MODES = ['scored', 'parity', 'queries'] as const;
+export const EXPORT_MODES = ['scored', 'parity', 'queries', 'raw'] as const;
 export type ExportMode = (typeof EXPORT_MODES)[number];
 
 export function isExportMode(value: string | undefined): value is ExportMode {
@@ -171,6 +177,128 @@ export function checkCommittedDigest(rom: string, digest: string, committed: Poc
   if (want !== digest) throw new BenchError(`${rom}: the instrumented run has parity digest ${digest}, the committed one is ${want}`);
 }
 
+// ---------------------------------------------------------------- the raw mode's dump
+
+export const POC_RAW_SCHEMA = 'romlift-bench/poc-raw@1';
+
+/** A label the PoC placed inside a chunk (an entry folded into another function's extent). */
+export interface PocRawLabel {
+  readonly addr: number;
+  readonly name: string;
+  readonly note?: string;
+}
+
+/** One chunk of the PoC's tile(), as the child printed it. */
+export interface PocRawChunk {
+  readonly start: number;
+  readonly end: number;
+  readonly name: string;
+  readonly kind: 'func' | 'gap';
+  readonly mode: 'thumb' | 'arm' | 'none';
+  readonly module: string;
+  readonly labels: readonly PocRawLabel[];
+}
+
+/** What the child's `raw` mode printed. */
+export interface PocRawChild {
+  readonly summary: string;
+  readonly chunks: readonly PocRawChunk[];
+  /** The PoC's claim kind per ROM byte: 0 free, 1 code, 2 pool, 3 table, 4 dead. */
+  readonly claims: readonly number[];
+}
+
+/** raw.json: the child's chunks with the body lines rawLines printed for each. */
+export interface PocRawDump {
+  readonly schema: typeof POC_RAW_SCHEMA;
+  readonly fixture: string;
+  readonly sha1: string;
+  readonly pocSourceDigest: string;
+  readonly summary: string;
+  readonly chunks: readonly (PocRawChunk & { readonly lines: readonly string[] })[];
+  readonly claims: readonly number[];
+}
+
+const isAddr = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 0xffffffff;
+
+function rawLabel(value: unknown, where: string): PocRawLabel {
+  if (!isRecord(value) || !isAddr(value['addr']) || typeof value['name'] !== 'string') throw new BenchError(`${where}: not a {addr, name, note?} label`);
+  const note = value['note'];
+  if (note !== undefined && typeof note !== 'string') throw new BenchError(`${where}.note: not a string`);
+  return note === undefined ? { addr: value['addr'], name: value['name'] } : { addr: value['addr'], name: value['name'], note };
+}
+
+function rawChunk(value: unknown, where: string): PocRawChunk {
+  if (!isRecord(value)) throw new BenchError(`${where}: not an object`);
+  const { start, end, name, kind, mode, module, labels } = value;
+  if (!isAddr(start) || !isAddr(end) || end <= start) throw new BenchError(`${where}: start and end are not a non-empty span`);
+  if (typeof name !== 'string' || name === '') throw new BenchError(`${where}.name: not a non-empty string`);
+  if (kind !== 'func' && kind !== 'gap') throw new BenchError(`${where}.kind: not func or gap`);
+  if (mode !== 'thumb' && mode !== 'arm' && mode !== 'none') throw new BenchError(`${where}.mode: not thumb, arm or none`);
+  if (typeof module !== 'string' || module === '') throw new BenchError(`${where}.module: not a non-empty string`);
+  if (!Array.isArray(labels)) throw new BenchError(`${where}.labels: not an array`);
+  return { start, end, name, kind, mode, module, labels: labels.map((l: unknown, i) => rawLabel(l, `${where}.labels[${i}]`)) };
+}
+
+/** Reads the child's `--mode raw` document; throws a BenchError naming the first problem. */
+export function rawFromChild(doc: unknown, fixture: string): PocRawChild {
+  if (!isRecord(doc) || typeof doc['summary'] !== 'string' || !Array.isArray(doc['chunks']) || !Array.isArray(doc['claims'])) {
+    throw new BenchError(`${fixture}: the PoC child printed no {summary, chunks, claims} document`);
+  }
+  const claims = doc['claims'] as unknown[];
+  if (!claims.every((c) => c === 0 || c === 1 || c === 2 || c === 3 || c === 4)) throw new BenchError(`${fixture}: claims holds a value other than a claim kind 0..4`);
+  const chunks = (doc['chunks'] as unknown[]).map((c, i) => rawChunk(c, `${fixture}: chunks[${i}]`));
+  for (let i = 1; i < chunks.length; i++) {
+    const [a, b] = [chunks[i - 1], chunks[i]];
+    if (a !== undefined && b !== undefined && b.start < a.end) throw new BenchError(`${fixture}: chunks[${i}] starts inside chunks[${i - 1}]`);
+  }
+  return { summary: doc['summary'], chunks, claims: claims as number[] };
+}
+
+/** The file writeGenerated() writes a chunk to, relative to the tree: asm/crt0.s for the startup region. */
+export function pocChunkFile(chunk: PocRawChunk): string {
+  return chunk.module === 'crt0' ? 'asm/crt0.s' : `asm/nonmatchings/${chunk.module}/${chunk.name}.s`;
+}
+
+const hex8 = (v: number): string => v.toString(16).toUpperCase().padStart(8, '0');
+
+/**
+ * The lines rawLines printed for `chunk`, cut out of the text of its file: after the chunk's own label line
+ * (`<name>: @ <ADDR>`), up to its `*_func_end` line (a function) or the next blank line or the end of the
+ * file (a gap). rawLines never prints a blank line or a func_end, so the cut is exact.
+ */
+export function pocChunkLines(text: string, chunk: PocRawChunk): readonly string[] {
+  const lines = text.split('\n');
+  const head = `${chunk.name}: @ ${hex8(chunk.start)}`;
+  const at = lines.findIndex((line) => line === head || line.startsWith(`${head}, `));
+  if (at < 0) throw new BenchError(`${chunk.name}: no line ${JSON.stringify(head)} in ${pocChunkFile(chunk)}`);
+  const end = `\t${chunk.mode === 'arm' ? 'arm_func_end' : 'thumb_func_end'} ${chunk.name}`;
+  const body: string[] = [];
+  for (let i = at + 1; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    if (chunk.kind === 'func' && line === end) return body;
+    if (chunk.kind === 'gap' && line === '') return body;
+    body.push(line);
+  }
+  if (chunk.kind === 'func') throw new BenchError(`${chunk.name}: no ${JSON.stringify(end.trim())} line after its label in ${pocChunkFile(chunk)}`);
+  return body;
+}
+
+/** The raw.json value of one fixture: every chunk with its body lines, read through `readTree(path)`. */
+export function pocRawDump(fixture: string, sha1: string, pocSourceDigest: string, child: PocRawChild, readTree: (path: string) => string): PocRawDump {
+  return {
+    schema: POC_RAW_SCHEMA,
+    fixture,
+    sha1,
+    pocSourceDigest,
+    summary: child.summary,
+    chunks: child.chunks.map((c) => ({ ...c, lines: pocChunkLines(readTree(pocChunkFile(c)), c) })),
+    claims: child.claims,
+  };
+}
+
+/** bench/.local/poc/raw/<fixture>/, the PoC's tree and raw.json. */
+export const pocRawDir = (cx: BenchContext, fixture: string): string => join(cx.repoRoot, 'bench', '.local', 'poc', 'raw', fixture);
+
 // ---------------------------------------------------------------- running the child
 
 async function checkedRom(cx: BenchContext, d: Dataset): Promise<string> {
@@ -182,31 +310,36 @@ async function checkedRom(cx: BenchContext, d: Dataset): Promise<string> {
 
 /** Runs the child for one dataset and returns the JSON document on its last stdout line. */
 async function runChild(cx: BenchContext, d: Dataset, args: readonly string[]): Promise<unknown> {
+  return runChildFor(cx, d.name, args, JSON.stringify(pocDatasetOf(d)));
+}
+
+/** Runs the child for `name` (a dataset, or a fixture with no dataset) and returns its last stdout line's JSON. */
+async function runChildFor(cx: BenchContext, name: string, args: readonly string[], dataset: string | undefined): Promise<unknown> {
   const tsx = join(cx.pocRoot, 'node_modules', '.bin', 'tsx');
   if (!(await exists(tsx))) throw new BenchError(`${tsx} is missing: the PoC checkout has no node_modules`);
   // Run outside both repositories; the PoC scaffolds into os.tmpdir()/romlift-bench/<name> itself.
   const cwd = join(tmpdir(), 'romlift-bench');
   await mkdir(cwd, { recursive: true });
-  const run = await runProcess(tsx, [CHILD, d.name, ...args], {
+  const run = await runProcess(tsx, [CHILD, name, ...args], {
     cwd,
     env: {
       ROMLIFT_BENCH_ROOT: cx.benchRoot,
       ROMLIFT_POC: cx.pocRoot,
       // For a tuning ROM the pinned PoC has no dataset file of (tmc, D60): the child uses the PoC's own file when it has one.
-      ROMLIFT_POC_DATASET: JSON.stringify(pocDatasetOf(d)),
+      ROMLIFT_POC_DATASET: dataset,
       ROMLIFT_TABLES: undefined,
       ROMLIFT_ARMSCAN: undefined,
       ROMLIFT_TRACE: undefined,
     },
     echoStderr: true,
   });
-  if (run.code !== 0) throw new BenchError(`${d.name}: the PoC child exited ${run.code}`);
+  if (run.code !== 0) throw new BenchError(`${name}: the PoC child exited ${run.code}`);
   const last = run.stdout.split('\n').filter((line) => line.trim() !== '').pop();
-  if (last === undefined) throw new BenchError(`${d.name}: the PoC child printed nothing`);
+  if (last === undefined) throw new BenchError(`${name}: the PoC child printed nothing`);
   try {
     return JSON.parse(last) as unknown;
   } catch {
-    throw new BenchError(`${d.name}: the PoC child's last line is not JSON`);
+    throw new BenchError(`${name}: the PoC child's last line is not JSON`);
   }
 }
 
@@ -304,6 +437,23 @@ async function exportQueries(cx: BenchContext, d: Dataset, pocSourceDigest: stri
   );
 }
 
+/** The PoC's raw tree of one fixture and its raw.json. */
+async function exportRaw(cx: BenchContext, f: SyntheticFixture, pocSourceDigest: string): Promise<void> {
+  const sha1 = sha1Of(await readFileBytes(f.rom));
+  const dir = pocRawDir(cx, f.name);
+  await rm(dir, { recursive: true, force: true });
+  const child = rawFromChild(await runChildFor(cx, f.name, ['raw', f.rom, dir], undefined), f.name);
+  const files = new Map<string, string>();
+  for (const c of child.chunks) {
+    const file = pocChunkFile(c);
+    if (!files.has(file)) files.set(file, await readText(join(dir, file)));
+  }
+  const dump = pocRawDump(f.name, sha1, pocSourceDigest, child, (file) => files.get(file) ?? '');
+  await writeText(join(dir, 'raw.json'), `${JSON.stringify(dump)}\n`);
+  const lines = dump.chunks.reduce((n, c) => n + c.lines.length, 0);
+  process.stdout.write(`${f.name.padEnd(32)} ${dump.chunks.length} chunks, ${lines} body lines -> ${join(dir, 'raw.json')}\n`);
+}
+
 async function readCommittedDigests(cx: BenchContext): Promise<PocDigests | undefined> {
   const path = pocDigestsPath(cx);
   if (!(await exists(path))) return undefined;
@@ -313,7 +463,7 @@ async function readCommittedDigests(cx: BenchContext): Promise<PocDigests | unde
 async function main(argv: readonly string[]): Promise<number> {
   const args = parseArgs(argv, { options: ['mode', 'only'], flags: ['pin'] });
   const mode = args.options['mode'];
-  if (!isExportMode(mode)) throw new UsageError(`--mode must be scored, parity or queries\n${USAGE}`);
+  if (!isExportMode(mode)) throw new UsageError(`--mode must be scored, parity, queries or raw\n${USAGE}`);
   const cx = contextFromEnv(process.env);
   const pinned = await readPinnedPocSource(cx);
   const actual = await computePocSource(cx.pocRoot);
@@ -322,9 +472,17 @@ async function main(argv: readonly string[]): Promise<number> {
     for (const p of problems) process.stderr.write(`${p}\n`);
     throw new BenchError(`refusing to run: the PoC checkout at ${cx.pocRoot} is not the pinned one (bench/baseline/poc-source.json)`);
   }
+  const only = args.options['only'];
+  if (mode === 'raw') {
+    if (args.flags.has('pin')) throw new UsageError(`--pin goes with --mode scored\n${USAGE}`);
+    const fixtures = (await listFixtures(cx)).filter((f) => only === undefined || f.name === only);
+    if (fixtures.length === 0) throw new BenchError(only === undefined ? 'no committed fixture under bench/dataset/synthetic' : `no committed fixture named ${only}`);
+    for (const f of fixtures) await exportRaw(cx, f, pinned.digest);
+    process.stdout.write(`${fixtures.length} fixture(s) -> ${join(cx.repoRoot, 'bench', '.local', 'poc', 'raw')}\n`);
+    return 0;
+  }
   const { datasets, problems: datasetProblems } = await loadDatasets(cx);
   if (datasetProblems.length > 0) throw new BenchError(`malformed datasets: ${datasetProblems.map((p) => p.detail).join('; ')}`);
-  const only = args.options['only'];
   // scored: every tuning dataset (the PoC's scaffold measures the scaffold family until phase 3, and its
   // own row is the PoC reference of a ROM its baseline does not name, D60); parity and queries: the ROMs
   // of the PoC baseline, whose digests and logs are committed evidence.
