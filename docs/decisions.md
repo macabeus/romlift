@@ -1992,7 +1992,12 @@ skipped or removed.
   lower one's reading running over the higher). The owner's answer names six, so the two are not covered:
   the gate fails on them, printing why, and they are owner question Q6 of phase-2.md.
 
-**Consequences.** See each item; phase-2.md records the closing run under these answers.
+**Consequences.** Measured at `8c60bf5` (phase-2.md, "The closing gate"): the six tuning rows keep
+`8fba183`'s counts and analysis digests, every code end is 0, pokefirered and pokeruby pass sealed with
+unchanged counts, and every g1 and g2 gate passes but `g2.confirm-equals-discover`, which fails on two tmc
+functions beyond the six of Q3 (owner question Q6). With `phase.json` raised to 2 (`e1c3f64`) that gate
+also fails `g1.provenance` and `bench provenance`, so `phase.json` is back at 1 and phase 2 does not land.
+Nothing beyond the five answers is waived.
 
 ---
 

@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "2475b34702a692488f9e480036ea25d160ad59e0",
+    "commit": "8c60bf5e8f3c79ccc93e47215271cf74a4165a42",
     "dirty": false,
-    "sourceDigest": "6cf518d03c486a5d473027835908cebec62c806bb4d2faf058ff7c582352a8b1",
+    "sourceDigest": "125c9654aba60ef2957fcbafb7c59b598ed23df36d4e7867d54d1a5fec84ce88",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -1902,21 +1902,21 @@
       },
       {
         "id": "g2.baseline-rows",
-        "verdict": "fail",
+        "verdict": "pass",
         "inputs": {
           "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "baseline rows: tmc: 8 rows differ from the PoC baseline without an accepted diff: false-entry-added 0x08008B2E, false-entry-added 0x080B197C, false-entry-added 0x080B1AA8, false-entry-added 0x080B1B0C, miss-changed 0x080B20AC, false-entry-added 0x080B21B0, false-entry-added 0x080B2718, false-entry-added 0x080B27E4"
+        "detail": "fe7j 0 accepted improvements, klonoa 0 accepted improvements, pokeemerald 1 accepted improvements, sa2 1 accepted improvements, sa3 1 accepted improvements, tmc 51 accepted improvements against the PoC's own run, and 8 rows the PoC's run did not have accepted as listed with a category (0x08008B2E unreached-tail, 0x080B197C pointer-entry, 0x080B1AA8 pointer-entry, 0x080B1B0C pointer-entry, 0x080B20AC split-after-returning-call, 0x080B21B0 pointer-entry, 0x080B2718 local-subroutine, 0x080B27E4 local-subroutine): a benchmark row by the owner on 2026-10-18 (D61 d: \"Keep tmc as 99.94%. It's a benchmark row that we can improve later\"), floor tp 8631 of 8636 (recall 99.94%), now tp 8631 (99.94%)"
       },
       {
         "id": "g2.code-end",
-        "verdict": "fail",
+        "verdict": "pass",
         "inputs": {
           "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "code end beyond 16 bytes: tmc: code end 0x080B2A30, the ELF's 0x080B299C (delta 148 bytes)"
+        "detail": "code-end deltas in bytes: fe7j 0, klonoa 0, pokeemerald 0, sa2 0, sa3 0, tmc 0"
       },
       {
         "id": "g2.confirm-equals-discover",
@@ -1924,7 +1924,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "confirm differs from discover: tmc: function 0x08004274: discover {\"entry\":134234740,\"mode\":\"thumb\",\"extent\":{\"start\":134234740,\"end\":134234966},\"far\":[]}, confirm {\"entry\":134234740,\"mode\":\"thumb\",\"extent\":{\"start\":134234740,\"end\":134234796},\"far\":[]}"
+        "detail": "confirm differs from discover: tmc: functions differ beyond the known limitation (D61 e, 6 functions): 0x080B255C, 0x080B2874 (not covered: Q3 named six differing functions, measured at 9c8b282; these come from the pool boundary of 95b257b, after that count, and are owner question Q6 of phase-2.md); tmc: claim runs differ outside the known functions' extents: 0x080B2874..0x080B289C, 0x080B2874..0x080B299C, 0x080B289C..0x080B299C; KNOWN LIMITATION: tmc: 6 known functions differ (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C) with 1 claim runs inside their extents: known phase-2 limitation (the owner's answer to Q3 on 2026-10-18, \"Build resettle, else accept\": the resettle stage changed rows on the other tuning ROMs and the sealed pair and was reverted), D61 e"
       },
       {
         "id": "g2.determinism",
@@ -1932,7 +1932,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-handler-block analysis ef613b6620a178402aaffbc77a11b297283825dbcb0a5032f173a1dcfd8fde88; adr-label-and-data analysis db2e32556d9d99ae6f874758f20af7c8b0c24ca0d00ac2c87ec37f458ebd462c; arm-pools-in-front analysis 68249e12fbb9b9ad66a6e5ecbc912be6b694282093f0138f352bac0f2ed335a7; bx-lr-stub-chain analysis 7a5597c9ed8a64bcd2ab7e4836409ba6871e71d1616a64b63fee6f8f7c42a3ed; bx-pc-veneer analysis 07c3c1ea09cf5e56f65ba139fbac835380b1610148a5eccd2b1ce9c2846d0bc9; code-copied-to-ram analysis 07ab2215be00ad9e3151e6b3657657a67dc13e39fef00d99868b4d101f222266; code-end-data-decodes analysis b4036ed17f4e196f60b443cc97d787423a47cf3246acfaaac067097977856976; computed-jump-callback analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; data-frame-not-function analysis 240eaca07e3a5f68b1dd1617251b5ae89d3cde20f85bc03a446c21c5629056ab; data-named-between-data analysis fabc470a9f8161b33b5b2e84b7e0db47ca9092bfa63ec501c387b3dbf74e534b; data-table-between-functions analysis 9b499f33f5faf3637c95a2b91bfd6654cc9c80c234d57e5d2d6704a1621ca955; data-thumb-push-pop analysis 1d15a57b1928a3cc2f7ef7df4a2d8519cec15399de47dc28d98651560d448bbc; dead-code-in-extent analysis 18171b6c6c33d3225932391dde7ac551fe85ecd2c67bb9a28a8ade3ad4a0d1ab; entry-stub-table analysis 41d78e4b60afefb9393feea7cc8dd9b32fbf802937f8092bccf91c76e4fd1e29; false-stub-2byte analysis f2c7ee9c63fb6481c5de2a4e697b67667f30e7887a53e41378e98260f6fb5d68; far-jump analysis 4e50937ca8c537db1abbd8308919668334570eed4de2d59fa6be6093c55015ea; gap-resume-2mod4 analysis 49211dd17bcc3672af2ae287ea825859db50fb4cce372ad30512abae69806b8b; handwritten-2mod4 analysis 2d104964e6a1adbc6a83de34dfcced3379c2224175d3e1be9d6fd4c2ca1cae77; inline-arm-switch analysis d8727d12635915a90c01a0236173db1a4ca1d5f66b71875622caf5fdd92c757a; large-data-referenced analysis ec16106f49eab822ee2f1ca0d00a5360bd5da248ef2432c3053737145c7fa40f; leaf-handler-pointer-table analysis 067d6172056cb75d8c8dddea8d9834dbd8b2aa691c24fc15dcb61cf3d48a4501; local-subroutine analysis a11a501053a4cb9da888945ebee59f328e42f4c78005ab2b54c129dabec64658; mixer-tiled-hole analysis 9071fb40528be44c1984ee407ae660fb11203b9c11820ab54488c0ea277a5c43; mov-lr-pc-bx analysis 3cfc147086867f9d7979616d4814eff8b6e2a0dee56a918d70773dd2bcbc0fb8; noreturn-call-then-next analysis 35f2752004414edbbccf089f99024729aea1a682ef6710df9f02bf6ef61a4d5b; pointer-table-before-leaf analysis 667f386801afd2e8394e824f3d6b02c1b9e974e0585757b46d60151fdcca4029; pointer-word-in-gap analysis 1105594c989fab7464bd78cd102e0f1410be6c268a76253f7ce202f061191ed7; pool-padded-46c0 analysis 8bcf3e0fdd683104a501fe7a90a30f9b78acd20d8ab6ccade235f0e0c89986ea; pool-word-push-lr analysis 3507d529de1e5e588c66b10c0f63b89723a2114a2e523e1731d29cd5afcec0d6; pops-unpushed-frame analysis 203a9e54a3ddcb3e5fd646a018339d4c8027d942f3c5f765f4fd895fcd97f3e8; prologueless-thumb-over-arm analysis 2cd1b2c2fa6a8835695a2443e7f2fe0a1b74cd3f4a5a8942e7b2b59323146672; push-lr-2mod4 analysis d9d97666d63c242d981eacc164ab40da4dc1a97fae70209ed7174f5282b70cce; ram-code-entries analysis 574089e7cece8a902afa962f85133839a818311540a3b3f46fc3f69d0ed503bb; ram-copy-bios analysis a25ad5db7b9cd4f5f47b13fc79ed02ed9670c33ef75e749d7a9d4170ac6d1654; ram-copy-call-via analysis b54a383d8c9f7f12847be178bf7790fa71ed184026a5fe8b15a26882714b168b; ram-copy-entry-boundaries analysis e8eefe889f7ada78201d704b646f1c6a94908d935be5b080367a4cea3019a44a; ram-copy-memcpy analysis 3862ba15a11ddcf221548aec2c4273d769626e7777efa13c424a207983d7d4e7; ram-copy-setup-bound analysis f1ea5d0b01383161a56bb1c72557a5061039bb50c0bca160defbfae539ea54fc; recursive-far-call analysis 40a9b3e12322d99f3fea1e95d1657fa8f4fa70e848a371c091b706e1b45d1ac0; shared-tail analysis fef3171278edb3593775309f2c085ae78fe98bac2259c01c517a915332426626; swi-reset analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; table-jump-hoisted analysis 588bbb98973ee3e2dc2b2b6b4edfd00c2c369af0ed6ccb6d2ddae9caf19ccb4c; thumb-pointer-run analysis 97535043a45077de76713453e06364d1f71e5ff03a0e4169b859f53ded08a27c; unreferenced-leaf analysis 364407a31586fd13bd6cfc324f682426c1e773555cbca4151efdf6dc7f456714; veneer-array analysis 8230ca742f8d4b2ac25f69369eb16887e4fd0699ba707a8dbf64db88d4a270df; fe7j analysis d54052e815955473fdb9f8bd25830df66aadb5dd72288323b6b1ae2ecd1c0654; klonoa analysis 56f30105f39603117aeaf7b2a617308543b160b672fb82d9e029861f809aa11b; pokeemerald analysis 4db9129f6a1bbaa8180f3c36e73e9080b0b132e59455f25bbc1c568ba66b93e5; sa2 analysis b34fcd0d9dc175466dc5eafbf14f9ce9b8efa0fd60e347d789cf7d4111ef336d; sa3 analysis 6e12ff19fca85ae1803e757e362f4001cb4804c4079904c1678c016cc5c862d1; tmc analysis 0584d85ff13a31bd5559c28c2e940312976799a7a6d6aa64df55466e56953f85; 51 analyses identical across cwd, project path, TZ and locale"
+        "detail": "adr-handler-block analysis ef613b6620a178402aaffbc77a11b297283825dbcb0a5032f173a1dcfd8fde88; adr-label-and-data analysis db2e32556d9d99ae6f874758f20af7c8b0c24ca0d00ac2c87ec37f458ebd462c; arm-pools-in-front analysis 68249e12fbb9b9ad66a6e5ecbc912be6b694282093f0138f352bac0f2ed335a7; bx-lr-stub-chain analysis 7a5597c9ed8a64bcd2ab7e4836409ba6871e71d1616a64b63fee6f8f7c42a3ed; bx-pc-veneer analysis 07c3c1ea09cf5e56f65ba139fbac835380b1610148a5eccd2b1ce9c2846d0bc9; code-copied-to-ram analysis 07ab2215be00ad9e3151e6b3657657a67dc13e39fef00d99868b4d101f222266; code-end-data-decodes analysis b4036ed17f4e196f60b443cc97d787423a47cf3246acfaaac067097977856976; computed-jump-callback analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; data-frame-not-function analysis 240eaca07e3a5f68b1dd1617251b5ae89d3cde20f85bc03a446c21c5629056ab; data-named-between-data analysis fabc470a9f8161b33b5b2e84b7e0db47ca9092bfa63ec501c387b3dbf74e534b; data-table-between-functions analysis 9b499f33f5faf3637c95a2b91bfd6654cc9c80c234d57e5d2d6704a1621ca955; data-thumb-push-pop analysis 1d15a57b1928a3cc2f7ef7df4a2d8519cec15399de47dc28d98651560d448bbc; dead-code-in-extent analysis 18171b6c6c33d3225932391dde7ac551fe85ecd2c67bb9a28a8ade3ad4a0d1ab; entry-stub-table analysis 41d78e4b60afefb9393feea7cc8dd9b32fbf802937f8092bccf91c76e4fd1e29; false-stub-2byte analysis f2c7ee9c63fb6481c5de2a4e697b67667f30e7887a53e41378e98260f6fb5d68; far-jump analysis 4e50937ca8c537db1abbd8308919668334570eed4de2d59fa6be6093c55015ea; gap-resume-2mod4 analysis 49211dd17bcc3672af2ae287ea825859db50fb4cce372ad30512abae69806b8b; handwritten-2mod4 analysis 2d104964e6a1adbc6a83de34dfcced3379c2224175d3e1be9d6fd4c2ca1cae77; inline-arm-switch analysis d8727d12635915a90c01a0236173db1a4ca1d5f66b71875622caf5fdd92c757a; large-data-referenced analysis ec16106f49eab822ee2f1ca0d00a5360bd5da248ef2432c3053737145c7fa40f; leaf-handler-pointer-table analysis 067d6172056cb75d8c8dddea8d9834dbd8b2aa691c24fc15dcb61cf3d48a4501; local-subroutine analysis a11a501053a4cb9da888945ebee59f328e42f4c78005ab2b54c129dabec64658; mixer-tiled-hole analysis 9071fb40528be44c1984ee407ae660fb11203b9c11820ab54488c0ea277a5c43; mov-lr-pc-bx analysis 3cfc147086867f9d7979616d4814eff8b6e2a0dee56a918d70773dd2bcbc0fb8; noreturn-call-then-next analysis 35f2752004414edbbccf089f99024729aea1a682ef6710df9f02bf6ef61a4d5b; pointer-table-before-leaf analysis 667f386801afd2e8394e824f3d6b02c1b9e974e0585757b46d60151fdcca4029; pointer-word-in-gap analysis 1105594c989fab7464bd78cd102e0f1410be6c268a76253f7ce202f061191ed7; pool-padded-46c0 analysis 8bcf3e0fdd683104a501fe7a90a30f9b78acd20d8ab6ccade235f0e0c89986ea; pool-word-push-lr analysis 3507d529de1e5e588c66b10c0f63b89723a2114a2e523e1731d29cd5afcec0d6; pops-unpushed-frame analysis 203a9e54a3ddcb3e5fd646a018339d4c8027d942f3c5f765f4fd895fcd97f3e8; prologueless-thumb-over-arm analysis 2cd1b2c2fa6a8835695a2443e7f2fe0a1b74cd3f4a5a8942e7b2b59323146672; push-lr-2mod4 analysis d9d97666d63c242d981eacc164ab40da4dc1a97fae70209ed7174f5282b70cce; ram-code-entries analysis 574089e7cece8a902afa962f85133839a818311540a3b3f46fc3f69d0ed503bb; ram-copy-args-straight-line analysis 4c70a70fc964679d898662e96fbe345d67b552974b18377d2ee2494c8e784138; ram-copy-bios analysis a25ad5db7b9cd4f5f47b13fc79ed02ed9670c33ef75e749d7a9d4170ac6d1654; ram-copy-call-via analysis b54a383d8c9f7f12847be178bf7790fa71ed184026a5fe8b15a26882714b168b; ram-copy-entry-boundaries analysis e8eefe889f7ada78201d704b646f1c6a94908d935be5b080367a4cea3019a44a; ram-copy-memcpy analysis 3862ba15a11ddcf221548aec2c4273d769626e7777efa13c424a207983d7d4e7; ram-copy-setup-bound analysis f1ea5d0b01383161a56bb1c72557a5061039bb50c0bca160defbfae539ea54fc; recursive-far-call analysis 40a9b3e12322d99f3fea1e95d1657fa8f4fa70e848a371c091b706e1b45d1ac0; shared-tail analysis fef3171278edb3593775309f2c085ae78fe98bac2259c01c517a915332426626; swi-reset analysis 44773b647ddad0fc9d7ae48aa7eb6a98f7458733efb2f2c1ee065434ee924e3a; table-jump-hoisted analysis 588bbb98973ee3e2dc2b2b6b4edfd00c2c369af0ed6ccb6d2ddae9caf19ccb4c; thumb-pointer-run analysis 97535043a45077de76713453e06364d1f71e5ff03a0e4169b859f53ded08a27c; unreferenced-leaf analysis 364407a31586fd13bd6cfc324f682426c1e773555cbca4151efdf6dc7f456714; veneer-array analysis 8230ca742f8d4b2ac25f69369eb16887e4fd0699ba707a8dbf64db88d4a270df; fe7j analysis d54052e815955473fdb9f8bd25830df66aadb5dd72288323b6b1ae2ecd1c0654; klonoa analysis 56f30105f39603117aeaf7b2a617308543b160b672fb82d9e029861f809aa11b; pokeemerald analysis 4db9129f6a1bbaa8180f3c36e73e9080b0b132e59455f25bbc1c568ba66b93e5; sa2 analysis b34fcd0d9dc175466dc5eafbf14f9ce9b8efa0fd60e347d789cf7d4111ef336d; sa3 analysis 6e12ff19fca85ae1803e757e362f4001cb4804c4079904c1678c016cc5c862d1; tmc analysis 0584d85ff13a31bd5559c28c2e940312976799a7a6d6aa64df55466e56953f85; 52 analyses identical across cwd, project path, TZ and locale"
       },
       {
         "id": "g2.entries",
@@ -1954,12 +1954,12 @@
       },
       {
         "id": "g2.held-out",
-        "verdict": "fail",
+        "verdict": "pass",
         "inputs": {
           "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "held-out: the passing ROMs span 1 codebase families, at least two must (not waived: the D60 decision does not state it (a waiver was only inferred from 'pokefirered and pokeruby must keep passing' and 'phase 2 then lands'); owner question Q4 of phase-2.md); pokefirered [pret-gen3] pass: precision 99.95%, recall 100.00%, glued 0 (inside an extent 0, outside every extent 0, past the code end 0), label candidates 0, extents 99.976%, code end 0, false entries adrCallback 0, insideElfFunction 6, other 0, startup 4, veneer 0; pokeruby [pret-gen3] pass: precision 99.95%, recall 100.00%, glued 0 (inside an extent 0, outside every extent 0, past the code end 0), label candidates 0, extents 99.974%, code end 0, false entries adrCallback 0, insideElfFunction 6, other 0, startup 4, veneer 0; WAIVED: no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus (architecture section 12 item 4) on 2026-10-17 (D60; the owner's words: the gate is recorded as having no held-out ROM from a family absent from the tuning set)"
+        "detail": "pokefirered [pret-gen3] pass: precision 99.95%, recall 100.00%, glued 0 (inside an extent 0, outside every extent 0, past the code end 0), label candidates 0, extents 99.976%, code end 0, false entries adrCallback 0, insideElfFunction 6, other 0, startup 4, veneer 0; pokeruby [pret-gen3] pass: precision 99.95%, recall 100.00%, glued 0 (inside an extent 0, outside every extent 0, past the code end 0), label candidates 0, extents 99.974%, code end 0, false entries adrCallback 0, insideElfFunction 6, other 0, startup 4, veneer 0; WAIVED: the passing ROMs span 1 codebase families, at least two must: waived by the owner, Bruno Macabeus (architecture section 12 item 4) on 2026-10-17 (D60, D61; the owner's answer to Q4 of phase-2.md on 2026-10-18 (D61), the option chosen: \"Waive both\"); WAIVED: no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus (architecture section 12 item 4) on 2026-10-17 (D60, D61; the owner's words: the gate is recorded as having no held-out ROM from a family absent from the tuning set); 2 sealed ROMs pass, families pret-gen3 (absent from tuning: none)"
       },
       {
         "id": "g2.no-unreviewed",
@@ -1969,7 +1969,7 @@
       },
       {
         "id": "g2.poc-parity",
-        "verdict": "fail",
+        "verdict": "pass",
         "inputs": {
           "parity:fe7j": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a",
           "parity:klonoa": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2",
@@ -1977,7 +1977,7 @@
           "parity:sa2": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19",
           "parity:sa3": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad"
         },
-        "detail": "PoC parity: tmc: no parity evidence or committed digest"
+        "detail": "tmc: not applicable, no M1 lockstep run (the owner's answer to Q1 on 2026-10-18, D61 c: \"Keep tmc as 99.94%. It's a benchmark row that we can improve later\"); 5 tuning ROMs (fe7j, klonoa, pokeemerald, sa2, sa3): parity digests equal the PoC's, rows equal the PoC baseline, 5 lockstep sets follow the log (committed evidence recorded at e867dae with uncommitted M1 wiring, an ancestor of HEAD; not re-run)"
       },
       {
         "id": "g2.speed",
@@ -1985,7 +1985,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 1.002; CPU/limit: fe7j 1174/13243 ms, klonoa 253/320 ms, pokeemerald 2205/4402 ms, sa2 710/817 ms, sa3 1007/1557 ms, tmc 1320/1861 ms"
+        "detail": "calibration ratio 0.976; CPU/limit: fe7j 1104/12900 ms, klonoa 239/311 ms, pokeemerald 2102/4288 ms, sa2 598/796 ms, sa3 1049/1517 ms, tmc 1231/1813 ms"
       },
       {
         "id": "g3.link",
@@ -2309,8 +2309,8 @@
       },
       "codeEnd": {
         "found": "0x080C0C50",
-        "elf": "0x080C0C48",
-        "delta": 8
+        "elf": "0x080C0C50",
+        "delta": 0
       },
       "deterministic": true,
       "scaffold": {
@@ -2391,8 +2391,8 @@
       },
       "codeEnd": {
         "found": "0x08051BD4",
-        "elf": "0x08051BD0",
-        "delta": 4
+        "elf": "0x08051BD4",
+        "delta": 0
       },
       "deterministic": true,
       "scaffold": {
@@ -2920,8 +2920,8 @@
       },
       "codeEnd": {
         "found": "0x080B2A30",
-        "elf": "0x080B299C",
-        "delta": 148
+        "elf": "0x080B2A30",
+        "delta": 0
       },
       "deterministic": true,
       "scaffold": {
