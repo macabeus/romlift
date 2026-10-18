@@ -32,6 +32,18 @@ const MACROS_INC = `${[
   endMacro('thumb_func_end'),
 ].join('\n\n')}\n`;
 
+/**
+ * A symbol name a generated file may define and reference: a letter or `_`, then letters, digits, `_`, `.` and
+ * `$`. GNU as reads a leading `$` as an ARM mapping symbol (`$a`, `$t`, `$d`, which change how objdump and ld
+ * see the bytes) and a leading `.` as a section name or a local `.L` label, so neither may start a name.
+ */
+const SYMBOL_NAME = /^[A-Za-z_][A-Za-z0-9_.$]*$/;
+
+/** Whether `name` is a symbol name (SYMBOL_NAME) a generated file may define. */
+export function isSymbolName(name: string): boolean {
+  return SYMBOL_NAME.test(name);
+}
+
 export const DIALECT: Dialect = {
   preamble: (mode) => `.syntax unified\n.include "include/macros.inc"\n${mode === 'arm' ? '.arm' : '.thumb'}\n`,
   macrosInc: MACROS_INC,

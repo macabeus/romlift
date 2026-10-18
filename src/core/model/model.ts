@@ -21,7 +21,7 @@ import { planChunks } from './chunks.ts';
 import { buildItems, segmentsOf } from './items.ts';
 import { buildLabels, codeRefs } from './labels.ts';
 import { planModules, relocatedModules, runOffsetAt } from './modules.ts';
-import { nameCollisions, nameSourceOf } from './names.ts';
+import { invalidNames, nameCollisions, nameSourceOf } from './names.ts';
 import type { DefinedName } from './names.ts';
 import { modelSymbols, romSymbols } from './symbols.ts';
 import type { Chunk, Label, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
@@ -153,6 +153,8 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     if (label !== undefined) for (const alias of f.aliases) defined.push({ name: alias, addr: label.addr, scope: label.scope });
   }
   const collisions = nameCollisions(defined, modules);
+  const named = [...sortedEntries(functions), ...sortedEntries(config.symbols)];
+  const invalid = invalidNames(named.flatMap(([addr, n]) => [n.name, ...n.aliases].map((name) => ({ name, addr }))));
 
   const runOffsets = chunkPlans.map((c) => runOffsetAt(relocated, c.span.start));
   const built = buildItems({ rom, chunks: chunkPlans, modules, segments, labels: labelled.labels, labelStarts: labelled.starts, runOffsets, refs });
@@ -189,6 +191,6 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     labels: labelled.labels,
     symbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...collisions, ...built.diagnostics, ...outsideTheRom(rom, config), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
   };
 }

@@ -78,3 +78,11 @@ test('shapes the schema refuses, all reported at once', () => {
 test('not an object at all is an issue, never a throw', () => {
   for (const value of [null, 1, 'x', [], {}]) assert.equal(validateConfig(value).ok, false);
 });
+
+test('a name GNU as reads as a mapping symbol, a section or a local label is refused; register and macro names pass (correctness-5)', () => {
+  const named = (name: string): boolean => validateConfig({ ...EXAMPLE, functions: new Map([[0x0800_0470, { name, mode: 'thumb', aliases: [] }]]) }).ok;
+  for (const bad of ['$d', '$t', '$a', '.text', '.data', '.Lfoo', '1bad', 'a-b', '']) assert.equal(named(bad), false, bad);
+  for (const good of ['r0', 'pc', 'sp', 'lr', 'ip', 'fp', 'a1', 'mov', 'thumb_func_start', '_08000100', 'a$d', 'a.b']) assert.equal(named(good), true, good);
+  const symbol = validateConfig({ ...EXAMPLE, symbols: new Map([[0x0300_0000, { name: 'gOk', aliases: ['$d'] }]]) });
+  assert.equal(symbol.ok, false);
+});

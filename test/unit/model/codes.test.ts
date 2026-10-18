@@ -29,6 +29,8 @@ function raised(): Diagnostic[] {
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'Same'], [BASE + 0x108, 'Same']] })).diagnostics);
   // A runs_at range off the module borders.
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], overrides: [{ start: BASE + 0x100, size: 8, kind: 'code', runsAt: 0x0300_0000 }] })).diagnostics);
+  // A function named like a mapping symbol and an alias named like a section.
+  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, '$d'], [BASE + 0x108, { name: 'B', aliases: ['.text'] }]] })).diagnostics);
   // A function outside the ROM, an override reaching past its end, and a symbol inside A's first instruction.
   out.push(
     ...buildModel(

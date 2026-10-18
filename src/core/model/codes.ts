@@ -13,6 +13,10 @@ export const ModelCodes = defineCodes({
     severity: 'error',
     meaning: 'two labels of one module share a name, or a name repeats in another module while one of them is referenced from outside its module',
   },
+  E_NAME_INVALID: {
+    severity: 'error',
+    meaning: 'a function, alias or symbol name is no symbol name a file may define (a leading $ is a mapping symbol, a leading . a section or local label)',
+  },
   E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
   W_FUNCTION_OUTSIDE_ROM: {
     severity: 'warning',

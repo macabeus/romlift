@@ -5,6 +5,7 @@
 // yet (D62). Addresses are numbers here; the TOML spells them '0x' and eight upper-case hex digits.
 import { z } from 'zod';
 
+import { isSymbolName } from '../../foundation/asm/dialect.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import { isBuildCompilerId } from './compilers.ts';
 import type { BuildCompilerId } from './compilers.ts';
@@ -73,8 +74,8 @@ export interface RomliftConfig {
 const address = z.number().int().min(0).max(0xffff_ffff);
 const size = z.number().int().min(1).max(0xffff_ffff);
 const mode = z.enum(['thumb', 'arm']);
-/** An assembler symbol: what a function, symbol or alias name must be to print and link. */
-const symbolName = z.string().regex(/^[A-Za-z_.$][A-Za-z0-9_.$]*$/, 'not an assembler symbol name');
+/** An assembler symbol: what a function, symbol or alias name must be to print and link (dialect.ts isSymbolName). */
+const symbolName = z.string().refine(isSymbolName, 'not an assembler symbol name (a letter or _, then letters, digits, _, . and $)');
 /** A module name: it names files (asm/<name>.s), objects and linker sections. */
 const moduleName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'not a module name (letters, digits and _, not starting with a digit)');
 const compilerId = z.string().refine(isBuildCompilerId, 'not a registered build compiler (core/config/compilers.ts)');

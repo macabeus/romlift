@@ -1,8 +1,9 @@
-// Names (architecture §6.2, D9): the default spellings, where a function's name came from, and the check that
-// names are unique within a module. A name may repeat in another module only when every label of that name is
+// Names (architecture §6.2, D9): the default spellings, where a function's name came from, the check that every
+// configured name is a symbol name, and the check that names are unique within a module. A name may repeat in another module only when every label of that name is
 // module-scoped (printed with the _local macros), as static functions repeat in real decomps; a repeated name
 // one of whose labels is referenced from another module, or a name used twice inside one module, is
 // E_NAME_COLLISION.
+import { isSymbolName } from '../../foundation/asm/dialect.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -92,6 +93,23 @@ export function nameCollisions(names: readonly DefinedName[], modules: readonly 
     const where = sorted.map((u) => `${hexAddr(u.addr)} (${moduleName(modules, u.module)}${u.scope === 'global' ? ', global' : ''})`).join(', ');
     const why = sameModule ? 'twice in one module' : 'in two modules, one of them referenced from another module';
     out.push(diagnostic(ModelCodes, 'E_NAME_COLLISION', `the name ${name} is used ${why}: ${where}`, { addr: sorted[0]?.addr ?? 0, cites: sorted.slice(0, 4).map((u) => u.addr) }));
+  }
+  return out;
+}
+
+/**
+ * E_NAME_INVALID for every name the config gives (a function, an alias, a symbol) that is no symbol name a file
+ * may define (dialect.ts isSymbolName): GNU as reads `$d` as a mapping symbol and `.text` as a section, so the
+ * tree would link to other bytes or not assemble. Once per name and address, by address.
+ */
+export function invalidNames(names: readonly { readonly name: string; readonly addr: Addr }[]): Diagnostic[] {
+  const seen = new Set<string>();
+  const out: Diagnostic[] = [];
+  for (const n of [...names].sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name))) {
+    const key = `${String(n.addr)}:${n.name}`;
+    if (isSymbolName(n.name) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(diagnostic(ModelCodes, 'E_NAME_INVALID', `the name ${JSON.stringify(n.name)} at ${hexAddr(n.addr)} is not a symbol name (a letter or _, then letters, digits, _, . and $)`, { addr: n.addr }));
   }
   return out;
 }
