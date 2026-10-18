@@ -375,6 +375,25 @@ Entry: phase 2 landed. Branch `phase/3-emission`. Seven components: 3.0, then 3.
 3.I. The seam is the committed canonical analysis of every fixture (`test/golden/analysis/*.json`), so
 3.B–3.E build on it before 3.A's model is complete.
 
+### As executed (D62)
+
+Phase 3 runs as eight components in three waves on the branch `phase-3`, each on its own flat branch
+`phase-3-<component>` and worktree (D56 h); sections 3.0–3.I below still describe what the phase delivers.
+D62 records each deviation and why; [phase-3.md](phase-3.md) records the components, the measured numbers and
+the closing gate. Every threshold of the phase applies to all six tuning ROMs (D60, D62 h).
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p3-lead` | 1 | 3.0: the frozen types (`core/model/types.ts`, `core/emit/tree.ts`, `core/write-plan/types.ts`, `core/verify/report.ts`, `core/config/{schema,compilers}.ts`, `core/proposals/types.ts`, `core/layout/types.ts`), the writer registry and the eight empty writer files, the shared primitives `core/model/{item-table,resolver,paths}.ts` (D62 b) and `core/write-plan/{manifest,journal}.ts`, the empty `core/{model,verify,write-plan}/codes.ts`, the barrels, `cli/commands/lists/emission.ts`, `test/golden/analysis/**`, `test/helpers/model.ts`, the g3 gate files; then 3.I |
+| `p3-asm-text` | 1 | 3.C's `foundation/asm/{statements,layout}.ts` and their tests (`parseStatements`, `layoutStatements`) |
+| `p3-bench-inputs` | 1 | 3.E's inputs: `bench/tools/objdiff.version` and the objdiff-cli locator (D62 j), the reference objects of the tuning datasets, the 32 MiB synthetic image of `g3.large-rom` |
+| `p3-model` | 2 | 3.A, with `config-from-discover.ts` at `core/workflow/` (D62 c) and the model codes; `src/api/{model,layout}.ts` |
+| `p3-printer` | 2 | 3.B without `symbol-resolver.ts` (the resolver is `core/model/resolver.ts`, D62 b): `emit-tree.ts`, `print/**`, the header, crt0, function, orphan and module writers, `printChunk`; `src/api/{emit,internal-emit}.ts` |
+| `p3-data-verify` | 2 | 3.C but `foundation/asm/**`: the data, ldscript and symbols writers, `verifyModel`, `checkEntry`, `checkPaths`, the verify codes, the mutation tests of the four self-checks (D62 g); `src/api/verify.ts` |
+| `p3-write-plan` | 2 | 3.D's `plan-writes.ts`, the write-plan codes, `shell/project/{apply-writes,lock}.ts`, `shell/toolchain/link-check.ts`, the `plan-writes` mutation test; `src/api/{write-plan,project}.ts` |
+| `p3-generate` | 3 | 3.D's `core/workflow/generate.ts` and the `model --json` and `verify` commands (`cli/commands/lists/emission.ts`), `src/api/workflow-generate.ts`, `bench/src/large-rom.ts`, `explain`'s phase-3 part (`item`, `chunk`) |
+| `p3-bench-scaffold` | 3 | 3.E's `bench run --scaffold` with both printers, the readability and objdiff families, `bench speed`'s `generate` and `init` timings, the `bench large-rom` command |
+
 ### 3.0 Model, tree and write-plan interfaces (lead)
 
 - **Owns:** `src/core/model/types.ts`, `src/core/emit/tree.ts`, `src/core/emit/writers/index.ts` and one
@@ -479,12 +498,13 @@ npm run bench -- gates --require 3 --tier ci
 npm run bench -- gates --require 3 --tier real
 ```
 
-Thresholds: the four self-checks pass on every fixture and all five tuning ROMs; the raw printer links to
-the SHA-1 on 5 of 5 tuning ROMs and on every fixture; the readable printer on every fixture and on at least
-3 of 5 tuning ROMs; readability shares not lower than the first committed value on any ROM; objdiff 0
-differences other than `unnamed-target` on every agreeing function of every ROM that links; ≤ 3 s CPU
-analysis per tuning ROM, `generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald (calibrated); peak RSS
-< 512 MiB on the 32 MiB synthetic ROM; every phase-1 and phase-2 gate still passes.
+Thresholds (every one over all six tuning ROMs since tmc's reveal, D60, D62 h): the four self-checks pass
+on every fixture and all six tuning ROMs; the raw printer links to the SHA-1 on 6 of 6 tuning ROMs and on
+every fixture; the readable printer on every fixture and on at least 3 of 6 tuning ROMs (target 6);
+readability shares not lower than the first committed value on any ROM; objdiff 0 differences other than
+`unnamed-target` on every agreeing function of every ROM that links; ≤ 3 s CPU analysis per tuning ROM,
+`generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald (calibrated); peak RSS < 512 MiB on the 32 MiB
+synthetic ROM; every phase-1 and phase-2 gate still passes.
 
 ---
 

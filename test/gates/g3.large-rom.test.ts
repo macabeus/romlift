@@ -2,8 +2,8 @@
 // tiled with seeded data), the peak RSS of `init` and of `generate` (in phase 3, their workflow
 // equivalents) stays below 512 MiB.
 //
-// Expected output, for the phase-3 lead to align (bench/src/large-rom.ts, test/helpers/large-rom.ts; the
-// command is not in architecture §8.5 yet):
+// The command (aligned by the phase-3 lead, D62): p3-generate writes bench/src/large-rom.ts on
+// test/helpers/large-rom.ts, and p3-bench-scaffold registers `bench large-rom`:
 //   npm run bench -- large-rom --json   exit 0; the last stdout line is
 //   {schema: 'romlift/bench-large-rom@1', romBytes, sha1,
 //    runs: [{command: 'init' | 'generate', exitCode, maxRssMiB, treeDigest?}]}
