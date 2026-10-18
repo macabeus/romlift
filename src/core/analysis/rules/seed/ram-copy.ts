@@ -14,10 +14,10 @@
 //     other shape declines.
 //
 // S, D and L are the argument values in the straight-line run of at most `ramCopy.argInsns` instructions
-// before the call (the profile), which stops at a join point (a branch or table target) and at an
-// instruction that does not fall into the next (an unconditional exit): pool literals, `movs`,
-// register copies, `adds`/`subs` with an immediate or a register, `negs`, `ands`, `orrs` and shifts of
-// known values. D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB), and [S, S + L) in
+// before the call (the profile), which stops at a join point (a branch, jump-table or far-`bl` target) and
+// at an instruction that does not fall into the next (an unconditional exit, a far or noreturn `bl`):
+// pool literals, `movs`, register copies, `adds`/`subs` with an immediate or a register, `negs`, `ands`,
+// `orrs` and shifts of known values. D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB), and [S, S + L) in
 // the ROM. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
 // (`bx`, `mov pc`, or `bl` to a `bx rN` stub of the same register, libgcc's `_call_via_rN`) names the
 // entry S + (P - D) of that image: Thumb when P is odd, ARM otherwise. A pointer equal to D names the
@@ -125,7 +125,12 @@ function straightLineBefore(r: Reading, at: Addr, window: number, v: AnalysisVie
   const jumps = new Set<Addr>([...r.far, ...r.noret]);
   const joins = new Set<Addr>(r.branchTargets);
   for (const t of r.tables) for (const target of t.targets) joins.add(target & ~1);
-  for (const b of r.blSites) if (jumps.has(b.site)) joins.add(b.target);
+  // A far `bl` is walked as a jump and never recorded among the call sites (blSites), so its target comes
+  // from the instruction itself; a noret target is added too, in case the reading reaches it otherwise.
+  for (const site of [...r.far, ...r.noret]) {
+    const flow = insnAt(r, site, v).flow;
+    if (flow.kind === 'bl') joins.add(flow.target);
+  }
   const run: Addr[] = [];
   for (let cur = at; run.length < window && !joins.has(cur); ) {
     const a = previous(r, cur);

@@ -11,7 +11,9 @@ import rule from '../../../../../src/core/analysis/rules/seed/ram-copy.ts';
 import { Claim, type AnalysisView, type Reading } from '../../../../../src/core/analysis/types.ts';
 import type { Rom } from '../../../../../src/foundation/rom/rom.ts';
 import { AGBCC } from '../../../../../src/core/profile/agbcc.ts';
-import { romWith, viewWith, words } from '../../../../helpers/analysis.ts';
+import { REFERENCE_WALK, romWith, viewWith, walkReading, words } from '../../../../helpers/analysis.ts';
+import { withVerdicts } from '../../../../../src/core/analysis/reading.ts';
+import type { RuleId } from '../../../../../src/core/provenance/rule-id.ts';
 import { armAt } from '../../../../helpers/arm.ts';
 import { thumbAt } from '../../../../helpers/thumb.ts';
 import { factOf } from './fact.ts';
@@ -226,8 +228,9 @@ function setupRom(main: Uint8Array): Rom {
   ]);
 }
 
-test('the argument scan is straight-line: it stops at an unconditional exit and at a join point (overfitting-r2-1)', () => {
+test('the argument scan stops before a branch target: the call reached from a `beq` after a return, or from a `bne` (overfitting-r2-1)', () => {
   // The arguments are loaded on a path that returns (`pop {pc}`); the call is reached only from the `beq`.
+  // The call is the `beq` target, so the branch-target join stops the scan before it reaches the return.
   const exit = thumbAt(MAIN)`push {lr}; cmp r0, #0; beq _0800020E; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; pop {pc}; bl _08000240; pop {pc}`;
   assert.deepEqual(queue(setupRom(exit), VENEER, [MAIN, VENEER]), [], 'the loads before the return never flow into the call');
   // The loads fall into the call, but the `bne` reaches it too, with other values: a join point.
@@ -241,6 +244,75 @@ test('the argument scan is straight-line: it stops at an unconditional exit and 
   assert.deepEqual(queue(setupRom(call), VENEER, [MAIN, VENEER]), [], 'the call in between forgets the arguments');
   const plain = thumbAt(MAIN)`push {lr}; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; bl _08000240; pop {pc}`;
   assert.deepEqual(queue(setupRom(plain), VENEER, [MAIN, VENEER]), B, 'the same setup, straight-line');
+});
+
+/** main's reading under `far` and `noret`, with the copy loop, the veneer and BLOCK of romFor, and main's literal pool at MAIN + `pool`. */
+function scanRom(main: Uint8Array, pool: number): Rom {
+  return romWith([
+    { at: MAIN, bytes: main },
+    { at: MAIN + pool, bytes: words(BLOCK, IWRAM, 0x20) },
+    { at: COPY, bytes: CALLEES['src-first'] },
+    { at: VENEER, bytes: thumbAt(VENEER)`ldr r3, _08000268; bx r3` },
+    { at: VENEER + 8, bytes: words(IWRAM + 8) },
+    { at: BLOCK, bytes: armAt(BLOCK)`mov r0, #0; bx lr; add r0, r0, #1; add r0, r0, #2; bx lr; mov r0, #3; bx lr` },
+  ]);
+}
+
+/** The rule's proposals when the veneer is accepted after `entry`, whose reading has these far and noret `bl` sites (as settle decides them). */
+function scanned(rom: Rom, entry: number, far: readonly number[] = [], noret: readonly number[] = []): unknown {
+  const plain = viewWith({ rom });
+  const walked = walkReading(plain, entry, 'thumb', REFERENCE_WALK, new Set(far), new Map(noret.map((a) => [a, 'walk.noreturn-call-before-noncode' as RuleId])));
+  // The verdicts as the settle loop records them on the reading (reading.far, reading.noret).
+  const main = withVerdicts(walked, { far, noret, blVerdicts: [], steps: [] });
+  const v = viewWith({ rom, functions: [entry, VENEER], readings: [main, plain.read(VENEER, 'thumb')] });
+  return rule.queue(factOf(v.read(VENEER, 'thumb')), v);
+}
+
+// One case per stop of the argument scan (straightLineBefore), each the only stop that decides it: without
+// that stop the scan reads the three loads before the call and proposes BLOCK + 8 (overfitting-correctness-r0-1).
+
+test('the argument scan stops before a jump-table target: a case label that falls into the copy call', () => {
+  // switch (r0): case 0 loads the arguments and falls into case 1, the call; the table names both.
+  const head = thumbAt(MAIN)`push {lr}; ldr r1, _08000208; ldr r0, [r1, r0]; mov pc, r0`;
+  const cases = thumbAt(MAIN + 0x14)`ldr r0, _08000220; ldr r1, _08000224; ldr r2, _08000228; bl _08000240; pop {pc}`;
+  const main = (second: number): Uint8Array => new Uint8Array([...head, ...words(MAIN + 0x0c, MAIN + 0x14, second), ...cases]);
+  const rom = scanRom(main(MAIN + 0x1a), 0x20);
+  const read = walkReading(viewWith({ rom }), MAIN, 'thumb');
+  assert.deepEqual(read.tables.map((t) => [...t.targets]), [[MAIN + 0x14, MAIN + 0x1a]], 'the table and its two case labels');
+  assert.equal(read.branchTargets.includes(MAIN + 0x1a), false, 'the call is no branch target');
+  assert.deepEqual(scanned(rom, MAIN), [], 'the call is a case label: the registers there come from the switch too');
+  assert.deepEqual(scanned(scanRom(main(MAIN + 0x14), 0x20), MAIN), B, 'both labels at the loads: the run from them to the call holds all three');
+});
+
+test('the argument scan stops before the target of a far `bl`: code the reading reaches by a `bl` walked as a jump', () => {
+  // A far `bl` at +6 jumps to the call at +0x10; the loads before the call fall into it from the `beq` path.
+  const main = thumbAt(MAIN)`push {lr}; cmp r0, #0; beq _0800020A; bl _08000210; ldr r0, _08000218; ldr r1, _0800021C; ldr r2, _08000220; bl _08000240; pop {pc}`;
+  const rom = scanRom(main, 0x18);
+  assert.equal(walkReading(viewWith({ rom }), MAIN, 'thumb', REFERENCE_WALK, new Set([MAIN + 6])).branchTargets.includes(MAIN + 0x10), false, 'the call is no branch target');
+  assert.deepEqual(scanned(rom, MAIN, [MAIN + 6]), [], 'the call is the far `bl` target: other values reach it');
+  assert.deepEqual(scanned(rom, MAIN), B, 'walked as a call, the `bl` does not reach the copy call');
+});
+
+test('the argument scan stops at an exit laid out right before the entry: code before it reached by a backward branch', () => {
+  // The entry is the call itself (+8); the loads before it, reached only by the `beq` back to +0, end in
+  // `bx lr`, so they never flow into the entry. Nothing branches to the entry: no join stops the scan.
+  const main = thumbAt(MAIN)`ldr r0, _08000214; ldr r1, _08000218; ldr r2, _0800021C; bx lr; bl _08000240; cmp r0, #0; beq _08000200; bx lr`;
+  const rom = scanRom(main, 0x14);
+  const read = walkReading(viewWith({ rom }), MAIN + 8, 'thumb');
+  assert.ok(read.insnAt.has(MAIN + 6) && !read.branchTargets.includes(MAIN + 8), 'the `bx lr` before the entry is in the reading; the entry is no branch target');
+  assert.deepEqual(scanned(rom, MAIN + 8), [], 'the loads before the return never flow into the call');
+});
+
+test('the argument scan stops at a `bl` laid out right before the entry that never returns or is walked as a jump', () => {
+  // r4..r6 are loaded before a `bl` to +0x1A, which keeps them (it is a call); the entry at +0x0A copies them
+  // into r0..r2 for the copy call. A `bl` that never returns, or jumps, does not fall into the entry.
+  const main = thumbAt(MAIN)`ldr r4, _0800021C; ldr r5, _08000220; ldr r6, _08000224; bl _0800021A; adds r0, r4, #0; adds r1, r5, #0; adds r2, r6, #0; bl _08000240; cmp r0, #0; beq _08000200; bx lr; bx lr`;
+  const rom = scanRom(main, 0x1c);
+  const entry = MAIN + 0x0a;
+  assert.equal(walkReading(viewWith({ rom }), entry, 'thumb', REFERENCE_WALK, new Set(), new Map([[MAIN + 6, 'walk.noreturn-call-before-noncode' as RuleId]])).branchTargets.includes(entry), false, 'the entry is no branch target');
+  assert.deepEqual(scanned(rom, entry, [], [MAIN + 6]), [], 'a call that never returns');
+  assert.deepEqual(scanned(rom, entry, [MAIN + 6]), [], 'a `bl` walked as a jump');
+  assert.deepEqual(scanned(rom, entry), [{ entry: BLOCK + 8, mode: 'arm', cites: [VENEER, entry] }], 'a call that returns falls into the entry with r4..r6 intact');
 });
 
 test('the jump window is the profile\'s ramCopy.jumpInsns: a jump that many instructions after the load is found, one window shorter it is not (code-quality-r2-1)', () => {
