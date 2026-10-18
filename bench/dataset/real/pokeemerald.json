@@ -6,6 +6,8 @@
   "sha1": "f3ae088181bf583e55daf962a92bb46f4f1d07b7",
   "elfCommit": "731ad5bfd",
   "elfSha256": "cb78c9d660f1cc9e5e2bd1897b1c09f63ffcb43c0ddb958f33c9b5efc28be65f",
+  "objectsDir": "pokeemerald/build/emerald",
+  "objectsDigest": "d95f216bda89bdd2a1a41a65239ca59d46f07e987e2988550f80220aaea5a5bf",
   "family": "pret-gen3",
   "buildNote": "unchanged",
   "heldout": false,

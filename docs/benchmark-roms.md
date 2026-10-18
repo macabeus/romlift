@@ -65,3 +65,56 @@ as their family (Fire Emblem 8, Fire Emblem 6, Sonic Advance).
 
 - agbcc builds: `/Users/macabeus/ApenasMeu/decompiler/pokeemerald/tools/agbcc` and `/Users/macabeus/ApenasMeu/decompiler/agbcc`.
 - Build notes for the tuning-set checkouts on macOS are at the end of [research-notes.md](research-notes.md) ("What the proof of concept changed").
+
+### Reference objects (`objectsDir`)
+
+The objdiff family (architecture §8.4, D34) diffs each emitted function against the reference project's own
+relocatable object. Each tuning dataset records `objectsDir`, the narrowest directory holding every object its
+map links (the map's object paths are relative to the directory `ld` ran in, which is `objectsDir` for all six),
+and `objectsDigest`, the sha256 over every `*.o` under it (sorted relative path, NUL, bytes; `test/gates/gate.ts`
+and `bench/src/objects.ts` compute the same value). `npm run bench -- doctor-real` checks both, and that every
+object the map links exists there with the code and data sizes the map gives it (`<rom>.objects-linked`).
+Measured on 18 October 2026:
+
+| Dataset | `objectsDir` | `.o` files | Linked by the map | Archive members outside it | Digest |
+| --- | --- | --- | --- | --- | --- |
+| `fe7j` | `FireEmblem7J/build` | 232 | 232 | 12 | `040781bd…` |
+| `klonoa` | `kleod-5b25cd6/build/kleod` | 197 | 33 | 7 | `337813b3…` |
+| `pokeemerald` | `pokeemerald/build/emerald` | 969 | 859 | 34 | `d95f216b…` |
+| `sa2` | `sa2/build/gba/sa2` | 1,027 | 508 | 24 | `8b5de59d…` |
+| `sa3` | `sa3/build/gba/sa3` | 678 | 546 | 73 | `d254b602…` |
+| `tmc` | `tmc/build/USA` | 922 | 920 | 1 | `32d4dc71…` |
+
+The other objects under each directory are built but not linked (songs in klonoa, sa2 and pokeemerald, unused
+units in sa2, sa3 and tmc); they are part of the digest, and no narrower directory covers the linked ones. The
+archive members (libgcc, libc and libagbsyscall from each checkout's `tools/agbcc/lib` or `libagbsyscall/`) lie
+outside every objects directory; the objdiff family has no reference object for the functions they define.
+`sa3/permuter` and `sa3/expected` hold unrelated objects and are outside `sa3/build/gba/sa3`.
+
+**klonoa's objects come from a separate checkout.** `kleod/kleod.elf` (the dataset's ELF, sha256 `5d57d920…`)
+was linked on 19 September 2026 from commit `5b25cd6` of the kleod checkout; the checkout was later pulled to
+`a57c1f0` (the `elfCommit` the PoC's and romlift's datasets record) without relinking, and on 18 October 2026
+some of `kleod/build/kleod`'s objects were rebuilt from `a57c1f0`: three of the 33 objects the map links then
+had other section sizes than the map gives them. `kleod-5b25cd6/` is a clone of the kleod checkout at
+`5b25cd6` with the two Makefile changes of klonoa's `buildNote`, the built tools and `baserom.gba` copied in,
+built with `make rom`: its ROM has the dataset's SHA-1, and its ELF with debug sections stripped
+(`arm-none-eabi-objcopy --strip-debug`) is byte-identical to `kleod/kleod.elf` stripped the same way. Only the
+DWARF differs, because it records the absolute build directory. No file of the `kleod/` checkout was changed.
+
+### objdiff-cli
+
+The bench uses `objdiff-cli 3.7.2`, the version pinned in `bench/tools/objdiff.version` (part of the source
+digest), built from the `objdiff/` checkout (encounter/objdiff, `v3.7.2-5-g3c7b5b7`) without changing its
+sources:
+
+```
+cargo build --release --manifest-path /Users/macabeus/ApenasMeu/decompiler/objdiff/Cargo.toml -p objdiff-cli \
+  --target-dir /Users/macabeus/ApenasMeu/decompiler/romlift/bench/.local/objdiff-target
+```
+
+`bench/src/objdiff-cli.ts` looks for it in this order: `ROMLIFT_OBJDIFF`; the repository's
+`bench/.local/objdiff-target/release/objdiff-cli`, then the main checkout's when the repository is a linked
+`git worktree`; `objdiff-cli` on the PATH; `objdiff/target/release/objdiff-cli` under the benchmark root. The
+last one exists on this machine but reports `objdiff-cli 3.0.0-beta.11`, an older build than its checkout, so
+`doctor-real` would refuse it. The bench runs one one-shot diff per object pair
+(`diff -1 <reference.o> -2 <base.o> -o - --format json -c functionRelocDiffs=name_address -c arm.archVersion=v4t`).
