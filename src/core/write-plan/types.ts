@@ -2,6 +2,7 @@
 // and returns, the manifest and journal it shares with the shell, and the project paths romlift owns.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
+import type { Journal } from './journal.ts';
 
 /** `.romlift/manifest.json`: every generated path romlift wrote, with its sha1 and writer. */
 export interface Manifest {
@@ -33,6 +34,14 @@ export interface WritePlanInputs {
    * under one is never written and never deleted, whatever the manifest says (D62).
    */
   readonly retained: readonly string[];
+  /**
+   * The journal an interrupted run left (`.romlift/journal.json`), or null/absent when there is none. Its
+   * paths count as owned, and a reconciled edit it lists whose file already has the edit's result sha1 is
+   * done (§6.4 step 4). Added by p3-write-plan: the policy is planWrites', so the journal is an input.
+   */
+  readonly journal?: Journal | null;
+  /** The romlift version stamped on the new manifest; default the old manifest's, else 'unknown'. */
+  readonly romlift?: string;
 }
 
 export interface WritePlan {

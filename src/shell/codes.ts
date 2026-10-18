@@ -6,6 +6,8 @@ export const ShellCodes = defineCodes({
   E_IO_WRITE: { severity: 'error', meaning: 'a file could not be written' },
   E_TOOLCHAIN_MISSING: { severity: 'error', meaning: 'arm-none-eabi-as, -ld or -objcopy is not on the PATH' },
   E_TOOLCHAIN_FAILED: { severity: 'error', meaning: 'arm-none-eabi-as, -ld or -objcopy exited with an error' },
+  E_PROJECT_LOCKED: { severity: 'error', meaning: 'another romlift run holds the project lock (.romlift/lock)' },
+  W_STALE_LOCK: { severity: 'warning', meaning: 'a lock left by a process that is gone on this host was taken over' },
 });
 
 export type ShellCode = keyof typeof ShellCodes;
