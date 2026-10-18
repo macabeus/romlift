@@ -26,7 +26,18 @@ implemented by fix round 3 of D60 (`3f7898f` to `b6b79e1`; "Review", below); the
 `e1c3f64` with `phase.json` raised to 2 and, after it was lowered back, at `8c60bf5`, each in a fresh
 worktree ("The closing gate", below).
 
-**Verdict (after the owner's answers and fix round 3 of D60).** Phase 2 does **not** land, on one gate
+**Verdict (after fix round 1 of D61).** Phase 2 does **not** land, on the same one gate and for the same
+reason: `g2.confirm-equals-discover` fails on tmc's 0x080B255C and 0x080B2874 (owner question Q6). The
+round answered the review of `5e18731`: the Q3 limitation is pinned by content and judged on every ROM;
+the three tmc scopings are bound to tmc's ROM and ELF digests; the waiver dates are per condition;
+`historicalCheck` is gone; `seed.ram-copy`'s far-`bl` target join, found never to fire, works, with a unit
+case per stop of its argument scan; a fixture exercises the `$d` code end. One finding is partly asked
+(the PoC-dump rescoring's code end, owner question Q7). Every command of the closing list exits 0 at
+`2c96faa` but `bench gates --require 2 --tier real` (that gate alone). Rows, counts and analysis digests
+equal `8c60bf5`'s on the six tuning ROMs and the sealed pair. `phase.json` stays `{ "landed": 1 }`;
+nothing is merged or pushed.
+
+**Verdict (after the owner's answers and fix round 3 of D60; superseded).** Phase 2 does **not** land, on one gate
 outside the owner's answers. The answers (D61) are applied exactly as given and nothing else is waived:
 Q1 and Q2 ("Keep tmc as 99.94%. It's a benchmark row that we can improve later": `g2.poc-parity` judges the
 five M1 ROMs and prints tmc as not applicable; tmc a benchmark row in `g2.baseline-rows`, its 8 rows listed
@@ -952,49 +963,49 @@ it is an analysis change of its own to measure; it is listed under "Known limita
 
 ## The closing gate
 
-Two runs of the whole list, each in a fresh worktree (`git worktree add --detach`: no `node_modules`, no
-`bench/.local`), every command from the worktree root with
+The whole list in a fresh worktree (`git worktree add --detach`: no `node_modules`, no `bench/.local`) at
+`2c96faa` (fix round 1 of D61), every command from the worktree root with
 `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`, the real tier before the ci tier, the
 working tree clean afterwards but for the `bench/results.json` the run rewrites (`poc-digests.json` and
-`poc-dump-rows.json` byte-identical after the export). The list is the roadmap's with the additions of the
-earlier rounds and of this one (`bench regression --base 8fba183`, the previous round's rows as a floor).
+`poc-dump-rows.json` byte-identical after the export); that `results.json` is the committed artifact.
+`test/gates/phase.json` stays `{ "landed": 1 }`: the one failing gate is outside the owner's answers
+(Q6), so a landing attempt at `landed` 2 would fail on it as at `e1c3f64`, and it was not repeated. The
+list is the previous round's with `bench regression --base 5e18731` added (that round's rows as a floor).
 
-- **At `e1c3f64`, `phase.json` `{ "landed": 2 }`** (the landing attempt, as the procedure requires).
-- **At `8c60bf5`, `phase.json` `{ "landed": 1 }`**, lowered back because the landing attempt failed on a
-  gate outside the owner's answers; its `bench/results.json` is the committed artifact.
-
-| Command | Exit at `e1c3f64` (landed 2) | Exit at `8c60bf5` (landed 1) | Output |
-| --- | --- | --- | --- |
-| `npm ci` | 0 | 0 | |
-| `npm run typecheck` | 0 | 0 | |
-| `npm run lint` | 0 | 0 | 21 tests, 21 pass |
-| `npm test` | 0 | 0 | 971 tests, 971 pass |
-| `npm run fixtures -- check` | 0 | 0 | 46 of 46 fixtures agree (agbcc commit not named, the bytes decide) |
-| `npm run bench -- doctor-real` | 0 | 0 | every ROM, ELF, PoC file and toolchain matches its digest |
-| `npm run export-poc -- --mode scored` | 0 | 0 | six ROMs, scaffold OK, deterministic (248 s); tmc 8,591 functions, 54 misses, on romlift's dataset `9d840f51…`, its PoC row equal to the pinned one |
-| `npm run export-poc -- --mode parity` | 0 | 0 | five parity digests, `poc-digests.json` byte-identical (76 s) |
-| `npm run export-poc -- --mode queries` | 0 | 0 | five lockstep logs re-read, parity matches the committed digest (51 s) |
-| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 0 | 19 tests, 19 pass |
-| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | 0 | binutils, corpus and JUMP11 ok |
-| `npm run corpus` | 0 | 0 | 100% round-trip, inputs digest `144770c8…` |
-| `npm run bench -- run` | 0 | 0 | six rows (below); sealed: pokefirered pass, pokeruby pass |
-| `npm run bench -- speed` | 0 | 0 | ratio 0.973 at `8c60bf5`; fe7j 1,092 ms (limit 12,864), klonoa 245 (311), pokeemerald 2,146 (4,276), sa2 737 (794), sa3 1,083 (1,513), tmc 1,315 (1,808) |
-| `npm run bench -- regression` | 0 | 0 | no regression against `92bf7ce` (the PoC-sourced main) |
-| `npm run bench -- regression --base 74ec273` | 0 | 0 | no regression |
-| `npm run bench -- regression --base f802822` | 0 | 0 | no regression |
-| `npm run bench -- regression --base 8fba183` | 0 | 0 | no regression |
-| `npm run bench -- dataset-check` | 0 | 0 | every dataset agrees with its ELF and its run |
-| `npm run bench -- poc-check` | 0 | 0 | five ROMs: rows equal, PoC row equal, scaffold OK, deterministic, pinned; tmc: rows equal the PoC's own row, PoC row equal to the pinned one |
-| `npm run bench -- gates --require 2 --tier real` | **1** | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows (tmc: 51 improvements, 8 rows accepted as listed with a category, tp 8,631 at its floor), g2.code-end (every delta 0), g2.determinism, g2.entries, g2.extents, g2.held-out (both sealed ROMs pass; both family conditions WAIVED with the owner's words), g2.no-unreviewed (8 datasets, 61 rows), g2.speed; g2.poc-parity `historical` at landed 2 and `pass` at landed 1, its own check passing either way (tmc printed as not applicable); **fail: g2.confirm-equals-discover** (tmc: 0x080B255C and 0x080B2874 differ beyond the six of Q3; KNOWN LIMITATION printed for the six; Q6); g3 to g6 pending |
-| `npm run bench -- gates --require 2 --tier ci` | **1** | 0 | every g1 and g2 ci gate passes (g2.rule-coverage 51 of 59 rules on 46 fixtures, 8 kept by D57; g2.second-profile 46 fixtures, 306 functions; g2.synthetic-analysis 46 fixtures; g2.regression) but, at landed 2, **g1.provenance**, whose gate record then holds the failing g2.confirm-equals-discover; at landed 1 it checks the gates of phase ≤ 1 and passes; g3 to g6 pending |
-| `npm run bench -- provenance` | **1** | 0 | at landed 2: gate record FAILED (g2.confirm-equals-discover); at landed 1: source digest `125c9654…` current, gate record ok at phase ≤ 1, families live, 6 rows, no row of the 2 sealed datasets |
-| `npm run bench -- stale-check` | 0 | 0 | the artifact is current |
+| Command | Exit at `2c96faa` | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | |
+| `npm run typecheck` | 0 | |
+| `npm run lint` | 0 | 21 tests, 21 pass |
+| `npm test` | 0 | 983 tests, 983 pass |
+| `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (agbcc commit not named, the bytes decide) |
+| `npm run bench -- doctor-real` | 0 | every ROM, ELF, PoC file and toolchain matches its digest |
+| `npm run export-poc -- --mode scored` | 0 | six ROMs, scaffold OK, deterministic (240 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical (75 s) |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs re-read (49 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 19 tests, 19 pass |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | binutils, corpus and JUMP11 ok |
+| `npm run corpus` | 0 | 100% round-trip, inputs digest `144770c8…` |
+| `npm run bench -- run` | 0 | six rows equal to `8c60bf5`'s (below); sealed: pokefirered pass, pokeruby pass, counts unchanged |
+| `npm run bench -- speed` | 0 | ratio 0.960; fe7j 1,074 ms (limit 12,692), klonoa 259 (306), pokeemerald 2,084 (4,219), sa2 630 (783), sa3 981 (1,492), tmc 1,299 (1,784) |
+| `npm run bench -- regression` | 0 | no regression against `92bf7ce` (the PoC-sourced main) |
+| `npm run bench -- regression --base 74ec273` | 0 | no regression |
+| `npm run bench -- regression --base f802822` | 0 | no regression |
+| `npm run bench -- regression --base 8fba183` | 0 | no regression |
+| `npm run bench -- regression --base 5e18731` | 0 | no regression |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | five ROMs: rows equal, PoC row equal, scaffold OK, deterministic, pinned; tmc: rows equal the PoC's own row, PoC row equal to the pinned one |
+| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end (every delta 0), g2.determinism, g2.entries, g2.extents, g2.held-out (both sealed ROMs pass; WAIVED two families on 2026-10-18, D61 b; WAIVED fresh family on 2026-10-17, D60), g2.no-unreviewed (8 datasets, 61 rows), g2.poc-parity (tmc not applicable), g2.speed (ratio 0.951); **fail: g2.confirm-equals-discover**: tmc 0x080B255C and 0x080B2874 "not covered by D61 e" (Q6) and the 3 claim runs between 0x080B2874 and 0x080B299C; KNOWN LIMITATION printed: 6 of 6 known functions and 1 of 1 known claim runs differ as recorded; fe7j, klonoa, pokeemerald, sa2, sa3 0 differences; g3 to g6 pending |
+| `npm run bench -- gates --require 2 --tier ci` | 0 | every g1 and g2 ci gate passes (g2.rule-coverage 51 of 59 rules on 47 fixtures, 8 kept by D57; g2.second-profile 47 fixtures, 310 functions; g2.synthetic-analysis 47 fixtures; g2.regression); g3 to g6 pending |
+| `npm run bench -- provenance` | 0 | source digest `f7986efb…` current, gate record ok at phase ≤ 1, families live, 6 rows, no row of the 2 sealed datasets |
+| `npm run bench -- stale-check` | 0 | the artifact is current |
 
 Not done: pushing `phase-2`, the pull request to `main` and its CI workflows, the merge and the tag. The
-runs at `2475b34`, `9c8b282`, `808513f`, `22cbc77` and before are in the Git history of this file.
+runs at `e1c3f64`, `8c60bf5`, `2475b34`, `9c8b282`, `808513f`, `22cbc77` and before are in the Git history of
+this file.
 
-## Per tuning ROM, at `8c60bf5`
+## Per tuning ROM, at `2c96faa` (equal to `8c60bf5`)
 
 | ROM | ELF functions | Entries | TP | PoC TP | Raw precision | Raw recall | Misses | False entries | Extents agreeing | Code end | Row diffs (unaccepted) | Analysis digest | Parity digest |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -1009,14 +1020,15 @@ Sealed at `8c60bf5` (counts only): pokefirered pass (12,395 entries for 12,389 E
 precision 99.95%, recall 100.00%, glued 0, label candidates 0, extents 12,383 / 12,386, code end 0, false
 entries startup 4, inside an ELF function 6), pokeruby pass (11,461 for 11,455, tp 11,455, 99.95%, 100.00%,
 0, 0, 11,449 / 11,452, 0, startup 4, inside 6). The analysis digests of all six equal those of `8fba183`;
-only the code end moved (Q5). `results.json` meta: commit `8c60bf5`, dirty false, source digest
-`125c9654…`, Node 24.
+only the code end moved (Q5). At `2c96faa` every row, count and analysis digest is the same as at
+`8c60bf5`. `results.json` meta: commit `2c96faa`, dirty false, source digest `f7986efb…`, Node 24.
 
 ## Known limitations
 
 - **`g2.confirm-equals-discover` fails on tmc (Q6)**: eight functions differ between confirm and discover,
-  the six of Q3, which the owner's answer accepts as a known limitation and the gate prints, and 0x080B255C
-  and 0x080B2874, moved by `95b257b` after Q3's count; phase 2 does not land until the owner answers Q6.
+  the six of Q3, which the owner's answer accepts as a known limitation and the gate prints (pinned by
+  their records since fix round 1 of D61), and 0x080B255C and 0x080B2874, moved by `95b257b` after Q3's
+  count, with three claim runs; phase 2 does not land until the owner answers Q6.
 - **D8's `resettle` stage is not built**: measured at `f287b0d` and reverted, because re-reading every
   function under the final set cuts the cartridge entry at the startup piece and the m4a mixer at its inner
   entries on every ROM (D61 e).

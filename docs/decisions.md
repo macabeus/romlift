@@ -2022,7 +2022,10 @@ skipped or removed.
 unchanged counts, and every g1 and g2 gate passes but `g2.confirm-equals-discover`, which fails on two tmc
 functions beyond the six of Q3 (owner question Q6). With `phase.json` raised to 2 (`e1c3f64`) that gate
 also fails `g1.provenance` and `bench provenance`, so `phase.json` is back at 1 and phase 2 does not land.
-Nothing beyond the five answers is waived.
+Nothing beyond the five answers is waived. After fix round 1 of D61, measured at `2c96faa`: the same rows,
+counts and analysis digests, every closing command exits 0 but the real tier, which fails on that gate alone
+(tmc's 0x080B255C and 0x080B2874, Q6), with the six of Q3 matching their pinned records; Q7 (the PoC-dump
+rescoring's code end) is open and decides no gate.
 
 ---
 
