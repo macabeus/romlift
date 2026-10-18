@@ -5,31 +5,33 @@
 // to fails too. Raw-insn items print as data and are not checked. Each failure is E_SELF_CHECK_REENCODE at
 // the item's load address; the result keeps the first MAX_REPORTED and counts the rest.
 //
-// The printing rule runs through core/model/items.ts's printingCache, built afresh for each check: an
-// instruction whose text names no address has the answer of its mode and word, one that names a label of the
-// default spelling the answer of its word without the offset and its alignment; the cache changes no answer
-// (its unit test compares it with rawReason on every instruction of every fixture). The decode of each item
-// is not cached: the check still compares every item's recorded row with what its bytes decode to.
+// The check is independent of the shortcut the model classified its items through (core/model/printing-cache.ts
+// printingCache): every instruction whose text names an address runs the round trip itself (foundation/isa
+// rawReason). Only an instruction that names no address goes through a cache, addressFreeReasons, whose key is
+// its mode and exact word, so the cache can change no answer. The decode of each item is not cached: the check
+// still compares every item's recorded row with what its bytes decode to.
 import { decode } from '../../foundation/isa/decode.ts';
 import type { Insn, SymbolResolver } from '../../foundation/isa/types.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { rawReason } from '../../foundation/isa/roundtrip.ts';
 import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
-import { specIdAt } from '../model/item-table.ts';
-import { printingCache } from '../model/items.ts';
-import type { PrintingCache } from '../model/items.ts';
+import { modeOfSpec, specIdAt } from '../model/item-table.ts';
+import { addressFreeReasons, namesNoAddress } from '../model/printing-cache.ts';
+import type { AddressFreeReasons } from '../model/printing-cache.ts';
 import { resolverFor } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
-import type { Chunk, Model } from '../model/types.ts';
+import { runOffsetOf } from '../model/modules.ts';
+import type { Model } from '../model/types.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult } from './report.ts';
 import { VerifyCodes } from './codes.ts';
 
 /** How many failures one result lists; the rest are counted in its detail. */
-export const MAX_REPORTED = 64;
+const MAX_REPORTED = 64;
 
 /** The instruction of item `i` decoded at its run address, or why it cannot be. */
 function decodeItem(rom: Rom, model: Model, i: number, runOffset: number): Insn | string {
@@ -38,8 +40,9 @@ function decodeItem(rom: Rom, model: Model, i: number, runOffset: number): Insn 
   const specId = specIdAt(model.items.spec[i] ?? 0xffff);
   if (specId === undefined) return 'it records no isa row';
   if (!contains(rom, start, size)) return `its ${size} bytes are not in the ROM`;
-  const mode = specId.startsWith('thumb.') ? 'thumb' : 'arm';
-  const word = mode === 'arm' ? (size === 4 ? u32(rom, start) : undefined) : size === 2 ? u16(rom, start) : size === 4 ? (u16(rom, start) | (u16(rom, start + 2) << 16)) >>> 0 : undefined;
+  const mode = modeOfSpec(specId);
+  // A 4-byte Thumb instruction (a bl pair) is its first halfword | its second << 16, the word u32 reads.
+  const word = size === 4 ? u32(rom, start) : size === 2 && mode === 'thumb' ? u16(rom, start) : undefined;
   if (word === undefined) return `a ${size}-byte ${mode} instruction cannot exist`;
   const insn = decode(mode, word, start + runOffset);
   if (insn.specId !== specId || insn.size !== size) return `it records ${specId} (${size} bytes) but its bytes decode as ${insn.specId} (${insn.size} bytes)`;
@@ -47,15 +50,11 @@ function decodeItem(rom: Rom, model: Model, i: number, runOffset: number): Insn 
 }
 
 /** Why item `i` would not print as a mnemonic that assembles back, or undefined when it would. */
-function failure(rom: Rom, model: Model, i: number, runOffset: number, resolver: SymbolResolver, cache: PrintingCache): string | undefined {
+function failure(rom: Rom, model: Model, i: number, runOffset: number, resolver: SymbolResolver, cache: AddressFreeReasons): string | undefined {
   const insn = decodeItem(rom, model, i, runOffset);
   if (typeof insn === 'string') return insn;
-  const reason = cache.reasonOf(insn, resolver);
+  const reason = namesNoAddress(insn) ? cache.reasonOf(insn, resolver) : rawReason(insn, resolver);
   return reason === null ? undefined : `${insn.specId} prints raw (${reason})`;
-}
-
-function runOffsetOf(chunk: Chunk): number {
-  return chunk.runAt === undefined ? 0 : chunk.runAt - chunk.span.start;
 }
 
 /** The re-encode check over every insn item of every chunk, under its module's resolver. */
@@ -63,7 +62,7 @@ export function checkReencode(rom: Rom, model: Model): CheckResult {
   const diagnostics: Diagnostic[] = [];
   let failed = 0;
   let checked = 0;
-  const cache = printingCache();
+  const cache = addressFreeReasons();
   for (const module of model.modules) {
     const resolver = resolverFor(model, module.name);
     for (const chunk of model.chunks.slice(module.chunks.first, module.chunks.first + module.chunks.count)) {

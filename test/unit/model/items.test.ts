@@ -10,7 +10,8 @@ import type { AnalysisResult, ClaimRun, FunctionFact, JumpTable } from '../../..
 import { Claim } from '../../../src/core/analysis/types.ts';
 import { codeLayout } from '../../../src/core/layout/borders.ts';
 import { itemAt } from '../../../src/core/model/item-table.ts';
-import { printingCache, segmentsOf } from '../../../src/core/model/items.ts';
+import { segmentsOf } from '../../../src/core/model/items.ts';
+import { printingCache } from '../../../src/core/model/printing-cache.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { resolverFor } from '../../../src/core/model/resolver.ts';
 import type { Item, Model } from '../../../src/core/model/types.ts';

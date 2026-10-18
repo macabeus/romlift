@@ -18,9 +18,8 @@
 import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { decode } from '../../foundation/isa/decode.ts';
-import { rawReason } from '../../foundation/isa/roundtrip.ts';
 import { specOf } from '../../foundation/isa/rows.ts';
-import type { Flow, Insn, RawReason, SpecId, SymbolResolver } from '../../foundation/isa/types.ts';
+import type { Insn, SymbolResolver } from '../../foundation/isa/types.ts';
 import { contains, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { pushAll } from '../../foundation/util/arrays.ts';
@@ -34,7 +33,7 @@ import type { ChunkPlan } from './chunks.ts';
 import type { CodeRef } from './labels.ts';
 import { ModelCodes } from './codes.ts';
 import { itemTableBuilder } from './item-table.ts';
-import { isDefaultSpelling } from './names.ts';
+import { printingCache } from './printing-cache.ts';
 import { relocatedModules, runModuleAt } from './modules.ts';
 import { resolverFor } from './resolver.ts';
 import type { DataNote, ItemRawReason, ItemTable, Label, Module } from './types.ts';
@@ -153,96 +152,6 @@ export function segmentsOf(rom: Rom, analysis: Pick<AnalysisResult, 'functions' 
   }
   const extents = merged(analysis.functions.map((f) => ({ start: Math.max(f.extent.start, headerEnd), end: Math.min(f.extent.end, rom.end) })));
   return { concrete, notes, extents };
-}
-
-// ---------------------------------------------------------------------------------------------------
-// The printing rule, with a cache.
-
-/** Per isa row: the bits of its word that hold a pc-relative offset (pc-rel and bl-off fields), 0 for none. */
-const OFFSET_MASK = new Map<SpecId, number>();
-
-function offsetMask(id: SpecId): number {
-  let mask = OFFSET_MASK.get(id);
-  if (mask === undefined) {
-    mask = 0;
-    for (const f of specOf(id).fields) if (f.kind === 'pc-rel' || f.kind === 'bl-off') mask |= ((2 ** f.width - 1) * 2 ** f.lo) >>> 0;
-    mask >>>= 0;
-    OFFSET_MASK.set(id, mask);
-  }
-  return mask;
-}
-
-/** The one address an instruction's text names, if any. */
-function targetOf(flow: Flow): Addr | undefined {
-  switch (flow.kind) {
-    case 'branch':
-    case 'bl':
-    case 'adr':
-      return flow.target;
-    case 'pool-load':
-      return flow.pool;
-    default:
-      return undefined;
-  }
-}
-
-/** What the printing rule decided for an instruction whose text names no address. */
-export interface KnownPrinting {
-  readonly specId: SpecId;
-  readonly reason: RawReason | null;
-}
-
-/**
- * The printing rule (rawReason) with a cache that changes no answer.
- *
- * - An instruction whose text names no address (no pc-relative field, a flow that names no target) prints the
- *   same text wherever it is, so its row and answer are those of its mode and word (`known`, which lets the
- *   caller skip the decode).
- * - One whose text names a label prints the word's text with the label in place of the offset. When the label
- *   has a default spelling (`_`, `sub_`, `unk_` or `gUnk_` plus eight hex digits, which the parser reads alike)
- *   and resolves back to the target, the round trip assembles the word's own offset again, so the answer is
- *   that of its mode, its word without the offset bits, its word alignment and whether the offset is zero (an
- *   ARM `[pc, #-0]` does not come back).
- * - Anything else runs the round trip itself.
- */
-export interface PrintingCache {
-  known(mode: Mode, word: number): KnownPrinting | undefined;
-  reasonOf(insn: Insn, resolver: SymbolResolver): RawReason | null;
-  /**
-   * reasonOf for an instruction that names `target`, known by its row, word and run address: `insn` decodes it
-   * when the round trip has to run.
-   */
-  reasonOfNaming(mode: Mode, specId: SpecId, word: number, addr: Addr, target: Addr, resolver: SymbolResolver, insn: () => Insn): RawReason | null;
-}
-
-export function printingCache(): PrintingCache {
-  const free: Record<Mode, Map<number, KnownPrinting>> = { thumb: new Map(), arm: new Map() };
-  const labelled: Record<Mode, Map<number, RawReason | null>> = { thumb: new Map(), arm: new Map() };
-  const reasonOfNaming: PrintingCache['reasonOfNaming'] = (mode, specId, word, addr, target, resolver, insn) => {
-    const name = resolver.labelFor(target, addr);
-    if (name === undefined || !isDefaultSpelling(name) || resolver.addressOf(name) !== target) return rawReason(insn(), resolver);
-    const mask = offsetMask(specId);
-    const key = ((word & ~mask) >>> 0) * 8 + (addr & 3) * 2 + ((word & mask) === 0 ? 1 : 0);
-    const hit = labelled[mode].get(key);
-    if (hit !== undefined) return hit;
-    const reason = rawReason(insn(), resolver);
-    labelled[mode].set(key, reason);
-    return reason;
-  };
-  return {
-    known: (mode, word) => free[mode].get(word),
-    reasonOfNaming,
-    reasonOf(insn, resolver) {
-      const target = targetOf(insn.flow);
-      if (target !== undefined) return reasonOfNaming(insn.mode, insn.specId, insn.word, insn.addr, target, resolver, () => insn);
-      if (offsetMask(insn.specId) !== 0 || insn.flow.kind === 'mode-switch') return rawReason(insn, resolver);
-      const hit = free[insn.mode].get(insn.word);
-      if (hit !== undefined) return hit.reason;
-      const reason = rawReason(insn, resolver);
-      free[insn.mode].set(insn.word, { specId: insn.specId, reason });
-      return reason;
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------------------------------

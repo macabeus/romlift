@@ -5,6 +5,7 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { buildCompilerOf } from '../config/compilers.ts';
 import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
@@ -106,10 +107,15 @@ export function relocatedModules(modules: readonly Module[]): readonly Module[] 
   return modules.filter((m) => m.runAt !== undefined);
 }
 
+/** Run address minus load address of a module or chunk: runAt - span.start, 0 outside runs_at. */
+export function runOffsetOf(placed: { readonly span: { readonly start: Addr }; readonly runAt?: Addr }): number {
+  return placed.runAt === undefined ? 0 : placed.runAt - placed.span.start;
+}
+
 /** The offset from load to run address at load address `a`: runAt - span.start inside a relocated module, else 0. */
 export function runOffsetAt(relocated: readonly Module[], a: Addr): number {
   const m = relocated.find((x) => a >= x.span.start && a < x.span.end);
-  return m?.runAt === undefined ? 0 : m.runAt - m.span.start;
+  return m === undefined ? 0 : runOffsetOf(m);
 }
 
 /** The load address of run address `a`: mapped back inside a relocated module's run range, else `a` itself. */
@@ -120,16 +126,7 @@ export function loadAddressOf(relocated: readonly Module[], a: Addr): Addr {
 
 /** The index of the module whose load span holds `a`, or -1. */
 export function loadModuleAt(modules: readonly Module[], a: Addr): number {
-  let lo = 0;
-  let hi = modules.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const m = modules[mid] as Module;
-    if (a < m.span.start) hi = mid - 1;
-    else if (a >= m.span.end) lo = mid + 1;
-    else return mid;
-  }
-  return -1;
+  return spanIndexAt(modules, a, (m) => m.span);
 }
 
 /** The module a run address lies in (resolver.ts moduleIndexAt), searching only the relocated modules' run ranges first. */

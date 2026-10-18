@@ -34,7 +34,8 @@ export function specIdAt(index: number): SpecId | undefined {
   return SPEC_IDS[index];
 }
 
-function modeOfSpec(id: SpecId): Mode {
+/** The instruction set of an isa row: its id starts with `thumb.` or `arm.`. */
+export function modeOfSpec(id: SpecId): Mode {
   return id.startsWith('thumb.') ? 'thumb' : 'arm';
 }
 
