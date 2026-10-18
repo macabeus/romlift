@@ -875,8 +875,10 @@ returns what was accepted; grow judges at most `candidateBudget` (262,144) disti
 in a whole run, so past it a fresh target is never judged (a target judged before still is) and
 `W_CANDIDATE_BUDGET` is raised once; the candidate readings one epoch holds are limited to
 `epochReadingBytes` (256 MiB by estimate) and raise `W_READING_BUDGET` once when dropped, together with
-their 'epoch-reuse' facts. The tuning ROMs stay far below both (13,431 distinct targets in a run and
-about 105 MB at most), so they bound only a flood of pointers: its rejections and verdicts are bounded by
+their 'epoch-reuse' facts. The tuning ROMs stay below both (measured on all six on 18 October 2026:
+13,423 distinct targets in a run at most, pokeemerald, against 262,144; and 208,344,064 bytes held in one
+epoch at most, pokeemerald, 78% of the 256 MiB, the next fe7j at 120 MB; the "about 105 MB" recorded
+before was wrong, pokeemerald already held 206 MB at `22cbc77`), so they bound only a flood of pointers: its rejections and verdicts are bounded by
 the budget whatever the number of grow rounds, while its time still grows with the rounds, because each
 round's harvest enumerates the flood (a 32 MiB image of self-referencing Thumb pointers analyses under a
 512 MiB heap). Seeds are checked before round 0: one whose entry is not an address, whose mode is

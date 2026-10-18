@@ -16,22 +16,22 @@ export interface AnalysisLimits {
    * Distinct harvest targets grow judges in one run (D59 m): past it a fresh target is not judged and
    * W_CANDIDATE_BUDGET is raised once, while targets judged before are judged again as usual. It bounds
    * the rejections and validity verdicts a flood of pointers leaves, whatever the number of grow rounds.
-   * The five original tuning ROMs judge at most 13,431 distinct targets in a run (pokeemerald; measured
-   * before tmc joined the tuning set, D60, and not re-measured on it).
+   * The six tuning ROMs judge at most 13,423 distinct targets in a run (pokeemerald; fe7j 10,515, tmc
+   * 9,673, sa3 4,080, sa2 3,087, klonoa 804; measured on 18 October 2026, tmc included).
    */
   readonly candidateBudget: number;
   /**
    * Instructions one walk may record: a walk that reaches it stops with a 'walk-limit' error (W_WALK_LIMIT),
    * which bounds the memory a reading holds when a candidate runs over megabytes of zeros. The largest
-   * function of the five original tuning ROMs has about 12,000 instructions (klonoa; measured before tmc
-   * joined the tuning set, D60, and not re-measured on it).
+   * accepted reading of the six tuning ROMs has 11,570 instructions (klonoa; fe7j 4,109, pokeemerald
+   * 2,518, sa3 1,653, sa2 1,333, tmc 1,129; measured on 18 October 2026, tmc included).
    */
   readonly walkInsns: number;
   /**
    * Consecutive all-zero instructions one path may run over (`movs r0, r0`, `andeq r0, r0, r0`): a path
    * that runs further stops with a 'zero-run' error, so a candidate in a zero-filled region costs a few
-   * instructions instead of the whole region. No code of the five original tuning ROMs comes close
-   * (measured before tmc joined the tuning set, D60); it raises no
+   * instructions instead of the whole region. No accepted reading of the six tuning ROMs holds even one
+   * all-zero instruction (measured on 18 October 2026, tmc included); it raises no
    * diagnostic, because the bytes are not code (like an undecodable halfword).
    */
   readonly zeroRun: number;
@@ -39,9 +39,10 @@ export interface AnalysisLimits {
    * Estimated bytes of the candidate readings one epoch may hold (readings of entries not accepted, kept
    * so a reading is computed once per epoch, D13). Past it the held readings are dropped, their validity
    * verdicts staying memoised, and W_READING_BUDGET is raised: a dropped reading asked for again is walked
-   * again. It bounds the memory of a grow round over a flood of candidates (D59 m). The five original
-   * tuning ROMs hold at most about 105 MB by this estimate (fe7j, pokeemerald; measured before tmc joined
-   * the tuning set, D60, and not re-measured on it), so they never reach it.
+   * again. It bounds the memory of a grow round over a flood of candidates (D59 m). By this estimate the
+   * six tuning ROMs hold at most 208,344,064 bytes in one epoch (pokeemerald, 78% of the budget; fe7j
+   * 120.0 MB, tmc 112.8 MB, sa3 102.6 MB, sa2 90.4 MB, klonoa 18.5 MB; measured on 18 October 2026, tmc
+   * included), so none reaches it, but pokeemerald is within a quarter of it.
    */
   readonly epochReadingBytes: number;
 }

@@ -1557,8 +1557,11 @@ exceptions and that memory was still unbounded in the number of candidates. Adde
   later round judged a fresh 262,144, so rejections, time and memory grew with the rounds times the
   budget: fe7j plus a 16 MiB flood left 4.2 M rejections). Past it a fresh target is not judged, a
   target judged before still is, and `W_CANDIDATE_BUDGET` is raised once. The tuning ROMs judge at most
-  13,431 distinct targets in a run (pokeemerald). `LIMITS.epochReadingBytes` (256 MiB by
-  `readingBytes`' estimate; the tuning ROMs hold about 105 MB at most): past it the candidate readings an
+  13,431 distinct targets in a run (pokeemerald; 13,423 on the six at `8fba183`'s successors, measured
+  on 18 October 2026, tmc 9,673). `LIMITS.epochReadingBytes` (256 MiB by `readingBytes`' estimate; the
+  "about 105 MB at most" first recorded here was wrong: measured on 18 October 2026, pokeemerald holds
+  208,344,064 bytes in one epoch, 78% of the budget, and already held 206 MB at `22cbc77`; fe7j 120 MB, tmc
+  113 MB): past it the candidate readings an
   epoch holds are dropped, their verdicts staying memoised and their 'epoch-reuse' facts dropped with
   them (`forget` in epoch.ts is the one path out of `settled`), and `W_READING_BUDGET` is raised once;
   a dropped reading asked for again is walked again, so (D13) holds exactly below the budget. A flood's
