@@ -4,8 +4,13 @@
 // its run address, gives back its size and bytes. An item whose recorded row is not what its bytes decode
 // to fails too. Raw-insn items print as data and are not checked. Each failure is E_SELF_CHECK_REENCODE at
 // the item's load address; the result keeps the first MAX_REPORTED and counts the rest.
+//
+// The printing rule runs through core/model/items.ts's printingCache, built afresh for each check: an
+// instruction whose text names no address has the answer of its mode and word, one that names a label of the
+// default spelling the answer of its word without the offset and its alignment; the cache changes no answer
+// (its unit test compares it with rawReason on every instruction of every fixture). The decode of each item
+// is not cached: the check still compares every item's recorded row with what its bytes decode to.
 import { decode } from '../../foundation/isa/decode.ts';
-import { printing } from '../../foundation/isa/roundtrip.ts';
 import type { Insn, SymbolResolver } from '../../foundation/isa/types.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -14,6 +19,8 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { specIdAt } from '../model/item-table.ts';
+import { printingCache } from '../model/items.ts';
+import type { PrintingCache } from '../model/items.ts';
 import { resolverFor } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Chunk, Model } from '../model/types.ts';
@@ -40,11 +47,11 @@ function decodeItem(rom: Rom, model: Model, i: number, runOffset: number): Insn 
 }
 
 /** Why item `i` would not print as a mnemonic that assembles back, or undefined when it would. */
-function failure(rom: Rom, model: Model, i: number, runOffset: number, resolver: SymbolResolver): string | undefined {
+function failure(rom: Rom, model: Model, i: number, runOffset: number, resolver: SymbolResolver, cache: PrintingCache): string | undefined {
   const insn = decodeItem(rom, model, i, runOffset);
   if (typeof insn === 'string') return insn;
-  const printed = printing(insn, resolver);
-  return printed.kind === 'mnemonic' ? undefined : `${insn.specId} prints raw (${printed.reason})`;
+  const reason = cache.reasonOf(insn, resolver);
+  return reason === null ? undefined : `${insn.specId} prints raw (${reason})`;
 }
 
 function runOffsetOf(chunk: Chunk): number {
@@ -56,6 +63,7 @@ export function checkReencode(rom: Rom, model: Model): CheckResult {
   const diagnostics: Diagnostic[] = [];
   let failed = 0;
   let checked = 0;
+  const cache = printingCache();
   for (const module of model.modules) {
     const resolver = resolverFor(model, module.name);
     for (const chunk of model.chunks.slice(module.chunks.first, module.chunks.first + module.chunks.count)) {
@@ -63,7 +71,7 @@ export function checkReencode(rom: Rom, model: Model): CheckResult {
       for (let i = Math.max(0, chunk.items.first); i < end; i++) {
         if (model.items.kind[i] !== ItemKind.insn) continue;
         checked++;
-        const why = failure(rom, model, i, runOffsetOf(chunk), resolver);
+        const why = failure(rom, model, i, runOffsetOf(chunk), resolver, cache);
         if (why === undefined) continue;
         failed++;
         const addr: Addr = model.items.start[i] ?? 0;

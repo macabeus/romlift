@@ -26,8 +26,8 @@
 // address (`addr`) of the first difference. Scaffold and reconciled entries, and entries of writers of later
 // phases, are not this check's.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
-import { layoutStatements } from '../../foundation/asm/layout.ts';
-import type { Layout, LayoutInput } from '../../foundation/asm/layout.ts';
+import { layoutMemo, layoutStatements } from '../../foundation/asm/layout.ts';
+import type { Layout, LayoutInput, LayoutMemo } from '../../foundation/asm/layout.ts';
 import { parseStatements } from '../../foundation/asm/statements.ts';
 import type { Statement } from '../../foundation/asm/statements.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -80,6 +80,8 @@ interface PathIndex {
   readonly labelsByName: ReadonlyMap<string, readonly Label[]>;
   /** [symbols] entries by name (the first by address). */
   readonly symbolsByName: ReadonlyMap<string, Addr>;
+  /** What every layout of the model's files remembers of instruction texts (foundation/asm/layout.ts). */
+  readonly memo: LayoutMemo;
 }
 
 const INDEXES = new WeakMap<Model, PathIndex>();
@@ -116,7 +118,7 @@ function buildIndex(model: Model): PathIndex {
   }
   const symbolsByName = new Map<string, Addr>();
   for (const s of model.symbols) if (!symbolsByName.has(s.name)) symbolsByName.set(s.name, s.addr);
-  return { targets, chunkPaths: paths, expected, labelsByName, symbolsByName };
+  return { targets, chunkPaths: paths, expected, labelsByName, symbolsByName, memo: layoutMemo() };
 }
 
 function indexOf(model: Model): PathIndex {
@@ -284,7 +286,7 @@ function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { reado
   const job: Job = {
     path: entry.path,
     statements: parsed.statements,
-    input: { start: chunk.span.start + runOffset, mode: incomingMode(model, module, c), resolve: resolveIn(model, index, m), incbin: romIncbin(rom), include: () => undefined },
+    input: { start: chunk.span.start + runOffset, mode: incomingMode(model, module, c), resolve: resolveIn(model, index, m), incbin: romIncbin(rom), include: () => undefined, memo: index.memo },
     range: chunk.span,
     runOffset,
   };
@@ -313,6 +315,7 @@ function checkSourceFile(rom: Rom, model: Model, index: PathIndex, entry: { read
       mode: 'arm',
       resolve: resolveIn(model, index, m),
       incbin: romIncbin(rom),
+      memo: index.memo,
       include: (path) => {
         const span = files.get(path);
         return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_FILE, offset: span.start - ROM_BASE, length: span.end - span.start }];
