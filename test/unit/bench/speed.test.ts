@@ -1,5 +1,6 @@
 // `bench speed` (D41): the median and calibration math, the ratchet, the baseline file, and the command
-// on the synthetic tier: the frozen --json shape, no write of speed.json unless --write-baseline.
+// on the synthetic tier: the frozen --json shape, no write of speed.json unless --write-baseline; from phase 3
+// the generate and init timings through an injected EmissionRunner (g3.speed-budget).
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -7,10 +8,18 @@ import { test } from 'node:test';
 
 import type { AnalysisRunner } from '../../../bench/src/analysis-run.ts';
 import { main, type BenchIo } from '../../../bench/src/cli.ts';
+import { romFromBytes, type RomliftConfig } from 'romlift';
+import { sha1Of } from 'romlift/node';
+
+import type { EmissionRunner } from '../../../bench/src/emission-run.ts';
+import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 import {
+  benchSpeed,
   calibrationRatio,
   calibrationWorkload,
+  emissionTimes,
   median,
+  medianEmissionTimes,
   medianTimes,
   parseSpeedBaseline,
   raisedBaseline,
@@ -103,5 +112,73 @@ test('bench speed --json prints the frozen shape, never writes speed.json, and t
     // A failing analysis and an unknown ROM are refused.
     assert.equal(await main(['speed'], cx, capture(), { ...deps, runner: failingRunner() }), 1);
     assert.equal(await main(['speed', '--only', 'nope'], cx, capture(), deps), 1);
+  });
+});
+
+// Phase 3: generateCpuMs and initCpuMs (g3.speed-budget), through an injected EmissionRunner.
+
+test('medianEmissionTimes: a warm-up and five runs, each in its own fresh empty directory, removed afterwards', async () => {
+  const { existsSync, readdirSync } = await import('node:fs');
+  const dirs: string[] = [];
+  const t = await medianEmissionTimes(async (dir) => {
+    assert.deepEqual(readdirSync(dir), []);
+    dirs.push(dir);
+    return { ok: true, detail: 'x', files: 1 };
+  });
+  assert.equal(dirs.length, 6);
+  assert.equal(new Set(dirs).size, 6);
+  assert.ok(dirs.every((d) => !existsSync(d)));
+  assert.ok(t.cpuMs >= 0 && t.wallMs >= 0 && t.outcome.ok);
+});
+
+function fakeEmission(ok: { readonly generate: boolean; readonly init: boolean }, calls: string[]): EmissionRunner {
+  return {
+    prepare: () => {
+      calls.push('prepare');
+      return {} as RomliftConfig;
+    },
+    generate: async () => {
+      calls.push('generate');
+      calibrationWorkload(5_000, 1);
+      return { ok: ok.generate, detail: ok.generate ? 'written' : 'the paths check failed', files: 3 };
+    },
+    init: async () => {
+      calls.push('init');
+      return { ok: ok.init, detail: 'written', files: 3 };
+    },
+  };
+}
+
+test('emissionTimes: the config is prepared once, outside the timings; each workflow is timed six times; a failed run is not measured', async () => {
+  const fixture = listSyntheticFixtures()[0];
+  assert.ok(fixture !== undefined);
+  const rom = readFixtureRom(fixture);
+  const calls: string[] = [];
+  const log: string[] = [];
+  const both = await emissionTimes(rom, fakeEmission({ generate: true, init: true }, calls), (l) => log.push(l));
+  assert.deepEqual(calls, ['prepare', ...Array<string>(6).fill('generate'), ...Array<string>(6).fill('init')]);
+  assert.deepEqual(Object.keys(both), ['generateCpuMs', 'initCpuMs']);
+  assert.ok((both.generateCpuMs ?? -1) >= 0 && (both.initCpuMs ?? -1) >= 0);
+  assert.equal(log.length, 2);
+  const failed = await emissionTimes(rom, fakeEmission({ generate: false, init: true }, []), (l) => log.push(l));
+  assert.deepEqual(Object.keys(failed), ['initCpuMs']);
+  assert.match(log.at(-2) ?? '', /generate .* NOT MEASURED, the paths check failed/);
+});
+
+test('emissionTimes measures nothing on an image that is not a cartridge', async () => {
+  const bytes = new Uint8Array(0x40);
+  const rom = romFromBytes(bytes, sha1Of(bytes));
+  const calls: string[] = [];
+  assert.deepEqual(await emissionTimes(rom, fakeEmission({ generate: true, init: true }, calls), () => {}), {});
+  assert.deepEqual(calls, []);
+});
+
+test('bench speed passes its emission runner through; the synthetic tier, which is no cartridge, gets no emission times', async () => {
+  await withTempDir('romlift-speed-emission-', async (root) => {
+    const cx = await syntheticTier(root);
+    const calls: string[] = [];
+    const report = await benchSpeed(cx, { runner: TINY_DEPS.runner, calibrate: () => calibrationWorkload(1000, 1), emission: fakeEmission({ generate: true, init: true }, calls) });
+    assert.deepEqual(calls, []);
+    assert.deepEqual(report.roms.map((r) => Object.keys(r)), [['name', 'analysisCpuMs', 'wallMs', 'baselineCpuMs']]);
   });
 });
