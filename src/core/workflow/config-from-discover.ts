@@ -16,7 +16,7 @@ import { functionName } from '../model/names.ts';
 import { BASEROM_PATH } from '../model/paths.ts';
 
 /** The build name when the header's game code is not four letters or digits. */
-export const FALLBACK_BUILD_NAME = 'rom';
+const FALLBACK_BUILD_NAME = 'rom';
 
 /** The build name: the header's game code lower-cased when it is four letters or digits, else 'rom'. */
 export function buildNameOf(rom: Pick<Rom, 'header'>): string {

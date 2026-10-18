@@ -184,7 +184,7 @@ function needAlign(w: Walker, power: number): void {
 }
 
 /** The power `.align p` aligns to: GNU as on ARM reads `.align 0` as `.align 2`. */
-export function alignPower(power: number): number {
+function alignPower(power: number): number {
   return power === 0 ? 2 : power;
 }
 

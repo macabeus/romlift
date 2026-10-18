@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { printChunk } from '../../../../src/core/emit/print/chunk.ts';
-import { chunkFilePaths, functionWriter } from '../../../../src/core/emit/writers/function.ts';
+import { chunkFilePaths } from '../../../../src/core/emit/unit-text.ts';
+import { functionWriter } from '../../../../src/core/emit/writers/function.ts';
 import { chunkPaths } from '../../../../src/core/model/paths.ts';
 import { codeItems, label, modelOf, romWith } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';

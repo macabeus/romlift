@@ -5,7 +5,7 @@ import type { Rom } from '../../../foundation/rom/rom.ts';
 import { HEADER_PATH } from '../../model/paths.ts';
 import type { Model } from '../../model/types.ts';
 import type { EmitContext, FileEntry, Writer } from '../tree.ts';
-import { moduleWithSource, unitText } from './module.ts';
+import { moduleWithSource, unitText } from '../unit-text.ts';
 
 function* headerFile(rom: Rom, model: Model, cx: EmitContext, module: number | null): Iterable<FileEntry> {
   const m = moduleWithSource(model, module, () => HEADER_PATH);

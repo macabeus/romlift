@@ -10,7 +10,7 @@ import { hex } from '../../../foundation/util/hex.ts';
 import type { DataNote } from '../../model/types.ts';
 
 /** The comment text of each data note. */
-export const DATA_NOTE_TEXT: Readonly<Record<DataNote, string>> = { dead: 'dead', 'mixer-hole': 'mixer hole', unreached: 'unreached' };
+const DATA_NOTE_TEXT: Readonly<Record<DataNote, string>> = { dead: 'dead', 'mixer-hole': 'mixer hole', unreached: 'unreached' };
 
 /** The most words one `.4byte` line holds. */
 const WORDS_PER_LINE = 4;

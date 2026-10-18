@@ -15,9 +15,17 @@ import type { Label, LabelKind, Model, Module } from './types.ts';
 /** The label printed when several share an address: a function name first, then table, pool, local, data. */
 export const LABEL_KIND_ORDER: readonly LabelKind[] = ['func', 'table', 'pool', 'local', 'data'];
 
+/** Each kind's place in LABEL_KIND_ORDER: the label printed first at a shared address has the lowest. */
+const KIND_RANK: ReadonlyMap<LabelKind, number> = new Map(LABEL_KIND_ORDER.map((kind, i) => [kind, i] as const));
+
+/** A label kind's place in LABEL_KIND_ORDER. */
+export function labelKindRank(kind: LabelKind): number {
+  return KIND_RANK.get(kind) ?? LABEL_KIND_ORDER.length;
+}
+
 /** Orders labels by address, then preference (LABEL_KIND_ORDER), then name by code unit. */
-export function compareLabels(a: Label, b: Label): number {
-  return compareNumbers(a.addr, b.addr) || compareNumbers(LABEL_KIND_ORDER.indexOf(a.kind), LABEL_KIND_ORDER.indexOf(b.kind)) || compareCodeUnits(a.name, b.name);
+export function compareLabels(a: Pick<Label, 'addr' | 'kind' | 'name'>, b: Pick<Label, 'addr' | 'kind' | 'name'>): number {
+  return compareNumbers(a.addr, b.addr) || compareNumbers(labelKindRank(a.kind), labelKindRank(b.kind)) || compareCodeUnits(a.name, b.name);
 }
 
 /** The run range of a runs_at module, [runAt, runAt + length), or undefined. */

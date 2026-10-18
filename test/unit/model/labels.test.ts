@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 import { buildModel } from '../../../src/core/model/model.ts';
 import { codeRefs } from '../../../src/core/model/labels.ts';
-import { segmentsOf } from '../../../src/core/model/items.ts';
+import { segmentsOf } from '../../../src/core/model/segments.ts';
 import { ITEM_RAW_REASONS, ItemKind } from '../../../src/core/model/types.ts';
 import { analysisOf, armAt, BASE, configOf, fact, HEADER_END, romWith, rows, thumbAt, words } from '../layout/hand-made.ts';
 

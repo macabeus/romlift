@@ -24,10 +24,10 @@ import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult, FunctionFact } from '../analysis/types.ts';
 
 /** The ARM word: ld aligns every object to it, and agbcc aligns every C function to it. */
-export const WORD = 4;
+const WORD = 4;
 
 /** The rule whose tail exits are shared tails: a branch into another function. */
-export const SHARED_TAIL_RULE = 'walk.branch-into-function';
+const SHARED_TAIL_RULE = 'walk.branch-into-function';
 
 /** `a` rounded up to a word. */
 export function alignUp(a: Addr): Addr {
@@ -35,14 +35,17 @@ export function alignUp(a: Addr): Addr {
 }
 
 /** The first address past the cartridge header. */
-export function headerEndOf(rom: Pick<Rom, 'base' | 'end'>): Addr {
+function headerEndOf(rom: Pick<Rom, 'base' | 'end'>): Addr {
   return Math.min(rom.base + HEADER_END, rom.end);
 }
 
 // ---------------------------------------------------------------------------------------------------
 // Entries and their extents.
 
-/** Where a chunk's end comes from (ModelFunction.source.extent). */
+/**
+ * Where a chunk's end comes from: the analysis' extent, the TOML's size, a code override, or up to the next
+ * listed entry. ModelFunction.source.extent (core/model/types.ts) is this type.
+ */
 export type ExtentSource = 'analysis' | 'toml-size' | 'override' | 'next-listed';
 
 /** A listed entry: a config function, or a function of the analysis. */
@@ -62,7 +65,7 @@ export interface PlacedEntry {
 }
 
 /** The end of a function's extent with the header clipped off: the cartridge entry's extent covers the header (correctness-6). */
-export function clippedExtentEnd(f: Pick<FunctionFact, 'entry' | 'extent'>, headerEnd: Addr): Addr {
+function clippedExtentEnd(f: Pick<FunctionFact, 'entry' | 'extent'>, headerEnd: Addr): Addr {
   return f.entry < headerEnd ? Math.min(f.extent.end, headerEnd) : f.extent.end;
 }
 

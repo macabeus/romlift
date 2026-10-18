@@ -115,7 +115,8 @@ romlift/
       formats/                      elf.ts, gnu-map.ts, canonical-json.ts, luvdis-cfg.ts, ldscript-symbols.ts,
                                     thumb-aliases.ts, trace-json.ts
       diagnostics/                  diagnostic.ts (the mechanism; no codes)
-      util/                         hex.ts, sorted.ts, interval-index.ts, csr.ts, min-heap.ts
+      util/                         hex.ts, sorted.ts, interval-index.ts, csr.ts, min-heap.ts, arrays.ts (pushAll,
+                                    lowerBound, spanIndexAt), fold.ts (foldPath)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -136,14 +137,18 @@ romlift/
       config/                       schema.ts, keys.ts, parse.ts, serialize.ts, patch.ts, compilers.ts,
                                     decomp-yaml.ts, codes.ts
       model/                        types.ts, item-table.ts (ItemTable builder, itemAt), resolver.ts (labels per
-                                    module, wordValueOf), paths.ts (the paths writers and checks share), items.ts,
-                                    chunks.ts, modules.ts, labels.ts, names.ts, symbols.ts, model.ts, codec.ts,
+                                    module, wordValueOf), paths.ts (the paths writers and checks share), segments.ts,
+                                    printing-cache.ts, items.ts, chunks.ts, modules.ts, labels.ts, names.ts,
+                                    symbols.ts, model.ts, codec.ts,
                                     codes.ts (D62 b)
       reconcile/                    c-tokens.ts, include-asm.ts, rename-tokens.ts, text-edit.ts, codes.ts
-      emit/                         tree.ts, emit-tree.ts (the resolver is core/model/resolver.ts, D62 b)
+      emit/                         tree.ts, emit-tree.ts, unit-text.ts (what the chunk-file and unit-file writers
+                                    share; the resolver is core/model/resolver.ts, D62 b)
         print/                      insn.ts, pool.ts, table.ts, data.ts, raw.ts
         writers/                    one file per WriterId (§6.3)
-      verify/                       tiling.ts, reencode.ts, module-size.ts, text-layout.ts, paths.ts, report.ts, codes.ts
+      verify/                       tiling.ts, reencode.ts, module-size.ts, text-layout.ts, link-scripts.ts (ldscript.txt
+                                    and symbols.ld), text-error.ts, paths.ts, toolchain.ts (the assemble and link
+                                    verdicts on the toolchain's bytes), report.ts, codes.ts
       write-plan/                   types.ts, plan-writes.ts, manifest.ts, journal.ts, codes.ts
       scaffold/                     render.ts, vars.ts
       workflow/                     doctor.ts (phase 1: the doctor's checks, corpus threshold and verdict, D55),
@@ -154,7 +159,8 @@ romlift/
       hash.ts                       sha1/sha256 via node:crypto, incremental
       fs.ts                         listDir (sorted by code unit), atomic write (temp and rename)
       rom.ts                        readRom: a ROM file read, hashed and wrapped (D59)
-      project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts
+      project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts, disk-state.ts,
+                                    fresh-tree.ts (writeFreshTree)
       config/                       load.ts, save.ts
       evidence/                     read-elf.ts, read-map.ts, read-legacy.ts, read-trace.ts
       toolchain/                    binutils.ts, doctor.ts, corpus.ts (runCorpus), corpus-inputs.ts (the corpus

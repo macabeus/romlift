@@ -8,6 +8,7 @@ import type { Insn, RawReason, SpecId } from '../../foundation/isa/types.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import type { UnlistedFinding } from '../analysis/types.ts';
 import type { BuildCompilerId } from '../config/compilers.ts';
+import type { ExtentSource } from '../layout/borders.ts';
 
 // ---------------------------------------------------------------------------------------------------
 // Items.
@@ -130,7 +131,7 @@ export interface ModelFunction {
   readonly source: {
     readonly name: NameSource;
     /** analysis: the reading's extent; toml-size: the TOML's size; override: a code override; next-listed: up to the next listed entry. */
-    readonly extent: 'analysis' | 'toml-size' | 'override' | 'next-listed';
+    readonly extent: ExtentSource;
   };
 }
 

@@ -63,7 +63,7 @@ function ruleMetas(): readonly RuleMeta[] {
 }
 
 /** How far on each side of the address's bucket the single traced run keeps events. */
-export const EXPLAIN_WINDOW = 0x1_0000;
+const EXPLAIN_WINDOW = 0x1_0000;
 
 function within(inner: Span, outer: Span): boolean {
   return inner.start >= outer.start && inner.end <= outer.end;

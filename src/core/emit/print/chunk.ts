@@ -38,7 +38,7 @@ import type { RawLabel } from './raw.ts';
 import { tableEntryLine } from './table.ts';
 
 /** The rawReasons key of an instruction the raw printer emitted as data although it has a mnemonic. */
-export const RAW_PRINTER_REASON = 'raw-printer';
+const RAW_PRINTER_REASON = 'raw-printer';
 
 /** The bytes of the cartridge header the header chunk prints per `.byte` line, as the PoC. */
 const HEADER_BYTES_PER_LINE = 16;

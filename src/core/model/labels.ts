@@ -19,10 +19,10 @@ import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundatio
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import type { ChunkPlan } from './chunks.ts';
-import type { Segments } from './items.ts';
+import type { Segments } from './segments.ts';
 import { loadAddressOf, loadModuleAt, runModuleAt, runOffsetAt } from './modules.ts';
 import { dataName, localName } from './names.ts';
-import { LABEL_KIND_ORDER, wordValueOf } from './resolver.ts';
+import { compareLabels, labelKindRank, wordValueOf } from './resolver.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -141,20 +141,8 @@ interface Candidate {
   readonly thumb: boolean;
 }
 
-/** Each kind's place in LABEL_KIND_ORDER: the label printed first at a shared address has the lowest. */
-const KIND_RANK = Object.fromEntries(LABEL_KIND_ORDER.map((kind, i) => [kind, i])) as Readonly<Record<LabelKind, number>>;
-
-function kindRank(kind: LabelKind): number {
-  return KIND_RANK[kind];
-}
-
-/** resolver.ts compareLabels, with the kind's rank looked up rather than searched. */
-function compareLabelsFast(a: Label, b: Label): number {
-  return compareNumbers(a.addr, b.addr) || compareNumbers(kindRank(a.kind), kindRank(b.kind)) || compareCodeUnits(a.name, b.name);
-}
-
 function compareCandidates(a: Candidate, b: Candidate): number {
-  return compareNumbers(a.load, b.load) || compareNumbers(kindRank(a.kind), kindRank(b.kind)) || compareCodeUnits(a.name, b.name);
+  return compareNumbers(a.load, b.load) || compareNumbers(labelKindRank(a.kind), labelKindRank(b.kind)) || compareCodeUnits(a.name, b.name);
 }
 
 /** The candidates of one address, without a local or default data label another label there replaces, one per name. */
@@ -294,7 +282,7 @@ export function buildLabels(inputs: LabelInputs): LabelsResult {
   }
   const pairs = kept.map((c) => ({ load: c.load, label: { addr: c.load + runOffsetAt(inputs.relocated, c.load), name: c.name, kind: c.kind, thumb: c.thumb, scope: 'module' } satisfies Label }));
   // The candidates are in (load address, kind, name) order, which is compareLabels' order unless a run address moved.
-  if (inputs.relocated.length > 0) pairs.sort((a, b) => compareLabelsFast(a.label, b.label));
+  if (inputs.relocated.length > 0) pairs.sort((a, b) => compareLabels(a.label, b.label));
   const index: LabelIndex = { byAddr: pairs.map((p) => p.label) };
   const global = scopes(inputs, index);
   const functions = new Map<Addr, Label>();
