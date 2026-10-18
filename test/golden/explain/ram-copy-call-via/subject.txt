@@ -3,6 +3,8 @@
   owner: 0x08000158 (origin ram-copy)
   provenance:
     seed.ram-copy round 0 cites 0x080000F4
+  chunk: sub_08000158 (function) in module asm_08000140
+  item: insn 0x08000158..0x0800015C: .inst 0xE0801000 @ add r1, r0, r0
   proposals (6):
     0x0800012C seed.call round 0 cites 0x08000100: thumb
     0x0800013C seed.call round 0 cites 0x08000108: thumb

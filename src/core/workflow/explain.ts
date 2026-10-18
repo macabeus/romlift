@@ -4,26 +4,46 @@
 // 256-byte bucket widened to the extents that cover the address), and the kept events are filtered to
 // it, which keeps exactly what a run filtered to it would. Only when a covering extent reaches outside
 // the window is the analysis run a second time, filtered to explainFilter. explainAnalysis composes the
-// claim, the owner, the events and the metadata of every rule they name. The report is composed by layer: phase 2 ships the
-// analysis part only; the item and chunk (phase 3), the name (phase 4) and the signature (phase 6) are
-// added by the phases whose modules produce them. Pure.
+// claim, the owner, the events and the metadata of every rule they name. The report is composed by layer
+// (D35): the analysis part (phase 2); the item and chunk (phase 3), from the model configFromDiscover and
+// buildModel make of that same discover result (a trail changes no result, so no further analysis runs);
+// the name (phase 4) and the signature (phase 6) are added by the phases whose modules produce them. An
+// image that is not a cartridge is not modelled, so its report has no item and no chunk. Pure.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { checkRom } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { explainAnalysis, explainBucket, explainFilter } from '../analysis/explain.ts';
 import type { AnalysisExplanation } from '../analysis/explain.ts';
 import { RULES } from '../analysis/driver/rules.ts';
+import type { AnalysisResult } from '../analysis/types.ts';
+import { findItem, itemAt } from '../model/item-table.ts';
+import { buildModel } from '../model/model.ts';
+import type { Chunk, ChunkKind, Item, Model } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { RuleMeta } from '../provenance/rule-id.ts';
 import { trailKeeps } from '../provenance/trail.ts';
 import type { TrailEvent } from '../provenance/trail.ts';
+import { configFromDiscover } from './config-from-discover.ts';
 import { discover } from './discover.ts';
 import type { DiscoverOptions } from './discover.ts';
 
 export type { AnalysisExplanation } from '../analysis/explain.ts';
 
-/** The explanation of one address: in phase 2, its analysis part (D35). */
-export type ExplainReport = AnalysisExplanation;
+/** The chunk an address lies in, as explain reports it (phase 3). */
+export interface ExplainChunk {
+  readonly name: string;
+  readonly kind: ChunkKind;
+  readonly module: string;
+}
+
+/** The explanation of one address (D35): its analysis part, and from phase 3 its item and chunk in the model. */
+export type ExplainReport = AnalysisExplanation & {
+  /** The model's item holding the address, decoded at its run address; absent outside the model. */
+  readonly item?: Item;
+  /** The chunk holding the address; absent outside the model. */
+  readonly chunk?: ExplainChunk;
+};
 
 export interface ExplainOptions {
   /** The compiler profile; default the discover profile. */
@@ -48,6 +68,38 @@ function within(inner: Span, outer: Span): boolean {
   return inner.start >= outer.start && inner.end <= outer.end;
 }
 
+/** The index of the chunk whose span contains `addr` (chunks tile in address order), or -1. */
+function chunkIndexAt(chunks: readonly Chunk[], addr: Addr): number {
+  let lo = 0;
+  let hi = chunks.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const span = chunks[mid]?.span;
+    if (span === undefined || addr < span.start) hi = mid - 1;
+    else if (addr >= span.end) lo = mid + 1;
+    else return mid;
+  }
+  return -1;
+}
+
+/** The item and chunk of `addr` in `model` (phase 3); nothing when no chunk holds it. */
+export function modelPart(rom: Rom, model: Model, addr: Addr): { readonly item?: Item; readonly chunk?: ExplainChunk } {
+  const c = chunkIndexAt(model.chunks, addr);
+  const chunk = model.chunks[c];
+  if (chunk === undefined) return {};
+  const part = { chunk: { name: chunk.name, kind: chunk.kind, module: chunk.module } };
+  const i = findItem(model.items, addr);
+  if (i < 0) return part;
+  return { item: itemAt(model.items, i, rom, chunk.runAt === undefined ? 0 : chunk.runAt - chunk.span.start), ...part };
+}
+
+/** The report of `addr`: the analysis part over `events`, then the item and chunk of the discover run's model. */
+function compose(rom: Rom, result: AnalysisResult, events: readonly TrailEvent[], addr: Addr): ExplainReport {
+  const analysis = explainAnalysis(result, events, addr, ruleMetas());
+  if (checkRom(rom.bytes).length > 0) return analysis;
+  return { ...analysis, ...modelPart(rom, buildModel(rom, result, configFromDiscover(rom, result)), addr) };
+}
+
 /** The explanation of `addr` with the diagnostics of its analysis, for the CLI. */
 export function explainOutcome(rom: Rom, addr: Addr, options: ExplainOptions = {}): ExplainOutcome {
   const base: DiscoverOptions = options.profile === undefined ? {} : { profile: options.profile };
@@ -58,11 +110,11 @@ export function explainOutcome(rom: Rom, addr: Addr, options: ExplainOptions = {
   const filter = explainFilter(addr, result);
   if (within(filter, window)) {
     const events = kept.filter((e) => trailKeeps('full', filter, e));
-    return { report: explainAnalysis(result, events, addr, ruleMetas()), diagnostics: result.diagnostics };
+    return { report: compose(rom, result, events, addr), diagnostics: result.diagnostics };
   }
   const events: TrailEvent[] = [];
   const wide = discover(rom, { ...base, trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
-  return { report: explainAnalysis(wide, events, addr, ruleMetas()), diagnostics: wide.diagnostics };
+  return { report: compose(rom, wide, events, addr), diagnostics: wide.diagnostics };
 }
 
 /** What the analysis decided about `addr` (architecture §9.2). */

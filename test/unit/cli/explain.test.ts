@@ -1,6 +1,6 @@
 // `romlift explain <addr> --rom <rom> [--json]` (architecture §2.1, §9.2): in process through `main`: the
-// report line and the summary, the text sections, the usage errors (missing --rom, a bad address) and the
-// content errors (an unreadable file, an image that is not a cartridge).
+// report line and the summary, the text sections, the phase-3 chunk and item, the usage errors (missing
+// --rom, a bad address) and the content errors (an unreadable file, an image that is not a cartridge).
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 
 import { claimName } from '../../../src/api/analysis.ts';
-import { explainRecord, parseAddrArg } from '../../../src/cli/commands/explain.ts';
+import { explainRecord, itemJson, parseAddrArg } from '../../../src/cli/commands/explain.ts';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
 import { Claim } from '../../../src/core/analysis/types.ts';
@@ -69,6 +69,42 @@ test('explain text: claim, owner and provenance, the always-shown groups, the ru
   assert.match(out.stdout, /\n {6}rests on: /);
   assert.match(out.stdout, /\n {6}recovers: /);
   assert.match(out.stdout, /\nexplain: ok \(exit 0\)\n$/);
+});
+
+test('phase 3: the record and the text name the chunk and the item of the address', async () => {
+  const json = lines((await run(['explain', '0x08000104', '--rom', ROM, '--json'])).stdout)[0];
+  assert.deepEqual(json?.['chunk'], { name: 'sub_08000104', kind: 'function', module: 'main' });
+  const item = json?.['item'] as Record<string, unknown> | undefined;
+  assert.equal(item?.['kind'], 'insn');
+  assert.deepEqual(item?.['span'], { start: '0x08000104', end: '0x08000106' });
+  const insn = item?.['insn'] as Record<string, unknown> | undefined;
+  assert.equal(insn?.['mode'], 'thumb');
+  assert.equal(insn?.['size'], 2);
+  assert.match(String(insn?.['text']), /^\.inst\.n 0x[0-9A-F]{4} @ /);
+  const text = (await run(['explain', '0x08000104', '--rom', ROM])).stdout;
+  assert.match(text, /\n {2}chunk: sub_08000104 \(function\) in module main\n {2}item: insn 0x08000104\.\.0x08000106: \.inst\.n 0x[0-9A-F]{4} @ /);
+  const outside = (await run(['explain', '0x03000000', '--rom', ROM])).stdout;
+  assert.match(outside, /\n {2}chunk: none \(outside the model\)\n {2}item: none\n/);
+  assert.equal(lines((await run(['explain', '0x03000000', '--rom', ROM, '--json'])).stdout)[0]?.['item'], undefined);
+});
+
+test('itemJson spells every item kind with hexAddr addresses', () => {
+  const span = { start: 0x0800_0100, end: 0x0800_0104 };
+  assert.deepEqual(itemJson({ kind: 'pool', span, value: 0x0300_0001 }), { kind: 'pool', span: { start: '0x08000100', end: '0x08000104' }, value: '0x03000001' });
+  assert.deepEqual(itemJson({ kind: 'table-entry', span, target: 0x0800_0200, thumbBit: true }), {
+    kind: 'table-entry',
+    span: { start: '0x08000100', end: '0x08000104' },
+    target: '0x08000200',
+    thumbBit: true,
+  });
+  assert.deepEqual(itemJson({ kind: 'padding', span }), { kind: 'padding', span: { start: '0x08000100', end: '0x08000104' } });
+  assert.deepEqual(itemJson({ kind: 'data', span, note: 'dead' }), { kind: 'data', span: { start: '0x08000100', end: '0x08000104' }, note: 'dead' });
+  assert.deepEqual(itemJson({ kind: 'raw-insn', span, reason: 'cross-module-short-branch' }), {
+    kind: 'raw-insn',
+    span: { start: '0x08000100', end: '0x08000104' },
+    reason: 'cross-module-short-branch',
+    insn: undefined,
+  });
 });
 
 test('a missing --rom is a usage error (exit 2)', async () => {

@@ -1,25 +1,29 @@
 // `romlift explain <addr> --rom <rom> [--json]` (architecture §2.1, §9.2, D35): what the discover
-// analysis decided about one address of a bare ROM. In phase 2 `--rom` is required (finding the project's
-// ROM through decomp.yaml arrives with the projects). Text: the claim, the owner with its provenance, the
-// trail events grouped by kind (rejections with their miss reason, verdicts of bl sites, walk steps and
-// the gap's prefer and skip slots, and waits always shown), then the summary, restsOn and recovers of
-// every rule that appears, and the summary line; diagnostics on stderr. --json: one {"type":"explain"}
-// line holding the report (addresses as hexAddr strings, the claim by name), the diagnostics, then the
-// summary line. Exit codes: 0 ok, 1 an error diagnostic, 2 usage.
+// analysis decided about one address of a bare ROM, and (phase 3) the item and chunk of the model built from
+// it. `--rom` is required until the projects arrive (finding the project's ROM through decomp.yaml). Text: the
+// claim, the owner with its provenance, the chunk and item, the trail events grouped by kind (rejections with
+// their miss reason, verdicts of bl sites, walk steps and the gap's prefer and skip slots, and waits always
+// shown), then the summary, restsOn and recovers of every rule that appears, and the summary line;
+// diagnostics on stderr. --json: one {"type":"explain"} line holding the report (addresses as hexAddr
+// strings, the claim by name, an instruction item with its spec id and its `.inst` text), the diagnostics,
+// then the summary line. Exit codes: 0 ok, 1 an error diagnostic, 2 usage.
 import { claimName } from '../../api/analysis.ts';
 import { readRom } from '../../api/files.ts';
+import { formatRaw } from '../../api/isa.ts';
+import type { Insn } from '../../api/isa.ts';
+import type { Item } from '../../api/model.ts';
 import type { RuleMeta, TrailEvent, TrailKind } from '../../api/profile.ts';
 import { hexAddr, parseHexAddr } from '../../api/rom.ts';
 import type { Addr, Diagnostic } from '../../api/rom.ts';
 import { explainOutcome } from '../../core/workflow/explain.ts';
-import type { ExplainReport } from '../../core/workflow/explain.ts';
+import type { ExplainChunk, ExplainReport } from '../../core/workflow/explain.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
 import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, provenanceJson, usageError } from './analysis-records.ts';
+import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError } from './analysis-records.ts';
 
 /** The address argument: '0x' and one to eight hex digits, or a decimal number; undefined otherwise. */
 export function parseAddrArg(text: string): Addr | undefined {
@@ -37,6 +41,33 @@ function ruleJson(m: RuleMeta): RecordFields {
   return { id: m.id, summary: m.summary, restsOn: m.restsOn, recovers: m.recovers, reads: [...m.reads], adds: [...m.adds], origin: m.origin };
 }
 
+function insnJson(insn: Insn): RecordFields {
+  return { mode: insn.mode, size: insn.size, specId: insn.specId, text: formatRaw(insn) };
+}
+
+/** An item as JSON: its kind and span, and what its kind carries (addresses and words as hexAddr strings). */
+export function itemJson(item: Item): RecordFields {
+  const base = { kind: item.kind, span: spanJson(item.span) };
+  switch (item.kind) {
+    case 'insn':
+      return { ...base, insn: insnJson(item.insn) };
+    case 'raw-insn':
+      return { ...base, reason: item.reason, insn: item.insn === undefined ? undefined : insnJson(item.insn) };
+    case 'pool':
+      return { ...base, value: hexAddr(item.value) };
+    case 'table-entry':
+      return { ...base, target: hexAddr(item.target), thumbBit: item.thumbBit };
+    case 'padding':
+      return base;
+    case 'data':
+      return { ...base, note: item.note };
+  }
+}
+
+function chunkJson(chunk: ExplainChunk): RecordFields {
+  return { name: chunk.name, kind: chunk.kind, module: chunk.module };
+}
+
 /** The {"type":"explain"} record of a report. */
 export function explainRecord(report: ExplainReport): RecordFields {
   return {
@@ -46,6 +77,8 @@ export function explainRecord(report: ExplainReport): RecordFields {
       report.owner === undefined
         ? undefined
         : { entry: hexAddr(report.owner.entry), origin: report.owner.origin, provenance: report.owner.provenance.map(provenanceJson) },
+    chunk: report.chunk === undefined ? undefined : chunkJson(report.chunk),
+    item: report.item === undefined ? undefined : itemJson(report.item),
     events: report.events.map(eventJson),
     rules: report.rules.map(ruleJson),
   };
@@ -72,6 +105,31 @@ function cites(list: readonly Addr[]): string {
   return list.length === 0 ? '' : ` cites ${list.map(hexAddr).join(', ')}`;
 }
 
+/** What an item holds, after its kind and span. */
+function itemDetail(item: Item): string {
+  switch (item.kind) {
+    case 'insn':
+      return `: ${formatRaw(item.insn)}`;
+    case 'raw-insn':
+      return ` (${item.reason})${item.insn === undefined ? '' : `: ${formatRaw(item.insn)}`}`;
+    case 'pool':
+      return `: value ${hexAddr(item.value)}`;
+    case 'table-entry':
+      return `: target ${hexAddr(item.target)}${item.thumbBit ? ' (thumb bit set)' : ''}`;
+    case 'padding':
+      return '';
+    case 'data':
+      return item.note === undefined ? '' : ` (${item.note})`;
+  }
+}
+
+/** The chunk and item lines of the text output (phase 3). */
+function modelText(report: ExplainReport): string {
+  const chunk = report.chunk === undefined ? 'none (outside the model)' : `${report.chunk.name} (${report.chunk.kind}) in module ${report.chunk.module}`;
+  const item = report.item === undefined ? 'none' : `${report.item.kind} ${hexAddr(report.item.span.start)}..${hexAddr(report.item.span.end)}${itemDetail(report.item)}`;
+  return `  chunk: ${chunk}\n  item: ${item}\n`;
+}
+
 function eventText(e: TrailEvent): string {
   return `    ${hexAddr(e.at)} ${e.rule} round ${e.round}${cites(e.cites)}${e.detail === undefined ? '' : `: ${e.detail}`}\n`;
 }
@@ -85,6 +143,7 @@ export function explainText(report: ExplainReport, summary: RunSummary): string 
     out += `  owner: ${hexAddr(report.owner.entry)} (origin ${report.owner.origin})\n  provenance:\n`;
     for (const p of report.owner.provenance) out += `    ${p.rule} round ${p.round}${cites(p.cites)}${p.note === undefined ? '' : `: ${p.note}`}\n`;
   }
+  out += modelText(report);
   for (const group of GROUPS) {
     const events = report.events.filter((e) => e.kind === group.kind);
     if (events.length === 0) {
@@ -103,7 +162,7 @@ export function explainText(report: ExplainReport, summary: RunSummary): string 
 
 export const explainCommand: CommandSpec = {
   name: 'explain',
-  summary: 'Explains what the analysis decided about one address: claim, owner, provenance, rejections, verdicts, rules',
+  summary: 'Explains what romlift decided about one address: claim, owner, provenance, chunk, item, rejections, verdicts, rules',
   usage: 'explain <addr> --rom <rom> [--json]',
   positionals: [{ name: '<addr>' }],
   options: [
