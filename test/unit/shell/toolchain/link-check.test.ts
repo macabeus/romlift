@@ -12,9 +12,11 @@ import { DIALECT } from '../../../../src/foundation/asm/dialect.ts';
 import { romFromBytes } from '../../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import type { AssembleUnit } from '../../../../src/shell/toolchain/link-check.ts';
-import { assembleCheck, BASEROM_PATH, linkCheck, MACROS_INC_PATH } from '../../../../src/shell/toolchain/link-check.ts';
+import { BASEROM_PATH, MACROS_PATH } from '../../../../src/core/model/paths.ts';
+import { assembleCheck, linkCheck } from '../../../../src/shell/toolchain/link-check.ts';
 import { findBinutils } from '../../../../src/shell/toolchain/binutils.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
+import { stubBinutils } from './stub.ts';
 
 const tools = findBinutils(process.env);
 const skip = 'code' in tools ? 'unavailable: toolchain' : false;
@@ -89,15 +91,15 @@ test('the tree links to the hand-built image, writing macros.inc and baserom.gba
   assert.equal(result.id, 'link');
   assert.equal(result.ok, true, result.detail);
   assert.equal(result.sha1, sha1Of(IMAGE));
-  assert.equal(await readFile(join(dir, MACROS_INC_PATH), 'utf8'), DIALECT.macrosInc);
+  assert.equal(await readFile(join(dir, MACROS_PATH), 'utf8'), DIALECT.macrosInc);
   assert.deepEqual(new Uint8Array(await readFile(join(dir, BASEROM_PATH))), IMAGE);
 });
 
 test('files already present are not overwritten', { skip }, async () => {
-  const dir = await treeDir({ [MACROS_INC_PATH]: `${DIALECT.macrosInc}@ user line\n`, [BASEROM_PATH]: 'not the rom' });
+  const dir = await treeDir({ [MACROS_PATH]: `${DIALECT.macrosInc}@ user line\n`, [BASEROM_PATH]: 'not the rom' });
   const result = await linkCheck({ dir, rom: romOf(IMAGE), units: UNITS });
   assert.equal(result.ok, true, result.detail);
-  assert.equal(await readFile(join(dir, MACROS_INC_PATH), 'utf8'), `${DIALECT.macrosInc}@ user line\n`);
+  assert.equal(await readFile(join(dir, MACROS_PATH), 'utf8'), `${DIALECT.macrosInc}@ user line\n`);
   assert.equal(await readFile(join(dir, BASEROM_PATH), 'utf8'), 'not the rom');
 });
 
@@ -167,4 +169,20 @@ test('assembleCheck reports a module whose object is not its span length', { ski
   const result = await assembleCheck({ dir, rom: romOf(IMAGE), units });
   assert.equal(result.ok, false);
   assert.match(result.modules[1]?.detail ?? '', /0x4 bytes of \.text, the module spans 0x6/);
+});
+
+test('assembleCheck with a unit that does not assemble and one whose object cannot be read checks every unit (stub toolchain)', async () => {
+  // as fails on asm/helper.s, and "assembles" asm/main.s without writing its object.
+  const body = 'for a in "$@"; do last="$a"; done\ncase "$last" in *helper.s) echo "helper.s:1: Error: bad" >&2; exit 1;; esac\nexit 0';
+  await stubBinutils({ as: body }, async (bin) => {
+    const dir = await treeDir();
+    const tools = { as: join(bin, 'arm-none-eabi-as'), ld: join(bin, 'arm-none-eabi-ld'), objcopy: join(bin, 'arm-none-eabi-objcopy') };
+    const result = await assembleCheck({ dir, rom: romOf(IMAGE), units: UNITS, tools });
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.modules.map((m) => [m.module, m.ok]), [['main', false], ['helper', false]]);
+    assert.match(result.modules[0]?.detail ?? '', /cannot read build\/main\.o/);
+    assert.equal(result.modules[1]?.detail, 'asm/helper.s does not assemble');
+    assert.deepEqual(result.diagnostics.map((d) => d.code), ['E_IO_READ', 'E_TOOLCHAIN_FAILED']);
+    assert.match(result.detail, /^2 of 2 modules differ/);
+  });
 });

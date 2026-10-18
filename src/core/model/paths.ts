@@ -7,6 +7,7 @@
 // every member of a group of function or orphan chunks whose names fold to the same text inside one
 // directory is written `<Name>_<ADDR>.s` (ADDR: eight upper-case hex digits of its load address), never
 // only the second one. core/verify/paths.ts (E_PATH_CASE_COLLISION) guards the result.
+import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
 import type { Chunk, Model, Module } from './types.ts';
 
@@ -14,6 +15,10 @@ export const HEADER_PATH = 'asm/rom_header.s';
 export const CRT0_PATH = 'asm/crt0.s';
 export const LDSCRIPT_PATH = 'ldscript.txt';
 export const SYMBOLS_PATH = 'symbols.ld';
+/** The user's ROM at the project root: the config's rom.path, and the only file an `.incbin` reads. */
+export const BASEROM_PATH = 'baserom.gba';
+/** The macro file every generated `.s` includes (foundation/asm/dialect.ts DIALECT.macrosInc). */
+export const MACROS_PATH = 'include/macros.inc';
 
 /** The directory of a module's function and orphan files, without a trailing '/'. */
 export function nonmatchingDir(module: string): string {
@@ -31,7 +36,7 @@ function isFileChunk(chunk: Chunk): boolean {
 
 /** The text two names share on a case-insensitive file system. */
 function folded(name: string): string {
-  return name.toLowerCase();
+  return foldPath(name);
 }
 
 /**

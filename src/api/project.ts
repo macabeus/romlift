@@ -5,7 +5,7 @@ export { writeFreshTree } from '../shell/project/fresh-tree.ts';
 export type { FreshTree } from '../shell/project/fresh-tree.ts';
 export { withProjectLock } from '../shell/project/lock.ts';
 export type { LockHolder, LockOutcome } from '../shell/project/lock.ts';
-export { assembleCheck, BASEROM_PATH, LINK_ELF_PATH, LINK_IMAGE_PATH, linkCheck, MACROS_INC_PATH } from '../shell/toolchain/link-check.ts';
+export { assembleCheck, LINK_ELF_PATH, LINK_IMAGE_PATH, linkCheck } from '../shell/toolchain/link-check.ts';
 export type {
   AssembleCheckOptions,
   AssembleCheckResult,

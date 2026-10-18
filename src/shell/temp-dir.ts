@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { diagnostic } from '../foundation/diagnostics/diagnostic.ts';
 import { ShellCodes } from './codes.ts';
 import type { IoResult } from './fs.ts';
+import { errorReason } from './fs.ts';
 
 /** Runs `fn` in a fresh directory `<os.tmpdir()>/<prefix>XXXXXX` and removes the directory after it settles. */
 export async function withTempDir<T>(prefix: string, fn: (dir: string) => Promise<T>): Promise<IoResult<T>> {
@@ -16,7 +17,7 @@ export async function withTempDir<T>(prefix: string, fn: (dir: string) => Promis
   try {
     dir = await mkdtemp(join(tmpdir(), prefix));
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = errorReason(error);
     return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create a temporary directory under ${tmpdir()}: ${reason}`, { path: tmpdir() }) };
   }
   try {

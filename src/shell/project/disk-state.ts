@@ -14,7 +14,7 @@ import { decodeManifest, isProjectPath } from '../../core/write-plan/manifest.ts
 import { GENERATED_ROOTS, JOURNAL_PATH, MANIFEST_PATH } from '../../core/write-plan/types.ts';
 import type { Manifest } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
-import { listDir } from '../fs.ts';
+import { errnoOf, errorReason, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { sha1Of } from '../hash.ts';
 
@@ -27,10 +27,6 @@ function ioError(code: 'E_IO_READ' | 'E_IO_WRITE', path: string, message: string
   return { ok: false, diagnostic: diagnostic(ShellCodes, code, message, { path }) };
 }
 
-function errnoOf(error: unknown): string | undefined {
-  return error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
-}
-
 /** The text of a project file, or null when it does not exist. */
 export async function readOptionalText(dir: string, path: string): Promise<IoResult<string | null>> {
   const file = onDisk(dir, path);
@@ -38,7 +34,7 @@ export async function readOptionalText(dir: string, path: string): Promise<IoRes
     return { ok: true, value: await readFile(file, 'utf8') };
   } catch (error) {
     if (errnoOf(error) === 'ENOENT') return { ok: true, value: null };
-    return ioError('E_IO_READ', file, `cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    return ioError('E_IO_READ', file, `cannot read ${file}: ${errorReason(error)}`);
   }
 }
 
@@ -49,7 +45,7 @@ async function digestOf(dir: string, path: string): Promise<IoResult<string>> {
     return { ok: true, value: sha1Of(await readFile(file)) };
   } catch (error) {
     if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: 'absent' };
-    return ioError('E_IO_READ', file, `cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    return ioError('E_IO_READ', file, `cannot read ${file}: ${errorReason(error)}`);
   }
 }
 
@@ -60,7 +56,7 @@ async function filesUnder(dir: string, path: string, out: string[]): Promise<IoR
     stat = await lstat(onDisk(dir, path));
   } catch (error) {
     if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: undefined };
-    return ioError('E_IO_READ', onDisk(dir, path), `cannot stat ${onDisk(dir, path)}: ${error instanceof Error ? error.message : String(error)}`);
+    return ioError('E_IO_READ', onDisk(dir, path), `cannot stat ${onDisk(dir, path)}: ${errorReason(error)}`);
   }
   if (!stat.isDirectory()) {
     out.push(path);

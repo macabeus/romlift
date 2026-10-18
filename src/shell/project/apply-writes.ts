@@ -20,7 +20,7 @@ import { planHasErrors } from '../../core/write-plan/plan-writes.ts';
 import { JOURNAL_PATH, MANIFEST_PATH, ROMLIFT_DIR } from '../../core/write-plan/types.ts';
 import type { WriteOp, WritePlan } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
-import { atomicWrite } from '../fs.ts';
+import { atomicWrite, errnoOf, errorReason } from '../fs.ts';
 import { onDisk } from './disk-state.ts';
 
 export interface ApplyResult {
@@ -33,12 +33,8 @@ export interface ApplyResult {
 }
 
 function writeError(path: string, error: unknown): Diagnostic {
-  const reason = error instanceof Error ? error.message : String(error);
+  const reason = errorReason(error);
   return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot write ${path}: ${reason}`, { path });
-}
-
-function errnoOf(error: unknown): string | undefined {
-  return error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
 }
 
 /** Removes `file`; a file already gone is fine. */

@@ -101,13 +101,15 @@ export function findBinutils(env: Readonly<Record<string, string | undefined>>):
   return { as: found.as, ld: found.ld, objcopy: found.objcopy };
 }
 
-interface Run {
+/** What running a program gave: its exit code and output (stderr holds the spawn error when nothing ran). */
+export interface ToolRun {
   readonly code: number;
   readonly stdout: string;
   readonly stderr: string;
 }
 
-function run(file: string, args: readonly string[], cwd?: string): Promise<Run> {
+/** Runs `file` with `args` in `cwd`, never throwing: a failure to start is a nonzero code with the error in stderr. */
+export function runTool(file: string, args: readonly string[], cwd?: string): Promise<ToolRun> {
   return new Promise((resolve) => {
     execFile(file, [...args], { cwd, maxBuffer: 256 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
       const code = error === null ? 0 : typeof error.code === 'number' ? error.code : 1;
@@ -122,7 +124,7 @@ function firstLine(text: string): string {
 
 /** The first line of each program's `--version` (empty when the program cannot run). */
 export async function binutilsVersions(tools: Binutils): Promise<BinutilsVersions> {
-  const [as, ld, objcopy] = await Promise.all([tools.as, tools.ld, tools.objcopy].map((t) => run(t, ['--version'])));
+  const [as, ld, objcopy] = await Promise.all([tools.as, tools.ld, tools.objcopy].map((t) => runTool(t, ['--version'])));
   return { as: firstLine(as?.stdout ?? ''), ld: firstLine(ld?.stdout ?? ''), objcopy: firstLine(objcopy?.stdout ?? '') };
 }
 
@@ -160,7 +162,7 @@ async function output(path: string): Promise<Uint8Array | undefined> {
 async function textBytes(tools: Binutils, dir: string, object: string): Promise<AssembleResult> {
   const elf = await output(join(dir, object));
   if (elf === undefined) return failed('', `the assembler or linker exited 0 but wrote no ${object}`);
-  const objcopy = await run(tools.objcopy, ['-O', 'binary', '-j', '.text', object, 'text.bin'], dir);
+  const objcopy = await runTool(tools.objcopy, ['-O', 'binary', '-j', '.text', object, 'text.bin'], dir);
   if (objcopy.code !== 0) return failed(objcopy.stderr, `arm-none-eabi-objcopy exited with ${objcopy.code}`);
   const bytes = await output(join(dir, 'text.bin'));
   if (bytes === undefined) return failed('', 'arm-none-eabi-objcopy exited 0 but wrote no text.bin');
@@ -191,7 +193,7 @@ export async function assembleWithBinutils(source: string, options: AssembleOpti
     const refused = await writeFiles(dir, options.files ?? {});
     if (refused !== undefined) return failed('', refused);
     await writeFile(join(dir, 'source.s'), source);
-    const as = await run(tools.as, asArgs(options.mode, options.args ?? [], 'source.s', 'source.o'), dir);
+    const as = await runTool(tools.as, asArgs(options.mode, options.args ?? [], 'source.s', 'source.o'), dir);
     if (as.code !== 0) return failed(as.stderr, `arm-none-eabi-as exited with ${as.code}`);
     return await textBytes(tools, dir, 'source.o');
   } finally {
@@ -215,11 +217,11 @@ export async function linkWithBinutils(sources: readonly LinkSource[], options: 
     if (refused !== undefined) return failed('', refused);
     for (const source of sources) {
       await writeFile(join(dir, `${source.name}.s`), source.text);
-      const as = await run(tools.as, asArgs(source.mode, [], `${source.name}.s`, `${source.name}.o`), dir);
+      const as = await runTool(tools.as, asArgs(source.mode, [], `${source.name}.s`, `${source.name}.o`), dir);
       if (as.code !== 0) return failed(as.stderr, `arm-none-eabi-as exited with ${as.code} on ${source.name}.s`);
     }
     await writeFile(join(dir, 'link.ld'), options.script);
-    const ld = await run(tools.ld, ['-T', 'link.ld', '-o', 'linked.elf', ...sources.map((s) => `${s.name}.o`)], dir);
+    const ld = await runTool(tools.ld, ['-T', 'link.ld', '-o', 'linked.elf', ...sources.map((s) => `${s.name}.o`)], dir);
     if (ld.code !== 0) return failed(ld.stderr, `arm-none-eabi-ld exited with ${ld.code}`);
     return await textBytes(tools, dir, 'linked.elf');
   } finally {

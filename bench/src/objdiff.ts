@@ -27,6 +27,7 @@ import {
   compareCodeUnits,
   configFromDiscover,
   contains,
+  MACROS_PATH,
   parseElf,
   printChunk,
   type AnalysisResult,
@@ -288,7 +289,7 @@ interface Context {
 
 /** Assembles one function's base text alone; its object path, or the assembler's failure. */
 async function assembleJob(job: Job, cx: Context): Promise<{ readonly path: string } | Failure> {
-  const assembled = await assembleWithBinutils(functionSource(cx.inputs.rom, cx.model, job.chunk ?? 0), { files: { 'include/macros.inc': DIALECT.macrosInc }, tools: cx.tools });
+  const assembled = await assembleWithBinutils(functionSource(cx.inputs.rom, cx.model, job.chunk ?? 0), { files: { [MACROS_PATH]: DIALECT.macrosInc }, tools: cx.tools });
   if (!assembled.ok) return { name: job.name, failure: { kind: 'assemble', detail: assemblerError(assembled.stderr) ?? assembled.diagnostics[0]?.message ?? 'as failed' } };
   const path = join(cx.dir, `${job.n}.o`);
   await writeFile(path, assembled.object);

@@ -5,6 +5,7 @@
 import { availableParallelism } from 'node:os';
 
 import { DIALECT } from '../../foundation/asm/dialect.ts';
+import { MACROS_PATH } from '../../core/model/paths.ts';
 import { armCoverage, compareCorpusFile, corpusFiles, summarizeCorpus } from '../../foundation/corpus/corpus.ts';
 import type { CorpusAssembly, CorpusComparison, CorpusCounts, CorpusFile, CorpusOptions } from '../../foundation/corpus/corpus.ts';
 import { corpusOk } from '../../core/workflow/doctor.ts';
@@ -41,7 +42,7 @@ export async function runCorpus(run: CorpusRunOptions): Promise<CorpusRun> {
   for (const file of corpusFiles(run.options)) {
     const at = index++;
     if (run.onFile !== undefined) await run.onFile(file);
-    const task = assembleWithBinutils(file.text, { mode: file.mode, tools: run.tools, files: { 'include/macros.inc': DIALECT.macrosInc } }).then((result) => {
+    const task = assembleWithBinutils(file.text, { mode: file.mode, tools: run.tools, files: { [MACROS_PATH]: DIALECT.macrosInc } }).then((result) => {
       results[at] = compareCorpusFile(file, assembly(result));
     });
     const tracked: Promise<void> = task.finally(() => running.delete(tracked));

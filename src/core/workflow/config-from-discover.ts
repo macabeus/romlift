@@ -13,9 +13,7 @@ import { coveredEntries } from '../layout/borders.ts';
 import { inferModules } from '../layout/infer-modules.ts';
 import type { ConfigFromDiscoverOptions } from '../layout/types.ts';
 import { functionName } from '../model/names.ts';
-
-/** Where the project keeps its copy of the ROM. */
-export const BASEROM_PATH = 'baserom.gba';
+import { BASEROM_PATH } from '../model/paths.ts';
 
 /** The build name when the header's game code is not four letters or digits. */
 export const FALLBACK_BUILD_NAME = 'rom';

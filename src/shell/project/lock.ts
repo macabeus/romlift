@@ -13,6 +13,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { LOCK_PATH, ROMLIFT_DIR } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
 import { onDisk } from './disk-state.ts';
+import { errnoOf, errorReason } from '../fs.ts';
 
 export type LockOutcome<T> =
   | { readonly ok: true; readonly value: T; readonly diagnostics: readonly Diagnostic[] }
@@ -51,14 +52,6 @@ export function processAlive(pid: number): boolean {
   }
 }
 
-function errnoOf(error: unknown): string | undefined {
-  return error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
-}
-
-function reason(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 type Attempt = { readonly kind: 'taken' } | { readonly kind: 'exists' } | { readonly kind: 'failed'; readonly diagnostic: Diagnostic };
 
 /** Creates the lock with O_EXCL holding `text`. */
@@ -68,7 +61,7 @@ async function create(file: string, text: string): Promise<Attempt> {
     handle = await open(file, 'wx');
   } catch (error) {
     if (errnoOf(error) === 'EEXIST') return { kind: 'exists' };
-    return { kind: 'failed', diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${file}: ${reason(error)}`, { path: file }) };
+    return { kind: 'failed', diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${file}: ${errorReason(error)}`, { path: file }) };
   }
   try {
     await handle.writeFile(text);
@@ -78,7 +71,7 @@ async function create(file: string, text: string): Promise<Attempt> {
     await handle.close().catch(() => undefined);
     handle = undefined;
     await unlink(file).catch(() => undefined);
-    return { kind: 'failed', diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot write ${file}: ${reason(error)}`, { path: file }) };
+    return { kind: 'failed', diagnostic: diagnostic(ShellCodes, 'E_IO_WRITE', `cannot write ${file}: ${errorReason(error)}`, { path: file }) };
   } finally {
     await handle?.close();
   }
@@ -161,7 +154,7 @@ export async function withProjectLock<T>(dir: string, fn: () => Promise<T>): Pro
     await mkdir(join(dir, ROMLIFT_DIR), { recursive: true });
   } catch (error) {
     const path = join(dir, ROMLIFT_DIR);
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${path}: ${reason(error)}`, { path })] };
+    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${path}: ${errorReason(error)}`, { path })] };
   }
   const file = onDisk(dir, LOCK_PATH);
   const text = lockText({ pid: process.pid, host: hostname() });

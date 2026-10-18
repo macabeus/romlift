@@ -30,11 +30,13 @@ export { findItem, itemAt, itemSpan, specIdAt, specIndex } from '../core/model/i
 export { compareLabels, LABEL_KIND_ORDER, moduleAt, moduleIndexAt, resolverFor, wordValueOf } from '../core/model/resolver.ts';
 export type { BuildUnit } from '../core/model/paths.ts';
 export {
+  BASEROM_PATH,
   buildUnits,
   chunkPaths,
   CRT0_PATH,
   HEADER_PATH,
   LDSCRIPT_PATH,
+  MACROS_PATH,
   modulePathPrefixes,
   moduleSource,
   nonmatchingDir,

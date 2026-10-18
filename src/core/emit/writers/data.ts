@@ -15,14 +15,11 @@ import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex, hexAddr } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../../foundation/util/sorted.ts';
-import { moduleSource } from '../../model/paths.ts';
+import { BASEROM_PATH, moduleSource } from '../../model/paths.ts';
 import { compareLabels, moduleIndexAt, wordValueOf } from '../../model/resolver.ts';
 import { ItemKind } from '../../model/types.ts';
 import type { Label, Model, Module } from '../../model/types.ts';
 import type { FileEntry, Writer } from '../tree.ts';
-
-/** The file every `.incbin` reads: the user's ROM, at the project root. */
-export const BASEROM = 'baserom.gba';
 
 /** A label the file defines: its load address and name, whether it is `.global` and a Thumb function. */
 interface Mark {
@@ -118,7 +115,7 @@ function wordName(model: Model, index: number, word: number): string | undefined
 }
 
 function incbin(from: Addr, to: Addr): string {
-  return `\t.incbin "${BASEROM}", 0x${hex(from - ROM_BASE, 1)}, 0x${hex(to - from, 1)}`;
+  return `\t.incbin "${BASEROM_PATH}", 0x${hex(from - ROM_BASE, 1)}, 0x${hex(to - from, 1)}`;
 }
 
 /** The text of a data module's file. */

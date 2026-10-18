@@ -47,7 +47,7 @@ import { pushAll } from '../../foundation/util/arrays.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, specIdAt } from '../model/item-table.ts';
-import { buildUnits, chunkPaths, LDSCRIPT_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
+import { BASEROM_PATH, buildUnits, chunkPaths, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { moduleIndexAt, wordValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Label, Model, Module } from '../model/types.ts';
@@ -55,12 +55,6 @@ import { pathsCheck } from './paths.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult, VerifyReport } from './report.ts';
 import { VerifyCodes } from './codes.ts';
-
-/** The only file an `.incbin` may read: the user's ROM at the project root. */
-export const BASEROM_FILE = 'baserom.gba';
-
-/** The macro file every generated `.s` includes. */
-export const MACROS_PATH = 'include/macros.inc';
 
 /** How many problems one entry reports at most; the first is the one that matters. */
 export const MAX_PER_ENTRY = 16;
@@ -176,7 +170,7 @@ function inModule(model: Model, index: PathIndex, m: number): (name: string) => 
 }
 
 function romIncbin(rom: Rom): (file: string, offset: number, length: number) => Uint8Array | undefined {
-  return (file, offset, length) => (file === BASEROM_FILE && offset + length <= rom.bytes.length ? rom.bytes.subarray(offset, offset + length) : undefined);
+  return (file, offset, length) => (file === BASEROM_PATH && offset + length <= rom.bytes.length ? rom.bytes.subarray(offset, offset + length) : undefined);
 }
 
 /** The mode of an item's isa row, or undefined when it names none. */
@@ -351,7 +345,7 @@ function checkSourceFile(rom: Rom, model: Model, index: PathIndex, entry: { read
       memo: index.memo,
       include: (path) => {
         const span = files.get(path);
-        return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_FILE, offset: span.start - ROM_BASE, length: span.end - span.start }];
+        return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_PATH, offset: span.start - ROM_BASE, length: span.end - span.start }];
       },
     },
     range: module.span,

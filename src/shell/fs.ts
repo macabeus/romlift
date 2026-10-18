@@ -18,8 +18,13 @@ export type IoResult<T> = { readonly ok: true; readonly value: T } | { readonly 
 /** Bytes gathered from a stream of string chunks before one write call. */
 const WRITE_BATCH = 1 << 20;
 
-/** The error's message, led by its code once (Node's own message often starts with it). */
-function reason(error: unknown): string {
+/** An error's errno code (ENOENT, EEXIST, ...), or undefined. */
+export function errnoOf(error: unknown): string | undefined {
+  return error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
+}
+
+/** The error's message, led by its code once (Node's own message often starts with it): what every shell diagnostic quotes. */
+export function errorReason(error: unknown): string {
   if (error instanceof Error) {
     const code = (error as NodeJS.ErrnoException).code;
     return code === undefined || error.message.startsWith(`${code}:`) ? error.message : `${code}: ${error.message}`;
@@ -28,7 +33,7 @@ function reason(error: unknown): string {
 }
 
 function failure(code: ShellCode, path: string, what: string, error: unknown): IoResult<never> {
-  return { ok: false, diagnostic: diagnostic(ShellCodes, code, `${what} ${path}: ${reason(error)}`, { path }) };
+  return { ok: false, diagnostic: diagnostic(ShellCodes, code, `${what} ${path}: ${errorReason(error)}`, { path }) };
 }
 
 /** The names in directory `path`, sorted by UTF-16 code unit. */
