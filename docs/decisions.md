@@ -1603,6 +1603,14 @@ no tuning run reaches either budget, passes a malformed seed or is truncated.
 
 ## D60. The owner's answer to §12 item 4: tune on tmc, with the rules and conventions it needed
 
+**Status (the owner's answers, 18 October 2026).** The owner answered Q1 to Q5 (D61): (j) is restored for
+every ROM ("Use $d for every ROM"), the two-families condition is waived ("Waive both"), `g2.poc-parity` is
+scoped to the five ROMs of the M1 evidence and tmc is a benchmark row in `g2.baseline-rows` ("Keep tmc as
+99.94%. It's a benchmark row that we can improve later"), and D8's `resettle` was built, measured and
+reverted, tmc's six differences of Q3 recorded as a known limitation ("Build resettle, else accept"). The
+gates D60 left open below are answered there; the rules (a) to (i) are unchanged, but for the
+straight-line argument scan of (e) (overfitting-r2-1).
+
 **Status (fix round 2, 17 October 2026).** The adversarial review of `f802822` found one more gate change
 the owner had not authorised (the code-end convention of (j), the only reading under which tmc passes
 `g2.code-end`) and a waiver applied on an inference (the two-families condition of `g2.held-out`), and
@@ -1880,7 +1888,7 @@ limitation: tmc's `arm_sub_080B1FE4`, a two-instruction ARM leaf after an ARM fu
 does not cover, each an owner question of phase-2.md: `g2.poc-parity` (no M1 evidence for tmc; Q1),
 `g2.baseline-rows` (8 rows tmc has and the PoC's run of it does not; Q2), `g2.confirm-equals-discover`
 (6 functions on tmc; Q3), `g2.held-out`'s two-families condition (Q4), `g2.code-end` on tmc (+148; Q5);
-phase 2 does not land until the owner answers them.
+phase 2 does not land until the owner answers them. (Answered on 18 October 2026: D61.)
 
 **Rejected.** A per-dataset `codeEnd` row (`80762ff`; a switch only tmc carried, replaced by (j)).
 Confirm mode taking the listed entries after the passes (`747293f`; it made the gate hold by

@@ -1989,15 +1989,19 @@ in roadmap.md pass. The gates per phase are those of §1.
 4. If `g2.held-out` fails, may phase 2 land with the failure recorded, while release 1 stays blocked until
    a fresh sealed pair passes (D53)? **Answered by the owner on 17 October 2026: "Tune on tmc, no new
    ROM"** (D60). tmc is revealed and tuned on with general rules; pokefirered and pokeruby stay sealed and
-   pass; `g2.held-out` is recorded as having no held-out ROM of a family absent from the tuning set (the
-   fresh-family condition waived and printed as such, bound to the sealed pair and the tuning families of
-   the decision; whether the two-families condition is waived too is the owner's open question Q4).
-   Release 1 still needs a fresh sealed pair of such a family before it claims generality
-   (D53). Phase 2 has not landed on it: fix round 1 of D60 found three gates the decision did not cover
-   (`g2.poc-parity` and `g2.baseline-rows` on tmc, `g2.confirm-equals-discover` on tmc), and fix round 2
-   withdrew two readings it had made without the owner (the code-end convention, which leaves
-   `g2.code-end` failing on tmc, and the two-families waiver, which leaves `g2.held-out` failing); all
-   five are owner questions (phase-2.md, "Owner questions", Q1 to Q5).
+   pass; `g2.held-out` is recorded as having no held-out ROM of a family absent from the tuning set.
+   Release 1 still needs a fresh sealed pair of such a family before it claims generality (D53). Fix
+   rounds 1 and 2 of D60 withdrew every gate reading the decision did not cover and asked the owner five
+   questions (phase-2.md, Q1 to Q5); **the owner answered them on 18 October 2026** (D61): Q1 and Q2,
+   "Keep tmc as 99.94%. It's a benchmark row that we can improve later" (`g2.poc-parity` scoped to the five
+   ROMs of the M1 evidence, tmc printed as not applicable; tmc a benchmark row in `g2.baseline-rows`, its
+   rows listed with a category accepted and tp 8,631 a floor); Q3, "Build resettle, else accept" (the
+   `resettle` stage was built, changed rows on the other ROMs and the sealed pair, and was reverted; tmc's
+   six differences of Q3 are a printed known limitation); Q4, "Waive both" (both family conditions of
+   `g2.held-out` waived, printed, for the sealed pair and tuning families of D60 only); Q5, "Use $d for
+   every ROM" (the code-end convention of §8.4). Nothing else is waived. One gate still fails:
+   `g2.confirm-equals-discover` on two more tmc functions (0x080B255C, 0x080B2874) that Q3's count of six,
+   taken before `95b257b`, did not include; that is owner question Q6, and phase 2 has not landed.
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
    about 16,000 lines).
 6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export.

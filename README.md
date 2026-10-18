@@ -24,10 +24,13 @@ function-boundary analysis reproduces the proof of concept's results on the five
 register-tracked jump tables and a few measured improvements, with every rule cited and load-bearing on a
 synthetic fixture or exempted by a decision. The sealed held-out gate failed on The Minish Cap; the owner
 decided to tune on it ("Tune on tmc, no new ROM", D60), so it is the sixth tuning ROM (recall 99.37% to
-99.94%, its code end now exact, IWRAM code included) and the two Pokémon held-out ROMs still pass sealed.
-Three gates the decision does not cover fail on The Minish Cap (PoC parity, rows against the PoC's own run
-of it, confirm equals discover), and the phase waits for the owner's answers. The
-commands so far are `doctor`, `analyze` and `explain`.
+99.94%, IWRAM code included) and the two Pokémon held-out ROMs still pass sealed. The owner then answered
+the five questions that decision left open (D61): The Minish Cap is a benchmark row at its current numbers
+(not held to the PoC-comparison gates), both held-out family conditions are waived, the code end of an
+unsized function ends at its `$d`, and its six known confirm/discover differences are a recorded
+limitation. One gate still fails: confirm equals discover differs on two more Minish Cap functions than the
+six the owner was told of, which is a new owner question (Q6), so the phase has not landed. The commands
+so far are `doctor`, `analyze` and `explain`.
 
 | Phase | Delivers |
 | --- | --- |
@@ -44,7 +47,7 @@ commands so far are `doctor`, `analyze` and `explain`.
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D58 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D61 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and why the phase has not landed |

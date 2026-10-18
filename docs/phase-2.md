@@ -97,10 +97,38 @@ the tuning set alone, and then a fresh sealed pair before any claim of generalit
 
 ## Owner questions
 
-Fix rounds 1 and 2 of D60 withdrew every gate change the owner had not authorised. Four gates now fail on
-tmc (`g2.poc-parity`, `g2.baseline-rows`, `g2.confirm-equals-discover`, `g2.code-end`) and `g2.held-out`
-fails on its two-families condition, which the decision's words do not waive; phase 2 lands only once the
-owner answers these (D53's safe default: it does not land while a gate fails).
+### The answers of 18 October 2026
+
+Fix rounds 1 and 2 of D60 withdrew every gate change the owner had not authorised and asked five questions
+(below, as they were asked). On 18 October 2026 the owner, Bruno Macabeus, answered them; his words,
+verbatim, are in D61 with the meaning applied, and each is in the code that applies it:
+
+| Question | The owner's words | Applied in |
+| --- | --- | --- |
+| Q1 `g2.poc-parity` on tmc | "Keep tmc as 99.94%. It's a benchmark row that we can improve later" | `test/gates/poc-parity-check.ts` `SCOPED_OUT` (D61 c): the gate judges the five ROMs of the M1 evidence exactly as before and prints "tmc: not applicable, no M1 lockstep run" |
+| Q2 `g2.baseline-rows` on tmc | (the same words) | `test/gates/baseline-rows-verdict.ts` `BENCHMARK_ROWS` (D61 d): tmc's rows that the dataset lists with a category are accepted and printed; tp 8,631 of 8,636 (recall 99.94%) is a floor; the five as strict as before |
+| Q3 `g2.confirm-equals-discover` on tmc | "Build resettle, else accept" | `f287b0d` built D8's `resettle`; it changes rows on the other ROMs and the sealed pair, so `af0f75c` reverted it; `test/gates/confirm-differences.ts` `KNOWN_DIFFERENCES` (D61 e) accepts tmc's six differences of Q3, printed, and nothing else |
+| Q4 the two-families waiver of `g2.held-out` | "Waive both" | `test/gates/held-out-verdict.ts` `FAMILY_WAIVER.grounds.twoFamilies` (D61 b): both family conditions waived and printed, bound to the sealed pair and the tuning families of D60 |
+| Q5 the code-end convention | "Use $d for every ROM" | `bench/src/truth.ts` `elfCodeEnd` (D61 a): an unsized function ends at the next `$d` or typed symbol, every ROM, tuning and sealed; tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, the others 0 |
+
+These are the only gate changes made. No other gate, threshold or check was weakened, skipped or removed.
+
+### Q6, open
+
+6. **`g2.confirm-equals-discover` on two more tmc functions.** Q3 said "6 functions differ on tmc", a count
+   taken at `9c8b282` (fix round 1 of D60). The closing runs since compared the views only up to their first
+   difference, so nobody counted again; compared in full (`confirm-differences.ts`), tmc has eight differing
+   functions at HEAD: the six of Q3 and two that `95b257b` (fix round 2 of D60, the pool boundary of
+   `seed.ram-copy`, overfitting-r1-5) moved, 0x080B255C (discover's extent ends at 0x080B299C, confirm's at
+   0x080B280C) and 0x080B2874 (0x080B289C against 0x080B299C), with three claim runs between 0x080B2874 and
+   0x080B299C. They are the class of Q3 (two ARM entries proposed by one worklist and taken in ascending
+   order, the lower one's reading running over the higher; both are unsized FUNCs, so no bench row moves).
+   The answer names six, so the gate does not accept these two and fails on them, printing why. **May the
+   known limitation cover these two functions as well (they would be printed with the six), or must they
+   be fixed before phase 2 lands?** A fix would be a rule or driver change justified by its `restsOn`; the
+   one remedy designed for the class, `resettle`, was measured and reverted under Q3.
+
+### The questions as asked (fix round 2 of D60)
 
 1. **`g2.poc-parity` on tmc** (gate-honesty-r0-1). The gate checks the M1 evidence (the PoC parity digests,
    rows equal to the PoC baseline, the lockstep of five rule-family sets), recorded at `843eae8` under the
@@ -186,6 +214,7 @@ then the integrator.
 | — | fix round 1 | D59: the review's findings ("Review"); the closing run below |
 | — | fix round 2 | D59 (j) to (p): the re-review's findings ("Review", "Fix round 2") |
 | — | fix round 3 | D59 (m) revised, (q) to (t): the second re-review's findings ("Review", "Fix round 3"); the closing run below |
+| — | fix round 3 of D60 | D61: the owner's answers to Q1 to Q5, the review of `8fba183` ("Review", "Fix round 3 of D60"); the closing run below |
 
 ### Commands and formats
 
@@ -802,6 +831,34 @@ entries and agreeing extents never change; their code end moves only at `d099a0f
 withdrawn `$d` convention) and back at `907f9e3`. No commit has an `untrailered-row` problem: `80762ff`'s
 trailers cover tmc's 17 rows. tmc's problems before `80762ff` are its rows not yet listed; from `907f9e3`
 on, its one problem is the code end (+148) under the restored convention (Q5).
+
+### Fix round 3 of D60 and the owner's answers
+
+The owner's answers of 18 October 2026 (D61; "Owner questions", above) and the review of `8fba183` (fix
+round 2 of D60) were implemented on `phase-2` from `3f7898f` to the record below, one concern per commit.
+Every analysis change was measured with `bench run` on the six tuning ROMs and both sealed ROMs and `bench
+regression` against the commit before it (and `--base 8fba183`); the replay of every commit is below.
+
+| Finding or answer | Severity | Disposition |
+| --- | --- | --- |
+| Q5, the code end | owner | **Applied** (`3f7898f`, D61 a): `elfCodeEnd` ends an unsized function at the next `$d` or typed symbol, for every ROM, tuning and sealed, in the tuning and the sealed scorer; the PoC-dump rescoring keeps the PoC's convention (it reproduces the pinned rows, `g1.bench-harness`). tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3, pokefirered, pokeruby 0 → 0; no other count or digest moves. |
+| Q4, the family conditions | owner | **Applied** (`5228afd`, D61 b): both conditions waived with the owner's words, printed; the binding, the count of passing sealed ROMs and every per-ROM threshold unchanged. |
+| Q1, `g2.poc-parity` | owner | **Applied** (`43a95be`, D61 c), with gate-honesty-r2-1. |
+| gate-honesty-r2-1 | major | **Fixed** (`43a95be`): the gate's `historicalCheck` is its own check (`parityCheck`, the same function as `run`), so `historical` is recorded only when the check passes on its scope; `test/gates-index.test.ts` holds every historical gate to `historicalCheck === run`. |
+| code-quality-r2-6 | minor | **Fixed** (`43a95be`): `gateStep` (the harness's branch) is unit-tested, and an end-to-end test runs a copy of the harness at `landed` 2 on a gate whose check throws (records `fail`) and one whose check returns (records `historical`). |
+| Q2, `g2.baseline-rows` | owner | **Applied** (`8295282`, D61 d): tmc is a benchmark row; its 8 rows the PoC's run lacks are accepted as listed with a category, printed; tp 8,631 of 8,636 is a floor; an extent change, an unlisted or uncategorised row or a stale diff still fails; the five unchanged. |
+| overfitting-r2-1 | major | **Fixed** (`f421a74`): `straightLineBefore` stops before a join point (branch, jump-table or far-`bl` target) and at an instruction that does not fall into the next (an unconditional exit, a `bl` walked as a jump or that never returns); negative fixture `ram-copy-args-straight-line` (the old scan proposes the false ARM entry 0x08000138) and unit cases for each stop. No row or digest moves on the eight ROMs. |
+| code-quality-r2-1 | major | **Fixed** (`1bbfa43`): a unit case pins `jumpInsns` (a jump 8 instructions after its load is found with 8, missed with 7); `argInsns` stays pinned by `ram-copy-setup-bound`. |
+| overfitting-r2-2, gate-honesty-r2-5, code-quality-r2-3 | major/minor | **Fixed** (`1bbfa43`): re-measured, one count per site: copy calls 15 (3 (6), 4 (2), 6 (6), 7 (1)); jump load sites 46 (fe7j 1, klonoa 1, pokeemerald 1, sa2 2, sa3 2, tmc 39; 1 (40), 2 (2), 3 (3), 5 (1)). The old "39 jumps … 1 (33), 2 (2), 3 (2), 5 (1)" summed to 38 and was tmc's sites alone. Window sweeps: `jumpInsns` 1 to 16 give the same functions on the six (only jumps at 1 decide); `argInsns` 6 loses tmc's block. Profile comment and D60 (e) corrected. |
+| Q3, `g2.confirm-equals-discover` | owner | **Applied** (`f287b0d` built `resettle`, `af0f75c` reverted it, `66159e9` recorded the limitation, D61 e). Measured with `resettle`: the startup region shrinks to one 4-byte piece on every ROM, startup pieces become unlisted false entries (fe7j 0x080000C0, 0x080001F8; pokeemerald 0x08000204, 0x08000248, 0x08000374; sa2, sa3, tmc 0x080000C0), the m4a mixer's extents change on pokeemerald, sa2 and sa3, the sealed counts move (entries 12,395 → 12,398, 11,461 → 11,464), the gate fails on klonoa, pokeemerald, sa2 and sa3; `bench regression`: 8 failures. The gate now compares the views in full and accepts tmc only with exactly the six functions of Q3; **it fails on two more** (Q6). |
+| gate-honesty-r2-2, gate-honesty-r2-3 | major | **Fixed** (this record, D61, architecture §4.2, §4.5, §8.4, §12 item 4 and §13, roadmap phase 2, README): each states what is waived (the five answers, nothing else), the real gate status (one gate fails, Q6) and the numbers below. |
+| architecture.md ramCopy shape | minor | **Fixed** (`1bbfa43`): `{ argInsns, jumpInsns }`, 12 and 8. |
+| poc-check leftovers | minor | **Fixed** (`fbd28b7`): the revealed reference is computed only for a revealed ROM without a baseline row; no default "no pinned PoC row"; the text output says "missing" instead of "n/a" for a failing ROM. |
+| loopCall duplication, opensFunction pool alignment, isPoolOf repeated work | minor | **Fixed** (`f438e9d`): one size path; `alignment.pool` from the profile; every accepted jump read at most once per queue call. No row or digest moves. |
+| 'not re-measured' comments | minor | **Fixed** (`f32afd4`): measured on the six, tmc included: candidates judged at most 13,423 (pokeemerald; tmc 9,673); largest reading 11,570 instructions (klonoa; tmc 1,129); no all-zero instruction in an accepted reading; held candidate readings at most 208,344,064 bytes (pokeemerald, 78% of 256 MiB; tmc 112.8 MB). The "about 105 MB" recorded before was wrong (206 MB at `22cbc77`). One ARM instruction on tmc is classed otherwise than by the PoC (an `add pc, pc, #imm` ending a listed false entry's reading). |
+| export-poc pin write order | minor | **Fixed** (`61c38f8`): every child first; dumps written after the rows are checked or pinned; `--pin` refuses a non-deterministic dump. |
+| replay-regression parent | minor | **Fixed** (`c69268e`): each commit is judged against its own first parent's fresh artifact. |
+| stale test comments | minor | **Fixed** (`307c28c`). |
 
 ## The closing gate
 

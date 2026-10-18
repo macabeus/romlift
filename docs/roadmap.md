@@ -353,10 +353,18 @@ ROMs, at least two pass (raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `g
 extents ≥ 99.9%, code end ≤ 16 bytes), from two families, one of them absent from the tuning set
 (architecture §8.4, D53); all seventeen
 `g2.*` gates `pass` or `historical`. Since the owner's decision of 17 October 2026 (D60) the tuning set is
-six ROMs (tmc revealed); every threshold above applies to all six. tmc has no row in the pinned PoC baseline,
-so its PoC reference is the pinned PoC's own run of it (`export-poc --mode scored`; `poc.source` `dump`).
-The held-out family conditions are waived for the sealed pokefirered and pokeruby and the tuning families
-of D60 only (printed by `g2.held-out`).
+six ROMs (tmc revealed); every threshold above applies to all six except where the owner's answers of 18
+October 2026 (D61) say otherwise, which is exactly this, each printed by its gate: tmc has no row in the
+pinned PoC baseline, so its PoC reference is the pinned PoC's own run of it (`export-poc --mode scored`;
+`poc.source` `dump`), and it is a benchmark row ("Keep tmc as 99.94%. It's a benchmark row that we can
+improve later"): `g2.poc-parity` covers the five ROMs of the M1 evidence (tmc not applicable), and
+`g2.baseline-rows` accepts tmc's rows that the dataset lists with a category, with tmc's tp 8,631 of 8,636
+as a floor; `g2.confirm-equals-discover` accepts tmc's six differences of Q3 as a known limitation and
+nothing else ("Build resettle, else accept": the resettle stage was measured and reverted); both held-out
+family conditions are waived for the sealed pokefirered and pokeruby and the tuning families of D60 only
+("Waive both"); and the ELF code end ends an unsized function at the next `$d` or typed symbol on every
+ROM ("Use $d for every ROM"). Every other threshold, and every threshold on the five original ROMs and the
+sealed pair, is as above.
 
 ---
 
