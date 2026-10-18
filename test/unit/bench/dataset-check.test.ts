@@ -123,4 +123,35 @@ test('the ELF code end (D60 j, D61 a): a sized function at addr + size, an unsiz
   assert.equal(elfCodeEnd(section), 0x0800_0620);
   // An unsized function with nothing after it ends where it starts.
   assert.equal(elfCodeEnd(elfTruth(elfFile([{ name: 'only', value: 0x0800_0400, size: 0 }]), 0x1000)), 0x0800_0400);
+  // A sized function that ends past an unsized later one decides: the maximum over every function, not the
+  // end of the highest-address one (gate-honesty-r1-2), with or without a $d after the later one.
+  assert.equal(elfCodeEnd(elfTruth(elfFile([{ name: 'big', value: 0x0800_0101, size: 0x400 }, { name: 'only', value: 0x0800_0400, size: 0 }]), 0x1000)), 0x0800_0500);
+  const below = elfTruth(elfFile([{ name: 'big', value: 0x0800_0101, size: 0x400 }, { name: 'only', value: 0x0800_0400, size: 0 }, { name: '$d', value: 0x0800_0420, size: 0, type: 'notype' }]), 0x1000);
+  assert.equal(elfCodeEnd(below), 0x0800_0500);
+  // An inline pool mid-function ($t, $d, $t, $d): the code resumes after the first $d, so the $d that
+  // closes the last code run before the next typed symbol ends it (overfitting-correctness-r1-2).
+  const inline = elfTruth(
+    elfFile([
+      { name: 'a', value: 0x0800_0700, size: 0 },
+      { name: '$t', value: 0x0800_0700, size: 0, type: 'notype' },
+      { name: '$d', value: 0x0800_0720, size: 0, type: 'notype' },
+      { name: '$t', value: 0x0800_0728, size: 0, type: 'notype' },
+      { name: '$d', value: 0x0800_0740, size: 0, type: 'notype' },
+      { name: 'next', value: 0x0800_0760, size: 4, type: 'object' },
+    ]),
+    0x1000,
+  );
+  assert.equal(elfCodeEnd(inline), 0x0800_0740, 'the inline pool at 0x08000720 does not end it');
+  assert.equal(pocCodeEnd(inline), 0x0800_0700);
+  // A code mapping symbol past the next typed symbol belongs to what follows it, not to the unsized function.
+  const after = elfTruth(
+    elfFile([
+      { name: 'a', value: 0x0800_0800, size: 0 },
+      { name: '$d', value: 0x0800_0810, size: 0, type: 'notype' },
+      { name: 'obj', value: 0x0800_0818, size: 4, type: 'object' },
+      { name: '$a', value: 0x0800_081C, size: 0, type: 'notype' },
+    ]),
+    0x1000,
+  );
+  assert.equal(elfCodeEnd(after), 0x0800_0810);
 });
