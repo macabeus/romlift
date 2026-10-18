@@ -2,7 +2,9 @@
 // per listed function (its config name), a `data` label at each header, orphan and data chunk (the chunk's
 // name) and at each symbol inside the ROM, a `pool` label `_<ADDR>` at every pool word, a `table` label at
 // every jump table, a `local` label `_<ADDR>` at every branch, bl, adr and pool-load target and table target
-// that has no other label, and a `data` label `gUnk_<ADDR>` where a pool word or a table points into a data
+// that has no other label and that an item can start at (D63: never an odd address in code, the second
+// halfword of a bl, the inside of an ARM word or of a pool or table word, which the printer could not place,
+// so the instruction naming it fails the printing rule and prints raw), and a `data` label `gUnk_<ADDR>` where a pool word or a table points into a data
 // module. A label holds its run address (the load address outside runs_at).
 //
 // Scope: a label is 'global' when something in another module references it (a call, a branch, an adr, a
@@ -175,6 +177,41 @@ function keep(group: readonly Candidate[]): Candidate[] {
   return out;
 }
 
+/** The first index of `segments` whose end lies above `a`. */
+function segmentIndexAt(segments: readonly Segments['concrete'][number][], a: Addr): number {
+  let lo = 0;
+  let hi = segments.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((segments[mid] as Segments['concrete'][number]).end <= a) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Whether no item can start at load address `a`: inside a code segment, an odd address, an ARM address off its
+ * word, or the second halfword of a 4-byte instruction that names an address (a bl); inside a pool or table
+ * segment, anything but its start (D63).
+ */
+function insideAnItem(segments: Segments, refs: readonly CodeRef[]): (a: Addr) => boolean {
+  const secondHalves = new Set<Addr>();
+  for (const r of refs) if (r.size === 4) secondHalves.add(r.site + 2);
+  return (a) => {
+    const s = segments.concrete[segmentIndexAt(segments.concrete, a)];
+    if (s === undefined || a < s.start) return false;
+    switch (s.kind) {
+      case 'code':
+        return a % 2 !== 0 || (s.mode === 'arm' && (a - s.start) % 4 !== 0) || secondHalves.has(a);
+      case 'pool':
+      case 'table':
+        return a !== s.start;
+      default:
+        return false;
+    }
+  };
+}
+
 /** Every label candidate, in load address order. */
 function candidatesOf(inputs: LabelInputs): Candidate[] {
   const { rom, modules, segments } = inputs;
@@ -203,7 +240,8 @@ function candidatesOf(inputs: LabelInputs): Candidate[] {
   for (const r of inputs.refs) targets.push(loadAddressOf(inputs.relocated, r.target));
   // A data or local label only where no other label names the address yet, once per address.
   for (const a of data) if (!named.has(a)) add({ load: a, name: dataName(a), kind: 'data', thumb: false });
-  for (const a of targets) if (!named.has(a) && contains(rom, a)) add({ load: a, name: localName(a), kind: 'local', thumb: false });
+  const inside = insideAnItem(segments, inputs.refs);
+  for (const a of targets) if (!named.has(a) && contains(rom, a) && !inside(a)) add({ load: a, name: localName(a), kind: 'local', thumb: false });
   return out.sort(compareCandidates);
 }
 

@@ -2211,6 +2211,77 @@ before its phase).
 
 ---
 
+## D63. Wave-2 integration: the interface changes the components made, and what linking them together found
+
+**Context.** The four wave-2 components of phase 3 (`p3-model`, `p3-printer`, `p3-data-verify`,
+`p3-write-plan`, D62 a) were built in parallel against the frozen types and merged into `phase-3` without a
+textual conflict. Their reports name interface changes no record held yet. Put together for the first time,
+the model, the printer, the self-checks and `linkCheck` were run on every committed fixture and every tuning
+ROM, both printers: the raw printer's tree linked to the ROM's SHA-1 everywhere, while the readable printer's
+tree failed to assemble on 2 of the 47 fixtures and on all six tuning ROMs, with every self-check green. GNU as
+2.45.1 refuses two shapes the model allowed: a PC-relative load or `adr` naming a label in another object
+("invalid offset", "undefined symbol ... used as an immediate value", "address calculation needs a strongly
+defined nearby symbol"), and a reference to a `local` label the printer could not place because it lies inside
+an item (an ARM `adr r0, X + 1` before `bx r0` into Thumb, the m4a mixer's mode switch, on klonoa, sa2, sa3,
+fe7j and pokeemerald; a Thumb `adr` naming the second halfword of a `bl`, on tmc).
+
+**Decision.**
+
+- (a) **`legalBorders(rom, analysis)`** replaces `legalBorders(analysis, profile)`, and `inferModules(rom,
+  analysis, options?)` and `configFromDiscover(rom, analysis, options?)` take no profile: finding the
+  references that cross a border means decoding the code bytes, and buildModel, which has no profile and may
+  not import the profile registry, must compute the same set as `init` and the TOML patcher. The borders rest
+  on the ARM word (4 bytes), agbcc's alignment. `test/gates/g4.toml-mutations.test.ts` is aligned to the new
+  call; nothing in it is weakened.
+- (b) **No PC-relative load or `adr` crosses a legal border** (`pcRelativeRefs` in core/layout/borders.ts:
+  Thumb `ldr rd, [pc, #]` and `add rd, pc, #`, ARM `ldr rd, [pc, #]` and `adr`, the references
+  core/model/labels.ts `codeRefs` names), for the same reason short branches do not (D15): `as` cannot
+  relocate one to another object. A border the user moves across one is `E_MODULE_BORDER`, as for a short
+  branch. architecture §5's "far pools ... labelled global when another module loads them" is replaced: a far
+  pool always stays in the module of the load that names it.
+- (c) **The data start moves past the code's PC-relative words.** `codeLayout`'s data start is the analysis'
+  code end rounded up to a word, moved past every pool word or `adr` target a reference of the code names
+  beyond it: such a word belongs with the code that loads it. Measured on tmc, the only tuning ROM where it
+  moves: ARM functions from 0x080B23F0 load a shared pool at 0x080B2A30..0x080B2A6C past the code end
+  0x080B2A30, so the data start is 0x080B2A70; without the move, (b) made the inferred data module's start
+  illegal (`E_MODULE_BORDER` on tmc's own config). The analysis' `codeEnd`, which the scorer measures, is
+  unchanged.
+- (d) **A `local` label is made only where an item can start**: never at an odd code address, the second
+  halfword of a 4-byte instruction that names an address (a `bl`), the inside of an ARM word, or the inside of
+  a pool or table word. The instruction naming such an address then fails the printing rule and prints raw
+  (`no-roundtrip`), counted by the readability family; the m4a mixer's `adr r0, X + 1` prints as `.inst
+  0xE28F002F @ adr r0, 0x0804F3A7 (no-roundtrip)` on klonoa.
+- (e) **Contract members the components added**, kept: `printChunk(rom, model, chunk, how?: Printer |
+  EmitContext)` (default `'readable'`; both callers of D62 d and the brief work); the included chunk files
+  start with `.thumb`/`.arm`, not the dialect preamble, which only the unit files (`rom_header.s`, `crt0.s`,
+  `<module>.s`, `data/<module>.s`) carry, because `as` refuses `macros.inc` twice; `WritePlanInputs.journal`
+  (an interrupted run's journal: its paths count as owned, an edit it shows done is kept) and
+  `WritePlanInputs.romlift` (the version on the new manifest), both optional; `checkEntries(rom, model,
+  entries): VerifyReport` (the text-layout and paths results of one pass over a stream, naming a file the model
+  needs that the stream lacks) beside `checkEntry`; `assembleCheck` beside `linkCheck` in `romlift/node`
+  (each object's `.text` against its unit's ROM range outside its relocated fields, the `assemble` check id).
+- (f) **The wave-2 round trip is a unit test**: `test/unit/emit/fixtures-round-trip.test.ts` runs, for every
+  committed fixture and both printers, the model self-checks, `checkEntries` and (with binutils) `linkCheck`
+  against the fixture's SHA-1. It is the ci-tier substance of `g3.self-check`, `g3.text-layout`, `g3.link`
+  and `g3.raw-link` before wave 3 lands the commands those gates drive; it fails on the two fixtures without
+  (b) and (c).
+
+**Consequences.** On the integrated tree (phase-3.md, "Wave-2 integration"): all 47 fixtures and all six
+tuning ROMs pass the model self-checks and the text-layout and paths checks, and link to their SHA-1 with
+both printers. Only `adr-label-and-data` and `arm-pools-in-front` change their model goldens (one module
+border each). The text-layout check passed every tree `as` refused: it does not check that a symbol an
+instruction names is defined, nor that a PC-relative reference stays in its object; phase-3.md records it as a
+limitation for wave 3, where `verify --assemble` and `g3.link` run the real toolchain.
+
+**Rejected.** Printing a PC-relative reference into another module raw, like a cross-module short branch,
+instead of (b): `init` would cut borders that make the readable tree less readable for no gain, and a new raw
+reason would change the frozen `ITEM_RAW_REASONS`. Spelling the mixer's target `X + 1` (a label at the even
+address plus an offset): the printing rule and the resolver have no offset form, and the instruction is in
+hand-written assembly either way. Leaving the data start at the code end and exempting it from (b): tmc's
+readable tree would still not assemble.
+
+---
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

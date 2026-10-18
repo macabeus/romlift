@@ -14,7 +14,7 @@
 // Calls, for the phase-4 lead to align (architecture §3.3, §3.4, §6.2):
 //   parseConfig(text) -> {ok: true, value: RomliftConfig} | {ok: false, diagnostics}
 //   serializeConfig(config) -> string (the canonical layout `init` writes)
-//   legalBorders(analysis, profile) -> sorted Addr[]
+//   legalBorders(rom, analysis) -> sorted Addr[] (no profile: the borders rest on the ARM word, D63)
 //   romFromBytes, sha1Of, profileById('agbcc'), analyze(rom, profile, {mode: 'discover', seeds: [],
 //   overrides: [], trail: 'off'})
 // CLI: generate --json and verify --link --json print NDJSON whose last line is
@@ -70,7 +70,7 @@ type RomFromBytes = (bytes: Uint8Array, sha1: string) => Rom;
 type Sha1Of = (data: Uint8Array) => string;
 type ProfileById = (id: string) => object | undefined;
 type Analyze = (rom: Rom, profile: object, options: { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' }) => AnalysisResult;
-type LegalBorders = (analysis: AnalysisResult, profile: object) => readonly Addr[];
+type LegalBorders = (rom: Rom, analysis: AnalysisResult) => readonly Addr[];
 
 interface CliLine {
   readonly type: string;
@@ -263,7 +263,7 @@ gate({
       const bytes = new Uint8Array(await readFile(target.rom));
       const rom = romFromBytes(bytes, sha1Of(bytes));
       const analysis = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
-      const facts: Facts = { config: parsed.value, borders: legalBorders(analysis, profile), analysis, end: rom.end };
+      const facts: Facts = { config: parsed.value, borders: legalBorders(rom, analysis), analysis, end: rom.end };
       const random = prng(nameSeed(target.name));
 
       for (const kind of LEGAL_KINDS) {

@@ -1,5 +1,6 @@
 // Legal borders (architecture §6.2, D15, D20): the code region tiled like the PoC's tile(), word-aligned chunk
-// starts, none that a short Thumb branch crosses, none strictly inside an assembly-only range; the cartridge
+// starts, none that a short Thumb branch or a PC-relative load or adr crosses (D63), none strictly inside an
+// assembly-only range; the cartridge
 // entry's extent over the header clipped when nesting entries (correctness-6).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -13,6 +14,7 @@ import {
   listedEntriesOf,
   nearestBorders,
   nestedEntries,
+  pcRelativeRefs,
   placeEntries,
   shortBranches,
   tileCode,
@@ -108,6 +110,58 @@ test('legalBorders: word-aligned chunk starts that no short branch crosses, with
   );
   // 0x104, 0x108 and 0x110 lie in (0x102, 0x110], so the branch crosses them; 0x10E and 0x116 are not word-aligned.
   assert.deepEqual(legalBorders(rom, analysis), [BASE, HEADER_END, BASE + 0x100, BASE + 0x118]);
+});
+
+/**
+ * A Thumb function loading a pool word that lies in the next chunk, an orphan; then an ARM function whose adr
+ * names the word after its extent (another orphan), and a Thumb function after it. Every chunk start is
+ * word-aligned and no short branch crosses one.
+ */
+function pcRelativeRom() {
+  const thumb = thumbAt(BASE + 0x100)`
+    ldr r0, _08000108
+    bx lr
+  `;
+  const arm = armAt(BASE + 0x110)`
+    adr r0, _08000118
+    bx lr
+  `;
+  const tail = thumbAt(BASE + 0x120)`
+    bx lr
+  `;
+  const rom = romWith(
+    [
+      { at: BASE + 0x100, bytes: thumb },
+      { at: BASE + 0x110, bytes: arm },
+      { at: BASE + 0x120, bytes: tail },
+    ],
+    { size: 0x200 },
+  );
+  const analysis = analysisOf(rom, {
+    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x104 }), fact({ entry: BASE + 0x110, end: BASE + 0x118, mode: 'arm' }), fact({ entry: BASE + 0x120, end: BASE + 0x122 })],
+  });
+  return { rom, analysis };
+}
+
+test('pcRelativeRefs decodes the PC-relative loads and adrs of the Thumb and ARM code spans', () => {
+  const { rom, analysis } = pcRelativeRom();
+  assert.deepEqual(pcRelativeRefs(rom, analysis), [
+    { site: BASE + 0x100, target: BASE + 0x108 },
+    { site: BASE + 0x110, target: BASE + 0x118 },
+  ]);
+});
+
+test('legalBorders: no PC-relative load or adr crosses a border, since as cannot relocate one to another object (D63)', () => {
+  const { rom, analysis } = pcRelativeRom();
+  const layout = codeLayout(rom, analysis);
+  assert.deepEqual(
+    layout.chunks.map((c) => c.span.start),
+    [HEADER_END, BASE + 0x100, BASE + 0x104, BASE + 0x110, BASE + 0x118, BASE + 0x120, BASE + 0x122],
+  );
+  // The load at 0x100 names 0x108, past the orphan's start 0x104; the adr at 0x110 names 0x118, the orphan after
+  // its extent. 0x118 itself stays illegal (in (0x110, 0x118]); 0x110 and 0x120 are legal, and the ARM range
+  // [0x110, 0x118) has no border strictly inside.
+  assert.deepEqual(legalBorders(rom, analysis), [BASE, HEADER_END, BASE + 0x100, BASE + 0x110, BASE + 0x120, BASE + 0x124]);
 });
 
 test('legalBorders: no border strictly inside an assembly-only range; its two ends stay legal', () => {

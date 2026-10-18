@@ -1,6 +1,8 @@
 // Legal module borders (architecture §6.2, D15, D20, D62). A module is its own object, and ld word-aligns every
 // object, so a border must be a word-aligned chunk start; a short Thumb branch (b, bcc) cannot reach across
-// objects on every binutils version, so no such branch may cross a border; and a run of code agbcc cannot have
+// objects on every binutils version, so no such branch may cross a border; a PC-relative load or adr (Thumb
+// `ldr rd, [pc, #]` and `add rd, pc, #`, ARM `ldr rd, [pc, #]` and `adr`) has no relocation GNU as can emit
+// for a symbol in another object, so none may cross a border either (D63); and a run of code agbcc cannot have
 // produced (ARM code, a Thumb entry at 2 mod 4, a shared tail, a tiled hole) stays in one assembly-only
 // module, so no border falls strictly inside one.
 //
@@ -8,11 +10,12 @@
 // cartridge header [base, base + 0xC0), then from the header's end to the data start one function chunk per
 // entry that is not a label (start = entry, end = min(extent end, next chunk start), at least 2 bytes, the
 // PoC's tile()) and one orphan chunk for the bytes between, cut at the startup region's end. The data start is
-// the analysis' code end rounded up to a word.
+// the analysis' code end rounded up to a word, past any word the code loads PC-relative beyond it (D63).
 //
 // The borders rest only on ARM words and the ROM layout, not on a compiler profile: buildModel, which has no
 // profile, must compute the same set as init and the TOML patcher (D62).
 import { decode } from '../../foundation/isa/decode.ts';
+import type { Flow } from '../../foundation/isa/types.ts';
 import { HEADER_END } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
@@ -182,6 +185,11 @@ function maybeShortBranch(hw: number): boolean {
   return (hw & 0xf000) === 0xd000 || (hw & 0xf800) === 0xe000;
 }
 
+/** Whether the Thumb halfword may be a PC-relative load or an adr (the decoder decides). */
+function maybePcRelative(hw: number): boolean {
+  return (hw & 0xf800) === 0x4800 || (hw & 0xf800) === 0xa000;
+}
+
 /**
  * Every short Thumb branch in the code spans of the analysis' Thumb functions, decoded with foundation/isa
  * at its load address (a branch inside a runs_at range has the same offset in run space). A bl suffix or
@@ -200,6 +208,41 @@ export function shortBranches(rom: Rom, analysis: Pick<AnalysisResult, 'function
         if (!maybeShortBranch(hw)) continue;
         const flow = decode('thumb', hw, a).flow;
         if (flow.kind === 'branch') out.push({ site: a, target: flow.target });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Every PC-relative load and adr in the code spans of the analysis' functions, as a site and the address it
+ * names (the pool word or the adr target), decoded at its load address like shortBranches. These are the
+ * references codeRefs (core/model/labels.ts) names, so a border none of them crosses never leaves the model a
+ * PC-relative instruction whose label lies in another object, which `as` cannot assemble (D63). A bl half
+ * never looks like either Thumb form; an ARM span is decoded word by word.
+ */
+export function pcRelativeRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>): ShortBranch[] {
+  const out: ShortBranch[] = [];
+  const bytes = rom.bytes;
+  const push = (site: Addr, flow: Flow): void => {
+    if (flow.kind === 'pool-load') out.push({ site, target: flow.pool });
+    else if (flow.kind === 'adr') out.push({ site, target: flow.target });
+  };
+  for (const f of analysis.functions) {
+    for (const span of f.code) {
+      const end = Math.min(span.end, rom.end);
+      if (f.mode === 'arm') {
+        for (let a = alignUp(Math.max(span.start, rom.base)); a + 4 <= end; a += 4) {
+          const k = a - rom.base;
+          const word = ((bytes[k] ?? 0) | ((bytes[k + 1] ?? 0) << 8) | ((bytes[k + 2] ?? 0) << 16) | ((bytes[k + 3] ?? 0) << 24)) >>> 0;
+          push(a, decode('arm', word, a).flow);
+        }
+        continue;
+      }
+      for (let a = Math.max(span.start, rom.base); a + 2 <= end; a += 2) {
+        const k = a - rom.base;
+        const hw = (bytes[k] ?? 0) | ((bytes[k + 1] ?? 0) << 8);
+        if (maybePcRelative(hw)) push(a, decode('thumb', hw, a).flow);
       }
     }
   }
@@ -250,7 +293,11 @@ export interface CodeLayout {
   readonly headerEnd: Addr;
   /** The end of the startup region (crt0), between headerEnd and dataStart; headerEnd when there is none. */
   readonly startupEnd: Addr;
-  /** The analysis' code end rounded up to a word: where data starts; the ROM end when nothing follows the code. */
+  /**
+   * Where data starts: the analysis' code end rounded up to a word, moved up past every pool word or adr target
+   * a PC-relative reference of the code names beyond it (D63: such a word belongs with the code that loads it,
+   * since `as` cannot load it from the data object); the ROM end when nothing follows.
+   */
   readonly dataStart: Addr;
   /** The chunks of [headerEnd, dataStart), in address order. */
   readonly chunks: readonly TiledChunk[];
@@ -272,7 +319,7 @@ function firstAbove(sorted: readonly Addr[], a: Addr): number {
   return lo;
 }
 
-/** The candidates no short branch crosses: a branch from s to t crosses a border b when b is in (min, max]. */
+/** The candidates no reference crosses: a reference from s to t crosses a border b when b is in (min, max]. */
 function uncrossed(candidates: readonly Addr[], branches: readonly ShortBranch[]): boolean[] {
   const delta = new Int32Array(candidates.length + 1);
   for (const { site, target } of branches) {
@@ -295,7 +342,9 @@ function uncrossed(candidates: readonly Addr[], branches: readonly ShortBranch[]
 /** The code layout of an analysis: its chunks, assembly-only ranges and legal borders. */
 export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
   const headerEnd = headerEndOf(rom);
-  const dataStart = Math.min(rom.end, alignUp(Math.max(analysis.codeEnd, headerEnd)));
+  const codeEnd = alignUp(Math.max(analysis.codeEnd, headerEnd));
+  const pcRelative = pcRelativeRefs(rom, analysis);
+  const dataStart = Math.min(rom.end, alignUp(pcRelative.reduce((end, r) => (r.site < codeEnd && r.target >= end ? r.target + 1 : end), codeEnd)));
   const startupEnd = Math.min(dataStart, Math.max(headerEnd, analysis.startup.span.end));
   const placed = placeEntries(listedEntriesOf(analysis, headerEnd), analysis).filter((p) => !p.label);
   const chunks = tileCode(placed, headerEnd, dataStart, [startupEnd]);
@@ -304,7 +353,7 @@ export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
   const candidates = [rom.base, ...(headerEnd < rom.end ? [headerEnd] : []), ...chunks.map((c) => c.span.start), ...(dataStart < rom.end ? [dataStart] : [])]
     .sort(compareNumbers)
     .filter((a, i, all) => i === 0 || all[i - 1] !== a);
-  const free = uncrossed(candidates, shortBranches(rom, analysis));
+  const free = uncrossed(candidates, [...shortBranches(rom, analysis), ...pcRelative]);
   const inside = (a: Addr): boolean => asmOnly.some((r) => a > r.start && a < r.end);
   const borders = candidates.filter((a, i) => a % WORD === 0 && free[i] === true && !inside(a));
   return { headerEnd, startupEnd, dataStart, chunks, asmOnly, borders };
@@ -312,8 +361,8 @@ export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
 
 /**
  * The legal module borders of an analysis, ascending: the ROM base, the header's end, the word-aligned chunk
- * starts of the code region and the data start, without those a short Thumb branch crosses or that fall
- * strictly inside an assembly-only range. The model, init, analyze --update and the TOML patcher all use it.
+ * starts of the code region and the data start, without those a short Thumb branch or a PC-relative load or
+ * adr crosses (D63) or that fall strictly inside an assembly-only range. The model, init, analyze --update and the TOML patcher all use it.
  */
 export function legalBorders(rom: Rom, analysis: AnalysisResult): readonly Addr[] {
   return codeLayout(rom, analysis).borders;

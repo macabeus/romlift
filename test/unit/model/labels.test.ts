@@ -8,7 +8,8 @@ import { test } from 'node:test';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { codeRefs } from '../../../src/core/model/labels.ts';
 import { segmentsOf } from '../../../src/core/model/items.ts';
-import { analysisOf, BASE, configOf, fact, HEADER_END, romWith, thumbAt, words } from '../layout/hand-made.ts';
+import { ITEM_RAW_REASONS, ItemKind } from '../../../src/core/model/types.ts';
+import { analysisOf, armAt, BASE, configOf, fact, HEADER_END, romWith, rows, thumbAt, words } from '../layout/hand-made.ts';
 
 function scene(poolValue = BASE + 0x121) {
   const f = thumbAt(BASE + 0x100)`
@@ -115,4 +116,48 @@ test('a local label gives way to another label at its address; a table has a tab
     ],
   );
   assert.deepEqual(model.chunks.find((c) => c.name === 'F')?.innerLabels.map((l) => l.name), ['Inner']);
+});
+
+test('no local label where no item can start: an adr naming a bl\'s second half or an odd address prints raw (D63)', () => {
+  // F's adr names 0x10C, the second halfword of its bl; A's (ARM) adr names 0x141, G's entry plus the Thumb bit,
+  // which the bx after it switches to (m4a's mixer does this). The printer could not place either label.
+  const f = thumbAt(BASE + 0x100)`
+    push {lr}
+    adr r0, _0800010C
+    movs r0, #0
+    movs r0, #0
+    movs r0, #0
+    bl _08000140
+    pop {r1}
+    bx r1
+  `;
+  const a = armAt(BASE + 0x130)`
+    adr r0, _08000141
+    bx r0
+  `;
+  const g = thumbAt(BASE + 0x140)`
+    bx lr
+  `;
+  const rom = romWith(
+    [
+      { at: BASE + 0x100, bytes: f },
+      { at: BASE + 0x130, bytes: a },
+      { at: BASE + 0x140, bytes: g },
+    ],
+    { size: 0x200 },
+  );
+  const analysis = analysisOf(rom, {
+    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x112 }), fact({ entry: BASE + 0x130, end: BASE + 0x138, mode: 'arm' }), fact({ entry: BASE + 0x140, end: BASE + 0x142 })],
+  });
+  const config = configOf({
+    modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x144, kind: 'data', generated: true }],
+    functions: [[BASE + 0x100, 'F'], [BASE + 0x130, { name: 'A', mode: 'arm' }], [BASE + 0x140, 'G']],
+  });
+  const model = buildModel(rom, analysis, config);
+  assert.deepEqual(model.labels.filter((l) => l.addr === BASE + 0x10c || l.addr === BASE + 0x141), []);
+  const raw = rows(model.items).filter(([kind]) => kind === ItemKind.rawInsn).map(([, start]) => start - BASE);
+  assert.deepEqual(raw, [0x102, 0x130]);
+  for (let i = 0; i < model.items.count; i++) {
+    if (model.items.kind[i] === ItemKind.rawInsn) assert.equal(ITEM_RAW_REASONS[model.items.aux[i] ?? -1], 'no-roundtrip');
+  }
 });

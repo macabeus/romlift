@@ -696,7 +696,7 @@ export interface Writer { readonly id: WriterId; readonly scope: 'module' | 'glo
 // core/emit/emit-tree.ts: per generated module in ROM order, its module-scoped writers' entries sorted by path,
 // then the global writers' entries (ldscript.txt, symbols.ld) sorted by path; re-callable, deterministic
 export function emitTree(rom: Rom, model: Model, cx: EmitContext): Iterable<FileEntry>;
-export function printChunk(rom: Rom, model: Model, chunk: number, cx: EmitContext): PrintedChunk;
+export function printChunk(rom: Rom, model: Model, chunk: number, how?: Printer | EmitContext): PrintedChunk;  // default 'readable' (D63)
 
 // core/write-plan/plan-writes.ts: the write policy, pure (D17)
 export interface Manifest { readonly schema: 1; readonly romlift: string;
@@ -714,6 +714,8 @@ export interface WritePlanInputs {
   readonly reconciledTexts: ReadonlyMap<string, string>;   // current text of each reconciled file
   readonly hash: (text: string) => string;                 // injected by the shell (D44)
   readonly retained: readonly string[];                    // path prefixes of generated = false modules (D62 d)
+  readonly journal?: Journal | null;                       // an interrupted run's journal: its paths count as owned (D63)
+  readonly romlift?: string;                               // the version stamped on the new manifest (D63)
 }
 export interface WritePlan { readonly ops: readonly WriteOp[]; readonly manifest: Manifest;
   readonly diagnostics: readonly Diagnostic[] }
@@ -1110,8 +1112,9 @@ row('thumb.ldr_pc', { mask: 0xF800, match: 0x4800, size: 2,
 - `roundTrips(insn, resolver) = assemble(parse(format(insn)), insn.addr) === insn.word`.
 
 **The assembler dialect** (`foundation/asm/dialect.ts`) is the one definition of the text every
-generated `.s` file starts with (`.syntax unified`, the `include/macros.inc` include, `.thumb`/`.arm`)
-and of `macros.inc` itself. The corpus, the writers, the `macros.inc` template and the text-layout
+generated unit file (`rom_header.s`, `crt0.s`, `<module>.s`, `data/<module>.s`) starts with
+(`.syntax unified`, the `include/macros.inc` include, `.thumb`/`.arm`) and of `macros.inc` itself; a chunk
+file a unit includes starts with `.thumb` or `.arm` alone, because `as` refuses `macros.inc` twice (D63). The corpus, the writers, the `macros.inc` template and the text-layout
 check (§6.4) all take it from there, so the corpus tests the dialect the writers emit (D49).
 
 **Printing rule** (D14): an instruction is printed as a mnemonic only when `roundTrips` holds in
@@ -1148,7 +1151,8 @@ same corpus through the user's `as`. The same check on whole writer output (a Th
   name only when the linker would produce the same word: a Thumb function name stands for its address
   plus one, so an odd word equal to that prints as `.4byte Func`, and an even word equal to a Thumb
   function's address stays numeric (Emerald has 125 such words). Far pools are printed where they sit,
-  labelled global when another module loads them.
+  always in the module of the load that names them: `as` cannot assemble a PC-relative load of a symbol
+  in another object, so no legal border separates the two (D63).
 - **Jump tables.** One `table-entry` item per word, printed `.4byte _0800ABCD` (with `+ 1` when the
   stored value carries the Thumb bit) to a `local` label.
 - **Mode switches.** `bx pc` is followed by whatever bytes are there (`.align 2, 0` when they are zero,
@@ -1205,8 +1209,11 @@ earlier gates.
    `E_MODULE_BORDER`, naming the nearest legal borders.
 4. **Labels and names** (`labels.ts`, `names.ts`): a name comes from the TOML, else the default `sub_`,
    `unk_`, `_` or `gUnk_` plus eight upper-case hex digits; `NameSource` records which, and the TOML's
-   `from` key when present. A label referenced from another module has `scope: 'global'`, every other
-   label `scope: 'module'`. Names are unique within a module (`E_NAME_COLLISION`). A name may repeat in
+   `from` key when present. A `local` label is made only where an item can start: never at an odd code
+   address, the second halfword of a `bl`, the inside of an ARM word or of a pool or table word (an ARM
+   `adr r0, X + 1` before a `bx r0` into Thumb names one), so the instruction naming such an address fails
+   the printing rule and prints raw (D63). A label referenced from another module has `scope: 'global'`,
+   every other label `scope: 'module'`. Names are unique within a module (`E_NAME_COLLISION`). A name may repeat in
    different modules only when no other module references it, as static functions do in real decomps
    (Emerald has 117 duplicated static `FUNC` names); such labels print with the `_local` macros. Two file
    names in one directory that differ only by case (Emerald's `VBlankCB` and `VblankCB`, `InitBgs` and
@@ -1214,9 +1221,13 @@ earlier gates.
    invariant (§6.4).
 
 **Legal borders** (`core/layout/borders.ts`). A module border is legal when it is a word-aligned chunk
-start (`ld` word-aligns every object), when no short Thumb branch (`b`, `bcc`) crosses it, and when it
-does not fall inside an assembly-only range (below). `legalBorders(analysis, profile)` returns them
-sorted; the model, `init`, `analyze --update` and the TOML patcher all use it.
+start (`ld` word-aligns every object), when no short Thumb branch (`b`, `bcc`) crosses it, when no
+PC-relative load or `adr` (Thumb `ldr rd, [pc, #]` and `add rd, pc, #`, ARM `ldr rd, [pc, #]` and `adr`)
+crosses it, since `as` has no relocation for one that names a symbol in another object (D63), and when it
+does not fall inside an assembly-only range (below). The data start is the code end rounded up to a word,
+moved past every word the code loads PC-relative beyond it (D63). `legalBorders(rom, analysis)` returns
+them sorted, from the ROM's bytes and no compiler profile (the model has none, D63); the model, `init`,
+`analyze --update` and the TOML patcher all use it.
 
 **Module inference** (`core/layout/infer-modules.ts`, D20) returns `Proposal`s of kind `module` and
 follows the plan's rule:
@@ -1657,8 +1668,8 @@ it was built with.
   push and pop, a run of Thumb pointers that decodes as code, a pool word that decodes as `push {lr}`, a
   pool padded with `0x46C0`, code-end data that decodes, a 2-byte false stub.
 - **Composite** (phase 4): several objects linked into one ROM and scaffolded with `--module-size 0x200`,
-  so it has several modules, a cross-module `bl`, a pool loaded from another module (printed global), a
-  short branch that `init` must not cut, and a TOML with an illegal border that must fail with
+  so it has several modules, a cross-module `bl`, a pool word naming a function of another module (its label
+  printed global; a PC-relative load never crosses a border, D63), a short branch that `init` must not cut, and a TOML with an illegal border that must fail with
   `E_MODULE_BORDER`.
 - **Multi-compiler** (phase 4): two C modules, one built with `agbcc` and one with `old_agbcc` and extra
   flags (`g4.multi-compiler`).
