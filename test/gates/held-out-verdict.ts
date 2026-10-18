@@ -24,18 +24,24 @@ export interface SealedBinding {
  * the full rule applies again until the owner decides anew.
  */
 export interface FamilyWaiver {
-  readonly decided: string;
   readonly by: string;
+  /** The decisions the whole waiver rests on, for the message that refuses it. */
   readonly decision: string;
   readonly sealed: readonly SealedBinding[];
   readonly tuningFamilies: readonly string[];
   /**
-   * The owner's words for each family condition the waiver covers. A condition without grounds is not
-   * waived: it fails as without a waiver, its problem carrying the `pending` text when there is one.
+   * For each family condition the waiver covers, the owner's words and the date and decision that waived
+   * it, each printed with that condition. A condition without grounds is not waived: it fails as without a
+   * waiver.
    */
-  readonly grounds: Readonly<Partial<Record<FamilyCondition, string>>>;
-  /** Why a condition the waiver does not cover is still open (an owner question), printed with its failure. */
-  readonly pending?: Readonly<Partial<Record<FamilyCondition, string>>>;
+  readonly grounds: Readonly<Partial<Record<FamilyCondition, WaiverGround>>>;
+}
+
+/** Why one family condition is waived: the owner's words, the day they were given and the decision recording them. */
+export interface WaiverGround {
+  readonly text: string;
+  readonly decided: string;
+  readonly decision: string;
 }
 
 /** The two family conditions of D53: the passing ROMs span two families; one of them is absent from the tuning set. */
@@ -48,7 +54,6 @@ export type FamilyCondition = 'twoFamilies' | 'freshFamily';
  * two-families condition; every per-ROM threshold and the count of passing ROMs still decide.
  */
 export const FAMILY_WAIVER: FamilyWaiver = {
-  decided: '2026-10-17',
   by: 'the owner, Bruno Macabeus (architecture section 12 item 4)',
   decision: 'D60, D61',
   sealed: [
@@ -57,8 +62,12 @@ export const FAMILY_WAIVER: FamilyWaiver = {
   ],
   tuningFamilies: ['fe-gba', 'kleod', 'pret-gen3', 'sat-r', 'zeldaret-tmc'],
   grounds: {
-    freshFamily: "the owner's words: the gate is recorded as having no held-out ROM from a family absent from the tuning set",
-    twoFamilies: 'the owner\'s answer to Q4 of phase-2.md on 2026-10-18 (D61), the option chosen: "Waive both"',
+    freshFamily: {
+      text: "the owner's words: the gate is recorded as having no held-out ROM from a family absent from the tuning set",
+      decided: '2026-10-17',
+      decision: 'D60',
+    },
+    twoFamilies: { text: 'the owner\'s answer to Q4 of phase-2.md, the option chosen: "Waive both"', decided: '2026-10-18', decision: 'D61 b' },
   },
 };
 
@@ -105,7 +114,7 @@ export function waiverMismatch(waiver: FamilyWaiver, sealed: readonly SealedBind
  * At least two sealed ROMs pass, from at least two families, one of them absent from the tuning set
  * (D53). With `waiver` (D60) a family condition the waiver has grounds for is reported as waived instead
  * of failing, only while the sealed datasets and the tuning families are exactly those it is bound to; a
- * condition without grounds still fails (with the waiver's `pending` text), and the count of passing ROMs
+ * condition without grounds still fails, and the count of passing ROMs
  * and every per-ROM threshold still decide.
  */
 export function heldOutVerdict(
@@ -128,11 +137,10 @@ export function heldOutVerdict(
   for (const p of familyProblems) {
     const ground = w?.grounds[p.ground];
     if (w !== undefined && ground !== undefined) {
-      waived.push(`${p.text}: waived by ${w.by} on ${w.decided} (${w.decision}; ${ground})`);
+      waived.push(`${p.text}: waived by ${w.by} on ${ground.decided} (${ground.decision}; ${ground.text})`);
       continue;
     }
-    const pending = w?.pending?.[p.ground];
-    problems.push(pending === undefined ? p.text : `${p.text} (${pending})`);
+    problems.push(p.text);
   }
   return {
     pass: problems.length === 0,

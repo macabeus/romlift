@@ -46,15 +46,14 @@ test('heldOutVerdict with the D60 and D61 waiver: both family conditions are wai
   assert.equal(v.waiverRefused, undefined);
   assert.deepEqual(v.problems, []);
   assert.equal(v.waived?.length, 2);
-  assert.match(v.waived?.[0] ?? '', /^the passing ROMs span 1 codebase families, at least two must: waived by the owner, Bruno Macabeus .* on 2026-10-17 \(D60, D61; the owner's answer to Q4 .* "Waive both"\)$/);
-  assert.match(v.waived?.[1] ?? '', /^no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus .* \(D60, D61; the owner's words/);
-  // A condition without grounds is not waived: it fails with the waiver's pending text (the shape before Q4's answer).
-  const freshOnly = heldOutVerdict(sealed, AT_D60, {
-    waiver: { ...FAMILY_WAIVER, grounds: { freshFamily: FAMILY_WAIVER.grounds.freshFamily ?? '' }, pending: { twoFamilies: 'not waived: owner question' } },
-    sealed: SEALED,
-  });
+  assert.match(v.waived?.[0] ?? '', /^the passing ROMs span 1 codebase families, at least two must: waived by the owner, Bruno Macabeus \(architecture section 12 item 4\) on 2026-10-18 \(D61 b; the owner's answer to Q4 of phase-2.md, the option chosen: "Waive both"\)$/);
+  assert.match(v.waived?.[1] ?? '', /^no passing ROM is from a family absent from the tuning set: waived by the owner, Bruno Macabeus \(architecture section 12 item 4\) on 2026-10-17 \(D60; the owner's words/);
+  // A condition without grounds is not waived: it fails as without a waiver (the shape before Q4's answer).
+  const fresh = FAMILY_WAIVER.grounds.freshFamily;
+  assert.ok(fresh !== undefined);
+  const freshOnly = heldOutVerdict(sealed, AT_D60, { waiver: { ...FAMILY_WAIVER, grounds: { freshFamily: fresh } }, sealed: SEALED });
   assert.equal(freshOnly.pass, false);
-  assert.deepEqual(freshOnly.problems, ['the passing ROMs span 1 codebase families, at least two must (not waived: owner question)']);
+  assert.deepEqual(freshOnly.problems, ['the passing ROMs span 1 codebase families, at least two must']);
   // With two families passing, only the fresh-family condition needs the waiver.
   const two = heldOutVerdict([sealed[0]!, { name: 'pokeruby', family: 'sat-r', pass: true }], AT_D60, WAIVER);
   assert.equal(two.pass, true);
