@@ -37,8 +37,13 @@ as the landing procedure requires, including `bench gates --require 2 --tier rea
 answer (D61 g) is the only gate change of the round: `g2.confirm-equals-discover` accepts tmc's eight
 differing functions and four claim runs, each pinned by its records and printed as `KNOWN LIMITATION`, and
 a ninth difference fails. Rows, counts, code ends and analysis digests equal `356829f`'s on the six tuning
-ROMs, and pokefirered and pokeruby pass sealed with unchanged counts. What remains is the pull request to
-`main`, its CI workflows (`ci.yml`, `printer.yml`, `provenance.yml`) and the merge.
+ROMs, and pokefirered and pokeruby pass sealed with unchanged counts. The CI workflows ran on the phase's
+pull request (macabeus/romlift#2, head `5b0564d`) and all ten jobs passed: `ci.yml` on ubuntu-latest and
+macos-latest with Node 22.18 and 24, and its job checking that the analysis digests agree across them;
+`printer.yml` with apt binutils 2.42 (`2.42-1ubuntu1+23`) and Homebrew binutils 2.47 (`2.47.20260726`), each
+corpus summary `ok: true` at the default options; `fixtures.yml` on ubuntu-latest and macos-latest; and
+`provenance.yml`. The minor findings the last review left open carry into phase 3 ("Carried into phase 3",
+below). Phase 2 was merged into `main` as "Phase 2: Analysis" and tagged `phase-2`.
 
 **Verdict (after fix round 2 of D61; superseded).** Phase 2 does **not** land, on the same one gate and for the same
 reason: `g2.confirm-equals-discover` fails on tmc's 0x080B255C and 0x080B2874 and the three claim runs
@@ -1022,6 +1027,17 @@ numbers still reproduced under the PoC's ruler, and one check was tightened (sta
 | code-quality-r1-6 | minor | **Fixed** (`5413db8`): one `DatasetIdentity` type from `dataset-binding.ts` in `bindingMismatch`, `judgeDifferences`, `baselineRowsVerdict` and `parityCheck`; `byCodeUnit` in `test/gates/order.ts`, re-exported by `gate.ts`, its twelve private copies in `test/gates` and `dataset-binding.ts`'s export gone. Not done, the optional part: one field set for the four scoping records; their fields print the owner's words and decisions as recorded, and renaming them changes no verdict. |
 | code-quality-r1-7 | minor | **Fixed** (`5413db8`): `test/unit/gates/dataset-binding.test.ts` pins `TMC_AT_D61` to `bench/dataset/real/tmc.json` (static import) and tests `bindingMismatch` directly (equal, other ROM, other ELF, no ELF digest); the pin left `baseline-rows-verdict.test.ts`. |
 
+### Carried into phase 3
+
+The minor findings the last review (of `9262e2a`, answered by fix round 2 of D61) left open, as its
+dispositions above list them, change no phase-2 number and no gate verdict; they carry into phase 3, where
+the code they touch is next changed. The dispositions leave one open: the optional part of
+code-quality-r1-6, one field set for the four scoping records (their fields print the owner's words and
+decisions as recorded, and renaming them changes no verdict). The items the earlier
+rounds deferred to phase 3 stay under "Known limitations": the cartridge entry's extent over the header
+(correctness-6, with the header's emission) and the two-instruction ARM leaf read as Thumb (the scaffold
+decides whether it matters).
+
 ## The closing gate
 
 The whole list in a fresh worktree (`git worktree add --detach`: no `node_modules`, no `bench/.local`) at
@@ -1063,7 +1079,7 @@ list is the previous round's with `bench regression --base 356829f` added (that 
 | `npm run bench -- provenance` | 0 | source digest `6b05fd13…` current, gate record ok (12 real-tier gates of phase ≤ 2 pass or are historical), families live, 6 rows, no row of the 2 sealed datasets |
 | `npm run bench -- stale-check` | 0 | the artifact is current |
 
-Not done here: the pull request to `main`, its CI workflows and the merge. The runs at `356829f`,
+The pull request, its CI workflows and the merge are in the verdict above. The runs at `356829f`,
 `2c96faa`, `e1c3f64`, `8c60bf5`, `2475b34`, `9c8b282`, `808513f`, `22cbc77` and before are in the Git
 history of this file.
 
