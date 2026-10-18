@@ -14,6 +14,15 @@ export const ModelCodes = defineCodes({
     meaning: 'two labels of one module share a name, or a name repeats in another module while one of them is referenced from outside its module',
   },
   E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
+  W_FUNCTION_OUTSIDE_ROM: {
+    severity: 'warning',
+    meaning: 'a [functions] entry lies outside the ROM, so the model has no function for it, or an [[overrides]] range reaches outside it, where it applies to nothing',
+  },
+  W_SYMBOL_UNPLACED: {
+    severity: 'warning',
+    meaning:
+      'a [symbols] entry inside the ROM lies inside an instruction, a pool word or a table entry, where no file can define a label (D63 d), so its name is not printed',
+  },
   W_CROSS_MODULE_SHORT_BRANCH: {
     severity: 'warning',
     meaning: 'a short Thumb branch (b, bcc) crosses a module border moved by hand, so it prints raw (D15)',

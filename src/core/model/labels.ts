@@ -137,6 +137,11 @@ export interface LabelInputs {
 export interface LabelsResult {
   /** Sorted by address, then name. */
   readonly labels: readonly Label[];
+  /**
+   * The [symbols] entries inside the ROM that got no label: their address lies inside an instruction, a pool
+   * word or a table entry, where no file can define a label (D63 d), so nothing may print their name.
+   */
+  readonly unplaced: readonly ModelSymbol[];
   /** The func label of each listed function, by load address. */
   readonly functions: ReadonlyMap<Addr, Label>;
   /** The load addresses of the labels, ascending and unique. */
@@ -216,10 +221,12 @@ function insideAnItem(segments: Segments, refs: readonly CodeRef[]): (a: Addr) =
   };
 }
 
-/** Every label candidate, in load address order. */
-function candidatesOf(inputs: LabelInputs): Candidate[] {
+/** Every label candidate, in load address order, and the symbols inside the ROM no label can stand for. */
+function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; readonly unplaced: readonly ModelSymbol[] } {
   const { rom, modules, segments } = inputs;
   const out: Candidate[] = [];
+  const unplaced: ModelSymbol[] = [];
+  const inside = insideAnItem(segments, inputs.refs);
   const named = new Set<Addr>();
   const add = (c: Candidate): void => {
     out.push(c);
@@ -227,7 +234,10 @@ function candidatesOf(inputs: LabelInputs): Candidate[] {
   };
   for (const [entry, f] of sortedEntries(inputs.functions)) add({ load: entry, name: f.name, kind: 'func', thumb: f.mode === 'thumb' });
   for (const c of inputs.chunks) if (c.entry === undefined) add({ load: c.span.start, name: c.name, kind: 'data', thumb: false });
-  for (const s of inputs.symbols) add({ load: s.addr, name: s.name, kind: 'data', thumb: false });
+  for (const s of inputs.symbols) {
+    if (contains(rom, s.addr) && inside(s.addr)) unplaced.push(s);
+    else add({ load: s.addr, name: s.name, kind: 'data', thumb: false });
+  }
   const isData = (a: Addr): boolean => contains(rom, a) && modules[loadModuleAt(modules, a)]?.kind === 'data';
   const data: Addr[] = [];
   const targets: Addr[] = [];
@@ -244,9 +254,8 @@ function candidatesOf(inputs: LabelInputs): Candidate[] {
   for (const r of inputs.refs) targets.push(loadAddressOf(inputs.relocated, r.target));
   // A data or local label only where no other label names the address yet, once per address.
   for (const a of data) if (!named.has(a)) add({ load: a, name: dataName(a), kind: 'data', thumb: false });
-  const inside = insideAnItem(segments, inputs.refs);
   for (const a of targets) if (!named.has(a) && contains(rom, a) && !inside(a)) add({ load: a, name: localName(a), kind: 'local', thumb: false });
-  return out.sort(compareCandidates);
+  return { candidates: out.sort(compareCandidates), unplaced };
 }
 
 /** The labels at each run address, preferred first (resolver.ts compareLabels: LABEL_KIND_ORDER, then name). */
@@ -304,7 +313,7 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
 
 /** The labels of the model. */
 export function buildLabels(inputs: LabelInputs): LabelsResult {
-  const candidates = candidatesOf(inputs);
+  const { candidates, unplaced } = candidatesOf(inputs);
   const kept: Candidate[] = [];
   for (let i = 0; i < candidates.length; ) {
     let j = i;
@@ -327,5 +336,5 @@ export function buildLabels(inputs: LabelInputs): LabelsResult {
   const starts = kept
     .map((c) => c.load)
     .filter((a, i, all) => contains(inputs.rom, a) && (i === 0 || all[i - 1] !== a));
-  return { labels, functions, starts };
+  return { labels, unplaced, functions, starts };
 }

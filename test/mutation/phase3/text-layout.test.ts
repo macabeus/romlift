@@ -67,3 +67,21 @@ test('a missing include fails with E_SELF_CHECK_TEXT at its line and the chunk a
   assertFails(entries, entry, 6, 0x0800_010c);
   assert.match(checkEntry(rom, model, entry)[0]?.message ?? '', /"asm\/nonmatchings\/main\/Veneer\.s"/);
 });
+
+test('a [symbols] entry inside the ROM that no file defines is an undefined symbol, as for `as` (correctness-1)', () => {
+  // gOddSym names 0x08000101, Func + 1: the inside of Func's push, where no printer can place a label. Only its
+  // label could define it (symbols.ld holds the symbols outside the ROM), so a pool word naming it does not link.
+  const odd = { ...model, symbols: [{ addr: 0x0200_0000, name: 'gRam' }, { addr: 0x0800_0101, name: 'gOddSym' }] };
+  const entries = stream().map((e) => (e.path === 'asm/nonmatchings/main/Func.s' && e.ownership === 'generated' ? { ...e, text: e.text.replace('_08000108: .4byte Func', '_08000108: .4byte gOddSym') } : e));
+  const entry = entries.find((e) => e.path === 'asm/nonmatchings/main/Func.s');
+  assert.ok(entry !== undefined && 'text' in entry && entry.text.includes('gOddSym'));
+  const found = checkEntry(rom, odd, entry);
+  assert.equal(found[0]?.code, 'E_SELF_CHECK_TEXT');
+  assert.match(found[0]?.message ?? '', /gOddSym/);
+  assert.equal(checkEntries(rom, odd, entries).ok, false);
+  // A RAM symbol still resolves through symbols.ld.
+  const ram = stream().map((e) => (e.path === 'asm/nonmatchings/main/Func.s' && e.ownership === 'generated' ? { ...e, text: e.text.replace('_08000108: .4byte Func', '_08000108: .4byte gRam') } : e));
+  const ramEntry = ram.find((e) => e.path === 'asm/nonmatchings/main/Func.s');
+  assert.ok(ramEntry !== undefined);
+  assert.match(checkEntry(rom, model, ramEntry)[0]?.message ?? '', /lays out 0x00 where the ROM holds 0x01/);
+});

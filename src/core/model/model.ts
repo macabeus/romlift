@@ -4,15 +4,18 @@
 // own file: the modules checked against the legal borders (modules.ts), the chunks (chunks.ts), the labels and
 // their scopes (labels.ts), the names checked per module (names.ts), the symbols (symbols.ts), and the items
 // that tile the ROM (items.ts). Pure: content problems are diagnostics, never throws.
+import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { contains } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import type { FunctionConfig, RomliftConfig } from '../config/schema.ts';
 import { codeLayout, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from '../layout/borders.ts';
 import type { ListedEntry, PlacedEntry } from '../layout/borders.ts';
+import { ModelCodes } from './codes.ts';
 import type { ChunkPlan } from './chunks.ts';
 import { planChunks } from './chunks.ts';
 import { buildItems, segmentsOf } from './items.ts';
@@ -21,7 +24,7 @@ import { planModules, relocatedModules, runOffsetAt } from './modules.ts';
 import { nameCollisions, nameSourceOf } from './names.ts';
 import type { DefinedName } from './names.ts';
 import { modelSymbols, romSymbols } from './symbols.ts';
-import type { Chunk, Label, Model, ModelFunction, Module } from './types.ts';
+import type { Chunk, Label, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
 
 /** Diagnostics by address (span start for a span), then code, then message. */
 function compareDiagnostics(a: Diagnostic, b: Diagnostic): number {
@@ -88,6 +91,33 @@ function modelFunctions(
       },
     ];
   });
+}
+
+/** W_FUNCTION_OUTSIDE_ROM for every [functions] entry and [[overrides]] range that lies outside the ROM. */
+function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  for (const [entry, f] of sortedEntries(config.functions)) {
+    if (contains(rom, entry)) continue;
+    out.push(diagnostic(ModelCodes, 'W_FUNCTION_OUTSIDE_ROM', `the [functions] entry ${hexAddr(entry)} (${f.name}) lies outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}`, { addr: entry }));
+  }
+  for (const o of config.overrides) {
+    if (contains(rom, o.start) && o.start + o.size <= rom.end) continue;
+    const span = { start: o.start, end: o.start + o.size };
+    out.push(diagnostic(ModelCodes, 'W_FUNCTION_OUTSIDE_ROM', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} reaches outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}; the part outside is ignored`, { span }));
+  }
+  return out;
+}
+
+/** W_SYMBOL_UNPLACED for each [symbols] entry inside the ROM that no file can define. */
+function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
+  return symbols.map((s) =>
+    diagnostic(
+      ModelCodes,
+      'W_SYMBOL_UNPLACED',
+      `the [symbols] entry ${s.name} at ${hexAddr(s.addr)} lies inside an instruction, a pool word or a table entry, where no file can define it; words equal to its address print by another name or as values`,
+      { addr: s.addr },
+    ),
+  );
 }
 
 /** The Model of `rom` under `config`, with the facts of `analysis` (a discover or confirm result). */
@@ -159,6 +189,6 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     labels: labelled.labels,
     symbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...collisions, ...built.diagnostics].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...collisions, ...built.diagnostics, ...outsideTheRom(rom, config), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
   };
 }

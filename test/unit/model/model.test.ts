@@ -162,8 +162,26 @@ test('deterministic: the same model whatever order the config maps were filled i
 test('never a throw for content: no module, a function outside the ROM, a symbol in RAM', () => {
   const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })] });
   const model = buildModel(ROM, analysis, configOf({ modules: [], functions: [[BASE + 0x100, 'A'], [0x0900_0000, 'Outside']], symbols: [[0x0300_0000, { name: 'gRam', aliases: [] }]] }));
-  assert.deepEqual(model.diagnostics.map((d) => d.code), ['E_MODULE_ORDER']);
+  assert.deepEqual(model.diagnostics.map((d) => [d.code, d.addr]), [['E_MODULE_ORDER', BASE], ['W_FUNCTION_OUTSIDE_ROM', 0x0900_0000]]);
+  assert.match(model.diagnostics[1]?.message ?? '', /0x09000000 \(Outside\) lies outside the ROM/);
   assert.deepEqual(model.functions.map((f) => f.name), ['A']);
   assert.deepEqual(model.symbols, [{ addr: 0x0300_0000, name: 'gRam' }]);
   assert.ok(tiles(model.items, ROM.base, ROM.end));
+});
+
+test('a [symbols] entry inside an instruction gets no label and W_SYMBOL_UNPLACED; one at an item start is a data label', () => {
+  const rom = romWith([{ at: BASE + 0x100, bytes: thumbAt(BASE + 0x100)`push {lr}; pop {r0}; bx r0` }, { at: BASE + 0x108, bytes: words(BASE + 0x101) }], { size: 0x400 });
+  const analysis = analysisOf(rom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x106 })] });
+  const config = configOf({
+    modules: [['rom_header', BASE], ['main', HEADER_END]],
+    functions: [[BASE + 0x100, 'A']],
+    symbols: [
+      [BASE + 0x101, { name: 'gOdd', aliases: [] }],
+      [BASE + 0x102, { name: 'gAtPop', aliases: [] }],
+    ],
+  });
+  const model = buildModel(rom, analysis, config);
+  assert.deepEqual(model.labels.filter((l) => l.name.startsWith('g')).map((l) => [l.name, l.addr - BASE, l.kind]), [['gAtPop', 0x102, 'data']]);
+  assert.deepEqual(model.diagnostics.filter((d) => d.code === 'W_SYMBOL_UNPLACED').map((d) => d.addr), [BASE + 0x101]);
+  assert.deepEqual(model.symbols.map((s) => s.name), ['gOdd', 'gAtPop']);
 });

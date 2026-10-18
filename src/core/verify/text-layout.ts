@@ -10,9 +10,10 @@
 //   ld gives them. It is read as `as` reads it, inside its module file, after that file's include of the
 //   macro file: a chunk file that includes the macro file again redefines every macro, which `as` refuses.
 //   Names it does not define resolve to the model: a label of its module, else a global label (resolver.ts
-//   wordValueOf: a Thumb function carries the Thumb bit), else a [symbols] entry (what symbols.ld defines);
-//   only a label a printer can place counts, one at an item's start or inside a data item (chunk.ts places no
-//   other), so a name the tree never defines is an undefined symbol here as for `as`. A PC-relative load or
+//   wordValueOf: a Thumb function carries the Thumb bit), else a [symbols] entry outside the ROM (what
+//   symbols.ld defines); only a label a printer can place counts, one at an item's start or inside a data item
+//   (chunk.ts places no other), so a name the tree never defines is an undefined symbol here as for `as`. A
+//   [symbols] entry inside the ROM is defined only by its label, so one no printer can place resolves to nothing. A PC-relative load or
 //   `adr` may name only a label of its own module, the object `as` assembles it into (D63).
 //   `.incbin "baserom.gba"` reads the ROM.
 // - A module's source (asm/rom_header.s, asm/crt0.s, asm/<module>.s, data/<module>.s; paths.ts
@@ -82,7 +83,7 @@ interface PathIndex {
   readonly expected: readonly { readonly path: string; readonly addr: Addr }[];
   /** The labels a printer can place (definable), by name, each list by address. */
   readonly labelsByName: ReadonlyMap<string, readonly Label[]>;
-  /** [symbols] entries by name (the first by address). */
+  /** The [symbols] entries outside the ROM, which symbols.ld defines, by name (the first by address). */
   readonly symbolsByName: ReadonlyMap<string, Addr>;
   /** What every layout of the model's files remembers of instruction texts (foundation/asm/layout.ts). */
   readonly memo: LayoutMemo;
@@ -135,9 +136,7 @@ function buildIndex(model: Model): PathIndex {
     if (list === undefined) labelsByName.set(label.name, [label]);
     else list.push(label);
   }
-  const symbolsByName = new Map<string, Addr>();
-  for (const s of model.symbols) if (!symbolsByName.has(s.name)) symbolsByName.set(s.name, s.addr);
-  return { targets, chunkPaths: paths, expected, labelsByName, symbolsByName, memo: layoutMemo() };
+  return { targets, chunkPaths: paths, expected, labelsByName, symbolsByName: externalSymbols(model), memo: layoutMemo() };
 }
 
 function indexOf(model: Model): PathIndex {
