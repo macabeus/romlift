@@ -359,8 +359,9 @@ pinned PoC baseline, so its PoC reference is the pinned PoC's own run of it (`ex
 `poc.source` `dump`), and it is a benchmark row ("Keep tmc as 99.94%. It's a benchmark row that we can
 improve later"): `g2.poc-parity` covers the five ROMs of the M1 evidence (tmc not applicable), and
 `g2.baseline-rows` accepts tmc's rows that the dataset lists with a category, with tmc's tp 8,631 of 8,636
-as a floor; `g2.confirm-equals-discover` accepts tmc's six differences of Q3 as a known limitation and
-nothing else ("Build resettle, else accept": the resettle stage was measured and reverted); both held-out
+as a floor; `g2.confirm-equals-discover` accepts tmc's eight differences of Q3 and Q6 as a known limitation
+and nothing else ("Build resettle, else accept": the resettle stage was measured and reverted; "Yes, cover
+all 8"); both held-out
 family conditions are waived for the sealed pokefirered and pokeruby and the tuning families of D60 only
 ("Waive both"); and the ELF code end ends an unsized function at the next `$d` or typed symbol on every
 ROM ("Use $d for every ROM"). Every other threshold, and every threshold on the five original ROMs and the

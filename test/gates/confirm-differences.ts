@@ -7,8 +7,10 @@
 // The owner's answer to Q3 of phase-2.md (18 October 2026, "Build resettle, else accept"): D8's resettle
 // stage was built and measured (f287b0d) and reverted (af0f75c) because it changes rows on the other tuning
 // ROMs and the sealed pair, so tmc's six differences are a known phase-2 limitation (KNOWN_DIFFERENCES).
-// They are pinned by content: each function's discover and confirm records and each differing claim run's,
-// as measured at 9c8b282 (identical at 95b257b^ and 5e18731). The gate accepts a ROM's differences only
+// The owner's answer to Q6 (18 October 2026, "Yes, cover all 8") extends it to 0x080B255C and 0x080B2874,
+// which 95b257b moved after Q3's count, and their three claim runs. They are pinned by content: each
+// function's discover and confirm records and each differing claim run's, the six of Q3 as measured at
+// 9c8b282 (identical at 95b257b^ and 5e18731), the two of Q6 and their claim runs at 51ea4ee. The gate accepts a ROM's differences only
 // when they are exactly those records, no more and no fewer: a known function that differs otherwise
 // (another extent, mode or far verdicts, or gone from a view) is a changed limitation, one that no longer
 // differs, or a record whose ROM is not a tuning dataset, is a stale record, and each fails; so does the
@@ -65,28 +67,26 @@ export interface KnownDifferences {
   readonly rom: DatasetBinding;
   readonly functions: readonly FunctionDifference[];
   readonly claims: readonly ClaimDifference[];
-  /**
-   * Differences known not to be covered, by entry, each with why: printed with its failure instead of the
-   * neutral "not covered" text. They still fail.
-   */
-  readonly notCovered?: Readonly<Record<number, string>>;
 }
 
 const thumb = (entry: number, end: number): ViewFunction => ({ entry, mode: 'thumb', extent: { start: entry, end }, far: [] });
 const arm = (entry: number, end: number): ViewFunction => ({ entry, mode: 'arm', extent: { start: entry, end }, far: [] });
 
 /**
- * tmc's six differences (D61 e), the six Q3 named, with their records as measured at 9c8b282: functions of
- * hand-written code with several entries, whose shared code goes to whichever entry is taken first (D60 k),
- * so confirm, which takes every listed entry from round 0, cuts them where discover does not; and the one
- * claim run that follows (0x080087D2..0x08008886, owned by 0x08008790 in discover, unowned in confirm).
+ * tmc's eight differences (D61 e). The six Q3 named, with their records as measured at 9c8b282: functions
+ * of hand-written code with several entries, whose shared code goes to whichever entry is taken first (D60
+ * k), so confirm, which takes every listed entry from round 0, cuts them where discover does not; and the
+ * one claim run that follows (0x080087D2..0x08008886, owned by 0x08008790 in discover, unowned in confirm).
+ * The two Q6 added ("Yes, cover all 8"), with their records as measured at 51ea4ee: 0x080B255C and
+ * 0x080B2874, the same class, moved by the pool boundary of 95b257b, and their three claim runs
+ * (0x080B2874..0x080B289C and 0x080B289C..0x080B299C in discover, 0x080B2874..0x080B299C in confirm).
  * Nothing else is covered.
  */
 export const KNOWN_DIFFERENCES: Readonly<Record<string, KnownDifferences>> = {
   tmc: {
     decision: 'D61 e',
     reason:
-      'known phase-2 limitation (the owner\'s answer to Q3 on 2026-10-18, "Build resettle, else accept": the resettle stage changed rows on the other tuning ROMs and the sealed pair and was reverted)',
+      'known phase-2 limitation (the owner\'s answer to Q3 on 2026-10-18, "Build resettle, else accept": the resettle stage changed rows on the other tuning ROMs and the sealed pair and was reverted; and to Q6 on 2026-10-18, "Yes, cover all 8": 0x080B255C and 0x080B2874 with their three claim runs)',
     rom: TMC_AT_D61,
     functions: [
       { entry: 0x0800_4274, discover: thumb(0x0800_4274, 0x0800_4356), confirm: thumb(0x0800_4274, 0x0800_42ac) },
@@ -95,6 +95,8 @@ export const KNOWN_DIFFERENCES: Readonly<Record<string, KnownDifferences>> = {
       { entry: 0x0800_43ac, discover: thumb(0x0800_43ac, 0x0800_43e8), confirm: thumb(0x0800_43ac, 0x0800_43b0) },
       { entry: 0x0800_8790, discover: thumb(0x0800_8790, 0x0800_8886), confirm: thumb(0x0800_8790, 0x0800_8796) },
       { entry: 0x080b_1a8c, discover: arm(0x080b_1a8c, 0x080b_1af0), confirm: arm(0x080b_1a8c, 0x080b_1aa8) },
+      { entry: 0x080b_255c, discover: arm(0x080b_255c, 0x080b_299c), confirm: arm(0x080b_255c, 0x080b_280c) },
+      { entry: 0x080b_2874, discover: arm(0x080b_2874, 0x080b_289c), confirm: arm(0x080b_2874, 0x080b_299c) },
     ],
     claims: [
       {
@@ -102,11 +104,22 @@ export const KNOWN_DIFFERENCES: Readonly<Record<string, KnownDifferences>> = {
         discover: { span: { start: 0x0800_87d2, end: 0x0800_8886 }, kind: 1, owner: 0x0800_8790 },
         confirm: { span: { start: 0x0800_87d2, end: 0x0800_8886 }, kind: 1 },
       },
+      {
+        span: { start: 0x080b_2874, end: 0x080b_289c },
+        discover: { span: { start: 0x080b_2874, end: 0x080b_289c }, kind: 1, owner: 0x080b_2874 },
+        confirm: null,
+      },
+      {
+        span: { start: 0x080b_2874, end: 0x080b_299c },
+        discover: null,
+        confirm: { span: { start: 0x080b_2874, end: 0x080b_299c }, kind: 1, owner: 0x080b_2874 },
+      },
+      {
+        span: { start: 0x080b_289c, end: 0x080b_299c },
+        discover: { span: { start: 0x080b_289c, end: 0x080b_299c }, kind: 1, owner: 0x080b_255c },
+        confirm: null,
+      },
     ],
-    notCovered: {
-      0x080b_255c: "moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md",
-      0x080b_2874: "moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md",
-    },
   },
 };
 
@@ -206,10 +219,7 @@ export function judgeDifferences(
   });
   const uncovered = d.functions.filter((x) => !knownFn.has(x.entry));
   if (uncovered.length > 0) {
-    const shown = uncovered.slice(0, FIRST).map((f) => {
-      const why = k.notCovered?.[f.entry];
-      return `${fnDiffText(f)}${why === undefined ? '' : ` (${why})`}`;
-    });
+    const shown = uncovered.slice(0, FIRST).map(fnDiffText);
     problems.push(`${name}: ${uncovered.length} functions differ, not covered by ${k.decision}: ${shown.join('; ')}${more(uncovered)}`);
   }
   if (changed.length > 0) {

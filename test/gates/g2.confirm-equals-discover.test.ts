@@ -1,7 +1,7 @@
 // g2.confirm-equals-discover (architecture §4.2, §13, D8): on every tuning ROM, a confirm run seeded with
 // exactly the functions a discover run found (entries and modes, `label` for an entry inside another found
-// extent, no sizes) gives the same parity view: functions, extents, far `bl` verdicts and claims. tmc's six
-// differing functions are a known phase-2 limitation (D61 e, the owner's answer to Q3), pinned by content:
+// extent, no sizes) gives the same parity view: functions, extents, far `bl` verdicts and claims. tmc's eight
+// differing functions are a known phase-2 limitation (D61 e, the owner's answers to Q3 and Q6), pinned by content:
 // the gate judges every ROM in full, equal digests or not, accepts tmc only when its differences are
 // exactly the recorded ones (each function's and claim run's records in both views), prints them every
 // time, and fails on any other difference there, on a recorded difference that changed or is gone, on a

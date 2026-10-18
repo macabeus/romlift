@@ -1938,6 +1938,13 @@ verbatim, and the meaning applied:
   gate-honesty-r0-3. It kept one scorer on the PoC's convention and asked the owner about it as Q7 of
   phase-2.md; fix round 2 of D61 withdrew that reading and the question, because the meaning given
   already answers it: "in every scorer" covers the rescoring of the PoC's dumps too, (a).)
+- **Q6** (`g2.confirm-equals-discover` on two more tmc functions, asked in fix round 3 of D60 and kept open
+  through fix rounds 1 and 2 of D61), answered by the owner on 18 October 2026, the option chosen: **"Yes,
+  cover all 8"**. Meaning given: the known limitation of `g2.confirm-equals-discover` on tmc (e) also covers
+  0x080B255C and 0x080B2874: pin their discover and confirm records and the three claim runs
+  (0x080B2874..0x080B289C, 0x080B2874..0x080B299C, 0x080B289C..0x080B299C) by content in
+  `KNOWN_DIFFERENCES.tmc` next to the six, as measured at HEAD, printed like the six. This is the only gate
+  change the answer authorises; (g).
 
 These are the only gate changes the answers authorise; no other gate, threshold or check is weakened,
 skipped or removed.
@@ -2037,7 +2044,7 @@ skipped or removed.
   0x080B299C), the same class (two ARM entries proposed by one worklist, read in ascending order, the
   lower one's reading running over the higher). The owner's answer names six, so the two are not covered:
   the gate fails on them, printing why (that text for these two addresses only; any other extra function
-  is printed as "not covered by D61 e"), and they are owner question Q6 of phase-2.md.
+  is printed as "not covered by D61 e"), and they are owner question Q6 of phase-2.md, answered in (g).
 - (f) **The binding of the tmc scopings** (fix round 1 of D61, overfitting-correctness-r0-4). (c), (d) and
   (e) were keyed by the dataset name alone. Each now holds the ROM SHA-1 and ELF SHA-256 the answers were
   given on (`test/gates/dataset-binding.ts` `TMC_AT_D61`: `b4bd50e4…`, `7d27e8d9…`), as (b) holds the
@@ -2049,6 +2056,18 @@ skipped or removed.
   before. One identity type (`DatasetIdentity`) and one order (`test/gates/order.ts` `byCodeUnit`) serve the
   three; `test/unit/gates/dataset-binding.test.ts` pins `TMC_AT_D61` to `bench/dataset/real/tmc.json` and
   tests `bindingMismatch` (code-quality-r1-6, r1-7).
+- (g) **Q6, two more tmc functions** (`test/gates/confirm-differences.ts`). By the answer ("Yes, cover all
+  8") `KNOWN_DIFFERENCES.tmc` holds, next to the six of Q3 and their claim run, the records of 0x080B255C
+  (discover arm 0x080B255C..0x080B299C, confirm arm 0x080B255C..0x080B280C) and 0x080B2874 (discover arm
+  0x080B2874..0x080B289C, confirm arm 0x080B2874..0x080B299C), no far verdicts in either, and the three claim
+  runs: 0x080B2874..0x080B289C (kind 1, owner 0x080B2874, discover only), 0x080B2874..0x080B299C (kind 1,
+  owner 0x080B2874, confirm only) and 0x080B289C..0x080B299C (kind 1, owner 0x080B255C, discover only), as
+  measured at `51ea4ee`. The gate prints the eight and four claim runs as `KNOWN LIMITATION` every run, and
+  everything (e) and (f) say holds for the two as for the six: exact records, any other difference fails
+  wherever it lies, a gone or changed record fails, the binding to `TMC_AT_D61`. The `notCovered` text that
+  printed the Q6 reason is gone with the question. `test/unit/gates/confirm-differences.test.ts` pins the
+  eight and the four, and a ninth differing function (an ARM entry between the two of Q6) still fails as
+  "not covered by D61 e".
 
 **Consequences.** Measured at `8c60bf5` (phase-2.md, "The closing gate"): the six tuning rows keep
 `8fba183`'s counts and analysis digests, every code end is 0, pokefirered and pokeruby pass sealed with
@@ -2058,8 +2077,9 @@ also fails `g1.provenance` and `bench provenance`, so `phase.json` is back at 1 
 Nothing beyond the five answers is waived. After fix round 1 of D61, measured at `2c96faa`: the same rows,
 counts and analysis digests, every closing command exits 0 but the real tier, which fails on that gate alone
 (tmc's 0x080B255C and 0x080B2874, Q6), with the six of Q3 matching their pinned records. Fix round 2 of
-D61 withdrew Q7 (the meaning given with Q5 answers it, (a)) and applied `$d` to the PoC-dump rescoring;
-the closing measurements are in phase-2.md, "The closing gate".
+D61 withdrew Q7 (the meaning given with Q5 answers it, (a)) and applied `$d` to the PoC-dump rescoring.
+The owner's answer to Q6 ("Yes, cover all 8", (g)) is the last gate change of phase 2; the closing
+measurements and the landing are in phase-2.md, "The closing gate".
 
 ---
 

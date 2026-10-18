@@ -866,20 +866,20 @@ took the listed entries after the passes held by construction and was withdrawn.
 Q3 ("Build resettle, else accept", D61 e) the `resettle` stage was built and measured: it cuts the cartridge
 entry's extent at the startup piece and the m4a mixer's at its inner entries on the other tuning ROMs and
 moves the sealed pair's counts, so it was reverted, and tmc's six differences of Q3 are a known phase-2
-limitation, pinned by content (D61 e). The gate (`test/gates/confirm-differences.ts`) compares the two views
+limitation, pinned by content (D61 e); by the owner's answer to Q6 ("Yes, cover all 8") the limitation also
+covers 0x080B255C and 0x080B2874, which `95b257b` moved after Q3's count, and their three claim runs. The gate (`test/gates/confirm-differences.ts`) compares the two views
 in full on every ROM, equal digests or not, and decides on the differences themselves (`viewDifferences`,
 `judgeDifferences`; the views' digests are only a cross-check). `KNOWN_DIFFERENCES.tmc` holds each of the
-six functions' discover and confirm records (mode, extent, far verdicts) and the one differing claim run
-(0x080087D2..0x08008886), as measured at `9c8b282`; tmc passes only when its differences are exactly those
+eight functions' discover and confirm records (mode, extent, far verdicts) and the four differing claim runs
+(0x080087D2..0x08008886, as measured at `9c8b282` with the six of Q3; 0x080B2874..0x080B289C,
+0x080B2874..0x080B299C and 0x080B289C..0x080B299C, as measured at `51ea4ee` with the two of Q6); tmc passes only when its differences are exactly those
 records, printed as `KNOWN LIMITATION` every run. A known function whose record changed or that is gone
 from a view fails; any other differing function or claim run fails wherever it lies, inside a known
 extent included; a recorded difference that no longer differs, and a record whose ROM is not a tuning
 dataset, fail as stale; every other ROM must have no difference. Each failure message gives the counts
 and the first four records of each list. The record is bound to tmc's ROM SHA-1 and ELF SHA-256 as the
 answer was given on (`test/gates/dataset-binding.ts` `TMC_AT_D61`, D61 f): for another build of that name
-it is stale and fails, and tmc is judged as without it. tmc has two more differing functions at HEAD
-(0x080B255C, 0x080B2874, moved by `95b257b` after Q3's count); they are not covered and the gate fails on
-them (phase-2.md, owner question Q6).
+it is stale and fails, and tmc is judged as without it. A ninth differing function fails.
 
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
@@ -2019,9 +2019,10 @@ in roadmap.md pass. The gates per phase are those of §1.
    `resettle` stage was built, changed rows on the other ROMs and the sealed pair, and was reverted; tmc's
    six differences of Q3 are a printed known limitation); Q4, "Waive both" (both family conditions of
    `g2.held-out` waived, printed, for the sealed pair and tuning families of D60 only); Q5, "Use $d for
-   every ROM" (the code-end convention of §8.4). Nothing else is waived. One gate still fails:
-   `g2.confirm-equals-discover` on two more tmc functions (0x080B255C, 0x080B2874) that Q3's count of six,
-   taken before `95b257b`, did not include; that is owner question Q6, and phase 2 has not landed.
+   every ROM" (the code-end convention of §8.4). `g2.confirm-equals-discover` then failed on two more tmc
+   functions (0x080B255C, 0x080B2874) that Q3's count of six, taken before `95b257b`, did not include
+   (phase-2.md, Q6); the owner answered Q6 on 18 October 2026, "Yes, cover all 8", and the known limitation
+   covers the eight with their records. Nothing else is waived.
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
    about 16,000 lines).
 6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export.
@@ -2056,7 +2057,7 @@ one is missing.
 | `g2.extents` | real | the extents family |
 | `g2.code-end` | real | the code-end family |
 | `g2.no-unreviewed` | real | no dataset row has category `unreviewed` |
-| `g2.confirm-equals-discover` | real | §4.2; tmc's six differences of Q3 a known phase-2 limitation, printed, nothing else accepted (D61 e) |
+| `g2.confirm-equals-discover` | real | §4.2; tmc's eight differences of Q3 and Q6 a known phase-2 limitation, printed, nothing else accepted (D61 e) |
 | `g2.determinism` | ci and real | two processes with a varied environment give one analysis digest; Linux, macOS and both Node versions agree |
 | `g2.synthetic-analysis` | ci | every fixture's `expect.json` holds, negative fixtures included |
 | `g2.rule-registry` | ci | §4.1 registry checks |

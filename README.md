@@ -28,9 +28,9 @@ decided to tune on it ("Tune on tmc, no new ROM", D60), so it is the sixth tunin
 the five questions that decision left open (D61): The Minish Cap is a benchmark row at its current numbers
 (not held to the PoC-comparison gates), both held-out family conditions are waived, the code end of an
 unsized function ends at its `$d`, and its six known confirm/discover differences are a recorded
-limitation. One gate still fails: confirm equals discover differs on two more Minish Cap functions than the
-six the owner was told of, which is a new owner question (Q6), so the phase has not landed. The commands
-so far are `doctor`, `analyze` and `explain`.
+limitation. Confirm equals discover then differed on two more Minish Cap functions than the six the owner
+was told of; the owner's answer to that question (Q6, "Yes, cover all 8") adds them to the recorded
+limitation. The commands so far are `doctor`, `analyze` and `explain`.
 
 | Phase | Delivers |
 | --- | --- |

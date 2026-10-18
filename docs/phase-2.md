@@ -156,12 +156,22 @@ verbatim, are in D61 with the meaning applied, and each is in the code that appl
 | Q3 `g2.confirm-equals-discover` on tmc | "Build resettle, else accept" | `f287b0d` built D8's `resettle`; it changes rows on the other ROMs and the sealed pair, so `af0f75c` reverted it; `test/gates/confirm-differences.ts` `KNOWN_DIFFERENCES` (D61 e) accepts tmc's six differences of Q3, pinned by content (each function's discover and confirm record and the one claim run, as measured at `9c8b282`), printed, and nothing else |
 | Q4 the two-families waiver of `g2.held-out` | "Waive both" | `test/gates/held-out-verdict.ts` `FAMILY_WAIVER.grounds.twoFamilies` (D61 b): both family conditions waived and printed, bound to the sealed pair and the tuning families of D60 |
 | Q5 the code-end convention | "Use $d for every ROM" | `bench/src/truth.ts` `elfCodeEnd` (D61 a): an unsized function ends at the `$d` or typed symbol that closes its last code run, every ROM, tuning and sealed, in every scorer (since fix round 2 of D61 the rescoring of the PoC's own dumps too; Q7 withdrawn); tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, the others 0 |
+| Q6 `g2.confirm-equals-discover` on two more tmc functions | "Yes, cover all 8" | `test/gates/confirm-differences.ts` `KNOWN_DIFFERENCES.tmc` (D61 g): 0x080B255C and 0x080B2874, their discover and confirm records and the three claim runs 0x080B2874..0x080B289C, 0x080B2874..0x080B299C and 0x080B289C..0x080B299C, pinned by content next to the six as measured at `51ea4ee` and printed like the six; a ninth differing function still fails |
 
+Q6 (below) was answered the same day: "Yes, cover all 8".
 These are the only gate changes made. No other gate, threshold or check was weakened, skipped or removed.
 Since fix round 1 of D61 each tmc scoping (Q1, Q2, Q3) is bound to tmc's ROM SHA-1 and ELF SHA-256 as well
 as its name (D61 f), and each waived family condition prints its own date and decision.
 
-### Q6, open
+### Q6, answered on 18 October 2026
+
+The owner, Bruno Macabeus, answered on 18 October 2026, the option chosen: **"Yes, cover all 8"**. Meaning
+given: the known limitation of `g2.confirm-equals-discover` on tmc (D61 e) also covers 0x080B255C and
+0x080B2874: pin their discover and confirm records and the three claim runs (0x080B2874..0x080B289C,
+0x080B2874..0x080B299C, 0x080B289C..0x080B299C) by content in `KNOWN_DIFFERENCES.tmc` next to the six, as
+measured at HEAD, printed like the six. This is the only gate change the answer authorises. Applied in
+D61 (g): the records as measured at `51ea4ee`, the `notCovered` text gone, and a unit case proving a ninth
+differing function still fails. The question as asked:
 
 6. **`g2.confirm-equals-discover` on two more tmc functions.** Q3 said "6 functions differ on tmc", a count
    taken at `9c8b282` (fix round 1 of D60). The closing runs since compared the views only up to their first
@@ -1066,10 +1076,11 @@ Node 24.
 
 ## Known limitations
 
-- **`g2.confirm-equals-discover` fails on tmc (Q6)**: eight functions differ between confirm and discover,
-  the six of Q3, which the owner's answer accepts as a known limitation and the gate prints (pinned by
-  their records since fix round 1 of D61), and 0x080B255C and 0x080B2874, moved by `95b257b` after Q3's
-  count, with three claim runs; phase 2 does not land until the owner answers Q6.
+- **`g2.confirm-equals-discover` differs on tmc (Q3, Q6)**: eight functions differ between confirm and
+  discover, the six of Q3 and 0x080B255C and 0x080B2874, moved by `95b257b` after Q3's count, with four
+  claim runs; the owner's answers ("Build resettle, else accept", "Yes, cover all 8") accept them as a known
+  limitation, pinned by their records (D61 e, g) and printed by the gate every run; any ninth difference
+  fails.
 - **D8's `resettle` stage is not built**: measured at `f287b0d` and reverted, because re-reading every
   function under the final set cuts the cartridge entry at the startup piece and the m4a mixer at its inner
   entries on every ROM (D61 e).
