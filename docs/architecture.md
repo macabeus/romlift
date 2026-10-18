@@ -14,8 +14,8 @@ Four principles drive it:
 - **Every gate is an executable test from the first commit.** A gate reports one of five verdicts:
   `pass`, `fail`, `pending` (its exports are not public yet), `unavailable` (a local input such as a
   ROM, an ELF or the PoC checkout is missing; the input is named) and `historical` (a PoC-parity gate
-  frozen after phase 2 lands, its evidence committed; its `historicalCheck`, when it has one, still runs
-  and fails the gate when the evidence does not cover what the gate covered). A phase lands when every gate of that phase and
+  frozen after phase 2 lands, its evidence committed; its `run` still runs and fails the gate when its
+  check fails). A phase lands when every gate of that phase and
   of all earlier phases is `pass` or `historical` on both tiers (D29, D50).
 - **Nothing ships before its phase.** A command, a TOML key or a writer appears in the phase that
   gates it. Nothing is stubbed early.
@@ -1039,8 +1039,9 @@ unlisted or uncategorised row and a stale accepted diff still fail; and its tp 8
 checks the committed evidence (the digests and the lockstep summary in `results.json`, tied to the commit
 it names) and becomes `historical` when phase 2 lands. It is never re-run. One check
 (`test/gates/poc-parity-check.ts` `parityCheck`) decides it before and after landing: once historical the
-harness runs the gate's own check as its `historicalCheck` and records `historical` only when it passes, so
-raising `phase.json` cannot freeze a fail (D60, gate-honesty-r1-3, r2-1). Its scope is the five ROMs of the
+harness still runs the gate's `run` and records `historical` only when it passes, so raising `phase.json`
+cannot freeze a fail (D60, gate-honesty-r1-3, r2-1; a separate `historicalCheck` was removed in fix round 1
+of D61, code-quality-r0-6). Its scope is the five ROMs of the
 M1 evidence: the owner's answer to Q1 of phase-2.md (D61 c), "Keep tmc as 99.94%. It's a benchmark row that
 we can improve later", scopes tmc out (its M1 evidence cannot exist: the lockstep ran under `poc-lifo`
 before tmc was revealed), and the gate prints "tmc: not applicable, no M1 lockstep run".
@@ -1921,8 +1922,7 @@ export interface GateSpec {
   readonly tier: 'ci' | 'real';
   readonly needs: readonly string[];      // public exports the gate calls, e.g. ['analyze', 'explain']
   readonly inputs?: readonly ('roms' | 'elfs' | 'objects' | 'poc' | 'toolchain' | 'klonoa')[];
-  readonly historicalAfter?: 2;           // PoC-parity gates: frozen once that phase lands
-  historicalCheck?(cx: GateContext): Promise<void>; // still runs once frozen; throws on failure
+  readonly historicalAfter?: 2;           // PoC-parity gates: `historical` once that phase lands; run still runs
   run(cx: GateContext): Promise<void>;    // throws on failure
 }
 export type Verdict = 'pass' | 'fail' | 'pending' | 'unavailable' | 'historical';

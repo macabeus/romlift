@@ -8,9 +8,9 @@
 // once phase 2 lands. Nothing re-runs the lockstep: the oracle that replayed the PoC's log was deleted in
 // the fix round of phase 2 (D59).
 //
-// One check (poc-parity-check.ts `parityCheck`) decides both states: `run` before phase 2 lands and
-// `historicalCheck` after, so `historical` is recorded only when the gate's own check passes on its scope
-// (gate-honesty-r2-1). The scope is every tuning ROM but those the owner scoped out (SCOPED_OUT: tmc, by
+// One check (poc-parity-check.ts `parityCheck`) decides both states: the harness runs `run` before phase 2
+// lands and after, so `historical` is recorded only when the gate's own check passes on its scope
+// (gate.ts gateStep; gate-honesty-r2-1, code-quality-r0-6). The scope is every tuning ROM but those the owner scoped out (SCOPED_OUT: tmc, by
 // the answer to Q1, D61 c), each printed as not applicable.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,12 +18,12 @@ import path from 'node:path';
 import { gate, type GateContext } from './gate.ts';
 import { LOCKSTEP_SETS, parityCheck, SCOPED_OUT, type ParityEvidence, type PocDigests } from './poc-parity-check.ts';
 
-async function check(cx: GateContext): Promise<void> {
+async function run(cx: GateContext): Promise<void> {
   const results = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'results.json'), 'utf8')) as { readonly parity?: ParityEvidence };
   const digests = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'baseline', 'poc-digests.json'), 'utf8')) as PocDigests;
   const e = results.parity;
   const ancestor = e === undefined ? false : (await cx.exec('git', ['merge-base', '--is-ancestor', e.commit, 'HEAD'], { cwd: cx.repoRoot })).code === 0;
-  const outcome = parityCheck({ evidence: e, digests, tuning: cx.datasets.map((d) => d.name), scopedOut: SCOPED_OUT, ancestor });
+  const outcome = parityCheck({ evidence: e, digests, tuning: cx.datasets, scopedOut: SCOPED_OUT, ancestor });
   for (const line of outcome.notApplicable) cx.note(line);
   for (const name of Object.keys(outcome.digests)) cx.digest(`parity:${name}`, outcome.digests[name] ?? '');
   if (outcome.problems.length > 0) throw new Error(`PoC parity: ${outcome.problems.join('; ')}`);
@@ -40,6 +40,5 @@ gate({
   inputs: [],
   historicalAfter: 2,
   needs: [],
-  historicalCheck: check,
-  run: check,
+  run,
 });

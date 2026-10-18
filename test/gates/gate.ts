@@ -1,9 +1,9 @@
 // The gate framework (architecture §10, D29, D50). Every `test/gates/gN.<name>.test.ts` calls `gate()`
 // once; `gate()` registers one node:test test named by the gate id and decides its verdict:
 //
-//   historical   a PoC-parity gate once phase.json.landed >= historicalAfter; when the gate has a
-//                `historicalCheck` (its own check, gateStep), that check still runs and its failure makes
-//                the verdict `fail`
+//   historical   a PoC-parity gate once phase.json.landed >= historicalAfter whose `run` still returns:
+//                a frozen gate keeps running its own check (gateStep), and its failure makes the verdict
+//                `fail`
 //   pending      a name in `needs` is exported by none of romlift, romlift/node, romlift/isa, romlift/internal
 //   unavailable  a declared local input (`inputs`, plus `realInputs` on the real tier) is missing or its
 //                digest differs from the recorded one
@@ -39,14 +39,12 @@ export interface GateSpec {
    * in the ci tier and adds the local ROMs in the real tier, so its ci verdict must not need them.
    */
   readonly realInputs?: readonly GateInput[];
-  /** PoC-parity gates: frozen as `historical` once this phase has landed. */
-  readonly historicalAfter?: 2;
   /**
-   * What a historical gate still checks once frozen (throws on failure, which records `fail`): the gate's
-   * own check on its scope, the same function as `run` (test/gates-index.test.ts holds every historical
-   * gate to that), so landing cannot freeze a gate that was failing (D60, gate-honesty-r1-3, r2-1).
+   * PoC-parity gates: recorded as `historical` instead of `pass` once this phase has landed. `run` still
+   * runs, and its failure still records `fail`, so landing cannot freeze a gate that was failing (D60,
+   * gate-honesty-r1-3, r2-1, code-quality-r0-6).
    */
-  historicalCheck?(cx: GateContext): Promise<void>;
+  readonly historicalAfter?: 2;
   /** Throws on failure. */
   run(cx: GateContext): Promise<void>;
 }
@@ -252,22 +250,18 @@ export function decideVerdict(
 }
 
 /**
- * What the harness does once the precondition is known: record a `pending`, `unavailable` or (for a gate
- * with no `historicalCheck`) `historical` verdict without running anything; else run `run`, or, for a
- * historical gate with a check, `historicalCheck`, recording `historical` when it returns and `fail` when
- * it throws, so a frozen gate's verdict still comes from its check (gate-honesty-r2-1).
+ * What the harness does once the precondition is known: record a `pending` or `unavailable` verdict
+ * without running anything; else run `run`, recording `pass` when it returns, or `historical` for a frozen
+ * gate, and `fail` when it throws, so a frozen gate's verdict still comes from its own check
+ * (gate-honesty-r2-1, code-quality-r0-6).
  */
 export function gateStep(
-  spec: Pick<GateSpec, 'historicalCheck'>,
   precondition: Precondition | undefined,
 ):
-  | { readonly kind: 'record'; readonly verdict: Exclude<Verdict, 'pass' | 'fail'>; readonly detail: string; readonly missing: readonly string[] }
-  | { readonly kind: 'run'; readonly call: 'run' | 'historicalCheck'; readonly onReturn: 'pass' | 'historical'; readonly detail?: string } {
-  if (precondition === undefined) return { kind: 'run', call: 'run', onReturn: 'pass' };
-  if (precondition.verdict === 'historical') {
-    if (spec.historicalCheck === undefined) return { kind: 'record', verdict: 'historical', detail: precondition.detail, missing: [] };
-    return { kind: 'run', call: 'historicalCheck', onReturn: 'historical', detail: precondition.detail };
-  }
+  | { readonly kind: 'record'; readonly verdict: 'pending' | 'unavailable'; readonly detail: string; readonly missing: readonly string[] }
+  | { readonly kind: 'run'; readonly onReturn: 'pass' | 'historical'; readonly detail?: string } {
+  if (precondition === undefined) return { kind: 'run', onReturn: 'pass' };
+  if (precondition.verdict === 'historical') return { kind: 'run', onReturn: 'historical', detail: precondition.detail };
   return { kind: 'record', verdict: precondition.verdict, detail: precondition.detail, missing: precondition.missing };
 }
 
@@ -855,8 +849,8 @@ export function gate(spec: GateSpec): void {
       throw error;
     }
 
-    // A historical gate with a check runs that check instead of `run`, and records `historical` when it holds.
-    const step = gateStep(spec, precondition);
+    // A historical gate still runs `run`, and records `historical` when it holds.
+    const step = gateStep(precondition);
     if (step.kind === 'record') {
       const outcome = testOutcome(record(step.verdict, step.detail, step.missing), step.detail);
       if (outcome.kind === 'skip') t.skip(outcome.message);
@@ -900,7 +894,7 @@ export function gate(spec: GateSpec): void {
       },
     };
     try {
-      await (step.call === 'historicalCheck' && spec.historicalCheck !== undefined ? spec.historicalCheck(cx) : spec.run(cx));
+      await spec.run(cx);
     } catch (error) {
       record('fail', failureDetail(message(error), notes), []);
       throw error;

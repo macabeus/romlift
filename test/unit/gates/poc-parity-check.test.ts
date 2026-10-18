@@ -1,24 +1,15 @@
-// parityCheck, the one check g2.poc-parity runs before and after it is historical (test/gates/poc-parity-check.ts),
-// and the harness step that runs it once the gate is frozen (test/gates/gate.ts gateStep; code-quality-r2-6).
+// parityCheck, the one check g2.poc-parity runs before and after it is historical (test/gates/poc-parity-check.ts).
+// The harness step that runs it once the gate is frozen is tested in gate.test.ts (code-quality-r0-7).
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 
-import { decideHistorical, gateStep } from '../../gates/gate.ts';
-import { LOCKSTEP_SETS, parityCheck, SCOPED_OUT, type ParityEvidence, type PocDigests } from '../../gates/poc-parity-check.ts';
-
-/** The environment without NODE_TEST_CONTEXT, so the child runs its own test runner and exits with its own status. */
-function withoutTestContext(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const { NODE_TEST_CONTEXT: _parent, ...rest } = env;
-  return rest;
-}
+import { TMC_AT_D61 } from '../../gates/dataset-binding.ts';
+import { LOCKSTEP_SETS, parityCheck, SCOPED_OUT, type ParityEvidence, type PocDigests, type TuningRom } from '../../gates/poc-parity-check.ts';
 
 const FIVE = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3'];
-const SIX = [...FIVE, 'tmc'];
+const FIVE_ROMS: readonly TuningRom[] = FIVE.map((name) => ({ name, sha1: `${name}-sha1`, elfSha256: `${name}-elf` }));
+const TMC: TuningRom = { name: 'tmc', ...TMC_AT_D61 };
+const SIX: readonly TuningRom[] = [...FIVE_ROMS, TMC];
 const D = (name: string): string => `${name}-digest`;
 
 const DIGESTS: PocDigests = { pocSourceDigest: 'poc', roms: Object.fromEntries(FIVE.map((n) => [n, D(n)])) };
@@ -56,7 +47,7 @@ test('parityCheck: the M1 evidence of the five passes, tmc is scoped out by the 
 
 test('parityCheck: without the scoping, tmc fails; a stale scoping fails', () => {
   assert.deepEqual(parityCheck({ evidence: evidence(), digests: DIGESTS, tuning: SIX, scopedOut: {}, ancestor: true }).problems, ['tmc: no parity evidence and no committed PoC digest']);
-  assert.deepEqual(parityCheck({ evidence: evidence(), digests: DIGESTS, tuning: FIVE, scopedOut: SCOPED_OUT, ancestor: true }).problems, ['tmc is scoped out but is not a tuning dataset (the scoping is stale)']);
+  assert.deepEqual(parityCheck({ evidence: evidence(), digests: DIGESTS, tuning: FIVE_ROMS, scopedOut: SCOPED_OUT, ancestor: true }).problems, ['tmc is scoped out but is not a tuning dataset (the scoping is stale)']);
 });
 
 test('parityCheck judges every ROM of its scope as strictly as before: digest, rows, every lockstep set, the commit, the PoC source', () => {
@@ -74,44 +65,14 @@ test('parityCheck judges every ROM of its scope as strictly as before: digest, r
   assert.deepEqual(run({ ...evidence(), roms: four }), ['pokeemerald: no parity evidence']);
 });
 
-test('gateStep: once phase 2 has landed, a gate with a historicalCheck runs it and is historical only when it returns', () => {
-  const frozen = decideHistorical({ needs: [], historicalAfter: 2 }, 2);
-  assert.equal(frozen?.verdict, 'historical');
-  const check = async (): Promise<void> => {};
-  assert.deepEqual(gateStep({ historicalCheck: check }, frozen), { kind: 'run', call: 'historicalCheck', onReturn: 'historical', detail: 'frozen since phase 2 landed' });
-  // Without a check the verdict is recorded without running anything (no phase-2 gate does this: gates-index.test.ts).
-  assert.deepEqual(gateStep({}, frozen), { kind: 'record', verdict: 'historical', detail: 'frozen since phase 2 landed', missing: [] });
-  // Before landing, run runs and passes.
-  assert.deepEqual(gateStep({ historicalCheck: check }, decideHistorical({ needs: [], historicalAfter: 2 }, 1)), { kind: 'run', call: 'run', onReturn: 'pass' });
-  assert.deepEqual(gateStep({}, { verdict: 'unavailable', detail: 'roms: missing', missing: ['roms'] }), { kind: 'record', verdict: 'unavailable', detail: 'roms: missing', missing: ['roms'] });
-});
-
-test('the harness end to end: at landed 2 a historical gate whose check throws records fail, one whose check returns records historical', async () => {
-  // A copy of the real harness (gate.ts imports only node:*) in a temporary repository whose phase.json is
-  // { "landed": 2 }, running two gates frozen after phase 2, one per outcome of the check.
-  const root = await mkdtemp(path.join(tmpdir(), 'romlift-historical-'));
-  try {
-    const gates = path.join(root, 'test', 'gates');
-    await mkdir(gates, { recursive: true });
-    await copyFile(fileURLToPath(new URL('../../gates/gate.ts', import.meta.url)), path.join(gates, 'gate.ts'));
-    await writeFile(path.join(gates, 'phase.json'), '{ "landed": 2 }\n');
-    const file = (id: string, body: string): string => `import { gate } from './gate.ts';\nconst check = async () => { ${body} };\ngate({ id: '${id}', phase: 2, tier: 'ci', needs: [], historicalAfter: 2, historicalCheck: check, run: check });\n`;
-    await writeFile(path.join(gates, 'g2.failing.test.ts'), file('g2.failing', "throw new Error('rows differ');"));
-    await writeFile(path.join(gates, 'g2.holding.test.ts'), file('g2.holding', 'return;'));
-    const report = path.join(root, 'report.ndjson');
-    const child = spawnSync(process.execPath, ['--test', path.join(gates, 'g2.failing.test.ts'), path.join(gates, 'g2.holding.test.ts')], {
-      cwd: root,
-      env: { ...withoutTestContext(process.env), ROMLIFT_GATE_TIER: 'ci', ROMLIFT_GATE_REPORT: report, ROMLIFT_BENCH_ROOT: root, ROMLIFT_POC: root },
-      encoding: 'utf8',
-    });
-    assert.notEqual(child.status, 0, 'the failing historical check fails the test run');
-    const lines = (await readFile(report, 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as { readonly id: string; readonly verdict: string; readonly detail: string });
-    const byId = new Map(lines.map((l) => [l.id, l]));
-    assert.equal(byId.get('g2.failing')?.verdict, 'fail');
-    assert.match(byId.get('g2.failing')?.detail ?? '', /rows differ/);
-    assert.equal(byId.get('g2.holding')?.verdict, 'historical');
-    assert.match(byId.get('g2.holding')?.detail ?? '', /^frozen since phase 2 landed/);
-  } finally {
-    await rm(root, { recursive: true, force: true });
+test('parityCheck: the scoping holds only for the ROM and ELF it was decided on (overfitting-correctness-r0-4)', () => {
+  for (const other of [{ ...TMC, elfSha256: '0'.repeat(64) }, { ...TMC, sha1: 'c'.repeat(40) }, { name: 'tmc', sha1: TMC.sha1 }]) {
+    const out = parityCheck({ evidence: evidence(), digests: DIGESTS, tuning: [...FIVE_ROMS, other], scopedOut: SCOPED_OUT, ancestor: true });
+    assert.equal(out.problems.length, 2);
+    assert.match(out.problems[0] ?? '', /^tmc: the D61 c scoping was decided on ROM SHA-1 b4bd50e4.*the scoping is stale, a new owner decision is needed$/);
+    assert.equal(out.problems[1], 'tmc: no parity evidence and no committed PoC digest');
+    assert.deepEqual(out.notApplicable, []);
+    assert.deepEqual(out.judged, SIX.map((r) => r.name));
   }
+  assert.deepEqual(SCOPED_OUT['tmc']?.rom, TMC_AT_D61);
 });
