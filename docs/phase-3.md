@@ -26,6 +26,7 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 | `p3-bench-scaffold` | 3 | `phase-3-bench-scaffold` | merged (`340c95a`) | `bench run --scaffold` (both printers), readability, objdiff, `bench speed` emission timings, `bench large-rom` |
 | `p3-fixture-goldens` | 3 | `phase-3-fixture-goldens` | merged (`f726652`) | the writer goldens, `export-poc --mode raw` and the raw printer's PoC parity, the six-ROM emission test, the tree digests in CI, the emission fixes of wave 3 |
 | closing fix round | lead | `phase-3` | committed (`c5d42cf`, `962fbb8`, `34a77cd`, `682da72`) | the confirm-mode startup fix, `[symbols]` outside the ROM as labels, the objdiff base's RAM names, the write and analysis speed and memory changes, the readability floors (D64) |
+| review fix round 1 | lead | `phase-3` | committed (`089ff8d` to `5f7267f`, then the docs and artifact commits) | the review's blocker and majors (D65), the minors, Q3 to Q5; section "Review" |
 
 ### p3-lead (wave 1)
 
@@ -324,30 +325,39 @@ fails under 200 MiB. The run-to-run spread (1,019 to 1,495 MiB) is V8 sizing its
 ## Owner questions
 
 Every owner decision of architecture §12 is built with its documented safe default (D62 i). Two gates fail after
-the fix round, and making either pass needs a gate or emission change the owner has not authorised, so the phase
-does not land until he answers.
+fix round 1 (`g3.objdiff`, `g3.large-rom`), and three limitations or gate narrowings were made without the owner's
+words (Q3 to Q5); each needs his answer, so the phase does not land until he gives them.
 
-### Q1. `g3.objdiff`: the remaining differences are naming and comparison artefacts
+### Q1. `g3.objdiff`: almost every remaining difference links to the same word
 
-Facts. D34 gates every objdiff difference but `unnamed-target`. After D64 b and c, every remaining one, classified
-by the reference's and the base's text (`missing-symbol` and `tool` are functions not compared at all):
+Facts. D34 gates every objdiff difference but `unnamed-target`. After D64 b and c and fix round 1 (D65 i: every base
+assembles, a resolved `b` or ARM `bl` pairs like a `bl`), each difference sorted by the committed classifier
+(`node --conditions=source bench/tools/objdiff-classes.ts`, `bench/src/objdiff-classes.ts` and its test; this table
+is its output at fix round 1). Every readable tree links to its ROM's SHA-1 (`g3.link` 6 of 6), so none of these
+changes a byte of the build.
 
 | Class | fe7j | klonoa | pokeemerald | sa2 | sa3 | tmc |
 | --- | --- | --- | --- | --- | --- | --- |
-| `resolved-call`: a `bl` the reference's `as` resolved inside its object, which the base, assembled one function per file, relocates against the same callee | 8 | 0 | 11,776 | 1,016 | 65 | 323 |
-| `instruction`: the same, to a static callee the ELF names more than once (`bl 0xc5c` against `bl sub_08031138-0x4`) | 0 | 0 | 210 | 115 | 65 | 0 |
-| `relocation`: another name for the target (a union such as tmc's `gMenu`/`gChooseFileState`, aliases such as `GetMonData3`/`GetMonData2`, static names used twice; 230 of them the classifier could not pair by address) | 13 | 1 | 484 | 41 | 19 | 361 |
-| `relocation`: the reference names `sym + addend`, the base the label at that address | 12 | 2 | 60 | 11 | 20 | 22 |
-| `missing-relocation`: the reference names `sym + addend` (an address inside a RAM or ROM object), the base a plain value | 130 | 166 | 765 | 46 | 99 | 188 |
-| `missing-symbol`: no reference object defines the name (libgcc, libc and archive members linked from outside `objectsDir`) | 26 | 21 | 453 | 127 | 237 | 1 |
+| `resolved-call`: a `bl` or `b` the reference's `as` resolved inside its object, which the base, assembled one function per file, relocates against the same function | 8 | 0 | 11,798 | 1,019 | 68 | 323 |
+| `static-callee`: the same, to a callee the reference object names otherwise (a static function the ELF names more than once, a local label) | 0 | 0 | 208 | 113 | 63 | 0 |
+| `value-named`: `.word <value>` against `.word <name>` where the name is at that value (the reference holds the constant, the base names it) | 9 | 0 | 14 | 11 | 19 | 0 |
+| `alias`: two names of one address (a union such as tmc's `gMenu`/`gChooseFileState`, `GetMonData3`/`GetMonData2`, statics named twice) | 13 | 0 | 472 | 36 | 16 | 361 |
+| `symbol-addend`: the reference relocates against `sym + addend` inside the symbol's ELF size, the base names the label there | 5 | 0 | 60 | 15 | 11 | 1 |
+| `value-for-symbol`: the reference relocates against a symbol (often plus an addend), the base holds the plain value | 130 | 166 | 765 | 46 | 99 | 188 |
+| `missing-symbol`: no reference object defines the name (libgcc, libc, archive members linked from outside `objectsDir`) | 26 | 21 | 453 | 127 | 237 | 1 |
 | `tool`: objdiff-cli 3.7.2 refuses the reference object (klonoa `src/code_0804B254.o`, "Invalid instruction size 1") | 0 | 130 | 0 | 0 | 0 | 0 |
-| `instruction`: a trailing zero halfword the ELF size counts and the base's chunk leaves to the next `.align` | 1 | 0 | 0 | 6 | 39 | 0 |
-| `instruction`: other (a `.word` constant the ELF names, such as `sTalkText`; a `bl` to code run from RAM; one `b` printed as `.hword`) | 10 | 0 | 33 | 11 | 19 | 0 |
-| `assemble`: a far pool in another chunk, which one function assembled alone cannot reach (and fe7j's `internal_relocation not fixed up`) | 1 | 0 | 4 | 2 | 2 | 0 |
-| total gated | 201 | 320 | 13,785 | 1,375 | 565 | 895 |
+| `trailing-pad`: a zero halfword after the last instruction that the ELF's size counts and the base leaves to the next `.align` | 1 | 0 | 0 | 6 | 39 | 0 |
+| `relocation-other`: `sym + addend` past the symbol's ELF size, or a symbol with no size (`gCryTable + n`, `gHUD` against `gUnk_0200AF34`) | 7 | 3 | 12 | 1 | 12 | 21 |
+| `instruction-other`: fe7j PutUnkSprite's dead `b` after a `b`, printed `@ dead` (D16); pokeemerald GameCubeMultiBoot_HandleSerialInterrupt's three `lsrs; bcc` pairs the analysis claims as data | 1 | 0 | 6 | 0 | 0 | 0 |
+| `assemble`, `score` | 0 | 0 | 0 | 0 | 0 | 0 |
+| total gated (D34) | 200 | 320 | 13,788 | 1,374 | 564 | 895 |
 | `unnamed-target` (reported, not gated) | 55 | 0 | 2,758 | 143 | 44 | 357 |
+| gated under option (b): `trailing-pad`, `relocation-other`, `instruction-other`, `assemble`, `score` | 9 | 3 | 18 | 7 | 51 | 21 |
 
-Every readable tree links to its ROM's SHA-1 (`g3.link` 6 of 6), so none of these changes a byte of the build.
+Measured for `trailing-pad`: the ELF counts the zero halfword after a function ending at 2 mod 4 in 46 functions and
+leaves it out in 7,008 with the same bytes (sa3 39 of 778, sa2 6 of 447, fe7j 1 of 313, pokeemerald 0 of 3,202,
+klonoa 0 of 45, tmc 0 of 2,269), so no emission rule over the bytes can follow the reference: folding the pad into
+the function would swap 46 differences for 7,008.
 
 Options.
 
@@ -355,32 +365,124 @@ Options.
   object, every function of that object in one file, so calls resolve as in the reference; the printer emitting
   `sym + addend` for a word inside a sized symbol (an emission rule, with sizes in `[symbols]`); names chosen per
   reference object for aliases and statics; the archive members as reference objects; an objdiff-cli that reads
-  klonoa's `code_0804B254.o`; and the padding, far-pool and remaining-instruction shapes fixed one by one.
-- (b) Amend D34: report, not gate, the differences that link to the same word (a resolved call to the same
-  callee, two names of one address, `sym + addend` against a label or plain value equal to the same address) and
-  list the functions objdiff cannot compare (`missing-symbol`, `tool`) by count. Measured under (b), the gated
-  remainder is the last three rows: fe7j 12, klonoa 0, pokeemerald 37, sa2 19, sa3 60, tmc 0, which would still be
-  fixed before the phase lands.
+  klonoa's `code_0804B254.o`; and the reference's symbol sizes for the trailing pads, which the bytes do not carry.
+- (b) Amend D34: report, not gate, the differences whose two sides link to the same word (the `resolved-call`,
+  `static-callee`, `value-named`, `alias`, `symbol-addend` and `value-for-symbol` classes) and list the functions
+  objdiff cannot compare (`missing-symbol`, `tool`) by count. The gated remainder is the last row (109 differences;
+  46 of them trailing pads, which need the owner's word on the reference's sizes, and 7 instructions that are an
+  analysis or D16 matter).
 - (c) Move `g3.objdiff` to phase 5, where the `expected/` objects and objdiff targets are built (D34 rejected it
   once), with these numbers recorded as the phase-3 measurement.
 
-### Q2. `g3.large-rom`: peak RSS twice the 512 MiB budget
+### Q2. `g3.large-rom`: peak RSS about twice the 512 MiB budget, and the 16 MiB tuning ROMs above it too
 
-Facts. Measured above: `init` 1,081 to 1,122 MiB, `generate` 1,019 to 1,359 MiB (from 1,846 and 1,366 MiB before
-D64 e). The live set after the analysis is about 225 MiB (136 MiB heap, 89 MiB external), but V8 lets the heap grow
-to 300 to 400 MiB of live data plus garbage during the gap scan of a 32 MiB image; a 256 MiB heap cap still peaks
-at 595 to 684 MiB RSS. The 32 MiB image is synthetic: no tuning ROM is above 16 MiB.
+Facts. Every recorded run of the 32 MiB synthetic ROM (SHA-1 `b846b945…`, 3,639 functions) since D64 e, per command
+(peak RSS of the command's own process):
+
+| Run | `init` | `generate` |
+| --- | --- | --- |
+| `run --scaffold` memory family at `682da72` | 1,081.0 MiB | 1,359.3 MiB |
+| `g3.large-rom` at `682da72` | 1,122.5 MiB | 1,019.0 MiB |
+| the review's `gates --tier ci` at `9b3f244` | 1,273.5 MiB | 1,349.2 MiB |
+| the review's second `gates --tier ci` at `9b3f244` | 1,106.4 MiB | 1,056.1 MiB |
+FIXROUND_ROWS
+| minimum to maximum | MIN_INIT to MAX_INIT MiB | MIN_GEN to MAX_GEN MiB |
+
+Before D64 e: 1,845.7 (`init`) and 1,366.3 MiB (`generate`). The "1,019 to 1,495 MiB" spread the closing round
+quoted has no recorded run behind its 1,495 MiB and is withdrawn. The live set after the analysis is about 225 MiB
+(136 MiB heap, 89 MiB external), but V8 lets the heap grow to 300 to 400 MiB of live data plus garbage during the
+gap scan; a 256 MiB heap cap still peaks at 595 to 684 MiB RSS.
+
+The tuning ROMs, at most 16 MiB, are above 512 MiB too (fix round 1, `/usr/bin/time -l`, one process each, Node
+24.15; `verify` without `--assemble`/`--link` is generate's check pass without the write):
+
+| ROM | `model --json` | `verify` | `verify --link` |
+| --- | --- | --- | --- |
+| fe7j | 594 MiB | 539 MiB | |
+| klonoa | 348 MiB | 366 MiB | |
+| pokeemerald | 940 MiB | 1,001 MiB | 1,085 MiB |
+| sa2 | 615 MiB | 649 MiB | |
+| sa3 | 605 MiB | 610 MiB | |
+| tmc | 575 MiB | 593 MiB | |
 
 Options.
 
 - (a) Keep 512 MiB (the default; phase 3 stays open). It needs further structural work: readings' instruction
   spans as typed arrays (a public `Reading` type change), fewer candidate readings held per epoch, the pointer
-  index and the rejection details out of the heap, and a heap cap set by the `romlift` launcher.
-- (b) Raise the budget to a measured value with margin (for example 1,536 MiB), keeping the ratchet; D42 rejected
-  1 GiB budgets as hiding leaks.
+  index and the rejection details out of the heap, and a heap cap set by the `romlift` launcher; and it has to
+  bring the 16 MiB tuning ROMs (0.35 to 1.1 GiB today) down too, since a user's ROM of that size runs the same
+  code.
+- (b) Raise the budget to a measured value with margin, keeping the ratchet; sized against the maximum above
+  (MAX_ALL MiB) it would be at least 1,792 MiB; D42 rejected 1 GiB budgets as hiding leaks. Under it pokeemerald's
+  1.0 to 1.1 GiB would pass; the gate measures only the synthetic ROM.
 - (c) Measure the gate under a fixed heap cap (`--max-old-space-size=256`, which the `romlift` bin would also
   pass), so it measures the live set rather than V8's sizing, and set the budget from that measurement (595 to 684
-  MiB today).
+  MiB today on the synthetic ROM); the 16 MiB ROMs would run under the same cap, which has not been measured on
+  them.
+
+### Q3. D64 d: generated files written without a flush, and `g3.speed-budget`
+
+Facts. D64 d replaced architecture §6.4's "each op through a temporary file and a rename" (each file flushed) by: the
+journal, the manifest, edits and scaffold and c-stub files flushed; generated files renamed into place without an
+`fsync`, an absent one created in place. A crash can leave a generated file short; the next run's snapshot sees its
+sha1 differ and rewrites it, the journal naming it owned. The owner has not authorised this limitation in his own
+words. Measured on pokeemerald (`npm run bench -- speed --only pokeemerald`, fix round 1, calibration ratio
+0.967, budgets 10 s and 15 s times the ratio: 9,665 and 14,498 ms):
+
+| Write | `generate` and its write | `init` |
+| --- | --- | --- |
+| D64 d (generated files unflushed) | 8,360 ms CPU | 10,422 ms CPU |
+| every file flushed (a scratch build, `durableOp` true for every op) | 23,997 ms CPU | 23,929 ms CPU |
+
+`g3.speed-budget` passes with D64 d; with every file flushed it fails (`generate` 23,997 against 9,665 ms, `init` 23,929 against 14,498 ms): the
+flushes alone cost about 15.6 s of CPU on pokeemerald's 19,121 files, mostly system time in `fsync`, so the gate's
+pass depends on the answer.
+
+Options.
+
+- (a) Restore the flush of every file (the architecture as first written) and find the CPU elsewhere (about 14.3 s of `generate`'s CPU would have to be found elsewhere, more than the whole unflushed run).
+- (b) Accept D64 d: generated files are rebuilt by the next run after a crash; edits, scaffold files, the journal
+  and the manifest stay flushed.
+- (c) Keep the flush and change `g3.speed-budget`'s budgets (a gate change).
+
+### Q4. The raw printer's PoC parity ran narrowed (roadmap 3.B)
+
+Facts. Roadmap 3.B's gate reads "the raw printer reproduces the PoC's `rawLines` output on every fixture". The
+local test `test/local/poc-raw-printer.test.ts` feeds `printRawRange` the PoC's own chunk spans, labels and pool and
+table words (from `export-poc --mode raw`) and requires the PoC's lines on all 47 fixtures: it proves the ported
+`rawLines`, not that romlift's raw tree equals the PoC's, which it does not wherever romlift's model differs (modules,
+the D63 borders, the padding of `cf4f937`). The narrowing is recorded in D65 l; the owner has not authorised it.
+
+Options.
+
+- (a) Accept the narrowed parity as 3.B's gate (D65 l), the raw trees' links (`g3.raw-link`, 6 of 6 and 47 of 47)
+  covering the rest.
+- (b) Require the raw tree to equal the PoC's tree file for file on every fixture: it fails today on every fixture
+  whose model differs, by design (D63), so this would need a list of accepted differences.
+
+### Q5. Limitations carried into phase 4
+
+Facts. Each is measured and recorded under "Known limitations"; none breaks a gate today, and none is authorised in
+the owner's words.
+
+- (a) **A ROM whose size the last unit's section alignment does not divide is refused** (D65 a): verify exits 3
+  with E_SELF_CHECK_TEXT, nothing is written. A 2 mod 4 cut with a data module last still links. To make every size
+  link the tree would need a last unit of alignment 1 (a data file opening in ARM state with no instruction) or a
+  trimming step after objcopy.
+- (b) **Padding-only orphans** (delivery-13): with the discover model, 3,203 of pokeemerald's 3,222 orphan files
+  hold only `.align 2, 0` (tmc 2,289 of 2,320, fe7j 1,530 of 1,558, sa3 867 of 882, sa2 448 of 464, klonoa 64 of 87).
+  Phase 4 would give each orphan in a C module its own INCLUDE_ASM stub. Folding the pad into the next function's
+  `thumb_func_start` (which emits it already) removes the files without changing a byte, but changes the chunk model
+  and plan.md's reading of "No orphan bytes".
+- (c) **The generate path warns on every tuning ROM** (delivery-4): `W_LISTED_INVALID` for functions romlift's own
+  discover run listed (fe7j 5, klonoa 4, pokeemerald 6, sa2 4, sa3 4, tmc 24, by rule: valid.dense, valid.in-rom-
+  unclaimed, valid.returns-or-prologue, and on tmc valid.no-claimed-code and valid.balanced-stack), plus sa3's 4
+  `W_WALK_LIMIT` and tmc's `W_UNLISTED_FUNCTION` (0x080B1A28, seed.ram-copy). Phase 4's `init` then `generate`
+  prints them to every user. Confirm still equals discover on functions and extents.
+
+Options: (i) accept each as a recorded limitation of release 1; (ii) fix (a) or (b) in phase 4 before 4.C plans the
+stubs; (iii) for (c), make the confirm run not re-validate the functions configFromDiscover listed (an analysis
+change, measured against g2's gates).
 
 ## The closing gate
 
@@ -424,7 +526,20 @@ are answered.
 
 - Resolved in the closing fix round (D64 a): the confirm-mode startup defect of the wave-3 integration; the two
   tests that were `todo` for it pass.
-- `g3.objdiff` and `g3.large-rom` fail (Q1, Q2).
+- `g3.objdiff` and `g3.large-rom` fail (Q1, Q2); Q3 to Q5 are the other owner questions of fix round 1.
+- Fix round 1 (D65): a ROM whose size its last unit's alignment does not divide is refused by the text-layout
+  check (Q5 a); a `[symbols]` entry inside an instruction gets no label (`W_SYMBOL_UNPLACED`); names starting with
+  `$` or `.` are `E_NAME_INVALID`; a `c` module fails the check until phase 4's c-stub writer.
+- The generate path warns on every tuning ROM (delivery-4, Q5 c): `W_LISTED_INVALID` fe7j 5, klonoa 4, pokeemerald
+  6, sa2 4, sa3 4, tmc 24; sa3 also 4 `W_WALK_LIMIT`, tmc 1 `W_UNLISTED_FUNCTION` (`initModel`, fix round 1). The
+  closing round said confirm equals discover only for the fixtures; on the tuning ROMs it equals it on functions and
+  extents, with these warnings.
+- `g3.tree-determinism` (delivery-5): its "Linux and macOS agree" and Node 22.18 clauses are unmeasured until the
+  phase's pull request runs CI (no `phase-3` branch is pushed). The gate digests the discover model's tree, not the
+  confirm run's with planWrites and the manifest; measured at fix round 1, the generate tree equals the discover
+  tree digest for digest on the 47 fixtures (`test/unit/workflow/generate.test.ts`) and on fe7j, klonoa, pokeemerald,
+  sa2 and sa3, and differs on tmc by one file (10,971 against 10,970). The gate is not changed (a gate change is the
+  owner's); planWrites' order independence is its property test's.
 - A user config that removes `label = true` from the startup code inside the cartridge entry's extent brings back
   the confirm-mode startup region of four bytes; if its startup module is still named `crt0`, the paths check
   reports `asm/crt0.s` twice (`E_PATH_CASE_COLLISION`), correctly, and nothing is written. Phase 4's TOML
@@ -479,10 +594,52 @@ are answered.
   - **code-quality-r1-6's optional part** (one field set for the four scoping records of `test/gates`): not
     done; the files are outside this component's ownership, and the phase-2 disposition says renaming them
     changes no verdict. Still open at closing (no gate depends on it).
-- Readability note, no rule broken: 2-byte (or 1- to 3-byte) zero padding between two functions is an orphan
+- Limitation carried into phase 4 (Q5 b), no rule broken: 2-byte (or 1- to 3-byte) zero padding between two functions is an orphan
   chunk of its own (`unk_<ADDR>.s` holding `.align 2, 0`), as the PoC's `tile()` made a gap chunk of it (66 of
   the PoC's 97 gap chunks on the fixtures are under 4 bytes) and as plan.md's "No orphan bytes" rule asks. With
   the discover model, padding-only orphans of all orphans: pokeemerald 3,203 of 3,222, tmc 2,289 of 2,320, fe7j
   1,530 of 1,558, sa3 867 of 882, sa2 448 of 464, klonoa 64 of 87.
   The next function's `thumb_func_start` already emits `.align 2, 0`, so folding the pad into it would remove
   the files without changing a byte; that changes the chunk model and the plan's rule, so it is left as is.
+
+## Review
+
+The review of `9b3f244` (architecture-1 to -14, correctness-1 to -7, delivery-1 to -13). Fix round 1 on the branch
+`phase-3`; each fix is its own commit with a test that fails without it where the finding is a defect (D65).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-1 | blocker | **Fixed** (`089ff8d`, D65 c). A `[symbols]` entry inside the ROM gets a data label only where an item can start (the D63 d predicate of the local labels); one inside an instruction, pool word or table entry gets none and is `W_SYMBOL_UNPLACED`; the text-layout check resolves through `[symbols]` only the entries outside the ROM. klonoa with `0x080453F1 = 'gOddSym'`: `W_SYMBOL_UNPLACED`, every check ok, the readable tree links to the SHA-1 (before: checks ok, `undefined reference to gOddSym`). The text-layout mutation test fails before the fix. |
+| correctness-2 | major | **Fixed** (`68e4205`, D65 b). planWrites folds the manifest's and journal's paths (`foundation/util/fold.ts`): a tree path that only the case separates from an owned one is always written, and the old spelling's delete sorts first, so applyWrites prunes the emptied directory before the new spelling is made. Unit test (both kinds of snapshot) and an apply test on this case-insensitive file system renaming a module file, a module directory and a chunk file, then re-planning to keeps only; both fail before. |
+| correctness-3 | major | **Fixed** (`0f0d36e`). `foundation/util/arrays.ts` pushAll replaces every `push(...lines)` of the printers and the model. klonoa without its data module, and with one module: every check ok, both links reproduce the SHA-1 (before: RangeError). A printer test with a 4 MiB orphan fails before. Printing large data runs as `.incbin` inside code chunks was not done: it changes every tree's text, not a defect. |
+| correctness-4 | major | **Fixed as a refusal** (`fb7a5fa`, D65 a). `layoutStatements` reports the section alignment GNU as records (measured with binutils 2.45.1: Thumb state 1, an ARM instruction 2, `.align p` p, `.align 0` 2, data 0), and checkEntries fails a unit whose start or length it does not divide. klonoa cut to 1,048,575 bytes: text-layout fails ("GNU as pads the object's section to a multiple of 2 bytes, 1 past the module's end 0x080FFFFF"), verify exits 3; cut to 1,048,578 bytes still passes and links. A fixture test cuts a data-last and a code-last fixture by 0 to 3 bytes and requires the check's verdict to equal the link's. Emitting such ROMs so they link is owner question Q5 (a). |
+| correctness-5 | major | **Fixed** (`afd3af9`, D65 d). `isSymbolName` (a letter or `_`, then letters, digits, `_`, `.`, `$`) in the schema, and `E_NAME_INVALID` in buildModel for function, alias and symbol names. The `g4.toml-mutations` name set is not changed: that gate is phase 4's and its illegal edits need the phase-4 parser's codes; recorded for 4.B. |
+| correctness-6 | minor | **Fixed** (`2873d2f`, D65 e). A C module's source is a path the stream must hold, so until the c-stub writer the check fails ("the stream emits no such file, which the model needs"). |
+| correctness-7 | minor | **Fixed** (`089ff8d`, D65 e). `W_FUNCTION_OUTSIDE_ROM` for a `[functions]` entry outside the ROM and an `[[overrides]]` range reaching outside it. |
+| architecture-1 | major | **Fixed** (`66c625a`, D65 h). `relocationsOf` in `foundation/formats/elf.ts`; compareObject, assembleVerdict, linkVerdict and firstDifference in `core/verify/toolchain.ts` with tests on a hand-built object; link-check.ts runs, writes, reads and hashes only. |
+| architecture-2 | major | **Fixed** (`0db9b5b`, D65 g). GenerateResult holds `cx`; `generatedEntries(rom, result)` re-emits. A test walks a result and finds no function. |
+| architecture-3 | major | **Fixed** (`0db9b5b`). `initConfig`, `initModel`, `generateFromRom`, `discoverModel`, `writable`, `freshTreePlanInputs` in core/workflow; `writeFreshTree` in shell/project; cli/verify, cli/model, bench emission-run, bench scaffold and the explain workflow use them; verify's ids are computed once. |
+| architecture-4 | major | **Fixed** (`8254a85`, D65 f). checkReencode runs `rawReason` for every instruction naming an address; only address-free ones use a cache keyed by the exact word (`core/model/printing-cache.ts`, moved out of items.ts). pokeemerald verifyModel 330-400 → 610-700 ms. |
+| architecture-5 | major | **Fixed in part** (`cdf63f5`). The Thumb prefilters live in `foundation/isa/decode.ts`; `peek16`/`peek32` in `foundation/rom/rom.ts` replace the local `half`/`word32` copies and inline byte assembly; codeLayout scans the code spans once (`borderRefs`) instead of twice. Not done: deriving codeLayout's references from the model's codeRefs. They read different inputs (the analysis' function spans at load addresses, the model's overlap-resolved code segments at run addresses), core/layout may not import core/model (architecture §2), and changing which references bound the legal borders is a behaviour change, not a refactor. |
+| architecture-6 | minor | **Fixed** (`0f0d36e`, `7a44898`). `lowerBound` and `spanIndexAt` with tests; every listed copy uses them. findItem keeps its loop over the item table's typed-array columns. |
+| architecture-7 | minor | **Fixed in part** (`82e1b1f`, `8254a85`). text-layout.ts loses the link-script checks (`link-scripts.ts`) and its diagnostic (`text-error.ts`): 585 → 459 lines; items.ts loses segments (`segments.ts`) and the printing cache. borders.ts is not split: the edge table admits only `core/model` → `core/layout/borders.ts`. |
+| architecture-8 | minor | **Fixed in part** (`7a44898`). The text-layout check's per-model WeakMap is gone: checkEntries builds its index and LayoutMemo per pass and drops them with it, so the memo no longer lives as long as generate's model. Kept: the resolver's label index (keyed by the labels array; the printer calls resolverFor per chunk through the frozen Writer/EmitContext contract, D62), unit-text.ts's chunkPaths per chunks array, and printing-cache's OFFSET_MASK (a static table per isa row, not model state). |
+| architecture-9 | minor | **Fixed** (`66c625a`). `BASEROM_PATH` and `MACROS_PATH` once, in `core/model/paths.ts`, exported from `romlift`; the other names are gone. |
+| architecture-10 | minor | **Fixed** (`66c625a`, `8254a85`, `7a44898`). `runTool`, `errnoOf`, `errorReason`, `modeOfSpec`, `runOffsetOf` and statements.ts `stripComment` are the one helper each. |
+| architecture-11 | minor | **Fixed** (`5f7267f`, `66c625a`). Tests for each tiling defect, the lock takeover race, a lock that cannot be read, removeStale's two refusals, and assembleCheck with a stub toolchain (one unit does not assemble, another's object cannot be read). |
+| architecture-12 | minor | **Fixed** (`82e1b1f`). `core/emit/unit-text.ts` holds the shared helpers; each writer file holds its Writer. |
+| architecture-13 | minor | **Fixed** (`82e1b1f`). ExtentSource is the model's type; one compareLabels (rank lookup); ten file-local exports unexported. Types of exported functions' parameters and results stay exported. |
+| architecture-14 | minor | **Fixed** (`7a44898`). The casts are checked reads; indexes that must exist raise RomliftInvariantError. |
+| delivery-1 | major | **Fixed where the base was wrong; the rest reclassified, measured and put to the owner** (`701a99a`, D65 i). Every objdiff base now assembles (the far-pool functions of sa2, sa3, pokeemerald and fe7j's ColorFadeTick are assembled with the chunks they reach, at their ROM word phase); a resolved `b` and ARM `bl` pair like a `bl`. The committed classifier shows that most of the rows Q1 filed as "gated under every option" link to the same word (`.word 0x30000c8 \| .word sTalkText`, `sym + addend` against a label). What stays gated under option (b) is in Q1's table. The trailing zero halfword is not an emission defect: the ELF counts the pad in 46 functions (sa3 39, sa2 6, fe7j 1) and leaves it out in 7,008 with the same bytes (sa3 739, sa2 441, fe7j 312, pokeemerald 3,202, klonoa 45, tmc 2,269), so no rule from the bytes can follow it. fe7j's PutUnkSprite `b` is the analysis' dead halfword after a `b` (`@ dead`, D16); printing dead code as instructions is a rule change. Phase 3 stays unlanded. |
+| delivery-2 | major | **Recorded** in Q2's facts: real-ROM peak RSS of `model`, `verify` and `verify --link`, and that options (b) and (c) must also cover 16 MiB ROMs at 0.35 to 1.1 GiB. |
+| delivery-3 | major | **Owner question Q3**, with the share of the flushes measured on pokeemerald. |
+| delivery-4 | minor | **Recorded** under "Known limitations" and Q5 (c): the generate path's warnings per tuning ROM. Not fixed: the confirm run validates every listed function with the valid.* rules (W_LISTED_INVALID), which the discover run accepted through other rules; confirm still equals discover on extents (`g2.confirm-equals-discover`). |
+| delivery-5 | minor | **Recorded** under "Known limitations": the cross-OS and Node 22.18 clauses are unmeasured until the phase PR's CI runs; on the fixtures and five tuning ROMs the generate tree equals the discover tree the gate digests (measured digest for digest), on tmc it differs by one file. The gate is not changed (a gate change is the owner's). |
+| delivery-6 | minor | **Fixed** (`701a99a`). Q1 is retitled; its facts come from `bench/tools/objdiff-classes.ts` with a tested classifier. |
+| delivery-7 | minor | **Recorded** in D65 l and raised as owner question Q4. |
+| delivery-8 | minor | **Fixed**: the roadmap table lists `p3-fixture-goldens`; D62 a is amended by D65 k. |
+| delivery-9 | minor | **Fixed**: D62 j amended by D65 j; the gate's comment gives the real order. |
+| delivery-10 | minor | **Fixed** in Q2: per-command minimum and maximum over every recorded run; the 1,495 MiB figure has no recorded command and is withdrawn. |
+| delivery-11 | minor | **Fixed**: the README says phase 2 has landed (#2 merged, tag `phase-2`). |
+| delivery-12 | minor | **Fixed**: AGENTS.md's `test:local` row names emission-real, poc-raw-printer and objdiff and their inputs. |
+| delivery-13 | minor | **Owner question Q5 (b)**, as a limitation carried into phase 4. |

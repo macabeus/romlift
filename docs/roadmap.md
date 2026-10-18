@@ -377,7 +377,7 @@ Entry: phase 2 landed. Branch `phase/3-emission`. Seven components: 3.0, then 3.
 
 ### As executed (D62)
 
-Phase 3 runs as eight components in three waves on the branch `phase-3`, each on its own flat branch
+Phase 3 runs as nine components in three waves on the branch `phase-3` (eight planned by D62 a, the ninth, `p3-fixture-goldens`, added in wave 3, D65 k), each on its own flat branch
 `phase-3-<component>` and worktree (D56 h); sections 3.0–3.I below still describe what the phase delivers.
 D62 records each deviation and why; [phase-3.md](phase-3.md) records the components, the measured numbers and
 the closing gate. Every threshold of the phase applies to all six tuning ROMs (D60, D62 h).
@@ -393,6 +393,7 @@ the closing gate. Every threshold of the phase applies to all six tuning ROMs (D
 | `p3-write-plan` | 2 | 3.D's `plan-writes.ts`, the write-plan codes, `shell/project/{apply-writes,lock}.ts`, `shell/toolchain/link-check.ts`, the `plan-writes` mutation test; `src/api/{write-plan,project}.ts` |
 | `p3-generate` | 3 | 3.D's `core/workflow/generate.ts` and the `model --json` and `verify` commands (`cli/commands/lists/emission.ts`), `src/api/workflow-generate.ts`, `bench/src/large-rom.ts`, `explain`'s phase-3 part (`item`, `chunk`) |
 | `p3-bench-scaffold` | 3 | 3.E's `bench run --scaffold` with both printers, the readability and objdiff families, `bench speed`'s `generate` and `init` timings, the `bench large-rom` command |
+| `p3-fixture-goldens` | 3 | 3.B's and 3.C's writer goldens (`test/golden/writers/**` and their test), 3.B's raw-printer PoC parity (`export-poc --mode raw`, `test/local/poc-raw-printer.test.ts`), `bench/tools/ci-digests.ts` `@2` (tree digests in CI), `test/local/emission-real.test.ts` (D65 k) |
 
 ### 3.0 Model, tree and write-plan interfaces (lead)
 

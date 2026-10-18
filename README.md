@@ -30,15 +30,17 @@ the five questions that decision left open (D61): The Minish Cap is a benchmark 
 unsized function ends at its `$d`, and its six known confirm/discover differences are a recorded
 limitation. Confirm equals discover then differed on two more Minish Cap functions than the six the owner
 was told of; the owner's answer to that question (Q6, "Yes, cover all 8") adds them to the recorded
-limitation. With that answer every command of the closing list exits 0 at `landed` 2; the merge to `main`
-follows its pull request's CI.
+limitation. With that answer every command of the closing list exits 0 at `landed` 2, and phase 2 has landed:
+its pull request (#2) is merged to `main`, tagged `phase-2`.
 
 Phase 3 (Emission) is built but has not landed ([docs/phase-3.md](docs/phase-3.md)): the model, both printers,
 the writers, the write plan, `model --json` and `verify` turn every committed fixture and all six tuning ROMs into
 trees that pass the four self-checks and link to the ROM's SHA-1 with both the raw and the readable printer, with
-pokeemerald's `generate` within its speed budget. Two gates still fail and wait on the owner's answers (D64):
-`g3.objdiff`, whose remaining differences are naming and comparison artefacts (Q1), and `g3.large-rom`, whose
-peak RSS on the 32 MiB synthetic ROM is about twice the 512 MiB budget (Q2). The commands so far are `doctor`,
+pokeemerald's `generate` within its speed budget. Two gates still fail and the phase waits on the owner's
+answers to five questions (D64, D65): `g3.objdiff`, almost all of whose remaining differences link to the same
+word (Q1), `g3.large-rom`, whose peak RSS on the 32 MiB synthetic ROM is about twice the 512 MiB budget (Q2),
+the unflushed generated files (Q3), the narrowed raw-printer parity (Q4) and the limitations carried into
+phase 4 (Q5). The commands so far are `doctor`,
 `analyze`, `explain`, `model` and `verify`.
 
 | Phase | Delivers |

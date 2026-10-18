@@ -2097,7 +2097,7 @@ architecture §12 is built with its documented safe default (item 3 below).
 **Decision.** Phase 3 runs as eight components in three waves on the branch `phase-3`, each on its own flat
 branch `phase-3-<component>` and worktree (D56 h; roadmap.md, "As executed"):
 
-- (a) **Wave 1**: `p3-lead` (this record; 3.0 and the shared primitives below), `p3-asm-text`
+- (a) (Amended by D65 k: a ninth component, `p3-fixture-goldens`, ran in wave 3.) **Wave 1**: `p3-lead` (this record; 3.0 and the shared primitives below), `p3-asm-text`
   (`foundation/asm/{statements,layout}.ts`, the parser of the directive subset romlift emits and the layout
   of statements to bytes, D49, built before the writers so the text-layout check and the writers share
   them) and `p3-bench-inputs` (the bench's phase-3 inputs: the pinned objdiff-cli version and its locator,
@@ -2197,7 +2197,8 @@ branch `phase-3-<component>` and worktree (D56 h; roadmap.md, "As executed"):
   counted in the readability family; `init`-style configs never contain such a border.
 - (j) **objdiff-cli** is located by `ROMLIFT_OBJDIFF`, then `PATH`, then
   `$ROMLIFT_BENCH_ROOT/objdiff/target/release/objdiff-cli`, at the version of `bench/tools/objdiff.version`
-  (D34).
+  (D34). Amended by D65 j: the repository's and the main checkout's `bench/.local/objdiff-target` builds come
+  before `PATH`.
 
 **Consequences.** Every wave-2 component typechecks against frozen types and implemented primitives, and owns
 files no other component of its wave touches; the g3 gates stay `pending` until the exports they need land;
@@ -2338,6 +2339,65 @@ floors. Two gates still fail and are owner questions in phase-3.md: `g3.objdiff`
 and comparison artefacts, classified there, which the gate as D34 writes it counts as failures) and
 `g3.large-rom` (Q2: 1,019 to 1,495 MiB peak RSS measured against 512 MiB). Phase 3 does not land until the owner
 answers them; nothing is waived.
+
+## D65. Phase-3 fix round 1 of the review: what changed, and what stays with the owner
+
+**Context.** The review of phase 3 at `9b3f244` (phase-3.md, "Review") found a blocker, eleven majors and
+twenty-three minors. The brief takes every owner decision with its safe default and makes every gate change,
+waiver or limitation the owner has not authorised an owner question.
+
+**Decision.**
+
+- (a) **The text-layout check models the section alignment of each build unit** (correctness-4). GNU as pads
+  each object's section to the alignment it records (1 once Thumb state is entered, 2 for an ARM instruction, p
+  for `.align p`, `.align 0` read as 2; measured with binutils 2.45.1), and ld places each section on it. A unit
+  whose start or length is not a multiple of it fails text-layout, so a ROM whose size its last unit's
+  alignment does not divide is refused before anything is written; the tree is not changed to make it link
+  (owner question Q5).
+- (b) **A case-only rename between runs deletes the old spelling first** (correctness-2): a tree path that only
+  the case separates from a path the manifest or the journal lists is always written, and that old path's
+  delete sorts before every other op (architecture §6.4).
+- (c) **A `[symbols]` entry inside the ROM gets a label only where an item can start** (the D63 d predicate the
+  local labels use); one inside an instruction, pool word or table entry gets none and is `W_SYMBOL_UNPLACED`.
+  The text-layout check resolves through `[symbols]` only the entries outside the ROM, which symbols.ld defines
+  (correctness-1). D64 b is unchanged.
+- (d) **Names**: a function, alias or symbol name is a letter or `_`, then letters, digits, `_`, `.` and `$`
+  (`foundation/asm/dialect.ts` isSymbolName); the config schema refuses others and buildModel raises
+  `E_NAME_INVALID` (correctness-5). GNU as reads `$d` as a mapping symbol and `.text` as a section.
+- (e) **Until the phase-4 c-stub writer, a module of kind `c` fails the check**: its source is a path the
+  stream must hold (correctness-6). **`W_FUNCTION_OUTSIDE_ROM`** reports a `[functions]` entry outside the ROM
+  and an `[[overrides]]` range reaching outside it (correctness-7).
+- (f) **The re-encode check runs foundation/isa rawReason** for every instruction that names an address; only
+  instructions that name none go through a cache keyed by their exact word (architecture-4). pokeemerald
+  verifyModel 330-400 ms -> 610-700 ms.
+- (g) **Plain data and one workflow** (architecture-2, -3): GenerateResult holds its EmitContext, not a
+  closure (`generatedEntries` re-emits); core/workflow/generate.ts has the phase-3 `init` equivalents
+  (`initConfig`, `initModel`, `generateFromRom`, `discoverModel`) and the pure `freshTreePlanInputs`;
+  shell/project/fresh-tree.ts `writeFreshTree` is the one fresh-tree write.
+- (h) **The toolchain verdicts are core's** (architecture-1): foundation/formats/elf.ts relocationsOf reads the
+  relocations, core/verify/toolchain.ts decides `assemble` and `link`; link-check.ts runs the programs.
+- (i) **The objdiff family** (delivery-1, -6): a function's base is assembled with the chunks of its module up
+  to the far pools and adr targets it reaches (transitively), at the word phase it has in the ROM, so no base
+  fails to assemble for a reason the tree does not have; a Thumb `b` and an ARM `bl` (addend -8) the reference
+  resolved inside its object count as `resolved-call` like a `bl`. bench/src/objdiff-classes.ts and
+  bench/tools/objdiff-classes.ts give Q1's classes from committed code. D34's gate is unchanged.
+- (j) **Amends D62 j** (delivery-9): objdiff-cli is located by `ROMLIFT_OBJDIFF`, then the repository's
+  `bench/.local/objdiff-target/release/objdiff-cli`, then the main checkout's (from a worktree), then `PATH`,
+  then `$ROMLIFT_BENCH_ROOT/objdiff/target/release/objdiff-cli` (bench/src/objdiff-cli.ts findObjdiff), always
+  at the version of `bench/tools/objdiff.version`.
+- (k) **Amends D62 a** (delivery-8): phase 3 ran nine components; the ninth, `p3-fixture-goldens` (wave 3,
+  branch `phase-3-fixture-goldens`, merged `f726652`), owned the writer goldens (`test/golden/writers/**`) and
+  their test, `export-poc --mode raw` with `test/local/poc-raw-printer.test.ts`, `bench/tools/ci-digests.ts`
+  (`@2`, the tree digests) and `test/local/emission-real.test.ts`, taking the writer goldens from 3.B and 3.C
+  and the raw printer's PoC parity from 3.B.
+- (l) **Records** (delivery-7) that the raw printer's PoC parity of roadmap 3.B ran narrowed: the local test
+  feeds the PoC's own spans, labels and word kinds to printRawRange, so it proves the ported rawLines, not that
+  romlift's tiling equals the PoC's. As a gate change the owner has not authorised it is owner question Q4.
+
+**Consequences.** The blocker and the correctness majors are closed with tests that fail before their fix;
+generate, verify and the bench share one workflow; the objdiff numbers move (phase-3.md, "Measured numbers").
+The owner questions are Q1 to Q5 of phase-3.md (Q3: D64 d's durability, delivery-3; Q4: (l); Q5: the
+limitations carried into phase 4). Phase 3 does not land until he answers them; nothing is waived.
 
 ## Review findings index
 
