@@ -27,7 +27,6 @@ import { extentEndOf, factOf, ownerOf } from './facts.ts';
 import { fillGaps } from './fill-gaps.ts';
 import { grow } from './grow.ts';
 import { RULES } from './rules.ts';
-import { resettle } from './resettle.ts';
 import { createDriver } from './state.ts';
 import type { DriverState } from './state.ts';
 
@@ -49,7 +48,6 @@ export function runDriver(s: DriverState): StartupRegion {
       if (grow(s) + fillGaps(s, pass) === 0) break;
     }
   }
-  resettle(s);
   let startup: StartupRegion | undefined;
   for (const { rule } of s.rules.region) {
     for (const e of rule.classify(s.view)) write(s, e);
