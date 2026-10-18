@@ -19,6 +19,7 @@ import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnosti
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { contains, u32, u8 } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
+import { pushAll } from '../../../foundation/util/arrays.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../../foundation/util/sorted.ts';
 import { itemAt } from '../../model/item-table.ts';
@@ -214,7 +215,7 @@ function headerBody(cx: BodyContext): readonly string[] {
   for (const piece of pieces) {
     while (next < labels.length && (labels[next] as Label).addr - runOffset <= piece.start) {
       const l = labels[next] as Label;
-      if (l.addr - runOffset === piece.start) out.push(...labelLines(l, 'thumb'));
+      if (l.addr - runOffset === piece.start) pushAll(out, labelLines(l, 'thumb'));
       next++;
     }
     for (let a = piece.start; a < piece.end; a += HEADER_BYTES_PER_LINE) {
@@ -268,11 +269,11 @@ function readableBody(cx: BodyContext): readonly string[] {
     }
     const here = labelsBefore(item.span.start);
     if (item.kind === 'pool') {
-      for (const l of here) out.push(...labelLines(l, mode).slice(0, -1));
+      for (const l of here) pushAll(out, labelLines(l, mode).slice(0, -1));
       out.push(poolLine(here.map((l) => l.name), wordText(model, chunk.module, item.value)));
       continue;
     }
-    for (const l of here) out.push(...labelLines(l, mode));
+    for (const l of here) pushAll(out, labelLines(l, mode));
     if (printed !== undefined) {
       out.push(printed.line);
       count(stats, printed);
@@ -283,13 +284,13 @@ function readableBody(cx: BodyContext): readonly string[] {
         out.push(tableEntryLine(model, chunk.module, item.target, item.thumbBit));
         break;
       case 'padding':
-        out.push(...paddingLines(rom, item.span));
+        pushAll(out, paddingLines(rom, item.span));
         break;
       case 'data': {
         const inner = labels.slice(next).map((l) => l.addr - runOffset).filter((a) => a > item.span.start && a < item.span.end);
         for (const piece of splitAt(item.span, inner)) {
-          for (const l of labelsBefore(piece.start)) out.push(...labelLines(l, mode));
-          out.push(...noteLines(rom, piece, item.note));
+          for (const l of labelsBefore(piece.start)) pushAll(out, labelLines(l, mode));
+          pushAll(out, noteLines(rom, piece, item.note));
         }
         break;
       }
@@ -331,7 +332,9 @@ function rawBody(cx: BodyContext): readonly string[] {
   }
   const rawLabels = sortedEntries(placed).map(([, l]) => l);
   // printRawRange prints the PoC's lines; a global label is declared before them, which GNU as accepts.
-  return [...globals.sort(compareCodeUnits).map((n) => `.global ${n}`), ...printRawRange(rom, (a) => words.has(a), chunk.span.start, chunk.span.end, rawLabels)];
+  const out = globals.sort(compareCodeUnits).map((n) => `.global ${n}`);
+  pushAll(out, printRawRange(rom, (a) => words.has(a), chunk.span.start, chunk.span.end, rawLabels));
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -361,5 +364,8 @@ export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer |
   const cx: BodyContext = { rom, model, chunk: c, runOffset, labels, stats };
   const printer = printerOf(how);
   const body = c.kind === 'header' ? headerBody(cx) : printer === 'raw' ? rawBody(cx) : readableBody(cx);
-  return { lines: [...opening(c, head, runOffset), ...body, ...closing(c)], stats: finish(stats) };
+  const lines = [...opening(c, head, runOffset)];
+  pushAll(lines, body);
+  pushAll(lines, closing(c));
+  return { lines, stats: finish(stats) };
 }

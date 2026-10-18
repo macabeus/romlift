@@ -4,6 +4,7 @@
 // and crt0 writers build their files with the same unitText.
 import { DIALECT } from '../../../foundation/asm/dialect.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
+import { pushAll } from '../../../foundation/util/arrays.ts';
 import { CRT0_PATH, HEADER_PATH, moduleSource } from '../../model/paths.ts';
 import type { Model, Module } from '../../model/types.ts';
 import { printChunk } from '../print/chunk.ts';
@@ -30,7 +31,7 @@ export function unitText(rom: Rom, model: Model, cx: EmitContext, module: Module
       continue;
     }
     if (layout.spaced) lines.push('');
-    lines.push(...printChunk(rom, model, i, cx).lines);
+    pushAll(lines, printChunk(rom, model, i, cx).lines);
   }
   return DIALECT.preamble(first?.mode ?? 'thumb') + fileText(lines);
 }

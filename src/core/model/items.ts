@@ -23,6 +23,7 @@ import { specOf } from '../../foundation/isa/rows.ts';
 import type { Flow, Insn, RawReason, SpecId, SymbolResolver } from '../../foundation/isa/types.ts';
 import { contains, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
+import { pushAll } from '../../foundation/util/arrays.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
@@ -114,7 +115,7 @@ export function segmentsOf(rom: Rom, analysis: Pick<AnalysisResult, 'functions' 
   for (const c of analysis.claims) {
     const span = clip(c.span, rom);
     if (span.end <= span.start) continue;
-    if (c.kind === Claim.padding) raw.push(...paddingSegments(rom, span));
+    if (c.kind === Claim.padding) pushAll(raw, paddingSegments(rom, span));
     else if (c.kind === Claim.data) raw.push({ kind: 'data', start: span.start, end: span.end });
   }
   raw.sort((a, b) => compareNumbers(a.start, b.start) || compareNumbers(RANK[a.kind], RANK[b.kind]) || compareNumbers(b.end, a.end));

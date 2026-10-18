@@ -7,6 +7,7 @@
 // orphans are cut at its end. A data module is one `data` chunk, split where a symbol of the config starts.
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
+import { pushAll } from '../../foundation/util/arrays.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import { tileCode } from '../layout/borders.ts';
 import type { PlacedEntry } from '../layout/borders.ts';
@@ -66,7 +67,7 @@ export function planChunks(inputs: ChunkInputs): ChunkPlan[] {
     if (start < headerEnd) out.push({ span: { start, end: headerEnd }, kind: 'header', name: HEADER_NAME, mode: null, module });
     const from = Math.max(start, inputs.headerEnd);
     if (from >= end) return;
-    out.push(...(m.kind === 'data' ? dataChunks(from, end, module, inputs.symbols) : codeChunks(inputs, from, end, module)));
+    pushAll(out, m.kind === 'data' ? dataChunks(from, end, module, inputs.symbols) : codeChunks(inputs, from, end, module));
   });
   return out;
 }

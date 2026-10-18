@@ -14,7 +14,7 @@ import type { Model } from '../../../../src/core/model/types.ts';
 import { assemble } from '../../../../src/foundation/isa/assemble.ts';
 import { parse } from '../../../../src/foundation/isa/parse.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
-import { codeItems, label, modelOf, romWith } from '../../../helpers/model.ts';
+import { codeItems, dataItem, label, modelOf, romWith } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 import { sampleModel, sampleRom } from './fixture.ts';
 
@@ -199,4 +199,23 @@ test('a runs_at chunk decodes and labels at its run address', () => {
 
 test('a chunk index outside the model is a caller bug', () => {
   assert.throws(() => printChunk(rom, model, model.chunks.length), /no chunk/);
+});
+
+test('a multi-MiB data run inside a code chunk prints with both printers, no stack overflow (correctness-3)', () => {
+  // A 4 MiB orphan of data: 262,144 `.4byte` lines, more than a call can take as spread arguments.
+  const size = 0x40_0000;
+  const big = romWith([], { size: size + 0x100 });
+  const m = modelOf(big, {
+    modules: [
+      { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0x100)] }] },
+      { name: 'main', chunks: [{ kind: 'orphan', name: 'unk_08000100', items: [dataItem(0x0800_0100, size)] }] },
+    ],
+    labels: [],
+    symbols: [],
+  });
+  for (const how of ['readable', 'raw'] as const) {
+    const printed = printChunk(big, m, 1, how);
+    assert.ok(printed.lines.length > size / 16, how);
+    assert.equal(printed.lines[0], '.thumb');
+  }
 });
