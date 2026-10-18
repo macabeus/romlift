@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "2c96faafa71974a6d31fc1986f07ed8760e6b4e8",
+    "commit": "356829f23e0bb7a06a0e0d6251fc245c7d006020",
     "dirty": false,
-    "sourceDigest": "f7986efbf3de785f68e904102885b2f5343baabbcede029ed7e51fb0e60dd5e7",
+    "sourceDigest": "de6e730076b536c1396782f18b3b3e8da6431fd7281a30c63f271583be4661d2",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -1924,7 +1924,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "confirm differs from discover: tmc: function 0x080B255C: discover 0x080B255C arm 0x080B255C..0x080B299C, confirm 0x080B255C arm 0x080B255C..0x080B280C: not covered by D61 e, moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md; tmc: function 0x080B2874: discover 0x080B2874 arm 0x080B2874..0x080B289C, confirm 0x080B2874 arm 0x080B2874..0x080B299C: not covered by D61 e, moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md; tmc: 3 claim runs differ, not covered by D61 e: claim 0x080B2874..0x080B289C: discover 0x080B2874..0x080B289C kind 1 owner 0x080B2874, confirm none; claim 0x080B2874..0x080B299C: discover none, confirm 0x080B2874..0x080B299C kind 1 owner 0x080B2874; claim 0x080B289C..0x080B299C: discover 0x080B289C..0x080B299C kind 1 owner 0x080B255C, confirm none; KNOWN LIMITATION: tmc: 6 of 6 known functions differ as recorded (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C), 1 of 1 known claim runs (0x080087D2..0x08008886): known phase-2 limitation (the owner's answer to Q3 on 2026-10-18, \"Build resettle, else accept\": the resettle stage changed rows on the other tuning ROMs and the sealed pair and was reverted), D61 e; fe7j 7739 listed (7 labels), 0 unlisted, 5 listed-invalid, 0 functions and 0 claim runs differ; klonoa 560 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; pokeemerald 15866 listed (9 labels), 0 unlisted, 6 listed-invalid, 0 functions and 0 claim runs differ; sa2 2901 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; sa3 4702 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; tmc 8645 listed (36 labels), 1 unlisted, 24 listed-invalid, 8 functions and 4 claim runs differ"
+        "detail": "confirm differs from discover: tmc: 2 functions differ, not covered by D61 e: function 0x080B255C: discover 0x080B255C arm 0x080B255C..0x080B299C, confirm 0x080B255C arm 0x080B255C..0x080B280C (moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md); function 0x080B2874: discover 0x080B2874 arm 0x080B2874..0x080B289C, confirm 0x080B2874 arm 0x080B2874..0x080B299C (moved by the pool boundary of 95b257b, after Q3's count at 9c8b282: owner question Q6 of phase-2.md); tmc: 3 claim runs differ, not covered by D61 e: claim 0x080B2874..0x080B289C: discover 0x080B2874..0x080B289C kind 1 owner 0x080B2874, confirm none; claim 0x080B2874..0x080B299C: discover none, confirm 0x080B2874..0x080B299C kind 1 owner 0x080B2874; claim 0x080B289C..0x080B299C: discover 0x080B289C..0x080B299C kind 1 owner 0x080B255C, confirm none; KNOWN LIMITATION: tmc: 6 of 6 known functions differ as recorded (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C), 1 of 1 known claim runs (0x080087D2..0x08008886): known phase-2 limitation (the owner's answer to Q3 on 2026-10-18, \"Build resettle, else accept\": the resettle stage changed rows on the other tuning ROMs and the sealed pair and was reverted), D61 e; fe7j 7739 listed (7 labels), 0 unlisted, 5 listed-invalid, 0 functions and 0 claim runs differ; klonoa 560 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; pokeemerald 15866 listed (9 labels), 0 unlisted, 6 listed-invalid, 0 functions and 0 claim runs differ; sa2 2901 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; sa3 4702 listed (7 labels), 0 unlisted, 4 listed-invalid, 0 functions and 0 claim runs differ; tmc 8645 listed (36 labels), 1 unlisted, 24 listed-invalid, 8 functions and 4 claim runs differ"
       },
       {
         "id": "g2.determinism",
@@ -1985,7 +1985,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.951; CPU/limit: fe7j 1062/12565 ms, klonoa 255/303 ms, pokeemerald 2009/4177 ms, sa2 633/775 ms, sa3 1061/1477 ms, tmc 1250/1766 ms"
+        "detail": "calibration ratio 0.971; CPU/limit: fe7j 1060/12837 ms, klonoa 262/310 ms, pokeemerald 2049/4267 ms, sa2 635/792 ms, sa3 1041/1509 ms, tmc 1240/1804 ms"
       },
       {
         "id": "g3.link",

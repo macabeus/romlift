@@ -24,9 +24,24 @@ the owner had not authorised and re-ran the whole closing list at `2475b34` in a
 closing gate", below). The owner's answers of 18 October 2026 to Q1 to Q5 (D61) and the review of `8fba183` were
 implemented by fix round 3 of D60 (`3f7898f` to `b6b79e1`; "Review", below); the whole closing list ran at
 `e1c3f64` with `phase.json` raised to 2 and, after it was lowered back, at `8c60bf5`, each in a fresh
-worktree ("The closing gate", below).
+worktree ("The closing gate", below). The review of `5e18731` was answered by fix round 1 of D61 (`95852f3` to
+`9262e2a`), and the review of `9262e2a` by fix round 2 of D61 (`490df96` to `356829f`; "Review", below),
+which re-ran the whole closing list at `356829f` in a fresh worktree.
 
-**Verdict (after fix round 1 of D61).** Phase 2 does **not** land, on the same one gate and for the same
+**Verdict (after fix round 2 of D61).** Phase 2 does **not** land, on the same one gate and for the same
+reason: `g2.confirm-equals-discover` fails on tmc's 0x080B255C and 0x080B2874 and the three claim runs
+between 0x080B2874 and 0x080B299C (owner question Q6); the six of Q3 match their pinned records. The round
+answered the review of `9262e2a`: Q7 is withdrawn, since the meaning given with Q5 ("in every scorer")
+already decides it, and the PoC-dump rescoring now measures the code end with `$d` too, the PoC's numbers
+still reproduced under the PoC's ruler; an unsized function ends at the `$d` that closes its last code run;
+the code-end fixture tells the `$d` from the next typed symbol; `seed.ram-copy`'s argument scan treats the
+reading's entry and every `bl` target as join points; architecture §4.2 and §4.5 state the pinned-by-content
+rule and the binding; a stale benchmark row fails like the other two scopings. Every command of the
+closing list exits 0 at `356829f` but `bench gates --require 2 --tier real` (that gate alone). Rows,
+counts, code ends and analysis digests equal `2c96faa`'s on the six tuning ROMs and the sealed pair.
+`phase.json` stays `{ "landed": 1 }`; nothing is merged or pushed.
+
+**Verdict (after fix round 1 of D61; superseded).** Phase 2 does **not** land, on the same one gate and for the same
 reason: `g2.confirm-equals-discover` fails on tmc's 0x080B255C and 0x080B2874 (owner question Q6). The
 round answered the review of `5e18731`: the Q3 limitation is pinned by content and judged on every ROM;
 the three tmc scopings are bound to tmc's ROM and ELF digests; the waiver dates are per condition;
@@ -891,7 +906,7 @@ regression` against the commit before it (and `--base 8fba183`); the replay of e
 
 | Finding or answer | Severity | Disposition |
 | --- | --- | --- |
-| Q5, the code end | owner | **Applied** (`3f7898f`, D61 a): `elfCodeEnd` ends an unsized function at the next `$d` or typed symbol, for every ROM, tuning and sealed, in the tuning and the sealed scorer; the PoC-dump rescoring keeps the PoC's convention (it reproduces the pinned rows, `g1.bench-harness`). tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3, pokefirered, pokeruby 0 → 0; no other count or digest moves. |
+| Q5, the code end | owner | **Applied** (`3f7898f`, D61 a): `elfCodeEnd` ends an unsized function at the next `$d` or typed symbol, for every ROM, tuning and sealed, in the tuning and the sealed scorer; the PoC-dump rescoring keeps the PoC's convention (it reproduces the pinned rows, `g1.bench-harness`; until fix round 2 of D61, which applied `$d` there too). tmc +148 → 0, klonoa +4 → 0, fe7j +8 → 0, pokeemerald, sa2, sa3, pokefirered, pokeruby 0 → 0; no other count or digest moves. |
 | Q4, the family conditions | owner | **Applied** (`5228afd`, D61 b): both conditions waived with the owner's words, printed; the binding, the count of passing sealed ROMs and every per-ROM threshold unchanged. |
 | Q1, `g2.poc-parity` | owner | **Applied** (`43a95be`, D61 c), with gate-honesty-r2-1. |
 | gate-honesty-r2-1 | major | **Fixed** (`43a95be`): the gate's `historicalCheck` is its own check (`parityCheck`, the same function as `run`), so `historical` is recorded only when the check passes on its scope; `test/gates-index.test.ts` holds every historical gate to `historicalCheck === run`. |
@@ -953,7 +968,7 @@ weakened; four were tightened (the Q3 limitation, the three tmc scopings).
 | code-quality-r0-7 | minor | **Fixed** (`525b324`): the `gateStep` and harness end-to-end tests are in `test/unit/gates/gate.test.ts`. |
 | overfitting-correctness-r0-1 | major | **Fixed** (`90c4e88`), and it found a defect: the far-`bl` target join never fired, because it looked the far sites up among `blSites`, which holds only the `bl` walked as calls; it now reads each far and noret site's target from the instruction. One unit case per stop, each failing when its own clause is removed and passing otherwise (mutation-checked: drop the exit stop, the far/noret stop, the far-`bl` join, the table join, the branch join): a jump-table case label falling into the copy call; a far-`bl` target falling into it; an exit, and a noret or far `bl` (with r4..r6 carried into r0..r2), laid out right before the entry, which the reading reaches by a backward branch. The exit and far/noret stops are reached without a join only there, at the entry, which is not a join point. phase-2.md's overfitting-r2-1 row corrected. No digest moves. **Corrected in fix round 2 of D61** (code-quality-r1-3, overfitting-correctness-r1-1): the noret-target join had no case, and the entry and returning-`bl` targets were not joins; the `bl` target join now covers every `bl` with one clause and a case, the entry is a join, and the exit and far/noret stops decide no case alone (`c2822a8`). |
 | code-quality-r0-9 | minor | **Fixed** (`90c4e88`, reworded): the fixture index says `ram-copy-args-straight-line` covers the two stops together and the unit cases each; the fixture is not split (the unit cases make each stop load-bearing). |
-| gate-honesty-r0-3, overfitting-correctness-r0-5 | minor | **Partly fixed, partly asked.** D61 quotes the Q5 meaning as given ("in every scorer") and names the PoC-dump rescoring's `pocCodeEnd` as an interpretation the owner may overrule (new owner question Q7). Fixed (`2d758ab`): `committed.test.ts` holds every fixture codeEnd to `elfCodeEnd` and needs a fixture where the conventions differ, the new negative fixture `code-end-unsized-last` (an unsized last function, then an OBJECT opening with `$d`: ELF and analysis code end 0x08000108, addr + size 0x08000100); `elfCodeEnd` unit cases for `$d.N` and SECTION. |
+| gate-honesty-r0-3, overfitting-correctness-r0-5 | minor | **Partly fixed, partly asked** (the asked part, Q7, withdrawn and fixed in fix round 2 of D61, `921a421`). D61 quotes the Q5 meaning as given ("in every scorer") and names the PoC-dump rescoring's `pocCodeEnd` as an interpretation the owner may overrule (new owner question Q7). Fixed (`2d758ab`): `committed.test.ts` holds every fixture codeEnd to `elfCodeEnd` and needs a fixture where the conventions differ, the new negative fixture `code-end-unsized-last` (an unsized last function, then an OBJECT opening with `$d`: ELF and analysis code end 0x08000108, addr + size 0x08000100); `elfCodeEnd` unit cases for `$d.N` and SECTION. |
 | code-quality-r0-10 | minor | **Fixed** (`3e2480f`, `2d758ab`): the dead ternary went with the rewritten test; `score.test.ts` asserts the exact `{found 0x08000710, elf 0x08000600, delta 0x110}`. |
 
 Observed, not changed (changed in fix round 2 of D61, `c2822a8`): the reading's entry is not a join point of `seed.ram-copy`'s argument scan, so if code
@@ -972,8 +987,8 @@ numbers still reproduced under the PoC's ruler, and one check was tightened (sta
 
 | Finding | Severity | Disposition |
 | --- | --- | --- |
-| code-quality-r1-1 | major | **Fixed** (`a2a5e8d`): architecture §4.2 states the pinned-by-content rule of D61 e (exact records, any other claim run fails wherever it lies, every ROM judged, the digests only a cross-check, counts and the first four in every message) and the D61 f binding; §4.5 states the binding of the three tmc scopings next to `BENCHMARK_ROWS` and `SCOPED_OUT`, with the staleness rules; §2's test tree lists the gate helpers; the `g2.confirm-equals-discover` header says the verdict comes from `viewDifferences`/`judgeDifferences`. |
-| code-quality-r1-2 | major | **Fixed** (`921a421`, `a2a5e8d`): Q7 is withdrawn, with the correction that the exception did keep `g1.bench-harness` passing without a re-pin; D61 (a) and the Known limitations say the same. |
+| code-quality-r1-1 | major | **Fixed** (`356829f`): architecture §4.2 states the pinned-by-content rule of D61 e (exact records, any other claim run fails wherever it lies, every ROM judged, the digests only a cross-check, counts and the first four in every message) and the D61 f binding; §4.5 states the binding of the three tmc scopings next to `BENCHMARK_ROWS` and `SCOPED_OUT`, with the staleness rules; §2's test tree lists the gate helpers; the `g2.confirm-equals-discover` header says the verdict comes from `viewDifferences`/`judgeDifferences`. |
+| code-quality-r1-2 | major | **Fixed** (`921a421`, `356829f`): Q7 is withdrawn, with the correction that the exception did keep `g1.bench-harness` passing without a re-pin; D61 (a) and the Known limitations say the same. |
 | gate-honesty-r1-1, overfitting-correctness-r1-4 | minor | **Fixed** (`921a421`): `scoreRun` uses `elfCodeEnd`, so every scorer measures the code end with `$d`. The pinned PoC rows are not rewritten (they are the PoC's output, pinned by content, D50, and the PoC's fresh run reproduces them; re-pinning them would make the PoC-row check fail on fe7j and klonoa): `bench poc-check` compares the rescored row with each reference as the scorer measures it (`asScored`: `codeEnd.elf` the `$d` end, the delta from the reference's own found end) and checks separately that the reference carries the PoC's convention on that ELF, the "separate check that the PoC's own convention reproduces the PoC's numbers" the finding allows. Measured: `bench poc-check` exit 0; rescored PoC rows fe7j +8 → 0, klonoa +4 → 0, tmc's PoC row −4,130 → −4,278; romlift's rows unchanged. |
 | gate-honesty-r1-2 | minor | **Fixed** (`490df96`): the case restored (big at 0x08000101 size 0x400, then unsized `only` at 0x08000400: 0x08000500), with the variant that has a `$d` at 0x08000420 after `only`. |
 | overfitting-correctness-r1-2 | minor | **Fixed** (`490df96`): an unsized function ends at the first `$d` or typed symbol after its last code mapping symbol before the next typed symbol; unit cases `$t, $d, $t, $d` and a code mapping symbol past the next typed symbol; docstring corrected. Every code end unchanged on the eight ROMs (fe7j 0x080C0C50, klonoa 0x08051BD4, pokeemerald 0x082E952E, sa2 0x080979F6, sa3 0x080CE438, tmc 0x080B2A30, sealed 0). |
@@ -988,48 +1003,49 @@ numbers still reproduced under the PoC's ruler, and one check was tightened (sta
 ## The closing gate
 
 The whole list in a fresh worktree (`git worktree add --detach`: no `node_modules`, no `bench/.local`) at
-`2c96faa` (fix round 1 of D61), every command from the worktree root with
+`356829f` (fix round 2 of D61), every command from the worktree root with
 `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`, the real tier before the ci tier, the
 working tree clean afterwards but for the `bench/results.json` the run rewrites (`poc-digests.json` and
 `poc-dump-rows.json` byte-identical after the export); that `results.json` is the committed artifact.
 `test/gates/phase.json` stays `{ "landed": 1 }`: the one failing gate is outside the owner's answers
 (Q6), so a landing attempt at `landed` 2 would fail on it as at `e1c3f64`, and it was not repeated. The
-list is the previous round's with `bench regression --base 5e18731` added (that round's rows as a floor).
+list is the previous round's with `bench regression --base 9262e2a` added (that round's rows as a floor).
 
-| Command | Exit at `2c96faa` | Output |
+| Command | Exit at `356829f` | Output |
 | --- | --- | --- |
 | `npm ci` | 0 | |
 | `npm run typecheck` | 0 | |
 | `npm run lint` | 0 | 21 tests, 21 pass |
-| `npm test` | 0 | 983 tests, 983 pass |
+| `npm test` | 0 | 987 tests, 987 pass |
 | `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (agbcc commit not named, the bytes decide) |
 | `npm run bench -- doctor-real` | 0 | every ROM, ELF, PoC file and toolchain matches its digest |
-| `npm run export-poc -- --mode scored` | 0 | six ROMs, scaffold OK, deterministic (240 s) |
+| `npm run export-poc -- --mode scored` | 0 | six ROMs, scaffold OK, deterministic (241 s) |
 | `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical (75 s) |
 | `npm run export-poc -- --mode queries` | 0 | five lockstep logs re-read (49 s) |
 | `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 19 tests, 19 pass |
 | `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | binutils, corpus and JUMP11 ok |
 | `npm run corpus` | 0 | 100% round-trip, inputs digest `144770c8…` |
-| `npm run bench -- run` | 0 | six rows equal to `8c60bf5`'s (below); sealed: pokefirered pass, pokeruby pass, counts unchanged |
-| `npm run bench -- speed` | 0 | ratio 0.960; fe7j 1,074 ms (limit 12,692), klonoa 259 (306), pokeemerald 2,084 (4,219), sa2 630 (783), sa3 981 (1,492), tmc 1,299 (1,784) |
+| `npm run bench -- run` | 0 | six rows equal to `2c96faa`'s (below); sealed: pokefirered pass, pokeruby pass, counts unchanged |
+| `npm run bench -- speed` | 0 | ratio 0.958; fe7j 1,059 ms (limit 12,660), klonoa 263 (306), pokeemerald 2,009 (4,208), sa2 609 (781), sa3 991 (1,489), tmc 1,254 (1,780) |
 | `npm run bench -- regression` | 0 | no regression against `92bf7ce` (the PoC-sourced main) |
 | `npm run bench -- regression --base 74ec273` | 0 | no regression |
 | `npm run bench -- regression --base f802822` | 0 | no regression |
 | `npm run bench -- regression --base 8fba183` | 0 | no regression |
 | `npm run bench -- regression --base 5e18731` | 0 | no regression |
+| `npm run bench -- regression --base 9262e2a` | 0 | no regression |
 | `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
-| `npm run bench -- poc-check` | 0 | five ROMs: rows equal, PoC row equal, scaffold OK, deterministic, pinned; tmc: rows equal the PoC's own row, PoC row equal to the pinned one |
-| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end (every delta 0), g2.determinism, g2.entries, g2.extents, g2.held-out (both sealed ROMs pass; WAIVED two families on 2026-10-18, D61 b; WAIVED fresh family on 2026-10-17, D60), g2.no-unreviewed (8 datasets, 61 rows), g2.poc-parity (tmc not applicable), g2.speed (ratio 0.951); **fail: g2.confirm-equals-discover**: tmc 0x080B255C and 0x080B2874 "not covered by D61 e" (Q6) and the 3 claim runs between 0x080B2874 and 0x080B299C; KNOWN LIMITATION printed: 6 of 6 known functions and 1 of 1 known claim runs differ as recorded; fe7j, klonoa, pokeemerald, sa2, sa3 0 differences; g3 to g6 pending |
+| `npm run bench -- poc-check` | 0 | five ROMs: rows equal (the rescored row under `$d`, the PoC's row as the scorer measures it and carrying the PoC's convention), PoC row equal, scaffold OK, deterministic, pinned; tmc: rows equal the PoC's own row, PoC row equal to the pinned one |
+| `npm run bench -- gates --require 2 --tier real` | **1** | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows (tmc 51 accepted improvements and 8 listed rows, a benchmark row, D61 d), g2.code-end (every delta 0), g2.determinism, g2.entries, g2.extents, g2.held-out (both sealed ROMs pass; both family conditions WAIVED, D61 b and D60), g2.no-unreviewed (8 datasets, 61 rows), g2.poc-parity (tmc not applicable), g2.speed (ratio 0.971); **fail: g2.confirm-equals-discover**: "tmc: 2 functions differ, not covered by D61 e" (0x080B255C, 0x080B2874, each with the Q6 text) and "tmc: 3 claim runs differ, not covered by D61 e" (0x080B2874..0x080B289C, 0x080B2874..0x080B299C, 0x080B289C..0x080B299C); KNOWN LIMITATION printed: 6 of 6 known functions and 1 of 1 known claim runs differ as recorded; fe7j, klonoa, pokeemerald, sa2, sa3 0 differences; g3 to g6 pending |
 | `npm run bench -- gates --require 2 --tier ci` | 0 | every g1 and g2 ci gate passes (g2.rule-coverage 51 of 59 rules on 47 fixtures, 8 kept by D57; g2.second-profile 47 fixtures, 310 functions; g2.synthetic-analysis 47 fixtures; g2.regression); g3 to g6 pending |
-| `npm run bench -- provenance` | 0 | source digest `f7986efb…` current, gate record ok at phase ≤ 1, families live, 6 rows, no row of the 2 sealed datasets |
+| `npm run bench -- provenance` | 0 | source digest `de6e7300…` current, gate record ok at phase ≤ 1, families live, 6 rows, no row of the 2 sealed datasets |
 | `npm run bench -- stale-check` | 0 | the artifact is current |
 
 Not done: pushing `phase-2`, the pull request to `main` and its CI workflows, the merge and the tag. The
-runs at `e1c3f64`, `8c60bf5`, `2475b34`, `9c8b282`, `808513f`, `22cbc77` and before are in the Git history of
+runs at `2c96faa`, `e1c3f64`, `8c60bf5`, `2475b34`, `9c8b282`, `808513f`, `22cbc77` and before are in the Git history of
 this file.
 
-## Per tuning ROM, at `2c96faa` (equal to `8c60bf5`)
+## Per tuning ROM, at `356829f` (equal to `2c96faa` and `8c60bf5`)
 
 | ROM | ELF functions | Entries | TP | PoC TP | Raw precision | Raw recall | Misses | False entries | Extents agreeing | Code end | Row diffs (unaccepted) | Analysis digest | Parity digest |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -1044,8 +1060,9 @@ Sealed at `8c60bf5` (counts only): pokefirered pass (12,395 entries for 12,389 E
 precision 99.95%, recall 100.00%, glued 0, label candidates 0, extents 12,383 / 12,386, code end 0, false
 entries startup 4, inside an ELF function 6), pokeruby pass (11,461 for 11,455, tp 11,455, 99.95%, 100.00%,
 0, 0, 11,449 / 11,452, 0, startup 4, inside 6). The analysis digests of all six equal those of `8fba183`;
-only the code end moved (Q5). At `2c96faa` every row, count and analysis digest is the same as at
-`8c60bf5`. `results.json` meta: commit `2c96faa`, dirty false, source digest `f7986efb…`, Node 24.
+only the code end moved (Q5). At `2c96faa` and at `356829f` every row, count, code end and analysis digest
+is the same as at `8c60bf5`. `results.json` meta: commit `356829f`, dirty false, source digest `de6e7300…`,
+Node 24.
 
 ## Known limitations
 
