@@ -14,8 +14,9 @@
 //     other shape declines.
 //
 // S, D and L are the argument values in the straight-line run of at most `ramCopy.argInsns` instructions
-// before the call (the profile), which stops at a join point (a branch, jump-table or far-`bl` target) and
-// at an instruction that does not fall into the next (an unconditional exit, a far or noreturn `bl`):
+// before the call (the profile), which stops at a join point (the reading's entry, a branch or jump-table
+// target, the target of any of its `bl`s: returning, noreturn or far) and at an instruction that does not
+// fall into the next (an unconditional exit, a far or noreturn `bl`; only ever right before a join):
 // pool literals, `movs`, register copies, `adds`/`subs` with an immediate or a register, `negs`, `ands`,
 // `orrs` and shifts of known values. D lies in IWRAM and [D, D + L) fits in it (the memory map's 32 KiB), and [S, S + L) in
 // the ROM. An IWRAM pointer P in (D, D + L) that accepted code loads from its pool and jumps through
@@ -114,20 +115,28 @@ function previous(r: Reading, a: Addr): Addr | undefined {
 
 /**
  * The straight-line run of at most `window` instructions that control passes through on every path to
- * `at`, nearest first: it stops before an instruction control can reach from elsewhere (a branch, jump-table
- * or far-`bl` target of the reading: a join point, where the registers may hold other values), and at an
- * instruction laid out before it that does not fall through into it (an unconditional exit: a return, a
- * register jump, `mov lr, pc; bx rN` included, a branch, or a `bl` the reading walked as a jump or a call
- * that never returns). Code before either never flows into `at` unchanged, so it says nothing about the
- * registers there (overfitting-r2-1).
+ * `at`, nearest first: it stops before a join point, an instruction control can reach other than from the
+ * one laid out before it, where the registers may hold other values: the reading's entry, a branch or
+ * jump-table target, or the target of any `bl` of the reading (a call that returns, one that never
+ * returns, or one walked as a jump: each enters its target with the caller's registers). Code before a
+ * join never flows into `at` unchanged on every path, so it says nothing about the registers there
+ * (overfitting-r2-1, overfitting-correctness-r1-1).
+ *
+ * It also stops at an instruction laid out before it that does not fall through into it (an unconditional
+ * exit: a return, a register jump, `mov lr, pc; bx rN` included, a branch, or a `bl` the reading walked as
+ * a jump or that never returns). With every join above, such an instruction can lie right before an
+ * instruction of the reading only when that instruction is itself a join, so this stop decides nothing
+ * on the readings the walk records; it is kept for a way into the code the reading does not record as a
+ * target, and no unit case can make it decide alone.
  */
 function straightLineBefore(r: Reading, at: Addr, window: number, v: AnalysisView): Addr[] {
   const jumps = new Set<Addr>([...r.far, ...r.noret]);
-  const joins = new Set<Addr>(r.branchTargets);
+  const joins = new Set<Addr>([r.entry, ...r.branchTargets]);
   for (const t of r.tables) for (const target of t.targets) joins.add(target & ~1);
-  // A far `bl` is walked as a jump and never recorded among the call sites (blSites), so its target comes
-  // from the instruction itself; a noret target is added too, in case the reading reaches it otherwise.
-  for (const site of [...r.far, ...r.noret]) {
+  // A `bl` walked as a call (one that never returns included) is in blSites with its target; a far `bl` is
+  // walked as a jump and never recorded there, so its target comes from the instruction itself.
+  for (const b of r.blSites) joins.add(b.target);
+  for (const site of r.far) {
     const flow = insnAt(r, site, v).flow;
     if (flow.kind === 'bl') joins.add(flow.target);
   }
