@@ -94,7 +94,7 @@ function locked(file: string, why: string): Diagnostic {
  * taking over at once only one moves it; when the moved file is not the stale one (another run had just
  * taken the lock over), it is put back and the takeover gives up.
  */
-async function removeStale(file: string, stale: string): Promise<boolean> {
+export async function removeStale(file: string, stale: string): Promise<boolean> {
   const aside = `${file}.${randomBytes(6).toString('hex')}.stale`;
   try {
     await rename(file, aside);

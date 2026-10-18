@@ -79,3 +79,19 @@ test('a chunk naming another module, and modules that leave a gap, fail at the m
 test('a model of another ROM size fails', () => {
   assert.match(checkTiling(rom, { ...model, rom: { ...model.rom, end: 0x0800_0800 } }).diagnostics[0]?.message ?? '', /ROM ending at 0x08000800/);
 });
+
+test('item and chunk ranges that do not follow each other, and items or chunks in no chunk or module, fail (architecture-11)', () => {
+  const messages = (m: Model): string => checkTiling(rom, m).diagnostics.map((d) => d.message).join('\n');
+  // A chunk whose items start past where the previous chunk's end.
+  const skip = model.chunks.map((c, i) => (i === 2 ? { ...c, items: { first: c.items.first + 1, count: c.items.count - 1 } } : c));
+  assert.match(messages({ ...model, chunks: skip }), /chunk Func .* holds items from \d+, but the chunk before it ends at item \d+/);
+  // The last chunk stops one item short: that item is in no chunk.
+  const lastChunk = model.chunks.length - 1;
+  const short = model.chunks.map((c, i) => (i === lastChunk ? { ...c, span: { start: c.span.start, end: 0x0800_0144 }, items: { first: c.items.first, count: c.items.count - 1 } } : c));
+  assert.match(messages({ ...model, chunks: short }), /items \d+ to \d+ belong to no chunk/);
+  // A module whose chunks start past the previous module's.
+  const skipped = model.modules.map((m, i) => (i === 2 ? { ...m, chunks: { first: m.chunks.first + 1, count: m.chunks.count - 1 } } : m));
+  assert.match(messages({ ...model, modules: skipped }), /module main .* holds chunks from \d+, but the module before it ends at chunk \d+/);
+  // The last module dropped: its chunk is in no module.
+  assert.match(messages({ ...model, modules: model.modules.slice(0, -1) }), /chunks \d+ to \d+ belong to no module/);
+});

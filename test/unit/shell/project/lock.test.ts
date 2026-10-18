@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 
 import { LOCK_PATH } from '../../../../src/core/write-plan/types.ts';
-import { lockText, parseLock, processAlive, withProjectLock } from '../../../../src/shell/project/lock.ts';
+import { lockText, parseLock, processAlive, removeStale, withProjectLock } from '../../../../src/shell/project/lock.ts';
 
 const roots: string[] = [];
 
@@ -121,4 +121,53 @@ test('a lock text round-trips and processAlive sees this process', () => {
   assert.deepEqual(parseLock(lockText({ pid: 42, host: 'h' })), { pid: 42, host: 'h' });
   assert.equal(lockText({ pid: 42, host: 'h' }), '{"host":"h","pid":42}\n');
   assert.equal(processAlive(process.pid), true);
+});
+
+test('two runs taking over one stale lock at once: one takes it with W_STALE_LOCK, the other is refused (architecture-11)', async () => {
+  const dir = await tempDir();
+  await mkdir(join(dir, '.romlift'));
+  await writeFile(join(dir, LOCK_PATH), lockText({ pid: await deadPid(), host: hostname() }));
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const first = withProjectLock(dir, async () => held);
+  const second = withProjectLock(dir, async () => 'second ran');
+  const refused = await second;
+  release();
+  const taken = await first;
+  const outcomes = [taken, refused];
+  assert.equal(outcomes.filter((o) => o.ok).length, 1, 'exactly one run holds the lock');
+  const loser = outcomes.find((o) => !o.ok);
+  assert.ok(loser !== undefined);
+  assert.equal(loser.diagnostics[0]?.code, 'E_PROJECT_LOCKED');
+  assert.ok(outcomes.find((o) => o.ok)?.diagnostics.some((d) => d.code === 'W_STALE_LOCK'));
+  assert.equal(await lockExists(dir), false);
+  assert.deepEqual((await readdir(join(dir, '.romlift'))).filter((n) => n.endsWith('.stale')), []);
+});
+
+test('a lock that cannot be read after a create found it (a directory there) is retried, then refused', async () => {
+  const dir = await tempDir();
+  await mkdir(join(dir, LOCK_PATH), { recursive: true });
+  const outcome = await withProjectLock(dir, async () => 'ran');
+  assert.equal(outcome.ok, false);
+  assert.deepEqual(outcome.diagnostics.map((d) => d.code), ['E_PROJECT_LOCKED']);
+  assert.match(outcome.diagnostics[0]?.message ?? '', /could not be taken/);
+});
+
+test('removeStale moves only the stale lock: a lock another run just took is put back, a missing one is not taken', async () => {
+  const dir = await tempDir();
+  await mkdir(join(dir, '.romlift'));
+  const file = join(dir, LOCK_PATH);
+  const stale = lockText({ pid: 1, host: 'gone' });
+  const fresh = lockText({ pid: process.pid, host: hostname() });
+  await writeFile(file, fresh);
+  assert.equal(await removeStale(file, stale), false);
+  assert.equal(await readFile(file, 'utf8'), fresh, 'the other run keeps its lock');
+  await rm(file);
+  assert.equal(await removeStale(file, stale), false, 'nothing to move');
+  await writeFile(file, stale);
+  assert.equal(await removeStale(file, stale), true);
+  assert.equal(await lockExists(dir), false);
+  assert.deepEqual((await readdir(join(dir, '.romlift'))).filter((n) => n.endsWith('.stale')), []);
 });
