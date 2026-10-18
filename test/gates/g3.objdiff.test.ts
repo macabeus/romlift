@@ -3,9 +3,11 @@
 // bench/tools/objdiff.version): 100% match and no relocation difference. The reference side is the
 // project's own object (`objectsDir`); the base is the emitted function `.s`, assembled, with labels renamed
 // to the ELF's names. A relocation whose reference targets a section symbol is `unnamed-target`: reported,
-// not gated. Every other difference fails.
+// not gated. Every other difference fails. The share metrics and the scoring run on all six tuning ROMs
+// (D62); objdiff-cli is located by ROMLIFT_OBJDIFF, then PATH, then
+// $ROMLIFT_BENCH_ROOT/objdiff/target/release/objdiff-cli.
 //
-// Expected output, for the phase-3 lead to align (architecture §8.5):
+// The command (architecture §8.5; aligned to the frozen API by the phase-3 lead, D62):
 //   npm run bench -- run --scaffold --json   exit 0; the last stdout line is romlift/bench-run@1; --json
 //   writes no committed file. Per tuning ROM in `roms[]` this gate reads
 //     name

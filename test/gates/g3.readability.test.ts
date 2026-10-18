@@ -1,8 +1,12 @@
-// g3.readability (architecture §8.4 "Readability", §13): on all five tuning ROMs the readable printer's
+// g3.readability (architecture §8.4 "Readability", §13): on all six tuning ROMs the readable printer's
 // shares of mnemonics (against raw instructions), symbolic branches and symbolic pool loads are no lower
-// than their floor, the first value committed for that ROM, so they only increase.
+// than their floor, the first value committed for that ROM, so they only increase. The floors are
+// bench/baseline/readability.json, written once by the phase lead (D62); a ROM without a floor fails.
+// The shares come from the printer's PrintStats (core/emit/tree.ts): mnemonicShare = 1 - rawInsns / insns,
+// symbolicBranchShare = symbolicBranches / branches, symbolicPoolShare = symbolicPoolLoads / poolLoads, each
+// 1 when its denominator is 0.
 //
-// Expected output, for the phase-3 lead to align (architecture §8.5):
+// The command (architecture §8.5; aligned to the frozen API by the phase-3 lead, D62):
 //   npm run bench -- run --json   exit 0; the last stdout line is romlift/bench-run@1; --json writes no
 //   committed file. Per tuning ROM in `roms[]` this gate reads
 //     name

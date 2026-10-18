@@ -1,12 +1,14 @@
 // g3.text-layout (architecture §6.4, §13, D49): every file the emission stream produces, parsed back and
 // laid out from its module start, reproduces the ROM range byte for byte, and every `.align` emits exactly
-// its padding item; on every committed fixture (ci and real tiers) and every tuning ROM (real tier).
+// its padding item; the paths check of the same pass (duplicates and case-folded collisions,
+// E_PATH_CASE_COLLISION) passes too. On every committed fixture (ci and real tiers) and every tuning ROM,
+// all six (real tier, D62).
 //
-// Expected output, for the phase-3 lead to align (architecture §2.1, §6.4):
-//   romlift verify --rom <rom> [--link] [--printer raw] --json   run from an empty directory, so the
-//   config is the one configFromDiscover builds; exit 0 when every check passes, 3 when one fails.
-//   NDJSON on stdout:
-//     {"type":"check","id":"tiling"|"reencode"|"module-size"|"text-layout"|"link","status":"ok"|"fail","detail":string}
+// The command (architecture §2.1, §6.4; aligned to the frozen API by the phase-3 lead, D62):
+//   romlift verify --rom <rom> [--assemble] [--link] [--printer raw] --json   run from an empty directory,
+//   so the config is the one configFromDiscover builds; exit 0 when every check passes, 3 when one fails.
+//   NDJSON on stdout, the frozen VerifyReport (core/verify/report.ts) line by line, checks in CHECK_IDS order:
+//     {"type":"check","id":"tiling"|"reencode"|"module-size"|"text-layout"|"paths"|"assemble"|"link","status":"ok"|"fail","detail":string}
 //     {"type":"diagnostic",...}                     (any number)
 //     {"type":"summary","ok":boolean,"exitCode":number,"sha1"?:string}   (last; sha1 of the linked ROM with --link)
 import { createHash } from 'node:crypto';
@@ -14,7 +16,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult, type GateContext } from './gate.ts';
 
-type CheckId = 'tiling' | 'reencode' | 'module-size' | 'text-layout' | 'link';
+type CheckId = 'tiling' | 'reencode' | 'module-size' | 'text-layout' | 'paths' | 'assemble' | 'link';
 
 type VerifyLine =
   | { readonly type: 'check'; readonly id: CheckId; readonly status: 'ok' | 'fail'; readonly detail: string }
@@ -78,16 +80,16 @@ gate({
   phase: 3,
   tier: 'both',
   realInputs: ['roms'],
-  needs: ['buildModel', 'emitTree', 'checkEntry'],
+  needs: ['buildModel', 'emitTree', 'checkEntry', 'checkPaths'],
   async run(cx) {
     const problems: string[] = [];
     const list = await targets(cx);
     for (const target of list) {
       const result = await verify(cx, target, []);
-      const failed = failedChecks(result, ['text-layout']);
+      const failed = failedChecks(result, ['text-layout', 'paths']);
       if (failed.length > 0 || result.code !== 0) problems.push(`${target.name} (exit ${result.code}): ${failed.join('; ') || 'summary not ok'}`);
     }
     if (problems.length > 0) throw new Error(`text layout fails: ${problems.join(' | ')}`);
-    cx.note(`the text-layout check passes on ${list.length} ROMs (${cx.fixtures.length} fixtures${cx.tier === 'real' ? `, ${cx.datasets.length} tuning ROMs` : ''})`);
+    cx.note(`the text-layout and paths checks pass on ${list.length} ROMs (${cx.fixtures.length} fixtures${cx.tier === 'real' ? `, ${cx.datasets.length} tuning ROMs` : ''})`);
   },
 });

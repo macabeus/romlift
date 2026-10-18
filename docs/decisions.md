@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -2080,6 +2080,134 @@ counts and analysis digests, every closing command exits 0 but the real tier, wh
 D61 withdrew Q7 (the meaning given with Q5 answers it, (a)) and applied `$d` to the PoC-dump rescoring.
 The owner's answer to Q6 ("Yes, cover all 8", (g)) is the last gate change of phase 2; the closing
 measurements and the landing are in phase-2.md, "The closing gate".
+
+## D62. Phase-3 component boundaries as executed, and the contract members emission needs
+
+**Context.** Roadmap 3.0–3.I splits phase 3 into a lead, five parallel components (3.A model and layout,
+3.B printer and code writers, 3.C data and linker writers and self-checks, 3.D write plan and commands, 3.E
+bench emission families) and an integrator. As in phases 1 and 2 (D54, D56), a parallel component cannot be
+proven alone against exports that are not merged, and freezing the phase's types showed places where the
+edge table of architecture §2 and the frozen types of §3.4 do not fit together: the re-encode and
+text-layout checks (core/verify) need the printer's label resolution, but core/verify may import core/emit
+only through tree.ts; `configFromDiscover` returns a `RomliftConfig`, a core/config type, but core/layout
+may not import core/config; module inference proposes modules, but `ProposalSource` had no variant for a
+proposer that is not an analysis rule. The owner asked for no checkpoints: every owner decision of
+architecture §12 is built with its documented safe default (item 3 below).
+
+**Decision.** Phase 3 runs as eight components in three waves on the branch `phase-3`, each on its own flat
+branch `phase-3-<component>` and worktree (D56 h; roadmap.md, "As executed"):
+
+- (a) **Wave 1**: `p3-lead` (this record; 3.0 and the shared primitives below), `p3-asm-text`
+  (`foundation/asm/{statements,layout}.ts`, the parser of the directive subset romlift emits and the layout
+  of statements to bytes, D49, built before the writers so the text-layout check and the writers share
+  them) and `p3-bench-inputs` (the bench's phase-3 inputs: the pinned objdiff-cli version and its locator,
+  the reference objects of the tuning datasets, the deterministic 32 MiB synthetic image of `g3.large-rom`).
+  **Wave 2**: `p3-model` (3.A: `buildModel`, `encodeModel`, `legalBorders`, `inferModules`,
+  `configFromDiscover`, the model codes), `p3-printer` (3.B: `emitTree`, `printChunk`, `core/emit/print/**`,
+  the header, crt0, function, orphan and module writers, `romlift/internal`'s emission exports),
+  `p3-data-verify` (3.C: the data, ldscript and symbols writers, `verifyModel`, `checkEntry`, `checkPaths`,
+  the verify codes) and `p3-write-plan` (3.D's `planWrites`, the write-plan codes, `applyWrites`,
+  `withProjectLock` and `linkCheck` in `romlift/node`). **Wave 3**: `p3-generate` (3.D's
+  `core/workflow/generate.ts`, the `model --json` and `verify` commands in `cli/commands/lists/emission.ts`,
+  `src/api/workflow-generate.ts`, `bench/src/large-rom.ts`, and `explain`'s phase-3 part, `item` and
+  `chunk`, architecture §9.2, D35) and `p3-bench-scaffold` (3.E: `bench run --scaffold` with both printers,
+  the readability and objdiff families, `bench speed`'s `generate` and `init` timings, the `bench
+  large-rom` command). The lead integrates, refreshes `bench/results.json` and `bench/baseline/speed.json`,
+  writes `bench/baseline/readability.json` (the first committed readability shares, the floors of
+  `g3.readability`) once, raises `test/gates/phase.json` and runs the closing gate (phase-3.md).
+- (b) **Where the shared primitives live.** The label resolver (`resolverFor`, `resolverOver`, `moduleAt`,
+  `wordValueOf`), the item table (`itemTableBuilder`, `itemAt`, `findItem`) and the shared paths
+  (`chunkPaths`, `moduleSource`, `buildUnits`, `modulePathPrefixes`) live in `core/model/{resolver,
+  item-table,paths}.ts`, because the printer (core/emit), the self-checks (core/verify) and the write plan's
+  `retained` prefixes all need them, and core/verify may not import core/emit beyond tree.ts.
+  `core/emit/symbol-resolver.ts` is not created. `resolverFor` takes `Pick<Model, 'labels' | 'modules'>`
+  (a whole Model satisfies it) and indexes the labels once per Model (a WeakMap keyed by its labels array);
+  `resolverOver` indexes afresh, for buildModel while it assembles the labels. A label lies in the module
+  whose run range (runs_at modules first), else load span, contains its address; inside a module it is
+  visible when it is global or lies there; several labels at one address print in the order func, table,
+  pool, local, data, then name. `itemAt(items, i, rom, runOffset = 0)` gains the optional run offset of a
+  runs_at chunk (`runAt - span.start`), so an instruction decodes at its run address while its span stays in
+  load addresses (§6.7, D46).
+- (c) **`configFromDiscover` lives at `core/workflow/config-from-discover.ts`**, owned by `p3-model`: the
+  edge table forbids core/layout to import core/config, and `RomliftConfig` is a core/config type, while
+  core/workflow may import every core module. Its options, `ConfigFromDiscoverOptions`, are the inference
+  options and nothing else, in `core/layout/types.ts` with `DEFAULT_MODULE_SIZE` (0x10000, D20). In phase 3
+  it writes every code module as kind `'asm'` (architecture §6.1: "Every module is asm"); phase 4 switches
+  the agbcc-shaped modules to `'c'` when the c-stub writer lands.
+- (d) **Contract members added to architecture §3.4**, each the minimum emission needs:
+  - `EmitContext.printer?: Printer` (`'readable' | 'raw'`, default `'readable'`), so `verify --printer raw`
+    and `g3.raw-link` select the PoC's all-data emission through the same stream.
+  - `PrintStats` (`insns`, `rawInsns`, `branches` (b, bcc, bl and blx-immediate in code items),
+    `symbolicBranches`, `poolLoads` (PC-relative loads), `symbolicPoolLoads`, `rawReasons`) and
+    `PrintedChunk { lines; stats }`: what `printChunk(rom, model, chunk: number, cx: EmitContext):
+    PrintedChunk` returns and the readability family sums (`addPrintStats`). The readability shares are
+    `1 - rawInsns / insns`, `symbolicBranches / branches` and `symbolicPoolLoads / poolLoads`, each 1 when
+    its denominator is 0.
+  - The writer contract `Writer { id; scope: 'module' | 'global'; emit(rom, model, cx, module: number |
+    null) }` and the frozen stream order (core/emit/tree.ts): per generated module in ROM order, the entries
+    of every module-scoped writer sorted by path (code units), then the global writers' entries (ldscript.txt,
+    symbols.ld) sorted by path; a module whose `generated` is false yields nothing. The registry
+    (`core/emit/writers/index.ts`) lists the eight phase-3 writers.
+  - `WritePlanInputs.retained`: the path prefixes of the `generated = false` modules
+    (`modulePathPrefixes`), never written and never deleted, which §6.4's policy names but the inputs could
+    not express; `WritePlan { ops; manifest; diagnostics }` names planWrites' result; `GENERATED_ROOTS`,
+    `ROMLIFT_DIR`, `MANIFEST_PATH`, `JOURNAL_PATH` and `LOCK_PATH` are constants of
+    `core/write-plan/types.ts`; the manifest and journal codecs (`core/write-plan/{manifest,journal}.ts`)
+    are implemented in wave 1 (a decode returns an error value, never throws); `Journal = { schema: 1; ops:
+    { op; path; baseSha1?; resultSha1? }[] }`, derived from a plan by `journalOf` (a keep is left out).
+  - `ProposalSource` gains `{ kind: 'layout'; reason: 'header' | 'startup' | 'asm-only' | 'module-size' |
+    'data' }` for module inference, which is not an analysis rule, so a RuleId would be false provenance;
+    like `'analysis'` it is never persisted, and `sourceKey` returns undefined for both.
+  - The verify report: `CheckId` (`tiling`, `reencode`, `module-size`, `text-layout`, `paths`, `assemble`,
+    `link`), `CheckResult { id; ok; detail; diagnostics }`, `VerifyReport { ok; checks }`, `checkResult` and
+    `combineReports` (checks in `CHECK_IDS` order, one id merged). The wave-2 checks have the signatures
+    `verifyModel(rom, model): VerifyReport` (tiling, re-encode, module size), `checkEntry(rom, model, entry:
+    FileEntry): readonly Diagnostic[]` (the text layout of ONE entry, so the check pass streams the
+    emission and holds no tree, §9.4) and `checkPaths(paths: Iterable<string>): readonly Diagnostic[]`.
+    `g3.text-layout` requires the `paths` check with the text-layout check, as §6.4 runs them in one pass.
+  - The model's item encoding is public with `model --json`: `ITEM_RAW_REASONS` (an `aux` raw-reason code
+    is its index), `DATA_NOTES` (a data note code is its index plus one, 0 for none), `NO_SPEC` (0xFFFF), and
+    a table entry's `aux` is its target with bit 0 set when the stored value carries the Thumb bit. A
+    `ModelJsonItem` is `[kind, start, length, specId | null, aux]`, addresses spelled as the analysis codec
+    spells them.
+  - `Module.dataStart` and `ModuleConfig.dataStart` are left out of the phase-3 types: `data_start` is a
+    phase-5 key (§6.6), and nothing ships before its phase. `RomliftConfig` carries a zod schema
+    (`validateConfig`) for in-memory configs; core/config has no `codes.ts` in phase 3 (no raiser yet).
+  - The build compilers: `BUILD_COMPILERS` holds `agbcc` and `old_agbcc` (`tools/agbcc/bin/<id>`, the flags
+    `-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm`, `templates/compilers/<id>.mk`).
+- (e) **Codes.** The phase lead creates `core/{model,verify,write-plan}/codes.ts` empty and unions them into
+  `core/diagnostic-codes.ts`; each owner adds its codes in the commit of their first raiser (D45): model
+  `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_NAME_COLLISION`, `E_OVERRIDE_INVALID`,
+  `W_CROSS_MODULE_SHORT_BRANCH`; verify `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`,
+  `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`; write-plan `E_PATH_NOT_OWNED`, `E_STALE_EDIT`,
+  `W_UNOWNED_FILE`.
+- (f) **The seam.** `test/golden/analysis/<fixture>.json` holds, for every committed fixture, the canonical
+  `encodeAnalysis` of its seedless discover run under `profileById('agbcc')`; wave 2 builds on it before
+  `buildModel` exists, and `test/helpers/model.ts` builds small hand-made Models for the printer, writer,
+  check and write-plan unit tests.
+- (g) **The mutation tests of phase 3** (`test/mutation/phase3/**`, `g3.checks-fail`) are owned by the
+  checkers' components: `tiling`, `reencode`, `module-size` and `text-layout` by `p3-data-verify`,
+  `plan-writes` by `p3-write-plan`, not by the integrator as roadmap 3.I lists.
+- (h) **Every phase-3 threshold applies to all six tuning ROMs**: D60 revealed tmc as tuning data and kept
+  the thresholds for all six ("the thresholds apply to all six"), so the self-checks, the text-layout check
+  and the raw link cover six ROMs, the readable link at least three of the six (target all six), and the
+  readability and objdiff families all six. The gate files' comments say so; no threshold changed.
+- (i) **Architecture §12 item 3 is built with its safe default** while the owner has not answered (D15): a
+  short Thumb branch across a border the user moved prints raw with `W_CROSS_MODULE_SHORT_BRANCH` and is
+  counted in the readability family; `init`-style configs never contain such a border.
+- (j) **objdiff-cli** is located by `ROMLIFT_OBJDIFF`, then `PATH`, then
+  `$ROMLIFT_BENCH_ROOT/objdiff/target/release/objdiff-cli`, at the version of `bench/tools/objdiff.version`
+  (D34).
+
+**Consequences.** Every wave-2 component typechecks against frozen types and implemented primitives, and owns
+files no other component of its wave touches; the g3 gates stay `pending` until the exports they need land;
+the resolver and paths have one definition for writers, checks and the write plan.
+
+**Rejected.** `core/emit/symbol-resolver.ts` (core/verify could not import it). `config-from-discover.ts`
+in core/layout (it would need a core/config edge the table forbids, or a second config type). A RuleId such as
+`layout.infer` on module proposals (no such rule exists; provenance would cite a rule that is not one).
+`checkTree(entries)` holding the whole stream (memory, §9.4). Stubbing `data_start` in phase 3 (nothing ships
+before its phase).
 
 ---
 
