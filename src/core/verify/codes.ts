@@ -23,6 +23,10 @@ export const VerifyCodes = defineCodes({
     severity: 'error',
     meaning: 'two emitted paths are the same file, exactly or on a case-insensitive file system (paths.ts)',
   },
+  E_PATH_TOO_LONG: {
+    severity: 'error',
+    meaning: 'a component of an emitted path is longer than the 255 bytes a file system stores per name (paths.ts)',
+  },
 });
 
 export type VerifyCode = keyof typeof VerifyCodes;

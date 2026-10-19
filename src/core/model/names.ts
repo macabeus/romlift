@@ -3,7 +3,7 @@
 // module-scoped (printed with the _local macros), as static functions repeat in real decomps; a repeated name
 // one of whose labels is referenced from another module, or a name used twice inside one module, is
 // E_NAME_COLLISION.
-import { isSymbolName } from '../../foundation/asm/dialect.ts';
+import { isSymbolName, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -109,7 +109,7 @@ export function invalidNames(names: readonly { readonly name: string; readonly a
     const key = `${String(n.addr)}:${n.name}`;
     if (isSymbolName(n.name) || seen.has(key)) continue;
     seen.add(key);
-    out.push(diagnostic(ModelCodes, 'E_NAME_INVALID', `the name ${JSON.stringify(n.name)} at ${hexAddr(n.addr)} is not a symbol name (a letter or _, then letters, digits, _, . and $)`, { addr: n.addr }));
+    out.push(diagnostic(ModelCodes, 'E_NAME_INVALID', `the name ${JSON.stringify(n.name)} at ${hexAddr(n.addr)} is not a symbol name (${SYMBOL_NAME_RULE})`, { addr: n.addr }));
   }
   return out;
 }

@@ -159,6 +159,21 @@ test('deterministic: the same model whatever order the config maps were filled i
   ]);
 });
 
+test('an [[overrides]] range reaching outside the ROM is W_OVERRIDE_OUTSIDE_ROM, a [functions] entry outside it W_FUNCTION_OUTSIDE_ROM (architecture-r1-14)', () => {
+  const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })] });
+  const config = configOf({
+    modules: [['rom_header', BASE], ['main', HEADER_END]],
+    functions: [[BASE + 0x100, 'A'], [0x0900_0000, 'Outside']],
+    overrides: [{ start: BASE + 0x3f0, size: 0x20, kind: 'data' }],
+  });
+  const model = buildModel(ROM, analysis, config);
+  assert.deepEqual(model.diagnostics.map((d) => [d.code, d.addr ?? d.span?.start]), [
+    ['W_OVERRIDE_OUTSIDE_ROM', BASE + 0x3f0],
+    ['W_FUNCTION_OUTSIDE_ROM', 0x0900_0000],
+  ]);
+  assert.match(model.diagnostics[0]?.message ?? '', /the \[\[overrides\]\] range 0x080003F0\.\.0x08000410 reaches outside the ROM/);
+});
+
 test('never a throw for content: no module, a function outside the ROM, a symbol in RAM', () => {
   const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })] });
   const model = buildModel(ROM, analysis, configOf({ modules: [], functions: [[BASE + 0x100, 'A'], [0x0900_0000, 'Outside']], symbols: [[0x0300_0000, { name: 'gRam', aliases: [] }]] }));

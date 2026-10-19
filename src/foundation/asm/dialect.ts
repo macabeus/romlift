@@ -39,10 +39,20 @@ const MACROS_INC = `${[
  */
 const SYMBOL_NAME = /^[A-Za-z_][A-Za-z0-9_.$]*$/;
 
-/** Whether `name` is a symbol name (SYMBOL_NAME) a generated file may define. */
+/**
+ * The longest symbol name, in characters (ASCII, so bytes): a function's name is a file name,
+ * `<Name>_<ADDR>.s` in a case-folded group (core/model/paths.ts), and file systems store at most 255 bytes
+ * per name, so 200 leaves room for the 11 bytes of `_<ADDR>.s`.
+ */
+export const MAX_SYMBOL_NAME = 200;
+
+/** Whether `name` is a symbol name (SYMBOL_NAME, at most MAX_SYMBOL_NAME characters) a generated file may define. */
 export function isSymbolName(name: string): boolean {
-  return SYMBOL_NAME.test(name);
+  return name.length <= MAX_SYMBOL_NAME && SYMBOL_NAME.test(name);
 }
+
+/** What isSymbolName accepts, as the config schema and E_NAME_INVALID say it. */
+export const SYMBOL_NAME_RULE = `a letter or _, then letters, digits, _, . and $, at most ${MAX_SYMBOL_NAME} characters`;
 
 export const DIALECT: Dialect = {
   preamble: (mode) => `.syntax unified\n.include "include/macros.inc"\n${mode === 'arm' ? '.arm' : '.thumb'}\n`,

@@ -86,3 +86,11 @@ test('a name GNU as reads as a mapping symbol, a section or a local label is ref
   const symbol = validateConfig({ ...EXAMPLE, symbols: new Map([[0x0300_0000, { name: 'gOk', aliases: ['$d'] }]]) });
   assert.equal(symbol.ok, false);
 });
+
+test('a symbol or module name longer than 200 characters is refused, so no file name passes the checks and fails the write (correctness-r1-2)', () => {
+  const named = (name: string): boolean => validateConfig({ ...EXAMPLE, functions: new Map([[0x0800_0470, { name, mode: 'thumb', aliases: [] }]]) }).ok;
+  assert.equal(named(`F${'x'.repeat(199)}`), true);
+  assert.equal(named(`F${'x'.repeat(200)}`), false);
+  const modules = EXAMPLE.modules.map((m, i) => (i === 0 ? { ...m, name: `m${'x'.repeat(200)}` } : m));
+  assert.equal(validateConfig({ ...EXAMPLE, modules }).ok, false);
+});

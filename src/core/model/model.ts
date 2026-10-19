@@ -86,7 +86,7 @@ function modelFunctions(
   });
 }
 
-/** W_FUNCTION_OUTSIDE_ROM for every [functions] entry and [[overrides]] range that lies outside the ROM. */
+/** W_FUNCTION_OUTSIDE_ROM for every [functions] entry outside the ROM, W_OVERRIDE_OUTSIDE_ROM for every [[overrides]] range reaching outside it. */
 function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
   const out: Diagnostic[] = [];
   for (const [entry, f] of sortedEntries(config.functions)) {
@@ -96,7 +96,7 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
   for (const o of config.overrides) {
     if (contains(rom, o.start) && o.start + o.size <= rom.end) continue;
     const span = { start: o.start, end: o.start + o.size };
-    out.push(diagnostic(ModelCodes, 'W_FUNCTION_OUTSIDE_ROM', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} reaches outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}; the part outside is ignored`, { span }));
+    out.push(diagnostic(ModelCodes, 'W_OVERRIDE_OUTSIDE_ROM', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} reaches outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}; the part outside is ignored`, { span }));
   }
   return out;
 }

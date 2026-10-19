@@ -15,12 +15,17 @@ export const ModelCodes = defineCodes({
   },
   E_NAME_INVALID: {
     severity: 'error',
-    meaning: 'a function, alias or symbol name is no symbol name a file may define (a leading $ is a mapping symbol, a leading . a section or local label)',
+    meaning:
+      'a function, alias or symbol name is no symbol name a file may define (a leading $ is a mapping symbol, a leading . a section or local label; at most 200 characters, since a function name is a file name)',
   },
   E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
   W_FUNCTION_OUTSIDE_ROM: {
     severity: 'warning',
-    meaning: 'a [functions] entry lies outside the ROM, so the model has no function for it, or an [[overrides]] range reaches outside it, where it applies to nothing',
+    meaning: 'a [functions] entry lies outside the ROM, so the model has no function for it',
+  },
+  W_OVERRIDE_OUTSIDE_ROM: {
+    severity: 'warning',
+    meaning: 'an [[overrides]] range reaches outside the ROM, where it applies to nothing; the part inside still applies',
   },
   W_SYMBOL_UNPLACED: {
     severity: 'warning',

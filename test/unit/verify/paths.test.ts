@@ -29,3 +29,14 @@ test('an exact duplicate and a case-folded collision are both E_PATH_CASE_COLLIS
 test('folding lower-cases the whole path, directories included', () => {
   assert.equal(foldPath('Asm/NonMatchings/X.s'), 'asm/nonmatchings/x.s');
 });
+
+test('a path component longer than 255 bytes is E_PATH_TOO_LONG, so the write cannot fail part-way (correctness-r1-2)', () => {
+  assert.deepEqual(checkPaths([`asm/nonmatchings/main/${'x'.repeat(253)}.s`]), []);
+  const long = `asm/nonmatchings/main/F${'x'.repeat(299)}.s`;
+  const found = checkPaths(['asm/main.s', long]);
+  assert.deepEqual(found.map((d) => [d.code, d.path]), [['E_PATH_TOO_LONG', long]]);
+  assert.match(found[0]?.message ?? '', /302 bytes, more than the 255/);
+  assert.equal(pathsCheck([long]).ok, false);
+  // UTF-8 bytes, not UTF-16 units: 128 two-byte characters are 256 bytes.
+  assert.equal(checkPaths([`data/${'é'.repeat(128)}.s`])[0]?.code, 'E_PATH_TOO_LONG');
+});

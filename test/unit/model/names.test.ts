@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { buildModel } from '../../../src/core/model/model.ts';
-import { dataName, functionName, isDefaultSpelling, localName, nameCollisions, nameSourceOf, orphanName } from '../../../src/core/model/names.ts';
+import { dataName, functionName, invalidNames, isDefaultSpelling, localName, nameCollisions, nameSourceOf, orphanName } from '../../../src/core/model/names.ts';
 import type { Module } from '../../../src/core/model/types.ts';
 import { analysisOf, BASE, configOf, fact, HEADER_END, romWith, thumbAt } from '../layout/hand-made.ts';
 
@@ -64,4 +64,12 @@ test('buildModel: two functions of one name in one module, or an alias equal to 
   assert.deepEqual(alias.functions[0]?.aliases, ['D']);
   const clean = buildModel(rom, analysis, configOf({ modules, functions: [[BASE + 0x100, { name: 'A', aliases: ['A2'] }], [BASE + 0x102, 'B'], [BASE + 0x104, 'C'], [BASE + 0x106, 'D']] }));
   assert.deepEqual(clean.diagnostics, []);
+});
+
+test('a name longer than 200 characters is E_NAME_INVALID: it is a file name, which a file system stores in at most 255 bytes (correctness-r1-2)', () => {
+  const at = 0x0804_0b50;
+  assert.deepEqual(invalidNames([{ name: `F${'x'.repeat(199)}`, addr: at }]), []);
+  const found = invalidNames([{ name: `F${'x'.repeat(299)}`, addr: at }]);
+  assert.deepEqual(found.map((d) => [d.code, d.addr]), [['E_NAME_INVALID', at]]);
+  assert.match(found[0]?.message ?? '', /at most 200 characters/);
 });
