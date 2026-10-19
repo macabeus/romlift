@@ -775,6 +775,11 @@ not needed, because the targets come from the reference build, not from romlift'
 **Rejected.** Deferring to phase 5 (reinterprets the plan's phase table). Targets built from the linked
 ELF without relocations (every relocated word would differ).
 
+**Revision (19 October 2026, the owner's answer to Q1 of phase-3.md, D68 a).** The owner chose "Move gate to
+phase 5": the gate is `g5.objdiff`, judged in phase 5, where the `expected/` objects and objdiff targets are built,
+and applies there as this decision writes it unless the owner amends it then. Phase 3 records the classified counts
+as its measurement, and the committed classifier stays.
+
 ## D35. `explain` re-runs the analysis the command would run, and is composed by layer
 
 **Context.** Storing a full trail costs memory on Emerald-size ROMs; replaying discover explains the wrong
@@ -921,6 +926,11 @@ deterministic synthetic 32 MiB ROM.
 
 **Rejected.** 1 GiB budgets (hide leaks). Gzip of in-memory artifacts (D18). An information-only
 measurement (nothing would stop a regression).
+
+**Revision (19 October 2026, the owner's answer to Q2 of phase-3.md, D68 b).** The owner chose "Measure under a heap
+cap": the `romlift` bin and the gate run Node with `--max-old-space-size=256`, the gate measures peak RSS under that
+cap, and its budget is set from that measurement with a stated margin. No run of the synthetic ROM completes under
+the cap (phase-3.md Q6), so the budget is still 512 MiB until the owner answers Q6.
 
 ## D43. Each phase opens with a frozen-interface component, then parallel components, then an integrator
 
@@ -2491,6 +2501,51 @@ links klonoa's tree with a mode-flipped listed function and refuses the renamed 
 three diagnostic codes, one raw reason and AssembleUnit's entry point. The other minors of the round are carried
 into phase 4 (phase-3.md). The owner questions stay Q1 to Q5 of phase-3.md; phase 3 does not land until he answers
 them, and nothing is waived.
+
+## D68. The owner's answers of 19 October 2026 to the phase-3 owner questions
+
+**Context.** Phase 3 did not land after fix rounds 1 to 3 (D64 to D67): `g3.objdiff` and `g3.large-rom` failed, and
+three narrowings or limitations had no authorisation in the owner's words. phase-3.md put five questions to the
+owner (Q1 to Q5). Bruno Macabeus answered them on 19 October 2026; each chosen option is quoted as he gave it, and
+these are the only gate changes he authorised.
+
+**Decision.**
+
+- (a) **Q1, `g3.objdiff`: "Move gate to phase 5".** `g3.objdiff` moves to phase 5 (where the `expected/` objects and
+  objdiff targets are built) as `test/gates/g5.objdiff.test.ts`; phase 3 records the classified counts as its
+  measurement (phase-3.md, Q1's table, from `bench/tools/objdiff-classes.ts`); the committed classifier stays. In
+  phase 5 the gate applies as D34 writes it unless the owner amends it then. Its check is unchanged, so it still
+  runs in every `bench gates` and fails on the six tuning ROMs; `--require 3` does not count a phase-5 gate.
+- (b) **Q2, `g3.large-rom`: "Measure under a heap cap".** The `romlift` bin runs Node with `--max-old-space-size=256`
+  (the first line of `src/cli/main.ts`, `#!/usr/bin/env -S node --max-old-space-size=256`, which `tsc` keeps in
+  `dist/cli/main.js`), and so does every child of `bench large-rom` (`CHILD_NODE_ARGS`); each child reports the cap
+  of its own command line (`maxOldSpaceSizeMiB`) and the gate requires both runs to exit 0 under it. The answer sets
+  the budget from the measurement under the cap with a stated margin, and requires the 16 MiB tuning ROMs to be
+  measured under the same cap and recorded, completing under it. Measured (phase-3.md, "Measured numbers"): the six
+  tuning ROMs complete under the cap, 309 to 585 MiB peak RSS (`bench large-rom --rom <path>`, two runs each); the
+  32 MiB synthetic ROM does not: `init` ends in V8's "Reached heap limit" (exit 128 for SIGABRT) in every run, and
+  `generate` over a config built without the cap fails the same way under 256 and 320 MiB; both complete under 384
+  MiB (866.5 and 801.4 MiB peak RSS). No budget can be set from a run that did not complete, so the gate keeps
+  D42's 512 MiB and fails; that the cap does not hold the synthetic ROM is owner question Q6 of phase-3.md, not a
+  silent change of the cap or of the image.
+- (c) **Q3, D64 d: "Accept, don't flush generated".** Generated files are not flushed; the journal, the manifest, user
+  edits, scaffold files and C stubs stay flushed (architecture §6.4); `g3.speed-budget` is unchanged.
+- (d) **Q4, the raw printer's PoC parity: "Accept".** The narrowed parity of D65 l (`test/local/poc-raw-printer.test.ts`
+  on the PoC's own spans, labels and word kinds) is roadmap 3.B's gate.
+- (e) **Q5, the limitations carried into phase 4: "Accept Q5a; fix Q5b, c in phase 4".** (a) A ROM whose size the
+  last unit's section alignment does not divide is refused (D65 a): a recorded release-1 limitation. (b) Padding-only
+  orphans are folded into the next function and (c) the confirm run stops re-validating the functions discover
+  listed (measured against g2's gates): both are phase-4 work items, in roadmap.md's phase 4.
+- (f) **The minors carried from the review of fix round 2** (phase-3.md, "Review", fix round 3): architecture-r2-9 is
+  fixed by a unit test (two module-scoped labels of one name in two modules, each module resolving its own).
+  architecture-r2-2 and r2-3 (the classifier's addend decoder and its untested plumbing) move with the gate to
+  phase 5; architecture-r2-1 and r2-5 stay carried into phase 4.
+
+**Consequences.** `g3.objdiff` no longer gates phase 3; `g3.large-rom` measures under the cap and fails on the
+synthetic ROM (Q6). Following the landing procedure, `test/gates/phase.json` was raised to `{ "landed": 3 }` and the
+whole closing list ran in a fresh worktree (phase-3.md, "The closing gate"); `bench gates --require 3 --tier ci`
+exited 1 on `g3.large-rom` alone, so the marker is back at `{ "landed": 2 }` and phase 3 does not land until the
+owner answers Q6.
 
 ## Review findings index
 

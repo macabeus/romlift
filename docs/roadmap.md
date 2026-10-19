@@ -380,7 +380,10 @@ Entry: phase 2 landed. Branch `phase/3-emission`. Seven components: 3.0, then 3.
 Phase 3 runs as nine components in three waves on the branch `phase-3` (eight planned by D62 a, the ninth, `p3-fixture-goldens`, added in wave 3, D65 k), each on its own flat branch
 `phase-3-<component>` and worktree (D56 h); sections 3.0–3.I below still describe what the phase delivers.
 D62 records each deviation and why; [phase-3.md](phase-3.md) records the components, the measured numbers and
-the closing gate. Every threshold of the phase applies to all six tuning ROMs (D60, D62 h).
+the closing gate. Every threshold of the phase applies to all six tuning ROMs (D60, D62 h). The owner's answers of
+19 October 2026 (D68) moved the objdiff gate to phase 5 (`g5.objdiff`, 5.C), made `g3.large-rom` measure under the
+`romlift` bin's heap cap, accepted D64 d and the narrowed raw-printer parity (D65 l) as 3.B's gate, and put two
+work items into phase 4 ("Carried from phase 3", below).
 
 | Component | Wave | Takes from the sections below |
 | --- | --- | --- |
@@ -471,7 +474,8 @@ the closing gate. Every threshold of the phase applies to all six tuning ROMs (D
   phase-3 extension of `bench/src/speed.ts` (`generate` and `init` timings) and of `bench/src/run.ts`
   (`--scaffold` with both printers), `test/unit/bench/emission/**`.
 - **Public API:** bench-internal only.
-- **Gated by:** unit tests; the misnamed-pool-word objdiff fixture test.
+- **Gated by:** unit tests; the misnamed-pool-word objdiff fixture test (the objdiff family is measured here and
+  gated by `g5.objdiff` in phase 5, D68 a).
 - **Ports from the PoC:** the `--scaffold` build step of `src/bench/run.ts`.
 - **Depends on:** 3.0; 3.B–3.D for real runs.
 
@@ -503,10 +507,13 @@ npm run bench -- gates --require 3 --tier real
 Thresholds (every one over all six tuning ROMs since tmc's reveal, D60, D62 h): the four self-checks pass
 on every fixture and all six tuning ROMs; the raw printer links to the SHA-1 on 6 of 6 tuning ROMs and on
 every fixture; the readable printer on every fixture and on at least 3 of 6 tuning ROMs (target 6);
-readability shares not lower than the first committed value on any ROM; objdiff 0 differences other than
-`unnamed-target` on every agreeing function of every ROM that links; ≤ 3 s CPU analysis per tuning ROM,
-`generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald (calibrated); peak RSS < 512 MiB on the 32 MiB
-synthetic ROM; every phase-1 and phase-2 gate still passes.
+readability shares not lower than the first committed value on any ROM; the objdiff differences of every ROM
+that links, sorted by the committed classifier, recorded as the phase's measurement (the gate is `g5.objdiff`,
+D68 a); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald
+(calibrated); `init` and `generate` on the 32 MiB synthetic ROM complete under the `romlift` bin's heap cap
+(`--max-old-space-size=256`) with peak RSS below the budget, which is set from those runs with a stated margin (512
+MiB until a run under the cap completes, phase-3.md Q6), and the six tuning ROMs complete under the same cap, their
+peak RSS recorded (D68 b); every phase-1 and phase-2 gate still passes.
 
 ---
 
@@ -593,6 +600,33 @@ Entry: phase 3 landed. Branch `phase/4-one-shot`. Seven components: 4.0, then 4.
   mutation tests (lock, journal, patch planner); runs the exit commands.
 - **Gated by:** every `g4.*` gate.
 
+### Carried from phase 3 (D68 e, the owner's answer to Q5: "Accept Q5a; fix Q5b, c in phase 4")
+
+Two work items the owner put into phase 4, each with a test that fails without it, and one recorded limitation:
+
+- **Padding-only orphans folded into the next function** (Q5 b, delivery-13). With the discover model most orphan
+  chunks hold only the zero padding between two functions (`.align 2, 0`: pokeemerald 3,203 of 3,222 orphan files,
+  tmc 2,289 of 2,320, fe7j 1,530 of 1,558, sa3 867 of 882, sa2 448 of 464, klonoa 64 of 87). The pad becomes part of
+  the next function's chunk, whose `thumb_func_start` already emits it, so the files go and no byte changes. It
+  changes the chunk model (`core/model/chunks.ts`, `planChunks`) and plan.md's reading of "No orphan bytes" (a pad
+  belongs to the function after it); done before 4.C plans the `INCLUDE_ASM` stubs, so no orphan in a C module
+  needs a stub of its own. Owner: 4.0 with 4.C. Measured by the writer goldens, `g3.link` and `g3.raw-link`.
+- **The confirm run stops re-validating the functions discover listed** (Q5 c, delivery-4). `generate` over
+  `init`'s config warns `W_LISTED_INVALID` on every tuning ROM (fe7j 5, klonoa 4, pokeemerald 6, sa2 4, sa3 4, tmc
+  24) for functions romlift's own discover run listed, and phase 4's `init` then `generate` would print them to
+  every user. The confirm run takes a function `configFromDiscover` listed without the valid.* rules (an analysis
+  change in `core/analysis/driver/confirm.ts`), measured against g2's gates: `g2.confirm-equals-discover`,
+  `g2.baseline-rows`, `g2.regression` and the analysis goldens unchanged, and no `W_LISTED_INVALID` on the tuning
+  ROMs. Owner: 4.D.
+- **Recorded release-1 limitation** (Q5 a, D65 a): a ROM whose size the last unit's section alignment does not
+  divide is refused by the text-layout check, and nothing is written.
+
+The minors the review of fix round 2 carried (phase-3.md, "Review", fix round 3) stay with the code they touch:
+architecture-r2-1 (TextLayoutIndex exported with its Maps, with the writer contract D66 d reopens), architecture-r2-4
+(the case rename is not journalled), architecture-r2-5 (moduleIndexAt's optional `relocated`), and phase-3.md's
+known limitation that the TOML patcher must keep `label = true` on the startup code inside the cartridge entry's
+extent (4.A).
+
 ### Phase 4 exit
 
 ```
@@ -665,7 +699,12 @@ Entry: phase 4 landed. Branch `phase/5-migration`. Six components: 5.0, then 5.A
   `src/core/model/modules.ts` and in `src/core/emit/writers/ldscript.ts` (replacing the phase-4
   assertion), `bench/dataset/synthetic/c-data/expect-ranges.json`, `test/golden/writers/{expected,objdiff}/**`.
 - **Public API:** the two writers.
-- **Gated by:** `g5.expected-bytes` (fixtures), `g5.c-data-ranges`.
+- **Gated by:** `g5.expected-bytes` (fixtures), `g5.c-data-ranges`, `g5.objdiff` (moved from phase 3 by the owner's
+  answer to Q1 of phase-3.md, "Move gate to phase 5", D68 a: on every tuning ROM whose readable build links, every
+  agreeing function scores 0 under objdiff-cli but `unnamed-target`, as D34 writes it unless the owner amends it
+  then). The phase-3 classifier (`bench/src/objdiff-classes.ts`) and its carried minors (architecture-r2-2: one
+  REL/RELA addend decoder with `foundation/formats/elf.ts` and the R_ARM_*/SHT_* constants in one place;
+  architecture-r2-3: fixture tests for objdiffDifferences' sectionBase and baseField plumbing) come with it.
 - **Ports from the PoC:** nothing.
 - **Depends on:** 5.0.
 
@@ -707,7 +746,8 @@ npm run bench -- gates --require 5 --tier real
 Thresholds: at `693ccb7` the import report lists 282 legacy entries inside found functions, 1 failing
 validation and unlisted discoveries of which 183 are ELF functions; the rehearsal and the `switch` commit
 both build to `klonoa-eod.gba: OK` without the four legacy tools; every `expected/<module>.s` symbol equals
-the ROM; every earlier gate still passes.
+the ROM; objdiff 0 differences other than `unnamed-target` on every agreeing function of every tuning ROM that
+links (`g5.objdiff`, D34, D68 a); every earlier gate still passes.
 
 ---
 

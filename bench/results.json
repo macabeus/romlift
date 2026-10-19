@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "5acf06ab830ff7a584cba8ce1eea30753e0ba05d",
-    "dirty": true,
-    "sourceDigest": "b2d9634cc2f87f734eb97cca3826c279358e9f9c43f874d9c97a83d801efd286",
+    "commit": "334c0ee7ffe4bbd84f3c755e03489c98d56f44c9",
+    "dirty": false,
+    "sourceDigest": "9163d5a965e06732c6758165c1ff7ab86cd0395599714f514ccdf2875aaab9d5",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -1896,15 +1896,13 @@
     "runs": [
       {
         "command": "init",
-        "exitCode": 0,
-        "maxRssMiB": 1141.66,
-        "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
+        "exitCode": 128,
+        "maxRssMiB": 0
       },
       {
         "command": "generate",
-        "exitCode": 0,
-        "maxRssMiB": 1455.06,
-        "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
+        "exitCode": 1,
+        "maxRssMiB": 0
       }
     ]
   },
@@ -2016,7 +2014,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.947; CPU/limit: fe7j 1048/12519 ms, klonoa 248/302 ms, pokeemerald 2082/4161 ms, sa2 750/772 ms, sa3 1018/1472 ms, tmc 1368/1760 ms"
+        "detail": "calibration ratio 0.952; CPU/limit: fe7j 1091/12578 ms, klonoa 237/304 ms, pokeemerald 2048/4181 ms, sa2 743/776 ms, sa3 1109/1479 ms, tmc 1379/1768 ms"
       },
       {
         "id": "g3.link",
@@ -2026,17 +2024,6 @@
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
         "detail": "the readable printer links all 47 fixtures; the readable printer links 6 of 6 tuning ROMs: fe7j, klonoa, pokeemerald, sa2, sa3, tmc"
-      },
-      {
-        "id": "g3.objdiff",
-        "verdict": "fail",
-        "inputs": {
-          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
-          "objects": "1528d229c866d9104663c0e2d1ba3570454a35e07d54a41af81bf723211817fd",
-          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
-          "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
-        },
-        "detail": "objdiff: fe7j: 11 instruction, 130 missing-relocation, 26 missing-symbol, 25 relocation, 8 resolved-call; PutUnkSprite instruction +0x232 replace: b 0x2a8 | .hword 0xe039 | TalkInterpret instruction +0x1052 delete: .hword 0x0 | (none) | TalkInterpret instruction +0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xcc0 arg-mismatch: .word 0x30000c8 | .word sTalkText; klonoa: 166 missing-relocation, 21 missing-symbol, 3 relocation, 130 tool; AgbMain missing-relocation +0x254 R_ARM_ABS32: gCallbackQueue | a plain value | AgbMain missing-relocation +0x258 R_ARM_ABS32: gCallbackQueue | a plain value | AthleticChallengeScrollUpdate missing-relocation +0x1640 R_ARM_ABS32: gBgInfo | a plain value | Clear64byte missing-relocation +0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearChain missing-relocation +0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value; pokeemerald: 228 instruction, 765 missing-relocation, 453 missing-symbol, 544 relocation, 11798 resolved-call; AddBoxOptionsMenu instruction +0x8cba arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddItemQuantityWindow instruction +0x10dc arg-mismatch: bl 0x10e4 | bl sub_081ABC54-0x4 | AddWallpaperSetsMenu instruction +0x405a arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddWallpapersMenu instruction +0x4094 arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AllocMatchCallSprites instruction +0x1020 arg-mismatch: bl 0x1110 | bl sub_081CC370-0x4; sa2: 130 instruction, 46 missing-relocation, 127 missing-symbol, 52 relocation, 1019 resolved-call; AnimateNewZonePath instruction +0x151a arg-mismatch: bl 0x1538 | bl sub_08035C00-0x4 | CreateEntity_IronBall instruction +0x160 arg-mismatch: bl 0x18c | bl sub_0807EFC4-0x4 | CreateEntity_IronBall instruction +0x166 arg-mismatch: bl 0x2a0 | bl sub_0807F0D8-0x4 | CreateMultiplayerLobbyScreen instruction +0x42 arg-mismatch: bl 0x78 | bl sub_08087478-0x4 | CreateRaceProgressIndicator instruction +0x5a arg-mismatch: bl 0x80 | bl sub_08086D68-0x4; sa3: 121 instruction, 99 missing-relocation, 237 missing-symbol, 39 relocation, 68 resolved-call; CgbSound instruction +0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0 | CreateApeProjectile instruction +0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4 | CreateBreakableWallDebris instruction +0x9fe delete: .hword 0x0 | (none) | CreateCharacterSelect instruction +0xe2 arg-mismatch: bl 0x208 | bl sub_08097E5C-0x4 | CreateCondorProjectile instruction +0x8e2 arg-mismatch: bl 0x5dc | bl sub_0805944C-0x4; tmc: 188 missing-relocation, 1 missing-symbol, 383 relocation, 323 resolved-call; CheckAreaDiscovery missing-relocation +0xddc R_ARM_ABS32: gSave | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b0 R_ARM_ABS32: gMapTop | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b4 R_ARM_ABS32: gMapBottom | a plain value | CheckFusionMapMarkerDisabled missing-relocation +0x1308 R_ARM_ABS32: gSave | a plain value | CheckKinstoneFused missing-relocation +0x12ec R_ARM_ABS32: gSave | a plain value"
       },
       {
         "id": "g3.raw-link",
@@ -2070,7 +2057,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.944; fe7j analysis 1157/2832 ms, klonoa analysis 254/2832 ms, pokeemerald analysis 2092/2832 ms, pokeemerald generate 7860/9441 ms, pokeemerald init 10269/14162 ms, sa2 analysis 699/2832 ms, sa3 analysis 1077/2832 ms, tmc analysis 1333/2832 ms"
+        "detail": "calibration ratio 0.946; fe7j analysis 1063/2837 ms, klonoa analysis 248/2837 ms, pokeemerald analysis 2142/2837 ms, pokeemerald generate 7825/9456 ms, pokeemerald init 10259/14184 ms, sa2 analysis 717/2837 ms, sa3 analysis 1088/2837 ms, tmc analysis 1313/2837 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2135,6 +2122,17 @@
         "verdict": "pending",
         "inputs": {},
         "detail": "not exported yet: importLegacy, parseLuvdisCfg, parseThumbAliases"
+      },
+      {
+        "id": "g5.objdiff",
+        "verdict": "fail",
+        "inputs": {
+          "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
+          "objects": "1528d229c866d9104663c0e2d1ba3570454a35e07d54a41af81bf723211817fd",
+          "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
+          "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
+        },
+        "detail": "objdiff: fe7j: 11 instruction, 130 missing-relocation, 26 missing-symbol, 25 relocation, 8 resolved-call; PutUnkSprite instruction +0x232 replace: b 0x2a8 | .hword 0xe039 | TalkInterpret instruction +0x1052 delete: .hword 0x0 | (none) | TalkInterpret instruction +0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xcc0 arg-mismatch: .word 0x30000c8 | .word sTalkText; klonoa: 166 missing-relocation, 21 missing-symbol, 3 relocation, 130 tool; AgbMain missing-relocation +0x254 R_ARM_ABS32: gCallbackQueue | a plain value | AgbMain missing-relocation +0x258 R_ARM_ABS32: gCallbackQueue | a plain value | AthleticChallengeScrollUpdate missing-relocation +0x1640 R_ARM_ABS32: gBgInfo | a plain value | Clear64byte missing-relocation +0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearChain missing-relocation +0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value; pokeemerald: 228 instruction, 765 missing-relocation, 453 missing-symbol, 544 relocation, 11798 resolved-call; AddBoxOptionsMenu instruction +0x8cba arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddItemQuantityWindow instruction +0x10dc arg-mismatch: bl 0x10e4 | bl sub_081ABC54-0x4 | AddWallpaperSetsMenu instruction +0x405a arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddWallpapersMenu instruction +0x4094 arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AllocMatchCallSprites instruction +0x1020 arg-mismatch: bl 0x1110 | bl sub_081CC370-0x4; sa2: 130 instruction, 46 missing-relocation, 127 missing-symbol, 52 relocation, 1019 resolved-call; AnimateNewZonePath instruction +0x151a arg-mismatch: bl 0x1538 | bl sub_08035C00-0x4 | CreateEntity_IronBall instruction +0x160 arg-mismatch: bl 0x18c | bl sub_0807EFC4-0x4 | CreateEntity_IronBall instruction +0x166 arg-mismatch: bl 0x2a0 | bl sub_0807F0D8-0x4 | CreateMultiplayerLobbyScreen instruction +0x42 arg-mismatch: bl 0x78 | bl sub_08087478-0x4 | CreateRaceProgressIndicator instruction +0x5a arg-mismatch: bl 0x80 | bl sub_08086D68-0x4; sa3: 121 instruction, 99 missing-relocation, 237 missing-symbol, 39 relocation, 68 resolved-call; CgbSound instruction +0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0 | CreateApeProjectile instruction +0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4 | CreateBreakableWallDebris instruction +0x9fe delete: .hword 0x0 | (none) | CreateCharacterSelect instruction +0xe2 arg-mismatch: bl 0x208 | bl sub_08097E5C-0x4 | CreateCondorProjectile instruction +0x8e2 arg-mismatch: bl 0x5dc | bl sub_0805944C-0x4; tmc: 188 missing-relocation, 1 missing-symbol, 383 relocation, 323 resolved-call; CheckAreaDiscovery missing-relocation +0xddc R_ARM_ABS32: gSave | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b0 R_ARM_ABS32: gMapTop | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b4 R_ARM_ABS32: gMapBottom | a plain value | CheckFusionMapMarkerDisabled missing-relocation +0x1308 R_ARM_ABS32: gSave | a plain value | CheckKinstoneFused missing-relocation +0x12ec R_ARM_ABS32: gSave | a plain value"
       },
       {
         "id": "g6.ram-code-mapped",
