@@ -33,6 +33,8 @@ export interface MemoryRun {
   readonly command: string;
   readonly exitCode: number;
   readonly maxRssMiB: number;
+  /** The `--max-old-space-size` the command ran under (null: none); absent in artifacts written before fix round 4 of phase 3. */
+  readonly maxOldSpaceSizeMiB?: number | null;
   readonly treeDigest?: string;
 }
 
@@ -281,6 +283,7 @@ function memoryRun(value: unknown, at: string): MemoryRun {
     command: str(r['command'], `${at}.command`),
     exitCode: num(r['exitCode'], `${at}.exitCode`),
     maxRssMiB: num(r['maxRssMiB'], `${at}.maxRssMiB`),
+    ...(r['maxOldSpaceSizeMiB'] === undefined ? {} : { maxOldSpaceSizeMiB: r['maxOldSpaceSizeMiB'] === null ? null : num(r['maxOldSpaceSizeMiB'], `${at}.maxOldSpaceSizeMiB`) }),
     ...(r['treeDigest'] === undefined ? {} : { treeDigest: str(r['treeDigest'], `${at}.treeDigest`) }),
   };
 }

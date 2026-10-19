@@ -471,7 +471,7 @@ export interface MemoryFamilyRun {
 }
 
 /** The fields of the script's runs the artifact keeps; every other field (times) is volatile. */
-const MEMORY_RUN_FIELDS: ReadonlySet<string> = new Set(['command', 'exitCode', 'maxRssMiB', 'treeDigest']);
+const MEMORY_RUN_FIELDS: ReadonlySet<string> = new Set(['command', 'exitCode', 'maxRssMiB', 'maxOldSpaceSizeMiB', 'treeDigest']);
 
 /** The script's last stdout line, as the memory member and the volatile rest; a BenchError when it is not one. */
 export function parseLargeRom(stdout: string): MemoryFamilyRun {
@@ -507,7 +507,7 @@ export async function runLargeRom(cx: BenchContext): Promise<MemoryFamilyRun> {
 }
 
 export function memoryText(m: MemoryMember): string {
-  return `memory: ${m.romBytes} bytes ${m.sha1}: ${m.runs.map((r) => `${r.command} exit ${r.exitCode} peak RSS ${r.maxRssMiB.toFixed(1)} MiB`).join(', ')}`;
+  return `memory: ${m.romBytes} bytes ${m.sha1}: ${m.runs.map((r) => `${r.command} exit ${r.exitCode} peak RSS ${r.maxRssMiB.toFixed(1)} MiB${r.maxOldSpaceSizeMiB === undefined ? '' : ` heap cap ${r.maxOldSpaceSizeMiB ?? 'none'}`}`).join(', ')}`;
 }
 
 const pct = (x: number): string => `${(100 * x).toFixed(2)}%`;

@@ -141,14 +141,14 @@ test('parseLargeRom reads what bench/src/large-rom.ts prints: the same script an
     romBytes: 33554432,
     sha1: 'b846b9453414ce93afc5e8fd559eaac582dc570e',
     runs: [
-      { command: 'init', exitCode: 0, maxRssMiB: 300.5, treeDigest: 'a'.repeat(64) },
-      { command: 'generate', exitCode: 3, maxRssMiB: 280.25 },
+      { command: 'init', exitCode: 0, maxRssMiB: 300.5, maxOldSpaceSizeMiB: 384, treeDigest: 'a'.repeat(64) },
+      { command: 'generate', exitCode: 3, maxRssMiB: 280.25, maxOldSpaceSizeMiB: 384 },
     ],
   });
   assert.deepEqual(parsed.timings, {
     runs: [
-      { command: 'init', maxOldSpaceSizeMiB: 384, detail: '12 files written' },
-      { command: 'generate', maxOldSpaceSizeMiB: 384, detail: 'the paths check failed' },
+      { command: 'init', detail: '12 files written' },
+      { command: 'generate', detail: 'the paths check failed' },
     ],
   });
 });
