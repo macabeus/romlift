@@ -40,8 +40,10 @@ printer, with pokeemerald's `generate` within its speed budget. The owner answer
 D69): the objdiff gate moves to phase 5 (`g5.objdiff`), the `romlift` bin and `g3.large-rom` run Node with
 `--max-old-space-size=384` (the 32 MiB synthetic ROM does not complete under the 256 MiB first chosen), with the
 memory budget set from the runs under that cap (1,088 MiB), unflushed generated files and the narrowed raw-printer
-parity are accepted, and two limitations become phase-4 work. Every command of the closing list exits 0 at `landed`
-3; the merge waits for the phase's pull request and its CI. The commands so far are `doctor`, `analyze`, `explain`,
+parity are accepted, and two limitations become phase-4 work. The review of that landing found the bin's own
+`verify`, `model` and `analyze --json` running out of memory on the 32 MiB synthetic ROM under the cap; fix round 4
+(D70) makes them fit, and a local test runs every bin command on that ROM under the cap. The merge waits for the
+phase's pull request and its CI. The commands so far are `doctor`, `analyze`, `explain`,
 `model` and `verify`.
 
 | Phase | Delivers |
@@ -59,11 +61,11 @@ parity are accepted, and two limitations become phase-4 work. Every command of t
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D68 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D70 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
-| [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q6 with the owner's answers to Q1 to Q5, and known limitations |
+| [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q6 with the owner's answers to Q1 to Q6, the review fix rounds, and known limitations |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

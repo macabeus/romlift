@@ -939,6 +939,11 @@ plus 25%, rounded up to a multiple of 64 MiB, is **1,088 MiB** (D69 b). The 1 Gi
 uncapped; under the cap V8's old space cannot grow past 384 MiB, so a leak in it ends in an out-of-memory exit,
 which the gate fails.
 
+**Revision (19 October 2026, the review of `d744f5d`, D70).** The gate measures the bench's `init` and `generate`
+workflow children, not the bin's commands; those are measured by `bench large-rom --bin` and required by
+`test/local/large-rom-bin.test.ts` (D70 b). With the runs recorded since, the largest `init` peak is 945.5 MiB, so
+1,088 MiB is 15.1% above it (D70 c); the binding limit is the old space, whose live peak is recorded (D70 d).
+
 ## D43. Each phase opens with a frozen-interface component, then parallel components, then an integrator
 
 **Context.** The first version's packages shared `src/index.ts`, `src/node.ts`, the CLI registry, a single
@@ -2588,6 +2593,62 @@ These are the only gate changes authorised with D68.
 space ends in V8's out-of-memory report. With Q1 to Q6 answered, the landing procedure ran again at `739d665` (`test/gates/phase.json`
 at `{ "landed": 3 }`, a fresh worktree): every command of the closing list exited 0, `g3.large-rom` passing at 850.4
 MiB (`init`) and 789.9 MiB (`generate`) under the cap (phase-3.md, "The closing gate"). Nothing is merged or pushed.
+
+**Revision (19 October 2026, the review of `d744f5d`: correctness-r0-1, -r0-2, gate-honesty-r0-1, -r0-2; D70).** The
+sentence "A user's `romlift` run on a 32 MiB ROM holds about 0.8 to 0.9 GiB resident" was not measured on the bin:
+every number behind it came from the bench's `init` and `generate` workflow children. The bin's own `verify`,
+`model` and `analyze --json` aborted with V8's out-of-memory report on the synthetic ROM under the 384 MiB cap at
+`d744f5d`, so (a)'s "every ROM size up to 32 MiB must complete under it" did not hold for the bin until D70 a. The
+landing run at `739d665` is withdrawn as a landing for that reason. (b)'s range and margin are restated in D70 c.
+
+## D70. Phase-3 fix round 4: the bin's commands under the 384 MiB cap
+
+**Context.** The review of `d744f5d` (correctness-r0-1 to -r0-5, gate-honesty-r0-1 to -r0-5) ran the `romlift` bin
+itself on the 32 MiB synthetic ROM under the cap of D69 a: `verify` (with or without `--assemble`, `--link`, either
+printer), `model`, `model --json` and `analyze --json` exited 134 with V8's out-of-memory report, while
+`g3.large-rom` passed, because the gate measures the bench's `init` and `generate` workflow children
+(`bench/src/large-rom.ts`), which take other paths than the CLI. The owner's answer to Q6 requires every ROM size up
+to 32 MiB to complete under the cap, and says these are the only gate changes authorised.
+
+**Decision.**
+
+- (a) **The bin's paths fit under the cap; no result changes.** `generateFromRom` and `initModel` keep only the
+  config of the discover run (`configAlone`), so the discover analysis is garbage before the confirm analysis runs
+  (both were live at once). `analyze --json` and `model --json` stream their NDJSON through `writeLines`, 4,096 lines
+  per stdout write, awaiting `CliIo.drained` between batches, so neither the output (114 MB for `analyze --json` on
+  the synthetic ROM) nor a slow pipe's queue is ever whole in memory. Every output is byte-identical to `d744f5d`'s
+  uncapped run (`analyze --json`, `model --json`, `verify --json`, `verify --assemble --link --json`).
+- (b) **The bin's commands are measured, the gate is not changed.** `bench large-rom --bin [--rom <path>]`
+  (`bench/src/large-rom-bin.ts`) runs `analyze`, `analyze --json`, `explain --json`, `model`, `model --json`,
+  `verify --json`, `verify --assemble --link --json` and `verify --printer raw --link --json`, each its own process
+  from source with the Node options of `src/cli/main.ts`'s launcher line, its peak RSS from a preload
+  (`bench/src/rss-probe.ts`). `test/local/large-rom-bin.test.ts` requires every one to exit 0 with an ok summary (and
+  the ROM's SHA-1 after `--link`); it runs in the closing list through `test:local` and fails at `d744f5d`. Making
+  `g3.large-rom` run them would change a gate, which the owner has not authorised, so the gate keeps D69's `init`
+  and `generate` runs.
+- (c) **The budget's record.** `MAX_RSS_MIB` stays 1,088 MiB. It was set at `a206ac1` as the largest peak then
+  recorded (866.5 MiB) plus 25%. The runs recorded since, among them the review's (`init` 945.5 MiB in a fresh
+  clone's `run --scaffold`, 918.75 MiB by hand), put the largest recorded `init` peak at 945.5 MiB: the budget is
+  15.1% above it, not 25%. Raising the budget to keep 25% over the new maximum would change the gate, so it is not
+  done; the record states the headroom instead (phase-3.md, "Measured numbers", fix round 4).
+- (d) **The binding limit is the old space, and it is recorded.** Each child of `bench large-rom` reports
+  `peakLiveHeapMiB`, the largest heap V8 finds live after a full mark-compact (`node:v8` `GCProfiler`); measured
+  on the synthetic ROM at 318.8 to 351.6 MiB (`init`) and 330.4 to 349.2 MiB (`generate`) of the 384 MiB cap, while
+  their RSS stays at least 140 MiB under the RSS budget. A run fails by the heap cap long before the RSS budget, and
+  the headroom against the cap is about 32 MiB (8%). Growth of the live peak past about 355 MiB is a regression
+  signal to act on before it becomes an abort; it is volatile (timings), not gated.
+- (e) **The artifact shows the cap.** The memory member of `bench/results.json` keeps each run's
+  `maxOldSpaceSizeMiB`; the memory family's summary says the runs are recorded and `g3.large-rom` judges them, since
+  nothing in `run`, `regression` or `provenance` judges the budget.
+- (f) **correctness-r0-5.** The data writer computes the relocated modules once per module; `moduleAt` is documented
+  as the one-address form (it filters per call); resolver.ts's orphan comment is gone. pool.ts's
+  `visibleLabelsAt` keeps calling `moduleAt`, once per address that has labels: threading the list through
+  `wordText`, `labelForWord` and their callers changes the printer helpers' signatures for a filter over at most a
+  few dozen modules.
+
+**Consequences.** Every phase-3 command of the bin completes on the 32 MiB synthetic ROM under the 384 MiB cap
+(peak RSS 765.3 to 811.8 MiB) and on the six tuning ROMs (238.8 to 697.4 MiB). The landing procedure runs again after
+this round (phase-3.md, "The closing gate"). No gate threshold changed.
 
 ## Review findings index
 

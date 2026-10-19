@@ -37,6 +37,7 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 | closing fix round | lead | `phase-3` | committed (`c5d42cf`, `962fbb8`, `34a77cd`, `682da72`) | the confirm-mode startup fix, `[symbols]` outside the ROM as labels, the objdiff base's RAM names, the write and analysis speed and memory changes, the readability floors (D64) |
 | review fix round 1 | lead | `phase-3` | committed (`089ff8d` to `5f7267f`, then the docs and artifact commits) | the review's blocker and majors (D65), the minors, Q3 to Q5; section "Review" |
 | review fix round 2 | lead | `phase-3` | committed (`ac9934c` to `1ac3527`, then the docs and artifact commits) | the second review's two majors and fifteen minors (D66), the checked objdiff classifier; section "Review", fix round 2 |
+| review fix round 4 | lead | `phase-3` | committed (`0bb3d75` to `e8869c0`, then the docs and artifact commits) | the review of `d744f5d`: the bin's commands under the 384 MiB cap, `bench large-rom --bin` and its local test, the recorded headroom (D70); section "Review", fix round 4 |
 
 ### p3-lead (wave 1)
 
@@ -289,7 +290,7 @@ verbatim, and what was done:
 | Q3 D64 d | "Accept, don't flush generated" | generated files are not flushed; the journal, manifest, user edits, scaffold and C stubs stay flushed (architecture §6.4); `g3.speed-budget` unchanged |
 | Q4 raw-printer parity | "Accept" | the narrowed raw-printer PoC parity (D65 l, `test/local/poc-raw-printer.test.ts`) is 3.B's gate |
 | Q5 limitations | "Accept Q5a; fix Q5b, c in phase 4" | (a) the alignment refusal is a recorded release-1 limitation; (b) padding-only orphans folded into the next function and (c) confirm no longer re-validating the functions discover listed (measured against g2's gates) are phase-4 work items in roadmap.md ("Carried from phase 3") |
-| Q6 `g3.large-rom` under the cap (D69) | "384 MiB for bin and gate" | `05fd406`: the romlift bin launcher (`#!/usr/bin/env -S node --max-old-space-size=384`) and g3.large-rom (every child of `bench large-rom`; the gate requires the 384 MiB cap in each run's report) both use --max-old-space-size=384, replacing Q2's 256. `a206ac1`: the budget is set from the recorded runs under the 384 MiB cap plus a stated margin, 866.5 MiB (the largest) plus 25%, rounded up to a multiple of 64 MiB: 1,088 MiB. The synthetic ROM completes under the cap in every run, and the six tuning ROMs are re-measured under 384 MiB and recorded ("Measured numbers") |
+| Q6 `g3.large-rom` under the cap (D69) | "384 MiB for bin and gate" | `05fd406`: the romlift bin launcher (`#!/usr/bin/env -S node --max-old-space-size=384`) and g3.large-rom (every child of `bench large-rom`; the gate requires the 384 MiB cap in each run's report) both use --max-old-space-size=384, replacing Q2's 256. `a206ac1`: the budget is set from the recorded runs under the 384 MiB cap plus a stated margin, 866.5 MiB (the largest) plus 25%, rounded up to a multiple of 64 MiB: 1,088 MiB. The synthetic ROM completes under the cap in every run of the bench's `init` and `generate` workflow children, and the six tuning ROMs are re-measured under 384 MiB and recorded ("Measured numbers"). The bin's own `verify`, `model` and `analyze --json` did not complete on the synthetic ROM under the cap until fix round 4 (D70): the review of `d744f5d` found them out of memory, which this row did not measure |
 
 These are the only gate changes he authorised. The minors carried from the last review were taken where cheap:
 architecture-r2-9 has its unit test (`5ae1c1c`); r2-5 is fixed (`0483164`, D69 c); r2-2 and r2-3 (the classifier) go
@@ -324,6 +325,58 @@ records `682da72` with the documentation as the only uncommitted change (the sou
 `provenance` and `stale-check` compare, covers no document).
 
 ## Measured numbers
+
+### Fix round 4 (`e8869c0`)
+
+**The bin's commands under the 384 MiB cap.** `node --conditions=source bench/src/large-rom.ts --bin [--rom <ROM>]`
+(Node 24.15, macOS, 64 GiB): each command its own process from source with the launcher's Node options
+(`--max-old-space-size=384`), peak RSS from `bench/src/rss-probe.ts`; every run exits 0, every `--json` run ends in
+an ok summary and each `--link` run links the ROM's SHA-1. Peak RSS in MiB:
+
+| ROM | `analyze` | `analyze --json` | `explain --json` | `model` | `model --json` | `verify --json` | `verify --assemble --link` | `verify --printer raw --link` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| synthetic 32 MiB | 808.2 | 765.3 | 768.2 | 811.8 | 785.6 | 805.7 | 782.1 | 811.7 |
+| fe7j | 407.0 | 406.9 | 495.9 | 493.4 | 511.3 | 475.3 | 522.5 | 507.4 |
+| klonoa | 238.8 | 247.8 | 302.3 | 313.1 | 341.8 | 323.1 | 319.2 | 312.5 |
+| pokeemerald | 540.2 | 563.5 | 602.0 | 622.8 | 697.4 | 639.4 | 639.4 | 643.5 |
+| sa2 | 394.9 | 397.0 | 425.3 | 427.7 | 522.5 | 474.2 | 431.8 | 422.3 |
+| sa3 | 417.6 | 406.6 | 417.8 | 469.8 | 530.4 | 487.2 | 490.2 | 500.3 |
+| tmc | 411.3 | 415.9 | 482.8 | 478.8 | 500.9 | 491.3 | 517.3 | 495.2 |
+
+At `d744f5d` the same runs on the synthetic ROM: `analyze` exit 0, `explain --json` exit 0, and `analyze --json`,
+`model`, `model --json`, `verify --json`, `verify --assemble --link --json` and `verify --printer raw --link --json`
+abort with V8's out-of-memory report (exit 134; the review measured the same). Before the fix, one at a time by hand
+under the cap (`/usr/bin/time -l`): `verify --json` 892.5 MiB and out of memory; after `0bb3d75`, 819.1 MiB and exit
+0; after `47c3b62`, `analyze --json` 757.6 MiB and exit 0, and into a pipe whose reader sleeps 90 s before reading,
+868.4 MiB, exit 0, the same 114,383,843 bytes. The outputs of `analyze --json`, `model --json`, `verify --json` and
+`verify --assemble --link --json` under the cap are byte-identical to `d744f5d`'s without a cap.
+
+**The gate's children, with the live heap.** `node --conditions=source bench/src/large-rom.ts --json` at `e8869c0`'s
+tree, three runs on the synthetic ROM (every run exit 0, tree `9d9c915d…`), and once per tuning ROM (`--rom`, every
+tree digest as recorded below); `peakLiveHeapMiB` is the largest heap V8 found live after a full mark-compact:
+
+| Run | `init` peak RSS | `init` live heap | `generate` peak RSS | `generate` live heap |
+| --- | --- | --- | --- | --- |
+| synthetic 1 | 814.0 | 318.8 | 785.4 | 349.2 |
+| synthetic 2 | 838.9 | 334.9 | 771.7 | 333.2 |
+| synthetic 3 | 840.9 | 351.6 | 765.6 | 330.4 |
+| fe7j | 480.2 | 75.8 | 490.6 | 88.6 |
+| klonoa | 332.8 | 36.7 | 311.4 | 34.6 |
+| pokeemerald | 635.4 | 153.5 | 646.5 | 158.8 |
+| sa2 | 445.3 | 82.7 | 464.8 | 84.3 |
+| sa3 | 512.4 | 112.0 | 443.6 | 62.1 |
+| tmc | 507.3 | 102.5 | 486.9 | 88.5 |
+
+**The record of the synthetic ROM's runs under 384 MiB, restated (gate-honesty-r0-2).** Besides the nine runs
+recorded at `05fd406` and `739d665` (`init` 817.2 to 866.5 MiB, `generate` 789.3 to 837.9 MiB), the review of
+`d744f5d` recorded four more: a fresh clone's `run --scaffold` (`init` 945.5, `generate` 827.1 MiB), a hand run in
+the main checkout (918.75, 804.48), the review's gate run (844.1, 836.8) and a fresh worktree's `bench large-rom`
+(853.8, 820.8); with the three above, sixteen runs: **`init` 814.0 to 945.5 MiB, `generate` 765.6 to 837.9 MiB**.
+The budget, 1,088 MiB, was the largest peak then recorded (866.5 MiB) plus 25%; it is **15.1%** above the largest
+recorded now (945.5 MiB), and 29.8% above the largest `generate`. It is not raised (D70 c). What meets its limit
+first is the old space, not the RSS: the live heap after a full GC reaches 351.6 MiB of the 384 MiB cap (about 32 MiB,
+8%, of headroom; the review's `--trace-gc` run saw 326.2 MB), while RSS stays at least 140 MiB under the budget. A
+live peak past about 355 MiB is the regression signal (D70 d).
 
 ### The owner's answer to Q6 (`05fd406`)
 
@@ -957,9 +1010,16 @@ are answered.
   tests that were `todo` for it pass.
 - `g3.objdiff` is `g5.objdiff`, a phase-5 gate (Q1's answer); it still runs and fails on the six tuning ROMs, as Q1's
   table classifies.
-- The installed `romlift` bin runs with V8's old space capped at 384 MiB (Q6's answer, replacing Q2's 256): every
-  tuning ROM and the 32 MiB synthetic ROM complete under it (0.3 to 0.9 GiB peak RSS); a ROM whose live set exceeds
-  the cap ends in V8's out-of-memory report.
+- The installed `romlift` bin runs with V8's old space capped at 384 MiB (Q6's answer, replacing Q2's 256). Measured
+  on the bin's own commands since fix round 4 (D70; `bench large-rom --bin`, "Measured numbers"): every command
+  completes on every tuning ROM (238.8 to 697.4 MiB peak RSS) and on the 32 MiB synthetic ROM (765.3 to 811.8 MiB). Until
+  `0bb3d75` and `47c3b62` the bin's `verify`, `model` and `analyze --json` ran out of memory on the synthetic ROM;
+  the earlier statement here, "the 32 MiB synthetic ROM complete[s] under it (0.3 to 0.9 GiB peak RSS)", came from
+  the bench's workflow children, not the bin, and is withdrawn. A ROM whose live set exceeds the cap ends in V8's
+  out-of-memory report (exit 134, outside the CLI's exit codes).
+- The live heap of the synthetic ROM's runs reaches 351.6 MiB of the 384 MiB old space (D70 d): about 8% of headroom.
+  The candidates of Q6's option (a) (instruction spans as typed arrays, flat rejection details, the validity memo
+  and the harvest set outside the heap) would widen it; none is done in phase 3.
 - Fix round 1 (D65): a ROM whose size its last unit's alignment does not divide is refused by the text-layout
   check (Q5 a; a release-1 limitation by the owner's answer, D68 e); a `[symbols]` entry inside an instruction gets no label (`W_SYMBOL_UNPLACED`); names starting with
   `$` or `.` are `E_NAME_INVALID`; a `c` module fails the check until phase 4's c-stub writer.
@@ -1124,3 +1184,22 @@ its own commit; a defect's fix has a test that fails without it (D67).
 | architecture-r2-5 | minor | **Fixed** (`0483164`, after Q6's answer, D69 c). moduleIndexAt's `relocated` is required (no linear default): names.ts computes relocatedModules once per pass, moduleAt and the data writer pass it; `romlift` exports moduleIndexAt from core/model/modules.ts and the resolver.ts re-export is gone. No result changes (a module without `runs_at` has no run range). |
 | architecture-r2-9 | minor | **Fixed** (`5ae1c1c`, D68 f). test/unit/verify/text-layout.test.ts gives textLayoutIndex two module-scoped `sLocal` labels in two data modules; each module's `.4byte sLocal` lays out to its own label's word. |
 
+
+### Fix round 4
+
+The review of `d744f5d` (the landing run after Q6): correctness-r0-1 to -r0-5, gate-honesty-r0-1 to -r0-5 (D70). Each
+fix is its own commit; the blocker's fix has a test that fails without it (`test/local/large-rom-bin.test.ts`, which
+fails at `d744f5d` on `analyze --json`, `model`, `model --json` and the three `verify` runs).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-r0-1 | blocker | **Fixed by the review's option (a)** (`0bb3d75`, `47c3b62`, `77a7a2f`; D70 a, b). `generateFromRom` and `initModel` drop the discover analysis before the confirm run; `analyze --json` and `model --json` stream their NDJSON and wait for stdout to drain. Every bin command completes on the synthetic ROM under the 384 MiB cap (765.3 to 811.8 MiB peak RSS) and on the six tuning ROMs, outputs byte-identical to `d744f5d`'s uncapped run ("Measured numbers", fix round 4). `bench large-rom --bin` runs them and `test/local/large-rom-bin.test.ts` requires them (in the closing list through `test:local`); `g3.large-rom` is not changed, since the owner authorised no further gate change. `test/gates/phase.json` is not lowered and raised again: the landing run at `739d665` is withdrawn (D69's revision), and the closing list runs again after this round with the marker at `{ "landed": 3 }`, as the landing procedure requires; a failing command puts it back at 2. |
+| correctness-r0-2 | major | **Fixed** (the docs commit of this round). "Known limitations" says what was measured on the bin and withdraws the earlier claim; D69 carries a revision withdrawing "a user's `romlift` run … holds about 0.8 to 0.9 GiB"; the README, architecture §9.4 and §12 say the gate measures the workflow children and the bin is measured by `large-rom --bin`. |
+| gate-honesty-r0-1 | major | **Fixed** with correctness-r0-1 and -r0-2: the bin's commands are measured (and complete), and the claim is withdrawn until measured, then restated from the measurement. |
+| gate-honesty-r0-2 | minor | **Fixed in the record** ("Measured numbers", fix round 4): the review's four runs join the record, `init` 814.0 to 945.5 MiB over sixteen runs, and the budget is 15.1% above the largest, not 25%. The budget is not raised to keep 25%: that is a gate change the owner has not made (D70 c). |
+| gate-honesty-r0-3 | minor | **Fixed** (`879a91f`, D70 e). The artifact's memory member keeps `maxOldSpaceSizeMiB`; the memory family's summary says the runs are recorded and `g3.large-rom` judges them. `provenance` is not given a second copy of the gate's threshold. |
+| gate-honesty-r0-4 | minor | **Fixed**: AGENTS.md's `bench large-rom` row says `< 1,088` (D69 b). |
+| gate-honesty-r0-5 | minor | **Fixed**: the README's index says D1–D70 and the answers to Q1 to Q6. |
+| correctness-r0-3 | minor | **Fixed** (`77a7a2f`, D70 d). Each child reports `peakLiveHeapMiB` (node:v8 GCProfiler, the largest heap live after a full mark-compact); recorded at 318.8 to 351.6 MiB (`init`) and 330.4 to 349.2 MiB (`generate`) of 384, with the regression signal at about 355 MiB. |
+| correctness-r0-4 | minor | **Fixed** with gate-honesty-r0-4. |
+| correctness-r0-5 | minor | **Fixed in part** (`e8869c0`, D70 f). The data writer computes the relocated modules once per module; the orphan comment is gone; `moduleAt` is documented as the one-address form. pool.ts keeps calling it once per address with labels: threading the list through `wordText`, `labelForWord` and their callers changes the printer helpers' signatures for a filter over a few dozen modules. |

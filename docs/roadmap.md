@@ -469,7 +469,8 @@ work items into phase 4 ("Carried from phase 3", below).
 
 ### 3.E Bench emission families
 
-- **Owns:** `bench/src/{readability,objdiff,large-rom}.ts`, `bench/tools/objdiff.version`,
+- **Owns:** `bench/src/{readability,objdiff,large-rom}.ts` (and, from fix round 4, D70 b,
+  `bench/src/{large-rom-bin,rss-probe}.ts` and `test/local/large-rom-bin.test.ts`), `bench/tools/objdiff.version`,
   `test/helpers/large-rom.ts`, the `objectsDir`/`objectsDigest` fields of the five tuning datasets, the
   phase-3 extension of `bench/src/speed.ts` (`generate` and `init` timings) and of `bench/src/run.ts`
   (`--scaffold` with both printers), `test/unit/bench/emission/**`.
@@ -514,7 +515,8 @@ D68 a); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init`-equi
 (`--max-old-space-size=384`, the owner's answer to Q6, which replaces Q2's 256) with peak RSS below the budget set
 from the recorded runs under that cap with a stated margin (1,088 MiB: the largest peak, 866.5 MiB, plus 25%,
 rounded up to a multiple of 64 MiB), and the six tuning ROMs complete under the same cap, their peak RSS recorded
-(D68 b, D69); every phase-1 and phase-2 gate still passes.
+(D68 b, D69); every command of the `romlift` bin completes on the synthetic ROM under that cap
+(`test/local/large-rom-bin.test.ts`, D70 b); every phase-1 and phase-2 gate still passes.
 
 ---
 
