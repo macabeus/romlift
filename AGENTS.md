@@ -24,7 +24,7 @@ and the exit commands of each phase). Follow them; a decision changes only throu
 | `npm run bench -- run --scaffold [--write-readability-floor]` | from phase 3: each tuning ROM's tree emitted with both printers (readable and raw), linked to its SHA-1, with the readability shares and the objdiff family (architecture §8.4); `--write-readability-floor` writes `bench/baseline/readability.json`, the first committed readability shares that `g3.readability` keeps as floors, and only the phase lead passes it (D62 a) |
 | `npm run bench -- speed [--only <rom>] [--json] [--write-baseline]` | serial median CPU time of the analysis per tuning ROM against `bench/baseline/speed.json`, calibrated (`g2.speed`); from phase 3 also `generateCpuMs` (generate over a config built beforehand, then the write of its tree into a fresh temporary directory) and `initCpuMs` (discover, `configFromDiscover`, generate and the write) per tuning ROM, which `g3.speed-budget` holds to 10 s and 15 s on pokeemerald (calibrated); a run whose check pass fails writes nothing and gets no time; only the phase lead writes the baseline (analysis only) |
 | `node --conditions=source bench/tools/objdiff-classes.ts [--only <rom>] [--json]` | the objdiff family of `run --scaffold` on each tuning ROM, every difference sorted into the classes of phase-3.md Q1 (`bench/src/objdiff-classes.ts`), with the totals D34 gates (`g5.objdiff` since the owner moved it to phase 5, D68 a) and what Q1's option (b) would have gated; writes nothing |
-| `npm run bench -- large-rom [--json] [--rom <path>]` | `g3.large-rom`: the deterministic 32 MiB synthetic ROM (or the ROM `--rom` names, how the tuning ROMs are measured), then `init` and `generate` each in its own child process under the `romlift` bin's heap cap (`--max-old-space-size=256`, D68 b); prints `{schema: 'romlift/bench-large-rom@1', romBytes, sha1, runs: [{command, exitCode, maxRssMiB, maxOldSpaceSizeMiB, treeDigest?}]}` last (the gate requires exit 0 under the cap and `maxRssMiB` < 512 for both). The command spawns `node --conditions=source bench/src/large-rom.ts [--json]`, which also runs on its own |
+| `npm run bench -- large-rom [--json] [--rom <path>]` | `g3.large-rom`: the deterministic 32 MiB synthetic ROM (or the ROM `--rom` names, how the tuning ROMs are measured), then `init` and `generate` each in its own child process under the `romlift` bin's heap cap (`--max-old-space-size=384`, D68 b, D69); prints `{schema: 'romlift/bench-large-rom@1', romBytes, sha1, runs: [{command, exitCode, maxRssMiB, maxOldSpaceSizeMiB, treeDigest?}]}` last (the gate requires exit 0 under the cap and `maxRssMiB` < 512 for both). The command spawns `node --conditions=source bench/src/large-rom.ts [--json]`, which also runs on its own |
 | `npm run bench -- ablate <rule> [--tier synthetic\|real]` | re-runs with one rule disabled and prints where it was decisive and what moves |
 | `npm run bench -- explain <rom> <addr>` | what the discover run decided about one address of a tuning ROM or a fixture |
 | `npm run bench -- adopt <rom>` | seeds a new tuning dataset's lists as `unreviewed` placeholders to classify (refuses a sealed dataset) |
@@ -41,9 +41,9 @@ Node runs the TypeScript sources directly (type stripping, `--conditions=source`
 `>=22.18` and CI runs Node 22.18 and 24 on Linux and macOS (D2, D30). `@match-kit/decomp-yaml` declares
 `node >=24`, so `npm ci` on Node 22.18 prints an `EBADENGINE` warning; it is only a warning, and
 `engine-strict` stays off. The installed `romlift` bin (`dist/cli/main.js`) runs Node with V8's old space capped at
-256 MiB: the first line of `src/cli/main.ts` is `#!/usr/bin/env -S node --max-old-space-size=256`, which `tsc` keeps
-(the owner's answer to Q2 of phase-3.md, D68 b); `node --conditions=source src/cli/main.ts` does not apply it, so
-pass `--max-old-space-size=256` to measure memory as a user's run holds it.
+384 MiB: the first line of `src/cli/main.ts` is `#!/usr/bin/env -S node --max-old-space-size=384`, which `tsc` keeps
+(the owner's answers to Q2 and Q6 of phase-3.md, D68 b, D69); `node --conditions=source src/cli/main.ts` does not
+apply it, so pass `--max-old-space-size=384` to measure memory as a user's run holds it.
 
 ### Environment
 

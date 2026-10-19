@@ -382,7 +382,7 @@ Phase 3 runs as nine components in three waves on the branch `phase-3` (eight pl
 D62 records each deviation and why; [phase-3.md](phase-3.md) records the components, the measured numbers and
 the closing gate. Every threshold of the phase applies to all six tuning ROMs (D60, D62 h). The owner's answers of
 19 October 2026 (D68) moved the objdiff gate to phase 5 (`g5.objdiff`, 5.C), made `g3.large-rom` measure under the
-`romlift` bin's heap cap, accepted D64 d and the narrowed raw-printer parity (D65 l) as 3.B's gate, and put two
+`romlift` bin's heap cap (384 MiB by the answer to phase-3.md Q6, D69), accepted D64 d and the narrowed raw-printer parity (D65 l) as 3.B's gate, and put two
 work items into phase 4 ("Carried from phase 3", below).
 
 | Component | Wave | Takes from the sections below |
@@ -511,9 +511,10 @@ readability shares not lower than the first committed value on any ROM; the objd
 that links, sorted by the committed classifier, recorded as the phase's measurement (the gate is `g5.objdiff`,
 D68 a); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald
 (calibrated); `init` and `generate` on the 32 MiB synthetic ROM complete under the `romlift` bin's heap cap
-(`--max-old-space-size=256`) with peak RSS below the budget, which is set from those runs with a stated margin (512
-MiB until a run under the cap completes, phase-3.md Q6), and the six tuning ROMs complete under the same cap, their
-peak RSS recorded (D68 b); every phase-1 and phase-2 gate still passes.
+(`--max-old-space-size=384`, the owner's answer to Q6, which replaces Q2's 256) with peak RSS below the budget set
+from the recorded runs under that cap with a stated margin (1,088 MiB: the largest peak, 866.5 MiB, plus 25%,
+rounded up to a multiple of 64 MiB), and the six tuning ROMs complete under the same cap, their peak RSS recorded
+(D68 b, D69); every phase-1 and phase-2 gate still passes.
 
 ---
 
@@ -623,7 +624,7 @@ Two work items the owner put into phase 4, each with a test that fails without i
 
 The minors the review of fix round 2 carried (phase-3.md, "Review", fix round 3) stay with the code they touch:
 architecture-r2-1 (TextLayoutIndex exported with its Maps, with the writer contract D66 d reopens), architecture-r2-4
-(the case rename is not journalled), architecture-r2-5 (moduleIndexAt's optional `relocated`), and phase-3.md's
+(the case rename is not journalled), and phase-3.md's
 known limitation that the TOML patcher must keep `label = true` on the startup code inside the cartridge entry's
 extent (4.A).
 

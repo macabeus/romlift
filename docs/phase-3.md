@@ -277,21 +277,23 @@ without it:
   `run --scaffold --write-readability-floor` at `34a77cd` (its commit message names `acdf44c`, the same tree
   before its message was amended).
 
-## The owner's answers (D68)
+## The owner's answers (D68, D69)
 
-Bruno Macabeus answered Q1 to Q5 on 19 October 2026. The chosen options, verbatim, and what was done:
+Bruno Macabeus answered Q1 to Q5 on 19 October 2026, and Q6 (raised by applying Q2) the same day. The chosen options,
+verbatim, and what was done:
 
 | Question | Chosen option | Applied |
 | --- | --- | --- |
 | Q1 `g3.objdiff` | "Move gate to phase 5" | `test/gates/g5.objdiff.test.ts` (`bd495c8`), its check unchanged: g3.objdiff moves to phase 5 (where the `expected/` objects and objdiff targets are built); phase 3 records the classified counts as its measurement (Q1's table); the committed classifier stays; in phase 5 the gate applies as D34 writes it unless the owner amends it then |
-| Q2 `g3.large-rom` | "Measure under a heap cap" | `72a0f63`: the romlift bin launcher (`src/cli/main.ts`'s first line, `#!/usr/bin/env -S node --max-old-space-size=256`, kept in `dist/cli/main.js`) and the gate (every child of `bench large-rom`) run Node with --max-old-space-size=256; the gate requires both runs to exit 0 under the cap and report it. The budget is to be set from the runs under the cap with a stated margin; the six tuning ROMs are measured under the same cap and recorded, and all complete. The 32 MiB synthetic ROM does not complete under it in any run, so no budget can be set from it: Q6 |
+| Q2 `g3.large-rom` | "Measure under a heap cap" | `72a0f63`: the romlift bin launcher (`src/cli/main.ts`'s first line, `#!/usr/bin/env -S node --max-old-space-size=256`, kept in `dist/cli/main.js`) and the gate (every child of `bench large-rom`) run Node with --max-old-space-size=256; the gate requires both runs to exit 0 under the cap and report it. The budget is to be set from the runs under the cap with a stated margin; the six tuning ROMs are measured under the same cap and recorded, and all complete. The 32 MiB synthetic ROM does not complete under it in any run, so no budget can be set from it: Q6, whose answer replaces the 256 MiB by 384 MiB (below) |
 | Q3 D64 d | "Accept, don't flush generated" | generated files are not flushed; the journal, manifest, user edits, scaffold and C stubs stay flushed (architecture §6.4); `g3.speed-budget` unchanged |
 | Q4 raw-printer parity | "Accept" | the narrowed raw-printer PoC parity (D65 l, `test/local/poc-raw-printer.test.ts`) is 3.B's gate |
 | Q5 limitations | "Accept Q5a; fix Q5b, c in phase 4" | (a) the alignment refusal is a recorded release-1 limitation; (b) padding-only orphans folded into the next function and (c) confirm no longer re-validating the functions discover listed (measured against g2's gates) are phase-4 work items in roadmap.md ("Carried from phase 3") |
+| Q6 `g3.large-rom` under the cap (D69) | "384 MiB for bin and gate" | `05fd406`: the romlift bin launcher (`#!/usr/bin/env -S node --max-old-space-size=384`) and g3.large-rom (every child of `bench large-rom`; the gate requires the 384 MiB cap in each run's report) both use --max-old-space-size=384, replacing Q2's 256. `a206ac1`: the budget is set from the recorded runs under the 384 MiB cap plus a stated margin, 866.5 MiB (the largest) plus 25%, rounded up to a multiple of 64 MiB: 1,088 MiB. The synthetic ROM completes under the cap in every run, and the six tuning ROMs are re-measured under 384 MiB and recorded ("Measured numbers") |
 
 These are the only gate changes he authorised. The minors carried from the last review were taken where cheap:
-architecture-r2-9 has its unit test (`5ae1c1c`); r2-2 and r2-3 (the classifier) go with `g5.objdiff` to phase 5; r2-1
-and r2-5 stay carried into phase 4 ("Review", fix round 3).
+architecture-r2-9 has its unit test (`5ae1c1c`); r2-5 is fixed (`0483164`, D69 c); r2-2 and r2-3 (the classifier) go
+with `g5.objdiff` to phase 5; r2-1 stays carried into phase 4 ("Review", fix round 3).
 
 ## Deviations from the roadmap
 
@@ -322,6 +324,39 @@ records `682da72` with the documentation as the only uncommitted change (the sou
 `provenance` and `stale-check` compare, covers no document).
 
 ## Measured numbers
+
+### The owner's answer to Q6 (`05fd406`)
+
+Memory under the 384 MiB heap cap of Q6's answer (Node 24.15, macOS, 64 GiB, `node --conditions=source
+bench/src/large-rom.ts --json [--rom <ROM>]`, both children under `--max-old-space-size=384`, run one after the other;
+peak RSS from `process.resourceUsage().maxRSS` of each child). The 32 MiB synthetic ROM (SHA-1 `b846b945…`), five runs
+at `05fd406`, and the two hand runs under 384 MiB at `5ae1c1c` (below); every run exits 0 and writes the tree digest
+`9d9c915d…`:
+
+| Run | `init` peak RSS | `generate` peak RSS |
+| --- | --- | --- |
+| by hand at `5ae1c1c` (each child alone) | 866.5 MiB | 801.4 MiB |
+| 1 | 856.1 MiB | 789.3 MiB |
+| 2 | 817.2 MiB | 800.9 MiB |
+| 3 | 851.9 MiB | 837.9 MiB |
+| 4 | 840.7 MiB | 825.4 MiB |
+| 5 | 854.9 MiB | 794.8 MiB |
+| minimum to maximum | 817.2 to 866.5 MiB | 789.3 to 837.9 MiB |
+
+The budget (D69 b): the largest recorded peak, 866.5 MiB, plus a 25% margin (1,083.1 MiB), rounded up to a multiple of
+64 MiB: **1,088 MiB**, against which the gate's own runs are judged (the closing list below records them).
+
+The six tuning ROMs re-measured under 384 MiB, two runs each at `05fd406`; every run exits 0 and writes the same tree
+digest both times, equal to the digest under 256 MiB:
+
+| ROM | Size | `init` peak RSS | `generate` peak RSS | Tree digest |
+| --- | --- | --- | --- | --- |
+| fe7j | 16 MiB | 451.8, 448.5 MiB | 483.3, 476.9 MiB | `ad2ee4a2…` |
+| klonoa | 4 MiB | 331.5, 328.2 MiB | 310.6, 311.5 MiB | `917a55c7…` |
+| pokeemerald | 16 MiB | 667.8, 653.2 MiB | 652.8, 639.4 MiB | `13f71c43…` |
+| sa2 | 16 MiB | 470.1, 477.7 MiB | 462.8, 458.1 MiB | `116b1bb3…` |
+| sa3 | 16 MiB | 518.3, 514.8 MiB | 439.8, 449.2 MiB | `4390a358…` |
+| tmc | 16 MiB | 503.8, 502.4 MiB | 483.8, 479.5 MiB | `cfcd95a9…` |
 
 ### The owner's answers (`5ae1c1c`)
 
@@ -460,7 +495,7 @@ fails under 200 MiB. The run-to-run spread (1,019 to 1,495 MiB) is V8 sizing its
 Every owner decision of architecture §12 is built with its documented safe default (D62 i). Two gates failed after
 fix rounds 1, 2 and 3 (`g3.objdiff`, `g3.large-rom`), and three limitations or gate narrowings were made without the owner's
 words (Q3 to Q5). **The owner answered Q1 to Q5 on 19 October 2026** (D68; each answer under its question).
-Applying Q2's answer raised Q6, which is open; the phase does not land until he answers it.
+Applying Q2's answer raised Q6, which he answered the same day (D69).
 
 ### Q1. `g3.objdiff`: almost every remaining difference links to the same word
 
@@ -664,6 +699,12 @@ stubs; (iii) for (c), make the confirm run not re-validate the functions configF
 change, measured against g2's gates).
 
 ### Q6. `g3.large-rom` under the heap cap: the 32 MiB synthetic ROM does not complete under 256 MiB
+
+**Answered on 19 October 2026: "384 MiB for bin and gate"** (D69). The romlift bin launcher and g3.large-rom both use
+--max-old-space-size=384 (this replaces Q2's 256); every ROM size up to 32 MiB must complete under it; the gate's
+peak-RSS budget is set from the recorded runs under the 384 MiB cap plus a stated margin; the 16 MiB tuning ROMs are
+re-measured under 384 and recorded. Applied: `05fd406` (the cap), `a206ac1` (the budget, 1,088 MiB: the largest
+recorded peak, 866.5 MiB, plus 25%, rounded up to a multiple of 64 MiB); the runs are under "Measured numbers".
 
 Facts. Q2's answer, "Measure under a heap cap", runs the bin and the gate with `--max-old-space-size=256` and sets
 the budget from the measurement under the cap. Q2's option (c) said the synthetic ROM's discover run completes under
@@ -875,12 +916,11 @@ are answered.
 
 - Resolved in the closing fix round (D64 a): the confirm-mode startup defect of the wave-3 integration; the two
   tests that were `todo` for it pass.
-- `g3.large-rom` fails under the heap cap of Q2's answer: the 32 MiB synthetic ROM does not complete under
-  `--max-old-space-size=256` (Q6, open). `g3.objdiff` is `g5.objdiff`, a phase-5 gate (Q1's answer); it still runs
-  and fails on the six tuning ROMs, as Q1's table classifies.
-- The installed `romlift` bin runs with V8's old space capped at 256 MiB (Q2's answer): every tuning ROM completes
-  under it, but a ROM near 32 MiB with as much code as the synthetic one exhausts it and `romlift` aborts with V8's
-  out-of-memory report (Q6).
+- `g3.objdiff` is `g5.objdiff`, a phase-5 gate (Q1's answer); it still runs and fails on the six tuning ROMs, as Q1's
+  table classifies.
+- The installed `romlift` bin runs with V8's old space capped at 384 MiB (Q6's answer, replacing Q2's 256): every
+  tuning ROM and the 32 MiB synthetic ROM complete under it (0.3 to 0.9 GiB peak RSS); a ROM whose live set exceeds
+  the cap ends in V8's out-of-memory report.
 - Fix round 1 (D65): a ROM whose size its last unit's alignment does not divide is refused by the text-layout
   check (Q5 a; a release-1 limitation by the owner's answer, D68 e); a `[symbols]` entry inside an instruction gets no label (`W_SYMBOL_UNPLACED`); names starting with
   `$` or `.` are `E_NAME_INVALID`; a `c` module fails the check until phase 4's c-stub writer.
@@ -1041,6 +1081,6 @@ its own commit; a defect's fix has a test that fails without it (D67).
 | architecture-r2-1 | minor | **Carried into phase 4.** TextLayoutIndex stays exported with its Maps and memo (D66 f); making it a branded handle or unexporting checkEntry changes the public API the bench and test/local use, and phase 4 reopens the writer contract (D66 d). |
 | architecture-r2-2 | minor | **Carried into phase 5** (after Q1's answer, D68 f). The bench's REL/RELA addend decoder (bench/src/objects.ts) beside foundation/formats/elf.ts relocationWidth, and the R_ARM_*/SHT_* constants spread over objects.ts, objdiff-cli.ts and objdiff-classes.ts. A refactor of the classifier behind Q1, whose numbers it would have to re-measure; the gate it serves is `g5.objdiff`, so it goes to phase 5 with it (roadmap 5.C). |
 | architecture-r2-3 | minor | **Carried into phase 5** (D68 f). No fixture test covers objdiffDifferences' sectionBase and baseField plumbing; linkedWord's dead branch and missingClass's final `unverified` are uncovered. With r2-2. |
-| architecture-r2-5 | minor | **Carried into phase 4.** moduleIndexAt's `relocated` stays optional with a linear default; the resolver.ts re-export stays. A performance and import-path cleanup with no behaviour change. |
+| architecture-r2-5 | minor | **Fixed** (`0483164`, after Q6's answer, D69 c). moduleIndexAt's `relocated` is required (no linear default): names.ts computes relocatedModules once per pass, moduleAt and the data writer pass it; `romlift` exports moduleIndexAt from core/model/modules.ts and the resolver.ts re-export is gone. No result changes (a module without `runs_at` has no run range). |
 | architecture-r2-9 | minor | **Fixed** (`5ae1c1c`, D68 f). test/unit/verify/text-layout.test.ts gives textLayoutIndex two module-scoped `sLocal` labels in two data modules; each module's `.4byte sLocal` lays out to its own label's word. |
 

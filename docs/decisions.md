@@ -932,6 +932,13 @@ cap": the `romlift` bin and the gate run Node with `--max-old-space-size=256`, t
 cap, and its budget is set from that measurement with a stated margin. No run of the synthetic ROM completes under
 the cap (phase-3.md Q6), so the budget is still 512 MiB until the owner answers Q6.
 
+**Revision (19 October 2026, the owner's answer to Q6 of phase-3.md, D69).** The owner chose "384 MiB for bin and
+gate": the `romlift` bin and `g3.large-rom` run Node with `--max-old-space-size=384`, replacing Q2's 256. The budget
+is set from the recorded runs of the synthetic ROM under that cap plus a stated margin: the largest peak, 866.5 MiB,
+plus 25%, rounded up to a multiple of 64 MiB, is **1,088 MiB** (D69 b). The 1 GiB budgets rejected above were
+uncapped; under the cap V8's old space cannot grow past 384 MiB, so a leak in it ends in an out-of-memory exit,
+which the gate fails.
+
 ## D43. Each phase opens with a frozen-interface component, then parallel components, then an integrator
 
 **Context.** The first version's packages shared `src/index.ts`, `src/node.ts`, the CLI registry, a single
@@ -2546,6 +2553,40 @@ synthetic ROM (Q6). Following the landing procedure, `test/gates/phase.json` was
 whole closing list ran in a fresh worktree (phase-3.md, "The closing gate"); `bench gates --require 3 --tier ci`
 exited 1 on `g3.large-rom` alone, so the marker is back at `{ "landed": 2 }` and phase 3 does not land until the
 owner answers Q6.
+
+## D69. The owner's answer of 19 October 2026 to Q6 of phase 3
+
+**Context.** Applying Q2's answer (D68 b) found that no run of the 32 MiB synthetic ROM completes under a 256 MiB
+heap cap (`init` and `generate` end in V8's out-of-memory abort; 320 MiB likewise), while 384 MiB holds it.
+phase-3.md put that to the owner as Q6, with three options: (a) keep 256 MiB and make the analysis hold about 100
+MiB less, (b) raise the cap of the bin and the gate to a measured value that holds the synthetic ROM, (c) keep 256
+MiB for the bin and run the gate under a larger cap.
+
+**Decision.**
+
+- (a) **Q6: "384 MiB for bin and gate".** The `romlift` bin launcher (the first line of `src/cli/main.ts`,
+  `#!/usr/bin/env -S node --max-old-space-size=384`) and `g3.large-rom` (every child of `bench large-rom`,
+  `LARGE_ROM_MAX_OLD_SPACE_MIB`) both use `--max-old-space-size=384`; this replaces Q2's 256 (D68 b). Every ROM size
+  up to 32 MiB must complete under it. The gate requires both runs to exit 0 and to report the 384 MiB cap.
+- (b) **The budget.** The gate's peak-RSS budget is set from the recorded runs under the 384 MiB cap plus a stated
+  margin. Recorded (phase-3.md, "Measured numbers", the owner's answer to Q6; Node 24.15, macOS): seven runs of the
+  synthetic ROM, `init` 817.2 to 866.5 MiB and `generate` 789.3 to 837.9 MiB, every one exiting 0 with the tree
+  digest `9d9c915d…`. The margin is 25% over the largest recorded peak, rounded up to a multiple of 64 MiB: 866.5 ×
+  1.25 = 1,083.1, so **1,088 MiB** (`MAX_RSS_MIB` in `test/gates/g3.large-rom.test.ts`, `LARGE_ROM_MAX_RSS_MIB` in
+  `bench/src/large-rom.ts` for the human output). The gate's own runs in the closing list are recorded beside them.
+  The 16 MiB tuning ROMs (and klonoa, 4 MiB) are re-measured under 384 MiB, two runs each: all complete, 310.6 to
+  667.8 MiB peak RSS (pokeemerald the largest), each writing the same tree digest as under 256 MiB.
+- (c) **The minors carried from the last review.** architecture-r2-5 is fixed (moduleIndexAt's `relocated` is
+  required, the resolver.ts re-export is gone; no result changes). architecture-r2-1 stays carried into phase 4
+  (a public API change with the writer contract D66 d reopens); r2-2 and r2-3 go to phase 5 with `g5.objdiff` (D68
+  f).
+
+These are the only gate changes authorised with D68.
+
+**Consequences.** `g3.large-rom` measures the synthetic ROM under the bin's 384 MiB cap against 1,088 MiB. A user's
+`romlift` run on a 32 MiB ROM holds about 0.8 to 0.9 GiB resident; a ROM whose live set exceeds the 384 MiB old
+space ends in V8's out-of-memory report. With Q1 to Q6 answered, the landing procedure ran again (phase-3.md, "The
+closing gate").
 
 ## Review findings index
 
