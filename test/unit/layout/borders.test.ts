@@ -5,23 +5,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import {
-  asmOnlyRanges,
-  asmOnlyReasons,
-  borderRefs,
-  codeLayout,
-  coveredEntries,
-  factsByEntry,
-  headerCoveredEntries,
-  isLabelEntry,
-  legalBorders,
-  listedEntriesOf,
-  nearestBorders,
-  nestedEntries,
-  placeEntries,
-  tileCode,
-} from '../../../src/core/layout/borders.ts';
-import type { PlacedEntry } from '../../../src/core/layout/borders.ts';
+import { asmOnlyRanges, asmOnlyReasons } from '../../../src/core/layout/asm-only.ts';
+import { codeLayout, legalBorders, nearestBorders } from '../../../src/core/layout/borders.ts';
+import { coveredEntries, factsByEntry, headerCoveredEntries, isLabelEntry, listedEntriesOf, nestedEntries, placeEntries } from '../../../src/core/layout/entries.ts';
+import type { PlacedEntry } from '../../../src/core/layout/entries.ts';
+import { borderRefs } from '../../../src/core/layout/refs.ts';
+import { tileCode } from '../../../src/core/layout/tiling.ts';
 import { analysisOf, armAt, BASE, fact, HEADER_END, romWith, thumbAt } from './hand-made.ts';
 
 function placed(entry: number, end: number | undefined): PlacedEntry {

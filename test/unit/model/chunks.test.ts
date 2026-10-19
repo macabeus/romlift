@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { placeEntries } from '../../../src/core/layout/borders.ts';
+import { placeEntries } from '../../../src/core/layout/entries.ts';
 import { planChunks } from '../../../src/core/model/chunks.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { planModules } from '../../../src/core/model/modules.ts';

@@ -6,285 +6,40 @@
 // produced (ARM code, a Thumb entry at 2 mod 4, a shared tail, a tiled hole) stays in one assembly-only
 // module, so no border falls strictly inside one.
 //
-// The code region is tiled here exactly as the model tiles it (core/model/chunks.ts calls tileCode): the
-// cartridge header [base, base + 0xC0), then from the header's end to the data start one function chunk per
-// entry that is not a label (start = entry, end = min(extent end, next chunk start), at least 2 bytes, the
-// PoC's tile()) and one orphan chunk for the bytes between, cut at the startup region's end. The data start is
-// the analysis' code end rounded up to a word, past any word the code loads PC-relative beyond it (D63).
+// The code region is tiled exactly as the model tiles it (tiling.ts tileCode, which core/model/chunks.ts calls):
+// the cartridge header [base, base + 0xC0), then from the header's end to the data start one function chunk per
+// entry that is not a label (entries.ts) and one orphan chunk for the bytes between, cut at the startup region's
+// end. The data start is the analysis' code end rounded up to a word, past any word the code loads PC-relative
+// beyond it (D63). The references come from refs.ts, the assembly-only ranges from asm-only.ts.
+//
+// This file is core/model's one entry into core/layout (architecture §2): it re-exports what the model uses of
+// its sibling files.
 //
 // The borders rest only on ARM words and the ROM layout, not on a compiler profile: buildModel, which has no
 // profile, must compute the same set as init and the TOML patcher (D62).
-import { decode, thumbMayName } from '../../foundation/isa/decode.ts';
-import type { Flow } from '../../foundation/isa/types.ts';
-import { HEADER_END, peek16, peek32 } from '../../foundation/rom/rom.ts';
+import { HEADER_END } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
-import type { AnalysisResult, FunctionFact } from '../analysis/types.ts';
+import type { AnalysisResult } from '../analysis/types.ts';
+import { alignUp, WORD } from './align.ts';
+import { asmOnlyRanges } from './asm-only.ts';
+import { factsByEntry, listedEntriesOf, placeEntries } from './entries.ts';
+import { borderRefs } from './refs.ts';
+import type { ShortBranch } from './refs.ts';
+import { tileCode } from './tiling.ts';
+import type { TiledChunk } from './tiling.ts';
 
-/** The ARM word: ld aligns every object to it, and agbcc aligns every C function to it. */
-const WORD = 4;
-
-/** The rule whose tail exits are shared tails: a branch into another function. */
-const SHARED_TAIL_RULE = 'walk.branch-into-function';
-
-/** `a` rounded up to a word. */
-export function alignUp(a: Addr): Addr {
-  return Math.ceil(a / WORD) * WORD;
-}
+// What core/model and core/workflow use of the sibling files, through this one entry.
+export { alignUp } from './align.ts';
+export { coveredEntries, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from './entries.ts';
+export type { ExtentSource, ListedEntry, PlacedEntry } from './entries.ts';
+export { tileCode } from './tiling.ts';
 
 /** The first address past the cartridge header. */
 function headerEndOf(rom: Pick<Rom, 'base' | 'end'>): Addr {
   return Math.min(rom.base + HEADER_END, rom.end);
-}
-
-// ---------------------------------------------------------------------------------------------------
-// Entries and their extents.
-
-/**
- * Where a chunk's end comes from: the analysis' extent, the TOML's size, a code override, or up to the next
- * listed entry. ModelFunction.source.extent (core/model/types.ts) is this type.
- */
-export type ExtentSource = 'analysis' | 'toml-size' | 'override' | 'next-listed';
-
-/** A listed entry: a config function, or a function of the analysis. */
-export interface ListedEntry {
-  readonly entry: Addr;
-  /** A label entry starts no chunk (FunctionConfig.label, or nested in discover mode). */
-  readonly label: boolean;
-  readonly size?: number;
-}
-
-/** A listed entry with the end of its extent; `end` undefined: up to the next chunk start. */
-export interface PlacedEntry {
-  readonly entry: Addr;
-  readonly label: boolean;
-  readonly end: Addr | undefined;
-  readonly source: ExtentSource;
-}
-
-/** The end of a function's extent with the header clipped off: the cartridge entry's extent covers the header (correctness-6). */
-function clippedExtentEnd(f: Pick<FunctionFact, 'entry' | 'extent'>, headerEnd: Addr): Addr {
-  return f.entry < headerEnd ? Math.min(f.extent.end, headerEnd) : f.extent.end;
-}
-
-/** The functions of the analysis by entry. */
-export function factsByEntry(analysis: Pick<AnalysisResult, 'functions'>): ReadonlyMap<Addr, FunctionFact> {
-  return new Map(analysis.functions.map((f) => [f.entry, f] as const));
-}
-
-/**
- * Where each listed entry's extent ends: the size the config gives, else the analysis' extent, else a code
- * override containing it, else the next chunk start ('next-listed'). `listed` is sorted by entry.
- */
-export function placeEntries(listed: readonly ListedEntry[], analysis: Pick<AnalysisResult, 'functions' | 'options'>): PlacedEntry[] {
-  const facts = factsByEntry(analysis);
-  const codeOverrides = analysis.options.overrides.filter((o) => o.kind === 'code');
-  return listed.map((l): PlacedEntry => {
-    if (l.size !== undefined) return { entry: l.entry, label: l.label, end: l.entry + l.size, source: 'toml-size' };
-    const fact = facts.get(l.entry);
-    if (fact !== undefined) return { entry: l.entry, label: l.label, end: fact.extent.end, source: 'analysis' };
-    const override = codeOverrides.find((o) => l.entry >= o.span.start && l.entry < o.span.end);
-    if (override !== undefined) return { entry: l.entry, label: l.label, end: override.span.end, source: 'override' };
-    return { entry: l.entry, label: l.label, end: undefined, source: 'next-listed' };
-  });
-}
-
-/** The entries of `functions` (sorted by entry) strictly inside an earlier function's extent, each extent ending at `endOf`. */
-function insideEarlier(functions: readonly FunctionFact[], endOf: (f: FunctionFact) => Addr): ReadonlySet<Addr> {
-  const nested = new Set<Addr>();
-  let reach = -Infinity;
-  for (const f of functions) {
-    if (f.entry < reach) nested.add(f.entry);
-    reach = Math.max(reach, endOf(f));
-  }
-  return nested;
-}
-
-/**
- * The entries of `functions` (sorted by entry) that lie strictly inside an earlier function's extent, the
- * header clipped off the cartridge entry's: the label entries of a discover model.
- */
-export function nestedEntries(functions: readonly FunctionFact[], headerEnd: Addr): ReadonlySet<Addr> {
-  return insideEarlier(functions, (f) => clippedExtentEnd(f, headerEnd));
-}
-
-/**
- * The entries of `functions` (sorted by entry) strictly inside an earlier function's extent as the analysis
- * gives it, nothing clipped: configFromDiscover lists them with `label = true`, so the confirm run reads every
- * extent as the discover run did (the listed set of g2.confirm-equals-discover). The cartridge entry's extent
- * covers the startup code it branches to; were that entry not a label, the confirm run would cut the cartridge
- * entry at it and accept it as a call, outside the startup region.
- */
-export function coveredEntries(functions: readonly FunctionFact[]): ReadonlySet<Addr> {
-  return insideEarlier(functions, (f) => f.extent.end);
-}
-
-/**
- * The entries past the header that only the cartridge entry's extent covers (coveredEntries but not
- * nestedEntries): the header chunk clips that extent (correctness-6), so a `label = true` entry there still
- * starts a chunk.
- */
-export function headerCoveredEntries(functions: readonly FunctionFact[], headerEnd: Addr): ReadonlySet<Addr> {
-  const nested = nestedEntries(functions, headerEnd);
-  const covered = coveredEntries(functions);
-  return new Set(functions.map((f) => f.entry).filter((e) => e >= headerEnd && covered.has(e) && !nested.has(e)));
-}
-
-/** Whether a listed entry starts no chunk: its config says `label = true` and an extent past the header covers it. */
-export function isLabelEntry(entry: Addr, label: boolean | undefined, headerCovered: ReadonlySet<Addr>): boolean {
-  return label === true && !headerCovered.has(entry);
-}
-
-/**
- * The listed entries of an analysis: in discover mode every function, nested ones as labels; in confirm mode
- * the listed seeds (the TOML's functions), with their `size` and their `label` (isLabelEntry).
- */
-export function listedEntriesOf(analysis: AnalysisResult, headerEnd: Addr): ListedEntry[] {
-  if (analysis.mode === 'discover') {
-    const nested = nestedEntries(analysis.functions, headerEnd);
-    return analysis.functions.map((f) => ({ entry: f.entry, label: nested.has(f.entry) }));
-  }
-  const seeds = analysis.options.seeds.filter((s) => s.rule === 'seed.listed').sort((a, b) => compareNumbers(a.entry, b.entry));
-  const headerCovered = headerCoveredEntries(analysis.functions, headerEnd);
-  return seeds
-    .filter((s, i) => i === 0 || seeds[i - 1]?.entry !== s.entry)
-    .map((s) => ({ entry: s.entry, label: isLabelEntry(s.entry, s.label, headerCovered), ...(s.size === undefined ? {} : { size: s.size }) }));
-}
-
-// ---------------------------------------------------------------------------------------------------
-// Tiling (the PoC's tile()).
-
-/** One chunk of the code region: a function chunk names its entry; an orphan chunk has none. */
-export interface TiledChunk {
-  readonly span: Span;
-  readonly entry: Addr | undefined;
-}
-
-/** The index of the first entry at or above `a` in `entries` (sorted by entry). */
-function firstAtOrAbove(entries: readonly { readonly entry: Addr }[], a: Addr): number {
-  return lowerBound(entries, a, (e) => e.entry);
-}
-
-/**
- * Tiles [from, to): one function chunk per entry (start = entry, end = min(extent end, next entry), at least 2
- * bytes, never past `to`), one orphan chunk for the bytes between, orphans cut at each of `cuts`. `entries` are
- * the chunk-starting entries sorted by entry; an entry inside the previous chunk starts none (its caller makes
- * it an inner label).
- */
-export function tileCode(entries: readonly PlacedEntry[], from: Addr, to: Addr, cuts: readonly Addr[]): TiledChunk[] {
-  const out: TiledChunk[] = [];
-  const orphan = (a: Addr, b: Addr): void => {
-    let start = a;
-    for (const c of cuts) {
-      if (c > start && c < b) {
-        out.push({ span: { start, end: c }, entry: undefined });
-        start = c;
-      }
-    }
-    if (b > start) out.push({ span: { start, end: b }, entry: undefined });
-  };
-  let cursor = from;
-  const first = firstAtOrAbove(entries, from);
-  const last = firstAtOrAbove(entries, to);
-  for (let i = first; i < last; i++) {
-    const e = entries[i];
-    if (e === undefined || e.entry < cursor) continue;
-    if (e.entry > cursor) orphan(cursor, e.entry);
-    const next = i + 1 < last ? (entries[i + 1]?.entry ?? to) : to;
-    const end = Math.min(to, Math.max(e.entry + 2, Math.min(e.end ?? next, next)));
-    out.push({ span: { start: e.entry, end }, entry: e.entry });
-    cursor = end;
-  }
-  if (cursor < to) orphan(cursor, to);
-  return out;
-}
-
-// ---------------------------------------------------------------------------------------------------
-// Short branches and assembly-only ranges.
-
-/** A short Thumb branch (b, bcc): its site and target. */
-export interface ShortBranch {
-  readonly site: Addr;
-  readonly target: Addr;
-}
-
-/** The references that bound the legal borders: the short Thumb branches and the PC-relative loads and adrs. */
-export interface BorderRefs {
-  readonly shortBranches: readonly ShortBranch[];
-  readonly pcRelative: readonly ShortBranch[];
-}
-
-/**
- * One scan of the code spans of the analysis' functions, decoded with foundation/isa at load addresses (a
- * reference inside a runs_at range has the same offset in run space): every short Thumb branch (b, bcc), and
- * every PC-relative load and adr with the address it names (the pool word or the adr target). The PC-relative
- * ones are the references codeRefs (core/model/labels.ts) names, so a border none of them crosses never leaves
- * the model a PC-relative instruction whose label lies in another object, which `as` cannot assemble (D63). A
- * bl half never looks like any of the Thumb forms (foundation/isa thumbMayName), so every halfword of a Thumb
- * span is a candidate; an ARM span is decoded word by word.
- */
-export function borderRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>): BorderRefs {
-  const shortBranches: ShortBranch[] = [];
-  const pcRelative: ShortBranch[] = [];
-  const pcRef = (site: Addr, flow: Flow): void => {
-    if (flow.kind === 'pool-load') pcRelative.push({ site, target: flow.pool });
-    else if (flow.kind === 'adr') pcRelative.push({ site, target: flow.target });
-  };
-  for (const f of analysis.functions) {
-    for (const span of f.code) {
-      const end = Math.min(span.end, rom.end);
-      if (f.mode === 'arm') {
-        for (let a = alignUp(Math.max(span.start, rom.base)); a + 4 <= end; a += 4) pcRef(a, decode('arm', peek32(rom, a), a).flow);
-        continue;
-      }
-      for (let a = Math.max(span.start, rom.base); a + 2 <= end; a += 2) {
-        const hw = peek16(rom, a);
-        if (!thumbMayName(hw)) continue;
-        const flow = decode('thumb', hw, a).flow;
-        if (flow.kind === 'branch') shortBranches.push({ site: a, target: flow.target });
-        else pcRef(a, flow);
-      }
-    }
-  }
-  return { shortBranches, pcRelative };
-}
-
-/** Why agbcc cannot have produced a function. */
-export type AsmOnlyReason = 'arm' | 'unaligned-entry' | 'shared-tail' | 'tiled-hole';
-
-/** The reasons a function is assembly-only; empty when agbcc may have produced it. */
-export function asmOnlyReasons(f: FunctionFact): AsmOnlyReason[] {
-  const reasons: AsmOnlyReason[] = [];
-  if (f.mode === 'arm') reasons.push('arm');
-  if (f.mode === 'thumb' && f.entry % WORD !== 0) reasons.push('unaligned-entry');
-  if (f.exits.some((x) => x.kind === 'tail' && x.rule === SHARED_TAIL_RULE)) reasons.push('shared-tail');
-  if (f.holes.length > 0) reasons.push('tiled-hole');
-  return reasons;
-}
-
-/**
- * The assembly-only ranges among `chunks` (in address order) that start at or after `from`: each run of
- * consecutive assembly-only function chunks, with any orphan chunks between them, from the first one's start
- * to the last one's end.
- */
-export function asmOnlyRanges(chunks: readonly TiledChunk[], facts: ReadonlyMap<Addr, FunctionFact>, from: Addr): Span[] {
-  const out: Span[] = [];
-  let open: { start: Addr; end: Addr } | undefined;
-  for (const c of chunks) {
-    if (c.entry === undefined || c.span.start < from) continue;
-    const fact = facts.get(c.entry);
-    if (fact !== undefined && asmOnlyReasons(fact).length > 0) {
-      if (open === undefined) open = { start: c.span.start, end: c.span.end };
-      else open.end = c.span.end;
-    } else if (open !== undefined) {
-      out.push(open);
-      open = undefined;
-    }
-  }
-  if (open !== undefined) out.push(open);
-  return out;
 }
 
 // ---------------------------------------------------------------------------------------------------
