@@ -1,5 +1,7 @@
 // Applies a write plan to a project directory (architecture §6.4 step 4, D17), mechanically: the journal
-// first, each op through a temporary file and a rename, the manifest last, then the journal is removed. The
+// first, each op through a temporary file and a rename, the manifest last, then the journal is removed. Each
+// write and edit first gives the components of its path that exist under another case the op's spelling
+// (spelling.ts respell: a case-only rename of a directory on a case-insensitive file system). The
 // journal, the manifest, edits and scaffold files are flushed to disk before their rename; generated files are
 // not, and one whose path does not exist yet is created in place (durableOp).
 // Every decision is planWrites'; a plan with an error diagnostic is refused before anything is touched.
@@ -22,6 +24,8 @@ import type { WriteOp, WritePlan } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
 import { atomicWrite, errnoOf, errorReason } from '../fs.ts';
 import { onDisk } from './disk-state.ts';
+import { respell } from './spelling.ts';
+import type { Listings } from './spelling.ts';
 
 export interface ApplyResult {
   /** Every op, the manifest and the journal's removal succeeded. */
@@ -58,18 +62,21 @@ async function pruneEmptyParents(dir: string, file: string): Promise<void> {
   }
 }
 
-/** The directories one applyWrites call has made, so each is made once, not once per file. */
-type MadeDirs = Set<string>;
+/** What one applyWrites call knows of the disk: the directories it made (each made once, not once per file) and the ones it listed. */
+interface DiskKnown {
+  readonly made: Set<string>;
+  readonly listings: Listings;
+}
 
-async function writeText(file: string, text: string | Iterable<string>, durable: boolean, made: MadeDirs): Promise<Diagnostic | undefined> {
+async function writeText(file: string, text: string | Iterable<string>, durable: boolean, known: DiskKnown): Promise<Diagnostic | undefined> {
   const parent = dirname(file);
-  if (!made.has(parent)) {
+  if (!known.made.has(parent)) {
     try {
       await mkdir(parent, { recursive: true });
     } catch (error) {
       return writeError(file, error);
     }
-    made.add(parent);
+    known.made.add(parent);
   }
   const written = await atomicWrite(file, text, { durable, inPlaceWhenAbsent: !durable });
   return written.ok ? undefined : written.diagnostic;
@@ -86,17 +93,18 @@ export function durableOp(op: Extract<WriteOp, { readonly op: 'write' | 'edit' }
   return op.op === 'edit' || op.writer === 'scaffold' || op.writer === 'c-stub';
 }
 
-async function applyOp(dir: string, op: WriteOp, made: MadeDirs): Promise<Diagnostic | undefined> {
+async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diagnostic | undefined> {
   const file = onDisk(dir, op.path);
   switch (op.op) {
     case 'write':
     case 'edit':
-      return writeText(file, op.text, durableOp(op), made);
+      return (await respell(dir, op.path, known.listings)) ?? writeText(file, op.text, durableOp(op), known);
     case 'delete': {
       const failed = await removeFile(file);
       if (failed === undefined) await pruneEmptyParents(dir, file);
-      // A pruned directory must be made again by a later write.
-      made.clear();
+      // A pruned directory must be made again by a later write, and is listed again.
+      known.made.clear();
+      known.listings.clear();
       return failed;
     }
     case 'keep':
@@ -123,16 +131,16 @@ export async function applyWrites(dir: string, plan: WritePlan): Promise<ApplyRe
   } catch (error) {
     return { ok: false, applied: 0, diagnostics: [writeError(join(dir, ROMLIFT_DIR), error)] };
   }
-  const made: MadeDirs = new Set();
-  const journal = await writeText(onDisk(dir, JOURNAL_PATH), encodeJournal(journalOf(plan.ops)), true, made);
+  const known: DiskKnown = { made: new Set(), listings: new Map() };
+  const journal = await writeText(onDisk(dir, JOURNAL_PATH), encodeJournal(journalOf(plan.ops)), true, known);
   if (journal !== undefined) return { ok: false, applied: 0, diagnostics: [journal] };
   let applied = 0;
   for (const op of plan.ops) {
-    const failed = await applyOp(dir, op, made);
+    const failed = await applyOp(dir, op, known);
     if (failed !== undefined) return { ok: false, applied, diagnostics: [failed] };
     if (op.op !== 'keep') applied++;
   }
-  const manifest = await writeText(onDisk(dir, MANIFEST_PATH), encodeManifest(plan.manifest), true, made);
+  const manifest = await writeText(onDisk(dir, MANIFEST_PATH), encodeManifest(plan.manifest), true, known);
   if (manifest !== undefined) return { ok: false, applied, diagnostics: [manifest] };
   const cleared = await removeFile(onDisk(dir, JOURNAL_PATH));
   return cleared === undefined ? { ok: true, applied, diagnostics: [] } : { ok: false, applied, diagnostics: [cleared] };

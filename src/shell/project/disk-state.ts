@@ -7,6 +7,7 @@ import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { foldPath } from '../../foundation/util/fold.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { decodeJournal } from '../../core/write-plan/journal.ts';
 import type { Journal } from '../../core/write-plan/journal.ts';
@@ -28,7 +29,7 @@ function ioError(code: 'E_IO_READ' | 'E_IO_WRITE', path: string, message: string
 }
 
 /** The text of a project file, or null when it does not exist. */
-export async function readOptionalText(dir: string, path: string): Promise<IoResult<string | null>> {
+async function readOptionalText(dir: string, path: string): Promise<IoResult<string | null>> {
   const file = onDisk(dir, path);
   try {
     return { ok: true, value: await readFile(file, 'utf8') };
@@ -71,11 +72,22 @@ async function filesUnder(dir: string, path: string, out: string[]): Promise<IoR
   return { ok: true, value: undefined };
 }
 
+/** Whether two project paths are one directory entry on disk (a case-insensitive file system's two spellings). */
+async function oneFile(dir: string, a: string, b: string): Promise<boolean> {
+  try {
+    const [x, y] = await Promise.all([lstat(onDisk(dir, a)), lstat(onDisk(dir, b))]);
+    return x.dev === y.dev && x.ino === y.ino;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The disk snapshot of `dir` for planWrites: the sha1 of every file under GENERATED_ROOTS and of every path
  * in `paths` (the tree's paths, and the manifest's), 'absent' for a path with no file. Keys in code-unit
- * order. A symbolic link is hashed through to its target; a directory where a file is expected (a link to one
- * included) is E_IO_READ.
+ * order. A file the walk of the roots finds under another case than a path of `paths` that is the same file (a
+ * case-insensitive file system) is listed once, under the spelling `paths` gives. A symbolic link is hashed
+ * through to its target; a directory where a file is expected (a link to one included) is E_IO_READ.
  */
 export async function readDiskState(dir: string, paths: Iterable<string>): Promise<IoResult<ReadonlyMap<string, string | 'absent'>>> {
   const wanted = new Set<string>();
@@ -83,11 +95,17 @@ export async function readDiskState(dir: string, paths: Iterable<string>): Promi
     if (!isProjectPath(path)) return ioError('E_IO_READ', path, `${JSON.stringify(path)} is not a project path`);
     wanted.add(path);
   }
+  const given = new Map<string, string>();
+  for (const path of wanted) given.set(foldPath(path), path);
   for (const root of GENERATED_ROOTS) {
     const found: string[] = [];
     const listed = await filesUnder(dir, root.endsWith('/') ? root.slice(0, -1) : root, found);
     if (!listed.ok) return listed;
-    for (const path of found) wanted.add(path);
+    for (const path of found) {
+      const spelled = given.get(foldPath(path));
+      if (spelled !== undefined && spelled !== path && !wanted.has(path) && (await oneFile(dir, spelled, path))) continue;
+      wanted.add(path);
+    }
   }
   const out = new Map<string, string | 'absent'>();
   for (const path of [...wanted].sort(compareCodeUnits)) {

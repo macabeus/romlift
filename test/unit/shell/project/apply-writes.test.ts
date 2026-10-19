@@ -291,3 +291,50 @@ test('case-only renames of a module file, a module directory and a chunk file ap
   const again = await run(second);
   assert.deepEqual([...new Set(again.ops.map((o) => o.op))], ['keep']);
 });
+
+test('a case-only rename of a module directory that holds a file romlift does not own takes the directory along, and the next run warns only about that file (correctness-r1-1)', async () => {
+  const dir = await tempDir();
+  const tree = (module: string): FileEntry[] => [
+    { ownership: 'generated', path: `asm/${module}.s`, text: `.include "asm/nonmatchings/${module}/sub_08000100.s"\n`, writer: 'module' },
+    { ownership: 'generated', path: `asm/nonmatchings/${module}/sub_08000100.s`, text: 'F\n', writer: 'function' },
+    { ownership: 'generated', path: `asm/nonmatchings/${module}/sub_08000200.s`, text: 'G\n', writer: 'function' },
+  ];
+  const run = async (entries: readonly FileEntry[]): Promise<WritePlan> => {
+    const manifest = await readManifest(dir);
+    assert.ok(manifest.ok);
+    const disk = await readDiskState(dir, [...entries.map((e) => e.path), ...Object.keys(manifest.value?.files ?? {})]);
+    assert.ok(disk.ok);
+    const plan = planWrites({ entries, manifest: manifest.value, disk: disk.value, reconciledTexts: new Map(), hash: sha1Of, retained: [] });
+    const applied = await applyWrites(dir, plan);
+    assert.ok(applied.ok, applied.diagnostics.map((d) => d.message).join('; '));
+    return plan;
+  };
+  await run(tree('main'));
+  await writeFile(join(dir, 'asm', 'nonmatchings', 'main', 'notes.txt'), 'mine\n');
+  await run(tree('Main'));
+  // On this file system the directory itself now carries the new spelling, the user's file inside it.
+  assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings')), ['Main']);
+  assert.deepEqual((await readdir(join(dir, 'asm', 'nonmatchings', 'Main'))).sort(), ['notes.txt', 'sub_08000100.s', 'sub_08000200.s']);
+  assert.equal(await readFile(join(dir, 'asm', 'nonmatchings', 'Main', 'notes.txt'), 'utf8'), 'mine\n');
+  for (const e of tree('Main')) assert.equal(await readFile(join(dir, ...e.path.split('/')), 'utf8'), 'text' in e ? e.text : '', e.path);
+  // The next run keeps every tree file and warns only about the file romlift does not own.
+  const again = await run(tree('Main'));
+  assert.deepEqual([...new Set(again.ops.map((o) => o.op))], ['keep']);
+  assert.deepEqual(again.diagnostics.map((d) => [d.code, d.path]), [['W_UNOWNED_FILE', 'asm/nonmatchings/Main/notes.txt']]);
+});
+
+test('readDiskState lists a file once, under the spelling it is asked for, when the disk spells its directory otherwise and both are one file', async () => {
+  const dir = await tempDir();
+  await mkdir(join(dir, 'asm', 'nonmatchings', 'main'), { recursive: true });
+  await writeFile(join(dir, 'asm', 'nonmatchings', 'main', 'f.s'), 'F\n');
+  const state = await readDiskState(dir, ['asm/nonmatchings/Main/f.s']);
+  assert.ok(state.ok);
+  let caseInsensitive = true;
+  try {
+    await stat(join(dir, 'asm', 'nonmatchings', 'Main'));
+  } catch {
+    caseInsensitive = false;
+  }
+  if (caseInsensitive) assert.deepEqual([...state.value.keys()], ['asm/nonmatchings/Main/f.s']);
+  else assert.deepEqual([...state.value.entries()], [['asm/nonmatchings/Main/f.s', 'absent'], ['asm/nonmatchings/main/f.s', sha1Of('F\n')]]);
+});
