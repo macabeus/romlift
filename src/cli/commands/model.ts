@@ -17,7 +17,7 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, summaryLine } from '../reporters/ndjson.ts';
 import { columns, formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, usageError } from './analysis-records.ts';
+import { exitCodeOf, printDiagnosticsOnly, usageError, writeLines } from './analysis-records.ts';
 
 /** The summary of a model run: the exit code and the model's counts. */
 function modelSummary(model: Model, exitCode: ExitCode): RunSummary {
@@ -64,8 +64,8 @@ export const modelCommand: CommandSpec = {
     const diagnostics: readonly Diagnostic[] = [...analysis.diagnostics, ...model.diagnostics];
     const summary = modelSummary(model, exitCodeOf(diagnostics));
     if (json) {
-      for (const line of encodeModel(model, rom)) io.stdout(line);
-      io.stdout([...analysis.diagnostics.map(diagnosticLine), summaryLine(summary)].join(''));
+      await writeLines(io, encodeModel(model, rom));
+      await writeLines(io, [...analysis.diagnostics.map(diagnosticLine), summaryLine(summary)]);
     } else {
       if (diagnostics.length > 0) io.stderr(diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join(''));
       io.stdout(modelText(model, summary));

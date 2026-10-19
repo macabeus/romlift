@@ -17,7 +17,7 @@ import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
 import { columns, formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError } from './analysis-records.ts';
+import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError, writeLines } from './analysis-records.ts';
 
 // The analyze output.
 
@@ -58,14 +58,17 @@ export function analyzeSummary(result: AnalysisResult, exitCode: ExitCode): RunS
   };
 }
 
-/** The --json output of a finished analysis. */
+/** The --json lines of a finished analysis, built one at a time (a 32 MiB ROM has over 600,000 rejections). */
+export function* analyzeNdjsonLines(result: AnalysisResult, summary: RunSummary): Generator<string> {
+  for (const f of result.functions) yield recordLine('function', functionRecord(f));
+  for (const r of result.rejections) yield recordLine('rejection', rejectionRecord(r));
+  for (const d of result.diagnostics) yield diagnosticLine(d);
+  yield summaryLine(summary);
+}
+
+/** The --json output of a finished analysis, as one string. */
 export function analyzeNdjson(result: AnalysisResult, summary: RunSummary): string {
-  return [
-    ...result.functions.map((f) => recordLine('function', functionRecord(f))),
-    ...result.rejections.map((r) => recordLine('rejection', rejectionRecord(r))),
-    ...result.diagnostics.map(diagnosticLine),
-    summaryLine(summary),
-  ].join('');
+  return [...analyzeNdjsonLines(result, summary)].join('');
 }
 
 const FUNCTION_HEADER = ['entry', 'mode', 'extent', 'code end', 'origin', 'accepted', 'also'];
@@ -118,7 +121,7 @@ export const analyzeCommand: CommandSpec = {
     const result = discoverTuned(loaded.value, {}, disabledTuning(disabled.known));
     const summary = analyzeSummary(result, exitCodeOf(result.diagnostics));
     if (json) {
-      io.stdout(analyzeNdjson(result, summary));
+      await writeLines(io, analyzeNdjsonLines(result, summary));
     } else {
       const text = analyzeText(result, summary);
       if (text.stderr !== '') io.stderr(text.stderr);

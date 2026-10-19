@@ -36,6 +36,12 @@ export interface ParsedArgs {
 export interface CliIo {
   stdout(text: string): void;
   stderr(text: string): void;
+  /**
+   * Resolves once what stdout holds unwritten has drained (a pipe to a slow reader); a command that streams many
+   * lines awaits it between batches, so the queue never holds its whole output (D69, the bin's 384 MiB heap cap).
+   * Absent: stdout never queues (the tests' fakes).
+   */
+  readonly drained?: () => Promise<void>;
   readonly cwd: string;
   readonly env: Readonly<Record<string, string | undefined>>;
 }

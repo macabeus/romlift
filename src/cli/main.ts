@@ -69,6 +69,7 @@ if (import.meta.main) {
     stderr: (text) => {
       process.stderr.write(text);
     },
+    drained: () => (process.stdout.writableNeedDrain ? new Promise((resolve) => process.stdout.once('drain', resolve)) : Promise.resolve()),
     cwd: process.cwd(),
     env: process.env,
   };
