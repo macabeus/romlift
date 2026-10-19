@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "682da7212cc9c72858e91c6a40dd4e93cf05c607",
-    "dirty": true,
-    "sourceDigest": "b6295625bc58d21c347d0c66730dd96fb9ba8c6fa29605cb80275decbb0bdb64",
+    "commit": "29b356308eaf0823d7bbaeaade03126228036fa2",
+    "dirty": false,
+    "sourceDigest": "0831b0cc48cb7b1122fdf24224fa43b4e4ffbe5b5f0a92a736a146e5e8886236",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -113,7 +113,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "7967ad9e0d35e16adb36d7ab6170fc0a6a7be7489619987d9c44fbe68d8da3f8",
+    "inputsDigest": "3a418ee5c4e343831965f8bbcdc6f7e23f85d712f0025c6012030a4d234ad3ae",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1897,13 +1897,13 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1081,
+        "maxRssMiB": 1079.58,
         "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1359.25,
+        "maxRssMiB": 1091.92,
         "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
       }
     ]
@@ -2016,7 +2016,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 1.059; CPU/limit: fe7j 1164/13992 ms, klonoa 248/338 ms, pokeemerald 2126/4651 ms, sa2 729/863 ms, sa3 1107/1645 ms, tmc 1399/1967 ms"
+        "detail": "calibration ratio 1.035; CPU/limit: fe7j 1147/13676 ms, klonoa 249/330 ms, pokeemerald 2139/4546 ms, sa2 722/844 ms, sa3 1104/1608 ms, tmc 1435/1922 ms"
       },
       {
         "id": "g3.link",
@@ -2036,7 +2036,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "objdiff: fe7j: 1 assemble, 11 instruction, 130 missing-relocation, 26 missing-symbol, 25 relocation, 8 resolved-call; ColorFadeTick assemble source.s:10: Error: internal_relocation (type: OFFSET_IMM) not fixed up | PutUnkSprite instruction +0x232 replace: b 0x2a8 | .hword 0xe039 | TalkInterpret instruction +0x1052 delete: .hword 0x0 | (none) | TalkInterpret instruction +0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText; klonoa: 166 missing-relocation, 21 missing-symbol, 3 relocation, 130 tool; AgbMain missing-relocation +0x254 R_ARM_ABS32: gCallbackQueue | a plain value | AgbMain missing-relocation +0x258 R_ARM_ABS32: gCallbackQueue | a plain value | AthleticChallengeScrollUpdate missing-relocation +0x1640 R_ARM_ABS32: gBgInfo | a plain value | Clear64byte missing-relocation +0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearChain missing-relocation +0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value; pokeemerald: 4 assemble, 243 instruction, 765 missing-relocation, 453 missing-symbol, 544 relocation, 11776 resolved-call; GameCubeMultiBoot_HandleSerialInterrupt assemble source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | GameCubeMultiBoot_Hash assemble source.s:8: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | MPlayJumpTableCopy assemble source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | m4aSoundVSync assemble source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | AddBoxOptionsMenu instruction +0x8cba arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4; sa2: 2 assemble, 132 instruction, 46 missing-relocation, 127 missing-symbol, 52 relocation, 1016 resolved-call; MPlayJumpTableCopy assemble source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | m4aSoundVSync assemble source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | AnimateNewZonePath instruction +0x151a arg-mismatch: bl 0x1538 | bl sub_08035C00-0x4 | CreateEntity_IronBall instruction +0x160 arg-mismatch: bl 0x18c | bl sub_0807EFC4-0x4 | CreateEntity_IronBall instruction +0x166 arg-mismatch: bl 0x2a0 | bl sub_0807F0D8-0x4; sa3: 2 assemble, 123 instruction, 99 missing-relocation, 237 missing-symbol, 39 relocation, 65 resolved-call; MPlayJumpTableCopy assemble source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | m4aSoundVSync assemble source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC) | CgbSound instruction +0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0 | CreateApeProjectile instruction +0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4 | CreateBreakableWallDebris instruction +0x9fe delete: .hword 0x0 | (none); tmc: 188 missing-relocation, 1 missing-symbol, 383 relocation, 323 resolved-call; CheckAreaDiscovery missing-relocation +0xddc R_ARM_ABS32: gSave | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b0 R_ARM_ABS32: gMapTop | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b4 R_ARM_ABS32: gMapBottom | a plain value | CheckFusionMapMarkerDisabled missing-relocation +0x1308 R_ARM_ABS32: gSave | a plain value | CheckKinstoneFused missing-relocation +0x12ec R_ARM_ABS32: gSave | a plain value"
+        "detail": "objdiff: fe7j: 11 instruction, 130 missing-relocation, 26 missing-symbol, 25 relocation, 8 resolved-call; PutUnkSprite instruction +0x232 replace: b 0x2a8 | .hword 0xe039 | TalkInterpret instruction +0x1052 delete: .hword 0x0 | (none) | TalkInterpret instruction +0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xcc0 arg-mismatch: .word 0x30000c8 | .word sTalkText; klonoa: 166 missing-relocation, 21 missing-symbol, 3 relocation, 130 tool; AgbMain missing-relocation +0x254 R_ARM_ABS32: gCallbackQueue | a plain value | AgbMain missing-relocation +0x258 R_ARM_ABS32: gCallbackQueue | a plain value | AthleticChallengeScrollUpdate missing-relocation +0x1640 R_ARM_ABS32: gBgInfo | a plain value | Clear64byte missing-relocation +0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearChain missing-relocation +0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value; pokeemerald: 228 instruction, 765 missing-relocation, 453 missing-symbol, 544 relocation, 11798 resolved-call; AddBoxOptionsMenu instruction +0x8cba arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddItemQuantityWindow instruction +0x10dc arg-mismatch: bl 0x10e4 | bl sub_081ABC54-0x4 | AddWallpaperSetsMenu instruction +0x405a arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddWallpapersMenu instruction +0x4094 arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AllocMatchCallSprites instruction +0x1020 arg-mismatch: bl 0x1110 | bl sub_081CC370-0x4; sa2: 130 instruction, 46 missing-relocation, 127 missing-symbol, 52 relocation, 1019 resolved-call; AnimateNewZonePath instruction +0x151a arg-mismatch: bl 0x1538 | bl sub_08035C00-0x4 | CreateEntity_IronBall instruction +0x160 arg-mismatch: bl 0x18c | bl sub_0807EFC4-0x4 | CreateEntity_IronBall instruction +0x166 arg-mismatch: bl 0x2a0 | bl sub_0807F0D8-0x4 | CreateMultiplayerLobbyScreen instruction +0x42 arg-mismatch: bl 0x78 | bl sub_08087478-0x4 | CreateRaceProgressIndicator instruction +0x5a arg-mismatch: bl 0x80 | bl sub_08086D68-0x4; sa3: 121 instruction, 99 missing-relocation, 237 missing-symbol, 39 relocation, 68 resolved-call; CgbSound instruction +0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0 | CreateApeProjectile instruction +0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4 | CreateBreakableWallDebris instruction +0x9fe delete: .hword 0x0 | (none) | CreateCharacterSelect instruction +0xe2 arg-mismatch: bl 0x208 | bl sub_08097E5C-0x4 | CreateCondorProjectile instruction +0x8e2 arg-mismatch: bl 0x5dc | bl sub_0805944C-0x4; tmc: 188 missing-relocation, 1 missing-symbol, 383 relocation, 323 resolved-call; CheckAreaDiscovery missing-relocation +0xddc R_ARM_ABS32: gSave | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b0 R_ARM_ABS32: gMapTop | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b4 R_ARM_ABS32: gMapBottom | a plain value | CheckFusionMapMarkerDisabled missing-relocation +0x1308 R_ARM_ABS32: gSave | a plain value | CheckKinstoneFused missing-relocation +0x12ec R_ARM_ABS32: gSave | a plain value"
       },
       {
         "id": "g3.raw-link",
@@ -2070,7 +2070,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 1.035; fe7j analysis 1149/3106 ms, klonoa analysis 241/3106 ms, pokeemerald analysis 2095/3106 ms, pokeemerald generate 8116/10355 ms, pokeemerald init 9674/15532 ms, sa2 analysis 701/3106 ms, sa3 analysis 1108/3106 ms, tmc analysis 1407/3106 ms"
+        "detail": "calibration ratio 1.029; fe7j analysis 1156/3087 ms, klonoa analysis 251/3087 ms, pokeemerald analysis 2083/3087 ms, pokeemerald generate 8002/10291 ms, pokeemerald init 10522/15436 ms, sa2 analysis 717/3087 ms, sa3 analysis 1104/3087 ms, tmc analysis 1387/3087 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2398,7 +2398,6 @@
         "linked": true,
         "scored": 1471,
         "differences": {
-          "assemble": 1,
           "instruction": 11,
           "missing-relocation": 130,
           "missing-symbol": 26,
@@ -2407,11 +2406,6 @@
           "unnamed-target": 55
         },
         "examples": [
-          {
-            "function": "ColorFadeTick",
-            "kind": "assemble",
-            "detail": "source.s:10: Error: internal_relocation (type: OFFSET_IMM) not fixed up"
-          },
           {
             "function": "PutUnkSprite",
             "kind": "instruction",
@@ -2896,35 +2890,14 @@
         "linked": true,
         "scored": 15850,
         "differences": {
-          "assemble": 4,
-          "instruction": 243,
+          "instruction": 228,
           "missing-relocation": 765,
           "missing-symbol": 453,
           "relocation": 544,
-          "resolved-call": 11776,
+          "resolved-call": 11798,
           "unnamed-target": 2758
         },
         "examples": [
-          {
-            "function": "GameCubeMultiBoot_HandleSerialInterrupt",
-            "kind": "assemble",
-            "detail": "source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
-          },
-          {
-            "function": "GameCubeMultiBoot_Hash",
-            "kind": "assemble",
-            "detail": "source.s:8: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
-          },
-          {
-            "function": "MPlayJumpTableCopy",
-            "kind": "assemble",
-            "detail": "source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
-          },
-          {
-            "function": "m4aSoundVSync",
-            "kind": "assemble",
-            "detail": "source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
-          },
           {
             "function": "AddBoxOptionsMenu",
             "kind": "instruction",
@@ -3208,25 +3181,14 @@
         "linked": true,
         "scored": 2887,
         "differences": {
-          "assemble": 2,
-          "instruction": 132,
+          "instruction": 130,
           "missing-relocation": 46,
           "missing-symbol": 127,
           "relocation": 52,
-          "resolved-call": 1016,
+          "resolved-call": 1019,
           "unnamed-target": 143
         },
         "examples": [
-          {
-            "function": "MPlayJumpTableCopy",
-            "kind": "assemble",
-            "detail": "source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
-          },
-          {
-            "function": "m4aSoundVSync",
-            "kind": "assemble",
-            "detail": "source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
-          },
           {
             "function": "AnimateNewZonePath",
             "kind": "instruction",
@@ -3510,25 +3472,14 @@
         "linked": true,
         "scored": 4305,
         "differences": {
-          "assemble": 2,
-          "instruction": 123,
+          "instruction": 121,
           "missing-relocation": 99,
           "missing-symbol": 237,
           "relocation": 39,
-          "resolved-call": 65,
+          "resolved-call": 68,
           "unnamed-target": 44
         },
         "examples": [
-          {
-            "function": "MPlayJumpTableCopy",
-            "kind": "assemble",
-            "detail": "source.s:9: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
-          },
-          {
-            "function": "m4aSoundVSync",
-            "kind": "assemble",
-            "detail": "source.s:7: Error: invalid offset, value too big (0xFFFFFFFFFFFFFFFC)"
-          },
           {
             "function": "CgbSound",
             "kind": "instruction",

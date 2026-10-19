@@ -297,6 +297,30 @@ records `682da72` with the documentation as the only uncommitted change (the sou
 
 ## Measured numbers
 
+### Fix round 1 (`29b3563`)
+
+Node 24.15, binutils 2.45.1, objdiff-cli 3.7.2. Fixtures: 47 of 47 pass the model self-checks, the text-layout and
+paths checks of both printers and link to their SHA-1 with both printers; the writer goldens and the 47 trees'
+determinism are unchanged. Every tuning ROM: self-checks ok, raw and readable link to the SHA-1, readability
+99.999% to 100% (at its floor, as before), analysis rows unchanged (`bench regression` against `c5cc0b1`: no
+regression).
+
+| ROM | objdiff scored | gated (D34) | `unnamed-target` | gated under Q1 option (b) | `generate` + write CPU | `init` CPU |
+| --- | --- | --- | --- | --- | --- | --- |
+| fe7j | 1,471 | 200 | 55 | 9 | 3,625 ms | 4,832 ms |
+| klonoa | 485 | 320 | 0 | 3 | 1,070 ms | 1,332 ms |
+| pokeemerald | 15,850 | 13,788 | 2,758 | 18 | 8,209 ms | 10,690 ms |
+| sa2 | 2,887 | 1,374 | 143 | 7 | 2,396 ms | 3,101 ms |
+| sa3 | 4,305 | 564 | 44 | 51 | 3,204 ms | 4,330 ms |
+| tmc | 8,388 | 895 | 357 | 21 | 3,725 ms | 5,197 ms |
+
+(`bench speed`, calibration ratio 0.976; `g3.speed-budget`'s own run: ratio 1.029, pokeemerald `generate` 8,002 of
+10,291 ms, `init` 10,522 of 15,436 ms.) The objdiff totals moved from the closing round's 201 / 320 / 13,785 / 1,375 /
+565 / 895: the bases that did not assemble are compared now, and resolved `b`s count as `resolved-call` (D65 i).
+Large ROM: `init` 1,079.6 and `generate` 1,091.9 MiB (`run --scaffold`), 1,089.7 and 1,121.3 MiB (`g3.large-rom`).
+
+### Closing round (`682da72`)
+
 The closing run (`682da72`, Node 24.15, binutils 2.45.1, objdiff-cli 3.7.2). Fixtures: 47 of 47 pass the model
 self-checks, the text-layout and paths checks of both printers, and link to their SHA-1 with both printers;
 47 writer goldens per writer; 47 trees identical across cwd, project path, TZ and locale.
@@ -385,8 +409,10 @@ Facts. Every recorded run of the 32 MiB synthetic ROM (SHA-1 `b846b945…`, 3,63
 | `g3.large-rom` at `682da72` | 1,122.5 MiB | 1,019.0 MiB |
 | the review's `gates --tier ci` at `9b3f244` | 1,273.5 MiB | 1,349.2 MiB |
 | the review's second `gates --tier ci` at `9b3f244` | 1,106.4 MiB | 1,056.1 MiB |
-FIXROUND_ROWS
-| minimum to maximum | MIN_INIT to MAX_INIT MiB | MIN_GEN to MAX_GEN MiB |
+| fix round 1, `run --scaffold` memory family at `29b3563` | 1,079.6 MiB | 1,091.9 MiB |
+| fix round 1, `g3.large-rom` (`gates --tier ci`) at `29b3563` | 1,089.7 MiB | 1,121.3 MiB |
+| fix round 1, `bench large-rom` alone at `29b3563` (one scratch change: every file flushed; RSS is not the write's) | 1,021.6 MiB | 1,082.5 MiB |
+| minimum to maximum | 1,021.6 to 1,273.5 MiB | 1,019.0 to 1,359.3 MiB |
 
 Before D64 e: 1,845.7 (`init`) and 1,366.3 MiB (`generate`). The "1,019 to 1,495 MiB" spread the closing round
 quoted has no recorded run behind its 1,495 MiB and is withdrawn. The live set after the analysis is about 225 MiB
@@ -413,7 +439,7 @@ Options.
   bring the 16 MiB tuning ROMs (0.35 to 1.1 GiB today) down too, since a user's ROM of that size runs the same
   code.
 - (b) Raise the budget to a measured value with margin, keeping the ratchet; sized against the maximum above
-  (MAX_ALL MiB) it would be at least 1,792 MiB; D42 rejected 1 GiB budgets as hiding leaks. Under it pokeemerald's
+  (1,359.3 MiB) it would be at least 1,792 MiB; D42 rejected 1 GiB budgets as hiding leaks. Under it pokeemerald's
   1.0 to 1.1 GiB would pass; the gate measures only the synthetic ROM.
 - (c) Measure the gate under a fixed heap cap (`--max-old-space-size=256`, which the `romlift` bin would also
   pass), so it measures the live set rather than V8's sizing, and set the budget from that measurement (595 to 684
@@ -485,6 +511,41 @@ stubs; (iii) for (c), make the confirm run not re-validate the functions configF
 change, measured against g2's gates).
 
 ## The closing gate
+
+### Fix round 1
+
+Run at `29b3563` in the main checkout, every command from the repository root in this order, the environment
+above, `test/gates/phase.json` at `{ "landed": 2 }` (the phase does not land):
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 of 21 pass |
+| `npm test` | 0 | 1,914 tests, 1,914 pass, 0 fail, 0 todo |
+| `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (binutils 2.45.1) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, equal to `bench/baseline/poc-digests.json` |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, each parity matching the committed digest |
+| `npm run export-poc -- --mode raw` | 0 | 47 fixtures |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 74 tests, 74 pass, 0 skipped |
+| `npm run bench -- doctor-real` | 0 | every input ok (objdiff-cli 3.7.2) |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | summary ok (agbcc and old_agbcc reported missing, not required) |
+| `npm run corpus` | 0 | 100% round trip, 4.3 s |
+| `npm run bench -- run --scaffold` | 0 | six rows written, raw and readable SHA-1 on all six, sealed pair pass |
+| `npm run bench -- speed` | 0 | every ROM ok; pokeemerald `generate` 8,209 ms, `init` 10,690 ms |
+| `npm run bench -- regression` | 0 | no regression against `c5cc0b1` |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | six ROMs OK |
+| `npm run bench -- gates --require 3 --tier real` | **1** | every gate of phase ≤ 3 pass or historical except **`g3.objdiff` fail** (Q1); g4 to g6 pending |
+| `npm run bench -- gates --require 3 --tier ci` | **1** | every gate of phase ≤ 3 pass except **`g3.large-rom` fail** (Q2: `init` 1,089.7 MiB, `generate` 1,121.3 MiB) |
+| `npm run bench -- provenance` | 0 | ok |
+| `npm run bench -- stale-check` | 0 | the artifact is current, source digest `0831b0cc…` |
+
+The phase is not merged, and the branch is not pushed for its pull request, until Q1 to Q5 are answered.
+`bench/results.json` is the one this run wrote (commit `29b3563`), committed after it with no source change.
+
+### Closing round
 
 Run at `682da72` in the main checkout (`/Users/macabeus/ApenasMeu/decompiler/romlift`), every command from the
 repository root in this order, the environment above, `test/gates/phase.json` at `{ "landed": 2 }`:
