@@ -27,6 +27,7 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 | `p3-fixture-goldens` | 3 | `phase-3-fixture-goldens` | merged (`f726652`) | the writer goldens, `export-poc --mode raw` and the raw printer's PoC parity, the six-ROM emission test, the tree digests in CI, the emission fixes of wave 3 |
 | closing fix round | lead | `phase-3` | committed (`c5d42cf`, `962fbb8`, `34a77cd`, `682da72`) | the confirm-mode startup fix, `[symbols]` outside the ROM as labels, the objdiff base's RAM names, the write and analysis speed and memory changes, the readability floors (D64) |
 | review fix round 1 | lead | `phase-3` | committed (`089ff8d` to `5f7267f`, then the docs and artifact commits) | the review's blocker and majors (D65), the minors, Q3 to Q5; section "Review" |
+| review fix round 2 | lead | `phase-3` | committed (`ac9934c` to `1ac3527`, then the docs and artifact commits) | the second review's two majors and fifteen minors (D66), the checked objdiff classifier; section "Review", fix round 2 |
 
 ### p3-lead (wave 1)
 
@@ -297,6 +298,27 @@ records `682da72` with the documentation as the only uncommitted change (the sou
 
 ## Measured numbers
 
+### Fix round 2 (`11c49fe`)
+
+Node 24.15, binutils 2.45.1, objdiff-cli 3.7.2. Fixtures: 47 of 47 pass the model self-checks, the text-layout and
+paths checks of both printers and link to their SHA-1 with both printers; the writer, model and analysis goldens
+and the 47 trees' digests are unchanged (no fix of this round changes an emitted byte). Every tuning ROM: self-checks
+ok, raw and readable link to the SHA-1, readability at its floor, analysis rows unchanged (`bench regression`
+against `c5cc0b1`: no regression). The objdiff totals per kind are fix round 1's; their classes are Q1's table.
+
+| ROM | objdiff scored | gated (D34) | `unnamed-target` | gated under Q1 option (b) | `generate` + write CPU | `init` CPU |
+| --- | --- | --- | --- | --- | --- | --- |
+| fe7j | 1,471 | 200 | 55 | 9 | 3,596 ms | 4,761 ms |
+| klonoa | 485 | 320 | 0 | 3 | 1,082 ms | 1,310 ms |
+| pokeemerald | 15,850 | 13,788 | 2,758 | 18 | 7,890 ms | 10,226 ms |
+| sa2 | 2,887 | 1,374 | 143 | 7 | 2,389 ms | 3,048 ms |
+| sa3 | 4,305 | 564 | 44 | 51 | 3,110 ms | 4,115 ms |
+| tmc | 8,388 | 895 | 357 | 22 | 3,563 ms | 4,909 ms |
+
+(`bench speed`, calibration ratio 0.945; `g3.speed-budget`'s own run: ratio 0.944, pokeemerald `generate` 7,823 of
+9,439 ms, `init` 10,337 of 14,158 ms.) Large ROM: `init` 1,055.5 and `generate` 1,372.9 MiB (`run --scaffold`),
+1,258.1 and 1,129.9 MiB (`g3.large-rom`), the same tree digest `9d9c915d…`.
+
 ### Fix round 1 (`29b3563`)
 
 Node 24.15, binutils 2.45.1, objdiff-cli 3.7.2. Fixtures: 47 of 47 pass the model self-checks, the text-layout and
@@ -349,7 +371,7 @@ fails under 200 MiB. The run-to-run spread (1,019 to 1,495 MiB) is V8 sizing its
 ## Owner questions
 
 Every owner decision of architecture §12 is built with its documented safe default (D62 i). Two gates fail after
-fix round 1 (`g3.objdiff`, `g3.large-rom`), and three limitations or gate narrowings were made without the owner's
+fix rounds 1 and 2 (`g3.objdiff`, `g3.large-rom`), and three limitations or gate narrowings were made without the owner's
 words (Q3 to Q5); each needs his answer, so the phase does not land until he gives them.
 
 ### Q1. `g3.objdiff`: almost every remaining difference links to the same word
@@ -421,7 +443,15 @@ Facts. Every recorded run of the 32 MiB synthetic ROM (SHA-1 `b846b945…`, 3,63
 | fix round 1, `run --scaffold` memory family at `29b3563` | 1,079.6 MiB | 1,091.9 MiB |
 | fix round 1, `g3.large-rom` (`gates --tier ci`) at `29b3563` | 1,089.7 MiB | 1,121.3 MiB |
 | fix round 1, `bench large-rom` alone at `29b3563` (one scratch change: every file flushed; RSS is not the write's) | 1,021.6 MiB | 1,082.5 MiB |
-| minimum to maximum | 1,021.6 to 1,273.5 MiB | 1,019.0 to 1,359.3 MiB |
+| the second review's `run --scaffold` memory family at `e048247` | 1,127.7 MiB | 1,415.2 MiB |
+| the second review's `gates --require 3 --tier ci` at `e048247` | 1,014.4 MiB | 1,098.5 MiB |
+| fix round 2, `run --scaffold` memory family at `11c49fe` | 1,055.5 MiB | 1,372.9 MiB |
+| fix round 2, `g3.large-rom` (`gates --tier ci`) at `11c49fe` | 1,258.1 MiB | 1,129.9 MiB |
+| minimum to maximum of these runs | 1,014.4 to 1,273.5 MiB | 1,019.0 to 1,415.2 MiB |
+
+The spread is V8 sizing its heap to the machine and the moment, with the same source and the same tree digest
+(`9d9c915d…`) every time; it is not bounded by the recorded runs, and a later run can exceed every one of them (the
+review's 1,415.2 MiB exceeded fix round 1's stated maximum, delivery-r1-1).
 
 Before D64 e: 1,845.7 (`init`) and 1,366.3 MiB (`generate`). The "1,019 to 1,495 MiB" spread the closing round
 quoted has no recorded run behind its 1,495 MiB and is withdrawn. The live set after the analysis is about 225 MiB
@@ -447,8 +477,9 @@ Options.
   index and the rejection details out of the heap, and a heap cap set by the `romlift` launcher; and it has to
   bring the 16 MiB tuning ROMs (0.35 to 1.1 GiB today) down too, since a user's ROM of that size runs the same
   code.
-- (b) Raise the budget to a measured value with margin, keeping the ratchet; sized against the maximum above
-  (1,359.3 MiB) it would be at least 1,792 MiB; D42 rejected 1 GiB budgets as hiding leaks. Under it pokeemerald's
+- (b) Raise the budget to a measured value with margin, keeping the ratchet; sized against the largest recorded
+  peak (1,415.2 MiB, `generate` at `e048247`) with a 25% margin, rounded up to 128 MiB, it would be at least 1,792
+  MiB, and since the spread is not bounded by the recorded runs it can still be exceeded; D42 rejected 1 GiB budgets as hiding leaks. Under it pokeemerald's
   1.0 to 1.1 GiB would pass; the gate measures only the synthetic ROM.
 - (c) Measure the gate under a fixed heap cap (`--max-old-space-size=256`, which the `romlift` bin would also
   pass), so it measures the live set rather than V8's sizing, and set the budget from that measurement (595 to 684
@@ -520,6 +551,39 @@ stubs; (iii) for (c), make the confirm run not re-validate the functions configF
 change, measured against g2's gates).
 
 ## The closing gate
+
+### Fix round 2
+
+Run at `11c49fe` in the main checkout, every command from the repository root in this order, the environment
+above, `test/gates/phase.json` at `{ "landed": 2 }` (the phase does not land):
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | 8 packages |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 of 21 pass |
+| `npm test` | 0 | 1,934 tests, 1,934 pass, 0 fail, 0 todo |
+| `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (binutils 2.45.1) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, equal to `bench/baseline/poc-digests.json` |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, each parity matching the committed digest |
+| `npm run export-poc -- --mode raw` | 0 | 47 fixtures |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 74 tests, 74 pass, 0 skipped |
+| `npm run bench -- doctor-real` | 0 | every input ok (objdiff-cli 3.7.2) |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | summary ok (agbcc and old_agbcc reported missing, not required) |
+| `npm run corpus` | 0 | 100% round trip, 4.0 s |
+| `npm run bench -- run --scaffold` | 0 | six rows written, raw and readable SHA-1 on all six, sealed pair pass |
+| `npm run bench -- speed` | 0 | every ROM ok; pokeemerald `generate` 7,890 ms, `init` 10,226 ms |
+| `npm run bench -- regression` | 0 | no regression against `c5cc0b1` |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | six ROMs OK |
+| `npm run bench -- gates --require 3 --tier real` | **1** | every gate of phase ≤ 3 pass or historical except **`g3.objdiff` fail** (Q1); g4 to g6 pending |
+| `npm run bench -- gates --require 3 --tier ci` | **1** | every gate of phase ≤ 3 pass except **`g3.large-rom` fail** (Q2: `init` 1,258.1 MiB, `generate` 1,129.9 MiB) |
+| `npm run bench -- provenance` | 0 | ok |
+| `npm run bench -- stale-check` | 0 | the artifact is current, source digest `af1ab245…` |
+
+The phase is not merged, and the branch is not pushed for its pull request, until Q1 to Q5 are answered.
+`bench/results.json` is the one this run wrote (commit `11c49fe`), committed after it with no source change.
 
 ### Fix round 1
 
@@ -713,3 +777,28 @@ The review of `9b3f244` (architecture-1 to -14, correctness-1 to -7, delivery-1 
 | delivery-11 | minor | **Fixed**: the README says phase 2 has landed (#2 merged, tag `phase-2`). |
 | delivery-12 | minor | **Fixed**: AGENTS.md's `test:local` row names emission-real, poc-raw-printer and objdiff and their inputs. |
 | delivery-13 | minor | **Owner question Q5 (b)**, as a limitation carried into phase 4. |
+
+### Fix round 2
+
+The review of fix round 1 (`e048247`): architecture-r1-1 to -14, correctness-r1-1 and -2, delivery-r1-1. Each fix is
+its own commit; a defect's fix has a test that fails without it (D66).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| architecture-r1-1 | major | **Fixed** (`1ac3527`, D66 g). The classifier checks every same-word class: the word or branch target each side links to, from the ELF's addresses and Thumb bits, the reference relocation's addend (read from the reference object, REL implicit or RELA explicit) and the base's addend or plain value (read from the base object); static-callee checks the reference's resolved target against the callee's address; a difference whose facts are missing is the new class `unverified`, gated under option (b); the switch over kinds is exhaustive (`never`) and throws on an unknown kind; default spellings parse through romlift's `defaultSpellingAddress`. Re-measured: no difference is unverified; one tmc `alias` does not link to the same word and is `relocation-other` now; option (b)'s remainder is 110 (was 109). Q1's table is the new output. |
+| correctness-r1-1 | major | **Fixed** (`ac9934c`, D66 a). Before a write, each component of its path that exists under another case and is the same directory entry (dev and inode) is renamed to the op's spelling through a temporary name, taking what it holds along; readDiskState lists a file found under another spelling of an asked-for path once, under that path. Apply test: renaming `main` to `Main` with an unowned `notes.txt` inside leaves `asm/nonmatchings/Main/` holding the tree's files and `notes.txt`, and the next run keeps all with one W_UNOWNED_FILE (for `notes.txt`); it and the snapshot test fail without the fix. A tree the earlier version left misspelled is repaired the next time a file in that directory is written. |
+| correctness-r1-2 | minor | **Fixed** (`0ccfb46`, D66 b). Symbol and module names are at most 200 characters (schema, E_NAME_INVALID); the paths check raises E_PATH_TOO_LONG for a component over 255 UTF-8 bytes. Tests for both. |
+| delivery-r1-1 | minor | **Fixed** in Q2: the review's two runs at `e048247` and this round's runs are in the table, the spread is stated as V8 sizing its heap (not bounded by the recorded runs), and option (b)'s budget is derived from the largest recorded peak, 1,415.2 MiB. |
+| architecture-r1-2 | minor | **Fixed** (`c186d7f`). core/layout/{align,entries,tiling,refs,asm-only}.ts; borders.ts keeps codeLayout, legalBorders, nearestBorders and re-exports what core/model and core/workflow use, so the model's one edge is unchanged. The fix-round-1 disposition ("the edge table admits only borders.ts") was wrong and is withdrawn. |
+| architecture-r1-3 | minor | **Fixed** (`c186d7f`). test/unit/layout/refs-agree.test.ts: on all 47 fixtures, discover and confirm runs, every pool load and adr codeRefs names inside a function span is in borderRefs' list at the same site and target (run offset applied); 502 references. |
+| architecture-r1-4 | minor | **Fixed** (`1e70e17`). `decodeItemAt(rom, items, i, runOffset): Insn \| string` in core/model/item-table.ts (u32/u16 reads); itemAt throws its reason, the re-encode check reports it; the `<< 16` assembly is gone. |
+| architecture-r1-5 | minor | **Fixed in part, exception recorded** (`44b4a93`, D66 d). chunkPathsOf in core/model/paths.ts is the one memo, shared by the writers and textLayoutIndex, so a generate computes the paths once; unit-text.ts's WeakMap is gone. The resolver's label index stays a memo: D66 d records why (frozen public printChunk/resolverFor/Writer signatures, the model JSON contract). |
+| architecture-r1-6 | minor | **Fixed** (`236f43b`). One `externalSymbols(model)` and `isOutsideRom` in core/model/symbols.ts; both writers use it; the verifier builds its by-name map from it (`externalSymbolValues`); the ldscript writer no longer imports the symbols writer. |
+| architecture-r1-7 | minor | **Fixed** (`f1f15ff`). DIALECT.macrosPath and DIALECT.macrosInclude; the preamble is built from them; MACROS_PATH re-exports the path; text-layout takes the include line from the dialect. |
+| architecture-r1-8 | minor | **Fixed** (`98436ea`). runStartOf and toLoad in core/model/modules.ts; one moduleIndexAt (moved there, re-exported by resolver.ts and `romlift`) taking the relocated modules to search, replacing runModuleAt; text-layout, the data writer and the label index pass the relocated list once; labels.ts sorts with compareLabels. |
+| architecture-r1-9 | minor | **Fixed** (`c452056`, D66 f). `textLayoutIndex(model)` (type TextLayoutIndex) is exported and `checkEntry(rom, model, index, entry)` takes it. |
+| architecture-r1-10 | minor | **Fixed** (`a95229f`). AssembleUnit and `assembleUnits(model)` in core/model/paths.ts, built from each module; core/verify/toolchain.ts `unassemblable(unit)` holds the not-assembly verdict the shell reports; tests for both and for the shell branch (stub `as` that fails if it runs). |
+| architecture-r1-11 | minor | **Fixed** (`1c71482`). test/mutation/phase3/link-scripts.test.ts covers unitAlignment's start branch and the three uncovered ldscript branches. |
+| architecture-r1-12 | minor | **Fixed** (`cc9c8df`, D66 e). DecompState.defined is a sorted `readonly string[]`; the generate test JSON round-trips every non-model field of a result. |
+| architecture-r1-13 | minor | **Fixed** (`ac9934c`, `cc9c8df`). readOptionalText, fileText, corpusDetail, ROMLIFT_CONFIG_SCHEMA, labelKindRank and four cli helpers unexported; removeStale documented as exported for its race test; generate()'s comment names generatedEntries. |
+| architecture-r1-14 | minor | **Fixed** (`0ccfb46`, D66 c). W_OVERRIDE_OUTSIDE_ROM in core/model/codes.ts; a test raises both codes. |

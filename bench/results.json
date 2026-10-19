@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "29b356308eaf0823d7bbaeaade03126228036fa2",
+    "commit": "11c49fec7aa94d0085b58413c319b15a8adeeaf3",
     "dirty": false,
-    "sourceDigest": "0831b0cc48cb7b1122fdf24224fa43b4e4ffbe5b5f0a92a736a146e5e8886236",
+    "sourceDigest": "af1ab2451b401f2d0214c8838b1db5c522f121078291c72f808808c422db10c0",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -113,7 +113,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "3a418ee5c4e343831965f8bbcdc6f7e23f85d712f0025c6012030a4d234ad3ae",
+    "inputsDigest": "218b030468d2b62f4b37034906368670a8bde5f81bbaa933c24555c365447d0b",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1897,13 +1897,13 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1079.58,
+        "maxRssMiB": 1055.45,
         "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1091.92,
+        "maxRssMiB": 1372.89,
         "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
       }
     ]
@@ -2016,7 +2016,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 1.035; CPU/limit: fe7j 1147/13676 ms, klonoa 249/330 ms, pokeemerald 2139/4546 ms, sa2 722/844 ms, sa3 1104/1608 ms, tmc 1435/1922 ms"
+        "detail": "calibration ratio 0.953; CPU/limit: fe7j 1069/12598 ms, klonoa 248/304 ms, pokeemerald 2040/4188 ms, sa2 700/777 ms, sa3 1108/1481 ms, tmc 1334/1771 ms"
       },
       {
         "id": "g3.link",
@@ -2070,7 +2070,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 1.029; fe7j analysis 1156/3087 ms, klonoa analysis 251/3087 ms, pokeemerald analysis 2083/3087 ms, pokeemerald generate 8002/10291 ms, pokeemerald init 10522/15436 ms, sa2 analysis 717/3087 ms, sa3 analysis 1104/3087 ms, tmc analysis 1387/3087 ms"
+        "detail": "calibration ratio 0.944; fe7j analysis 1088/2832 ms, klonoa analysis 247/2832 ms, pokeemerald analysis 2060/2832 ms, pokeemerald generate 7823/9439 ms, pokeemerald init 10337/14158 ms, sa2 analysis 759/2832 ms, sa3 analysis 1106/2832 ms, tmc analysis 1368/2832 ms"
       },
       {
         "id": "g3.text-layout",
