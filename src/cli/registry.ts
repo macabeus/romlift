@@ -38,7 +38,7 @@ export interface CliIo {
   stderr(text: string): void;
   /**
    * Resolves once what stdout holds unwritten has drained (a pipe to a slow reader); a command that streams many
-   * lines awaits it between batches, so the queue never holds its whole output (D69, the bin's 384 MiB heap cap).
+   * lines awaits it between batches, so the queue never holds its whole output (D69, D72: the bin's heap cap).
    * Absent: stdout never queues (the tests' fakes).
    */
   readonly drained?: () => Promise<void>;

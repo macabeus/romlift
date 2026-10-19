@@ -9,11 +9,11 @@ import { allCompleted, BIN_RUNS, binRunOf, CLI_MAIN, completed, largeRomBin, lau
 const SHA = 'b846b9453414ce93afc5e8fd559eaac582dc570e';
 const VERIFY_LINK: BinRun = { command: 'verify --link', args: [], json: true, link: true };
 
-test("launcherOptions reads the bin's first line; src/cli/main.ts caps the old space at 384 MiB (D69)", () => {
+test("launcherOptions reads the bin's first line; src/cli/main.ts caps the old space at 1,024 MiB (D72)", () => {
   assert.deepEqual(launcherOptions('#!/usr/bin/env -S node --max-old-space-size=384\n// x'), ['--max-old-space-size=384']);
   assert.deepEqual(launcherOptions('#!/usr/bin/env -S node\n'), []);
   assert.throws(() => launcherOptions('// no launcher\n'), /not the bin's launcher/);
-  assert.deepEqual(launcherOptions(readFileSync(CLI_MAIN, 'utf8')), ['--max-old-space-size=384']);
+  assert.deepEqual(launcherOptions(readFileSync(CLI_MAIN, 'utf8')), ['--max-old-space-size=1024']);
 });
 
 test('binRunOf: the RSS and live-heap lines, the summary, the linked SHA-1; an aborted process has neither and its FATAL line', () => {
@@ -44,10 +44,10 @@ test('largeRomBin runs every command with the launcher options and the RSS probe
     },
     log: () => {},
   });
-  assert.deepEqual(report.nodeOptions, ['--max-old-space-size=384']);
+  assert.deepEqual(report.nodeOptions, ['--max-old-space-size=1024']);
   assert.deepEqual(report.runs.map((r) => r.command), BIN_RUNS.map((r) => r.command));
   assert.ok(report.runs.every((r) => r.peakLiveHeapMiB === 1.5));
-  assert.ok(calls.every((a) => a[0] === '--conditions=source' && a[1] === '--max-old-space-size=384' && a[2] === '--import' && a[4] === CLI_MAIN));
+  assert.ok(calls.every((a) => a[0] === '--conditions=source' && a[1] === '--max-old-space-size=1024' && a[2] === '--import' && a[4] === CLI_MAIN));
   assert.ok(calls.every((a) => !a.includes('{rom}')), 'the ROM path replaces the placeholder');
   assert.ok(allCompleted(report));
   assert.ok(!allCompleted({ ...report, runs: report.runs.slice(1) }));

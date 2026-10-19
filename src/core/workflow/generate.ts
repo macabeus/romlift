@@ -190,7 +190,7 @@ export function initConfig(rom: Rom, options: { readonly profile?: CompilerProfi
 /**
  * initConfig without its discover analysis: initModel and generateFromRom run the confirm analysis next, and the
  * discover result (about as large as the confirm one on a 32 MiB ROM) must be garbage by then, or the two together
- * do not fit under the `romlift` bin's 384 MiB heap cap (D69; phase-3.md, fix round 4).
+ * do not fit under the `romlift` bin's heap cap (384 MiB then, 1,024 MiB since D72; D69; phase-3.md, fix round 4).
  */
 function configAlone(rom: Rom, options: { readonly profile?: CompilerProfile }): { readonly ok: true; readonly config: RomliftConfig } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const init = initConfig(rom, options);

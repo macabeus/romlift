@@ -3,7 +3,7 @@
 // (`npm run bench -- large-rom` spawns this file and never imports it). It builds the deterministic 32 MiB synthetic
 // image (large-rom-image.ts), or reads the ROM `--rom` names (the tuning ROMs are measured that way, D68 b), writes it
 // into a temporary directory, and runs each workflow in a child process of its own, under the heap cap the `romlift`
-// bin passes (`--max-old-space-size=384`, src/cli/main.ts's first line, D69), so each peak resident set is that
+// bin passes (`--max-old-space-size=1024`, src/cli/main.ts's first line, D72), so each peak resident set is that
 // workflow's alone, measured as a user's run would be:
 //   init       the discover analysis, configFromDiscover, generate, planWrites and applyWrites into an empty
 //              directory; it also writes the config it built, which the next child reads;
@@ -46,10 +46,11 @@ export const LARGE_ROM_SCHEMA = 'romlift/bench-large-rom@1';
 export const LARGE_ROM_MAX_RSS_MIB = 1088;
 /**
  * The heap cap, in MiB of V8's old space, that the `romlift` bin passes to Node (`#!/usr/bin/env -S node
- * --max-old-space-size=384`, the first line of src/cli/main.ts) and every child of this script runs under (D68 b;
- * 384 MiB by the owner's answer to Q6, which replaces Q2's 256, D69).
+ * --max-old-space-size=1024`, the first line of src/cli/main.ts) and every child of this script runs under (D68 b;
+ * 1,024 MiB by the owner's answer to Q7, "Raise cap to 1,024 MiB", which replaces Q6's 384, D72; Q6's replaced Q2's
+ * 256, D69).
  */
-export const LARGE_ROM_MAX_OLD_SPACE_MIB = 384;
+export const LARGE_ROM_MAX_OLD_SPACE_MIB = 1024;
 export const LARGE_ROM_COMMANDS = ['init', 'generate'] as const;
 export type LargeRomCommand = (typeof LARGE_ROM_COMMANDS)[number];
 

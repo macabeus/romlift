@@ -1,5 +1,6 @@
 // The `romlift` bin's own commands on the 32 MiB synthetic ROM under the heap cap its launcher passes to Node (the
-// owner's answer to Q6, D69: "every ROM size up to 32 MiB must complete under it"; phase-3.md, fix round 4). g3.large-rom
+// owner's answer to Q6, D69: "every ROM size up to 32 MiB must complete under it", at 1,024 MiB since Q7's, D72;
+// phase-3.md, fix round 4). g3.large-rom
 // measures the bench's `init` and `generate` workflow children; a user runs the CLI, whose commands take their own
 // paths (verify's generateFromRom, analyze's and model's NDJSON), so this runs each of them, from source, with the Node
 // options of src/cli/main.ts's first line (the `#!/usr/bin/env -S node ...` launcher dist/cli/main.js keeps):
