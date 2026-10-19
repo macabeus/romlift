@@ -271,7 +271,7 @@ function parse(text: string): { readonly statements: readonly Statement[]; reado
 }
 
 /** The `.include` of the macro file, as the dialect preamble writes it. */
-const MACROS_INCLUDE = `.include "${MACROS_PATH}"`;
+const MACROS_INCLUDE = DIALECT.macrosInclude;
 
 /**
  * A chunk file as GNU as reads it inside its module file: after the module file's `.include` of the macro

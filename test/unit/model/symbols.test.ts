@@ -27,7 +27,7 @@ test('modelSymbols lists every config symbol by address; romSymbols keeps those 
 });
 
 test('externalSymbols: the one list of the symbols outside the ROM, which the writers print and the check reads by name (architecture-r1-6)', () => {
-  const rom = { end: BASE + 0x200 };
+  const rom = { sha1: 'test', end: BASE + 0x200 };
   assert.equal(isOutsideRom(BASE - 1, rom), true);
   assert.equal(isOutsideRom(BASE, rom), false);
   assert.equal(isOutsideRom(BASE + 0x1ff, rom), false);

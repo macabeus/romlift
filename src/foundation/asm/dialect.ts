@@ -54,8 +54,14 @@ export function isSymbolName(name: string): boolean {
 /** What isSymbolName accepts, as the config schema and E_NAME_INVALID say it. */
 export const SYMBOL_NAME_RULE = `a letter or _, then letters, digits, _, . and $, at most ${MAX_SYMBOL_NAME} characters`;
 
+/** The macro file's project path, the one definition (core/model/paths.ts re-exports it as MACROS_PATH). */
+const MACROS_PATH = 'include/macros.inc';
+const MACROS_INCLUDE = `.include "${MACROS_PATH}"`;
+
 export const DIALECT: Dialect = {
-  preamble: (mode) => `.syntax unified\n.include "include/macros.inc"\n${mode === 'arm' ? '.arm' : '.thumb'}\n`,
+  preamble: (mode) => `.syntax unified\n${MACROS_INCLUDE}\n${mode === 'arm' ? '.arm' : '.thumb'}\n`,
+  macrosPath: MACROS_PATH,
+  macrosInclude: MACROS_INCLUDE,
   macrosInc: MACROS_INC,
   asArgs: ['-mcpu=arm7tdmi'],
 };
