@@ -642,6 +642,13 @@ architecture-r2-1 (TextLayoutIndex exported with its Maps, with the writer contr
 known limitation that the TOML patcher must keep `label = true` on the startup code inside the cartridge entry's
 extent (4.A).
 
+The four minors of the review of phase 3's landing run (phase-3.md, "Review", the review of the landing run at
+`ef2be76`) are carried here too: gate-honesty-r0-1 (`bench/src/families.ts`'s readability summary still says "objdiff
+score 0", which is `g5.objdiff` since D68 a; text only), correctness-r0-1 (sa2's `g2.speed` sits at about 90 to 100%
+of its limit at `main` itself; the owner is asked before phase 4's landing run whether to re-baseline or take the
+median of more runs), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
+requirement recorded as a known limitation); correctness-r0-3 was fixed in the record.
+
 ### Phase 4 exit
 
 ```

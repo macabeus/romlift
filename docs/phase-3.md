@@ -1073,7 +1073,7 @@ unchanged, `test/gates/phase.json` raised to `{ "landed": 3 }` again at `0784b4e
 records the answer; no code or gate change since `afe4f78`, which lowered it), then the list in a fresh worktree at
 `0784b4e` (`git worktree add --detach` under the system temporary directory: no `node_modules`, no `bench/.local`;
 objdiff-cli 3.7.2 found in the main checkout's build, D65 j), every command from the worktree root in this order with the
-environment above, the real tier before the ci tier, from 22:06 to 22:53. Node 24.15, binutils 2.45.1, macOS; the
+environment above, the real tier before the ci tier, from 22:06 to 22:56. Node 24.15, binutils 2.45.1, macOS; the
 machine ran the same other processes as at `1b4d37f` (a browser, the OrbStack VM). The worktree was clean afterwards but
 for the `bench/results.json` the run wrote (`poc-digests.json` and `poc-dump-rows.json` byte-identical), which is
 committed as this run's artifact (`meta.commit` `0784b4e`, not dirty, source digest `d7d56063…`, the digest of
@@ -1682,3 +1682,24 @@ The review of `16d1280` (the landing run after fix round 4): correctness-r1-1 to
 | gate-honesty-r1-1 | minor | **Fixed** (D71 d). The gate's comment, `bench/src/large-rom.ts`, roadmap 3.E and architecture §12 say 1,088 MiB was set at `a206ac1` when 866.5 MiB was the largest recorded peak and is 15.1% over the 945.5 MiB recorded since. The threshold is not changed. Q6's rule was applied when the budget was set and does not ask for it to be set again; raising it would loosen the gate, so no owner question is open on it and "needs the owner" is withdrawn. |
 | gate-honesty-r1-2 | minor | **Fixed** (D71 f): eighteen runs in the fix-round-4 review row; four live-heap runs in D70 d. |
 | gate-honesty-r1-3 | minor | **Fixed in part** (D71 g). Measured: `g3.large-rom`'s children under Node 22.18 on macOS (2 runs) and under Node 22.18 and 24 in Linux containers (arm64, 3 runs each), and the bin's twelve commands on both, all recorded in "Measured numbers"; every run of the children completes with the tree `9d9c915d…`. The bin's text `analyze` did not complete under Node 22.18 until `88cede1`. Not done: the phase pull request's CI numbers, since nothing is pushed; they are recorded when that pull request runs, before the merge. |
+
+### The review of the landing run at `ef2be76` (carried into phase 4)
+
+The review of `ef2be76` (the landing run after Q8's answer): gate-honesty-r0-1 and correctness-r0-1 to -r0-3, all
+minor. It re-ran the whole closing list in a fresh clone of `phase-3` at `ef2be76` (`phase.json` at `{ "landed": 3 }`,
+22:59 to about 23:50): every one of the 22 commands exited 0 (`g2.speed` ratio 0.993, sa2 745 of 810 ms; `g3.large-rom`
+`init` 1,041.1 and `generate` 1,186.6 MiB under the 1,024 MiB cap, budget 1,536 MiB), the regenerated `results.json`
+differing from the committed one only in `meta.commit` and the two memory `maxRssMiB` values; and every bin command form
+on the doubled ROM (`fb17b88d…`) under 1,024 MiB matched Q7's record (readable `verify` exit 3 on the two `adr` lines
+only, raw `verify --assemble` and `--link` exit 0 linking its SHA-1). It found no gate, threshold, dataset or baseline
+changed beyond the owner's answers Q1 to Q8. The owner authorised merging each phase pull request once its gate and CI
+pass, phase 3 included, so the four minors are carried into phase 4 rather than fixed on the branch: a source change
+would leave the committed artifact stale against the landing run. The one exception is correctness-r0-3, a wrong time
+in this record, corrected here (docs only, outside the source digest).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| gate-honesty-r0-1 | minor | **Carried into phase 4.** The readability family's summary in `bench/src/families.ts:24` still says phase 3 judges "objdiff score 0"; by Q1's answer (D68 a) the objdiff score is `g5.objdiff`, a phase-5 gate, and phase 3 records the classified counts (architecture §8.4 already says so). Wrong text only: `g3.readability` does not check objdiff, so no verdict changes. The fix (a summary such as 'readability shares only increase (objdiff: g5.objdiff, phase 5, D68 a)') goes with phase 4's first commit that touches `bench/src/`. |
+| correctness-r0-1 | minor | **Recorded; carried into phase 4 as a question for the owner.** sa2's `g2.speed` is marginal on this machine at `main` (`c5cc0b1`) itself: in five alternating runs of `bench speed --only sa2` per commit, `c5cc0b1` measured 731.0/819.7, 720.7/820.3, 732.1/827.0, 854.8/837.6 (over its limit) and 752.5/811.1 ms, `ef2be76` 761.2/793.3, 741.9/797.5, 736.3/794.0, 734.9/807.7 and 760.4/813.7 ms, with the same analysis digest (`bfa0a805…`) at both. The baseline 543.5 ms times the 1.5 ratchet leaves sa2 at about 90 to 100% of its limit, so a later failure of `g2.speed` on sa2 is expected noise rather than a regression; it is still a failure under D73 b and a new owner question, not a retry. Before phase 4's landing run the owner is asked whether to re-baseline `bench/baseline/speed.json` or to take the median of more runs; no gate change is made here. |
+| correctness-r0-2 | minor | **Carried into phase 4.** The heap cap reaches users only through `#!/usr/bin/env -S node --max-old-space-size=1024`, and no test reads the built `dist/cli/main.js` (the unit test reads `src/cli/main.ts`; `bench large-rom --bin` simulates the launcher from source). Verified by hand on macOS: `tsc` keeps the line, a local install runs `node --max-old-space-size=1024 …/romlift`, and npm 11.12.1's cmd-shim accepts `-S`. A platform whose `env` lacks `-S` (BusyBox/Alpine, coreutils before 8.30) cannot start the bin, and `node dist/cli/main.js` runs uncapped. Phase 4 adds a unit test of the built (or packed) launcher's first line and records the `env -S` requirement under its known limitations. |
+| correctness-r0-3 | minor | **Fixed** (this record): the landing run after Q8's answer ran from 22:06 to 22:56 (command 20, `gates --require 3 --tier ci`, ended at 22:56:27; `stale-check` at 22:56:28), not 22:53. |
