@@ -2399,6 +2399,57 @@ generate, verify and the bench share one workflow; the objdiff numbers move (pha
 The owner questions are Q1 to Q5 of phase-3.md (Q3: D64 d's durability, delivery-3; Q4: (l); Q5: the
 limitations carried into phase 4). Phase 3 does not land until he answers them; nothing is waived.
 
+## D66. Phase-3 fix round 2 of the review: what changed, and one recorded exception
+
+**Context.** The review of fix round 1 (phase-3.md, "Review", fix round 2) found two majors (an objdiff classifier
+whose same-word classes were not checked, architecture-r1-1; a case-only rename of a directory holding a file
+romlift does not own, correctness-r1-1) and fifteen minors. The brief is unchanged: every owner decision takes its
+safe default, and a gate change, waiver or limitation the owner has not authorised is an owner question.
+
+**Decision.**
+
+- (a) **A write gives its path the spelling the plan chose, on disk** (correctness-r1-1). Before a write or edit,
+  shell/project/spelling.ts renames each existing component of its path that is the same directory entry under
+  another case (same device and inode: a case-insensitive file system) to the op's spelling, through a temporary
+  name; what the directory holds moves with it. readDiskState lists a file the walk finds under another case than
+  an asked-for path, when both are one file, once, under the asked-for spelling. On a case-sensitive file system
+  nothing is renamed and the other spelling stays another directory. Amends D65 b, which ordered the deletes but
+  left a directory that did not become empty under its old spelling.
+- (b) **Names are at most 200 characters, and no path component over 255 bytes passes the check pass**
+  (correctness-r1-2): `foundation/asm/dialect.ts` MAX_SYMBOL_NAME bounds isSymbolName (and module names), so
+  `<Name>_<ADDR>.s` fits the 255 bytes a file system stores per name; the paths check raises E_PATH_TOO_LONG.
+  Amends D65 d.
+- (c) **`W_OVERRIDE_OUTSIDE_ROM`** is raised for an `[[overrides]]` range reaching outside the ROM;
+  `W_FUNCTION_OUTSIDE_ROM` only for `[functions]` entries (architecture-r1-14). Amends D65 e.
+- (d) **Derived per-model indexes are memos keyed by the model's frozen arrays** (the exception
+  architecture-r1-5 asked to record): core/model/paths.ts chunkPathsOf (by `model.chunks`, now shared by the
+  writers and the text-layout check, so a generate computes the paths once) and core/model/resolver.ts's label
+  index (by `model.labels`). Rejected: a field of the Model (it changes the public `romlift/model-json@1` lines and
+  the 47 model goldens for data that is a function of the rest); a member of EmitContext or an EmitIndex passed to
+  the writers (printChunk, resolverFor and the Writer contract take `(rom, model, ...)` and are frozen by D62 and
+  public: the bench and the tests print chunk by chunk with only a printer, so every reader would still need the
+  memo as its fallback). Correctness rests on a Model never changing, which its deeply readonly types state (D19);
+  resolverOver indexes arrays that are still growing and caches nothing. To revisit when phase 4 reopens the writer
+  contract for the C writers.
+- (e) **Plain data** (architecture-r1-12): DecompState.defined is a `readonly string[]` in code-unit order, not a
+  Set, so a GenerateResult's fields other than the model survive a JSON round trip. Amends the frozen
+  core/emit/tree.ts type (D62); no writer reads it before phase 5.
+- (f) **checkEntry takes the pass's index** (architecture-r1-9): `checkEntry(rom, model, index, entry)` with
+  `textLayoutIndex(model)`, exported from `romlift`, built once per pass.
+- (g) **The objdiff classifier checks every same-word claim** (architecture-r1-1): bench/src/objects.ts reads each
+  relocation's addend (a RELA entry's own, a REL entry's implicit one from its field), bench/src/objdiff-cli.ts
+  reads the base object too and gives each relocation difference the base addend or the base's plain value, and
+  bench/src/objdiff.ts gives each difference the linked start of its reference section. A difference is
+  `static-callee`, `value-named`, `alias`, `symbol-addend` or `value-for-symbol` only when the word (or branch
+  target) each side links to, computed from the ELF's addresses, the Thumb bit and the addends, is the same;
+  one whose facts are missing is the new class `unverified`, which option (b) of Q1 still gates. An objdiff kind
+  the classifier does not know is an error. D34's gate is unchanged; Q1's table is re-measured with it.
+
+**Consequences.** Both majors are closed with tests that fail before their fix; the public API changes are
+`checkEntry`'s signature, `textLayoutIndex`, `assembleUnits`, `TextLayoutIndex`, DecompState's field type and the
+two diagnostic codes. The owner questions stay Q1 to Q5 of phase-3.md (Q1 and Q2 with this round's numbers); phase
+3 does not land until he answers them, and nothing is waived.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

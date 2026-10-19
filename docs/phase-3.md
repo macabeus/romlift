@@ -356,27 +356,36 @@ words (Q3 to Q5); each needs his answer, so the phase does not land until he giv
 
 Facts. D34 gates every objdiff difference but `unnamed-target`. After D64 b and c and fix round 1 (D65 i: every base
 assembles, a resolved `b` or ARM `bl` pairs like a `bl`), each difference sorted by the committed classifier
-(`node --conditions=source bench/tools/objdiff-classes.ts`, `bench/src/objdiff-classes.ts` and its test; this table
-is its output at fix round 1). Every readable tree links to its ROM's SHA-1 (`g3.link` 6 of 6), so none of these
-changes a byte of the build.
+(`node --conditions=source bench/tools/objdiff-classes.ts`, `bench/src/objdiff-classes.ts` and its test). Since fix
+round 2 (D66 g, architecture-r1-1) a class that says both sides link to the same word is given only when that is
+checked: the word (or branch target) each side links to is computed from the reference ELF's addresses and Thumb
+bits, the reference relocation's addend read from the reference object, and the base's addend or plain value read
+from the base object; a difference whose facts are missing would be `unverified` and stay gated. This table is the
+tool's output at fix round 2 (at the classifier commit `1ac3527`, all six tuning ROMs, 1 min 56 s). Every readable tree links to
+its ROM's SHA-1 (`g3.link` 6 of 6), so none of these changes a byte of the build.
 
 | Class | fe7j | klonoa | pokeemerald | sa2 | sa3 | tmc |
 | --- | --- | --- | --- | --- | --- | --- |
-| `resolved-call`: a `bl` or `b` the reference's `as` resolved inside its object, which the base, assembled one function per file, relocates against the same function | 8 | 0 | 11,798 | 1,019 | 68 | 323 |
-| `static-callee`: the same, to a callee the reference object names otherwise (a static function the ELF names more than once, a local label) | 0 | 0 | 208 | 113 | 63 | 0 |
-| `value-named`: `.word <value>` against `.word <name>` where the name is at that value (the reference holds the constant, the base names it) | 9 | 0 | 14 | 11 | 19 | 0 |
-| `alias`: two names of one address (a union such as tmc's `gMenu`/`gChooseFileState`, `GetMonData3`/`GetMonData2`, statics named twice) | 13 | 0 | 472 | 36 | 16 | 361 |
-| `symbol-addend`: the reference relocates against `sym + addend` inside the symbol's ELF size, the base names the label there | 5 | 0 | 60 | 15 | 11 | 1 |
-| `value-for-symbol`: the reference relocates against a symbol (often plus an addend), the base holds the plain value | 130 | 166 | 765 | 46 | 99 | 188 |
+| `resolved-call`: a `bl` or `b` the reference's `as` resolved inside its object, which the base, assembled one function per file, relocates against the same function (the offset checked) | 8 | 0 | 11,798 | 1,019 | 68 | 323 |
+| `static-callee`: the same, to a callee the reference object names otherwise; the reference's target (its section's linked start plus the offset) is an address the ELF gives the base's callee | 0 | 0 | 208 | 113 | 63 | 0 |
+| `value-named`: `.word <value>` against `.word <name>` where the name links to that value, Thumb bit included | 9 | 0 | 14 | 11 | 19 | 0 |
+| `alias`: two names of one address, both sides with their addends linking to the same word (tmc's `gMenu`/`gChooseFileState`, `GetMonData3`/`GetMonData2`, statics named twice) | 13 | 0 | 472 | 36 | 16 | 360 |
+| `symbol-addend`: the reference's `sym + addend` links to the word the base's label does, and that label lies inside the symbol's ELF size | 5 | 0 | 60 | 15 | 11 | 1 |
+| `value-for-symbol`: the reference relocates against `sym + addend`, the base holds a plain value, and the two are the same word (R_ARM_ABS32) or the same branch target (R_ARM_THM_CALL) | 130 | 166 | 765 | 46 | 99 | 188 |
+| `unverified`: one of the shapes above whose addend, plain value or entry is unknown | 0 | 0 | 0 | 0 | 0 | 0 |
 | `missing-symbol`: no reference object defines the name (libgcc, libc, archive members linked from outside `objectsDir`) | 26 | 21 | 453 | 127 | 237 | 1 |
 | `tool`: objdiff-cli 3.7.2 refuses the reference object (klonoa `src/code_0804B254.o`, "Invalid instruction size 1") | 0 | 130 | 0 | 0 | 0 | 0 |
 | `trailing-pad`: a zero halfword after the last instruction that the ELF's size counts and the base leaves to the next `.align` | 1 | 0 | 0 | 6 | 39 | 0 |
-| `relocation-other`: `sym + addend` past the symbol's ELF size, or a symbol with no size (`gCryTable + n`, `gHUD` against `gUnk_0200AF34`) | 7 | 3 | 12 | 1 | 12 | 21 |
+| `relocation-other`: two words that differ, or one word reached through a label outside the symbol's ELF size or a name with no size (`gCryTable + n`, `gHUD` against `gUnk_0200AF34`) | 7 | 3 | 12 | 1 | 12 | 22 |
 | `instruction-other`: fe7j PutUnkSprite's dead `b` after a `b`, printed `@ dead` (D16); pokeemerald GameCubeMultiBoot_HandleSerialInterrupt's three `lsrs; bcc` pairs the analysis claims as data | 1 | 0 | 6 | 0 | 0 | 0 |
 | `assemble`, `score` | 0 | 0 | 0 | 0 | 0 | 0 |
 | total gated (D34) | 200 | 320 | 13,788 | 1,374 | 564 | 895 |
 | `unnamed-target` (reported, not gated) | 55 | 0 | 2,758 | 143 | 44 | 357 |
-| gated under option (b): `trailing-pad`, `relocation-other`, `instruction-other`, `assemble`, `score` | 9 | 3 | 18 | 7 | 51 | 21 |
+| gated under option (b): `unverified`, `trailing-pad`, `relocation-other`, `instruction-other`, `assemble`, `score` | 9 | 3 | 18 | 7 | 51 | 22 |
+
+The check moved one difference: a tmc pair of names of one address whose two sides do not link to the same word
+(the fix-round-1 classifier, which compared addresses only, called it `alias`); it is `relocation-other` now and
+gated under every option. Every other count equals fix round 1's.
 
 Measured for `trailing-pad`: the ELF counts the zero halfword after a function ending at 2 mod 4 in 46 functions and
 leaves it out in 7,008 with the same bytes (sa3 39 of 778, sa2 6 of 447, fe7j 1 of 313, pokeemerald 0 of 3,202,
@@ -390,11 +399,11 @@ Options.
   `sym + addend` for a word inside a sized symbol (an emission rule, with sizes in `[symbols]`); names chosen per
   reference object for aliases and statics; the archive members as reference objects; an objdiff-cli that reads
   klonoa's `code_0804B254.o`; and the reference's symbol sizes for the trailing pads, which the bytes do not carry.
-- (b) Amend D34: report, not gate, the differences whose two sides link to the same word (the `resolved-call`,
-  `static-callee`, `value-named`, `alias`, `symbol-addend` and `value-for-symbol` classes) and list the functions
-  objdiff cannot compare (`missing-symbol`, `tool`) by count. The gated remainder is the last row (109 differences;
-  46 of them trailing pads, which need the owner's word on the reference's sizes, and 7 instructions that are an
-  analysis or D16 matter).
+- (b) Amend D34: report, not gate, the differences whose two sides are checked to link to the same word (the
+  `resolved-call`, `static-callee`, `value-named`, `alias`, `symbol-addend` and `value-for-symbol` classes) and list
+  the functions objdiff cannot compare (`missing-symbol`, `tool`) by count. The gated remainder is the last row (110
+  differences; 46 of them trailing pads, which need the owner's word on the reference's sizes, 7 instructions that
+  are an analysis or D16 matter, and 57 relocations whose words differ or that pass outside a symbol's size).
 - (c) Move `g3.objdiff` to phase 5, where the `expected/` objects and objdiff targets are built (D34 rejected it
   once), with these numbers recorded as the phase-3 measurement.
 
