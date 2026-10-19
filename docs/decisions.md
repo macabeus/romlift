@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -2794,6 +2794,34 @@ exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (996.7 and 1,093
 them, but `gates --require 3 --tier real`, whose `g2.speed` measured sa2's analysis at 787.3 ms against a limit of 786.8
 ms, and the two provenance checks that read that verdict. That is outside the answers: `phase.json` is back at
 `{ "landed": 2 }` and the question is Q8 of phase-3.md. Nothing is merged or pushed.
+
+## D73. The owner's answer of 19 October 2026 to Q8 of phase 3
+
+**Context.** The landing run after Q7's answer (D72), the whole closing list in a fresh worktree at `1b4d37f` with
+`test/gates/phase.json` at `{ "landed": 3 }`, exited 0 on every command but three: `bench gates --require 3 --tier
+real` failed on `g2.speed` alone, which measured sa2's median analysis CPU time at 787.3 ms against its limit of
+786.8 ms (0.5 ms, 0.06% over), and `g1.provenance` and `bench provenance` failed on the gate record holding that
+verdict. No analysis code had changed since the passing run at `71143d4`. That failure is outside the earlier answers,
+so `phase.json` went back to `{ "landed": 2 }` (`afe4f78`) and phase-3.md put it to the owner as Q8 with three options:
+(a) run the closing list again unchanged, (b) measure the cause before any further landing run, (c) change `g2.speed`.
+
+**Decision.**
+
+- (a) **Q8: "Re-run the gate list" (option a).** The whole closing list of phase-3.md runs again unchanged, at a commit
+  that raises `test/gates/phase.json` to `{ "landed": 3 }` again, and phase 3 lands if every command exits 0. The gate
+  is not changed (`g2.speed`, `bench/baseline/speed.json` and every threshold stay as they are), and the failed run at
+  `1b4d37f` stays recorded (phase-3.md, "The closing gate", the owner's answer to Q7).
+- (b) **No retry loop.** If `g2.speed`, or any other command of the list, fails again, that is a new owner question,
+  not a further run: `phase.json` goes back to `{ "landed": 2 }` and phase-3.md records the run and the question.
+- (c) **The only gate changes.** These and the answers of D68, D69 and D72 are the only gate changes the owner
+  authorised; Q8's answer authorises none.
+- (d) **The carried minors.** Looked at again with this answer: gate-honesty-r1-3's remainder (the phase pull
+  request's CI numbers) still waits for that pull request; correctness-r0-5's remainder (pool.ts), architecture-r2-1
+  and r2-4 stay carried into phase 4, r2-2 and r2-3 into phase 5 (D72 f). None changed since D72 f found them not cheap;
+  the one cheap fix taken is this file's preamble, which listed the decisions only through D64 and now names D65 to D73.
+
+**Consequences.** No code or gate changes. The landing run that follows this answer is recorded in phase-3.md ("The
+closing gate", the owner's answer to Q8) with the artifact it writes.
 
 ## Review findings index
 

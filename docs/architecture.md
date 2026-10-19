@@ -2116,7 +2116,7 @@ in roadmap.md pass. The gates per phase are those of §1.
 8. The Transmuter block in `decomp.yaml`.
 9. Which compiler built the other Klonoa GBA games, which decides whether a second analysis profile
    belongs in release 1.
-10. The phase-3 owner questions (phase-3.md, Q1 to Q7), **answered by the owner on 19 October 2026** (D68, D69, D72):
+10. The phase-3 owner questions (phase-3.md, Q1 to Q8), **answered by the owner on 19 October 2026** (D68, D69, D72, D73):
     Q1, "Move gate to phase 5" (`g3.objdiff` is `g5.objdiff`; phase 3 records the classified counts and keeps the
     classifier); Q2, "Measure under a heap cap" (the `romlift` bin and `g3.large-rom` run Node with
     `--max-old-space-size=256`, §9.4, raised to 384 by Q6 and to 1,024 by Q7); Q3, "Accept, don't flush generated" (§6.4, D64 d); Q4, "Accept" (the
@@ -2131,7 +2131,9 @@ in roadmap.md pass. The gates per phase are those of §1.
     under 384 MiB (D71); Q7, "Raise cap to 1,024 MiB" (D72: the bin and `g3.large-rom` use `--max-old-space-size=1024`,
     the budget 1,536 MiB set again from the runs under it with the same margin; every bin command completes on that
     ROM under the cap, its readable `verify`'s text-layout failure on two `adr` lines being a phase-4 work item and a
-    recorded phase-3 limitation; no dense ROM is added to the gate).
+    recorded phase-3 limitation; no dense ROM is added to the gate). The landing run after that answer failed `g2.speed`
+    by 0.5 ms on sa2 with the analysis unchanged; Q8, "Re-run the gate list" (D73: the whole closing list runs again
+    unchanged at a commit raising `phase.json` again; no gate change; a further failure is a new owner question).
 
 ## 13. Gate index
 

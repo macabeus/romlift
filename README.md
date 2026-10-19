@@ -36,7 +36,7 @@ its pull request (#2) is merged to `main`, tagged `phase-2`.
 Phase 3 (Emission) is not landed yet ([docs/phase-3.md](docs/phase-3.md)): the model, both printers, the writers, the
 write plan, `model --json` and `verify` turn every committed fixture and all six tuning ROMs into trees that pass the
 four self-checks and link to the ROM's SHA-1 with both the raw and the readable printer, with pokeemerald's `generate`
-within its speed budget. The owner answered the phase's seven questions (D68, D69, D72): the objdiff gate moves to phase
+within its speed budget. The owner answered the phase's eight questions (D68, D69, D72, D73): the objdiff gate moves to phase
 5 (`g5.objdiff`); the `romlift` bin and `g3.large-rom` run Node with `--max-old-space-size=1024` (Q7's answer; the 256
 MiB first chosen did not hold the 32 MiB synthetic ROM, and Q6's 384 MiB did not hold a 32 MiB ROM of real code
 density, pokeemerald twice over), with the memory budget set again from the runs under that cap (1,536 MiB);
@@ -44,7 +44,8 @@ unflushed generated files and the narrowed raw-printer parity are accepted; and 
 among them the readable printer's `adr` naming a function label, which makes the readable `verify` of that doubled ROM
 exit 3 (its raw tree links to its SHA-1). Under the 1,024 MiB cap every command of the bin completes on the synthetic
 ROM, the six tuning ROMs and the doubled ROM. The landing run after Q7's answer failed one phase-2 timing gate,
-`g2.speed`, by 0.5 ms on sa2 with the analysis unchanged; whether to run it again is owner question Q8, open. The phase
+`g2.speed`, by 0.5 ms on sa2 with the analysis unchanged; the owner's answer to Q8, "Re-run the gate list", runs the
+whole closing list again unchanged with no gate change. The phase
 lands when its closing list passes at `landed` 3 and its pull request's CI has run; the merge waits for both. The commands so far are `doctor`, `analyze`, `explain`, `model` and
 `verify`.
 
@@ -63,11 +64,11 @@ lands when its closing list passes at `landed` 3 and its pull request's CI has r
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D72 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D73 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
-| [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q8 with the owner's answers to Q1 to Q7 (Q8 open), the review fix rounds, and known limitations |
+| [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q8 with the owner's answers, the review fix rounds, and known limitations |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

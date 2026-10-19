@@ -8,8 +8,9 @@ measured on the owner's machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasM
 pokeemerald, sa2, sa3, tmc; D60), and every phase-3 threshold applies to all six (D62 h); the held-out ROMs
 (pokefirered, pokeruby) run sealed and report counts only (D25).
 
-**Verdict (after the owner's answer to Q7, D72).** The owner answered Q7 on 19 October 2026, "Raise cap to 1,024 MiB"
-(option b), and every answer, Q1 to Q7, is applied exactly ("The owner's answers", below): `g3.objdiff` is `g5.objdiff`,
+**Verdict (after the owner's answer to Q8, D73).** The owner answered Q8 on 19 October 2026, "Re-run the gate list"
+(option a), after answering Q7 the same day, "Raise cap to 1,024 MiB" (option b), and every answer, Q1 to Q8, is applied
+exactly ("The owner's answers", below): `g3.objdiff` is `g5.objdiff`,
 a phase-5 gate; the `romlift` bin and `g3.large-rom` run Node with `--max-old-space-size=1024` (Q7's answer, replacing
 Q6's 384, which replaced Q2's 256), and the gate's budget is 1,536 MiB, set again from the eight runs of the synthetic
 image recorded under that cap (largest peak 1,210.1 MiB) plus D69 b's margin of 25%, rounded up to a multiple of 64 MiB;
@@ -24,8 +25,10 @@ landing procedure ran with `test/gates/phase.json` at `{ "landed": 3 }`, the who
 `1b4d37f` ("The closing gate", the owner's answer to Q7): every command exited 0 but `gates --require 3 --tier real`,
 whose `g2.speed` found sa2's analysis 0.5 ms (0.06%) over its limit on an analysis unchanged since the passing run at
 `71143d4`, and the two provenance checks that read that verdict (`g3.large-rom` passed at 996.7 and 1,093.3 MiB under the
-1,024 MiB cap). That failure is outside the answers, so **phase 3 does not land**: `phase.json` is back at
-`{ "landed": 2 }`, and whether to run again is owner question Q8. The branch is not merged or pushed.
+1,024 MiB cap). That failure was outside the answers, so `phase.json` went back to `{ "landed": 2 }` and the owner was
+asked Q8; his answer runs the whole closing list again unchanged at a commit raising `phase.json` to `{ "landed": 3 }`
+again, with no gate change, the failed run staying recorded ("The closing gate", the owner's answer to Q8). The branch
+is not merged or pushed.
 
 ## Components
 
@@ -290,11 +293,11 @@ without it:
   `run --scaffold --write-readability-floor` at `34a77cd` (its commit message names `acdf44c`, the same tree
   before its message was amended).
 
-## The owner's answers (D68, D69, D72)
+## The owner's answers (D68, D69, D72, D73)
 
 Bruno Macabeus answered Q1 to Q5 on 19 October 2026, Q6 (raised by applying Q2) the same day, and Q7 (raised by fix
-round 5's doubled ROM under Q6's cap) the same day. The chosen options,
-verbatim, and what was done:
+round 5's doubled ROM under Q6's cap) the same day, and Q8 (raised by the landing run at `1b4d37f`) the same day.
+The chosen options, verbatim, and what was done:
 
 | Question | Chosen option | Applied |
 | --- | --- | --- |
@@ -305,11 +308,12 @@ verbatim, and what was done:
 | Q5 limitations | "Accept Q5a; fix Q5b, c in phase 4" | (a) the alignment refusal is a recorded release-1 limitation; (b) padding-only orphans folded into the next function and (c) confirm no longer re-validating the functions discover listed (measured against g2's gates) are phase-4 work items in roadmap.md ("Carried from phase 3") |
 | Q6 `g3.large-rom` under the cap (D69) | "384 MiB for bin and gate" | `05fd406`: the romlift bin launcher (`#!/usr/bin/env -S node --max-old-space-size=384`) and g3.large-rom (every child of `bench large-rom`; the gate requires the 384 MiB cap in each run's report) both use --max-old-space-size=384, replacing Q2's 256. `a206ac1`: the budget is set from the recorded runs under the 384 MiB cap plus a stated margin, 866.5 MiB (the largest) plus 25%, rounded up to a multiple of 64 MiB: 1,088 MiB. The synthetic ROM completes under the cap in every run of the bench's `init` and `generate` workflow children, and the six tuning ROMs are re-measured under 384 MiB and recorded ("Measured numbers"). The bin's own `verify`, `model` and `analyze --json` did not complete on the synthetic ROM under the cap until fix round 4 (D70): the review of `d744f5d` found them out of memory, which this row did not measure. A code-dense 32 MiB ROM (pokeemerald twice over) does not complete under the cap: Q7, whose answer replaces the 384 MiB by 1,024 MiB (below) |
 | Q7 the code-dense 32 MiB ROM (D72) | "Raise cap to 1,024 MiB" (option b) | `1443c2c`: the romlift bin launcher (`#!/usr/bin/env -S node --max-old-space-size=1024`) and g3.large-rom (every child of `bench large-rom`; the gate requires the 1,024 MiB cap in each run's report) both use --max-old-space-size=1024, replacing Q6's 384. `745505f`: g3.large-rom's peak-RSS budget is set again from recorded runs under the 1,024 MiB cap plus a stated margin: eight runs of the synthetic image, the largest peak 1,210.1 MiB (`generate`), plus 25%, rounded up to a multiple of 64 MiB: 1,536 MiB. The synthetic image and the six tuning ROMs are re-measured under 1,024 MiB and recorded, all complete; the doubled ROM (`fb17b88d…`, never committed) completes every bin command form of `bench large-rom --bin --rom` under the cap, its numbers recorded ("Measured numbers"); its readable `verify` exits 3 on the text-layout check's two `adr` lines naming a function label (`adr r6, sub_0906A708`), a phase-4 work item the owner assigned (roadmap.md, phase 4, "Carried from phase 3"), recorded as a known limitation, not a failure; the raw printer links to its SHA-1. No dense ROM is added to the gate (not authorised) |
+| Q8 `g2.speed` at the landing run (D73) | "Re-run the gate list" (option a) | the whole closing list ran again unchanged, at a commit that raises `phase.json` to `{ "landed": 3 }` again ("The closing gate", the owner's answer to Q8); the gate is not changed (`g2.speed`, `bench/baseline/speed.json`, every threshold) and the failed run at `1b4d37f` stays recorded; a further failure of any command is a new owner question, not a retry |
 
-These are the only gate changes he authorised. With Q7's answer the minors carried from the review of `16d1280` were
+These are the only gate changes he authorised (Q8's answer authorises none). With Q7's answer the minors carried from the review of `16d1280` were
 looked at again (D72 f): gate-honesty-r1-3's remainder (the phase pull request's CI numbers) waits for that pull
 request; correctness-r0-5's remainder (pool.ts), architecture-r2-1 and r2-4 stay carried into phase 4, and none is a
-change of a fix's size. Earlier, the minors carried from the last review were taken where cheap:
+change of a fix's size; with Q8's answer they are unchanged (D73 d). Earlier, the minors carried from the last review were taken where cheap:
 architecture-r2-9 has its unit test (`5ae1c1c`); r2-5 is fixed (`0483164`, D69 c); r2-2 and r2-3 (the classifier) go
 with `g5.objdiff` to phase 5; r2-1 stays carried into phase 4 ("Review", fix round 3).
 
@@ -723,8 +727,8 @@ fix rounds 1, 2 and 3 (`g3.objdiff`, `g3.large-rom`), and three limitations or g
 words (Q3 to Q5). **The owner answered Q1 to Q5 on 19 October 2026** (D68; each answer under its question).
 Applying Q2's answer raised Q6, which he answered the same day (D69). The review of `16d1280` found a 32 MiB ROM
 of real code density that does not complete under Q6's cap: Q7 (D71), **which he answered the same day** (D72). The
-landing run after that answer failed on `g2.speed`, a phase-2 timing gate, by 0.5 ms on sa2: **Q8 is open**, and phase
-3 does not land until it is answered.
+landing run after that answer failed on `g2.speed`, a phase-2 timing gate, by 0.5 ms on sa2: Q8, **which he answered
+the same day** (D73), "Re-run the gate list" (option a).
 
 ### Q1. `g3.objdiff`: almost every remaining difference links to the same word
 
@@ -1024,8 +1028,14 @@ Options.
 
 ### Q8. `g2.speed` failed the landing run by 0.5 ms on sa2
 
-**Open** (raised by the landing run after Q7's answer, D72). The landing procedure says every command of the closing
-list exits 0, and a failure for a reason outside the answers lowers `phase.json` and goes to the owner.
+**Answered** (raised by the landing run after Q7's answer, D72; answered by Bruno Macabeus on 19 October 2026, D73):
+**"Re-run the gate list"** (option a). Run the whole closing list again unchanged, at a commit that raises `phase.json`
+to `{ "landed": 3 }` again, and land if every command exits 0; the gate is not changed and the failed run stays
+recorded. If `g2.speed` (or any command) fails again, that is a new owner question, not a retry loop. Applied in "The
+closing gate" (the owner's answer to Q8).
+
+The landing procedure says every command of the closing list exits 0, and a failure for a reason outside the answers
+lowers `phase.json` and goes to the owner.
 
 Facts (the run at `1b4d37f`, "The closing gate", the owner's answer to Q7):
 
@@ -1458,9 +1468,8 @@ are answered.
   there says tmc has no ELF (checked at integration and again at closing; all three held-out builds reproduce
   their SHA-1s, as it says).
 
-- `bench/results.json` was regenerated by the landing run at `1b4d37f` (after Q7's answer); its gate record holds
-  `g2.speed` failing (Q8), so `provenance` fails on it, and with `phase.json` lowered it is stale. The next closing run
-  rewrites it.
+- `bench/results.json` was regenerated by the landing run at `1b4d37f` (after Q7's answer), whose gate record held
+  `g2.speed` failing (Q8); the landing run after Q8's answer rewrites it ("The closing gate").
 - The analysis goldens (`test/golden/analysis/*.json`) are single-line canonical JSON, as `encodeAnalysis`
   writes them; a rule change rewrites them with `UPDATE_GOLDEN=1`.
 - Measured in wave 1, a risk for `g3.large-rom` (peak RSS < 512 MiB, unchanged): the analysis alone
