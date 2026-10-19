@@ -116,7 +116,8 @@ romlift/
                                     thumb-aliases.ts, trace-json.ts
       diagnostics/                  diagnostic.ts (the mechanism; no codes)
       util/                         hex.ts, sorted.ts, interval-index.ts, csr.ts, min-heap.ts, arrays.ts (pushAll,
-                                    lowerBound, spanIndexAt), fold.ts (foldPath)
+                                    lowerBound, spanIndexAt), fold.ts (foldPath), project-path.ts
+                                    (isProjectPath: what every emitted, journalled and written path must be)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -129,7 +130,8 @@ romlift/
         rules/                      define-rule.ts, index.ts (concatenates the family registries)
           seed/ walk/ bl/ valid/ accept/ gap/ claim/ region/     index.ts + one file per rule (§4.1)
       proposals/                    types.ts (Proposal, ProposalSource, LibraryRegion, sourceKey)
-      layout/                       types.ts, borders.ts, infer-modules.ts
+      layout/                       types.ts, borders.ts (core/model's one entry; it re-exports the rest), align.ts,
+                                    asm-only.ts, entries.ts, refs.ts, tiling.ts, infer-modules.ts
       evidence/                     facts.ts, merge.ts, codes.ts
       legacy/                       facts.ts (legacy files to evidence facts), renames-toml.ts
       signatures/                   schema.ts, spec.ts, extract.ts, match.ts, resolve.ts, policy.ts, propose.ts, codes.ts
@@ -160,7 +162,8 @@ romlift/
       fs.ts                         listDir (sorted by code unit), atomic write (temp and rename)
       rom.ts                        readRom: a ROM file read, hashed and wrapped (D59)
       project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts, disk-state.ts,
-                                    fresh-tree.ts (writeFreshTree)
+                                    fresh-tree.ts (writeFreshTree), spelling.ts (case-only renames on a
+                                    case-insensitive file system)
       config/                       load.ts, save.ts
       evidence/                     read-elf.ts, read-map.ts, read-legacy.ts, read-trace.ts
       toolchain/                    binutils.ts, doctor.ts, corpus.ts (runCorpus), corpus-inputs.ts (the corpus
@@ -615,7 +618,7 @@ export interface LibraryRegion { readonly span: Span; readonly library: string; 
 
 // core/model/types.ts: plain data; `model --json` is its NDJSON form (D19)
 export const ItemKind = { insn: 0, rawInsn: 1, pool: 2, tableEntry: 3, padding: 4, data: 5 } as const;
-export type ItemRawReason = RawReason | 'cross-module-short-branch';
+export type ItemRawReason = RawReason | 'cross-module-short-branch' | 'interworking-branch';
 export interface ItemTable {                      // struct of arrays; tiles [base, end) in address order
   readonly count: number;
   readonly kind: Uint8Array;                      // ItemKind
@@ -1172,7 +1175,10 @@ same corpus through the user's `as`. The same check on whole writer output (a Th
   because `core/layout/borders.ts` makes that border illegal (§6.2). Only a border the user moves by
   hand can split one; that branch then prints raw with the target in the comment
   (`'cross-module-short-branch'`, `W_CROSS_MODULE_SHORT_BRANCH`) and is counted in the readability
-  family. This exception needs the owner's approval (§12, D15).
+  family. This exception needs the owner's approval (§12, D15). A `b` or `bl` that would name a function
+  label of the other state (a `[functions]` entry listed `arm` that Thumb code calls, or the reverse) prints
+  raw too (`'interworking-branch'`, `W_INTERWORKING_BRANCH`, D67 b): GNU ld would put an interworking veneer
+  into the image for it, which moves every later byte and which no text-layout check sees.
 - **Padding** (D16). Zero bytes up to a word boundary print as `.align 2, 0`, as the plan requires, so
   pools stay aligned when a neighbouring C function changes size.
 - **Data in code.** Dead or unreached bytes inside an extent are `data` items printed as
@@ -1893,9 +1899,9 @@ defined. The codes:
 | --- | --- |
 | `E_ROM_NOT_GBA`, `E_ROM_SHA1_MISMATCH` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER` | `core/config` |
-| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_NAME_COLLISION`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH` | `core/model` |
+| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_SYMBOL_UNPLACED` | `core/model` |
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
-| `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION` | `core/verify` |
+| `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
 | `W_C_ORDER` | `core/reconcile` |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |

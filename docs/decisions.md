@@ -2450,6 +2450,48 @@ safe default, and a gate change, waiver or limitation the owner has not authoris
 two diagnostic codes. The owner questions stay Q1 to Q5 of phase-3.md (Q1 and Q2 with this round's numbers); phase
 3 does not land until he answers them, and nothing is waived.
 
+## D67. Phase-3 fix round 3 of the review: what changed
+
+**Context.** The review of fix round 2 (phase-3.md, "Review", fix round 3) found three majors (a unit test that
+assumed a case-insensitive file system, correctness-r2-1; a `[functions]` entry listed `arm` that Thumb code calls
+passing every check and failing the link, correctness-r2-2; module names the model never checked, correctness-r2-3)
+and eleven minors. The brief is unchanged: every owner decision takes its safe default, and a gate change, waiver or
+limitation the owner has not authorised is an owner question.
+
+**Decision.**
+
+- (a) **Module names are checked by the model** (correctness-r2-3). `foundation/asm/dialect.ts` isModuleName is the
+  schema's rule (letters, digits and `_`, not starting with a digit, at most MAX_SYMBOL_NAME characters), and
+  buildModel raises E_NAME_INVALID for a module name it refuses. Two modules whose names are equal or fold to one
+  (whatever their kinds) are the new E_MODULE_NAME_DUPLICATE: both would build `build/<name>.o`. The paths check
+  raises the new E_PATH_INVALID for an emitted path that is not a project path (`isProjectPath`, moved to
+  `foundation/util/project-path.ts` so core/verify can call it; core/write-plan re-exports it), so `writable()` can
+  no longer pass a tree that planWrites throws on. Amends D66 b, which bounded module names only in the schema.
+- (b) **A branch to a function of the other state prints raw** (correctness-r2-2). A `b` or `bl` whose target the
+  module's resolver names by a `func` label of the other state (Thumb code calling an entry listed `arm`, or ARM
+  code calling one listed `thumb`) is a raw-insn with the new reason `'interworking-branch'` (appended to
+  ITEM_RAW_REASONS, so the codes of the earlier reasons are unchanged) and W_INTERWORKING_BRANCH names it: GNU ld
+  would insert an interworking veneer for it, which moves every later byte and which the text-layout check, laying
+  out the text alone, cannot see. Rejected: refusing the config (the user's mode may be right and the callers dead
+  code; printing raw keeps the bytes either way) and re-validating the listed mode in the confirm run (an analysis
+  change measured against g2's gates). No tuning ROM's or fixture's tree changes: none of them has such a branch.
+- (c) **Case renames roll back** (architecture-r2-4): when the second rename of shell/project/spelling.ts renameCase
+  fails, the entry is renamed back to its old name, and E_IO_WRITE names where it actually is (the old name, or the
+  temporary `.romlift-case-*` name when the move back fails too). The rename is still not journalled; that stays a
+  limitation carried into phase 4.
+- (d) **Smaller cleanups** (architecture-r2-6, r2-7, r2-8): assembleUnits derives from buildUnits' one unit builder,
+  and AssembleUnit is exported from `romlift` beside it (the `romlift/node` re-export chain is gone); the package
+  layout of architecture §2 and the roadmap's ownership row list the files the earlier rounds added; label
+  candidates carry their load address as `load` again, sorted through a view; a misplaced doc comment and an alias
+  constant are gone. The case-rename test probes the file system's case sensitivity and passes on both (run on a
+  case-sensitive APFS image as TMPDIR).
+
+**Consequences.** The three majors are closed with tests that fail before their fix (test/local/config-mutations
+links klonoa's tree with a mode-flipped listed function and refuses the renamed modules). The public changes are
+three diagnostic codes, one raw reason and AssembleUnit's entry point. The other minors of the round are carried
+into phase 4 (phase-3.md). The owner questions stay Q1 to Q5 of phase-3.md; phase 3 does not land until he answers
+them, and nothing is waived.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

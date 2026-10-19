@@ -417,7 +417,8 @@ the closing gate. Every threshold of the phase applies to all six tuning ROMs (D
 ### 3.A Model and layout
 
 - **Owns:** `src/core/model/{items,chunks,modules,labels,names,symbols,model,codec,codes}.ts`,
-  `src/core/layout/{borders,infer-modules,config-from-discover}.ts`, `test/unit/{model,layout}/**`,
+  `src/core/layout/{types,borders,align,asm-only,entries,refs,tiling,infer-modules}.ts`,
+  `src/core/workflow/config-from-discover.ts`, `test/unit/{model,layout}/**`,
   `test/golden/model/**`.
 - **Public API:** `buildModel`, `itemAt`, `encodeModel`, `legalBorders`, `inferModules`,
   `configFromDiscover`.
