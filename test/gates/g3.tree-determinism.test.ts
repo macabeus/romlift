@@ -10,7 +10,7 @@
 // frozen in architecture §3.4 (aligned by the phase-3 lead, D62; configFromDiscover's options default):
 //   romFromBytes(bytes, sha1Of(bytes)); analyze(rom, profileById('agbcc'), {mode: 'discover', seeds: [],
 //   overrides: [], trail: 'off'}); configFromDiscover(rom, analysis); buildModel(rom, analysis, config);
-//   emitTree(rom, model, {decomp: {defined: new Set()}})
+//   emitTree(rom, model, {decomp: {defined: []}})
 // The tree digest is the sha256 over path, NUL, content (a reconciled entry's edits as JSON), NUL, for each
 // entry in stream order (frozen in core/emit/tree.ts: per generated module in ROM order its module-scoped
 // writers' files by path, then the global writers' files by path).
@@ -38,7 +38,7 @@ const model = api.buildModel(rom, analysis, config);
 const hash = createHash('sha256');
 let files = 0;
 const leaks = [];
-for (const entry of api.emitTree(rom, model, { decomp: { defined: new Set() } })) {
+for (const entry of api.emitTree(rom, model, { decomp: { defined: [] } })) {
   const body = entry.ownership === 'reconciled' ? JSON.stringify(entry.edits) : entry.text;
   hash.update(entry.path + '\\0' + body + '\\0');
   files++;

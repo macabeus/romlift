@@ -142,7 +142,7 @@ test('statistics count instructions, branches and PC-relative loads, and what pr
 test('the raw printer keeps the opening and closing and prints the body with printRawRange', () => {
   const i = index('Main', 'main');
   const raw = printChunk(rom, model, i, 'raw');
-  assert.deepEqual(printChunk(rom, model, i, { decomp: { defined: new Set() }, printer: 'raw' }), raw, 'a Printer or an EmitContext');
+  assert.deepEqual(printChunk(rom, model, i, { decomp: { defined: [] }, printer: 'raw' }), raw, 'a Printer or an EmitContext');
   const chunk = model.chunks[i]!;
   const body = printRawRange(rom, (a) => a >= 0x0800_0114 && a < 0x0800_0124, chunk.span.start, chunk.span.end, []);
   assert.deepEqual(raw.lines, ['.thumb', '\tthumb_func_start Main', 'Main: @ 08000100', ...body, '\tthumb_func_end Main']);

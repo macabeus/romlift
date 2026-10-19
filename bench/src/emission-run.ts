@@ -50,7 +50,7 @@ export function configOf(rom: Rom): RomliftConfig {
 
 /** generate over `config`, and when its check pass is clean, the tree written into the empty directory `dir`. */
 export async function generateInto(rom: Rom, config: RomliftConfig, dir: string): Promise<EmissionOutcome> {
-  const result = generate({ rom, config, decomp: { defined: new Set() }, printer: 'readable' });
+  const result = generate({ rom, config, decomp: { defined: [] }, printer: 'readable' });
   const files = result.paths.length;
   const failed = result.report.checks.find((c) => !c.ok);
   if (failed !== undefined) return { ok: false, failure: 'check', detail: `the ${failed.id} check failed: ${failed.detail}; nothing written`, files };

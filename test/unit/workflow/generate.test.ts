@@ -29,7 +29,7 @@ import {
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
-const NO_C = { defined: new Set<string>() };
+const NO_C = { defined: [] };
 const PRINTERS: readonly Printer[] = ['readable', 'raw'];
 const SHA1 = '0123456789abcdef0123456789abcdef01234567';
 
@@ -169,6 +169,11 @@ test('a generate result is plain data: no function anywhere in it (D19)', () => 
     for (const [k, v] of members) visit(v, `${path}.${String(k)}`);
   };
   visit(result, 'result');
+  // Every field but the model (whose item table is typed arrays) survives a JSON round trip unchanged: nothing a
+  // codec would drop, such as a Set or a Map (architecture §3, architecture-r1-12).
+  const { model: _model, ...rest } = result;
+  assert.deepEqual(JSON.parse(JSON.stringify(rest)) as unknown, rest);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.cx)) as unknown, { decomp: { defined: [] }, printer: 'readable' });
 });
 
 test('initConfig, initModel and generateFromRom: the config configFromDiscover builds, refused on a discover error', () => {

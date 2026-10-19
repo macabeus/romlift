@@ -23,7 +23,7 @@ export const LABEL_KIND_ORDER: readonly LabelKind[] = ['func', 'table', 'pool', 
 const KIND_RANK: ReadonlyMap<LabelKind, number> = new Map(LABEL_KIND_ORDER.map((kind, i) => [kind, i] as const));
 
 /** A label kind's place in LABEL_KIND_ORDER. */
-export function labelKindRank(kind: LabelKind): number {
+function labelKindRank(kind: LabelKind): number {
   return KIND_RANK.get(kind) ?? LABEL_KIND_ORDER.length;
 }
 

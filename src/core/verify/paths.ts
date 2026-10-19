@@ -14,7 +14,7 @@ import { VerifyCodes } from './codes.ts';
 export { foldPath } from '../../foundation/util/fold.ts';
 
 /** The most bytes a file system stores in one file or directory name (ext4, APFS, NTFS in UTF-16 units). */
-export const MAX_NAME_BYTES = 255;
+const MAX_NAME_BYTES = 255;
 
 const utf8 = new TextEncoder();
 

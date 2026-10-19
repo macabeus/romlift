@@ -57,9 +57,12 @@ export type FileEntry =
   | { readonly ownership: 'scaffold'; readonly path: string; readonly text: string; readonly writer: 'scaffold' | 'c-stub' }
   | { readonly ownership: 'reconciled'; readonly path: string; readonly baseSha1: string; readonly edits: readonly TextEdit[] };
 
-/** Names defined in src/*.c, derived by the workflow with the reconciler's tokenizer (phase 5 decides matchings). */
+/**
+ * Names defined in src/*.c, derived by the workflow with the reconciler's tokenizer (phase 5 decides matchings).
+ * Plain data (D19, architecture §3): a list in code-unit order, which a reader turns into a set where it needs one.
+ */
 export interface DecompState {
-  readonly defined: ReadonlySet<string>;
+  readonly defined: readonly string[];
 }
 
 /** readable: mnemonics, labels and directives (§5); raw: the PoC's all-data emission, the bisection baseline. */

@@ -134,7 +134,8 @@ function* recordingPaths(entries: Iterable<FileEntry>, paths: string[]): Generat
 
 /**
  * The phase-3 generate (architecture §6.4 steps 1 and 2): the confirm analysis, the Model, and the check pass
- * over one streaming emission. The tree is not kept; `entries()` emits it again for the write pass.
+ * over one streaming emission. The tree is not kept; generatedEntries(rom, result) emits it again for the write
+ * pass.
  */
 export function generate(inputs: GenerateInputs): GenerateResult {
   const { rom } = inputs;

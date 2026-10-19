@@ -20,7 +20,7 @@ import { columns, formatDiagnosticText, formatSummaryText } from '../reporters/t
 import { exitCodeOf, printDiagnosticsOnly, usageError } from './analysis-records.ts';
 
 /** The summary of a model run: the exit code and the model's counts. */
-export function modelSummary(model: Model, exitCode: ExitCode): RunSummary {
+function modelSummary(model: Model, exitCode: ExitCode): RunSummary {
   return {
     ok: exitCode === ExitCode.ok,
     exitCode,

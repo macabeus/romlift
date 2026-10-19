@@ -38,7 +38,7 @@ test("readability: the readable printer's statistics and the readable stream's d
   const model = discoverModel(rom, analysis);
   assert.deepEqual(ROMLIFT_FAMILIES.readability(rom, analysis), {
     stats: readableStats(rom, model),
-    treeDigest: treePass(emitTree(rom, model, { decomp: { defined: new Set() } })).treeDigest,
+    treeDigest: treePass(emitTree(rom, model, { decomp: { defined: [] } })).treeDigest,
   });
 });
 
@@ -49,7 +49,7 @@ test('each printer: the tree applied into an empty directory links to the SHA-1'
       const outcome = await scaffoldTree(rom, model, printer, dir);
       assert.ok(outcome.ok, outcome.detail);
       assert.equal(outcome.sha1, rom.sha1);
-      assert.equal(outcome.treeDigest, treePass(emitTree(rom, model, { decomp: { defined: new Set() }, printer })).treeDigest);
+      assert.equal(outcome.treeDigest, treePass(emitTree(rom, model, { decomp: { defined: [] }, printer })).treeDigest);
       // Written as a fresh project: the manifest, no journal left behind.
       assert.ok((await readdir(`${dir}/.romlift`)).includes('manifest.json'));
     });

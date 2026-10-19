@@ -84,7 +84,7 @@ export function discoverModel(rom: Rom, analysis: AnalysisResult): Model {
   return model;
 }
 
-const EMPTY_DECOMP = { defined: new Set<string>() };
+const EMPTY_DECOMP = { defined: [] };
 
 const messages = (diagnostics: readonly { readonly message: string }[]): string => diagnostics.map((d) => d.message).join('; ');
 

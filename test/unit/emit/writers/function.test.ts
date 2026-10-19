@@ -13,7 +13,7 @@ import { sampleModel, sampleRom } from '../print/fixture.ts';
 
 const rom = sampleRom();
 const model = sampleModel(rom);
-const cx = { decomp: { defined: new Set<string>() } };
+const cx = { decomp: { defined: [] } };
 
 test('one file per function chunk of the module, in ROM order, with the chunk text and a final newline', () => {
   const entries = [...functionWriter.emit(rom, model, cx, 2)];

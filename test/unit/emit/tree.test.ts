@@ -26,7 +26,7 @@ const wrongScaffold: FileEntry = { ownership: 'scaffold', path: 'Makefile', text
 void wrongScaffold;
 
 // EmitContext: the printer is optional, and only 'readable' or 'raw'.
-const decomp: DecompState = { defined: new Set(['AgbMain']) };
+const decomp: DecompState = { defined: ['AgbMain'] };
 const cxDefault: EmitContext = { decomp };
 const cxRaw: EmitContext = { decomp, printer: 'raw' };
 // @ts-expect-error no other printer

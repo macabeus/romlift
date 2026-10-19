@@ -14,7 +14,7 @@ import { checkEntries } from '../../../src/core/verify/text-layout.ts';
 import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 import { fixtureEntries, fixtureModel, fixtureRom } from '../../unit/verify/fixture.ts';
 
-const CX = { decomp: { defined: new Set<string>() } };
+const CX = { decomp: { defined: [] } };
 
 function messages(found: readonly { readonly code: string; readonly message: string }[]): string[] {
   return found.map((d) => `${d.code} ${d.message}`);

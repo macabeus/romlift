@@ -70,7 +70,7 @@ async function binutilsCheck(tools: Binutils | Diagnostic): Promise<Outcome & { 
 // corpus
 
 /** `N cases (thumb …, bl …, arm …); disagreements: as N, encoder N, context N; raw: <reason> N, …`. */
-export function corpusDetail(counts: CorpusCounts, options: CorpusOptions): string {
+function corpusDetail(counts: CorpusCounts, options: CorpusOptions): string {
   const { thumb, bl, arm } = counts.sections;
   const total = mergeSections([thumb, bl, arm]);
   const parts = [

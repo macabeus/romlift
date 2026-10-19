@@ -54,7 +54,7 @@ function notRun(id: CheckId, detail: string, diagnostics: readonly Diagnostic[] 
 }
 
 /** Every diagnostic of an outcome: the analysis and model ones, then each check's, in report order. */
-export function allDiagnostics(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): readonly Diagnostic[] {
+function allDiagnostics(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): readonly Diagnostic[] {
   return [...outcome.diagnostics, ...outcome.report.checks.flatMap((c) => c.diagnostics)];
 }
 
@@ -101,8 +101,8 @@ export async function toolchainChecks(rom: Rom, result: GenerateResult, flags: T
 }
 
 /** Verifies a ROM: generateFromRom (discover, configFromDiscover, generate), then the toolchain checks asked for. */
-export async function verifyRom(rom: Rom, options: { readonly printer: Printer } & ToolchainFlags, io: CliIo): Promise<VerifyOutcome | { readonly refused: readonly Diagnostic[] }> {
-  const result = generateFromRom(rom, { decomp: { defined: new Set() }, printer: options.printer });
+async function verifyRom(rom: Rom, options: { readonly printer: Printer } & ToolchainFlags, io: CliIo): Promise<VerifyOutcome | { readonly refused: readonly Diagnostic[] }> {
+  const result = generateFromRom(rom, { decomp: { defined: [] }, printer: options.printer });
   if (!result.ok) return { refused: result.diagnostics };
   const toolchain = await toolchainChecks(rom, result, options, io);
   const report = combineReports(result.report, { ok: toolchain.checks.every((c) => c.ok), checks: toolchain.checks });
@@ -110,7 +110,7 @@ export async function verifyRom(rom: Rom, options: { readonly printer: Printer }
 }
 
 /** The summary of a run: its exit code, the counts, and the linked SHA-1 when there is one. */
-export function verifySummary(outcome: VerifyOutcome, exitCode: ExitCode): RunSummary & { readonly sha1?: string } {
+function verifySummary(outcome: VerifyOutcome, exitCode: ExitCode): RunSummary & { readonly sha1?: string } {
   return {
     ok: exitCode === ExitCode.ok,
     exitCode,

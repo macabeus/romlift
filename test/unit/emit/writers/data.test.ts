@@ -12,7 +12,7 @@ import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import { codeItems, dataItem, label, modelOf, romWith, words } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 
-const CX = { decomp: { defined: new Set<string>() } };
+const CX = { decomp: { defined: [] } };
 
 function emitted(rom: Rom, model: Model, module: number | null): readonly FileEntry[] {
   return [...dataWriter.emit(rom, model, CX, module)];

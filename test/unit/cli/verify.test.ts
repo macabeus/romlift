@@ -176,7 +176,7 @@ test('the toolchain checks write the tree into a fresh temporary directory, asse
   for (const fixture of FIXTURES.filter((f) => ['far-jump', 'code-copied-to-ram', 'arm-pools-in-front', 'adr-label-and-data'].includes(f.name))) {
     const rom = readFixtureRom(fixture);
     for (const printer of PRINTERS) {
-      const result = generate({ rom, config: discovered(rom), decomp: { defined: new Set() }, printer });
+      const result = generate({ rom, config: discovered(rom), decomp: { defined: [] }, printer });
       assert.ok(result.report.ok, `${fixture.name} ${printer}: ${result.report.checks.map((c) => c.detail).join('; ')}`);
       const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: process.env });
       assert.deepEqual(
@@ -195,7 +195,7 @@ test('the toolchain checks write the tree into a fresh temporary directory, asse
 
 test('binutils missing from the environment is E_TOOLCHAIN_MISSING on both toolchain checks, which exits 1', async () => {
   const rom = readFixtureRom(FAR_JUMP);
-  const result = generate({ rom, config: discovered(rom), decomp: { defined: new Set() }, printer: 'readable' });
+  const result = generate({ rom, config: discovered(rom), decomp: { defined: [] }, printer: 'readable' });
   const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: { PATH: '' } });
   assert.deepEqual(
     outcome.checks.map((c) => [c.id, c.ok, c.diagnostics.map((d) => d.code)]),
@@ -209,7 +209,7 @@ test('binutils missing from the environment is E_TOOLCHAIN_MISSING on both toolc
 
 test('nothing is written and no toolchain check runs while a self-check fails', async () => {
   const rom = readFixtureRom(FAR_JUMP);
-  const result = generate({ rom, config: discovered(rom), decomp: { defined: new Set() }, printer: 'readable' });
+  const result = generate({ rom, config: discovered(rom), decomp: { defined: [] }, printer: 'readable' });
   const broken = { ...result, report: { ok: false, checks: [checkResult('tiling', [diagnostic(VerifyCodes, 'E_SELF_CHECK_TILING', 'gap')], 'gap')] } };
   const outcome = await toolchainChecks(rom, broken, { assemble: false, link: true }, { ...capturingIo(), env: process.env });
   assert.deepEqual(
@@ -253,7 +253,7 @@ test('a [symbols] entry in RAM names every pool word equal to its address, which
     ]),
   };
   for (const printer of PRINTERS) {
-    const result = generate({ rom, config, decomp: { defined: new Set() }, printer });
+    const result = generate({ rom, config, decomp: { defined: [] }, printer });
     assert.ok(result.report.ok, `${printer}: ${result.report.checks.map((c) => c.detail).join('; ')}`);
     const texts = [...generatedEntries(rom, result)].map((e) => ('text' in e ? e.text : ''));
     const all = texts.join('\n');

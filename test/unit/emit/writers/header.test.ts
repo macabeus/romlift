@@ -9,7 +9,7 @@ import { layoutUnit, romBytes, sampleModel, sampleRom } from '../print/fixture.t
 
 const rom = sampleRom();
 const model = sampleModel(rom);
-const cx = { decomp: { defined: new Set<string>() } };
+const cx = { decomp: { defined: [] } };
 
 test('the header module yields asm/rom_header.s: the preamble, a global label and 16 bytes per .byte line', () => {
   const entries = [...headerWriter.emit(rom, model, cx, 0)];

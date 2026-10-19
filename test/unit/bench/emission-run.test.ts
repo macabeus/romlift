@@ -39,7 +39,7 @@ test('configOf is configFromDiscover over the discover analysis', () => {
 test('generateInto writes every file of the stream and digests it in stream order', async () => {
   const rom = readFixtureRom(FAR_JUMP);
   const config = renamedStartup(rom);
-  const result = generate({ rom, config, decomp: { defined: new Set() }, printer: 'readable' });
+  const result = generate({ rom, config, decomp: { defined: [] }, printer: 'readable' });
   const hash = createHash('sha256');
   const texts = new Map<string, string>();
   for (const e of generatedEntries(rom, result)) {
@@ -59,7 +59,7 @@ test('generateInto writes every file of the stream and digests it in stream orde
 test('a failing check pass writes nothing and says which check failed', async () => {
   const rom = readFixtureRom(FAR_JUMP);
   const config = configOf(rom);
-  const failed = generate({ rom, config, decomp: { defined: new Set() }, printer: 'readable' }).report.checks.find((c) => !c.ok);
+  const failed = generate({ rom, config, decomp: { defined: [] }, printer: 'readable' }).report.checks.find((c) => !c.ok);
   await inTemp(async (dir) => {
     const outcome = await generateInto(rom, config, dir);
     if (failed === undefined) {

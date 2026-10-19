@@ -68,7 +68,7 @@ for (const fixture of listSyntheticFixtures()) {
   });
 
   for (const printer of PRINTERS) {
-    const entries = [...emitTree(rom, model, { decomp: { defined: new Set<string>() }, printer })];
+    const entries = [...emitTree(rom, model, { decomp: { defined: [] }, printer })];
 
     test(`${fixture.name} (${printer}): the stream passes the text-layout and paths checks`, () => {
       const report = checkEntries(rom, model, entries);
@@ -100,7 +100,7 @@ for (const lastKind of ['data', 'asm'] as const) {
       const rom = romFromBytes(bytes, createHash('sha1').update(bytes).digest('hex'));
       const analysis = discover(rom, { profile });
       const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
-      const entries = [...emitTree(rom, model, { decomp: { defined: new Set<string>() }, printer: 'readable' })];
+      const entries = [...emitTree(rom, model, { decomp: { defined: [] }, printer: 'readable' })];
       const report = checkEntries(rom, model, entries);
       const linked = await linkCheck({ dir: await writeTree(entries), rom, units: buildUnits(model), ...('code' in tools ? {} : { tools }) });
       assert.equal(report.ok, linked.ok, `check: ${failures(report) || 'ok'}; link: ${linked.detail}`);

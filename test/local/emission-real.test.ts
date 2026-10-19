@@ -91,7 +91,7 @@ interface PrinterResult {
 
 async function runPrinter(name: string, rom: Rom, model: Model, printer: Printer): Promise<PrinterResult> {
   const emitStarted = process.hrtime.bigint();
-  const entries = [...emitTree(rom, model, { decomp: { defined: new Set<string>() }, printer })];
+  const entries = [...emitTree(rom, model, { decomp: { defined: [] }, printer })];
   const layout = checkEntries(rom, model, entries);
   const emitMs = ms(emitStarted);
   const linkStarted = process.hrtime.bigint();

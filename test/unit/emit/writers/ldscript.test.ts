@@ -9,7 +9,7 @@ import type { Model } from '../../../../src/core/model/types.ts';
 import { checkEntry, textLayoutIndex } from '../../../../src/core/verify/text-layout.ts';
 import { dataItem, modelOf, romWith } from '../../../helpers/model.ts';
 
-const CX = { decomp: { defined: new Set<string>() } };
+const CX = { decomp: { defined: [] } };
 const rom = romWith([], { size: 0x400 });
 
 function plain(symbols: Model['symbols'] = []): Model {

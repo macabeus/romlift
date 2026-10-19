@@ -22,7 +22,7 @@ export function chunkFilePaths(model: Pick<Model, 'chunks'>): readonly (string |
 }
 
 /** Lines as a file's text: newline-separated, ending with a newline. */
-export function fileText(lines: readonly string[]): string {
+function fileText(lines: readonly string[]): string {
   return `${lines.join('\n')}\n`;
 }
 

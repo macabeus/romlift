@@ -13,7 +13,7 @@ import { dataItem, modelOf, romWith } from '../../../helpers/model.ts';
 
 const rom = sampleRom();
 const model = sampleModel(rom);
-const cx = { decomp: { defined: new Set<string>() } };
+const cx = { decomp: { defined: [] } };
 
 test('asm/<module>.s: the preamble and one include per chunk file, in ROM order', () => {
   const entries = [...moduleWriter.emit(rom, model, cx, 2)];

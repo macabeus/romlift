@@ -33,8 +33,8 @@ const FIXTURES = listSyntheticFixtures();
 const GATED: readonly WriterId[] = ['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols'];
 const RAW_SET = 'raw-printer';
 
-const READABLE: EmitContext = { decomp: { defined: new Set<string>() } };
-const RAW: EmitContext = { decomp: { defined: new Set<string>() }, printer: 'raw' };
+const READABLE: EmitContext = { decomp: { defined: [] } };
+const RAW: EmitContext = { decomp: { defined: [] }, printer: 'raw' };
 
 /** The golden text of a list of entries. */
 function goldenText(entries: Iterable<FileEntry>): string {

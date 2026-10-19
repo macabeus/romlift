@@ -11,7 +11,7 @@ import { fixtureEntries, fixtureModel, fixtureRom } from '../../unit/verify/fixt
 
 const rom = fixtureRom();
 const model = fixtureModel(rom);
-const CX = { decomp: { defined: new Set<string>() } };
+const CX = { decomp: { defined: [] } };
 
 function stream(): FileEntry[] {
   const written = WRITERS.filter((w) => w.id === 'data' || w.id === 'ldscript' || w.id === 'symbols').flatMap((w) =>

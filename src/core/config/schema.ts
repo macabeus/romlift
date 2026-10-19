@@ -134,7 +134,7 @@ const overrideSchema = z
   .strict()
   .readonly();
 
-export const ROMLIFT_CONFIG_SCHEMA = z
+const ROMLIFT_CONFIG_SCHEMA = z
   .object({
     schema: z.literal(1),
     rom: z.object({ path: nonEmpty, sha1 }).strict().readonly(),

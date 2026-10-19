@@ -14,7 +14,7 @@ import { sampleModel, sampleRom } from './print/fixture.ts';
 
 const rom = sampleRom();
 const model = sampleModel(rom);
-const cx = { decomp: { defined: new Set<string>() } };
+const cx = { decomp: { defined: [] } };
 const MINE = new Set(['header', 'crt0', 'function', 'orphan', 'module']);
 const mine = (entries: Iterable<FileEntry>): FileEntry[] => [...entries].filter((e) => e.ownership === 'generated' && MINE.has(e.writer));
 

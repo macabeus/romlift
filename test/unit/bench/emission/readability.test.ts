@@ -63,11 +63,11 @@ for (const name of ['far-jump', 'arm-pools-in-front', 'large-data-referenced']) 
 
     const hash = createHash('sha256');
     const paths: string[] = [];
-    for (const entry of emitTree(rom, model, { decomp: { defined: new Set() } })) {
+    for (const entry of emitTree(rom, model, { decomp: { defined: [] } })) {
       hash.update(`${entry.path}\0${entry.ownership === 'reconciled' ? JSON.stringify(entry.edits) : entry.text}\0`);
       paths.push(entry.path);
     }
-    assert.deepEqual(treePass(emitTree(rom, model, { decomp: { defined: new Set() } })), { paths, treeDigest: hash.digest('hex') });
+    assert.deepEqual(treePass(emitTree(rom, model, { decomp: { defined: [] } })), { paths, treeDigest: hash.digest('hex') });
   });
 }
 

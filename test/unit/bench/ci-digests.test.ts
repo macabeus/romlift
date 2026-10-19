@@ -38,7 +38,7 @@ function gateTreeDigest(bytes: Uint8Array): string {
   const analysis = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
   const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
   const hash = createHash('sha256');
-  for (const entry of emitTree(rom, model, { decomp: { defined: new Set() } })) {
+  for (const entry of emitTree(rom, model, { decomp: { defined: [] } })) {
     const body = entry.ownership === 'reconciled' ? JSON.stringify(entry.edits) : entry.text;
     hash.update(entry.path + '\0' + body + '\0');
   }

@@ -92,7 +92,8 @@ function locked(file: string, why: string): Diagnostic {
 /**
  * Moves the stale lock `file` (whose text was `stale`) out of the way. Renaming is atomic, so of two runs
  * taking over at once only one moves it; when the moved file is not the stale one (another run had just
- * taken the lock over), it is put back and the takeover gives up.
+ * taken the lock over), it is put back and the takeover gives up. Exported only for its unit test, which drives
+ * that race directly (test/unit/shell/project/lock.test.ts); no other module calls it.
  */
 export async function removeStale(file: string, stale: string): Promise<boolean> {
   const aside = `${file}.${randomBytes(6).toString('hex')}.stale`;

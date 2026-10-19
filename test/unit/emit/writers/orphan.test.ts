@@ -8,7 +8,7 @@ import { sampleModel, sampleRom } from '../print/fixture.ts';
 
 const rom = sampleRom();
 const model = sampleModel(rom);
-const cx = { decomp: { defined: new Set<string>() } };
+const cx = { decomp: { defined: [] } };
 
 test('one file per orphan chunk with the comment, the global label and the bytes', () => {
   const entries = [...orphanWriter.emit(rom, model, cx, 2)];

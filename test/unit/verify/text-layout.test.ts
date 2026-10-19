@@ -18,7 +18,7 @@ import { entry, FILES, fixtureEntries, fixtureModel, fixtureRom } from './fixtur
 
 const rom = fixtureRom();
 const model = fixtureModel(rom);
-const CX = { decomp: { defined: new Set<string>() } };
+const CX = { decomp: { defined: [] } };
 
 /** The files of the data, ldscript and symbols writers for a model. */
 function written(r: Rom, m: Model): readonly FileEntry[] {

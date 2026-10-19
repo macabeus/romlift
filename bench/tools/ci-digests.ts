@@ -86,7 +86,7 @@ function* treeParts(entries: Iterable<FileEntry>): Generator<string> {
  */
 export function treeDigest(rom: Rom, analysis: AnalysisResult): string {
   const model = buildModel(rom, analysis, configFromDiscover(rom, analysis));
-  return sha256Stream(treeParts(emitTree(rom, model, { decomp: { defined: new Set<string>() } })));
+  return sha256Stream(treeParts(emitTree(rom, model, { decomp: { defined: [] } })));
 }
 
 /** The analysis digest of `bytes` and the tree digest emitted from the same analysis. */

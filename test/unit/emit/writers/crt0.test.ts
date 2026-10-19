@@ -10,7 +10,7 @@ import { layoutUnit, romBytes, sampleModel, sampleRom } from '../print/fixture.t
 
 const rom = sampleRom();
 const model = sampleModel(rom);
-const cx = { decomp: { defined: new Set<string>() } };
+const cx = { decomp: { defined: [] } };
 
 test('the startup module yields asm/crt0.s with its chunks in ROM order', () => {
   const entries = [...crt0Writer.emit(rom, model, cx, 1)];
