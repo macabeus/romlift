@@ -34,6 +34,16 @@ async function tempDir(): Promise<string> {
   return dir;
 }
 
+/** Whether `dir/a` is reachable as `dir/b` (`b` a case variant of `a`): the file system folds case there. */
+async function sameDirUnderOtherCase(dir: string, a: string, b: string): Promise<boolean> {
+  try {
+    const [x, y] = await Promise.all([stat(join(dir, a)), stat(join(dir, b))]);
+    return x.ino === y.ino && x.dev === y.dev;
+  } catch {
+    return false;
+  }
+}
+
 const BASE_C = '#include "global.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", Old);\n';
 const RENAME: TextEdit = { start: BASE_C.indexOf('Old'), end: BASE_C.indexOf('Old') + 3, text: 'New', reason: 'rename' };
 
@@ -311,16 +321,23 @@ test('a case-only rename of a module directory that holds a file romlift does no
   };
   await run(tree('main'));
   await writeFile(join(dir, 'asm', 'nonmatchings', 'main', 'notes.txt'), 'mine\n');
+  const caseInsensitive = await sameDirUnderOtherCase(join(dir, 'asm', 'nonmatchings'), 'main', 'MAIN');
   await run(tree('Main'));
-  // On this file system the directory itself now carries the new spelling, the user's file inside it.
-  assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings')), ['Main']);
-  assert.deepEqual((await readdir(join(dir, 'asm', 'nonmatchings', 'Main'))).sort(), ['notes.txt', 'sub_08000100.s', 'sub_08000200.s']);
-  assert.equal(await readFile(join(dir, 'asm', 'nonmatchings', 'Main', 'notes.txt'), 'utf8'), 'mine\n');
   for (const e of tree('Main')) assert.equal(await readFile(join(dir, ...e.path.split('/')), 'utf8'), 'text' in e ? e.text : '', e.path);
-  // The next run keeps every tree file and warns only about the file romlift does not own.
+  // On a case-insensitive file system the directory itself now carries the new spelling, the user's file inside
+  // it. On a case-sensitive one `main/` is another directory: it keeps the user's file, and `Main/` is made.
+  const notes = caseInsensitive ? 'asm/nonmatchings/Main/notes.txt' : 'asm/nonmatchings/main/notes.txt';
+  assert.deepEqual((await readdir(join(dir, 'asm', 'nonmatchings'))).sort(), caseInsensitive ? ['Main'] : ['Main', 'main']);
+  assert.deepEqual(
+    (await readdir(join(dir, 'asm', 'nonmatchings', 'Main'))).sort(),
+    caseInsensitive ? ['notes.txt', 'sub_08000100.s', 'sub_08000200.s'] : ['sub_08000100.s', 'sub_08000200.s'],
+  );
+  if (!caseInsensitive) assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings', 'main')), ['notes.txt']);
+  assert.equal(await readFile(join(dir, ...notes.split('/')), 'utf8'), 'mine\n');
+  // The next run keeps every tree file and warns only about the file romlift does not own, where it is.
   const again = await run(tree('Main'));
   assert.deepEqual([...new Set(again.ops.map((o) => o.op))], ['keep']);
-  assert.deepEqual(again.diagnostics.map((d) => [d.code, d.path]), [['W_UNOWNED_FILE', 'asm/nonmatchings/Main/notes.txt']]);
+  assert.deepEqual(again.diagnostics.map((d) => [d.code, d.path]), [['W_UNOWNED_FILE', notes]]);
 });
 
 test('readDiskState lists a file once, under the spelling it is asked for, when the disk spells its directory otherwise and both are one file', async () => {
