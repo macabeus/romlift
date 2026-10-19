@@ -25,6 +25,7 @@ import {
   mib,
   outcomeExitCode,
   parseChildReport,
+  peakLiveHeapOf,
   romFileDeps,
   runChild,
   runOf,
@@ -47,7 +48,7 @@ test('the parent: the image is written once, init then generate each in a child,
     spawn: async (args) => {
       calls.push(args);
       const command = args[1];
-      return ok(`progress\n${JSON.stringify({ command, exitCode: 0, maxRssKiB: 300 * 1024 + 512, maxOldSpaceSizeMiB: 384, files: 9, detail: 'written', treeDigest: 'ab' })}\n`);
+      return ok(`progress\n${JSON.stringify({ command, exitCode: 0, maxRssKiB: 300 * 1024 + 512, maxOldSpaceSizeMiB: 384, peakLiveHeapMiB: 250.25, files: 9, detail: 'written', treeDigest: 'ab' })}\n`);
     },
     log: () => {},
   };
@@ -57,10 +58,10 @@ test('the parent: the image is written once, init then generate each in a child,
   assert.equal(report.romBytes, 64);
   assert.equal(report.sha1, sha1Of(image));
   assert.deepEqual(
-    report.runs.map((r) => [r.command, r.exitCode, r.maxRssMiB, r.maxOldSpaceSizeMiB, r.treeDigest]),
+    report.runs.map((r) => [r.command, r.exitCode, r.maxRssMiB, r.maxOldSpaceSizeMiB, r.peakLiveHeapMiB, r.treeDigest]),
     [
-      ['init', 0, 300.5, 384, 'ab'],
-      ['generate', 0, 300.5, 384, 'ab'],
+      ['init', 0, 300.5, 384, 250.25, 'ab'],
+      ['generate', 0, 300.5, 384, 250.25, 'ab'],
     ],
   );
   assert.deepEqual(
@@ -72,7 +73,7 @@ test('the parent: the image is written once, init then generate each in a child,
   );
   assert.equal(calls[0]?.at(-1), calls[1]?.at(-1), 'generate reads the config init wrote');
   assert.ok(bothReported(report));
-  assert.match(largeRomText(report), /\ninit {5}exit 0 {2}peak RSS 300\.5 MiB \(under \d+ MiB\) {2}heap cap 384 MiB {2}tree ab\n/);
+  assert.match(largeRomText(report), /\ninit {5}exit 0 {2}peak RSS 300\.5 MiB \(under \d+ MiB\) {2}peak live heap 250\.3 MiB {2}heap cap 384 MiB {2}tree ab\n/);
 });
 
 test('a child that printed no report: its exit code (1 when it exited 0), no RSS, and the tail of its output', async () => {
@@ -152,4 +153,11 @@ test('the child, in process: init writes the tree and the config, generate over 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('peakLiveHeapOf: the largest used heap after a full mark-compact, null when none ran', () => {
+  const entry = (gcType: string, used: number) => ({ gcType, afterGC: { heapStatistics: { usedHeapSize: used } } });
+  assert.equal(peakLiveHeapOf({ statistics: [entry('Scavenge', 900 * 1024 * 1024), entry('MarkSweepCompact', 300 * 1024 * 1024), entry('MarkSweepCompact', 326.2 * 1024 * 1024)] }), 326.2);
+  assert.equal(peakLiveHeapOf({ statistics: [entry('Scavenge', 1)] }), null);
+  assert.equal(peakLiveHeapOf(undefined), null);
 });
