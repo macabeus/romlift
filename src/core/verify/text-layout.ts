@@ -52,7 +52,7 @@ import { BASEROM_PATH, chunkPaths, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYM
 import { moduleIndexAt, wordValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Label, Model, Module } from '../model/types.ts';
-import { checkLdscript, checkSymbolsFile, externalSymbols } from './link-scripts.ts';
+import { checkLdscript, checkSymbolsFile, externalSymbolValues } from './link-scripts.ts';
 import { pathsCheck } from './paths.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult, VerifyReport } from './report.ts';
@@ -133,7 +133,7 @@ function buildIndex(model: Model): PathIndex {
     if (list === undefined) labelsByName.set(label.name, [label]);
     else list.push(label);
   }
-  return { targets, chunkPaths: paths, expected, labelsByName, symbolsByName: externalSymbols(model), memo: layoutMemo() };
+  return { targets, chunkPaths: paths, expected, labelsByName, symbolsByName: externalSymbolValues(model), memo: layoutMemo() };
 }
 
 // ---------------------------------------------------------------------------------------------------

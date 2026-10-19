@@ -23,9 +23,9 @@ import type { Rom } from '../../../foundation/rom/rom.ts';
 import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
 import { buildUnits, LDSCRIPT_PATH, SYMBOLS_PATH } from '../../model/paths.ts';
+import { externalSymbols } from '../../model/symbols.ts';
 import type { Model, Module } from '../../model/types.ts';
 import type { FileEntry, Writer } from '../tree.ts';
-import { externalSymbols } from './symbols.ts';
 
 const INDENT = '    ';
 

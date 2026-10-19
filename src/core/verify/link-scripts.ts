@@ -8,6 +8,7 @@ import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
 import { buildUnits, SYMBOLS_PATH } from '../model/paths.ts';
+import { externalSymbols } from '../model/symbols.ts';
 import type { Model } from '../model/types.ts';
 import { textError } from './text-error.ts';
 
@@ -16,10 +17,10 @@ function withoutComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '));
 }
 
-/** The symbols outside the ROM, as symbols.ld must define them. */
-export function externalSymbols(model: Model): ReadonlyMap<string, Addr> {
+/** The value of each symbol outside the ROM by name (core/model/symbols.ts externalSymbols, the first by address), as symbols.ld must define them. */
+export function externalSymbolValues(model: Pick<Model, 'symbols' | 'rom'>): ReadonlyMap<string, Addr> {
   const out = new Map<string, Addr>();
-  for (const s of model.symbols) if ((s.addr < ROM_BASE || s.addr >= model.rom.end) && !out.has(s.name)) out.set(s.name, s.addr);
+  for (const s of externalSymbols(model)) if (!out.has(s.name)) out.set(s.name, s.addr);
   return out;
 }
 
@@ -95,7 +96,7 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
   });
 
   const lastLine = lines.length;
-  const wantSymbols = externalSymbols(model).size > 0;
+  const wantSymbols = externalSymbols(model).length > 0;
   if (wantSymbols !== includesSymbols) {
     out.push(textError(path, 1, ROM_BASE, wantSymbols ? `does not INCLUDE ${SYMBOLS_PATH}, which defines symbols the code names` : `INCLUDEs ${SYMBOLS_PATH}, which defines nothing`));
   }
@@ -133,7 +134,7 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
 
 export function checkSymbolsFile(model: Model, path: string, text: string): Diagnostic[] {
   const out: Diagnostic[] = [];
-  const want = externalSymbols(model);
+  const want = externalSymbolValues(model);
   const seen = new Set<string>();
   const lines = withoutComments(text).split('\n');
   lines.forEach((raw, i) => {

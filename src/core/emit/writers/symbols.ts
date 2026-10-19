@@ -6,19 +6,11 @@
 // keeps one shape whatever the TOML holds; ldscript.txt INCLUDEs it only when it defines a symbol
 // (ldscript.ts), so the link never reads a file it does not need.
 import type { Rom } from '../../../foundation/rom/rom.ts';
-import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
-import { compareCodeUnits, compareNumbers } from '../../../foundation/util/sorted.ts';
 import { SYMBOLS_PATH } from '../../model/paths.ts';
-import type { Model, ModelSymbol } from '../../model/types.ts';
+import { externalSymbols } from '../../model/symbols.ts';
+import type { Model } from '../../model/types.ts';
 import type { FileEntry, Writer } from '../tree.ts';
-
-/** The symbols symbols.ld defines: those outside [ROM_BASE, model.rom.end), by address then name. */
-export function externalSymbols(model: Pick<Model, 'symbols' | 'rom'>): readonly ModelSymbol[] {
-  return model.symbols
-    .filter((s) => s.addr < ROM_BASE || s.addr >= model.rom.end)
-    .sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
-}
 
 /** The text of symbols.ld. */
 function symbolsText(model: Pick<Model, 'symbols' | 'rom'>): string {

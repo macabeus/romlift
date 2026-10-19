@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { externalSymbols, symbolsWriter } from '../../../../src/core/emit/writers/symbols.ts';
+import { symbolsWriter } from '../../../../src/core/emit/writers/symbols.ts';
+import { externalSymbols } from '../../../../src/core/model/symbols.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
 import { checkEntry } from '../../../../src/core/verify/text-layout.ts';
 import { dataItem, modelOf, romWith } from '../../../helpers/model.ts';
