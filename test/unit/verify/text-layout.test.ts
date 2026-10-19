@@ -274,3 +274,32 @@ test('a C module needs its source in the stream: without the c-stub writer (phas
   assert.equal(failed?.ok, false);
   assert.match(failed?.detail ?? '', /^src\/main\.c line 1: the stream emits no such file, which the model needs \(at 0x08000100\)/);
 });
+
+test('two definable labels of one static name in two modules: each module resolves its own (architecture-r2-9)', () => {
+  // Module `a` holds a table word naming its `sLocal` (0x08000108), module `b` one naming its own (0x08000188); both labels
+  // are module-scoped and start a data item, so the index holds two labels under one name.
+  const r = romWith([{ at: 0x0800_0100, bytes: words(0x0800_0108) }, { at: 0x0800_0180, bytes: words(0x0800_0188) }], { size: 0x200 });
+  const head = { name: 'head', kind: 'data' as const, chunks: [{ kind: 'data' as const, name: 'head', items: [dataItem(0x0800_0000, 0x100)] }] };
+  const a = { name: 'a', kind: 'data' as const, chunks: [{ kind: 'data' as const, name: 'a', items: [{ kind: 'table-entry' as const, start: 0x0800_0100, target: 0x0800_0108, thumbBit: false }, dataItem(0x0800_0104, 4), dataItem(0x0800_0108, 0x78)] }] };
+  const b = { name: 'b', kind: 'data' as const, chunks: [{ kind: 'data' as const, name: 'b', items: [{ kind: 'table-entry' as const, start: 0x0800_0180, target: 0x0800_0188, thumbBit: false }, dataItem(0x0800_0184, 4), dataItem(0x0800_0188, 0x78)] }] };
+  const labels = [label('sLocal', 0x0800_0108, { kind: 'data', thumb: false }), label('sLocal', 0x0800_0188, { kind: 'data', thumb: false })];
+  const m = modelOf(r, { modules: [head, a, b], labels });
+  const index = textLayoutIndex(m);
+  assert.deepEqual(
+    index.labelsByName.get('sLocal')?.map((l) => l.addr),
+    [0x0800_0108, 0x0800_0188],
+  );
+  const files = written(r, m);
+  for (const name of ['a', 'b']) {
+    const file = files.find((e) => e.path === `data/${name}.s`);
+    assert.ok(file !== undefined && file.ownership === 'generated', name);
+    assert.match(file.text, /\.4byte sLocal\b/, name);
+    assert.deepEqual(checkEntry(r, m, index, file), [], name);
+  }
+  // Had module b's `.4byte sLocal` resolved to module a's label (the first of the name), it would lay out a's address,
+  // which the check finds at b's word: the clean verdicts above rest on each module resolving its own.
+  const bText = files.find((e) => e.path === 'data/b.s');
+  assert.ok(bText !== undefined && bText.ownership === 'generated');
+  const swapped = bText.text.replace(/\.4byte sLocal\b/, '.4byte 0x08000108');
+  assert.equal(checkEntry(r, m, index, entry('data/b.s', swapped, 'data'))[0]?.addr, 0x0800_0180);
+});
