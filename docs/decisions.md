@@ -2789,8 +2789,11 @@ image's largest live heap of a bin command (422.6 MiB, `explain --json`) leaves 
 (922.7 MiB, the raw `verify`) about 101 MiB. A code-dense ROM larger than the doubled one may still exceed the cap,
 which ends in V8's out-of-memory report (exit 134); the memory work of Q7's option (a) stays possible later work, not a
 phase-3 item. Following the landing procedure, with `test/gates/phase.json` at `{ "landed": 3 }`, the whole closing
-list runs in a fresh worktree after this commit (phase-3.md, "The closing gate", the owner's answer to Q7). Nothing is
-merged or pushed.
+list ran in a fresh worktree at `1b4d37f` (phase-3.md, "The closing gate", the owner's answer to Q7): every command
+exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (996.7 and 1,093.3 MiB under the 1,024 MiB cap) among
+them, but `gates --require 3 --tier real`, whose `g2.speed` measured sa2's analysis at 787.3 ms against a limit of 786.8
+ms, and the two provenance checks that read that verdict. That is outside the answers: `phase.json` is back at
+`{ "landed": 2 }` and the question is Q8 of phase-3.md. Nothing is merged or pushed.
 
 ## Review findings index
 

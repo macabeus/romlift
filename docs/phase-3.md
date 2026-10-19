@@ -20,8 +20,12 @@ tuning ROMs (Node 24.15, macOS), and every bin command form completes on the cod
 over, `fb17b88d…`): its raw printer's tree links to its SHA-1, and its four readable `verify` forms exit 3 on the
 text-layout check (two `adr` lines), which by the owner's answer is a recorded known limitation of phase 3 and a
 phase-4 work item, not a failure ("Measured numbers", the owner's answer to Q7). No dense ROM is added to the gate. The
-landing procedure runs with `test/gates/phase.json` at `{ "landed": 3 }`: the whole closing list in a fresh worktree
-("The closing gate", the owner's answer to Q7). The branch is not merged or pushed.
+landing procedure ran with `test/gates/phase.json` at `{ "landed": 3 }`, the whole closing list in a fresh worktree at
+`1b4d37f` ("The closing gate", the owner's answer to Q7): every command exited 0 but `gates --require 3 --tier real`,
+whose `g2.speed` found sa2's analysis 0.5 ms (0.06%) over its limit on an analysis unchanged since the passing run at
+`71143d4`, and the two provenance checks that read that verdict (`g3.large-rom` passed at 996.7 and 1,093.3 MiB under the
+1,024 MiB cap). That failure is outside the answers, so **phase 3 does not land**: `phase.json` is back at
+`{ "landed": 2 }`, and whether to run again is owner question Q8. The branch is not merged or pushed.
 
 ## Components
 
@@ -718,7 +722,9 @@ Every owner decision of architecture §12 is built with its documented safe defa
 fix rounds 1, 2 and 3 (`g3.objdiff`, `g3.large-rom`), and three limitations or gate narrowings were made without the owner's
 words (Q3 to Q5). **The owner answered Q1 to Q5 on 19 October 2026** (D68; each answer under its question).
 Applying Q2's answer raised Q6, which he answered the same day (D69). The review of `16d1280` found a 32 MiB ROM
-of real code density that does not complete under Q6's cap: Q7 (D71), **which he answered the same day** (D72).
+of real code density that does not complete under Q6's cap: Q7 (D71), **which he answered the same day** (D72). The
+landing run after that answer failed on `g2.speed`, a phase-2 timing gate, by 0.5 ms on sa2: **Q8 is open**, and phase
+3 does not land until it is answered.
 
 ### Q1. `g3.objdiff`: almost every remaining difference links to the same word
 
@@ -1016,7 +1022,82 @@ Options.
   ends in V8's out-of-memory abort (exit 134). The memory work of (a) becomes a later phase's work item. Phase 3
   lands with its gates as they are, after this round's closing list.
 
+### Q8. `g2.speed` failed the landing run by 0.5 ms on sa2
+
+**Open** (raised by the landing run after Q7's answer, D72). The landing procedure says every command of the closing
+list exits 0, and a failure for a reason outside the answers lowers `phase.json` and goes to the owner.
+
+Facts (the run at `1b4d37f`, "The closing gate", the owner's answer to Q7):
+
+- `npm run bench -- gates --require 3 --tier real` exited 1 on `g2.speed` alone (every phase-3 gate passed): `bench
+  speed --json` reported sa2's analysis at 787.3 ms CPU against its limit of 786.8 ms (1.5 times the baseline's 543.5
+  ms, scaled by that run's calibration ratio 0.965), 0.5 ms or 0.06% over; the five other tuning ROMs were within their
+  limits. `g1.provenance` (ci tier) and `bench provenance` then exit 1 because the gate record holds that verdict.
+- The same list's `bench speed`, run about fifteen minutes before, measured sa2 at 710.3 ms (limit 783.4 ms), and the
+  same gate run's `g3.speed-budget` measured it at 726 ms. The closing runs at `81210eb` and `71143d4` passed `g2.speed`
+  (ratios 0.994 and 0.947).
+- No analysis code changed since `71143d4`: `src/` differs from `138c8ab` in the launcher's first line
+  (`--max-old-space-size=1024`, which the bench's `speed` children do not use) and three comments. The machine ran
+  other processes (a browser, the OrbStack VM) during the list; `g2.speed` takes the median of five serial runs per ROM,
+  not a minimum.
+
+Options.
+
+- (a) **Run the closing list again unchanged** at a commit that raises `phase.json` again, and land if every command
+  exits 0: the excursion is timing noise on an unchanged analysis. The gate is unchanged; the failed run stays recorded.
+- (b) **Keep the run as failed and change nothing until the cause is measured**: profile sa2's analysis over repeated
+  runs (spread of the median, the machine idle) before any further landing run; phase 3 stays open meanwhile.
+- (c) **Change `g2.speed`** (a gate change): for instance a retry of a ROM over its limit, or the minimum of the
+  medians of two runs, or a re-measured `bench/baseline/speed.json` (which only the phase lead writes and which moves
+  every limit).
+
 ## The closing gate
+
+### The owner's answer to Q7 (landing run)
+
+The landing procedure after the owner's answer to Q7 (D72): `test/gates/phase.json` at `{ "landed": 3 }` (raised at
+`739d665`, not lowered since), then the whole list in a fresh worktree at the docs commit `1b4d37f` (`git worktree add
+--detach` under the system temporary directory: no `node_modules`, no `bench/.local`; objdiff-cli 3.7.2 found in the
+main checkout's build, D65 j), every command from the worktree root in this order with the environment above, the real
+tier before the ci tier. Node 24.15, binutils 2.45.1, macOS. The worktree was clean afterwards but for the
+`bench/results.json` the run wrote (`poc-digests.json` and `poc-dump-rows.json` byte-identical), which is committed as
+this run's artifact (`meta.commit` `1b4d37f`, not dirty, source digest `d7d56063…`).
+
+| Command | Exit at `1b4d37f` | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | 8 packages |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 of 21 pass |
+| `npm test` | 0 | 1,950 tests, 1,950 pass, 0 fail |
+| `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (binutils 2.45.1) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (248 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, each parity matching the committed digest |
+| `npm run export-poc -- --mode raw` | 0 | 47 fixtures |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 76 tests, 76 pass, 0 skipped; among them `large-rom-bin`: the twelve bin command forms complete on the 32 MiB synthetic ROM under the 1,024 MiB cap (481 s) |
+| `npm run bench -- doctor-real` | 0 | every input ok (objdiff-cli 3.7.2) |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | summary ok (agbcc and old_agbcc reported missing, not required) |
+| `npm run corpus` | 0 | 100% round trip, 4.1 s |
+| `npm run bench -- run --scaffold` | 0 | six rows written, raw and readable SHA-1 on all six, sealed pair pass; the memory family under the 1,024 MiB cap: `init` exit 0 at 1,015.5 MiB (live heap 300.1 MiB), `generate` exit 0 at 1,048.0 MiB (299.6 MiB), tree `9d9c915d…` |
+| `npm run bench -- speed` | 0 | ratio 0.961, every ROM ok (sa2 710.3 of 783.4 ms); pokeemerald `generate` 8,113 ms, `init` 10,530 ms CPU |
+| `npm run bench -- regression` | 0 | no regression against `c5cc0b1` |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | six ROMs OK |
+| `npm run bench -- gates --require 3 --tier real` | **1** | **`g2.speed` fail**: `bench speed --json exited 1`, calibration ratio 0.965, "sa2 787.3 ms CPU, 611.0 ms wall, limit 786.8 ms: SLOWER" (every other ROM ok). Pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end, g2.confirm-equals-discover, g2.determinism, g2.entries, g2.extents, g2.held-out, g2.no-unreviewed, g3.link (47 fixtures, 6 of 6 tuning ROMs), g3.raw-link (53), g3.readability, g3.self-check (53), g3.speed-budget (ratio 0.973; sa2 analysis 726 ms; pokeemerald `generate` 8,210 of 9,730 ms, `init` 10,701 of 14,595 ms), g3.text-layout (53), g3.tree-determinism; historical: g2.poc-parity; `g5.objdiff` fail (a phase-5 gate, not required; its counts are Q1's); g4 to g6 others pending (1,220 s) |
+| `npm run bench -- gates --require 3 --tier ci` | **1** | every g2 and g3 ci gate passes, among them **`g3.large-rom` pass**: heap cap 1,024 MiB, `init` 996.7 MiB, `generate` 1,093.3 MiB (budget 1,536 MiB), tree `9d9c915d…`; **`g1.provenance` fail**: `bench provenance --json exited 1`, "gate-record FAILED g2.speed is fail" (the record the real tier wrote); g4 to g6 pending |
+| `npm run bench -- provenance` | **1** | source digest `d7d56063…` (Node 24); gate-record FAILED: g2.speed is fail; families live (memory included), 6 rows, no sealed row |
+| `npm run bench -- stale-check` | 0 | the artifact is current at `1b4d37f` |
+
+Three commands exit 1, all for one reason outside the answers: `g2.speed`, a phase-2 gate, found sa2's median analysis
+CPU time 0.5 ms (0.06%) over its limit, and `g1.provenance` and `provenance` fail because the gate record holds that
+verdict. No analysis code changed since the run at `71143d4`, where `g2.speed` passed (ratio 0.947): `src/` differs
+from `138c8ab` only in the launcher's first line and three comments. In the same list `bench speed` measured sa2 at
+710.3 ms (limit 783.4 ms) fifteen minutes earlier, and `g3.speed-budget`'s own run of the same gate list at 726 ms. By
+the landing procedure `phase.json` is back at `{ "landed": 2 }`, and whether a timing excursion of this size may be run
+again is owner question Q8. The marker is part of the source digest, so the committed artifact, whose digest is
+`1b4d37f`'s, is stale at the lowered commit; the next closing run rewrites it. The two runs of the synthetic ROM in
+this list join the record under the 1,024 MiB cap: ten runs, `init` 964.1 to 1,040.6 MiB, `generate` 959.2 to 1,210.1
+MiB, all under the 1,536 MiB budget. Nothing is merged or pushed.
 
 ### Fix round 5
 
@@ -1377,9 +1458,9 @@ are answered.
   there says tmc has no ELF (checked at integration and again at closing; all three held-out builds reproduce
   their SHA-1s, as it says).
 
-- `bench/results.json` was regenerated by the landing run at `739d665` (with its gate record, every gate of phase ≤ 3
-  passing or historical, `g5.objdiff` failing as a phase-5 gate); `provenance` and `stale-check` pass on it. A later
-  source change moves the source digest again.
+- `bench/results.json` was regenerated by the landing run at `1b4d37f` (after Q7's answer); its gate record holds
+  `g2.speed` failing (Q8), so `provenance` fails on it, and with `phase.json` lowered it is stale. The next closing run
+  rewrites it.
 - The analysis goldens (`test/golden/analysis/*.json`) are single-line canonical JSON, as `encodeAnalysis`
   writes them; a rule change rewrites them with `UPDATE_GOLDEN=1`.
 - Measured in wave 1, a risk for `g3.large-rom` (peak RSS < 512 MiB, unchanged): the analysis alone

@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "71143d431470c8f38104e92172a20d4c1769fe65",
+    "commit": "1b4d37f9d8aee6ecdf7faed7c49cebd9b742e8eb",
     "dirty": false,
-    "sourceDigest": "dc63fdc71a6cdbf53abc89f95200071097f4d19351a8926fed21cfaf0f743c16",
+    "sourceDigest": "d7d560635b294640066958709a12d218f20dfe7609e2b33075bb25d75ab79cb5",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -1897,15 +1897,15 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 882.47,
-        "maxOldSpaceSizeMiB": 384,
+        "maxRssMiB": 1015.48,
+        "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 824.19,
-        "maxOldSpaceSizeMiB": 384,
+        "maxRssMiB": 1047.95,
+        "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "9d9c915dc1f7c62f71e567ab2729838d3e1251a131f9fd4c3c94513113c89753"
       }
     ]
@@ -2014,11 +2014,11 @@
       },
       {
         "id": "g2.speed",
-        "verdict": "pass",
+        "verdict": "fail",
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.947; CPU/limit: fe7j 1057/12519 ms, klonoa 240/302 ms, pokeemerald 2042/4161 ms, sa2 703/772 ms, sa3 971/1472 ms, tmc 1333/1760 ms"
+        "detail": "bench speed --json exited 1:\ncalibration 189.8 ms CPU, baseline 196.62 ms, ratio 0.965\nfe7j         1102.3 ms CPU, 804.7 ms wall, limit 12754.9 ms: ok\n  generate 3553.6 ms CPU, 3083.2 ms wall, 9346 files\n  init     4728.6 ms CPU, 3916.7 ms wall, 9346 files\nklonoa       250.9 ms CPU, 219.5 ms wall, limit 308.0 ms: ok\n  generate 1041.2 ms CPU, 915.8 ms wall, 668 files\n  init     1345.1 ms CPU, 1157.9 ms wall, 668 files\npokeemerald  2174.4 ms CPU, 1615.9 ms wall, limit 4239.8 ms: ok\n  generate 8283.5 ms CPU, 7309.7 ms wall, 19121 files\n  init     10984.5 ms CPU, 9621.7 ms wall, 19121 files\nsa2          787.3 ms CPU, 611.0 ms wall, limit 786.8 ms: SLOWER\n  generate 2509.6 ms CPU, 2310.9 ms wall, 3380 files\n  init     3266.9 ms CPU, 2754.1 ms wall, 3380 files\nsa3          1160.2 ms CPU, 941.3 ms wall, limit 1499.7 ms: ok\n  generate 3296.4 ms CPU, 2976.8 ms wall, 5602 files\n  init     4469.7 ms CPU, 3957.4 ms wall, 5602 files\ntmc          1518.1 ms CPU, 1180.6 ms wall, limit 1792.9 ms: ok\n  generate 3845.4 ms CPU, 3374.7 ms wall, 10971 files\n  init     5288.8 ms CPU, 4499.3 ms wall, 10971 files\n{\"schema\":\"romlift/bench-speed@1\",\"calibration\":{\"cpuMs\":189.765,\"baselineCpuMs\":196.62,\"ratio\":0.9651357949343912},\"roms\":[{\"name\":\"fe7j\",\"analysisCpuMs\":1102.253,\"wallMs\":804.7417079999996,\"baselineCpuMs\":8810.46,\"generateCpuMs\":3553.637,\"initCpuMs\":4728.591},{\"name\":\"klonoa\",\"analysisCpuMs\":250.853,\"wallMs\":219.4853340000045,\"baselineCpuMs\":212.73,\"generateCpuMs\":1041.195,\"initCpuMs\":1345.108},{\"name\":\"pokeemerald\",\"analysisCpuMs\":2174.377,\"wallMs\":1615.880165999988,\"baselineCpuMs\":2928.62,\"generateCpuMs\":8283.451,\"initCpuMs\":10984.49},{\"name\":\"sa2\",\"analysisCpuMs\":787.304,\"wallMs\":611.0069589999912,\"baselineCpuMs\":543.5,\"generateCpuMs\":2509.605,\"initCpuMs\":3266.894},{\"name\":\"sa3\",\"analysisCpuMs\":1160.239,\"wallMs\":941.3129580000241,\"baselineCpuMs\":1035.92,\"generateCpuMs\":3296.425,\"initCpuMs\":4469.675},{\"name\":\"tmc\",\"analysisCpuMs\":1518.103,\"wallMs\":1180.5705000000307,\"baselineCpuMs\":1238.47,\"generateCpuMs\":3845.399,\"initCpuMs\":5288.768}]}"
       },
       {
         "id": "g3.link",
@@ -2061,7 +2061,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.947; fe7j analysis 1065/2842 ms, klonoa analysis 250/2842 ms, pokeemerald analysis 2131/2842 ms, pokeemerald generate 7891/9474 ms, pokeemerald init 10320/14212 ms, sa2 analysis 711/2842 ms, sa3 analysis 1018/2842 ms, tmc analysis 1342/2842 ms"
+        "detail": "calibration ratio 0.973; fe7j analysis 1187/2919 ms, klonoa analysis 248/2919 ms, pokeemerald analysis 2086/2919 ms, pokeemerald generate 8210/9730 ms, pokeemerald init 10701/14595 ms, sa2 analysis 726/2919 ms, sa3 analysis 1053/2919 ms, tmc analysis 1389/2919 ms"
       },
       {
         "id": "g3.text-layout",
