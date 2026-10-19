@@ -88,7 +88,7 @@ test('a runs_at override bounded by module borders sets the run address of its m
   assert.equal(loadAddressOf(moved, 0x0300_0010), BASE + 0x210);
   assert.equal(loadAddressOf(moved, BASE + 0x110), BASE + 0x110);
   assert.equal(moduleIndexAt(ram.modules, 0x0300_0010, moved), 2);
-  assert.equal(moduleIndexAt(ram.modules, 0x0300_0010), 2, 'without the relocated list every module is looked at');
+  assert.equal(moduleIndexAt(ram.modules, 0x0300_0010, ram.modules), 2, 'every module looked at gives the same index');
   assert.equal(loadModuleAt(ram.modules, 0x0300_0010), -1);
   assert.equal(moduleIndexAt(ram.modules, BASE + 0x110, []), 1);
   assert.equal(moduleIndexAt(ram.modules, BASE + 0x210, moved), 2, 'a load address inside the runs_at module');

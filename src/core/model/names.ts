@@ -12,7 +12,7 @@ import { hex, hexAddr } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import { ModelCodes } from './codes.ts';
-import { moduleIndexAt } from './resolver.ts';
+import { moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, Module, NameSource } from './types.ts';
 
 /** The default name of a function: sub_ and eight upper-case hex digits. */
@@ -92,8 +92,9 @@ export function nameCollisions(names: readonly DefinedName[], modules: readonly 
     }
   }
   const out: Diagnostic[] = [];
+  const relocated = relocatedModules(modules);
   for (const name of repeated.sort(compareCodeUnits)) {
-    const sorted = [...(uses.get(name) ?? [])].sort((a, b) => compareNumbers(a.addr, b.addr)).map((u) => ({ ...u, module: moduleIndexAt(modules, u.addr) }));
+    const sorted = [...(uses.get(name) ?? [])].sort((a, b) => compareNumbers(a.addr, b.addr)).map((u) => ({ ...u, module: moduleIndexAt(modules, u.addr, relocated) }));
     const sameModule = sorted.some((u, i) => sorted.some((v, j) => j > i && v.module === u.module));
     const crossGlobal = sorted.some((u, i) => sorted.some((v, j) => j > i && v.module !== u.module && (u.scope === 'global' || v.scope === 'global')));
     if (!sameModule && !crossGlobal) continue;

@@ -14,7 +14,6 @@ import { moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, LabelKind, Model, Module } from './types.ts';
 
 /** The module an address belongs to, by index (core/model/modules.ts): the one definition. */
-export { moduleIndexAt } from './modules.ts';
 
 /** The label printed when several share an address: a function name first, then table, pool, local, data. */
 export const LABEL_KIND_ORDER: readonly LabelKind[] = ['func', 'table', 'pool', 'local', 'data'];
@@ -34,7 +33,7 @@ export function compareLabels(a: Pick<Label, 'addr' | 'kind' | 'name'>, b: Pick<
 
 /** The module `addr` belongs to (moduleIndexAt), or undefined. */
 export function moduleAt(model: Pick<Model, 'modules'>, addr: Addr): Module | undefined {
-  return model.modules[moduleIndexAt(model.modules, addr)];
+  return model.modules[moduleIndexAt(model.modules, addr, relocatedModules(model.modules))];
 }
 
 /**

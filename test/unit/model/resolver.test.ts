@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { compareLabels, moduleAt, moduleIndexAt, resolverFor, resolverOver, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
+import { compareLabels, moduleAt, resolverFor, resolverOver, wordValueOf } from '../../../src/core/model/resolver.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
 
@@ -67,7 +68,7 @@ test('a runs_at module owns its run range; its labels hold run addresses', () =>
   assert.equal(moduleAt(m, RAM + 0x10)?.name, 'ram');
   assert.equal(moduleAt(m, 0x0800_3010)?.name, 'ram', 'and its load span');
   assert.equal(moduleAt(m, A)?.name, 'alpha');
-  assert.equal(moduleIndexAt(m.modules, 0x0200_0000), -1);
+  assert.equal(moduleIndexAt(m.modules, 0x0200_0000, relocatedModules(m.modules)), -1);
   assert.equal(moduleAt(m, 0x0800_4000), undefined);
   assert.equal(resolverFor(m, 'ram').labelFor(RAM + 0x10, RAM), 'RamHelper');
   assert.equal(resolverFor(m, 'alpha').labelFor(RAM + 0x10, A), undefined);

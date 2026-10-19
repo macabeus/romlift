@@ -106,7 +106,7 @@ function wordName(model: Model, index: number, word: number): string | undefined
   }
   const label = at
     .sort(compareLabels)
-    .find((l) => wordValueOf(l) === word && (l.scope === 'global' || model.modules[moduleIndexAt(model.modules, l.addr)]?.name === own));
+    .find((l) => wordValueOf(l) === word && (l.scope === 'global' || model.modules[moduleIndexAt(model.modules, l.addr, relocatedModules(model.modules))]?.name === own));
   if (label !== undefined) return label.name;
   if (word !== target) return undefined;
   const symbol = model.symbols[firstLabelAt(model.symbols, target)];
