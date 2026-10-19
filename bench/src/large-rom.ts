@@ -35,10 +35,10 @@ import { runProcess, type ProcessResult } from './process.ts';
 export const LARGE_ROM_SCHEMA = 'romlift/bench-large-rom@1';
 /**
  * g3.large-rom's limit, for the human output only; the gate judges (test/gates/g3.large-rom.test.ts holds the same
- * number). The owner's answer to Q2 sets it from the runs under the heap cap with a stated margin (D68 b); no run of
- * the synthetic ROM completes under the cap, so it stays D42's 512 MiB until the owner answers Q6 (phase-3.md).
+ * number). Set from the recorded runs of the synthetic ROM under the 384 MiB heap cap (D68 b, D69 b): the largest
+ * peak, 866.5 MiB, plus a 25% margin, rounded up to a multiple of 64 MiB (phase-3.md, "Measured numbers").
  */
-export const LARGE_ROM_MAX_RSS_MIB = 512;
+export const LARGE_ROM_MAX_RSS_MIB = 1088;
 /**
  * The heap cap, in MiB of V8's old space, that the `romlift` bin passes to Node (`#!/usr/bin/env -S node
  * --max-old-space-size=384`, the first line of src/cli/main.ts) and every child of this script runs under (D68 b;

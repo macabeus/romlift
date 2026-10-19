@@ -22,7 +22,7 @@ export const FAMILIES = {
   determinism: { liveFrom: 2, scope: 'rom', summary: 'two processes with a varied environment give one digest' },
   speed: { liveFrom: 2, scope: 'rom', summary: 'CPU time within the ratchet and the budget' },
   readability: { liveFrom: 3, scope: 'rom', summary: 'readability shares only increase; objdiff score 0' },
-  memory: { liveFrom: 3, scope: 'global', summary: 'peak RSS below 512 MiB on the 32 MiB synthetic ROM' },
+  memory: { liveFrom: 3, scope: 'global', summary: 'peak RSS below 1,088 MiB under the 384 MiB heap cap on the 32 MiB synthetic ROM' },
   signatures: { liveFrom: 6, scope: 'rom', summary: 'every placement at an ELF FUNC or a listed untyped address' },
 } as const satisfies Record<string, FamilySpec>;
 
