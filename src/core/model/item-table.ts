@@ -7,7 +7,7 @@ import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.t
 import { decode } from '../../foundation/isa/decode.ts';
 import { ROWS } from '../../foundation/isa/rows.ts';
 import type { Insn, SpecId } from '../../foundation/isa/types.ts';
-import { u16, u32 } from '../../foundation/rom/rom.ts';
+import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
@@ -192,14 +192,30 @@ export function findItem(items: ItemTable, addr: Addr): number {
   return -1;
 }
 
-function decodeAt(rom: Rom, specId: SpecId, span: Span, runOffset: number): Insn {
+/**
+ * The instruction of item `i` decoded from the ROM at its run address (`start + runOffset`), or why it cannot be:
+ * the item records no isa row, its bytes are not in the ROM, no instruction of its mode has its size, or its
+ * bytes decode as another row or size than it records. A 4-byte Thumb item (a bl pair) is its first halfword |
+ * its second << 16, the word u32 reads.
+ */
+export function decodeItemAt(rom: Rom, items: ItemTable, i: number, runOffset: number): Insn | string {
+  const start = items.start[i] ?? 0;
+  const size = items.length[i] ?? 0;
+  const specId = specIdAt(items.spec[i] ?? NO_SPEC);
+  if (specId === undefined) return 'it records no isa row';
+  if (!contains(rom, start, size)) return `its ${size} bytes are not in the ROM`;
   const mode = modeOfSpec(specId);
-  const size = span.end - span.start;
-  const word = mode === 'arm' ? u32(rom, span.start) : size === 4 ? (u16(rom, span.start) | (u16(rom, span.start + 2) << 16)) >>> 0 : u16(rom, span.start);
-  const insn = decode(mode, word, span.start + runOffset);
-  if (insn.specId !== specId || insn.size !== size) {
-    throw new RomliftInvariantError(`item table: the ${size}-byte item at ${hexAddr(span.start)} records ${specId} but decodes as ${insn.specId} (${insn.size} bytes)`);
-  }
+  const word = size === 4 ? u32(rom, start) : size === 2 && mode === 'thumb' ? u16(rom, start) : undefined;
+  if (word === undefined) return `a ${size}-byte ${mode} instruction cannot exist`;
+  const insn = decode(mode, word, start + runOffset);
+  if (insn.specId !== specId || insn.size !== size) return `it records ${specId} (${size} bytes) but its bytes decode as ${insn.specId} (${insn.size} bytes)`;
+  return insn;
+}
+
+/** decodeItemAt, for an item the model built: a reason is a broken model, never content. */
+function decodeAt(rom: Rom, items: ItemTable, i: number, runOffset: number): Insn {
+  const insn = decodeItemAt(rom, items, i, runOffset);
+  if (typeof insn === 'string') throw new RomliftInvariantError(`item table: the item at ${hexAddr(items.start[i] ?? 0)}: ${insn}`);
   return insn;
 }
 
@@ -216,14 +232,14 @@ export function itemAt(items: ItemTable, i: number, rom: Rom, runOffset = 0): It
     case ItemKind.insn: {
       const specId = specIdAt(spec);
       if (specId === undefined) throw new RomliftInvariantError(`item table: insn item ${i} at ${hexAddr(span.start)} has no spec`);
-      return { kind: 'insn', span, insn: decodeAt(rom, specId, span, runOffset) };
+      return { kind: 'insn', span, insn: decodeAt(rom, items, i, runOffset) };
     }
     case ItemKind.rawInsn: {
       const reason = ITEM_RAW_REASONS[aux];
       if (reason === undefined) throw new RomliftInvariantError(`item table: raw-insn item ${i} has reason code ${aux}`);
       const specId = spec === NO_SPEC ? undefined : specIdAt(spec);
       if (spec !== NO_SPEC && specId === undefined) throw new RomliftInvariantError(`item table: raw-insn item ${i} has spec index ${spec}`);
-      return specId === undefined ? { kind: 'raw-insn', span, reason } : { kind: 'raw-insn', span, insn: decodeAt(rom, specId, span, runOffset), reason };
+      return specId === undefined ? { kind: 'raw-insn', span, reason } : { kind: 'raw-insn', span, insn: decodeAt(rom, items, i, runOffset), reason };
     }
     case ItemKind.pool:
       return { kind: 'pool', span, value: aux };

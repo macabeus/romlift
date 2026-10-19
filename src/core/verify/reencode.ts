@@ -10,16 +10,14 @@
 // rawReason). Only an instruction that names no address goes through a cache, addressFreeReasons, whose key is
 // its mode and exact word, so the cache can change no answer. The decode of each item is not cached: the check
 // still compares every item's recorded row with what its bytes decode to.
-import { decode } from '../../foundation/isa/decode.ts';
-import type { Insn, SymbolResolver } from '../../foundation/isa/types.ts';
+import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { rawReason } from '../../foundation/isa/roundtrip.ts';
-import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
-import { modeOfSpec, specIdAt } from '../model/item-table.ts';
+import { decodeItemAt } from '../model/item-table.ts';
 import { addressFreeReasons, namesNoAddress } from '../model/printing-cache.ts';
 import type { AddressFreeReasons } from '../model/printing-cache.ts';
 import { resolverFor } from '../model/resolver.ts';
@@ -33,25 +31,9 @@ import { VerifyCodes } from './codes.ts';
 /** How many failures one result lists; the rest are counted in its detail. */
 const MAX_REPORTED = 64;
 
-/** The instruction of item `i` decoded at its run address, or why it cannot be. */
-function decodeItem(rom: Rom, model: Model, i: number, runOffset: number): Insn | string {
-  const start = model.items.start[i] ?? 0;
-  const size = model.items.length[i] ?? 0;
-  const specId = specIdAt(model.items.spec[i] ?? 0xffff);
-  if (specId === undefined) return 'it records no isa row';
-  if (!contains(rom, start, size)) return `its ${size} bytes are not in the ROM`;
-  const mode = modeOfSpec(specId);
-  // A 4-byte Thumb instruction (a bl pair) is its first halfword | its second << 16, the word u32 reads.
-  const word = size === 4 ? u32(rom, start) : size === 2 && mode === 'thumb' ? u16(rom, start) : undefined;
-  if (word === undefined) return `a ${size}-byte ${mode} instruction cannot exist`;
-  const insn = decode(mode, word, start + runOffset);
-  if (insn.specId !== specId || insn.size !== size) return `it records ${specId} (${size} bytes) but its bytes decode as ${insn.specId} (${insn.size} bytes)`;
-  return insn;
-}
-
 /** Why item `i` would not print as a mnemonic that assembles back, or undefined when it would. */
 function failure(rom: Rom, model: Model, i: number, runOffset: number, resolver: SymbolResolver, cache: AddressFreeReasons): string | undefined {
-  const insn = decodeItem(rom, model, i, runOffset);
+  const insn = decodeItemAt(rom, model.items, i, runOffset);
   if (typeof insn === 'string') return insn;
   const reason = namesNoAddress(insn) ? cache.reasonOf(insn, resolver) : rawReason(insn, resolver);
   return reason === null ? undefined : `${insn.specId} prints raw (${reason})`;

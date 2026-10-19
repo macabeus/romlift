@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
-import { emptyItemTable, findItem, itemAt, itemSpan, itemTableBuilder, specIdAt, specIndex } from '../../../src/core/model/item-table.ts';
+import { decodeItemAt, emptyItemTable, findItem, itemAt, itemSpan, itemTableBuilder, specIdAt, specIndex } from '../../../src/core/model/item-table.ts';
 import { DATA_NOTES, ITEM_RAW_REASONS, ItemKind, NO_SPEC } from '../../../src/core/model/types.ts';
 import { romWith, words } from '../../helpers/model.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
@@ -132,4 +132,26 @@ test('findItem returns the item containing an address, or -1', () => {
   assert.equal(findItem(t, 0x10f), 2);
   assert.equal(findItem(t, 0x110), -1);
   assert.equal(findItem(emptyItemTable(), 0), -1);
+});
+
+test('decodeItemAt: the one decode of an item, the instruction or why there is none; itemAt throws the same reason (architecture-r1-4)', () => {
+  const r = rom();
+  const b = itemTableBuilder(1);
+  b.append({ kind: 'insn', start: CODE, length: 2, specId: 'thumb.push' });
+  b.append({ kind: 'insn', start: CODE + 2, length: 4, specId: 'thumb.bl' });
+  b.append({ kind: 'insn', start: CODE + 6, length: 2, specId: 'thumb.push' });
+  b.append({ kind: 'data', start: CODE + 8, length: 4 });
+  b.append({ kind: 'insn', start: 0x0800_0300, length: 4, specId: 'arm.bx' });
+  const t = b.finish();
+  const bl = decodeItemAt(r, t, 1, 0);
+  assert.ok(typeof bl !== 'string');
+  assert.equal(bl.specId, 'thumb.bl');
+  assert.equal(bl.flow.kind === 'bl' ? bl.flow.target : undefined, 0x0800_0300);
+  assert.equal((decodeItemAt(r, t, 4, 0) as { readonly specId: string }).specId, 'arm.bx');
+  assert.equal(decodeItemAt(r, t, 2, 0), 'it records thumb.push (2 bytes) but its bytes decode as thumb.ldr_pc (2 bytes)');
+  assert.equal(decodeItemAt(r, t, 3, 0), 'it records no isa row');
+  assert.throws(() => itemAt(t, 2, r), /the item at 0x08000206: it records thumb\.push/);
+  const outside = itemTableBuilder(1);
+  outside.append({ kind: 'insn', start: r.end - 2, length: 4, specId: 'thumb.bl' });
+  assert.equal(decodeItemAt(r, outside.finish(), 0, 0), 'its 4 bytes are not in the ROM');
 });
