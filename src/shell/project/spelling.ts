@@ -51,11 +51,34 @@ async function sameEntry(a: string, b: string): Promise<boolean> {
   return x !== undefined && y !== undefined && x.dev === y.dev && x.ino === y.ino;
 }
 
-/** Renames `from` to `to`, a case variant of it, through a temporary name (a direct rename may keep the old name). */
-async function renameCase(at: string, from: string, to: string): Promise<void> {
+/** A case rename's outcome: done, or the error and where the entry is now (its old name, or the temporary one). */
+export type CaseRename = { readonly ok: true } | { readonly ok: false; readonly error: unknown; readonly at: string };
+
+/** The one file-system call renameCase makes; a test passes a failing one. */
+export type RenameFn = (from: string, to: string) => Promise<void>;
+
+/**
+ * Renames `from` to `to`, a case variant of it, through a temporary name (a direct rename may keep the old
+ * name). When the second rename fails the entry is renamed back to `from`; the result names where it is.
+ */
+export async function renameCase(at: string, from: string, to: string, move: RenameFn = rename): Promise<CaseRename> {
   const temporary = join(at, `.romlift-case-${process.pid}-${from}`);
-  await rename(join(at, from), temporary);
-  await rename(temporary, join(at, to));
+  try {
+    await move(join(at, from), temporary);
+  } catch (error) {
+    return { ok: false, error, at: join(at, from) };
+  }
+  try {
+    await move(temporary, join(at, to));
+    return { ok: true };
+  } catch (error) {
+    try {
+      await move(temporary, join(at, from));
+      return { ok: false, error, at: join(at, from) };
+    } catch {
+      return { ok: false, error, at: temporary };
+    }
+  }
 }
 
 /**
@@ -73,9 +96,12 @@ export async function respell(dir: string, path: string, listings: Listings): Pr
       if (other === undefined) return undefined;
       try {
         if (!(await sameEntry(join(at, other), join(at, part)))) return undefined;
-        await renameCase(at, other, part);
       } catch (error) {
         return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot rename ${join(at, other)} to ${part}: ${errorReason(error)}`, { path: join(at, other) });
+      }
+      const renamed = await renameCase(at, other, part);
+      if (!renamed.ok) {
+        return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot rename ${join(at, other)} to ${part}: ${errorReason(renamed.error)}; it is at ${renamed.at}`, { path: renamed.at });
       }
       listing.names.delete(other);
       listing.names.add(part);
