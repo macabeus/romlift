@@ -187,11 +187,21 @@ export function initConfig(rom: Rom, options: { readonly profile?: CompilerProfi
   return { ok: true, discovered, config: configFromDiscover(rom, discovered) };
 }
 
+/**
+ * initConfig without its discover analysis: initModel and generateFromRom run the confirm analysis next, and the
+ * discover result (about as large as the confirm one on a 32 MiB ROM) must be garbage by then, or the two together
+ * do not fit under the `romlift` bin's 384 MiB heap cap (D69; phase-3.md, fix round 4).
+ */
+function configAlone(rom: Rom, options: { readonly profile?: CompilerProfile }): { readonly ok: true; readonly config: RomliftConfig } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+  const init = initConfig(rom, options);
+  return init.ok ? { ok: true, config: init.config } : init;
+}
+
 /** What `model --json` prints for a ROM: initConfig, then the confirm analysis over that config and its Model. */
 export type InitModel = ({ readonly ok: true; readonly config: RomliftConfig } & ConfirmedModel) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 export function initModel(rom: Rom, options: { readonly profile?: CompilerProfile } = {}): InitModel {
-  const init = initConfig(rom, options);
+  const init = configAlone(rom, options);
   if (!init.ok) return init;
   return { ok: true, config: init.config, ...confirmModel({ rom, config: init.config, ...(options.profile === undefined ? {} : { profile: options.profile }) }) };
 }
@@ -200,7 +210,7 @@ export function initModel(rom: Rom, options: { readonly profile?: CompilerProfil
 export type GenerateFromRom = ({ readonly ok: true; readonly config: RomliftConfig } & GenerateResult) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 export function generateFromRom(rom: Rom, inputs: Omit<GenerateInputs, 'rom' | 'config'>): GenerateFromRom {
-  const init = initConfig(rom, inputs.profile === undefined ? {} : { profile: inputs.profile });
+  const init = configAlone(rom, inputs.profile === undefined ? {} : { profile: inputs.profile });
   if (!init.ok) return init;
   return { ok: true, config: init.config, ...generate({ ...inputs, rom, config: init.config }) };
 }
