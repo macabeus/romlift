@@ -1,9 +1,8 @@
-// g3.large-rom (architecture §9.4, §13, D42, D68 b): on the deterministic 32 MiB synthetic ROM (fixture code
+// g3.large-rom (architecture §9.4, §13, D42, D68 b, D69): on the deterministic 32 MiB synthetic ROM (fixture code
 // tiled with seeded data), `init` and `generate` (in phase 3, their workflow equivalents) each run under the heap
-// cap the `romlift` bin passes to Node (`--max-old-space-size=256`, the owner's answer to Q2, "Measure under a heap
-// cap"), exit 0, and keep their peak RSS below the budget. The answer sets the budget from the runs under the cap
-// with a stated margin; no run of the synthetic ROM completes under the cap (phase-3.md Q6), so the budget is still
-// D42's 512 MiB until the owner answers Q6.
+// cap the `romlift` bin passes to Node (`--max-old-space-size=384`: the owner's answer to Q6, "384 MiB for bin and
+// gate", which replaces Q2's 256), exit 0, and keep their peak RSS below the budget, set from the recorded runs under
+// that cap with a stated margin (D69).
 //
 // The command (aligned by the phase-3 lead, D62): p3-generate writes bench/src/large-rom.ts on
 // test/helpers/large-rom.ts, and p3-bench-scaffold registers `bench large-rom`:
@@ -33,7 +32,7 @@ interface LargeRom {
 const ROM_BYTES = 32 * 1024 * 1024;
 const MAX_RSS_MIB = 512;
 /** The heap cap of the `romlift` bin (src/cli/main.ts's first line), which every measured run must run under. */
-const HEAP_CAP_MIB = 256;
+const HEAP_CAP_MIB = 384;
 const COMMANDS: readonly string[] = ['init', 'generate'];
 
 function tail(run: ExecResult, lines = 30): string {

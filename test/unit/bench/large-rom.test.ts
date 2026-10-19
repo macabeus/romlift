@@ -47,7 +47,7 @@ test('the parent: the image is written once, init then generate each in a child,
     spawn: async (args) => {
       calls.push(args);
       const command = args[1];
-      return ok(`progress\n${JSON.stringify({ command, exitCode: 0, maxRssKiB: 300 * 1024 + 512, maxOldSpaceSizeMiB: 256, files: 9, detail: 'written', treeDigest: 'ab' })}\n`);
+      return ok(`progress\n${JSON.stringify({ command, exitCode: 0, maxRssKiB: 300 * 1024 + 512, maxOldSpaceSizeMiB: 384, files: 9, detail: 'written', treeDigest: 'ab' })}\n`);
     },
     log: () => {},
   };
@@ -59,8 +59,8 @@ test('the parent: the image is written once, init then generate each in a child,
   assert.deepEqual(
     report.runs.map((r) => [r.command, r.exitCode, r.maxRssMiB, r.maxOldSpaceSizeMiB, r.treeDigest]),
     [
-      ['init', 0, 300.5, 256, 'ab'],
-      ['generate', 0, 300.5, 256, 'ab'],
+      ['init', 0, 300.5, 384, 'ab'],
+      ['generate', 0, 300.5, 384, 'ab'],
     ],
   );
   assert.deepEqual(
@@ -72,7 +72,7 @@ test('the parent: the image is written once, init then generate each in a child,
   );
   assert.equal(calls[0]?.at(-1), calls[1]?.at(-1), 'generate reads the config init wrote');
   assert.ok(bothReported(report));
-  assert.match(largeRomText(report), /\ninit {5}exit 0 {2}peak RSS 300\.5 MiB \(under \d+ MiB\) {2}heap cap 256 MiB {2}tree ab\n/);
+  assert.match(largeRomText(report), /\ninit {5}exit 0 {2}peak RSS 300\.5 MiB \(under \d+ MiB\) {2}heap cap 384 MiB {2}tree ab\n/);
 });
 
 test('a child that printed no report: its exit code (1 when it exited 0), no RSS, and the tail of its output', async () => {
