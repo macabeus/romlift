@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
-import { loadAddressOf, loadModuleAt, planModules, relocatedModules, runModuleAt, runOffsetAt } from '../../../src/core/model/modules.ts';
+import { loadAddressOf, loadModuleAt, moduleIndexAt, planModules, relocatedModules, runOffsetAt, runStartOf, toLoad } from '../../../src/core/model/modules.ts';
 import { BASE, configOf, HEADER_END, romWith } from '../layout/hand-made.ts';
 
 const ROM = romWith([], { size: 0x400 });
@@ -87,9 +87,19 @@ test('a runs_at override bounded by module borders sets the run address of its m
   assert.equal(runOffsetAt(moved, BASE + 0x110), 0);
   assert.equal(loadAddressOf(moved, 0x0300_0010), BASE + 0x210);
   assert.equal(loadAddressOf(moved, BASE + 0x110), BASE + 0x110);
-  assert.equal(runModuleAt(ram.modules, moved, 0x0300_0010), 2);
+  assert.equal(moduleIndexAt(ram.modules, 0x0300_0010, moved), 2);
+  assert.equal(moduleIndexAt(ram.modules, 0x0300_0010), 2, 'without the relocated list every module is looked at');
   assert.equal(loadModuleAt(ram.modules, 0x0300_0010), -1);
-  assert.equal(runModuleAt(ram.modules, [], BASE + 0x110), 1);
+  assert.equal(moduleIndexAt(ram.modules, BASE + 0x110, []), 1);
+  assert.equal(moduleIndexAt(ram.modules, BASE + 0x210, moved), 2, 'a load address inside the runs_at module');
+  const module = ram.modules[2];
+  assert.ok(module !== undefined);
+  assert.equal(runStartOf(module), 0x0300_0000);
+  assert.equal(toLoad(module, 0x0300_0010), BASE + 0x210);
+  const plain = ram.modules[1];
+  assert.ok(plain !== undefined);
+  assert.equal(runStartOf(plain), plain.span.start);
+  assert.equal(toLoad(plain, BASE + 0x110), BASE + 0x110);
 });
 
 test('a runs_at range that does not start and end on module borders is E_OVERRIDE_INVALID', () => {

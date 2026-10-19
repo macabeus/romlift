@@ -47,9 +47,9 @@ import { pushAll } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
-import { runOffsetOf } from '../model/modules.ts';
+import { moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
 import { BASEROM_PATH, chunkPaths, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
-import { moduleIndexAt, wordValueOf } from '../model/resolver.ts';
+import { wordValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Label, Model, Module } from '../model/types.ts';
 import { checkLdscript, checkSymbolsFile, externalSymbolValues } from './link-scripts.ts';
@@ -81,6 +81,8 @@ interface PathIndex {
   readonly chunkPaths: readonly (string | undefined)[];
   /** Every path the stream of the model must hold, in model order, with the address its bytes start at. */
   readonly expected: readonly { readonly path: string; readonly addr: Addr }[];
+  /** relocatedModules(model.modules), for moduleIndexAt. */
+  readonly relocated: readonly Module[];
   /** The labels a printer can place (definable), by name, each list by address. */
   readonly labelsByName: ReadonlyMap<string, readonly Label[]>;
   /** The [symbols] entries outside the ROM, which symbols.ld defines, by name (the first by address). */
@@ -94,11 +96,10 @@ interface PathIndex {
  * readable printer splits a data item there, the data writer an `.incbin`, the header its `.byte` lines). An
  * instruction, pool word or table entry cannot be cut, so a label inside one is never defined (D63 d).
  */
-function definable(model: Model, label: Label): boolean {
-  const m = moduleIndexAt(model.modules, label.addr);
-  const module = model.modules[m];
+function definable(model: Model, relocated: readonly Module[], label: Label): boolean {
+  const module = model.modules[moduleIndexAt(model.modules, label.addr, relocated)];
   if (module === undefined) return false;
-  const load = label.addr - (module.runAt ?? module.span.start) + module.span.start;
+  const load = toLoad(module, label.addr);
   const i = findItem(model.items, load);
   return i >= 0 && (model.items.start[i] === load || model.items.kind[i] === ItemKind.data);
 }
@@ -126,14 +127,15 @@ function buildIndex(model: Model): PathIndex {
     }
   });
   expected.push({ path: LDSCRIPT_PATH, addr: ROM_BASE }, { path: SYMBOLS_PATH, addr: ROM_BASE });
+  const relocated = relocatedModules(model.modules);
   const labelsByName = new Map<string, Label[]>();
   for (const label of model.labels) {
-    if (!definable(model, label)) continue;
+    if (!definable(model, relocated, label)) continue;
     const list = labelsByName.get(label.name);
     if (list === undefined) labelsByName.set(label.name, [label]);
     else list.push(label);
   }
-  return { targets, chunkPaths: paths, expected, labelsByName, symbolsByName: externalSymbolValues(model), memo: layoutMemo() };
+  return { targets, chunkPaths: paths, expected, relocated, labelsByName, symbolsByName: externalSymbolValues(model), memo: layoutMemo() };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -143,7 +145,7 @@ function buildIndex(model: Model): PathIndex {
 function resolveIn(model: Model, index: PathIndex, m: number): (name: string) => number | undefined {
   return (name) => {
     const labels = index.labelsByName.get(name) ?? [];
-    const label = labels.find((l) => moduleIndexAt(model.modules, l.addr) === m) ?? labels.find((l) => l.scope === 'global');
+    const label = labels.find((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m) ?? labels.find((l) => l.scope === 'global');
     if (label !== undefined) return wordValueOf(label);
     return index.symbolsByName.get(name);
   };
@@ -151,7 +153,7 @@ function resolveIn(model: Model, index: PathIndex, m: number): (name: string) =>
 
 /** Whether a name a file of module `m` does not define is a label of module `m` itself (one object). */
 function inModule(model: Model, index: PathIndex, m: number): (name: string) => boolean {
-  return (name) => (index.labelsByName.get(name) ?? []).some((l) => moduleIndexAt(model.modules, l.addr) === m);
+  return (name) => (index.labelsByName.get(name) ?? []).some((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m);
 }
 
 function romIncbin(rom: Rom): (file: string, offset: number, length: number) => Uint8Array | undefined {

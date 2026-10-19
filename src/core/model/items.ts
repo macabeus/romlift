@@ -30,7 +30,7 @@ import type { CodeRef } from './labels.ts';
 import { ModelCodes } from './codes.ts';
 import { itemTableBuilder } from './item-table.ts';
 import { printingCache } from './printing-cache.ts';
-import { relocatedModules, runModuleAt } from './modules.ts';
+import { moduleIndexAt, relocatedModules } from './modules.ts';
 import { resolverFor } from './resolver.ts';
 import type { DataNote, ItemRawReason, ItemTable, Label, Module } from './types.ts';
 import type { Segment, Segments } from './segments.ts';
@@ -166,7 +166,7 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
 
   /** Whether a short branch at `site` to `target` leaves chunk `c`'s module; W_CROSS_MODULE_SHORT_BRANCH when it does. */
   const crossesModule = (site: Addr, target: Addr, c: ChunkPlan): boolean => {
-    const module = runModuleAt(inputs.modules, relocated, target);
+    const module = moduleIndexAt(inputs.modules, target, relocated);
     if (module < 0 || module === c.module) return false;
     diagnostics.push(
       diagnostic(ModelCodes, 'W_CROSS_MODULE_SHORT_BRANCH', `the branch at ${hexAddr(site)} reaches ${hexAddr(target)} in module ${inputs.modules[module]?.name ?? ''} from module ${inputs.modules[c.module]?.name ?? ''}; it prints raw`, {

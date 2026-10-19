@@ -11,7 +11,6 @@ import { buildCompilerOf } from '../config/compilers.ts';
 import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
 import { nearestBorders } from '../layout/borders.ts';
 import { ModelCodes } from './codes.ts';
-import { moduleIndexAt } from './resolver.ts';
 import type { Module } from './types.ts';
 
 export interface ModulesPlan {
@@ -112,6 +111,21 @@ export function runOffsetOf(placed: { readonly span: { readonly start: Addr }; r
   return placed.runAt === undefined ? 0 : placed.runAt - placed.span.start;
 }
 
+/** The run address of a module's or chunk's first byte: its runAt inside a runs_at range, else its load address. */
+export function runStartOf(placed: { readonly span: { readonly start: Addr }; readonly runAt?: Addr }): Addr {
+  return placed.runAt ?? placed.span.start;
+}
+
+/** The load address of run address `run` inside `placed` (run - runOffsetOf). */
+export function toLoad(placed: { readonly span: { readonly start: Addr }; readonly runAt?: Addr }, run: Addr): Addr {
+  return run - runOffsetOf(placed);
+}
+
+/** Whether run address `a` lies in the run range of runs_at module `m`, [runAt, runAt + length); false outside runs_at. */
+function inRunRange(m: Module, a: Addr): boolean {
+  return m.runAt !== undefined && a >= m.runAt && a < m.runAt + (m.span.end - m.span.start);
+}
+
 /** The offset from load to run address at load address `a`: runAt - span.start inside a relocated module, else 0. */
 export function runOffsetAt(relocated: readonly Module[], a: Addr): number {
   const m = relocated.find((x) => a >= x.span.start && a < x.span.end);
@@ -120,8 +134,8 @@ export function runOffsetAt(relocated: readonly Module[], a: Addr): number {
 
 /** The load address of run address `a`: mapped back inside a relocated module's run range, else `a` itself. */
 export function loadAddressOf(relocated: readonly Module[], a: Addr): Addr {
-  const m = relocated.find((x) => x.runAt !== undefined && a >= x.runAt && a < x.runAt + (x.span.end - x.span.start));
-  return m?.runAt === undefined ? a : m.span.start + (a - m.runAt);
+  const m = relocated.find((x) => inRunRange(x, a));
+  return m === undefined ? a : toLoad(m, a);
 }
 
 /** The index of the module whose load span holds `a`, or -1. */
@@ -129,7 +143,13 @@ export function loadModuleAt(modules: readonly Module[], a: Addr): number {
   return spanIndexAt(modules, a, (m) => m.span);
 }
 
-/** The module a run address lies in (resolver.ts moduleIndexAt), searching only the relocated modules' run ranges first. */
-export function runModuleAt(modules: readonly Module[], relocated: readonly Module[], a: Addr): number {
-  return relocated.length === 0 ? loadModuleAt(modules, a) : moduleIndexAt(modules, a);
+/**
+ * The index in `modules` (in ROM order) of the module run address `a` belongs to: the runs_at module whose run
+ * range contains it, else the module whose load span contains it; -1 for none. Only `relocated` is searched for
+ * a run range: pass relocatedModules(modules), computed once, where it is called per label; without it every
+ * module is looked at.
+ */
+export function moduleIndexAt(modules: readonly Module[], a: Addr, relocated: readonly Module[] = modules): number {
+  for (const m of relocated) if (inRunRange(m, a)) return modules.indexOf(m);
+  return loadModuleAt(modules, a);
 }

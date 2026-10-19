@@ -18,7 +18,8 @@ import { hex, hexAddr } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../../foundation/util/sorted.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
 import { BASEROM_PATH, moduleSource } from '../../model/paths.ts';
-import { compareLabels, moduleIndexAt, wordValueOf } from '../../model/resolver.ts';
+import { moduleIndexAt, relocatedModules, runOffsetOf, runStartOf } from '../../model/modules.ts';
+import { compareLabels, wordValueOf } from '../../model/resolver.ts';
 import { ItemKind } from '../../model/types.ts';
 import type { Label, Model, Module } from '../../model/types.ts';
 import type { FileEntry, Writer } from '../tree.ts';
@@ -47,11 +48,6 @@ function firstLabelAt(labels: readonly { readonly addr: Addr }[], addr: Addr): n
   return lowerBound(labels, addr, (l) => l.addr);
 }
 
-/** The run address of a module's first byte (its load address outside runs_at). */
-function runStart(module: Module): Addr {
-  return module.runAt ?? module.span.start;
-}
-
 /** Every label the file of module `index` defines, by load address then name, one per name. */
 /** The module at `index`; the writer is called only with indexes of `model.modules`. */
 function moduleOf(model: Model, index: number): Module {
@@ -62,8 +58,9 @@ function moduleOf(model: Model, index: number): Module {
 
 function marksOf(model: Model, index: number): readonly Mark[] {
   const module = moduleOf(model, index);
-  const offset = runStart(module) - module.span.start;
-  const run = { start: runStart(module), end: runStart(module) + (module.span.end - module.span.start) };
+  const offset = runOffsetOf(module);
+  const run = { start: runStartOf(module), end: runStartOf(module) + (module.span.end - module.span.start) };
+  const relocated = relocatedModules(model.modules);
   const counts = nameCounts(model);
   const out: Mark[] = [];
   const add = (runAddr: Addr, name: string, label: Label | undefined): void => {
@@ -74,7 +71,7 @@ function marksOf(model: Model, index: number): readonly Mark[] {
   for (let i = firstLabelAt(model.labels, run.start); i < model.labels.length; i++) {
     const l = model.labels[i];
     if (l === undefined || l.addr >= run.end) break;
-    if (moduleIndexAt(model.modules, l.addr) === index) add(l.addr, l.name, l);
+    if (moduleIndexAt(model.modules, l.addr, relocated) === index) add(l.addr, l.name, l);
   }
   const chunks = model.chunks.slice(module.chunks.first, module.chunks.first + module.chunks.count);
   for (const chunk of chunks) {
@@ -132,7 +129,7 @@ function dataText(model: Model, index: number): string {
     for (let m = marks[next]; m !== undefined && (m.at < to || (inclusive && m.at === to)); m = marks[++next]) {
       if (m.at > pending) lines.push(incbin(pending, m.at));
       pending = Math.max(pending, m.at);
-      lines.push('', ...(m.global ? [`\t.global ${m.name}`] : []), ...(m.thumbFunc ? ['\t.thumb_func'] : []), `${m.name}: @ ${hexAddr(m.at + runStart(module) - module.span.start)}`);
+      lines.push('', ...(m.global ? [`\t.global ${m.name}`] : []), ...(m.thumbFunc ? ['\t.thumb_func'] : []), `${m.name}: @ ${hexAddr(m.at + runOffsetOf(module))}`);
     }
     if (to > pending) lines.push(incbin(pending, to));
     pending = Math.max(pending, to);

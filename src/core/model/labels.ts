@@ -20,9 +20,9 @@ import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import type { ChunkPlan } from './chunks.ts';
 import type { Segments } from './segments.ts';
-import { loadAddressOf, loadModuleAt, runModuleAt, runOffsetAt } from './modules.ts';
+import { loadAddressOf, loadModuleAt, moduleIndexAt, runOffsetAt } from './modules.ts';
 import { dataName, localName } from './names.ts';
-import { compareLabels, labelKindRank, wordValueOf } from './resolver.ts';
+import { compareLabels, wordValueOf } from './resolver.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -134,25 +134,22 @@ export interface LabelsResult {
 }
 
 interface Candidate {
-  /** Load address. */
-  readonly load: Addr;
+  /** Its load address (the label's own address is the run address, buildLabels). */
+  readonly addr: Addr;
   readonly name: string;
   readonly kind: LabelKind;
   readonly thumb: boolean;
 }
 
-function compareCandidates(a: Candidate, b: Candidate): number {
-  return compareNumbers(a.load, b.load) || compareNumbers(labelKindRank(a.kind), labelKindRank(b.kind)) || compareCodeUnits(a.name, b.name);
-}
 
 /** The candidates of one address, without a local or default data label another label there replaces, one per name. */
 function keep(group: readonly Candidate[]): Candidate[] {
   const hasOther = group.some((c) => c.kind !== 'local');
-  const namedData = group.some((c) => c.kind === 'data' && c.name !== dataName(c.load));
+  const namedData = group.some((c) => c.kind === 'data' && c.name !== dataName(c.addr));
   const out: Candidate[] = [];
   for (const c of group) {
     if (c.kind === 'local' && hasOther) continue;
-    if (c.kind === 'data' && c.name === dataName(c.load) && namedData) continue;
+    if (c.kind === 'data' && c.name === dataName(c.addr) && namedData) continue;
     if (out.some((o) => o.name === c.name)) continue;
     out.push(c);
   }
@@ -196,32 +193,32 @@ function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; 
   const named = new Set<Addr>();
   const add = (c: Candidate): void => {
     out.push(c);
-    named.add(c.load);
+    named.add(c.addr);
   };
-  for (const [entry, f] of sortedEntries(inputs.functions)) add({ load: entry, name: f.name, kind: 'func', thumb: f.mode === 'thumb' });
-  for (const c of inputs.chunks) if (c.entry === undefined) add({ load: c.span.start, name: c.name, kind: 'data', thumb: false });
+  for (const [entry, f] of sortedEntries(inputs.functions)) add({ addr: entry, name: f.name, kind: 'func', thumb: f.mode === 'thumb' });
+  for (const c of inputs.chunks) if (c.entry === undefined) add({ addr: c.span.start, name: c.name, kind: 'data', thumb: false });
   for (const s of inputs.symbols) {
     if (contains(rom, s.addr) && inside(s.addr)) unplaced.push(s);
-    else add({ load: s.addr, name: s.name, kind: 'data', thumb: false });
+    else add({ addr: s.addr, name: s.name, kind: 'data', thumb: false });
   }
   const isData = (a: Addr): boolean => contains(rom, a) && modules[loadModuleAt(modules, a)]?.kind === 'data';
   const data: Addr[] = [];
   const targets: Addr[] = [];
   for (const s of segments.concrete) {
     if (s.kind === 'pool') {
-      add({ load: s.start, name: localName(s.start), kind: 'pool', thumb: false });
+      add({ addr: s.start, name: localName(s.start), kind: 'pool', thumb: false });
       if (isData(s.value)) data.push(s.value);
     } else if (s.kind === 'table') {
-      if (s.first) add({ load: s.start, name: localName(s.start), kind: 'table', thumb: false });
+      if (s.first) add({ addr: s.start, name: localName(s.start), kind: 'table', thumb: false });
       if (isData(s.target)) data.push(s.target);
       else targets.push(s.target);
     }
   }
   for (const r of inputs.refs) targets.push(loadAddressOf(inputs.relocated, r.target));
   // A data or local label only where no other label names the address yet, once per address.
-  for (const a of data) if (!named.has(a)) add({ load: a, name: dataName(a), kind: 'data', thumb: false });
-  for (const a of targets) if (!named.has(a) && contains(rom, a) && !inside(a)) add({ load: a, name: localName(a), kind: 'local', thumb: false });
-  return { candidates: out.sort(compareCandidates), unplaced };
+  for (const a of data) if (!named.has(a)) add({ addr: a, name: dataName(a), kind: 'data', thumb: false });
+  for (const a of targets) if (!named.has(a) && contains(rom, a) && !inside(a)) add({ addr: a, name: localName(a), kind: 'local', thumb: false });
+  return { candidates: out.sort(compareLabels), unplaced };
 }
 
 /** The labels at each run address, preferred first (resolver.ts compareLabels: LABEL_KIND_ORDER, then name). */
@@ -251,7 +248,7 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
   const reference = (site: Addr, i: number): void => {
     const label = index.byAddr[i];
     if (label === undefined || global[i] === true) return;
-    if (loadModuleAt(modules, site) !== runModuleAt(modules, inputs.relocated, label.addr)) global[i] = true;
+    if (loadModuleAt(modules, site) !== moduleIndexAt(modules, label.addr, inputs.relocated)) global[i] = true;
   };
   const exact = (site: Addr, run: Addr): void => reference(site, preferredAt(index, run, () => true));
   const word = (site: Addr, value: number): void => {
@@ -260,7 +257,7 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
     reference(site, at >= 0 || (value & 1) === 0 ? at : preferredAt(index, value - 1, matches));
   };
   for (const r of inputs.refs) {
-    if (r.kind === 'short-branch' && loadModuleAt(modules, r.site) !== runModuleAt(modules, inputs.relocated, r.target)) continue;
+    if (r.kind === 'short-branch' && loadModuleAt(modules, r.site) !== moduleIndexAt(modules, r.target, inputs.relocated)) continue;
     exact(r.site, r.target);
   }
   for (const s of segments.concrete) {
@@ -276,11 +273,11 @@ export function buildLabels(inputs: LabelInputs): LabelsResult {
   const kept: Candidate[] = [];
   for (let i = 0; i < candidates.length; ) {
     let j = i;
-    while (j < candidates.length && candidates[j]?.load === candidates[i]?.load) j++;
+    while (j < candidates.length && candidates[j]?.addr === candidates[i]?.addr) j++;
     kept.push(...keep(candidates.slice(i, j)));
     i = j;
   }
-  const pairs = kept.map((c) => ({ load: c.load, label: { addr: c.load + runOffsetAt(inputs.relocated, c.load), name: c.name, kind: c.kind, thumb: c.thumb, scope: 'module' } satisfies Label }));
+  const pairs = kept.map((c) => ({ load: c.addr, label: { addr: c.addr + runOffsetAt(inputs.relocated, c.addr), name: c.name, kind: c.kind, thumb: c.thumb, scope: 'module' } satisfies Label }));
   // The candidates are in (load address, kind, name) order, which is compareLabels' order unless a run address moved.
   if (inputs.relocated.length > 0) pairs.sort((a, b) => compareLabels(a.label, b.label));
   const index: LabelIndex = { byAddr: pairs.map((p) => p.label) };
@@ -293,7 +290,7 @@ export function buildLabels(inputs: LabelInputs): LabelsResult {
   });
   labels.sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
   const starts = kept
-    .map((c) => c.load)
+    .map((c) => c.addr)
     .filter((a, i, all) => contains(inputs.rom, a) && (i === 0 || all[i - 1] !== a));
   return { labels, unplaced, functions, starts };
 }

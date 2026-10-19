@@ -71,7 +71,7 @@ test('the stream is lazy: the first module\'s entries come without printing a la
   const it = emitTree(r, m, cx)[Symbol.iterator]();
   assert.equal(it.next().value?.path, 'asm/good.s');
   assert.equal(it.next().value?.path, 'asm/nonmatchings/good/Good.s');
-  assert.throws(() => [...emitTree(r, m, cx)], /decodes as/);
+  assert.throws(() => [...emitTree(r, m, cx)], /its bytes decode as/);
 });
 
 test('re-callable and deterministic: two runs and two iterations of one stream yield equal entries', () => {

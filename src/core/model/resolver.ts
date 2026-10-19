@@ -9,8 +9,12 @@
 import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
-import { lowerBound, spanIndexAt } from '../../foundation/util/arrays.ts';
+import { lowerBound } from '../../foundation/util/arrays.ts';
+import { moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, LabelKind, Model, Module } from './types.ts';
+
+/** The module an address belongs to, by index (core/model/modules.ts): the one definition. */
+export { moduleIndexAt } from './modules.ts';
 
 /** The label printed when several share an address: a function name first, then table, pool, local, data. */
 export const LABEL_KIND_ORDER: readonly LabelKind[] = ['func', 'table', 'pool', 'local', 'data'];
@@ -26,23 +30,6 @@ export function labelKindRank(kind: LabelKind): number {
 /** Orders labels by address, then preference (LABEL_KIND_ORDER), then name by code unit. */
 export function compareLabels(a: Pick<Label, 'addr' | 'kind' | 'name'>, b: Pick<Label, 'addr' | 'kind' | 'name'>): number {
   return compareNumbers(a.addr, b.addr) || compareNumbers(labelKindRank(a.kind), labelKindRank(b.kind)) || compareCodeUnits(a.name, b.name);
-}
-
-/** The run range of a runs_at module, [runAt, runAt + length), or undefined. */
-function runRange(m: Module): { readonly start: Addr; readonly end: Addr } | undefined {
-  return m.runAt === undefined ? undefined : { start: m.runAt, end: m.runAt + (m.span.end - m.span.start) };
-}
-
-/**
- * The index in `modules` of the module `addr` belongs to: the runs_at module whose run range contains it,
- * else the module whose load span contains it; -1 for none. `modules` are in ROM order.
- */
-export function moduleIndexAt(modules: readonly Module[], addr: Addr): number {
-  for (const [i, m] of modules.entries()) {
-    const run = runRange(m);
-    if (run !== undefined && addr >= run.start && addr < run.end) return i;
-  }
-  return spanIndexAt(modules, addr, (m) => m.span);
 }
 
 /** The module `addr` belongs to (moduleIndexAt), or undefined. */
@@ -74,7 +61,8 @@ const CACHE = new WeakMap<readonly Label[], { readonly modules: readonly Module[
 
 function buildIndex(source: readonly Label[], modules: readonly Module[]): LabelIndex {
   const labels = [...source].sort(compareLabels);
-  const moduleOf = labels.map((l) => modules[moduleIndexAt(modules, l.addr)]?.name);
+  const relocated = relocatedModules(modules);
+  const moduleOf = labels.map((l) => modules[moduleIndexAt(modules, l.addr, relocated)]?.name);
   const byName = new Map<string, number[]>();
   labels.forEach((l, i) => {
     const list = byName.get(l.name);
