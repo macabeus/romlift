@@ -39,8 +39,9 @@ import { runProcess, type ProcessResult } from './process.ts';
 export const LARGE_ROM_SCHEMA = 'romlift/bench-large-rom@1';
 /**
  * g3.large-rom's limit, for the human output only; the gate judges (test/gates/g3.large-rom.test.ts holds the same
- * number). Set from the recorded runs of the synthetic ROM under the 384 MiB heap cap (D68 b, D69 b): the largest
- * peak, 866.5 MiB, plus a 25% margin, rounded up to a multiple of 64 MiB (phase-3.md, "Measured numbers").
+ * number). Set at a206ac1 from the runs of the synthetic ROM then recorded under the 384 MiB heap cap (D68 b, D69 b):
+ * their largest peak, 866.5 MiB, plus a 25% margin, rounded up to a multiple of 64 MiB. The largest peak recorded
+ * since is 945.5 MiB (D70 c), which the budget is 15.1% above; it is not raised (D71 c; phase-3.md, "Measured numbers").
  */
 export const LARGE_ROM_MAX_RSS_MIB = 1088;
 /**

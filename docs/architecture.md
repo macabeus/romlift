@@ -1991,14 +1991,17 @@ seeded data and runs `init` and `generate` each in its own process under the hea
 answers to Q2 and Q6 of phase-3.md, D68 b, D69), so it measures what those workflows hold under the bin's cap rather
 than how far V8 lets its heap grow; it requires both to complete under the cap and their peak RSS to stay below the budget, recording
 `maxRssMiB` (and, recorded only, `peakLiveHeapMiB`, the heap live after a full GC, which is what meets the cap first:
-about 315 to 353 MiB, D70 d). The budget, 1,088 MiB, was the largest peak recorded under the cap when it was set
+about 315 to 355 MiB, D70 d, D71 g). The budget, 1,088 MiB, was the largest peak recorded under the cap when it was set
 (866.5 MiB, `init`) plus 25%, rounded up to a multiple of 64 MiB (D69 b); the largest recorded since is 945.5 MiB
 (D70 c); 256 and 320 MiB do not hold the synthetic ROM. The bin's own commands (`analyze`, `explain`, `model`,
 `verify` with `--assemble` and `--link`) take other paths than those workflows; `bench large-rom --bin` runs each of
-them under the cap and `test/local/large-rom-bin.test.ts` requires all to complete (D70 b): the discover analysis
-is dropped before the confirm analysis runs, and `analyze --json` and `model --json` stream their NDJSON, waiting for
-stdout to drain. The six tuning ROMs (4 to 16 MiB) complete under the cap at 0.3 to 0.7 GiB peak RSS (`bench
-large-rom --rom <path>` and `--bin --rom <path>`).
+them under the cap, recording each one's peak RSS and live heap, and `test/local/large-rom-bin.test.ts` requires all
+to complete (D70 b, D71 b, e): the discover analysis is dropped before the confirm analysis runs, and `analyze`'s text
+table, `analyze --json` and `model --json` stream their output, waiting for stdout to drain. On the synthetic ROM the
+bin's live heap reaches 377.5 MiB of the 384 MiB old space (D71 b). The six tuning ROMs (4 to 16 MiB) complete under
+the cap at 236.1 to 679.2 MiB peak RSS (`bench large-rom --rom <path>` and `--bin --rom <path>`, D70, D71). A 32 MiB
+ROM of real code density (pokeemerald twice over, 29,084 functions) does not complete under the cap: `verify` holds
+more than 768 MiB live there; that is owner question Q7 of phase-3.md (D71 a).
 
 ## 10. Testing strategy
 
@@ -2119,9 +2122,11 @@ in roadmap.md pass. The gates per phase are those of §1.
     alignment refusal is a release-1 limitation; padding-only orphans folded into the next function, and confirm
     not re-validating the functions discover listed, are phase-4 work items in roadmap.md). Applying Q2 found that
     no run of the 32 MiB synthetic ROM completes under 256 MiB; Q6, "384 MiB for bin and gate" (D69: the bin and
-    `g3.large-rom` use `--max-old-space-size=384`, the budget 1,088 MiB from the runs under it with a 25% margin);
+    `g3.large-rom` use `--max-old-space-size=384`, the budget 1,088 MiB set from the runs then recorded under it with a
+    25% margin, 15.1% over the largest peak recorded since, D70 c);
     the review of that landing found the bin's own commands out of memory on the synthetic ROM under the cap, which
-    fix round 4 resolved without a gate change (D70).
+    fix round 4 resolved without a gate change (D70). Q7 is open (D71): a code-dense 32 MiB ROM does not complete
+    under the cap.
 
 ## 13. Gate index
 

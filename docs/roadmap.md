@@ -513,8 +513,9 @@ that links, sorted by the committed classifier, recorded as the phase's measurem
 D68 a); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald
 (calibrated); `init` and `generate` on the 32 MiB synthetic ROM complete under the `romlift` bin's heap cap
 (`--max-old-space-size=384`, the owner's answer to Q6, which replaces Q2's 256) with peak RSS below the budget set
-from the recorded runs under that cap with a stated margin (1,088 MiB: the largest peak, 866.5 MiB, plus 25%,
-rounded up to a multiple of 64 MiB), and the six tuning ROMs complete under the same cap, their peak RSS recorded
+from the recorded runs under that cap with a stated margin (1,088 MiB, set when 866.5 MiB was the largest
+recorded peak, plus 25%, rounded up to a multiple of 64 MiB; it is 15.1% over the largest peak recorded since,
+945.5 MiB, D70 c, D71 c), and the six tuning ROMs complete under the same cap, their peak RSS recorded
 (D68 b, D69); every command of the `romlift` bin completes on the synthetic ROM under that cap
 (`test/local/large-rom-bin.test.ts`, D70 b); every phase-1 and phase-2 gate still passes.
 

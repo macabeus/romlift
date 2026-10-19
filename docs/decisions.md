@@ -2601,6 +2601,10 @@ every number behind it came from the bench's `init` and `generate` workflow chil
 `d744f5d`, so (a)'s "every ROM size up to 32 MiB must complete under it" did not hold for the bin until D70 a. The
 landing run at `739d665` is withdrawn as a landing for that reason. (b)'s range and margin are restated in D70 c.
 
+**Revision (19 October 2026, the review of `16d1280`; D71).** (a)'s "every ROM size up to 32 MiB must complete under
+it" is met for the synthetic image and the tuning ROMs, not for a 32 MiB ROM of real code density (pokeemerald twice
+over), on which every bin command aborts under the cap: owner question Q7 (D71 a).
+
 ## D70. Phase-3 fix round 4: the bin's commands under the 384 MiB cap
 
 **Context.** The review of `d744f5d` (correctness-r0-1 to -r0-5, gate-honesty-r0-1 to -r0-5) ran the `romlift` bin
@@ -2633,7 +2637,7 @@ to 32 MiB to complete under the cap, and says these are the only gate changes au
   done; the record states the headroom instead (phase-3.md, "Measured numbers", fix round 4).
 - (d) **The binding limit is the old space, and it is recorded.** Each child of `bench large-rom` reports
   `peakLiveHeapMiB`, the largest heap V8 finds live after a full mark-compact (`node:v8` `GCProfiler`); measured
-  on the synthetic ROM at 314.5 to 351.6 MiB (`init`) and 330.4 to 353.0 MiB (`generate`) of the 384 MiB cap (five runs, the closing list's `run --scaffold` among them), while
+  on the synthetic ROM at 314.5 to 351.6 MiB (`init`) and 330.4 to 353.0 MiB (`generate`) of the 384 MiB cap (four runs, the closing list's `run --scaffold` among them; corrected by D71 f), while
   their RSS stays at least 140 MiB under the RSS budget. A run fails by the heap cap long before the RSS budget, and
   the headroom against the cap is about 31 MiB (8%). Growth of the live peak past about 355 MiB is a regression
   signal to act on before it becomes an abort; it is volatile (timings), not gated.
@@ -2651,6 +2655,69 @@ to 32 MiB to complete under the cap, and says these are the only gate changes au
 this round: at `81210eb`, `test/gates/phase.json` at `{ "landed": 3 }`, in a fresh worktree, every command of the
 closing list exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (840.4 and 772.3 MiB) among them
 (phase-3.md, "The closing gate", fix round 4). No gate threshold changed. Nothing is merged or pushed.
+
+**Revision (19 October 2026, the review of `16d1280`: correctness-r1-1, -r1-2; D71).** "Every phase-3 command of the bin
+completes on the 32 MiB synthetic ROM" holds for that code-sparse image and the six tuning ROMs, not for every 32 MiB
+ROM: a code-dense one (pokeemerald twice over) does not complete under the cap (D71 a, Q7). (d)'s headroom of about 31
+MiB is that of the gate's children; the bin's commands reach 377.5 MiB of the 384 MiB old space (D71 b).
+
+## D71. Phase-3 fix round 5: a code-dense 32 MiB ROM, the bin's live heap, and owner question Q7
+
+**Context.** The review of `16d1280` (correctness-r1-1 to -r1-4, gate-honesty-r1-1 to -r1-3) built a 32 MiB ROM of real
+code density, `pokeemerald.gba` concatenated with itself (SHA-1 `fb17b88d…`, never committed), and ran the bin on it
+under the 384 MiB cap of D69 a: `analyze` and `verify --link` ended in V8's out-of-memory abort. D69 a reads "every
+ROM size up to 32 MiB must complete under it", and D70's consequences said every phase-3 command of the bin
+completes, which held for the code-sparse synthetic image only (3,639 functions; the doubled ROM has 29,084). The
+review also found the recorded headroom (D70 d) measured on the gate's workflow children alone, while the bin's own
+commands came within 9 to 22 MiB of the cap, four bin command forms above the recorded range, and the budget's basis
+and two run counts stated inconsistently.
+
+**Decision.**
+
+- (a) **Q7 goes to the owner; no cap, gate or claim changes in this round.** Measured on the doubled ROM (phase-3.md,
+  Q7): every one of the twelve bin command forms aborts under the cap, and so does `bench large-rom --rom`'s `init`;
+  without a cap `verify` holds 721 MiB live after a full mark-compact and `analyze` 421 MiB; at 768 MiB every `verify`
+  form still aborts, at 1,024 MiB every command completes. No change of a fix round's size halves `verify`'s live set:
+  the readings' instruction spans and the text-layout check's whole-tree text and statements are what it holds, and
+  shrinking them is a redesign. Fitting the doubled ROM under 384 MiB, raising the cap, or reading Q6's words as the
+  sizes the synthetic image measures is the owner's choice (Q7's options a to c). Until he answers, the record claims
+  completion under the cap for the synthetic image and the six tuning ROMs only, the doubled ROM is a recorded
+  counterexample, and phase 3 does not land.
+- (b) **The bin's live heap is measured, and the headroom restated from it.** `bench/src/rss-probe.ts` also reports
+  the largest heap live after a full mark-compact (`node:v8` `GCProfiler`, through `bench/src/live-heap.ts`, which the
+  gate's children share), and `bench large-rom --bin` records it per command (`peakLiveHeapMiB`). On the synthetic
+  image the bin's commands reach 377.5 MiB (macOS) and 377.4 MiB (Linux), `verify --assemble` under Node 24, of the
+  384 MiB old space: about 6.5 MiB, 2%, of headroom, where D70 d put it at 31 MiB from the gate's children (whose own
+  live peak is at most 354.6 MiB, Linux Node 24). A bin command's live peak past the recorded maximum is the
+  regression signal, replacing D70 d's 355 MiB; there is no margin left to set it at.
+- (c) **`analyze`'s text output streams.** With the live heap measured, `analyze <rom>` (text) aborted on the synthetic
+  image under the cap in 3 of 6 Node 22.18 runs on macOS and in the Linux Node 22.18 run: it built every row of its
+  600,000-odd rejection table, then the output, as one string. `columnLines` yields one line per row, computing the
+  widths in a first pass, and the command writes them through `writeLines` (D70 a); the output is byte-identical; the
+  live peak falls from about 346 to 291.1 to 300.8 MiB, and every run completes on both Node versions.
+- (d) **The budget's basis.** `MAX_RSS_MIB` stays 1,088 MiB. D69 b set it once, at `a206ac1`, from the runs then
+  recorded: their largest peak, 866.5 MiB, plus 25%, rounded up to a multiple of 64 MiB. The largest peak recorded
+  since is 945.5 MiB, which it is 15.1% above. Q6's rule ("set from the recorded runs under the 384 MiB cap plus a
+  stated margin") was applied when the budget was set and does not ask for it to be set again with each later run;
+  raising it would loosen the gate. The gate's comment, `bench/src/large-rom.ts`, roadmap 3.E and architecture §12 now
+  say this. No owner question is open on the budget; the fix report's "needs the owner" is withdrawn.
+- (e) **Four more bin command forms.** `BIN_RUNS` (and `test/local/large-rom-bin.test.ts`) adds `explain` and `verify
+  --assemble` (text), `verify --assemble --json` and `verify --printer raw --assemble --json`: twelve forms.
+- (f) **Counts corrected.** D70 d's live-heap ranges come from four runs (synthetic 1 to 3 and the closing list's `run
+  --scaffold`), not five; phase-3.md's review row says eighteen runs, as its measured numbers do.
+- (g) **Node 22.18 and Linux are measured.** `g3.large-rom`'s children and the bin's commands on the synthetic image run
+  under Node 22.18 on macOS and under Node 22.18 and 24 on Linux (arm64, Debian bookworm containers): every run of the
+  gate's children completes, and after (c) every bin command (phase-3.md, "Measured numbers", fix round 5). The phase
+  pull request's CI numbers (ubuntu-latest and macos-latest, Node 22.18 and 24) are recorded when that pull request
+  runs, before the merge.
+- (h) **A printer defect the doubled ROM shows.** The readable tree of the doubled ROM fails the text-layout check on
+  two `adr` lines naming a function label (verify exit 3); the check refuses it, so nothing wrong is written. No
+  tuning ROM or fixture shows it; it is recorded, not fixed, in this round.
+
+**Consequences.** No gate threshold changed. Every bin command completes under the cap on the synthetic image (Node
+24.15 and 22.18, macOS and Linux) and on the six tuning ROMs (Node 24.15, macOS); on a code-dense 32 MiB ROM none does, which is
+Q7. The closing list runs again at this round's docs commit (phase-3.md, "The closing gate", fix round 5). Phase 3 is not landed;
+nothing is merged or pushed.
 
 ## Review findings index
 
