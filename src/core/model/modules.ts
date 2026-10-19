@@ -146,7 +146,8 @@ export function loadModuleAt(modules: readonly Module[], a: Addr): number {
 /**
  * The index in `modules` (in ROM order) of the module run address `a` belongs to: the runs_at module whose run
  * range contains it, else the module whose load span contains it; -1 for none. Only `relocated`,
- * relocatedModules(modules) computed once by the caller, is searched for a run range.
+ * relocatedModules(modules), is searched for a run range; a caller asking for many addresses computes it once
+ * (moduleAt in resolver.ts is the one-address form).
  */
 export function moduleIndexAt(modules: readonly Module[], a: Addr, relocated: readonly Module[]): number {
   for (const m of relocated) if (inRunRange(m, a)) return modules.indexOf(m);

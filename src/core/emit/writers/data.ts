@@ -95,7 +95,7 @@ function marksOf(model: Model, index: number): readonly Mark[] {
 }
 
 /** The name a `.4byte` of `word` prints in module `index`: a visible label linking to exactly that value, or a symbol. */
-function wordName(model: Model, index: number, word: number): string | undefined {
+function wordName(model: Model, index: number, word: number, relocated: readonly Module[]): string | undefined {
   const target = (word & ~1) >>> 0;
   const own = model.modules[index]?.name;
   const at: Label[] = [];
@@ -106,7 +106,7 @@ function wordName(model: Model, index: number, word: number): string | undefined
   }
   const label = at
     .sort(compareLabels)
-    .find((l) => wordValueOf(l) === word && (l.scope === 'global' || model.modules[moduleIndexAt(model.modules, l.addr, relocatedModules(model.modules))]?.name === own));
+    .find((l) => wordValueOf(l) === word && (l.scope === 'global' || model.modules[moduleIndexAt(model.modules, l.addr, relocated)]?.name === own));
   if (label !== undefined) return label.name;
   if (word !== target) return undefined;
   const symbol = model.symbols[firstLabelAt(model.symbols, target)];
@@ -121,6 +121,7 @@ function incbin(from: Addr, to: Addr): string {
 function dataText(model: Model, index: number): string {
   const module = moduleOf(model, index);
   const marks = marksOf(model, index);
+  const relocated = relocatedModules(model.modules);
   const lines: string[] = [`@ data module ${module.name}: ${hexAddr(module.span.start)}..${hexAddr(module.span.end)}, ${module.span.end - module.span.start} bytes`];
   let next = 0;
   let pending = module.span.start;
@@ -155,7 +156,7 @@ function dataText(model: Model, index: number): string {
       advance(start, true);
       if (table) {
         const word = items.aux[i] ?? 0;
-        lines.push(`\t.4byte ${wordName(model, index, word) ?? `0x${hex(word)}`}`);
+        lines.push(`\t.4byte ${wordName(model, index, word, relocated) ?? `0x${hex(word)}`}`);
       } else {
         lines.push('\t.align 2, 0');
       }

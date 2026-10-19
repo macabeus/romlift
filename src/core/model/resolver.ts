@@ -13,8 +13,6 @@ import { lowerBound } from '../../foundation/util/arrays.ts';
 import { moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, LabelKind, Model, Module } from './types.ts';
 
-/** The module an address belongs to, by index (core/model/modules.ts): the one definition. */
-
 /** The label printed when several share an address: a function name first, then table, pool, local, data. */
 export const LABEL_KIND_ORDER: readonly LabelKind[] = ['func', 'table', 'pool', 'local', 'data'];
 
@@ -31,7 +29,10 @@ export function compareLabels(a: Pick<Label, 'addr' | 'kind' | 'name'>, b: Pick<
   return compareNumbers(a.addr, b.addr) || compareNumbers(labelKindRank(a.kind), labelKindRank(b.kind)) || compareCodeUnits(a.name, b.name);
 }
 
-/** The module `addr` belongs to (moduleIndexAt), or undefined. */
+/**
+ * The module `addr` belongs to (moduleIndexAt), or undefined. For one address: it filters the relocated modules on
+ * every call, so a caller asking for many addresses calls moduleIndexAt with relocatedModules computed once.
+ */
 export function moduleAt(model: Pick<Model, 'modules'>, addr: Addr): Module | undefined {
   return model.modules[moduleIndexAt(model.modules, addr, relocatedModules(model.modules))];
 }
