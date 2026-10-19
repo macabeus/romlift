@@ -49,7 +49,7 @@ import { hexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
 import { moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
-import { BASEROM_PATH, chunkPaths, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
+import { BASEROM_PATH, chunkPathsOf, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { wordValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Label, Model, Module } from '../model/types.ts';
@@ -82,7 +82,7 @@ type Target =
  */
 export interface TextLayoutIndex {
   readonly targets: ReadonlyMap<string, Target>;
-  /** chunkPaths(model), aligned with model.chunks. */
+  /** chunkPathsOf(model), aligned with model.chunks: the writers' own. */
   readonly chunkPaths: readonly (string | undefined)[];
   /** Every path the stream of the model must hold, in model order, with the address its bytes start at. */
   readonly expected: readonly { readonly path: string; readonly addr: Addr }[];
@@ -111,7 +111,7 @@ function definable(model: Model, relocated: readonly Module[], label: Label): bo
 
 /** The index of `model` one check pass shares (TextLayoutIndex); O(model), so built once per pass, never per entry. */
 export function textLayoutIndex(model: Model): TextLayoutIndex {
-  const paths = chunkPaths(model);
+  const paths = chunkPathsOf(model);
   const targets = new Map<string, Target>([
     [LDSCRIPT_PATH, { kind: 'ldscript' }],
     [SYMBOLS_PATH, { kind: 'symbols' }],

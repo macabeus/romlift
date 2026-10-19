@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { printChunk } from '../../../../src/core/emit/print/chunk.ts';
-import { chunkFilePaths } from '../../../../src/core/emit/unit-text.ts';
 import { functionWriter } from '../../../../src/core/emit/writers/function.ts';
-import { chunkPaths } from '../../../../src/core/model/paths.ts';
+import { chunkPaths, chunkPathsOf } from '../../../../src/core/model/paths.ts';
+import { textLayoutIndex } from '../../../../src/core/verify/text-layout.ts';
 import { codeItems, label, modelOf, romWith } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 import { sampleModel, sampleRom } from '../print/fixture.ts';
@@ -44,6 +44,7 @@ test('names that differ only by case get the address suffix, from paths.ts', () 
     labels: [label('VBlankCB', at), label('VblankCB', at + 2)],
   });
   assert.deepEqual([...functionWriter.emit(r, m, cx, 0)].map((e) => e.path), ['asm/nonmatchings/main/VBlankCB_08000200.s', 'asm/nonmatchings/main/VblankCB_08000202.s']);
-  assert.deepEqual(chunkFilePaths(m), chunkPaths(m));
-  assert.equal(chunkFilePaths(m), chunkFilePaths(m), 'computed once per model');
+  assert.deepEqual(chunkPathsOf(m), chunkPaths(m));
+  assert.equal(chunkPathsOf(m), chunkPathsOf(m), 'computed once per model');
+  assert.equal(textLayoutIndex(m).chunkPaths, chunkPathsOf(m), 'the text-layout check shares the writers\' paths');
 });

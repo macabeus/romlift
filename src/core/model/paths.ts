@@ -59,6 +59,21 @@ export function chunkPaths(model: Pick<Model, 'chunks'>): readonly (string | und
   });
 }
 
+const CHUNK_PATHS = new WeakMap<readonly Chunk[], readonly (string | undefined)[]>();
+
+/**
+ * chunkPaths(model), computed once per model and shared by the writers and the text-layout check: memoized by the
+ * identity of the model's chunks array, which a Model never changes (deeply readonly, D19). The one other such
+ * memo is resolver.ts's label index; D66 says why these two are memos rather than fields of the Model.
+ */
+export function chunkPathsOf(model: Pick<Model, 'chunks'>): readonly (string | undefined)[] {
+  const cached = CHUNK_PATHS.get(model.chunks);
+  if (cached !== undefined) return cached;
+  const paths = chunkPaths(model);
+  CHUNK_PATHS.set(model.chunks, paths);
+  return paths;
+}
+
 /** The chunks of a module. */
 function chunksOf(model: Pick<Model, 'chunks'>, module: Module): readonly Chunk[] {
   return model.chunks.slice(module.chunks.first, module.chunks.first + module.chunks.count);
