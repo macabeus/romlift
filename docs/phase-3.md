@@ -1134,6 +1134,17 @@ delivery-5:
 Every `g3.large-rom` run in CI is under the 1,536 MiB budget; the largest, 1,197.3 MiB on the macOS runner, is below the
 1,210.1 MiB recorded on the owner's machine. `g1.provenance` passes on all four `ci.yml` jobs.
 
+The docs commit that recorded this table (`fab630c`, no source change) ran CI again: every check passed but
+`ci.yml`'s macos-latest, Node 24 job, where one unit test failed, and with it the digest comparison, which found 3 of
+its 4 digest files. The test `a reader that closes the pipe early is no error: analyze | head exits quietly, with no
+EPIPE trace` (`test/unit/cli/process.test.ts`) saw the child exit 1 with `Error: write ENOTCONN` at
+`src/cli/main.ts:57`: the child's stdout there is a socket pair (Node's `spawn` with `stdio: 'pipe'`), and when the
+reader closes it early macOS can report ENOTCONN instead of EPIPE, which `exitQuietlyOnEpipe` does not treat as a closed
+reader. The same source passed all four jobs at `cc92d04` and the other three at `fab630c`, so it is a race, not a
+regression; a shell pipe (`romlift analyze rom.gba | head`) is a pipe, not a socket, and reports EPIPE. Fixing it changes
+the source digest the landing run recorded, so it is **carried into phase 4** (correctness-ci-1, minor): treat ENOTCONN
+like EPIPE in `exitQuietlyOnEpipe`, with the test made to fail without it. The CI run is repeated on the next commit.
+
 ### The owner's answer to Q7 (landing run)
 
 The landing procedure after the owner's answer to Q7 (D72): `test/gates/phase.json` at `{ "landed": 3 }` (raised at
