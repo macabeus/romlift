@@ -278,21 +278,18 @@ function parse(text: string): { readonly statements: readonly Statement[]; reado
   return parseStatements(text, { includes: INCLUDES });
 }
 
-/** The `.include` of the macro file, as the dialect preamble writes it. */
-const MACROS_INCLUDE = DIALECT.macrosInclude;
-
 /**
  * A chunk file as GNU as reads it inside its module file: after the module file's `.include` of the macro
  * file. The include is put in front of line 1 (`;` separates statements), so line numbers stay the file's,
  * and a chunk file that includes the macro file again fails as `as` fails, on a second macro definition.
  */
 function asIncluded(text: string): string {
-  return `${MACROS_INCLUDE}; ${text}`;
+  return `${DIALECT.macrosInclude}; ${text}`;
 }
 
 /** The line of the module file's `.include` of the macro file, or undefined (parseStatements leaves it no statement). */
 function macrosIncludeLine(text: string): number | undefined {
-  const index = text.split('\n').findIndex((raw) => stripComment(raw).trim() === MACROS_INCLUDE);
+  const index = text.split('\n').findIndex((raw) => stripComment(raw).trim() === DIALECT.macrosInclude);
   return index < 0 ? undefined : index + 1;
 }
 

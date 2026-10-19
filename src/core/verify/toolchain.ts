@@ -12,7 +12,6 @@ import { hex } from '../../foundation/util/hex.ts';
 import type { AssembleUnit, BuildUnit } from '../model/paths.ts';
 import type { CheckResult } from './report.ts';
 
-export type { AssembleUnit } from '../model/paths.ts';
 
 /**
  * Why `as` cannot build a unit's object, or undefined when it can: its source is no assembly file (a C module's

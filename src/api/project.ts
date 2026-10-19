@@ -9,7 +9,6 @@ export { assembleCheck, LINK_ELF_PATH, LINK_IMAGE_PATH, linkCheck } from '../she
 export type {
   AssembleCheckOptions,
   AssembleCheckResult,
-  AssembleUnit,
   LinkCheckOptions,
   LinkCheckResult,
   ModuleAssembly,

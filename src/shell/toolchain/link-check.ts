@@ -15,7 +15,8 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { BuildUnit } from '../../core/model/paths.ts';
 import { BASEROM_PATH, LDSCRIPT_PATH, MACROS_PATH } from '../../core/model/paths.ts';
 import { assembleFailure, assembleVerdict, compareObject, linkFailure, linkVerdict, unassemblable } from '../../core/verify/toolchain.ts';
-import type { AssembleCheckResult, AssembleUnit, LinkCheckResult, ModuleAssembly } from '../../core/verify/toolchain.ts';
+import type { AssembleUnit } from '../../core/model/paths.ts';
+import type { AssembleCheckResult, LinkCheckResult, ModuleAssembly } from '../../core/verify/toolchain.ts';
 import { ShellCodes } from '../codes.ts';
 import { errnoOf, errorReason } from '../fs.ts';
 import { sha1Of } from '../hash.ts';
@@ -23,7 +24,7 @@ import { onDisk } from '../project/disk-state.ts';
 import { findBinutils, runTool } from './binutils.ts';
 import type { Binutils, ToolRun } from './binutils.ts';
 
-export type { AssembleCheckResult, AssembleUnit, LinkCheckResult, ModuleAssembly } from '../../core/verify/toolchain.ts';
+export type { AssembleCheckResult, LinkCheckResult, ModuleAssembly } from '../../core/verify/toolchain.ts';
 
 /** The linked ELF and its binary image, under the build directory. */
 export const LINK_ELF_PATH = 'build/link-check.elf';

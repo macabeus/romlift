@@ -11,7 +11,7 @@ import { after, test } from 'node:test';
 import { DIALECT } from '../../../../src/foundation/asm/dialect.ts';
 import { romFromBytes } from '../../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
-import type { AssembleUnit } from '../../../../src/shell/toolchain/link-check.ts';
+import type { AssembleUnit } from '../../../../src/core/model/paths.ts';
 import { BASEROM_PATH, MACROS_PATH } from '../../../../src/core/model/paths.ts';
 import { assembleCheck, linkCheck } from '../../../../src/shell/toolchain/link-check.ts';
 import { findBinutils } from '../../../../src/shell/toolchain/binutils.ts';

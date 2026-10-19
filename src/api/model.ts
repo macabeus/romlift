@@ -28,7 +28,7 @@ export type {
 export { DATA_NOTES, ITEM_RAW_REASONS, ItemKind, NO_SPEC } from '../core/model/types.ts';
 export { findItem, itemAt, itemSpan, specIdAt, specIndex } from '../core/model/item-table.ts';
 export { compareLabels, LABEL_KIND_ORDER, moduleAt, moduleIndexAt, resolverFor, wordValueOf } from '../core/model/resolver.ts';
-export type { BuildUnit } from '../core/model/paths.ts';
+export type { AssembleUnit, BuildUnit } from '../core/model/paths.ts';
 export {
   BASEROM_PATH,
   assembleUnits,

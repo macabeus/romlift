@@ -48,7 +48,6 @@ function firstLabelAt(labels: readonly { readonly addr: Addr }[], addr: Addr): n
   return lowerBound(labels, addr, (l) => l.addr);
 }
 
-/** Every label the file of module `index` defines, by load address then name, one per name. */
 /** The module at `index`; the writer is called only with indexes of `model.modules`. */
 function moduleOf(model: Model, index: number): Module {
   const module = model.modules[index];
@@ -56,6 +55,7 @@ function moduleOf(model: Model, index: number): Module {
   return module;
 }
 
+/** Every label the file of module `index` defines, by load address then name, one per name. */
 function marksOf(model: Model, index: number): readonly Mark[] {
   const module = moduleOf(model, index);
   const offset = runOffsetOf(module);

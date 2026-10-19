@@ -105,9 +105,14 @@ export interface BuildUnit {
   readonly object: string;
 }
 
+/** The link unit of module `m`. */
+function buildUnitOf(model: Pick<Model, 'chunks'>, m: Module): BuildUnit {
+  return { module: m.name, source: moduleSource(model, m), object: objectPath(m.name) };
+}
+
 /** One unit per module, in ROM (link) order. */
 export function buildUnits(model: Pick<Model, 'modules' | 'chunks'>): readonly BuildUnit[] {
-  return model.modules.map((m) => ({ module: m.name, source: moduleSource(model, m), object: objectPath(m.name) }));
+  return model.modules.map((m) => buildUnitOf(model, m));
 }
 
 /** A build unit with the ROM range its object must reproduce (`verify --assemble`). */
@@ -117,7 +122,7 @@ export interface AssembleUnit extends BuildUnit {
 
 /** One assemble unit per module, in ROM (link) order: buildUnits with each module's own span. */
 export function assembleUnits(model: Pick<Model, 'modules' | 'chunks'>): readonly AssembleUnit[] {
-  return model.modules.map((m) => ({ module: m.name, source: moduleSource(model, m), object: objectPath(m.name), span: m.span }));
+  return model.modules.map((m) => ({ ...buildUnitOf(model, m), span: m.span }));
 }
 
 /**
