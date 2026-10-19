@@ -11,7 +11,7 @@ import { parseArgs, UsageError } from '../src/args.ts';
 import { contextFromEnv } from '../src/context.ts';
 import { loadDatasets, tuningDatasets } from '../src/dataset.ts';
 import { BenchError } from '../src/files.ts';
-import { compareFunctions, functionDifferences } from '../src/objdiff.ts';
+import { compareFunctions, objdiffDifferences } from '../src/objdiff.ts';
 import { classCounts, gatedTotals, nameAddresses, OBJDIFF_CLASSES, type ObjdiffClass } from '../src/objdiff-classes.ts';
 import { elfSymbols, referenceObjects } from '../src/run.ts';
 import { locateObjdiff } from '../src/toolchain.ts';
@@ -46,7 +46,7 @@ async function main(argv: readonly string[]): Promise<number> {
       objdiff: objdiff.bin,
       ...(objects.linked === undefined ? {} : { linkedObjects: objects.linked }),
     });
-    const classes = classCounts(compared.flatMap(functionDifferences), nameAddresses(symbols));
+    const classes = classCounts(compared.flatMap(objdiffDifferences), nameAddresses(symbols));
     rows.push({ rom: d.name, scored: compared.length, classes, ...gatedTotals(classes) });
   }
   if (args.flags.has('json')) {

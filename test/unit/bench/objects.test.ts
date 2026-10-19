@@ -15,6 +15,7 @@ import {
   listObjectFiles,
   mapObjects,
   objectFor,
+  implicitAddend,
   objectRelocations,
   objectsDigest,
   readObjectSymbolIndex,
@@ -97,8 +98,8 @@ test('objectRelocations names each relocation symbol, a section symbol by its se
   const relocations = objectRelocations(await bytesOf(REFERENCE_O));
   assert.ok(relocations.ok);
   assert.deepEqual(relocations.value, [
-    { section: '.text', offset: 0x1c, type: 2, symbol: { name: 'gTarget', type: 'notype', bind: 'global', defined: false } },
-    { section: '.text', offset: 0x28, type: 2, symbol: { name: '.rodata', type: 'section', bind: 'local', defined: true } },
+    { section: '.text', offset: 0x1c, type: 2, symbol: { name: 'gTarget', type: 'notype', bind: 'global', defined: false }, addend: 0 },
+    { section: '.text', offset: 0x28, type: 2, symbol: { name: '.rodata', type: 'section', bind: 'local', defined: true }, addend: 0 },
   ]);
   const base = objectRelocations(await bytesOf(BASE_O));
   assert.ok(base.ok);
@@ -149,4 +150,19 @@ test('mapObjects lists the linked objects and archive members; linkedSectionMism
   const other = mapObjects(wrong.value).objects[0];
   assert.ok(other !== undefined);
   assert.deepEqual(linkedSectionMismatches(other, elf.value), ['ref/reference.o .text is 0x2c bytes, the map links 0x30']);
+});
+
+test('implicitAddend reads the addend each ARM REL type keeps in its field (architecture-r1-1)', () => {
+  const view = (bytes: readonly number[]): DataView => new DataView(Uint8Array.from(bytes).buffer);
+  assert.equal(implicitAddend(2, view([0x10, 0, 0, 0]), 0), 0x10, 'R_ARM_ABS32: the word');
+  assert.equal(implicitAddend(2, view([0xfc, 0xff, 0xff, 0xff]), 0), -4);
+  // R_ARM_THM_CALL: `bl .` as GNU as leaves it for a relocation, 0xF7FF 0xFFFE, is -4.
+  assert.equal(implicitAddend(10, view([0xff, 0xf7, 0xfe, 0xff]), 0), -4);
+  assert.equal(implicitAddend(10, view([0x00, 0xf0, 0x04, 0xf8]), 0), 8);
+  assert.equal(implicitAddend(28, view([0xfe, 0xff, 0xff, 0xeb]), 0), -8, 'R_ARM_CALL: bl . in ARM state');
+  assert.equal(implicitAddend(102, view([0xfe, 0xe7]), 0), -4, 'R_ARM_THM_JUMP11: b .');
+  assert.equal(implicitAddend(103, view([0xfe, 0xd0]), 0), -4, 'R_ARM_THM_JUMP8: beq .');
+  assert.equal(implicitAddend(5, view([0xff, 0xff]), 0), -1);
+  assert.equal(implicitAddend(8, view([0x80]), 0), -128);
+  assert.equal(implicitAddend(40, view([0, 0, 0, 0]), 0), undefined, 'R_ARM_V4BX changes no addend this reader knows');
 });

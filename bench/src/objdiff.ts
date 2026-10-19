@@ -49,7 +49,7 @@ import { agreeingFunctions } from './score.ts';
 import type { Truth } from './truth.ts';
 
 /** The one kind that is reported and not gated (D34). */
-export const REPORTED_ONLY = 'unnamed-target';
+export const REPORTED_ONLY = 'unnamed-target' as const;
 
 /** The examples kept per kind. */
 export const EXAMPLES_PER_KIND = 5;
@@ -58,6 +58,33 @@ export interface ObjdiffExample {
   readonly function: string;
   readonly kind: string;
   readonly detail: string;
+}
+
+/** The kinds of difference functionDifferences gives (the header's list). */
+export type ObjdiffKind = 'instruction' | 'resolved-call' | 'relocation' | 'missing-relocation' | 'missing-symbol' | 'score' | 'assemble' | 'tool' | 'unnamed-target';
+
+/**
+ * What a difference's detail text does not say and bench/src/objdiff-classes.ts needs to check that its two sides
+ * link to the same word: where the reference function's section starts in the linked image, the row's section
+ * offset, and for a relocation its type, the reference addend and the base addend or plain value. Each is absent
+ * when it is not known (no entry, an object table without the entry, a type the reader does not decode).
+ */
+export interface DifferenceFacts {
+  /** The linked address of offset 0 of the reference function's section: its entry minus its section offset. */
+  readonly sectionBase?: number;
+  /** The reference row's section offset. */
+  readonly offset?: number;
+  readonly relocationType?: number;
+  readonly referenceAddend?: number;
+  readonly baseAddend?: number;
+  readonly baseField?: number;
+}
+
+/** One difference: what the family reports of it (example), its kind, and the facts its classes are checked by. */
+export interface ObjdiffDifference {
+  readonly kind: ObjdiffKind;
+  readonly example: ObjdiffExample;
+  readonly facts: DifferenceFacts;
 }
 
 /** A tuning row's `objdiff` member (frozen by test/gates/g3.objdiff.test.ts). */
@@ -79,6 +106,8 @@ export type ComparedFunction =
       readonly diff: FunctionDiff | undefined;
       /** The reference object's function offsets by name, which tell a call `as` resolved inside it (resolvedCall). */
       readonly referenceFunctions?: ReadonlyMap<string, number>;
+      /** The function's entry, the address the ELF and the analysis agree it starts at. */
+      readonly entry?: number;
     }
   | { readonly name: string; readonly failure: { readonly kind: 'missing-symbol' | 'assemble' | 'tool'; readonly detail: string } };
 
@@ -104,27 +133,44 @@ export function resolvedCall(kind: string, reference: string | null, base: strin
 
 const offsetText = (offset: number | null): string => (offset === null ? 'base only' : `+0x${offset.toString(16)}`);
 
-/** The differences of one function, each with its kind. */
-export function functionDifferences(compared: ComparedFunction): ObjdiffExample[] {
+/** The differences of one function, each with its kind and the facts its classes are checked by. */
+export function objdiffDifferences(compared: ComparedFunction): ObjdiffDifference[] {
   const name = compared.name;
-  if ('failure' in compared) return [{ function: name, kind: compared.failure.kind, detail: compared.failure.detail }];
+  const one = (kind: ObjdiffKind, detail: string, facts: DifferenceFacts = {}): ObjdiffDifference => ({ kind, example: { function: name, kind, detail }, facts });
+  if ('failure' in compared) return [one(compared.failure.kind, compared.failure.detail)];
   const diff = compared.diff;
-  if (diff === undefined) return [{ function: name, kind: 'missing-symbol', detail: 'the reference object lists no function of that name' }];
-  if (!diff.paired) return [{ function: name, kind: 'missing-symbol', detail: 'objdiff paired no base symbol with it' }];
-  const out: ObjdiffExample[] = [];
+  if (diff === undefined) return [one('missing-symbol', 'the reference object lists no function of that name')];
+  if (!diff.paired) return [one('missing-symbol', 'objdiff paired no base symbol with it')];
+  const where = (offset: number | null): DifferenceFacts => ({
+    ...(compared.entry === undefined ? {} : { sectionBase: compared.entry - diff.offset }),
+    ...(offset === null ? {} : { offset }),
+  });
+  const out: ObjdiffDifference[] = [];
   for (const d of diff.instructionDifferences) {
     const callee = resolvedCall(d.kind, d.reference, d.base, compared.referenceFunctions);
     const detail = `${offsetText(d.offset)} ${d.kind}: ${d.reference ?? '(none)'} | ${d.base ?? '(none)'}`;
-    out.push(callee === undefined ? { function: name, kind: 'instruction', detail } : { function: name, kind: 'resolved-call', detail: `${detail} (${callee} is at that offset of the reference object)` });
+    out.push(callee === undefined ? one('instruction', detail, where(d.offset)) : one('resolved-call', `${detail} (${callee} is at that offset of the reference object)`, where(d.offset)));
   }
   for (const r of diff.relocationDifferences) {
-    const where = `${offsetText(r.offset)} ${r.type}`;
-    if (r.reference?.symbol === 'section') out.push({ function: name, kind: REPORTED_ONLY, detail: `${where}: section ${r.reference.name} | ${r.base ?? 'no relocation'}` });
-    else if (r.reference !== null && r.base === null) out.push({ function: name, kind: 'missing-relocation', detail: `${where}: ${r.reference.name} | a plain value` });
-    else out.push({ function: name, kind: 'relocation', detail: `${where}: ${r.reference?.name ?? 'no relocation'} | ${r.base ?? 'no relocation'}` });
+    const at = `${offsetText(r.offset)} ${r.type}`;
+    const facts: DifferenceFacts = {
+      ...where(r.offset),
+      ...(r.typeCode === undefined ? {} : { relocationType: r.typeCode }),
+      ...(r.reference?.addend === undefined ? {} : { referenceAddend: r.reference.addend }),
+      ...(r.baseAddend === undefined ? {} : { baseAddend: r.baseAddend }),
+      ...(r.baseField === undefined ? {} : { baseField: r.baseField }),
+    };
+    if (r.reference?.symbol === 'section') out.push(one(REPORTED_ONLY, `${at}: section ${r.reference.name} | ${r.base ?? 'no relocation'}`, facts));
+    else if (r.reference !== null && r.base === null) out.push(one('missing-relocation', `${at}: ${r.reference.name} | a plain value`, facts));
+    else out.push(one('relocation', `${at}: ${r.reference?.name ?? 'no relocation'} | ${r.base ?? 'no relocation'}`, facts));
   }
-  if (out.length === 0 && diff.matchPercent !== 100) out.push({ function: name, kind: 'score', detail: `objdiff scored it ${String(diff.matchPercent)}% with no differing row` });
+  if (out.length === 0 && diff.matchPercent !== 100) out.push(one('score', `objdiff scored it ${String(diff.matchPercent)}% with no differing row`));
   return out;
+}
+
+/** The differences of one function, each with its kind (what the family reports). */
+export function functionDifferences(compared: ComparedFunction): ObjdiffExample[] {
+  return objdiffDifferences(compared).map((d) => d.example);
 }
 
 const byExample = (a: ObjdiffExample, b: ObjdiffExample): number => compareCodeUnits(a.kind, b.kind) || compareCodeUnits(a.function, b.function) || compareCodeUnits(a.detail, b.detail);
@@ -316,6 +362,8 @@ interface Job {
   /** Its position, which names its object. */
   readonly n: number;
   readonly name: string;
+  /** The function's entry. */
+  readonly entry: number;
   readonly chunk: number | undefined;
   readonly object: string | undefined;
 }
@@ -360,7 +408,7 @@ async function diffJobs(cx: Context, object: string, base: string, jobs: readonl
   const diffed = await diffObjects(cx.inputs.objdiff, join(cx.inputs.objectsDir, object), base);
   if (!diffed.ok) return jobs.map((job) => ({ name: job.name, failure: { kind: 'tool' as const, detail: `${object}: ${toolError(diffed.error)}` } }));
   const referenceFunctions = new Map(diffed.value.functions.map((f) => [f.name, f.offset] as const));
-  return jobs.map((job) => ({ name: job.name, diff: diffed.value.functions.find((f) => f.name === job.name), referenceFunctions }));
+  return jobs.map((job) => ({ name: job.name, diff: diffed.value.functions.find((f) => f.name === job.name), referenceFunctions, entry: job.entry }));
 }
 
 /**
@@ -435,7 +483,7 @@ export async function compareFunctions(inputs: ObjdiffInputs): Promise<ComparedF
   const names = new Map(model.functions.map((f) => [f.entry, f.name] as const));
   const jobs: Job[] = agreeing.map(({ found: f, elf }, n) => {
     const name = names.get(f.entry) ?? elf.name;
-    return { n, name, chunk: chunkAt.get(f.entry), object: objectFor(index, name) };
+    return { n, name, entry: f.entry, chunk: chunkAt.get(f.entry), object: objectFor(index, name) };
   });
   const out = new Map<number, ComparedFunction>();
   const groups = new Map<string, Job[]>();

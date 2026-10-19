@@ -37,11 +37,17 @@ export function dataName(addr: Addr): string {
 /** The name of the cartridge header's chunk and label. */
 export const HEADER_NAME = 'rom_header';
 
-const DEFAULT_SPELLING = /^(?:sub|unk|gUnk)?_[0-9A-F]{8}$/;
+const DEFAULT_SPELLING = /^(?:sub|unk|gUnk)?_([0-9A-F]{8})$/;
 
 /** Whether `name` is one of romlift's default spellings (any address). */
 export function isDefaultSpelling(name: string): boolean {
   return DEFAULT_SPELLING.test(name);
+}
+
+/** The address a default spelling encodes (`sub_08000100` is 0x08000100), or undefined for any other name. */
+export function defaultSpellingAddress(name: string): Addr | undefined {
+  const digits = DEFAULT_SPELLING.exec(name)?.[1];
+  return digits === undefined ? undefined : Number.parseInt(digits, 16);
 }
 
 /** Where a listed function's name came from: a name equal to the default spelling of its entry counts as 'default'. */

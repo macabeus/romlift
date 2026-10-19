@@ -162,9 +162,66 @@ export interface ObjectRelocation {
   /** ELF32 ARM relocation type (2 R_ARM_ABS32, 10 R_ARM_THM_CALL, ...). */
   readonly type: number;
   readonly symbol: RelocationSymbol;
+  /**
+   * The addend: a RELA entry's own, a REL entry's implicit one read from the field it relocates (implicitAddend);
+   * undefined for a REL type implicitAddend does not decode or a field outside the section's bytes.
+   */
+  readonly addend: number | undefined;
 }
 
 const SHT_RELA = 4;
+const SHT_NOBITS = 8;
+
+/**
+ * The implicit addend of an ARM REL relocation of `type` whose field starts at byte `at` of `view` (ELF for the
+ * Arm Architecture, "Addends and PC-bias compensation"): the signed word of R_ARM_ABS32 and R_ARM_REL32, the
+ * halfword and byte of R_ARM_ABS16 and R_ARM_ABS8, the branch offset of R_ARM_THM_CALL (a Thumb bl pair, 23
+ * bits), R_ARM_PC24, R_ARM_CALL and R_ARM_JUMP24 (24 bits, words), R_ARM_THM_JUMP11 and R_ARM_THM_JUMP8; undefined
+ * for any other type.
+ */
+export function implicitAddend(type: number, view: DataView, at: number): number | undefined {
+  switch (type) {
+    case 2:
+    case 3:
+      return view.getInt32(at, true);
+    case 5:
+      return view.getInt16(at, true);
+    case 8:
+      return view.getInt8(at);
+    case 10: {
+      const offset = ((view.getUint16(at, true) & 0x7ff) << 12) | ((view.getUint16(at + 2, true) & 0x7ff) << 1);
+      return (offset << 9) >> 9;
+    }
+    case 1:
+    case 28:
+    case 29:
+      return ((view.getUint32(at, true) & 0xff_ffff) << 8) >> 6;
+    case 102:
+      return ((view.getUint16(at, true) & 0x7ff) << 21) >> 20;
+    case 103:
+      return ((view.getUint16(at, true) & 0xff) << 24) >> 23;
+    default:
+      return undefined;
+  }
+}
+
+/** The width in bytes of the field implicitAddend reads for each type it decodes. */
+const FIELD_WIDTH: ReadonlyMap<number, number> = new Map([
+  [1, 4],
+  [2, 4],
+  [3, 4],
+  [5, 2],
+  [8, 1],
+  [10, 4],
+  [28, 4],
+  [29, 4],
+  [102, 2],
+  [103, 2],
+]);
+
+function fieldWidth(type: number): number {
+  return FIELD_WIDTH.get(type) ?? 0;
+}
 const SHT_REL = 9;
 const SYMBOL_SIZE = 16;
 const SYMBOL_TYPES: readonly ElfSymbolType[] = ['notype', 'object', 'func', 'section', 'file'];
@@ -216,11 +273,17 @@ export function objectRelocations(bytes: Uint8Array): ParseResult<readonly Objec
       if (table.offset + table.size > bytes.length) throw new Malformed(`${table.name} is outside the file`);
       for (let at = table.offset; at + entsize <= table.offset + table.size; at += entsize) {
         const info = view.getUint32(at + 4, true);
+        const offset = view.getUint32(at, true);
+        const type = info & 0xff;
+        const field = target.offset + offset;
+        const inside = target.type !== SHT_NOBITS && fieldWidth(type) > 0 && offset + fieldWidth(type) <= target.size && field + fieldWidth(type) <= bytes.length;
+        const addend = table.type === SHT_RELA ? (entsize >= 12 ? view.getInt32(at + 8, true) : undefined) : inside ? implicitAddend(type, view, field) : undefined;
         out.push({
           section: target.name,
-          offset: view.getUint32(at, true),
-          type: info & 0xff,
+          offset,
+          type,
           symbol: relocationSymbol(bytes, view, elf, table.link, info >>> 8),
+          addend,
         });
       }
     }

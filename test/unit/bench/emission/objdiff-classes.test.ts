@@ -1,68 +1,102 @@
 // bench/src/objdiff-classes.ts: each detail shape of objdiff.ts's differences goes to its class (the rows of
-// phase-3.md Q1), names resolve through the ELF's symbols and then romlift's default spellings, and the totals
-// D34 gates and option (b) would gate.
+// phase-3.md Q1); a same-word class is given only when the word each side links to is checked from the ELF's
+// addresses, the addends and the base's plain value, a missing fact is `unverified` (gated under option b), and
+// the totals D34 gates and option (b) would gate (architecture-r1-1).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { classCounts, gatedTotals, nameAddresses, objdiffClass } from '../../../../bench/src/objdiff-classes.ts';
-import { pcRelativeChunkRange } from '../../../../bench/src/objdiff.ts';
+import { pcRelativeChunkRange, type DifferenceFacts, type ObjdiffDifference, type ObjdiffKind } from '../../../../bench/src/objdiff.ts';
 import { codeItems, dataItem, modelOf, poolItem, romWith, words } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 
 const names = nameAddresses([
   { name: 'gScreen', addr: 0x0300_0000 },
-  { name: 'MainCB', addr: 0x0802_0f88 },
-  { name: 'MainCB', addr: 0x0803_0000 },
+  { name: 'MainCB', addr: 0x0802_0f88, thumb: true },
+  { name: 'MainCB', addr: 0x0803_0000, thumb: true },
   { name: 'gMenu', addr: 0x0200_0040 },
   { name: 'gChooseFileState', addr: 0x0200_0040 },
   { name: 'sTalkText', addr: 0x0300_00c8 },
   { name: 'gBg0Tm', addr: 0x0200_0000, size: 0x800 },
   { name: 'gBg1Tm', addr: 0x0200_0800, size: 0x800 },
+  { name: 'StaticHelper', addr: 0x0805_aab0, thumb: true },
 ]);
 
-const ex = (kind: string, detail: string): { function: string; kind: string; detail: string } => ({ function: 'f', kind, detail });
+const ABS32 = 2;
+const THM_CALL = 10;
 
-test('every detail shape goes to its class', () => {
-  const rows: readonly (readonly [string, string, string])[] = [
-    ['resolved-call', '+0x68 arg-mismatch: bl 0x7c | bl PutAnim-0x4 (PutAnim is at that offset of the reference object)', 'resolved-call'],
-    ['instruction', '+0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4', 'static-callee'],
-    ['instruction', '+0x53e arg-mismatch: b 0x4e2 | b _080B9D1A-0x4', 'static-callee'],
-    ['instruction', '+0x54c arg-mismatch: .word 0x30000c8 | .word sTalkText', 'value-named'],
-    ['instruction', '+0x2024 arg-mismatch: .word 0x8820046 | .word gUnk_08820046', 'value-named'],
-    ['instruction', '+0x10 arg-mismatch: .word 0x8820048 | .word gUnk_08820046', 'instruction-other'],
-    ['instruction', '+0x9fe delete: .hword 0x0 | (none)', 'trailing-pad'],
-    ['instruction', '+0x232 replace: b 0x2a8 | .hword 0xe039', 'instruction-other'],
-    ['relocation', '+0x18 R_ARM_ABS32: gMenu | gChooseFileState', 'alias'],
-    ['relocation', '+0x180 R_ARM_ABS32: MainCB | sub_08020F88', 'alias'],
-    ['relocation', '+0x1c0 R_ARM_ABS32: gUnk_080B2CD8 | RAMFUNCS_END', 'relocation-other'],
-    ['relocation', '+0x1f64 R_ARM_ABS32: gBg0Tm | gBg1Tm', 'symbol-addend'],
-    ['relocation', '+0x1f64 R_ARM_ABS32: gBg1Tm | gBg0Tm', 'relocation-other'],
-    ['relocation', '+0x10 R_ARM_ABS32: gScreen | gUnk_03000002', 'relocation-other'],
-    ['missing-relocation', '+0x9c R_ARM_ABS32: gScreen | a plain value', 'value-for-symbol'],
-    ['unnamed-target', '+0x28 R_ARM_ABS32: section .rodata | X', 'unnamed-target'],
-    ['missing-symbol', 'no reference object defines it', 'missing-symbol'],
-    ['tool', 'Invalid instruction size 1', 'tool'],
-    ['assemble', 'source.s:9: Error: invalid offset', 'assemble'],
-    ['score', 'objdiff scored it 99% with no differing row', 'score'],
+const ex = (kind: ObjdiffKind, detail: string, facts: DifferenceFacts = {}): ObjdiffDifference => ({ kind, example: { function: 'f', kind, detail }, facts });
+
+test('every detail shape goes to its class when its facts check out', () => {
+  const rows: readonly (readonly [ObjdiffDifference, string])[] = [
+    [ex('resolved-call', '+0x68 arg-mismatch: bl 0x7c | bl PutAnim-0x4 (PutAnim is at that offset of the reference object)'), 'resolved-call'],
+    // The reference's bl reaches its section's start plus 0x5f4, where the ELF (or the default spelling) puts the callee.
+    [ex('instruction', '+0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4', { sectionBase: 0x0805_aab0 - 0x5f4 }), 'static-callee'],
+    [ex('instruction', '+0x8e0 arg-mismatch: bl 0x5f4 | bl StaticHelper-0x4', { sectionBase: 0x0805_aab0 - 0x5f4 }), 'static-callee'],
+    [ex('instruction', '+0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4', { sectionBase: 0x0805_aab0 - 0x5f0 }), 'instruction-other'],
+    [ex('instruction', '+0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4'), 'unverified'],
+    [ex('instruction', '+0x53e arg-mismatch: b 0x4e2 | b _080B9D1A-0x4', { sectionBase: 0x080b_9d1a - 0x4e2 }), 'static-callee'],
+    [ex('instruction', '+0x54c arg-mismatch: .word 0x30000c8 | .word sTalkText'), 'value-named'],
+    [ex('instruction', '+0x2024 arg-mismatch: .word 0x8820046 | .word gUnk_08820046'), 'value-named'],
+    [ex('instruction', '+0x10 arg-mismatch: .word 0x8020f89 | .word MainCB'), 'value-named'],
+    [ex('instruction', '+0x10 arg-mismatch: .word 0x8020f88 | .word MainCB'), 'instruction-other'],
+    [ex('instruction', '+0x10 arg-mismatch: .word 0x8820048 | .word gUnk_08820046'), 'instruction-other'],
+    [ex('instruction', '+0x9fe delete: .hword 0x0 | (none)'), 'trailing-pad'],
+    [ex('instruction', '+0x232 replace: b 0x2a8 | .hword 0xe039'), 'instruction-other'],
+    [ex('relocation', '+0x18 R_ARM_ABS32: gMenu | gChooseFileState', { relocationType: ABS32, referenceAddend: 0, baseAddend: 0 }), 'alias'],
+    [ex('relocation', '+0x18 R_ARM_ABS32: gMenu | gChooseFileState', { relocationType: ABS32, referenceAddend: 4, baseAddend: 0 }), 'relocation-other'],
+    [ex('relocation', '+0x18 R_ARM_ABS32: gMenu | gChooseFileState', { relocationType: ABS32, referenceAddend: 0 }), 'unverified'],
+    [ex('relocation', '+0x180 R_ARM_ABS32: MainCB | sub_08020F88', { relocationType: ABS32, referenceAddend: 0, baseAddend: 0 }), 'alias'],
+    [ex('relocation', '+0x180 R_ARM_THM_PC22: MainCB | sub_08020F88', { relocationType: THM_CALL, referenceAddend: -4, baseAddend: -4 }), 'alias'],
+    [ex('relocation', '+0x1c0 R_ARM_ABS32: gUnk_080B2CD8 | RAMFUNCS_END', { relocationType: ABS32, referenceAddend: 0, baseAddend: 0 }), 'unverified'],
+    // gBg1Tm lies at gBg0Tm + 0x800, inside gBg0Tm's 0x800 bytes or at their end: the reference's gBg0Tm + 0x800 is the same word.
+    [ex('relocation', '+0x1f64 R_ARM_ABS32: gBg0Tm | gBg1Tm', { relocationType: ABS32, referenceAddend: 0x800, baseAddend: 0 }), 'symbol-addend'],
+    [ex('relocation', '+0x1f64 R_ARM_ABS32: gBg0Tm | gBg1Tm', { relocationType: ABS32, referenceAddend: 0x7fc, baseAddend: 0 }), 'relocation-other'],
+    [ex('relocation', '+0x1f64 R_ARM_ABS32: gBg0Tm | gBg1Tm', { relocationType: ABS32, baseAddend: 0 }), 'unverified'],
+    [ex('relocation', '+0x1f64 R_ARM_ABS32: gBg1Tm | gBg0Tm', { relocationType: ABS32, referenceAddend: -0x800, baseAddend: 0 }), 'relocation-other'],
+    [ex('relocation', '+0x10 R_ARM_ABS32: gScreen | gUnk_03000002', { relocationType: ABS32, referenceAddend: 2, baseAddend: 0 }), 'relocation-other'],
+    [ex('relocation', '+0x10 R_ARM_ABS32: gScreen | gUnk_03000002', { relocationType: 40, referenceAddend: 2, baseAddend: 0 }), 'unverified'],
+    [ex('missing-relocation', '+0x9c R_ARM_ABS32: gScreen | a plain value', { relocationType: ABS32, referenceAddend: 0x10, baseField: 0x0300_0010 }), 'value-for-symbol'],
+    [ex('missing-relocation', '+0x9c R_ARM_ABS32: gScreen | a plain value', { relocationType: ABS32, referenceAddend: 0x10, baseField: 0x0300_0014 }), 'relocation-other'],
+    [ex('missing-relocation', '+0x9c R_ARM_ABS32: MainCB | a plain value', { relocationType: ABS32, referenceAddend: 0, baseField: 0x0802_0f89 }), 'value-for-symbol'],
+    [ex('missing-relocation', '+0x9c R_ARM_ABS32: gScreen | a plain value', { relocationType: ABS32, referenceAddend: 0x10 }), 'unverified'],
+    [ex('missing-relocation', '+0x9c R_ARM_ABS32: gNowhere | a plain value', { relocationType: ABS32, referenceAddend: 0, baseField: 0 }), 'unverified'],
+    // A bl at 0x08020000 (section start 0x08020000, offset 0): the reference's MainCB - 4 is the site plus the base's plain offset 0xF84.
+    [ex('missing-relocation', '+0x0 R_ARM_THM_PC22: MainCB | a plain value', { relocationType: THM_CALL, referenceAddend: -4, baseField: 0xf84, sectionBase: 0x0802_0000, offset: 0 }), 'value-for-symbol'],
+    [ex('missing-relocation', '+0x0 R_ARM_THM_PC22: MainCB | a plain value', { relocationType: THM_CALL, referenceAddend: -4, baseField: 0xf80, sectionBase: 0x0802_0000, offset: 0 }), 'relocation-other'],
+    [ex('missing-relocation', '+0x0 R_ARM_THM_PC22: MainCB | a plain value', { relocationType: THM_CALL, referenceAddend: -4, baseField: 0xf84 }), 'unverified'],
+    [ex('unnamed-target', '+0x28 R_ARM_ABS32: section .rodata | X'), 'unnamed-target'],
+    [ex('missing-symbol', 'no reference object defines it'), 'missing-symbol'],
+    [ex('tool', 'Invalid instruction size 1'), 'tool'],
+    [ex('assemble', 'source.s:9: Error: invalid offset'), 'assemble'],
+    [ex('score', 'objdiff scored it 99% with no differing row'), 'score'],
   ];
-  for (const [kind, detail, want] of rows) assert.equal(objdiffClass(ex(kind, detail), names), want, detail);
+  for (const [d, want] of rows) assert.equal(objdiffClass(d, names), want, `${d.example.detail} ${JSON.stringify(d.facts)}`);
 });
 
-test('the totals: D34 gates every class but unnamed-target; option (b) leaves the classes that differ in a word and are compared', () => {
+test('a kind the classifier does not know is an error, never a silent class', () => {
+  const unknown = { kind: 'new-kind', example: { function: 'f', kind: 'new-kind', detail: '' }, facts: {} } as unknown as ObjdiffDifference;
+  assert.throws(() => objdiffClass(unknown, names), /no class for the kind new-kind/);
+});
+
+test('the totals: D34 gates every class but unnamed-target; option (b) leaves the classes that differ in a word, or are unverified, and are compared', () => {
   const counts = classCounts(
     [
       ex('resolved-call', 'bl 0x7c | bl A-0x4 (A is at that offset of the reference object)'),
       ex('instruction', '+0x9fe delete: .hword 0x0 | (none)'),
       ex('instruction', '+0x232 replace: b 0x2a8 | .hword 0xe039'),
-      ex('missing-relocation', '+0x9c R_ARM_ABS32: gScreen | a plain value'),
+      ex('missing-relocation', '+0x9c R_ARM_ABS32: gScreen | a plain value', { relocationType: ABS32, referenceAddend: 0, baseField: 0x0300_0000 }),
+      ex('missing-relocation', '+0xa0 R_ARM_ABS32: gScreen | a plain value'),
       ex('missing-symbol', 'no reference object defines it'),
       ex('unnamed-target', '+0x28 R_ARM_ABS32: section .rodata | X'),
     ],
     names,
   );
   assert.equal(counts['trailing-pad'], 1);
+  assert.equal(counts['value-for-symbol'], 1);
+  assert.equal(counts['unverified'], 1);
   assert.equal(counts['static-callee'], 0);
-  assert.deepEqual(gatedTotals(counts), { gated: 5, gatedUnderOptionB: 2 });
+  assert.deepEqual(gatedTotals(counts), { gated: 6, gatedUnderOptionB: 3 });
 });
 
 test("pcRelativeChunkRange: a function's base takes every chunk of its module up to the far pools it and they reach", () => {

@@ -11,7 +11,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { compareCodeUnits, parseElf, type ElfSymbol, type ParseResult } from 'romlift';
 import { findExecutable as findOnPath } from 'romlift/node';
 
-import { objectRelocations, type ObjectRelocation } from './objects.ts';
+import { implicitAddend, objectRelocations, type ObjectRelocation } from './objects.ts';
 import { runProcess } from './process.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -132,12 +132,27 @@ export async function diffObjects(bin: string, reference: string, base: string):
   } catch (error) {
     return { ok: false, error: `objdiff-cli printed no JSON: ${error instanceof Error ? error.message : String(error)}` };
   }
-  const bytes = new Uint8Array(await readFile(reference));
+  const left = objectFacts(new Uint8Array(await readFile(reference)));
+  if (!left.ok) return left;
+  const right = objectFacts(new Uint8Array(await readFile(base)));
+  if (!right.ok) return right;
+  return parseObjdiffDiff(json, left.value, right.value);
+}
+
+const SHT_NOBITS = 8;
+
+/** What the parser reads of an object: its symbols, its relocations (with their addends) and its section contents. */
+export function objectFacts(bytes: Uint8Array): ParseResult<ReferenceObject> {
   const elf = parseElf(bytes);
   if (!elf.ok) return elf;
   const relocations = objectRelocations(bytes);
   if (!relocations.ok) return relocations;
-  return parseObjdiffDiff(json, { symbols: elf.value.symbols, relocations: relocations.value });
+  const contents = new Map<string, Uint8Array>();
+  for (const section of elf.value.sections) {
+    if (section.type === SHT_NOBITS || section.size === 0 || section.offset + section.size > bytes.length || contents.has(section.name)) continue;
+    contents.set(section.name, bytes.subarray(section.offset, section.offset + section.size));
+  }
+  return { ok: true, value: { symbols: elf.value.symbols, relocations: relocations.value, contents } };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -160,6 +175,8 @@ export interface RelocationTarget {
   /** The symbol's name; a section symbol's section name (`.rodata`). */
   readonly name: string;
   readonly symbol: 'named' | 'section';
+  /** The relocation's addend (objdiff prints none), when the reference object's table holds the entry and its type is one implicitAddend reads. */
+  readonly addend?: number;
 }
 
 /** A row whose relocation target differs between the two sides. */
@@ -172,6 +189,15 @@ export interface RelocationDifference {
   readonly reference: RelocationTarget | null;
   /** The base side's target as objdiff names it; null when only the reference row carries a relocation. */
   readonly base: string | null;
+  /** The ELF relocation type (2 R_ARM_ABS32, 10 R_ARM_THM_CALL, ...): the reference entry's, else the base entry's. */
+  readonly typeCode?: number;
+  /** The base relocation's addend, when the base object's table holds the entry. */
+  readonly baseAddend?: number;
+  /**
+   * When only the reference row carries a relocation: the value the base's field holds, read as that relocation type
+   * reads its field (the word of an R_ARM_ABS32, the branch offset of an R_ARM_THM_CALL).
+   */
+  readonly baseField?: number;
 }
 
 /** One function of the reference object and how it compares. */
@@ -193,10 +219,12 @@ export interface ObjectDiff {
   readonly functions: readonly FunctionDiff[];
 }
 
-/** The reference object's facts the parser reads: its symbols (for sections) and its relocations. */
+/** An object's facts the parser reads: its symbols (for sections), its relocations, and its section contents (for a plain value). */
 export interface ReferenceObject {
   readonly symbols: readonly ElfSymbol[];
   readonly relocations: readonly ObjectRelocation[];
+  /** The bytes of each section with contents, by name; absent when the caller has none to give. */
+  readonly contents?: ReadonlyMap<string, Uint8Array>;
 }
 
 /**
@@ -291,19 +319,45 @@ function symbolName(s: Side, index: unknown): string | null {
   return text(s.symbols[index]?.['name']) ?? null;
 }
 
-/** The reference target of the relocation at `offset` in `section`, from the object's own table. */
-function referenceTarget(reference: ReferenceObject, section: string | undefined, offset: number, fallback: string | null): RelocationTarget | null {
-  const entry = reference.relocations.find((r) => r.offset === offset && (section === undefined || r.section === section));
-  if (entry !== undefined) return { name: entry.symbol.name, symbol: entry.symbol.type === 'section' ? 'section' : 'named' };
+/** The entry of an object's relocation table at `offset` in `section` (any section when undefined). */
+function relocationAt(object: ReferenceObject, section: string | undefined, offset: number): ObjectRelocation | undefined {
+  return object.relocations.find((r) => r.offset === offset && (section === undefined || r.section === section));
+}
+
+/** The reference target of the relocation `entry` (the object's own), else objdiff's name for it. */
+function referenceTarget(entry: ObjectRelocation | undefined, fallback: string | null): RelocationTarget | null {
+  if (entry !== undefined) return { name: entry.symbol.name, symbol: entry.symbol.type === 'section' ? 'section' : 'named', ...(entry.addend === undefined ? {} : { addend: entry.addend }) };
   return fallback === null ? null : { name: fallback, symbol: 'named' };
 }
 
-function functionDiff(symbol: Json, left: Side, right: Side, reference: ReferenceObject): FunctionDiff {
+/** The value the field of relocation type `type` at `offset` of `bytes` holds, as that type reads it; undefined outside the bytes. */
+function fieldValue(bytes: Uint8Array | undefined, offset: number, type: number): number | undefined {
+  if (bytes === undefined || offset + 4 > bytes.length) return undefined;
+  return implicitAddend(type, new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), offset);
+}
+
+/** The base side's facts of a relocation difference: its type, and its addend or its field's plain value. */
+function baseFacts(base: ReferenceObject | undefined, section: string | undefined, offset: number | null, refEntry: ObjectRelocation | undefined, hasRelocation: boolean): Pick<RelocationDifference, 'typeCode' | 'baseAddend' | 'baseField'> {
+  const entry = base === undefined || offset === null ? undefined : relocationAt(base, section, offset);
+  const typeCode = refEntry?.type ?? entry?.type;
+  const out: { typeCode?: number; baseAddend?: number; baseField?: number } = {};
+  if (typeCode !== undefined) out.typeCode = typeCode;
+  if (entry?.addend !== undefined) out.baseAddend = entry.addend;
+  if (!hasRelocation && entry === undefined && typeCode !== undefined && offset !== null && section !== undefined) {
+    const value = fieldValue(base?.contents?.get(section), offset, typeCode);
+    if (value !== undefined) out.baseField = value;
+  }
+  return out;
+}
+
+function functionDiff(symbol: Json, left: Side, right: Side, reference: ReferenceObject, base: ReferenceObject | undefined): FunctionDiff {
   const name = text(symbol['name']) ?? '';
   const targetIndex = symbol['target_symbol'];
   const paired = typeof targetIndex === 'number';
   const match = symbol['match_percent'];
   const section = reference.symbols.find((s) => s.name === name && s.type === 'func')?.sectionName;
+  const baseName = paired ? text(right.symbols[targetIndex]?.['name']) : undefined;
+  const baseSection = base?.symbols.find((s) => s.name === baseName && s.type === 'func')?.sectionName;
   const baseRows = paired ? list(right.symbols[targetIndex]?.['instructions']) : [];
   const instructionDifferences: InstructionDifference[] = [];
   const relocationDifferences: RelocationDifference[] = [];
@@ -318,12 +372,15 @@ function functionDiff(symbol: Json, left: Side, right: Side, reference: Referenc
     const baseReloc = relocationOf(baseInsn);
     const differs = rowDifference(kind, row, refInsn, refReloc !== undefined || baseReloc !== undefined);
     if (differs.reloc) {
+      const refEntry = refReloc === undefined || offset === null ? undefined : relocationAt(reference, section, offset);
+      const baseOffset = baseInsn === undefined ? null : unsigned(baseInsn['address']);
       relocationDifferences.push({
         offset,
         kind,
         type: text(refReloc?.['type_name']) ?? text(baseReloc?.['type_name']) ?? '',
-        reference: refReloc === undefined || offset === null ? null : referenceTarget(reference, section, offset, symbolName(left, refReloc['target_symbol'])),
+        reference: refReloc === undefined || offset === null ? null : referenceTarget(refEntry, symbolName(left, refReloc['target_symbol'])),
         base: baseReloc === undefined ? null : symbolName(right, baseReloc['target_symbol']),
+        ...baseFacts(base, baseSection, baseOffset, refEntry, baseReloc !== undefined),
       });
     }
     if (differs.plain) {
@@ -342,16 +399,17 @@ function functionDiff(symbol: Json, left: Side, right: Side, reference: Referenc
 }
 
 /**
- * Parses objdiff-cli's one-shot `diff --format json` output into the reference object's functions; pure.
- * ok:false when the value has no reference (left) side.
+ * Parses objdiff-cli's one-shot `diff --format json` output into the reference object's functions; pure. `base`, the
+ * base object's facts, gives each relocation difference its base addend or plain value. ok:false when the value has
+ * no reference (left) side.
  */
-export function parseObjdiffDiff(json: unknown, reference: ReferenceObject): ParseResult<ObjectDiff> {
+export function parseObjdiffDiff(json: unknown, reference: ReferenceObject, base?: ReferenceObject): ParseResult<ObjectDiff> {
   if (!isJson(json) || !isJson(json['left'])) return { ok: false, error: 'objdiff-cli JSON: no left (reference) object' };
   const left = side(json['left']);
   const right = side(json['right']);
   const functions = left.symbols
     .filter((s) => s['kind'] === 'SYMBOL_FUNCTION')
-    .map((s) => functionDiff(s, left, right, reference))
+    .map((s) => functionDiff(s, left, right, reference, base))
     .sort((a, b) => compareCodeUnits(a.name, b.name) || a.offset - b.offset);
   return { ok: true, value: { functions } };
 }

@@ -22,6 +22,7 @@ import {
   parseObjdiffDiff,
   readPinnedObjdiffVersion,
   type FunctionDiff,
+  objectFacts,
   type ReferenceObject,
 } from '../../../bench/src/objdiff-cli.ts';
 import { objectRelocations } from '../../../bench/src/objects.ts';
@@ -38,8 +39,12 @@ async function reference(): Promise<ReferenceObject> {
   return { symbols: elf.value.symbols, relocations: relocations.value };
 }
 
+/** The committed diff parsed as diffObjects parses it: with both objects' facts. */
 async function committed(): Promise<readonly FunctionDiff[]> {
-  const parsed = parseObjdiffDiff(JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown, await reference());
+  const left = objectFacts(new Uint8Array(await readFile(join(FIXTURES, 'reference.o'))));
+  const right = objectFacts(new Uint8Array(await readFile(join(FIXTURES, 'base.o'))));
+  assert.ok(left.ok && right.ok);
+  const parsed = parseObjdiffDiff(JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown, left.value, right.value);
   assert.ok(parsed.ok);
   return parsed.value.functions;
 }
@@ -59,9 +64,21 @@ test('the committed diff parses to one row per reference function, each with its
   assert.deepEqual(insn?.instructionDifferences, [{ offset: 0x0e, kind: 'replace', reference: 'add r0, r1', base: 'sub r0, r1' }]);
   assert.deepEqual(insn?.relocationDifferences, []);
   assert.deepEqual(pool?.instructionDifferences, []);
-  assert.deepEqual(pool?.relocationDifferences, [{ offset: 0x1c, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: { name: 'gTarget', symbol: 'named' }, base: 'gOther' }]);
+  assert.deepEqual(pool?.relocationDifferences, [{ offset: 0x1c, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: { name: 'gTarget', symbol: 'named', addend: 0 }, base: 'gOther', typeCode: 2, baseAddend: 0 }]);
   assert.deepEqual([same?.instructionDifferences, same?.relocationDifferences], [[], []]);
-  assert.deepEqual(sect?.relocationDifferences, [{ offset: 0x28, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: { name: '.rodata', symbol: 'section' }, base: 'sectData' }]);
+  assert.deepEqual(sect?.relocationDifferences, [{ offset: 0x28, kind: 'arg-mismatch', type: 'R_ARM_ABS32', reference: { name: '.rodata', symbol: 'section', addend: 0 }, base: 'sectData', typeCode: 2, baseAddend: 0 }]);
+});
+
+test("with the base object's facts each relocation difference carries the base addend (architecture-r1-1)", async () => {
+  const left = objectFacts(new Uint8Array(await readFile(join(FIXTURES, 'reference.o'))));
+  const right = objectFacts(new Uint8Array(await readFile(join(FIXTURES, 'base.o'))));
+  assert.ok(left.ok && right.ok);
+  assert.equal(right.value.contents?.get('.text')?.length, 0x2c);
+  const parsed = parseObjdiffDiff(JSON.parse(await readFile(join(FIXTURES, 'diff.json'), 'utf8')) as unknown, left.value, right.value);
+  assert.ok(parsed.ok);
+  const byName = new Map(parsed.value.functions.map((f) => [f.name, f] as const));
+  assert.deepEqual(byName.get('PoolFunc')?.relocationDifferences.map((r) => [r.reference?.addend, r.baseAddend, r.typeCode, r.baseField]), [[0, 0, 2, undefined]]);
+  assert.deepEqual(byName.get('SectFunc')?.relocationDifferences.map((r) => [r.reference?.addend, r.baseAddend, r.typeCode]), [[0, 0, 2]]);
 });
 
 test('functionOutcome: unpaired, and a relocation difference with no reference side differs', () => {
