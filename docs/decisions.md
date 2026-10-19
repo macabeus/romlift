@@ -2605,6 +2605,11 @@ landing run at `739d665` is withdrawn as a landing for that reason. (b)'s range 
 it" is met for the synthetic image and the tuning ROMs, not for a 32 MiB ROM of real code density (pokeemerald twice
 over), on which every bin command aborts under the cap: owner question Q7 (D71 a).
 
+**Revision (19 October 2026, the owner's answer to Q7; D72).** (a)'s cap is replaced: the bin and `g3.large-rom` use
+`--max-old-space-size=1024` ("Raise cap to 1,024 MiB"), and "every ROM size up to 32 MiB must complete under it" now
+reads under that cap. (b)'s 1,088 MiB is replaced by 1,536 MiB, set again from the runs under 1,024 MiB with the same
+margin (D72 b).
+
 ## D70. Phase-3 fix round 4: the bin's commands under the 384 MiB cap
 
 **Context.** The review of `d744f5d` (correctness-r0-1 to -r0-5, gate-honesty-r0-1 to -r0-5) ran the `romlift` bin
@@ -2660,6 +2665,9 @@ closing list exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (84
 completes on the 32 MiB synthetic ROM" holds for that code-sparse image and the six tuning ROMs, not for every 32 MiB
 ROM: a code-dense one (pokeemerald twice over) does not complete under the cap (D71 a, Q7). (d)'s headroom of about 31
 MiB is that of the gate's children; the bin's commands reach 377.5 MiB of the 384 MiB old space (D71 b).
+
+**Revision (19 October 2026, the owner's answer to Q7; D72).** The cap is 1,024 MiB and the budget 1,536 MiB (D72 a, b);
+(c)'s and (d)'s numbers are those of the 384 MiB cap and stay as the record of it.
 
 ## D71. Phase-3 fix round 5: a code-dense 32 MiB ROM, the bin's live heap, and owner question Q7
 
@@ -2720,6 +2728,69 @@ Q7. The closing list ran again at `71143d4` (`test/gates/phase.json` at `{ "land
 command exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (887.2 and 772.8 MiB) among them (phase-3.md,
 "The closing gate", fix round 5). Phase 3 is not landed;
 nothing is merged or pushed.
+
+**Revision (19 October 2026, the owner's answer to Q7; D72).** Q7 is answered, "Raise cap to 1,024 MiB" (option b):
+(a)'s "no cap, gate or claim changes in this round" and "phase 3 does not land" are superseded. Under the 1,024 MiB cap
+every bin command form completes on the doubled ROM, the raw printer's tree linking to its SHA-1; (h)'s readable
+`verify` exit 3 there is a phase-4 work item the owner assigned and a recorded known limitation of phase 3 (D72 c).
+(b)'s headroom of 2% is that of the 384 MiB cap; under 1,024 MiB it is restated in D72's consequences.
+
+## D72. The owner's answer of 19 October 2026 to Q7 of phase 3
+
+**Context.** Fix round 5 (D71 a) found that a 32 MiB ROM of real code density, `pokeemerald.gba` concatenated with
+itself (SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`, never committed; "the doubled ROM"), does not complete any
+bin command under Q6's 384 MiB cap, while 1,024 MiB holds every command. phase-3.md put that to the owner as Q7 with
+three options: (a) keep 384 MiB and redesign the readings' storage and the check pass, (b) raise the cap of the bin
+and the gate to a measured value that holds the doubled ROM, (c) read Q6's "every ROM size up to 32 MiB" as the sizes
+the synthetic image and the tuning ROMs measure.
+
+**Decision.**
+
+- (a) **Q7: "Raise cap to 1,024 MiB" (option b).** The `romlift` bin launcher (the first line of `src/cli/main.ts`,
+  `#!/usr/bin/env -S node --max-old-space-size=1024`, which `tsc` keeps in `dist/cli/main.js`) and `g3.large-rom`
+  (every child of `bench large-rom`, `LARGE_ROM_MAX_OLD_SPACE_MIB`; the gate's `HEAP_CAP_MIB`, which each run's report
+  must carry) both use `--max-old-space-size=1024`; this replaces Q6's 384 (D69 a), which replaced Q2's 256 (D68 b).
+  Q6's "every ROM size up to 32 MiB must complete under it" now reads under the 1,024 MiB cap. Applied at `1443c2c`.
+- (b) **The budget, set again.** `g3.large-rom`'s peak-RSS budget is set again from recorded runs under the 1,024 MiB
+  cap plus a stated margin. Recorded at `1443c2c` (phase-3.md, "Measured numbers", the owner's answer to Q7; Node
+  24.15, macOS): eight runs of `bench large-rom --json` on the synthetic image, every child exiting 0 under the cap
+  with the tree `9d9c915d…`; `init` 964.1 to 1,040.6 MiB and `generate` 959.2 to 1,210.1 MiB peak RSS, live heap 287.7
+  to 348.9 MiB. The margin is D69 b's: 25% over the largest recorded peak, rounded up to a multiple of 64 MiB:
+  1,210.1 × 1.25 = 1,512.6, so **1,536 MiB** (`MAX_RSS_MIB` in `test/gates/g3.large-rom.test.ts`,
+  `LARGE_ROM_MAX_RSS_MIB` in `bench/src/large-rom.ts`, the memory family's summary), at `745505f`. It replaces D69 b's
+  1,088 MiB. V8 sizes its heap to the cap, so the same ROM's peak RSS rose by about 150 to 350 MiB from the runs under
+  384 MiB (814.0 to 945.5 MiB) while its live heap stayed where it was.
+- (c) **The doubled ROM, and the phase-4 work item.** Under the 1,024 MiB cap every one of the twelve bin command forms
+  of `bench large-rom --bin --rom <the doubled ROM>` completes, none aborting: 951.6 to 1,376.0 MiB peak RSS, live heap
+  365.4 to 922.7 MiB (the raw printer's two `verify` forms the largest, about 101 MiB, 10%, under the old space). The
+  raw printer's `verify --link` links to its SHA-1 `fb17b88d…`. The four readable `verify` forms exit 3 on the
+  text-layout check alone (two problems, `cannot encode \`adr r6, sub_0906A708\` at 0x0906A56C`): the readable printer
+  names an `adr` target by a function label `as` cannot encode there. By the owner's answer that is a phase-4 work item
+  (roadmap.md, phase 4, "Carried from phase 3"), and in phase 3 the exit 3 is a recorded known limitation, not a
+  failure; `bench large-rom --bin --rom` therefore exits 1 on that ROM. `bench large-rom --rom` on it (the workflow
+  children) completes too: `init` and `generate` exit 3 on the same check at 1,339.2 and 1,304.0 MiB, writing nothing.
+- (d) **The synthetic image and the tuning ROMs, re-measured under 1,024 MiB.** The bin's twelve forms on the synthetic
+  image: every one exits 0 (ok summaries, both `--link` forms linking `b846b945…`), 940.0 to 1,217.6 MiB peak RSS, live
+  heap 299.1 to 422.6 MiB. The six tuning ROMs, the workflow children (`bench large-rom --rom`) and the twelve bin forms
+  (`--bin --rom`), one run each: every run exits 0, each `--link` linking the ROM's SHA-1, the children writing the
+  tree digests they wrote under 384 MiB; peak RSS 313.1 to 750.8 MiB (children) and 212.7 to 847.5 MiB (bin), both
+  largest on pokeemerald.
+- (e) **Not done.** No dense ROM is added to `g3.large-rom` (the owner did not authorise it); the gate keeps the
+  synthetic image. `test/local/large-rom-bin.test.ts` keeps requiring the bin on the synthetic image, now under 1,024
+  MiB. These are the only gate changes authorised with D68 and D69.
+- (f) **The minors carried from the last review** (phase-3.md, "Review", fix round 5): gate-honesty-r1-3's remainder,
+  the phase pull request's CI numbers, waits for that pull request (nothing is pushed); correctness-r0-5's remainder
+  (pool.ts) and architecture-r2-1 and r2-4 stay carried into phase 4, r2-2 and r2-3 into phase 5. None is a change a
+  fix of this size makes cheaply.
+
+**Consequences.** The bin and `g3.large-rom` run under 1,024 MiB of old space, and the gate judges peak RSS below 1,536
+MiB. D69 b's budget, D70 d's and D71 b's headroom statements are of the 384 MiB cap: under 1,024 MiB the synthetic
+image's largest live heap of a bin command (422.6 MiB, `explain --json`) leaves about 601 MiB, and the doubled ROM's
+(922.7 MiB, the raw `verify`) about 101 MiB. A code-dense ROM larger than the doubled one may still exceed the cap,
+which ends in V8's out-of-memory report (exit 134); the memory work of Q7's option (a) stays possible later work, not a
+phase-3 item. Following the landing procedure, with `test/gates/phase.json` at `{ "landed": 3 }`, the whole closing
+list runs in a fresh worktree after this commit (phase-3.md, "The closing gate", the owner's answer to Q7). Nothing is
+merged or pushed.
 
 ## Review findings index
 

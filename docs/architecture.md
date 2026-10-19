@@ -90,7 +90,7 @@ romlift/
   AGENTS.md                         agent instructions (never CLAUDE.md)
   README.md
   package.json                      bin romlift (dist/cli/main.js, whose first line runs Node with
-                                    --max-old-space-size=384, D68 b, D69); exports ".", "./node", "./isa", "./internal" (source/default
+                                    --max-old-space-size=1024, D68 b, D72); exports ".", "./node", "./isa", "./internal" (source/default
                                     conditions); engines node >=22.18; files: dist/, templates/, signatures/specs/
   package-lock.json
   tsconfig.json, tsconfig.build.json
@@ -1783,7 +1783,7 @@ message states the reason, as the working rule requires.
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
 | Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g5.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a; phase 3 records the classified counts) | 3, 5 |
-| Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=384`, the owner's answer to Q6 of phase-3.md, D69) with peak RSS below 1,088 MiB, the budget set from the recorded runs under that cap with a 25% margin (`g3.large-rom`, D68 b, D69 b; 15.1% over the largest peak recorded since, D70 c); the six tuning ROMs are measured under the same cap and recorded; the bin's own commands complete on the synthetic ROM under the cap (`test/local/large-rom-bin.test.ts`, D70 b; not a gate) | 3 |
+| Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=1024`, the owner's answer to Q7 of phase-3.md, D72, replacing Q6's 384) with peak RSS below 1,536 MiB, the budget set again from the recorded runs under that cap with a 25% margin (`g3.large-rom`, D68 b, D72 b); the six tuning ROMs and the code-dense doubled ROM are measured under the same cap and recorded; the bin's own commands complete on the synthetic ROM under the cap (`test/local/large-rom-bin.test.ts`, D70 b; not a gate) | 3 |
 | Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance); on a reference ROM every name equals that reference's own symbol; leave-one-reference-out adds or moves no placement; sealed held-out counts | 6 |
 
 The bench always scores a **seedless discover run** (no TOML, signature or evidence seeds) and judges
@@ -1987,21 +1987,23 @@ and hashed incrementally by the shell, so no artifact is ever one string; `model
 chunk; writers produce one module's files at a time, and the check and write passes keep only paths and
 digests (§6.4). `g3.large-rom` builds a deterministic synthetic 32 MiB ROM by tiling fixture code with
 seeded data and runs `init` and `generate` each in its own process under the heap cap the `romlift` bin passes
-(`--max-old-space-size=384`: the bin's first line is `#!/usr/bin/env -S node --max-old-space-size=384`, the owner's
-answers to Q2 and Q6 of phase-3.md, D68 b, D69), so it measures what those workflows hold under the bin's cap rather
-than how far V8 lets its heap grow; it requires both to complete under the cap and their peak RSS to stay below the budget, recording
-`maxRssMiB` (and, recorded only, `peakLiveHeapMiB`, the heap live after a full GC, which is what meets the cap first:
-about 315 to 355 MiB, D70 d, D71 g). The budget, 1,088 MiB, was the largest peak recorded under the cap when it was set
-(866.5 MiB, `init`) plus 25%, rounded up to a multiple of 64 MiB (D69 b); the largest recorded since is 945.5 MiB
-(D70 c); 256 and 320 MiB do not hold the synthetic ROM. The bin's own commands (`analyze`, `explain`, `model`,
-`verify` with `--assemble` and `--link`) take other paths than those workflows; `bench large-rom --bin` runs each of
-them under the cap, recording each one's peak RSS and live heap, and `test/local/large-rom-bin.test.ts` requires all
-to complete (D70 b, D71 b, e): the discover analysis is dropped before the confirm analysis runs, and `analyze`'s text
-table, `analyze --json` and `model --json` stream their output, waiting for stdout to drain. On the synthetic ROM the
-bin's live heap reaches 377.5 MiB of the 384 MiB old space (D71 b). The six tuning ROMs (4 to 16 MiB) complete under
-the cap at 236.1 to 679.2 MiB peak RSS (`bench large-rom --rom <path>` and `--bin --rom <path>`, D70, D71). A 32 MiB
-ROM of real code density (pokeemerald twice over, 29,084 functions) does not complete under the cap: `verify` holds
-more than 768 MiB live there; that is owner question Q7 of phase-3.md (D71 a).
+(`--max-old-space-size=1024`: the bin's first line is `#!/usr/bin/env -S node --max-old-space-size=1024`, the owner's
+answers to Q2, Q6 and Q7 of phase-3.md, D68 b, D69, D72; Q7's 1,024 MiB replaces Q6's 384, which replaced Q2's 256), so
+it measures what those workflows hold under the bin's cap rather than how far V8 lets its heap grow; it requires both to
+complete under the cap and their peak RSS to stay below the budget, recording `maxRssMiB` (and, recorded only,
+`peakLiveHeapMiB`, the heap live after a full GC, which is what meets the cap first: about 288 to 349 MiB, D72 b). The
+budget, 1,536 MiB, is the largest peak of the eight runs recorded under the 1,024 MiB cap (1,210.1 MiB, `generate`) plus
+25%, rounded up to a multiple of 64 MiB (D72 b); it replaces the 1,088 MiB set the same way under 384 MiB (D69 b). The
+bin's own commands (`analyze`, `explain`, `model`, `verify` with `--assemble` and `--link`) take other paths than those
+workflows; `bench large-rom --bin` runs each of them under the cap, recording each one's peak RSS and live heap, and
+`test/local/large-rom-bin.test.ts` requires all to complete on the synthetic ROM (D70 b, D71 b, e): the discover
+analysis is dropped before the confirm analysis runs, and `analyze`'s text table, `analyze --json` and `model --json`
+stream their output, waiting for stdout to drain. Under the 1,024 MiB cap (D72 c, d) the bin's commands complete on the
+synthetic ROM (peak RSS 940.0 to 1,217.6 MiB, live heap at most 422.6 MiB), on the six tuning ROMs (4 to 16 MiB; 212.7
+to 847.5 MiB) and on a 32 MiB ROM of real code density, pokeemerald twice over (29,084 functions; 951.6 to 1,376.0 MiB,
+live heap at most 922.7 MiB); that ROM is measured by `bench large-rom --bin --rom`, not gated. Its readable tree fails
+the text-layout check on two `adr` lines naming a function label (`verify` exit 3, nothing written), a phase-4 work
+item (roadmap.md, phase 4, "Carried from phase 3"); its raw tree links to its SHA-1.
 
 ## 10. Testing strategy
 
@@ -2114,10 +2116,10 @@ in roadmap.md pass. The gates per phase are those of §1.
 8. The Transmuter block in `decomp.yaml`.
 9. Which compiler built the other Klonoa GBA games, which decides whether a second analysis profile
    belongs in release 1.
-10. The phase-3 owner questions (phase-3.md, Q1 to Q6), **answered by the owner on 19 October 2026** (D68, D69):
+10. The phase-3 owner questions (phase-3.md, Q1 to Q7), **answered by the owner on 19 October 2026** (D68, D69, D72):
     Q1, "Move gate to phase 5" (`g3.objdiff` is `g5.objdiff`; phase 3 records the classified counts and keeps the
     classifier); Q2, "Measure under a heap cap" (the `romlift` bin and `g3.large-rom` run Node with
-    `--max-old-space-size=256`, §9.4, raised to 384 by Q6); Q3, "Accept, don't flush generated" (§6.4, D64 d); Q4, "Accept" (the
+    `--max-old-space-size=256`, §9.4, raised to 384 by Q6 and to 1,024 by Q7); Q3, "Accept, don't flush generated" (§6.4, D64 d); Q4, "Accept" (the
     narrowed raw-printer PoC parity of D65 l is roadmap 3.B's gate); Q5, "Accept Q5a; fix Q5b, c in phase 4" (the
     alignment refusal is a release-1 limitation; padding-only orphans folded into the next function, and confirm
     not re-validating the functions discover listed, are phase-4 work items in roadmap.md). Applying Q2 found that
@@ -2125,8 +2127,11 @@ in roadmap.md pass. The gates per phase are those of §1.
     `g3.large-rom` use `--max-old-space-size=384`, the budget 1,088 MiB set from the runs then recorded under it with a
     25% margin, 15.1% over the largest peak recorded since, D70 c);
     the review of that landing found the bin's own commands out of memory on the synthetic ROM under the cap, which
-    fix round 4 resolved without a gate change (D70). Q7 is open (D71): a code-dense 32 MiB ROM does not complete
-    under the cap.
+    fix round 4 resolved without a gate change (D70). Fix round 5 found a code-dense 32 MiB ROM that does not complete
+    under 384 MiB (D71); Q7, "Raise cap to 1,024 MiB" (D72: the bin and `g3.large-rom` use `--max-old-space-size=1024`,
+    the budget 1,536 MiB set again from the runs under it with the same margin; every bin command completes on that
+    ROM under the cap, its readable `verify`'s text-layout failure on two `adr` lines being a phase-4 work item and a
+    recorded phase-3 limitation; no dense ROM is added to the gate).
 
 ## 13. Gate index
 
@@ -2173,7 +2178,7 @@ one is missing.
 | `g3.tree-determinism` | ci and real | two processes with a varied environment give one tree digest; no generated file contains the project path; Linux and macOS agree |
 | `g3.golden-writers` | ci | every writer's output on every fixture equals its golden |
 | `g3.speed-budget` | real | the budgets of §9.3 (calibrated) |
-| `g3.large-rom` | ci | §9.4: under the `romlift` bin's heap cap (D68 b) |
+| `g3.large-rom` | ci | §9.4: under the `romlift` bin's heap cap, 1,024 MiB (D68 b, D72) |
 | `g3.checks-fail` | ci | mutation tests of the four self-checks and of `planWrites` |
 | `g4.e2e-fixtures` | ci | in a directory holding only the fixture ROM, `npx romlift init <rom> && ./setup.sh && make` ends at the SHA-1; the composite fixture's illegal border fails with `E_MODULE_BORDER` |
 | `g4.e2e-real` | real | the same command on every tuning ROM; sealed ROMs report counts only |

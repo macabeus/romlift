@@ -382,8 +382,8 @@ Phase 3 runs as nine components in three waves on the branch `phase-3` (eight pl
 D62 records each deviation and why; [phase-3.md](phase-3.md) records the components, the measured numbers and
 the closing gate. Every threshold of the phase applies to all six tuning ROMs (D60, D62 h). The owner's answers of
 19 October 2026 (D68) moved the objdiff gate to phase 5 (`g5.objdiff`, 5.C), made `g3.large-rom` measure under the
-`romlift` bin's heap cap (384 MiB by the answer to phase-3.md Q6, D69), accepted D64 d and the narrowed raw-printer parity (D65 l) as 3.B's gate, and put two
-work items into phase 4 ("Carried from phase 3", below).
+`romlift` bin's heap cap (384 MiB by the answer to phase-3.md Q6, D69; 1,024 MiB by the answer to Q7, D72), accepted D64 d and the narrowed raw-printer parity (D65 l) as 3.B's gate, and put two
+work items into phase 4; Q7's answer put a third there ("Carried from phase 3", below).
 
 | Component | Wave | Takes from the sections below |
 | --- | --- | --- |
@@ -512,12 +512,12 @@ readability shares not lower than the first committed value on any ROM; the objd
 that links, sorted by the committed classifier, recorded as the phase's measurement (the gate is `g5.objdiff`,
 D68 a); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald
 (calibrated); `init` and `generate` on the 32 MiB synthetic ROM complete under the `romlift` bin's heap cap
-(`--max-old-space-size=384`, the owner's answer to Q6, which replaces Q2's 256) with peak RSS below the budget set
-from the recorded runs under that cap with a stated margin (1,088 MiB, set when 866.5 MiB was the largest
-recorded peak, plus 25%, rounded up to a multiple of 64 MiB; it is 15.1% over the largest peak recorded since,
-945.5 MiB, D70 c, D71 c), and the six tuning ROMs complete under the same cap, their peak RSS recorded
-(D68 b, D69); every command of the `romlift` bin completes on the synthetic ROM under that cap
-(`test/local/large-rom-bin.test.ts`, D70 b); every phase-1 and phase-2 gate still passes.
+(`--max-old-space-size=1024`, the owner's answer to Q7, which replaces Q6's 384, itself replacing Q2's 256) with peak
+RSS below the budget set again from the recorded runs under that cap with a stated margin (1,536 MiB: the largest of
+eight runs, 1,210.1 MiB, plus 25%, rounded up to a multiple of 64 MiB, D72 b), and the six tuning ROMs complete under
+the same cap, their peak RSS recorded (D68 b, D69, D72); every command of the `romlift` bin completes on the synthetic
+ROM under that cap (`test/local/large-rom-bin.test.ts`, D70 b) and, recorded, on the code-dense doubled ROM, whose
+readable `verify` exit 3 is a phase-4 work item (D72 c); every phase-1 and phase-2 gate still passes.
 
 ---
 
@@ -604,9 +604,10 @@ Entry: phase 3 landed. Branch `phase/4-one-shot`. Seven components: 4.0, then 4.
   mutation tests (lock, journal, patch planner); runs the exit commands.
 - **Gated by:** every `g4.*` gate.
 
-### Carried from phase 3 (D68 e, the owner's answer to Q5: "Accept Q5a; fix Q5b, c in phase 4")
+### Carried from phase 3 (D68 e, the owner's answer to Q5: "Accept Q5a; fix Q5b, c in phase 4"; D72 c, Q7)
 
-Two work items the owner put into phase 4, each with a test that fails without it, and one recorded limitation:
+Three work items the owner put into phase 4 (two by Q5, one by Q7), each with a test that fails without it, and one
+recorded limitation:
 
 - **Padding-only orphans folded into the next function** (Q5 b, delivery-13). With the discover model most orphan
   chunks hold only the zero padding between two functions (`.align 2, 0`: pokeemerald 3,203 of 3,222 orphan files,
@@ -624,6 +625,14 @@ Two work items the owner put into phase 4, each with a test that fails without i
   ROMs. Owner: 4.D.
 - **Recorded release-1 limitation** (Q5 a, D65 a): a ROM whose size the last unit's section alignment does not
   divide is refused by the text-layout check, and nothing is written.
+- **The readable printer's `adr` naming a function label** (D72 c, the owner's answer to Q7 of phase-3.md, "Raise
+  cap to 1,024 MiB", which assigns it to phase 4). On a 32 MiB ROM of real code density (pokeemerald twice over,
+  SHA-1 `fb17b88d…`, never committed) the readable printer names the target of two Thumb `adr`s of the second copy by
+  a function label (`adr r6, sub_0906A708` at 0x0906A56C among them), which the text-layout check refuses as
+  unencodable: `verify` exits 3 and nothing is written, while the raw printer's tree links to the SHA-1. The printer
+  prints such an `adr` in a form `as` encodes to the ROM's halfword (or raw), with a fixture that fails without the
+  fix; measured by the doubled ROM's readable `verify --assemble --link` linking to its SHA-1, `g3.link` and the
+  writer goldens. Owner: 4.0.
 
 The minors the review of fix round 2 carried (phase-3.md, "Review", fix round 3) stay with the code they touch:
 architecture-r2-1 (TextLayoutIndex exported with its Maps, with the writer contract D66 d reopens), architecture-r2-4
