@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { dataWriter } from '../../../../src/core/emit/writers/data.ts';
 import type { FileEntry } from '../../../../src/core/emit/tree.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
-import { checkEntry } from '../../../../src/core/verify/text-layout.ts';
+import { checkEntry, textLayoutIndex } from '../../../../src/core/verify/text-layout.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import { codeItems, dataItem, label, modelOf, romWith, words } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
@@ -120,7 +120,7 @@ test('the data file lays out to its module range under the text-layout check', (
   for (const module of [0, 2]) {
     const [e] = emitted(rom, model, module);
     assert.ok(e !== undefined);
-    assert.deepEqual(checkEntry(rom, model, e), [], e.path);
+    assert.deepEqual(checkEntry(rom, model, textLayoutIndex(model), e), [], e.path);
   }
 });
 
@@ -141,7 +141,7 @@ test('a Thumb function label inside a data module is marked `.thumb_func`, so `.
   assert.match(text, /\t\.global Stray\n\t\.thumb_func\nStray: @ 0x08000110\n/);
   const [e] = emitted(r, m, 0);
   assert.ok(e !== undefined);
-  assert.deepEqual(checkEntry(r, m, e), []);
+  assert.deepEqual(checkEntry(r, m, textLayoutIndex(m), e), []);
 });
 
 test('a runs_at data module: labels at their run addresses, slices at their load offsets', () => {
@@ -162,5 +162,5 @@ test('a runs_at data module: labels at their run addresses, slices at their load
   assert.match(text, /gRamTable: @ 0x03000000\n\t\.4byte gRamWord\n\n\t\.global gRamWord\ngRamWord: @ 0x03000004\n\t\.incbin "baserom\.gba", 0x104, 0x2FC\n$/);
   const [e] = emitted(r, m, 1);
   assert.ok(e !== undefined);
-  assert.deepEqual(checkEntry(r, m, e), []);
+  assert.deepEqual(checkEntry(r, m, textLayoutIndex(m), e), []);
 });

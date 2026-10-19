@@ -6,7 +6,7 @@
 //     core/verify/{tiling,reencode,module-size}.ts: every byte in exactly one item (E_SELF_CHECK_TILING),
 //     every mnemonic round-trips (E_SELF_CHECK_REENCODE), each module's items add up to its span
 //     (E_MODULE_SIZE); one CheckResult each, ids 'tiling', 'reencode', 'module-size'.
-//   checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[]
+//   checkEntry(rom: Rom, model: Model, index: TextLayoutIndex, entry: FileEntry): readonly Diagnostic[]
 //     core/verify/text-layout.ts: the text-layout check of ONE entry (E_SELF_CHECK_TEXT with path, line and
 //     address), so the check pass streams the emission and keeps no tree; the caller folds the
 //     diagnostics into the 'text-layout' CheckResult.

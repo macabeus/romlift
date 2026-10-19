@@ -6,7 +6,7 @@ import { test } from 'node:test';
 
 import { ldscriptText, ldscriptWriter } from '../../../../src/core/emit/writers/ldscript.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
-import { checkEntry } from '../../../../src/core/verify/text-layout.ts';
+import { checkEntry, textLayoutIndex } from '../../../../src/core/verify/text-layout.ts';
 import { dataItem, modelOf, romWith } from '../../../helpers/model.ts';
 
 const CX = { decomp: { defined: new Set<string>() } };
@@ -44,7 +44,7 @@ SECTIONS {
 }
 `,
   );
-  assert.deepEqual(checkEntry(rom, model, e), []);
+  assert.deepEqual(checkEntry(rom, model, textLayoutIndex(model), e), []);
 });
 
 test('INCLUDE symbols.ld when a symbol lies outside the ROM', () => {
@@ -85,5 +85,5 @@ SECTIONS {
   );
   const [e] = [...ldscriptWriter.emit(rom, model, CX, null)];
   assert.ok(e !== undefined);
-  assert.deepEqual(checkEntry(rom, model, e), []);
+  assert.deepEqual(checkEntry(rom, model, textLayoutIndex(model), e), []);
 });

@@ -1,7 +1,8 @@
 // The text-layout self-check (architecture §6.4, §6.7, D49): every file the emission stream produces is
 // read back and must rebuild exactly what the model says it holds, without a toolchain. checkEntry checks
-// ONE FileEntry, so the check pass streams the emission and keeps no tree (§9.4); checkEntries folds a
-// whole stream into the 'text-layout' and 'paths' results.
+// ONE FileEntry under an index of the model built once per pass (textLayoutIndex), so the check pass streams
+// the emission and keeps no tree (§9.4); checkEntries folds a whole stream into the 'text-layout' and 'paths'
+// results.
 //
 // - A function or orphan file (core/model/paths.ts chunkPaths) is parsed with foundation/asm/statements.ts
 //   (include/macros.inc is DIALECT.macrosInc) and laid out by foundation/asm/layout.ts from its chunk's
@@ -67,7 +68,7 @@ const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>(['header', 'crt
 const INCLUDES: ReadonlyMap<string, string> = new Map([[MACROS_PATH, DIALECT.macrosInc]]);
 
 // ---------------------------------------------------------------------------------------------------
-// What each path of the model holds, indexed once per check pass (checkEntries) and dropped with it.
+// What each path of the model holds, indexed once per check pass and dropped with it.
 
 type Target =
   | { readonly kind: 'chunk'; readonly module: number; readonly chunk: number }
@@ -75,7 +76,11 @@ type Target =
   | { readonly kind: 'ldscript' }
   | { readonly kind: 'symbols' };
 
-interface PathIndex {
+/**
+ * What each path of the model holds, indexed once per check pass: build it with textLayoutIndex(model) and pass it
+ * to every checkEntry of the pass. Opaque: its members are this file's.
+ */
+export interface TextLayoutIndex {
   readonly targets: ReadonlyMap<string, Target>;
   /** chunkPaths(model), aligned with model.chunks. */
   readonly chunkPaths: readonly (string | undefined)[];
@@ -104,7 +109,8 @@ function definable(model: Model, relocated: readonly Module[], label: Label): bo
   return i >= 0 && (model.items.start[i] === load || model.items.kind[i] === ItemKind.data);
 }
 
-function buildIndex(model: Model): PathIndex {
+/** The index of `model` one check pass shares (TextLayoutIndex); O(model), so built once per pass, never per entry. */
+export function textLayoutIndex(model: Model): TextLayoutIndex {
   const paths = chunkPaths(model);
   const targets = new Map<string, Target>([
     [LDSCRIPT_PATH, { kind: 'ldscript' }],
@@ -142,7 +148,7 @@ function buildIndex(model: Model): PathIndex {
 // Laying a file out.
 
 /** The value of a name a file of module `m` does not define (what ld would give it), or undefined. */
-function resolveIn(model: Model, index: PathIndex, m: number): (name: string) => number | undefined {
+function resolveIn(model: Model, index: TextLayoutIndex, m: number): (name: string) => number | undefined {
   return (name) => {
     const labels = index.labelsByName.get(name) ?? [];
     const label = labels.find((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m) ?? labels.find((l) => l.scope === 'global');
@@ -152,7 +158,7 @@ function resolveIn(model: Model, index: PathIndex, m: number): (name: string) =>
 }
 
 /** Whether a name a file of module `m` does not define is a label of module `m` itself (one object). */
-function inModule(model: Model, index: PathIndex, m: number): (name: string) => boolean {
+function inModule(model: Model, index: TextLayoutIndex, m: number): (name: string) => boolean {
   return (name) => (index.labelsByName.get(name) ?? []).some((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m);
 }
 
@@ -291,7 +297,7 @@ function macrosIncludeLine(text: string): number | undefined {
 }
 
 /** A function or orphan file: laid out from its chunk's start. */
-function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { readonly path: string; readonly text: string }, m: number, c: number): FileCheck {
+function checkChunkFile(rom: Rom, model: Model, index: TextLayoutIndex, entry: { readonly path: string; readonly text: string }, m: number, c: number): FileCheck {
   const module = model.modules[m];
   const chunk = model.chunks[c];
   if (module === undefined || chunk === undefined) throw new RomliftInvariantError(`text-layout: the path index names chunk ${c} of module ${m}, which the model lacks`);
@@ -308,7 +314,7 @@ function checkChunkFile(rom: Rom, model: Model, index: PathIndex, entry: { reado
 }
 
 /** A module's source: laid out from the module's start, each include of a chunk file standing for its bytes. */
-function checkSourceFile(rom: Rom, model: Model, index: PathIndex, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
+function checkSourceFile(rom: Rom, model: Model, index: TextLayoutIndex, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
   const module = model.modules[m];
   if (module === undefined) throw new RomliftInvariantError(`text-layout: the path index names module ${m}, which the model lacks`);
   const runOffset = runOffsetOf(module);
@@ -376,7 +382,7 @@ interface EntryCheck {
   readonly unit?: { readonly module: number; readonly sectionAlign: number };
 }
 
-function checkOne(rom: Rom, model: Model, index: PathIndex, entry: FileEntry): EntryCheck {
+function checkOne(rom: Rom, model: Model, index: TextLayoutIndex, entry: FileEntry): EntryCheck {
   if (entry.ownership !== 'generated') return { diagnostics: [] };
   const target = index.targets.get(entry.path);
   if (target === undefined) {
@@ -399,11 +405,12 @@ function checkOne(rom: Rom, model: Model, index: PathIndex, entry: FileEntry): E
 }
 
 /**
- * The text-layout check of one entry of the emission stream; [] when it is not this check's or it passes. It
- * indexes the model for this one entry; checkEntries indexes it once for a whole stream.
+ * The text-layout check of one entry of the emission stream, under the pass's `index` (textLayoutIndex(model),
+ * built once for every entry of the pass); [] when it is not this check's or it passes. The unit-level part
+ * (each unit's section alignment) and the paths the stream lacks need the whole stream: checkEntries.
  */
-export function checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[] {
-  return checkOne(rom, model, buildIndex(model), entry).diagnostics;
+export function checkEntry(rom: Rom, model: Model, index: TextLayoutIndex, entry: FileEntry): readonly Diagnostic[] {
+  return checkOne(rom, model, index, entry).diagnostics;
 }
 
 /**
@@ -444,7 +451,7 @@ export function checkEntries(rom: Rom, model: Model, entries: Iterable<FileEntry
   const diagnostics: Diagnostic[] = [];
   const paths: string[] = [];
   const aligns = new Map<number, number>();
-  const index = buildIndex(model);
+  const index = textLayoutIndex(model);
   for (const entry of entries) {
     paths.push(entry.path);
     const found = checkOne(rom, model, index, entry);
