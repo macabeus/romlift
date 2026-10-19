@@ -30,8 +30,9 @@ asked Q8; his answer runs the whole closing list again unchanged at a commit rai
 again, with no gate change, the failed run staying recorded. That run, in a fresh worktree at `0784b4e` with
 `phase.json` at `{ "landed": 3 }`, exited 0 on every command, `g2.speed` (sa2 725 of 798 ms) and `g3.large-rom` (1,039.2
 and 1,002.9 MiB under the 1,024 MiB cap, budget 1,536 MiB) among them ("The closing gate", the owner's answer to Q8):
-**phase 3 passes its closing gate**, and the marker stays raised. The merge waits for the phase pull request's CI; the
-branch is not merged or pushed.
+**phase 3 passes its closing gate**, and the marker stays raised. The phase pull request
+([#3](https://github.com/macabeus/romlift/pull/3)) passed every CI check at `cc92d04` ("The closing gate", the phase
+pull request's CI), and phase 3 is merged to `main` by the owner's authorisation of 19 October 2026.
 
 ## Components
 
@@ -1111,6 +1112,27 @@ ROM in this list join the record under the 1,024 MiB cap: twelve runs, `init` 96
 1,210.1 MiB, all under the 1,536 MiB budget. `phase.json` stays at `{ "landed": 3 }`; the merge to `main` waits for the
 phase pull request's CI (`ci.yml`, `printer.yml`, `provenance.yml`), as AGENTS.md requires, and nothing is merged or
 pushed.
+
+### The phase pull request's CI
+
+The branch was pushed at `cc92d04` (the landing run's source; the commits after `0784b4e` touch only docs and the
+artifact) and pull request [#3](https://github.com/macabeus/romlift/pull/3) opened. Every check passed, which is the
+remainder of gate-honesty-r1-3 (the CI numbers of the phase pull request) and the cross-OS and Node 22.18 clauses of
+delivery-5:
+
+| Workflow | Job | Result |
+| --- | --- | --- |
+| `ci.yml` | ubuntu-latest, Node 22.18 | pass (18m52s): `npm test` 1,949 pass, 0 fail, 1 skipped; `gates --require 3 --tier ci` every gate passes, `g3.large-rom` `init` 837.4 MiB, `generate` 825.5 MiB under the 1,024 MiB cap, tree `9d9c915d…` |
+| `ci.yml` | ubuntu-latest, Node 24 | pass (10m29s): 1,949 pass, 0 fail, 1 skipped; `g3.large-rom` `init` 958.5 MiB, `generate` 970.7 MiB, tree `9d9c915d…` |
+| `ci.yml` | macos-latest, Node 22.18 | pass (5m42s): 1,949 pass, 0 fail, 1 skipped; `g3.large-rom` `init` 947.8 MiB, `generate` 889.0 MiB, tree `9d9c915d…` |
+| `ci.yml` | macos-latest, Node 24 | pass (4m56s): 1,949 pass, 0 fail, 1 skipped; `g3.large-rom` `init` 1,132.8 MiB, `generate` 1,197.3 MiB, tree `9d9c915d…` |
+| `ci.yml` | analysis and tree digests agree across Linux, macOS and both Node versions | pass |
+| `printer.yml` | corpus, apt; corpus, homebrew | pass, pass |
+| `fixtures.yml` | ubuntu-latest; macos-latest | pass, pass |
+| `provenance.yml` | provenance | pass: source digest `d7d56063…`, 19 real-tier gates of phase ≤ 3 pass or are historical |
+
+Every `g3.large-rom` run in CI is under the 1,536 MiB budget; the largest, 1,197.3 MiB on the macOS runner, is below the
+1,210.1 MiB recorded on the owner's machine. `g1.provenance` passes on all four `ci.yml` jobs.
 
 ### The owner's answer to Q7 (landing run)
 
