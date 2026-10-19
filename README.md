@@ -33,15 +33,16 @@ was told of; the owner's answer to that question (Q6, "Yes, cover all 8") adds t
 limitation. With that answer every command of the closing list exits 0 at `landed` 2, and phase 2 has landed:
 its pull request (#2) is merged to `main`, tagged `phase-2`.
 
-Phase 3 (Emission) is built but has not landed ([docs/phase-3.md](docs/phase-3.md)): the model, both printers,
-the writers, the write plan, `model --json` and `verify` turn every committed fixture and all six tuning ROMs into
-trees that pass the four self-checks and link to the ROM's SHA-1 with both the raw and the readable printer, with
-pokeemerald's `generate` within its speed budget. The owner answered the phase's five questions (D68): the objdiff
-gate moves to phase 5 (`g5.objdiff`), the `romlift` bin and `g3.large-rom` run Node with
-`--max-old-space-size=256`, unflushed generated files and the narrowed raw-printer parity are accepted, and two
-limitations become phase-4 work. Under that heap cap all six tuning ROMs complete, but the 32 MiB synthetic ROM of
-`g3.large-rom` does not, so that gate fails and the phase waits on the owner's answer to Q6. The commands so far
-are `doctor`, `analyze`, `explain`, `model` and `verify`.
+Phase 3 (Emission) passes its closing gate and is not merged yet ([docs/phase-3.md](docs/phase-3.md)): the model,
+both printers, the writers, the write plan, `model --json` and `verify` turn every committed fixture and all six
+tuning ROMs into trees that pass the four self-checks and link to the ROM's SHA-1 with both the raw and the readable
+printer, with pokeemerald's `generate` within its speed budget. The owner answered the phase's six questions (D68,
+D69): the objdiff gate moves to phase 5 (`g5.objdiff`), the `romlift` bin and `g3.large-rom` run Node with
+`--max-old-space-size=384` (the 32 MiB synthetic ROM does not complete under the 256 MiB first chosen), with the
+memory budget set from the runs under that cap (1,088 MiB), unflushed generated files and the narrowed raw-printer
+parity are accepted, and two limitations become phase-4 work. Every command of the closing list exits 0 at `landed`
+3; the merge waits for the phase's pull request and its CI. The commands so far are `doctor`, `analyze`, `explain`,
+`model` and `verify`.
 
 | Phase | Delivers |
 | --- | --- |

@@ -8,14 +8,14 @@ measured on the owner's machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasM
 pokeemerald, sa2, sa3, tmc; D60), and every phase-3 threshold applies to all six (D62 h); the held-out ROMs
 (pokefirered, pokeruby) run sealed and report counts only (D25).
 
-**Verdict (after the owner's answers of 19 October 2026, D68).** Phase 3 does **not** land. The owner answered Q1 to
-Q5 ("The owner's answers", below), and each answer is applied exactly: `g3.objdiff` is `g5.objdiff`, a phase-5 gate;
-the `romlift` bin and `g3.large-rom` run Node with `--max-old-space-size=256`; D64 d, the narrowed raw-printer parity
-and the alignment refusal are accepted; padding-only orphans and the confirm run's re-validation are phase-4 work
-items. With `test/gates/phase.json` raised to `{ "landed": 3 }` the whole closing list ran in a fresh worktree, and
-every command exited 0 but `bench gates --require 3 --tier ci`, on `g3.large-rom` alone: no run of the 32 MiB
-synthetic ROM completes under the 256 MiB heap cap (`init` exhausts it in every run), which the answer to Q2
-assumed. That is owner question Q6; `phase.json` is back at `{ "landed": 2 }`, and nothing is merged or pushed.
+**Verdict (after the owner's answers of 19 October 2026, D68, D69).** Phase 3 passes its closing gate. The owner
+answered Q1 to Q6 ("The owner's answers", below), and each answer is applied exactly: `g3.objdiff` is `g5.objdiff`, a
+phase-5 gate; the `romlift` bin and `g3.large-rom` run Node with `--max-old-space-size=384` (Q6's answer, replacing
+Q2's 256), and the gate's budget is 1,088 MiB, set from the recorded runs under that cap with a 25% margin; D64 d,
+the narrowed raw-printer parity and the alignment refusal are accepted; padding-only orphans and the confirm run's
+re-validation are phase-4 work items. With `test/gates/phase.json` raised to `{ "landed": 3 }` (`739d665`) the whole
+closing list ran in a fresh worktree and every command exited 0 ("The closing gate", the owner's answer to Q6). The
+branch is not merged or pushed: by AGENTS.md the merge waits for the phase's pull request and its CI workflows.
 
 ## Components
 
@@ -734,6 +734,45 @@ Options.
 
 ## The closing gate
 
+### The owner's answer to Q6 (landing run)
+
+The landing procedure after the owner's answers to Q1 to Q6 (D68, D69): `test/gates/phase.json` raised to `{ "landed":
+3 }` at `739d665`, then the whole list in a fresh worktree (`git worktree add --detach`: no `node_modules`, no
+`bench/.local`; objdiff-cli 3.7.2 found in the main checkout's build, D65 j), every command from the worktree root in
+this order with the environment above, the real tier before the ci tier. Node 24.15, binutils 2.45.1, macOS. The
+worktree was clean afterwards but for the `bench/results.json` the run wrote (`poc-digests.json` and
+`poc-dump-rows.json` byte-identical), which is committed as this run's artifact (`meta.commit` `739d665`, not dirty,
+source digest `4240d78a…`).
+
+| Command | Exit at `739d665` | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | 8 packages |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 of 21 pass |
+| `npm test` | 0 | 1,943 tests, 1,943 pass, 0 fail |
+| `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (binutils 2.45.1) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (270 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, each parity matching the committed digest |
+| `npm run export-poc -- --mode raw` | 0 | 47 fixtures |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 75 tests, 75 pass, 0 skipped |
+| `npm run bench -- doctor-real` | 0 | every input ok (objdiff-cli 3.7.2) |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | summary ok (agbcc and old_agbcc reported missing, not required) |
+| `npm run corpus` | 0 | 100% round trip, 4.6 s |
+| `npm run bench -- run --scaffold` | 0 | six rows written, raw and readable SHA-1 on all six, sealed pair pass; the memory family under the 384 MiB cap: `init` exit 0 at 846.6 MiB, `generate` exit 0 at 821.6 MiB, tree `9d9c915d…` |
+| `npm run bench -- speed` | 0 | ratio 0.951, every ROM ok; pokeemerald `generate` 8,075 ms, `init` 11,057 ms CPU |
+| `npm run bench -- regression` | 0 | no regression against `c5cc0b1` |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | six ROMs OK |
+| `npm run bench -- gates --require 3 --tier real` | 0 | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end, g2.confirm-equals-discover (tmc's 8 recorded), g2.determinism, g2.entries, g2.extents, g2.held-out, g2.no-unreviewed, g2.speed (ratio 1.029), g3.link (47 fixtures, 6 of 6 tuning ROMs), g3.raw-link (53), g3.readability, g3.self-check (53), g3.speed-budget (ratio 0.964; pokeemerald `generate` 7,944 of 9,643 ms, `init` 10,380 of 14,464 ms), g3.text-layout (53), g3.tree-determinism; historical: g2.poc-parity; `g5.objdiff` fail (a phase-5 gate, not required; its counts are Q1's); g4 to g6 others pending (1,189 s) |
+| `npm run bench -- gates --require 3 --tier ci` | 0 | every g1, g2 and g3 ci gate passes, among them **`g3.large-rom` pass**: heap cap 384 MiB, `init` 850.4 MiB, `generate` 789.9 MiB (budget 1,088 MiB), tree `9d9c915d…`; g4 to g6 pending |
+| `npm run bench -- provenance` | 0 | source digest `4240d78a…` (Node 24), 19 real-tier gates of phase ≤ 3 pass or are historical, families live (memory included), 6 rows, no sealed row |
+| `npm run bench -- stale-check` | 0 | the artifact is current at `739d665` |
+
+The two runs of the synthetic ROM in this list (the memory family of `run --scaffold` and the gate) join the recorded
+runs under the 384 MiB cap: `init` 817.2 to 866.5 MiB, `generate` 789.3 to 837.9 MiB over nine runs, all under the
+1,088 MiB budget. `phase.json` stays at `{ "landed": 3 }`. Nothing is merged or pushed.
+
 ### The owner's answers (landing run)
 
 The landing procedure after the owner's answers (D68): `test/gates/phase.json` raised to `{ "landed": 3 }` at
@@ -954,8 +993,9 @@ are answered.
   there says tmc has no ELF (checked at integration and again at closing; all three held-out builds reproduce
   their SHA-1s, as it says).
 
-- `bench/results.json` was regenerated by the closing run at `682da72` (with its gate record, `g3.objdiff`
-  failing); `provenance` and `stale-check` pass on it. A later source change moves the source digest again.
+- `bench/results.json` was regenerated by the landing run at `739d665` (with its gate record, every gate of phase ≤ 3
+  passing or historical, `g5.objdiff` failing as a phase-5 gate); `provenance` and `stale-check` pass on it. A later
+  source change moves the source digest again.
 - The analysis goldens (`test/golden/analysis/*.json`) are single-line canonical JSON, as `encodeAnalysis`
   writes them; a rule change rewrites them with `UPDATE_GOLDEN=1`.
 - Measured in wave 1, a risk for `g3.large-rom` (peak RSS < 512 MiB, unchanged): the analysis alone

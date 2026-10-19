@@ -2585,8 +2585,9 @@ These are the only gate changes authorised with D68.
 
 **Consequences.** `g3.large-rom` measures the synthetic ROM under the bin's 384 MiB cap against 1,088 MiB. A user's
 `romlift` run on a 32 MiB ROM holds about 0.8 to 0.9 GiB resident; a ROM whose live set exceeds the 384 MiB old
-space ends in V8's out-of-memory report. With Q1 to Q6 answered, the landing procedure ran again (phase-3.md, "The
-closing gate").
+space ends in V8's out-of-memory report. With Q1 to Q6 answered, the landing procedure ran again at `739d665` (`test/gates/phase.json`
+at `{ "landed": 3 }`, a fresh worktree): every command of the closing list exited 0, `g3.large-rom` passing at 850.4
+MiB (`init`) and 789.9 MiB (`generate`) under the cap (phase-3.md, "The closing gate"). Nothing is merged or pushed.
 
 ## Review findings index
 
