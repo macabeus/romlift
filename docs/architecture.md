@@ -54,9 +54,9 @@ that make each gate pass are in [roadmap.md](roadmap.md).
 | --- | --- | --- |
 | 1 Decoder | ISA table, decoder, encoder, formatter, parser, raw fallback, the shared assembler dialect, `doctor`, bench harness over the PoC's runs, all gate files | `g1.architecture`, `g1.runtime-deps`, `g1.thumb-roundtrip`, `g1.bl-sample`, `g1.arm-sample`, `g1.encoder-agrees`, `g1.context-corpus`, `g1.doctor`, `g1.bench-harness`, `g1.dataset-elf`, `g1.provenance`, `g1.checks-fail` |
 | 2 Analysis | Rules, the driver ported from the PoC's control flow, the profile, `analyze`, `explain` (analysis part), fixtures, held-out runs | `g2.poc-parity`, `g2.baseline-rows`, `g2.entries`, `g2.extents`, `g2.code-end`, `g2.no-unreviewed`, `g2.confirm-equals-discover`, `g2.determinism`, `g2.synthetic-analysis`, `g2.rule-registry`, `g2.rule-coverage`, `g2.vocabulary-emitted`, `g2.second-profile`, `g2.held-out`, `g2.speed`, `g2.regression`, `g2.checks-fail` |
-| 3 Emission | Model, module inference without libraries, printer-driven writers, write plan, `verify`, `model --json` | `g3.self-check`, `g3.text-layout`, `g3.raw-link`, `g3.link`, `g3.readability`, `g3.objdiff`, `g3.tree-determinism`, `g3.golden-writers`, `g3.speed-budget`, `g3.large-rom`, `g3.checks-fail` |
+| 3 Emission | Model, module inference without libraries, printer-driven writers, write plan, `verify`, `model --json` | `g3.self-check`, `g3.text-layout`, `g3.raw-link`, `g3.link`, `g3.readability`, `g3.tree-determinism`, `g3.golden-writers`, `g3.speed-budget`, `g3.large-rom`, `g3.checks-fail` |
 | 4 One shot | Config on disk, scaffold, C stubs, per-module compilers, `init`, `generate`, `analyze --update` | `g4.e2e-fixtures`, `g4.e2e-real`, `g4.packed-e2e`, `g4.generate-idempotent`, `g4.toml-mutations`, `g4.no-toml-write`, `g4.worktree`, `g4.toml-canonical`, `g4.c-data-fails-loud`, `g4.multi-compiler`, `g4.cli-contract`, `g4.checks-fail` |
-| 5 Migration | Evidence facts and merge, `import-legacy`, reconciler, `rename`, `expected/`, `objdiff.json`, matchings, C data ranges, the Klonoa switch-over pull request | `g5.evidence-merge`, `g5.reconciler`, `g5.rename`, `g5.import-legacy`, `g5.expected-bytes`, `g5.c-data-ranges`, `g5.klonoa-rehearsal`, `g5.klonoa-switch` |
+| 5 Migration | Evidence facts and merge, `import-legacy`, reconciler, `rename`, `expected/`, `objdiff.json`, matchings, C data ranges, the Klonoa switch-over pull request | `g5.evidence-merge`, `g5.reconciler`, `g5.rename`, `g5.import-legacy`, `g5.expected-bytes`, `g5.objdiff`, `g5.c-data-ranges`, `g5.klonoa-rehearsal`, `g5.klonoa-switch` |
 | 6 Evidence | Signatures (build, match, propose), serial and BIOS-stub signatures, `trace`, code run from RAM, full `explain` | `g6.signatures-judged`, `g6.signatures-rebuild`, `g6.signatures-heldout`, `g6.signatures-loo`, `g6.no-heldout-references`, `g6.ram-code-mapped`, `g6.evidence-conflict`, `g6.explain-coverage` |
 
 **Non-goals for release 1** (plan): C decompilation, typed assets, analysis profiles other than agbcc
@@ -89,7 +89,8 @@ objects or string-literal unions.
 romlift/
   AGENTS.md                         agent instructions (never CLAUDE.md)
   README.md
-  package.json                      bin romlift; exports ".", "./node", "./isa", "./internal" (source/default
+  package.json                      bin romlift (dist/cli/main.js, whose first line runs Node with
+                                    --max-old-space-size=256, D68 b); exports ".", "./node", "./isa", "./internal" (source/default
                                     conditions); engines node >=22.18; files: dist/, templates/, signatures/specs/
   package-lock.json
   tsconfig.json, tsconfig.build.json
@@ -1362,10 +1363,10 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      `E_PROJECT_LOCKED`; a lock whose pid is gone on the same host is taken over with `W_STALE_LOCK`;
    - write `.romlift/journal.json` (`core/write-plan/journal.ts` defines it: every op with its path,
      `baseSha1` and result sha1) before the first op;
-   - apply each op through a temporary file and a rename; the journal, the manifest, edits and scaffold
-     files are flushed (`fsync`) before their rename, generated files are not, and a generated file whose
+   - apply each op through a temporary file and a rename; the journal, the manifest, edits, scaffold files
+     and C stubs are flushed (`fsync`) before their rename, generated files are not, and a generated file whose
      path does not exist yet is created in place with `O_EXCL`: the next run's snapshot rewrites any generated
-     file a crash left short (D64 d);
+     file a crash left short (D64 d, accepted by the owner's answer to Q3 of phase-3.md, D68 c);
    - write the new manifest last, through a temporary file and a rename, then delete the journal.
 
    A run that finds a journal first finishes the interrupted one: generated paths listed in the journal
@@ -1780,8 +1781,8 @@ message states the reason, as the working rule requires.
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
-| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM; objdiff score 0 (below) | 3 |
-| Memory | peak RSS < 512 MiB on the deterministic 32 MiB synthetic ROM (`g3.large-rom`) | 3 |
+| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g5.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a; phase 3 records the classified counts) | 3, 5 |
+| Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=256`) with peak RSS below the budget (`g3.large-rom`, D68 b; the budget is D42's 512 MiB until it is set from a completed run under the cap, owner question Q6 of phase-3.md); the six tuning ROMs are measured under the same cap and recorded | 3 |
 | Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance); on a reference ROM every name equals that reference's own symbol; leave-one-reference-out adds or moves no placement; sealed held-out counts | 6 |
 
 The bench always scores a **seedless discover run** (no TOML, signature or evidence seeds) and judges
@@ -1789,7 +1790,10 @@ signatures afterwards, so library knowledge never flatters the library-agnostic 
 dataset, tuning and held-out alike, counts entries and ELF functions from the end of the startup
 region, as the PoC does, because each project types its startup labels by its own convention.
 
-**objdiff** (`g3.objdiff`, D34). The oracle is objdiff-cli at the version pinned in
+**objdiff** (`g5.objdiff`, D34; `g3.objdiff` until the owner's answer to Q1 of phase-3.md moved it to phase 5,
+where the `expected/` objects and objdiff targets are built, D68 a: it applies there as D34 writes it unless the
+owner amends it then, and phase 3 records the counts the committed classifier, `bench/src/objdiff-classes.ts`,
+sorts the differences into). The oracle is objdiff-cli at the version pinned in
 `bench/tools/objdiff.version`, which is part of the source digest. For each tuning ROM whose readable
 build links, the target of each unit is the reference project's own relocatable object from its build
 directory (`objectsDir`, digest recorded), and the base is the emitted function `.s`, assembled, with its
@@ -1981,7 +1985,13 @@ instruction. Canonical JSON is produced as a stream of string chunks (`foundatio
 and hashed incrementally by the shell, so no artifact is ever one string; `model --json` is NDJSON per
 chunk; writers produce one module's files at a time, and the check and write passes keep only paths and
 digests (§6.4). `g3.large-rom` builds a deterministic synthetic 32 MiB ROM by tiling fixture code with
-seeded data and requires peak RSS < 512 MiB for `init` and `generate`, recording `maxRssMiB`.
+seeded data and runs `init` and `generate` each in its own process under the heap cap the `romlift` bin passes
+(`--max-old-space-size=256`: the bin's first line is `#!/usr/bin/env -S node --max-old-space-size=256`, the owner's
+answer to Q2 of phase-3.md, D68 b), so it measures what a user's run holds rather than how far V8 lets its heap
+grow; it requires both to complete and their peak RSS to stay below the budget, recording `maxRssMiB`. The answer
+sets the budget from the runs under the cap with a stated margin; no run of the synthetic ROM completes under the
+cap (its `init` exhausts the 256 MiB old space; phase-3.md Q6), so the budget is still D42's 512 MiB. The six
+tuning ROMs (4 to 16 MiB) complete under the cap at 0.3 to 0.6 GiB peak RSS (`bench large-rom --rom <path>`).
 
 ## 10. Testing strategy
 
@@ -2094,6 +2104,15 @@ in roadmap.md pass. The gates per phase are those of §1.
 8. The Transmuter block in `decomp.yaml`.
 9. Which compiler built the other Klonoa GBA games, which decides whether a second analysis profile
    belongs in release 1.
+10. The phase-3 owner questions (phase-3.md, Q1 to Q5), **answered by the owner on 19 October 2026** (D68):
+    Q1, "Move gate to phase 5" (`g3.objdiff` is `g5.objdiff`; phase 3 records the classified counts and keeps the
+    classifier); Q2, "Measure under a heap cap" (the `romlift` bin and `g3.large-rom` run Node with
+    `--max-old-space-size=256`, §9.4); Q3, "Accept, don't flush generated" (§6.4, D64 d); Q4, "Accept" (the
+    narrowed raw-printer PoC parity of D65 l is roadmap 3.B's gate); Q5, "Accept Q5a; fix Q5b, c in phase 4" (the
+    alignment refusal is a release-1 limitation; padding-only orphans folded into the next function, and confirm
+    not re-validating the functions discover listed, are phase-4 work items in roadmap.md). Applying Q2 found that
+    no run of the 32 MiB synthetic ROM completes under the cap, which the answer assumed: owner question Q6 of
+    phase-3.md, open.
 
 ## 13. Gate index
 
@@ -2137,11 +2156,10 @@ one is missing.
 | `g3.raw-link` | ci and real | the raw printer links to the SHA-1 on every fixture and every tuning ROM |
 | `g3.link` | ci and real | the readable printer links to the SHA-1 on every fixture and on at least three tuning ROMs (target all six, D62 h) |
 | `g3.readability` | real | readability shares only increase, on every tuning ROM |
-| `g3.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links |
 | `g3.tree-determinism` | ci and real | two processes with a varied environment give one tree digest; no generated file contains the project path; Linux and macOS agree |
 | `g3.golden-writers` | ci | every writer's output on every fixture equals its golden |
 | `g3.speed-budget` | real | the budgets of §9.3 (calibrated) |
-| `g3.large-rom` | ci | §9.4 |
+| `g3.large-rom` | ci | §9.4: under the `romlift` bin's heap cap (D68 b) |
 | `g3.checks-fail` | ci | mutation tests of the four self-checks and of `planWrites` |
 | `g4.e2e-fixtures` | ci | in a directory holding only the fixture ROM, `npx romlift init <rom> && ./setup.sh && make` ends at the SHA-1; the composite fixture's illegal border fails with `E_MODULE_BORDER` |
 | `g4.e2e-real` | real | the same command on every tuning ROM; sealed ROMs report counts only |
@@ -2160,6 +2178,7 @@ one is missing.
 | `g5.rename` | ci | identifier-only renames; refusals |
 | `g5.import-legacy` | real | §6.8 counts |
 | `g5.expected-bytes` | ci and real | §6.8 |
+| `g5.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links (`g3.objdiff` until D68 a) |
 | `g5.c-data-ranges` | ci | a C array replaces its slice of the ROM and the build still matches |
 | `g5.klonoa-rehearsal` | real | §6.8 |
 | `g5.klonoa-switch` | real | §6.8 |

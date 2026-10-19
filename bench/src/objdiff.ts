@@ -7,7 +7,7 @@
 // object are joined by `ld -r` so objdiff-cli runs once per reference object.
 //
 // Each difference has a kind; `unnamed-target` (a relocation whose reference side targets a section symbol)
-// is reported and not gated, every other kind fails g3.objdiff:
+// is reported and not gated, every other kind fails g5.objdiff (g3.objdiff until the owner moved it to phase 5, D68 a):
 //   instruction         a row whose instruction differs
 //   resolved-call       a `bl` or `b` the reference's assembler resolved inside its object, which the base, holding
 //                       one function, relocates against the same target (the same call, counted apart)
@@ -87,7 +87,7 @@ export interface ObjdiffDifference {
   readonly facts: DifferenceFacts;
 }
 
-/** A tuning row's `objdiff` member (frozen by test/gates/g3.objdiff.test.ts). */
+/** A tuning row's `objdiff` member (frozen by test/gates/g5.objdiff.test.ts). */
 export interface ObjdiffSummary {
   /** The readable build reproduced the SHA-1. */
   readonly linked: boolean;
@@ -202,7 +202,7 @@ export function objdiffVerdict(compared: readonly ComparedFunction[]): ObjdiffVe
   return { scored: compared.length, differences, examples, pass: compared.length > 0 && !gated };
 }
 
-/** The member of a ROM whose readable build does not link: nothing is scored (g3.objdiff notes it). */
+/** The member of a ROM whose readable build does not link: nothing is scored (g5.objdiff notes it). */
 export function unlinkedSummary(): ObjdiffSummary {
   return { linked: false, scored: 0, differences: {}, examples: [] };
 }
