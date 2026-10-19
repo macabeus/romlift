@@ -132,8 +132,8 @@ test('parseLargeRom reads what bench/src/large-rom.ts prints: the same script an
     romBytes: 33554432,
     sha1: 'b846b9453414ce93afc5e8fd559eaac582dc570e',
     runs: [
-      { command: 'init', exitCode: 0, maxRssMiB: 300.5, treeDigest: 'a'.repeat(64), detail: '12 files written' },
-      { command: 'generate', exitCode: 3, maxRssMiB: 280.25, detail: 'the paths check failed' },
+      { command: 'init', exitCode: 0, maxRssMiB: 300.5, maxOldSpaceSizeMiB: 256, treeDigest: 'a'.repeat(64), detail: '12 files written' },
+      { command: 'generate', exitCode: 3, maxRssMiB: 280.25, maxOldSpaceSizeMiB: 256, detail: 'the paths check failed' },
     ],
   };
   const parsed = parseLargeRom(`${JSON.stringify(report)}\n`);
@@ -145,7 +145,12 @@ test('parseLargeRom reads what bench/src/large-rom.ts prints: the same script an
       { command: 'generate', exitCode: 3, maxRssMiB: 280.25 },
     ],
   });
-  assert.deepEqual(parsed.timings, { runs: [{ command: 'init', detail: '12 files written' }, { command: 'generate', detail: 'the paths check failed' }] });
+  assert.deepEqual(parsed.timings, {
+    runs: [
+      { command: 'init', maxOldSpaceSizeMiB: 256, detail: '12 files written' },
+      { command: 'generate', maxOldSpaceSizeMiB: 256, detail: 'the paths check failed' },
+    ],
+  });
 });
 
 test('the CLI: run --scaffold prints the frozen line with objdiff; large-rom relays the script with its arguments and exit code', async () => {

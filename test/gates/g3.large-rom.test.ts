@@ -1,20 +1,26 @@
-// g3.large-rom (architecture §9.4, §13, D42): on the deterministic 32 MiB synthetic ROM (fixture code
-// tiled with seeded data), the peak RSS of `init` and of `generate` (in phase 3, their workflow
-// equivalents) stays below 512 MiB.
+// g3.large-rom (architecture §9.4, §13, D42, D68 b): on the deterministic 32 MiB synthetic ROM (fixture code
+// tiled with seeded data), `init` and `generate` (in phase 3, their workflow equivalents) each run under the heap
+// cap the `romlift` bin passes to Node (`--max-old-space-size=256`, the owner's answer to Q2, "Measure under a heap
+// cap"), exit 0, and keep their peak RSS below the budget. The answer sets the budget from the runs under the cap
+// with a stated margin; no run of the synthetic ROM completes under the cap (phase-3.md Q6), so the budget is still
+// D42's 512 MiB until the owner answers Q6.
 //
 // The command (aligned by the phase-3 lead, D62): p3-generate writes bench/src/large-rom.ts on
 // test/helpers/large-rom.ts, and p3-bench-scaffold registers `bench large-rom`:
 //   npm run bench -- large-rom --json   exit 0; the last stdout line is
 //   {schema: 'romlift/bench-large-rom@1', romBytes, sha1,
-//    runs: [{command: 'init' | 'generate', exitCode, maxRssMiB, treeDigest?}]}
-//   each run is its own process; maxRssMiB is that process's peak resident set (process.resourceUsage).
+//    runs: [{command: 'init' | 'generate', exitCode, maxRssMiB, maxOldSpaceSizeMiB, treeDigest?}]}
+//   each run is its own process; maxRssMiB is that process's peak resident set (process.resourceUsage), and
+//   maxOldSpaceSizeMiB the --max-old-space-size of its own command line (null without one).
 import { gate, type ExecResult } from './gate.ts';
 
 interface LargeRomRun {
   readonly command: string;
   readonly exitCode: number;
   readonly maxRssMiB: number;
+  readonly maxOldSpaceSizeMiB?: number | null;
   readonly treeDigest?: string;
+  readonly detail?: string;
 }
 
 interface LargeRom {
@@ -26,6 +32,8 @@ interface LargeRom {
 
 const ROM_BYTES = 32 * 1024 * 1024;
 const MAX_RSS_MIB = 512;
+/** The heap cap of the `romlift` bin (src/cli/main.ts's first line), which every measured run must run under. */
+const HEAP_CAP_MIB = 256;
 const COMMANDS: readonly string[] = ['init', 'generate'];
 
 function tail(run: ExecResult, lines = 30): string {
@@ -48,10 +56,11 @@ gate({
     for (const command of COMMANDS) {
       const measured = report.runs.find((r) => r.command === command);
       if (measured === undefined) problems.push(`${command}: not run`);
-      else if (measured.exitCode !== 0) problems.push(`${command}: exited ${measured.exitCode}`);
+      else if (measured.exitCode !== 0) problems.push(`${command}: exited ${measured.exitCode} under the ${HEAP_CAP_MIB} MiB heap cap (${(measured.detail ?? '').slice(0, 160)})`);
+      else if (measured.maxOldSpaceSizeMiB !== HEAP_CAP_MIB) problems.push(`${command}: ran under heap cap ${String(measured.maxOldSpaceSizeMiB)}, not the romlift bin's ${HEAP_CAP_MIB} MiB`);
       else if (!(measured.maxRssMiB < MAX_RSS_MIB)) problems.push(`${command}: peak RSS ${measured.maxRssMiB.toFixed(1)} MiB >= ${MAX_RSS_MIB} MiB`);
     }
     if (problems.length > 0) throw new Error(`large ROM: ${problems.join('; ')}`);
-    cx.note(`32 MiB ROM ${report.sha1}: ${report.runs.map((r) => `${r.command} maxRssMiB ${r.maxRssMiB.toFixed(1)}${r.treeDigest ? ` tree ${r.treeDigest}` : ''}`).join(', ')}`);
+    cx.note(`32 MiB ROM ${report.sha1}, heap cap ${HEAP_CAP_MIB} MiB: ${report.runs.map((r) => `${r.command} maxRssMiB ${r.maxRssMiB.toFixed(1)}${r.treeDigest ? ` tree ${r.treeDigest}` : ''}`).join(', ')}`);
   },
 });

@@ -153,7 +153,7 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
     },
   },
   'large-rom': {
-    summary: 'large-rom [--json] [...]  run bench/src/large-rom.ts with these arguments (the memory family, g3.large-rom) and relay its output and exit code',
+    summary: 'large-rom [--json] [--rom <path>]  run bench/src/large-rom.ts with these arguments (the memory family, g3.large-rom; each child under the romlift bin\'s heap cap) and relay its output and exit code',
     args: {},
     passthrough: true,
     async run(cx, _args, io, deps, _repeated, raw) {
