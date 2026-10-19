@@ -2133,7 +2133,8 @@ in roadmap.md pass. The gates per phase are those of §1.
     ROM under the cap, its readable `verify`'s text-layout failure on two `adr` lines being a phase-4 work item and a
     recorded phase-3 limitation; no dense ROM is added to the gate). The landing run after that answer failed `g2.speed`
     by 0.5 ms on sa2 with the analysis unchanged; Q8, "Re-run the gate list" (D73: the whole closing list runs again
-    unchanged at a commit raising `phase.json` again; no gate change; a further failure is a new owner question).
+    unchanged at a commit raising `phase.json` again; no gate change; a further failure is a new owner question), and
+    that run passed every command at `0784b4e`.
 
 ## 13. Gate index
 

@@ -384,7 +384,8 @@ the closing gate. Every threshold of the phase applies to all six tuning ROMs (D
 19 October 2026 (D68) moved the objdiff gate to phase 5 (`g5.objdiff`, 5.C), made `g3.large-rom` measure under the
 `romlift` bin's heap cap (384 MiB by the answer to phase-3.md Q6, D69; 1,024 MiB by the answer to Q7, D72), accepted D64 d and the narrowed raw-printer parity (D65 l) as 3.B's gate, and put two
 work items into phase 4; Q7's answer put a third there ("Carried from phase 3", below). Q8's answer (D73) re-ran the
-closing list unchanged after a landing run failed `g2.speed` by 0.5 ms; it changes no gate.
+closing list unchanged after a landing run failed `g2.speed` by 0.5 ms; it changes no gate, and the re-run passed every
+command at `0784b4e`.
 
 | Component | Wave | Takes from the sections below |
 | --- | --- | --- |

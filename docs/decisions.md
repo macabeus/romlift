@@ -2820,8 +2820,13 @@ so `phase.json` went back to `{ "landed": 2 }` (`afe4f78`) and phase-3.md put it
   and r2-4 stay carried into phase 4, r2-2 and r2-3 into phase 5 (D72 f). None changed since D72 f found them not cheap;
   the one cheap fix taken is this file's preamble, which listed the decisions only through D64 and now names D65 to D73.
 
-**Consequences.** No code or gate changes. The landing run that follows this answer is recorded in phase-3.md ("The
-closing gate", the owner's answer to Q8) with the artifact it writes.
+**Consequences.** No code or gate changes. `test/gates/phase.json` was raised to `{ "landed": 3 }` at `0784b4e`, and the
+whole closing list ran in a fresh worktree at that commit (phase-3.md, "The closing gate", the owner's answer to Q8):
+every command exited 0, among them `gates --require 3 --tier real` with `g2.speed` passing (calibration ratio 0.978,
+sa2 725 ms against 798 ms) and `gates --require 3 --tier ci` with `g3.large-rom` passing under the 1,024 MiB cap (1,039.2
+and 1,002.9 MiB, budget 1,536 MiB). Phase 3 passes its closing gate; the marker stays at `{ "landed": 3 }`, the artifact
+of that run (`meta.commit` `0784b4e`) is committed, and the merge to `main` waits for the phase pull request's CI.
+Nothing is merged or pushed.
 
 ## Review findings index
 

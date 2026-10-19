@@ -27,8 +27,11 @@ whose `g2.speed` found sa2's analysis 0.5 ms (0.06%) over its limit on an analys
 `71143d4`, and the two provenance checks that read that verdict (`g3.large-rom` passed at 996.7 and 1,093.3 MiB under the
 1,024 MiB cap). That failure was outside the answers, so `phase.json` went back to `{ "landed": 2 }` and the owner was
 asked Q8; his answer runs the whole closing list again unchanged at a commit raising `phase.json` to `{ "landed": 3 }`
-again, with no gate change, the failed run staying recorded ("The closing gate", the owner's answer to Q8). The branch
-is not merged or pushed.
+again, with no gate change, the failed run staying recorded. That run, in a fresh worktree at `0784b4e` with
+`phase.json` at `{ "landed": 3 }`, exited 0 on every command, `g2.speed` (sa2 725 of 798 ms) and `g3.large-rom` (1,039.2
+and 1,002.9 MiB under the 1,024 MiB cap, budget 1,536 MiB) among them ("The closing gate", the owner's answer to Q8):
+**phase 3 passes its closing gate**, and the marker stays raised. The merge waits for the phase pull request's CI; the
+branch is not merged or pushed.
 
 ## Components
 
@@ -308,7 +311,7 @@ The chosen options, verbatim, and what was done:
 | Q5 limitations | "Accept Q5a; fix Q5b, c in phase 4" | (a) the alignment refusal is a recorded release-1 limitation; (b) padding-only orphans folded into the next function and (c) confirm no longer re-validating the functions discover listed (measured against g2's gates) are phase-4 work items in roadmap.md ("Carried from phase 3") |
 | Q6 `g3.large-rom` under the cap (D69) | "384 MiB for bin and gate" | `05fd406`: the romlift bin launcher (`#!/usr/bin/env -S node --max-old-space-size=384`) and g3.large-rom (every child of `bench large-rom`; the gate requires the 384 MiB cap in each run's report) both use --max-old-space-size=384, replacing Q2's 256. `a206ac1`: the budget is set from the recorded runs under the 384 MiB cap plus a stated margin, 866.5 MiB (the largest) plus 25%, rounded up to a multiple of 64 MiB: 1,088 MiB. The synthetic ROM completes under the cap in every run of the bench's `init` and `generate` workflow children, and the six tuning ROMs are re-measured under 384 MiB and recorded ("Measured numbers"). The bin's own `verify`, `model` and `analyze --json` did not complete on the synthetic ROM under the cap until fix round 4 (D70): the review of `d744f5d` found them out of memory, which this row did not measure. A code-dense 32 MiB ROM (pokeemerald twice over) does not complete under the cap: Q7, whose answer replaces the 384 MiB by 1,024 MiB (below) |
 | Q7 the code-dense 32 MiB ROM (D72) | "Raise cap to 1,024 MiB" (option b) | `1443c2c`: the romlift bin launcher (`#!/usr/bin/env -S node --max-old-space-size=1024`) and g3.large-rom (every child of `bench large-rom`; the gate requires the 1,024 MiB cap in each run's report) both use --max-old-space-size=1024, replacing Q6's 384. `745505f`: g3.large-rom's peak-RSS budget is set again from recorded runs under the 1,024 MiB cap plus a stated margin: eight runs of the synthetic image, the largest peak 1,210.1 MiB (`generate`), plus 25%, rounded up to a multiple of 64 MiB: 1,536 MiB. The synthetic image and the six tuning ROMs are re-measured under 1,024 MiB and recorded, all complete; the doubled ROM (`fb17b88d…`, never committed) completes every bin command form of `bench large-rom --bin --rom` under the cap, its numbers recorded ("Measured numbers"); its readable `verify` exits 3 on the text-layout check's two `adr` lines naming a function label (`adr r6, sub_0906A708`), a phase-4 work item the owner assigned (roadmap.md, phase 4, "Carried from phase 3"), recorded as a known limitation, not a failure; the raw printer links to its SHA-1. No dense ROM is added to the gate (not authorised) |
-| Q8 `g2.speed` at the landing run (D73) | "Re-run the gate list" (option a) | the whole closing list ran again unchanged, at a commit that raises `phase.json` to `{ "landed": 3 }` again ("The closing gate", the owner's answer to Q8); the gate is not changed (`g2.speed`, `bench/baseline/speed.json`, every threshold) and the failed run at `1b4d37f` stays recorded; a further failure of any command is a new owner question, not a retry |
+| Q8 `g2.speed` at the landing run (D73) | "Re-run the gate list" (option a) | the whole closing list ran again unchanged in a fresh worktree at `0784b4e`, the commit that raises `phase.json` to `{ "landed": 3 }` again, and every command exited 0 ("The closing gate", the owner's answer to Q8); the gate is not changed (`g2.speed`, `bench/baseline/speed.json`, every threshold) and the failed run at `1b4d37f` stays recorded; a further failure of any command is a new owner question, not a retry |
 
 These are the only gate changes he authorised (Q8's answer authorises none). With Q7's answer the minors carried from the review of `16d1280` were
 looked at again (D72 f): gate-honesty-r1-3's remainder (the phase pull request's CI numbers) waits for that pull
@@ -1063,6 +1066,52 @@ Options.
 
 ## The closing gate
 
+### The owner's answer to Q8 (landing run)
+
+The landing procedure after the owner's answer to Q8 (D73), "Re-run the gate list": the whole closing list again
+unchanged, `test/gates/phase.json` raised to `{ "landed": 3 }` again at `0784b4e` (after the docs commit `463bcac` that
+records the answer; no code or gate change since `afe4f78`, which lowered it), then the list in a fresh worktree at
+`0784b4e` (`git worktree add --detach` under the system temporary directory: no `node_modules`, no `bench/.local`;
+objdiff-cli 3.7.2 found in the main checkout's build, D65 j), every command from the worktree root in this order with the
+environment above, the real tier before the ci tier, from 22:06 to 22:53. Node 24.15, binutils 2.45.1, macOS; the
+machine ran the same other processes as at `1b4d37f` (a browser, the OrbStack VM). The worktree was clean afterwards but
+for the `bench/results.json` the run wrote (`poc-digests.json` and `poc-dump-rows.json` byte-identical), which is
+committed as this run's artifact (`meta.commit` `0784b4e`, not dirty, source digest `d7d56063…`, the digest of
+`1b4d37f`'s run: the source is the same).
+
+| Command | Exit at `0784b4e` | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | 8 packages |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 of 21 pass |
+| `npm test` | 0 | 1,950 tests, 1,950 pass, 0 fail |
+| `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (binutils 2.45.1) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (259 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, each parity matching the committed digest |
+| `npm run export-poc -- --mode raw` | 0 | 47 fixtures |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 76 tests, 76 pass, 0 skipped; among them `large-rom-bin`: the twelve bin command forms complete on the 32 MiB synthetic ROM under the 1,024 MiB cap (506 s) |
+| `npm run bench -- doctor-real` | 0 | every input ok (objdiff-cli 3.7.2) |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | summary ok (agbcc and old_agbcc reported missing, not required) |
+| `npm run corpus` | 0 | 100% round trip, 4.4 s |
+| `npm run bench -- run --scaffold` | 0 | six rows written, raw and readable SHA-1 on all six, sealed pair pass; the memory family under the 1,024 MiB cap: `init` exit 0 at 1,007.3 MiB (live heap 296.2 MiB), `generate` exit 0 at 1,141.5 MiB (341.6 MiB), tree `9d9c915d…` |
+| `npm run bench -- speed` | 0 | ratio 0.984, every ROM ok (sa2 768.4 of 802.0 ms); pokeemerald `generate` 8,441 ms, `init` 10,899 ms CPU |
+| `npm run bench -- regression` | 0 | no regression against `c5cc0b1` |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | six ROMs OK |
+| `npm run bench -- gates --require 3 --tier real` | 0 | every g1, g2 and g3 real gate passes: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end, g2.confirm-equals-discover, g2.determinism, g2.entries, g2.extents, g2.held-out, g2.no-unreviewed, **g2.speed** (calibration ratio 0.978; sa2 725 of 798 ms, every ROM within its limit), g3.link (47 fixtures, 6 of 6 tuning ROMs), g3.raw-link (53), g3.readability, g3.self-check (53), g3.speed-budget (ratio 0.972; sa2 analysis 730 ms; pokeemerald `generate` 8,308 of 9,718 ms, `init` 10,783 of 14,577 ms), g3.text-layout (53), g3.tree-determinism; historical: g2.poc-parity; `g5.objdiff` fail (a phase-5 gate, not required; its counts are Q1's); g4 to g6 others pending (1,219 s) |
+| `npm run bench -- gates --require 3 --tier ci` | 0 | every g1, g2 and g3 ci gate passes, among them **`g3.large-rom`**: heap cap 1,024 MiB, `init` 1,039.2 MiB, `generate` 1,002.9 MiB (budget 1,536 MiB), tree `9d9c915d…`; and `g1.provenance` (19 real-tier gates of phase ≤ 3 pass or are historical); g4 to g6 pending (232 s) |
+| `npm run bench -- provenance` | 0 | source digest `d7d56063…` (Node 24); gate record ok; families live (memory included), 6 rows, no sealed row |
+| `npm run bench -- stale-check` | 0 | the artifact is current at `0784b4e` |
+
+Every command exits 0, so by the landing procedure and the owner's answer to Q8 **phase 3 passes its closing gate** at
+`landed` 3: `g2.speed` passed on the same analysis (sa2 725 ms against 798 ms), as the passing runs at `81210eb` and
+`71143d4` did; the failed run at `1b4d37f` stays recorded below. The gate was not changed. The two runs of the synthetic
+ROM in this list join the record under the 1,024 MiB cap: twelve runs, `init` 964.1 to 1,040.6 MiB, `generate` 959.2 to
+1,210.1 MiB, all under the 1,536 MiB budget. `phase.json` stays at `{ "landed": 3 }`; the merge to `main` waits for the
+phase pull request's CI (`ci.yml`, `printer.yml`, `provenance.yml`), as AGENTS.md requires, and nothing is merged or
+pushed.
+
 ### The owner's answer to Q7 (landing run)
 
 The landing procedure after the owner's answer to Q7 (D72): `test/gates/phase.json` at `{ "landed": 3 }` (raised at
@@ -1469,7 +1518,8 @@ are answered.
   their SHA-1s, as it says).
 
 - `bench/results.json` was regenerated by the landing run at `1b4d37f` (after Q7's answer), whose gate record held
-  `g2.speed` failing (Q8); the landing run after Q8's answer rewrites it ("The closing gate").
+  `g2.speed` failing (Q8); the landing run after Q8's answer rewrote it at `0784b4e` (every gate of phase ≤ 3 passing,
+  `provenance` and `stale-check` ok), and that artifact is committed.
 - The analysis goldens (`test/golden/analysis/*.json`) are single-line canonical JSON, as `encodeAnalysis`
   writes them; a rule change rewrites them with `UPDATE_GOLDEN=1`.
 - Measured in wave 1, a risk for `g3.large-rom` (peak RSS < 512 MiB, unchanged): the analysis alone
