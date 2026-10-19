@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { assembleVerdict, compareObject, firstDifference, linkVerdict } from '../../../src/core/verify/toolchain.ts';
+import { assembleVerdict, compareObject, firstDifference, linkVerdict, unassemblable } from '../../../src/core/verify/toolchain.ts';
 import { parseElf, relocationsOf, relocationWidth } from '../../../src/foundation/formats/elf.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 
@@ -97,4 +97,9 @@ test('assembleVerdict: ok only with every module ok and no diagnostic', () => {
   assert.equal(assembleVerdict([ok], 8, []).ok, true);
   assert.match(assembleVerdict([ok], 8, []).detail, /1 modules assemble to their ROM ranges \(8 relocated bytes left to the linker\)/);
   assert.equal(assembleVerdict([ok, { module: 'b', ok: false, detail: 'first difference at 0x08000004' }], 0, []).detail, '1 of 2 modules differ: b: first difference at 0x08000004');
+});
+
+test('unassemblable: a unit whose source is no assembly file, a C module before phase 4, cannot be assembled (architecture-r1-10)', () => {
+  assert.equal(unassemblable({ module: 'main', source: 'asm/main.s', object: 'build/main.o' }), undefined);
+  assert.equal(unassemblable({ module: 'main', source: 'src/main.c', object: 'build/main.o' }), 'src/main.c (module main) is not an assembly source');
 });

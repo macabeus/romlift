@@ -31,6 +31,7 @@ export { compareLabels, LABEL_KIND_ORDER, moduleAt, moduleIndexAt, resolverFor, 
 export type { BuildUnit } from '../core/model/paths.ts';
 export {
   BASEROM_PATH,
+  assembleUnits,
   buildUnits,
   chunkPaths,
   CRT0_PATH,

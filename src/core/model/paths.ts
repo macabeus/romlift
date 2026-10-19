@@ -10,6 +10,7 @@
 import { DIALECT } from '../../foundation/asm/dialect.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
+import type { Span } from '../../foundation/rom/span.ts';
 import type { Chunk, Model, Module } from './types.ts';
 
 export const HEADER_PATH = 'asm/rom_header.s';
@@ -92,6 +93,16 @@ export interface BuildUnit {
 /** One unit per module, in ROM (link) order. */
 export function buildUnits(model: Pick<Model, 'modules' | 'chunks'>): readonly BuildUnit[] {
   return model.modules.map((m) => ({ module: m.name, source: moduleSource(model, m), object: objectPath(m.name) }));
+}
+
+/** A build unit with the ROM range its object must reproduce (`verify --assemble`). */
+export interface AssembleUnit extends BuildUnit {
+  readonly span: Span;
+}
+
+/** One assemble unit per module, in ROM (link) order: buildUnits with each module's own span. */
+export function assembleUnits(model: Pick<Model, 'modules' | 'chunks'>): readonly AssembleUnit[] {
+  return model.modules.map((m) => ({ module: m.name, source: moduleSource(model, m), object: objectPath(m.name), span: m.span }));
 }
 
 /**

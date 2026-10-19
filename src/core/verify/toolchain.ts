@@ -8,14 +8,18 @@
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { parseElf, relocationsOf } from '../../foundation/formats/elf.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import type { Span } from '../../foundation/rom/span.ts';
 import { hex } from '../../foundation/util/hex.ts';
-import type { BuildUnit } from '../model/paths.ts';
+import type { AssembleUnit, BuildUnit } from '../model/paths.ts';
 import type { CheckResult } from './report.ts';
 
-/** A unit with the ROM range its object must reproduce. */
-export interface AssembleUnit extends BuildUnit {
-  readonly span: Span;
+export type { AssembleUnit } from '../model/paths.ts';
+
+/**
+ * Why `as` cannot build a unit's object, or undefined when it can: its source is no assembly file (a C module's
+ * `src/<module>.c`, which phase 4's compile step builds; the text-layout check refuses such a model first).
+ */
+export function unassemblable(unit: BuildUnit): string | undefined {
+  return unit.source.endsWith('.s') ? undefined : `${unit.source} (module ${unit.module}) is not an assembly source`;
 }
 
 /**

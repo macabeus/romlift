@@ -11,8 +11,7 @@
 // text mode prints the same as lines, the diagnostics on stderr. Exit codes: 0 every check passed, 3 a check
 // failed (a self-check, an object that differs, a linked SHA-1 that differs), 1 an error diagnostic of the input
 // or the toolchain (an unreadable file, E_ROM_NOT_GBA, a model error, binutils missing), 2 usage.
-import { buildUnits } from '../../api/model.ts';
-import type { Model } from '../../api/model.ts';
+import { assembleUnits, buildUnits } from '../../api/model.ts';
 import { assembleCheck, linkCheck, writeFreshTree } from '../../api/project.ts';
 import { readRom } from '../../api/files.ts';
 import type { Diagnostic, Rom } from '../../api/rom.ts';
@@ -66,14 +65,6 @@ export function allDiagnostics(outcome: Pick<VerifyOutcome, 'report' | 'diagnost
 export function verifyExitCode(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): ExitCode {
   if (allDiagnostics(outcome).some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))) return ExitCode.errors;
   return outcome.report.ok ? ExitCode.ok : ExitCode.verifyFailed;
-}
-
-/** The assemble units of a model: one per module, in link order, with the ROM range its object must reproduce. */
-function assembleUnits(model: Model): Parameters<typeof assembleCheck>[0]['units'] {
-  return buildUnits(model).flatMap((unit, i) => {
-    const m = model.modules[i];
-    return m === undefined ? [] : [{ ...unit, span: m.span }];
-  });
 }
 
 /** The toolchain checks a run asks for, in CHECK_IDS order. */

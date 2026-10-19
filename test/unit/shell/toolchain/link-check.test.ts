@@ -186,3 +186,18 @@ test('assembleCheck with a unit that does not assemble and one whose object cann
     assert.match(result.detail, /^2 of 2 modules differ/);
   });
 });
+
+test('a unit that is not an assembly source is refused by its verdict, and as never runs on it (stub toolchain)', async () => {
+  // A stub as that would fail loudly if it ran.
+  await stubBinutils({ as: 'echo "as ran" >&2; exit 1' }, async (bin) => {
+    const dir = await treeDir();
+    const tools = { as: join(bin, 'arm-none-eabi-as'), ld: join(bin, 'arm-none-eabi-ld'), objcopy: join(bin, 'arm-none-eabi-objcopy') };
+    const units = [{ ...(UNITS[0] as AssembleUnit), source: 'src/main.c' }];
+    const assembled = await assembleCheck({ dir, rom: romOf(IMAGE), units, tools });
+    assert.equal(assembled.ok, false);
+    assert.deepEqual(assembled.diagnostics.map((d) => [d.code, d.message]), [['E_TOOLCHAIN_FAILED', 'src/main.c (module main) is not an assembly source']]);
+    const linked = await linkCheck({ dir, rom: romOf(IMAGE), units, tools });
+    assert.equal(linked.ok, false);
+    assert.equal(linked.diagnostics[0]?.message, 'src/main.c (module main) is not an assembly source');
+  });
+});

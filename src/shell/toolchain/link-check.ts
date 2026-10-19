@@ -14,7 +14,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { BuildUnit } from '../../core/model/paths.ts';
 import { BASEROM_PATH, LDSCRIPT_PATH, MACROS_PATH } from '../../core/model/paths.ts';
-import { assembleFailure, assembleVerdict, compareObject, linkFailure, linkVerdict } from '../../core/verify/toolchain.ts';
+import { assembleFailure, assembleVerdict, compareObject, linkFailure, linkVerdict, unassemblable } from '../../core/verify/toolchain.ts';
 import type { AssembleCheckResult, AssembleUnit, LinkCheckResult, ModuleAssembly } from '../../core/verify/toolchain.ts';
 import { ShellCodes } from '../codes.ts';
 import { errnoOf, errorReason } from '../fs.ts';
@@ -90,9 +90,8 @@ async function prepare(dir: string, rom: Rom): Promise<Diagnostic | undefined> {
 
 /** Assembles one unit's source to its object, with DIALECT.asArgs and `-I <dir>`, from `dir`. */
 async function assembleUnit(dir: string, unit: BuildUnit, tools: Binutils): Promise<Diagnostic | undefined> {
-  if (!unit.source.endsWith('.s')) {
-    return diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', `${unit.source} (module ${unit.module}) is not an assembly source`, { path: unit.source });
-  }
+  const refused = unassemblable(unit);
+  if (refused !== undefined) return diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', refused, { path: unit.source });
   try {
     await mkdir(dirname(onDisk(dir, unit.object)), { recursive: true });
   } catch (error) {

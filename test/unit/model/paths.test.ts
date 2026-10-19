@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { buildUnits, chunkPaths, CRT0_PATH, HEADER_PATH, modulePathPrefixes, moduleSource } from '../../../src/core/model/paths.ts';
+import { assembleUnits, buildUnits, chunkPaths, CRT0_PATH, HEADER_PATH, modulePathPrefixes, moduleSource } from '../../../src/core/model/paths.ts';
 import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 
 function model() {
@@ -55,6 +55,13 @@ test('module sources and build units, in ROM order', () => {
   assert.equal(CRT0_PATH, 'asm/crt0.s');
   const c = { ...m.modules[2]!, kind: 'c' as const };
   assert.equal(moduleSource(m, c), 'src/main.c');
+});
+
+test('assembleUnits: each build unit with its own module span, built from the module (architecture-r1-10)', () => {
+  const m = model();
+  const units = assembleUnits(m);
+  assert.deepEqual(units.map(({ span: _span, ...unit }) => unit), buildUnits(m));
+  assert.deepEqual(units.map((u) => u.span), m.modules.map((x) => x.span));
 });
 
 test('the path prefixes of a module: its source, and its nonmatchings directory when it has files there', () => {
