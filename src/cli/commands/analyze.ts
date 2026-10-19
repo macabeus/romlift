@@ -16,7 +16,7 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
-import { columns, formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
+import { columnLines, formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
 import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError, writeLines } from './analysis-records.ts';
 
 // The analyze output.
@@ -89,13 +89,21 @@ function rejectionRow(r: Rejection): readonly string[] {
   return [hexAddr(r.at), r.mode, r.rule, r.reason, `x${r.count}`, r.detail];
 }
 
-/** The text output: the function table and the rejections on stdout, the diagnostics on stderr. */
-export function analyzeText(result: AnalysisResult, summary: RunSummary): { readonly stdout: string; readonly stderr: string } {
-  let stdout = '';
-  if (result.functions.length > 0) stdout += columns([FUNCTION_HEADER, ...result.functions.map(functionRow)]);
-  if (result.rejections.length > 0) stdout += `rejections:\n${columns(result.rejections.map(rejectionRow), '  ')}`;
-  stdout += `analyze: ${formatSummaryText(summary)}\n`;
-  return { stdout, stderr: result.diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join('') };
+/** The text output's stdout lines, built one at a time: the function table, the rejections, the summary. */
+export function* analyzeTextLines(result: AnalysisResult, summary: RunSummary): Generator<string> {
+  const functions = result.functions;
+  const rejections = result.rejections;
+  if (functions.length > 0) yield* columnLines(functions.length + 1, (k) => (k === 0 ? FUNCTION_HEADER : functionRow(functions[k - 1] as FunctionFact)));
+  if (rejections.length > 0) {
+    yield 'rejections:\n';
+    yield* columnLines(rejections.length, (k) => rejectionRow(rejections[k] as Rejection), '  ');
+  }
+  yield `analyze: ${formatSummaryText(summary)}\n`;
+}
+
+/** The text output's diagnostics, for stderr. */
+function analyzeTextDiagnostics(result: AnalysisResult): string {
+  return result.diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join('');
 }
 
 export const analyzeCommand: CommandSpec = {
@@ -123,9 +131,10 @@ export const analyzeCommand: CommandSpec = {
     if (json) {
       await writeLines(io, analyzeNdjsonLines(result, summary));
     } else {
-      const text = analyzeText(result, summary);
-      if (text.stderr !== '') io.stderr(text.stderr);
-      io.stdout(text.stdout);
+      // Streamed as --json is (D70 a): the whole table of a 32 MiB ROM is never one string.
+      const stderr = analyzeTextDiagnostics(result);
+      if (stderr !== '') io.stderr(stderr);
+      await writeLines(io, analyzeTextLines(result, summary));
     }
     return summary.exitCode;
   },

@@ -6,7 +6,7 @@ import { writeLines } from '../../../src/cli/commands/analysis-records.ts';
 import { ExitCode, isExitCode } from '../../../src/cli/exit-codes.ts';
 import type { CliIo } from '../../../src/cli/registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../../../src/cli/reporters/ndjson.ts';
-import { columns, formatDiagnosticText, formatSummaryText } from '../../../src/cli/reporters/text.ts';
+import { columnLines, columns, formatDiagnosticText, formatSummaryText } from '../../../src/cli/reporters/text.ts';
 
 const full: Diagnostic = {
   code: 'E_ROM_NOT_GBA',
@@ -107,6 +107,16 @@ test('isExitCode accepts exactly the five codes', () => {
 
 test('columns pads every column but the last and trims the line end', () => {
   assert.equal(columns([['a', 'bbb', 'c'], ['dddd', 'e', '']], '  '), '  a     bbb  c\n  dddd  e\n');
+});
+
+test('columnLines yields the lines of columns one row at a time, building each row twice and holding none', () => {
+  const rows = [['a', 'bbb', 'c'], ['dddd', 'e', '']];
+  const built: number[] = [];
+  const lines = [...columnLines(rows.length, (k) => (built.push(k), rows[k] ?? []), '  ')];
+  assert.deepEqual(lines, ['  a     bbb  c\n', '  dddd  e\n']);
+  assert.equal(lines.join(''), columns(rows, '  '));
+  assert.deepEqual(built, [0, 1, 0, 1], 'once for the widths, once to print');
+  assert.deepEqual([...columnLines(0, () => [])], []);
 });
 
 test('writeLines: batches of 4,096 lines, awaiting io.drained between batches, the text unchanged (D69, fix round 4)', async () => {
