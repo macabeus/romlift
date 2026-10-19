@@ -25,12 +25,12 @@ import {
   mib,
   outcomeExitCode,
   parseChildReport,
-  peakLiveHeapOf,
   romFileDeps,
   runChild,
   runOf,
   type LargeRomDeps,
 } from '../../../bench/src/large-rom.ts';
+import { peakLiveHeapOf } from '../../../bench/src/live-heap.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
 const FAR_JUMP = listSyntheticFixtures().find((f) => f.name === 'far-jump');

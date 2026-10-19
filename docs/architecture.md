@@ -179,8 +179,8 @@ romlift/
     src/                            cli.ts, run.ts, score.ts, parity.ts, classify.ts, seal.ts,
                                     dataset.ts, dataset-check.ts, vocabulary.ts, gates.ts, provenance.ts,
                                     digest.ts, regression.ts, ablate.ts, speed.ts, readability.ts, objdiff.ts,
-                                    large-rom.ts, large-rom-bin.ts, rss-probe.ts, migration.ts, signatures.ts,
-                                    doctor-real.ts, report.ts, serve.ts
+                                    large-rom.ts, large-rom-bin.ts, rss-probe.ts, live-heap.ts, migration.ts,
+                                    signatures.ts, doctor-real.ts, report.ts, serve.ts
     tools/export-poc.ts             runs the PoC (read-only, outside the repo) to dump its runs (§4.5)
     tools/objdiff.version           the pinned objdiff-cli version
     tools/convert-poc-signatures.ts converts the PoC's signature files to schema 3 into bench/.local/ (phase 6)

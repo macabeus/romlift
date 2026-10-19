@@ -3,10 +3,11 @@
 // 4). g3.large-rom measures the bench's `init` and `generate` workflow children; the CLI's commands take their own
 // paths (verify's generateFromRom, analyze's and model's NDJSON), so `bench/src/large-rom.ts --bin` runs each of
 // them from source with the Node options of src/cli/main.ts's first line, and every one must exit 0 with an ok summary
-// (and, after --link, the ROM's SHA-1). Their peak RSS is recorded in phase-3.md, not judged: the budget is the gate's.
+// (and, after --link, the ROM's SHA-1). Their peak RSS and live heap are recorded in phase-3.md, not judged: the budget
+// is the gate's.
 //
 // Needs no ROM (the image is built from the committed fixtures); missing binutils makes the test `unavailable`, or
-// fails it when ROMLIFT_REQUIRE_LOCAL=1. About ten minutes of CPU, one command after another.
+// fails it when ROMLIFT_REQUIRE_LOCAL=1. About fifteen minutes of CPU, one command after another.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -25,7 +26,15 @@ interface Report {
   readonly romBytes: number;
   readonly sha1: string;
   readonly nodeOptions: readonly string[];
-  readonly runs: readonly { readonly command: string; readonly exitCode: number; readonly maxRssMiB: number | null; readonly summaryOk?: boolean; readonly sha1?: string; readonly detail: string }[];
+  readonly runs: readonly {
+    readonly command: string;
+    readonly exitCode: number;
+    readonly maxRssMiB: number | null;
+    readonly peakLiveHeapMiB: number | null;
+    readonly summaryOk?: boolean;
+    readonly sha1?: string;
+    readonly detail: string;
+  }[];
 }
 
 test('the romlift bin completes every command on the 32 MiB synthetic ROM under its 384 MiB heap cap', { skip: REQUIRE ? false : (unavailable ?? false) }, () => {
@@ -38,7 +47,20 @@ test('the romlift bin completes every command on the 32 MiB synthetic ROM under 
   assert.ok(report.nodeOptions.includes('--max-old-space-size=384'), `the launcher's options: ${report.nodeOptions.join(' ')}`);
   assert.deepEqual(
     report.runs.map((r) => r.command),
-    ['analyze', 'analyze --json', 'explain --json', 'model', 'model --json', 'verify --json', 'verify --assemble --link --json', 'verify --printer raw --link --json'],
+    [
+      'analyze',
+      'analyze --json',
+      'explain',
+      'explain --json',
+      'model',
+      'model --json',
+      'verify --json',
+      'verify --assemble',
+      'verify --assemble --json',
+      'verify --assemble --link --json',
+      'verify --printer raw --assemble --json',
+      'verify --printer raw --link --json',
+    ],
   );
   const failed = report.runs.filter((r) => r.exitCode !== 0 || r.summaryOk === false || (r.command.includes('--link') && r.sha1 !== report.sha1));
   assert.deepEqual(failed.map((r) => `${r.command}: exit ${r.exitCode}, ${r.detail}`), []);

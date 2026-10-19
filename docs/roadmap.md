@@ -470,7 +470,7 @@ work items into phase 4 ("Carried from phase 3", below).
 ### 3.E Bench emission families
 
 - **Owns:** `bench/src/{readability,objdiff,large-rom}.ts` (and, from fix round 4, D70 b,
-  `bench/src/{large-rom-bin,rss-probe}.ts` and `test/local/large-rom-bin.test.ts`), `bench/tools/objdiff.version`,
+  `bench/src/{large-rom-bin,rss-probe,live-heap}.ts` and `test/local/large-rom-bin.test.ts`), `bench/tools/objdiff.version`,
   `test/helpers/large-rom.ts`, the `objectsDir`/`objectsDigest` fields of the five tuning datasets, the
   phase-3 extension of `bench/src/speed.ts` (`generate` and `init` timings) and of `bench/src/run.ts`
   (`--scaffold` with both printers), `test/unit/bench/emission/**`.

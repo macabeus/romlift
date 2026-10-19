@@ -33,6 +33,7 @@ import { REPO_ROOT } from './context.ts';
 import { ROMLIFT_EMISSION, type EmissionOutcome, type EmissionRunner } from './emission-run.ts';
 import { allCompleted, largeRomBin, spawnNode } from './large-rom-bin.ts';
 import { largeRomImage, readFixtureRoms } from './large-rom-image.ts';
+import { peakLiveHeapOf } from './live-heap.ts';
 import { runProcess, type ProcessResult } from './process.ts';
 
 export const LARGE_ROM_SCHEMA = 'romlift/bench-large-rom@1';
@@ -121,17 +122,6 @@ export function maxOldSpaceOf(execArgv: readonly string[]): number | null {
     if (match?.[1] !== undefined) cap = Number.parseInt(match[1], 10);
   }
   return cap;
-}
-
-/** What GCProfiler.stop() returns, as far as peakLiveHeapOf reads it. */
-interface GcProfile {
-  readonly statistics: readonly { readonly gcType: string; readonly afterGC: { readonly heapStatistics: { readonly usedHeapSize: number } } }[];
-}
-
-/** The largest used heap after a full mark-compact, in MiB to a hundredth, or null when none ran. */
-export function peakLiveHeapOf(profile: GcProfile | undefined): number | null {
-  const sizes = (profile?.statistics ?? []).filter((s) => s.gcType === 'MarkSweepCompact').map((s) => s.afterGC.heapStatistics.usedHeapSize);
-  return sizes.length === 0 ? null : Math.round((Math.max(...sizes) / 1024 / 1024) * 100) / 100;
 }
 
 /** One workflow in this process, as the child runs it; its report carries this process's peak resident set. */

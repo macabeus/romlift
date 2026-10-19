@@ -4,10 +4,11 @@
 // paths (verify's generateFromRom, analyze's and model's NDJSON), so this runs each of them, from source, with the Node
 // options of src/cli/main.ts's first line (the `#!/usr/bin/env -S node ...` launcher dist/cli/main.js keeps):
 //   node --conditions=source bench/src/large-rom.ts --bin [--json] [--rom <path>]
-// Each run reports its exit code, its peak RSS (bench/src/rss-probe.ts; none when V8 aborted it), and for a --json
-// command whether its last line is an ok summary and the SHA-1 it linked. The report, last on stdout:
+// Each run reports its exit code, its peak RSS and its peak live heap (bench/src/rss-probe.ts: the largest heap V8
+// found used after a full mark-compact, what runs into the cap; neither when V8 aborted it), and for a --json command
+// whether its last line is an ok summary and the SHA-1 it linked. The report, last on stdout:
 //   {schema: 'romlift/bench-large-rom-bin@1', romBytes, sha1, nodeOptions, runs: [{command, exitCode, maxRssMiB,
-//    summaryOk?, sha1?, detail}]}
+//    peakLiveHeapMiB, summaryOk?, sha1?, detail}]}
 // The script exits 0 when every run completed (exit 0, an ok summary, the ROM's SHA-1 after --link), else 1; nothing
 // gates it: test/local/large-rom-bin.test.ts requires it.
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -25,6 +26,7 @@ export const LARGE_ROM_BIN_SCHEMA = 'romlift/bench-large-rom-bin@1';
 export const CLI_MAIN = join(REPO_ROOT, 'src', 'cli', 'main.ts');
 const RSS_PROBE = fileURLToPath(new URL('./rss-probe.ts', import.meta.url));
 const RSS_LINE = /^romlift-bench-rss (\d+)$/;
+const LIVE_HEAP_LINE = /^romlift-bench-live-heap (\d+(?:\.\d+)?|-)$/;
 
 /** One CLI command line to run; `{rom}` stands for the ROM's path. */
 export interface BinRun {
@@ -36,15 +38,23 @@ export interface BinRun {
   readonly link?: boolean;
 }
 
-/** Every phase-3 command that reads a whole ROM, in both output forms where it has two. */
+/**
+ * Every phase-3 command that reads a whole ROM: analyze, explain and model in both output forms, and verify in each
+ * checking form (none, --assemble, --assemble --link) with the readable printer, --assemble and --link with the raw
+ * one, and --assemble as text, the forms whose memory the review of 16d1280 measured highest (correctness-r1-3).
+ */
 export const BIN_RUNS: readonly BinRun[] = [
   { command: 'analyze', args: ['analyze', '{rom}'], json: false },
   { command: 'analyze --json', args: ['analyze', '{rom}', '--json'], json: true },
+  { command: 'explain', args: ['explain', '0x08000200', '--rom', '{rom}'], json: false },
   { command: 'explain --json', args: ['explain', '0x08000200', '--rom', '{rom}', '--json'], json: true },
   { command: 'model', args: ['model', '--rom', '{rom}'], json: false },
   { command: 'model --json', args: ['model', '--rom', '{rom}', '--json'], json: true },
   { command: 'verify --json', args: ['verify', '--rom', '{rom}', '--json'], json: true },
+  { command: 'verify --assemble', args: ['verify', '--rom', '{rom}', '--assemble'], json: false },
+  { command: 'verify --assemble --json', args: ['verify', '--rom', '{rom}', '--assemble', '--json'], json: true },
   { command: 'verify --assemble --link --json', args: ['verify', '--rom', '{rom}', '--assemble', '--link', '--json'], json: true, link: true },
+  { command: 'verify --printer raw --assemble --json', args: ['verify', '--rom', '{rom}', '--printer', 'raw', '--assemble', '--json'], json: true },
   { command: 'verify --printer raw --link --json', args: ['verify', '--rom', '{rom}', '--printer', 'raw', '--link', '--json'], json: true, link: true },
 ];
 
@@ -53,6 +63,8 @@ export interface BinRunResult {
   readonly exitCode: number;
   /** Peak RSS in MiB to a hundredth; null when the process wrote none (V8 aborted it). */
   readonly maxRssMiB: number | null;
+  /** The largest heap live after a full mark-compact, in MiB to a hundredth; null when none ran or V8 aborted the process. */
+  readonly peakLiveHeapMiB: number | null;
   readonly summaryOk?: boolean;
   readonly sha1?: string;
   readonly detail: string;
@@ -75,12 +87,15 @@ export function launcherOptions(mainText: string): readonly string[] {
   return (match[1] ?? '').split(' ').filter((o) => o !== '');
 }
 
-/** What one finished process says: its RSS line, its last stdout line read as a summary, and why it failed. */
+/** What one finished process says: its RSS and live-heap lines, its last stdout line read as a summary, and why it failed. */
 export function binRunOf(run: BinRun, result: ProcessResult, romSha1: string): BinRunResult {
   const rssLine = result.stderr.trimEnd().split('\n').reverse().find((l) => RSS_LINE.test(l));
   const rss = rssLine === undefined ? null : Math.round((Number.parseInt(RSS_LINE.exec(rssLine)?.[1] ?? '0', 10) / 1024) * 100) / 100;
+  const liveLine = result.stderr.trimEnd().split('\n').reverse().find((l) => LIVE_HEAP_LINE.test(l));
+  const liveText = liveLine === undefined ? '-' : (LIVE_HEAP_LINE.exec(liveLine)?.[1] ?? '-');
+  const live = liveText === '-' ? null : Number.parseFloat(liveText);
   const fatal = result.stderr.split('\n').find((l) => l.startsWith('FATAL ERROR:'));
-  const base = { command: run.command, exitCode: result.code, maxRssMiB: rss };
+  const base = { command: run.command, exitCode: result.code, maxRssMiB: rss, peakLiveHeapMiB: live };
   if (!run.json) return { ...base, detail: fatal ?? (result.code === 0 ? 'completed' : result.stderr.trimEnd().split('\n').slice(-3).join(' | ')) };
   let summary: { readonly type?: unknown; readonly ok?: unknown; readonly sha1?: unknown } = {};
   try {
@@ -120,7 +135,9 @@ export async function largeRomBin(deps: LargeRomBinDeps): Promise<LargeRomBinRep
     for (const run of BIN_RUNS) {
       const args = run.args.map((a) => (a === '{rom}' ? rom : a));
       const result = binRunOf(run, await deps.spawn(['--conditions=source', ...nodeOptions, '--import', RSS_PROBE, CLI_MAIN, ...args]), sha1);
-      deps.log(`${run.command.padEnd(36)} exit ${result.exitCode}, peak RSS ${result.maxRssMiB === null ? '-' : `${result.maxRssMiB.toFixed(1)} MiB`}: ${result.detail}`);
+      deps.log(
+        `${run.command.padEnd(40)} exit ${result.exitCode}, peak RSS ${result.maxRssMiB === null ? '-' : `${result.maxRssMiB.toFixed(1)} MiB`}, peak live heap ${result.peakLiveHeapMiB === null ? '-' : `${result.peakLiveHeapMiB.toFixed(1)} MiB`}: ${result.detail}`,
+      );
       runs.push(result);
     }
     return { schema: LARGE_ROM_BIN_SCHEMA, romBytes: bytes.length, sha1, nodeOptions, runs };
