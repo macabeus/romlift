@@ -24,7 +24,8 @@ there. Making it fit is a redesign, not a fix round, and raising the cap or read
 owner's, so it is Q7 (D71 a), and the record claims completion only where it was measured. The synthetic image's own
 headroom is thin: the bin's largest live heap there reaches 377.5 MiB of the 384 MiB old space (D71 b, "Known
 limitations"). No gate changed. With `test/gates/phase.json` at `{ "landed": 3 }` the whole closing list ran again in a
-fresh worktree at this round's docs commit ("The closing gate", fix round 5). The branch is not merged or pushed.
+fresh worktree at `71143d4` and every command exited 0 ("The closing gate", fix round 5); that does not land the
+phase while Q7 is open. The branch is not merged or pushed.
 
 ## Components
 
@@ -47,7 +48,7 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 | review fix round 1 | lead | `phase-3` | committed (`089ff8d` to `5f7267f`, then the docs and artifact commits) | the review's blocker and majors (D65), the minors, Q3 to Q5; section "Review" |
 | review fix round 2 | lead | `phase-3` | committed (`ac9934c` to `1ac3527`, then the docs and artifact commits) | the second review's two majors and fifteen minors (D66), the checked objdiff classifier; section "Review", fix round 2 |
 | review fix round 4 | lead | `phase-3` | committed (`0bb3d75` to `e8869c0`, the docs commit `81210eb`, then the artifact commit) | the review of `d744f5d`: the bin's commands under the 384 MiB cap, `bench large-rom --bin` and its local test, the recorded headroom (D70); section "Review", fix round 4 |
-| review fix round 5 | lead | `phase-3` | committed (`fa4f71b`, `88cede1`, the docs commit of this round, then the artifact commit) | the review of `16d1280`: the bin's live heap and four more command forms, `analyze`'s streamed text table, the doubled ROM and owner question Q7, the budget's basis (D71); section "Review", fix round 5 |
+| review fix round 5 | lead | `phase-3` | committed (`fa4f71b`, `88cede1`, the docs commit `71143d4`, then the artifact commit) | the review of `16d1280`: the bin's live heap and four more command forms, `analyze`'s streamed text table, the doubled ROM and owner question Q7, the budget's basis (D71); section "Review", fix round 5 |
 
 ### p3-lead (wave 1)
 
@@ -938,8 +939,42 @@ Options.
 
 ### Fix round 5
 
-To be run at this round's docs commit, in a fresh worktree with `test/gates/phase.json` at `{ "landed": 3 }`; Q7 is
-open, so the run does not land the phase.
+After fix round 5 (D71), with `test/gates/phase.json` at `{ "landed": 3 }`, the whole list ran in a fresh worktree at
+`71143d4` (`git worktree add --detach` under the system temporary directory: no `node_modules`, no `bench/.local`;
+objdiff-cli 3.7.2 found in the main checkout's build, D65 j), every command from the worktree root in this order with
+the environment above, the real tier before the ci tier. Node 24.15, binutils 2.45.1, macOS. Every command exited 0.
+Q7 is open, so this run does not land the phase. The worktree was clean afterwards but for the `bench/results.json` the
+run wrote (`poc-digests.json` and `poc-dump-rows.json` byte-identical), which is committed as this run's artifact
+(`meta.commit` `71143d4`, not dirty, source digest `dc63fdc7…`).
+
+| Command | Exit at `71143d4` | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | 8 packages |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 of 21 pass |
+| `npm test` | 0 | 1,950 tests, 1,950 pass, 0 fail |
+| `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (binutils 2.45.1) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (246 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, each parity matching the committed digest |
+| `npm run export-poc -- --mode raw` | 0 | 47 fixtures |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 76 tests, 76 pass, 0 skipped; among them `large-rom-bin`: the twelve bin command forms complete on the 32 MiB synthetic ROM under the 384 MiB cap (517 s) |
+| `npm run bench -- doctor-real` | 0 | every input ok (objdiff-cli 3.7.2) |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | summary ok (agbcc and old_agbcc reported missing, not required) |
+| `npm run corpus` | 0 | 100% round trip, 4.1 s |
+| `npm run bench -- run --scaffold` | 0 | six rows written, raw and readable SHA-1 on all six, sealed pair pass; the memory family under the 384 MiB cap: `init` exit 0 at 882.5 MiB (live heap 314.9 MiB), `generate` exit 0 at 824.2 MiB (334.8 MiB), tree `9d9c915d…` |
+| `npm run bench -- speed` | 0 | ratio 0.941, every ROM ok; pokeemerald `generate` 7,839 ms, `init` 10,179 ms CPU |
+| `npm run bench -- regression` | 0 | no regression against `c5cc0b1` |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | six ROMs OK |
+| `npm run bench -- gates --require 3 --tier real` | 0 | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end, g2.confirm-equals-discover (tmc's 8 recorded), g2.determinism, g2.entries, g2.extents, g2.held-out, g2.no-unreviewed, g2.speed (ratio 0.947), g3.link (47 fixtures, 6 of 6 tuning ROMs), g3.raw-link (53), g3.readability, g3.self-check (53), g3.speed-budget (ratio 0.947; pokeemerald `generate` 7,891 of 9,474 ms, `init` 10,320 of 14,212 ms), g3.text-layout (53), g3.tree-determinism; historical: g2.poc-parity; `g5.objdiff` fail (a phase-5 gate, not required; its counts are Q1's); g4 to g6 others pending (1,129 s) |
+| `npm run bench -- gates --require 3 --tier ci` | 0 | every g1, g2 and g3 ci gate passes, among them **`g3.large-rom` pass**: heap cap 384 MiB, `init` 887.2 MiB, `generate` 772.8 MiB (budget 1,088 MiB), tree `9d9c915d…`; g4 to g6 pending |
+| `npm run bench -- provenance` | 0 | source digest `dc63fdc7…` (Node 24), 19 real-tier gates of phase ≤ 3 pass or are historical, families live (memory included), 6 rows, no sealed row |
+| `npm run bench -- stale-check` | 0 | the artifact is current at `71143d4` |
+
+The two runs of the synthetic ROM in this list join the record under the 384 MiB cap: twenty runs, `init` 814.0 to
+945.5 MiB, `generate` 765.6 to 837.9 MiB, all under the 1,088 MiB budget. `phase.json` stays at `{ "landed": 3 }`.
+Nothing is merged or pushed.
 
 ### Fix round 4 (landing run)
 

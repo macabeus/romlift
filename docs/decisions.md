@@ -2716,7 +2716,9 @@ and two run counts stated inconsistently.
 
 **Consequences.** No gate threshold changed. Every bin command completes under the cap on the synthetic image (Node
 24.15 and 22.18, macOS and Linux) and on the six tuning ROMs (Node 24.15, macOS); on a code-dense 32 MiB ROM none does, which is
-Q7. The closing list runs again at this round's docs commit (phase-3.md, "The closing gate", fix round 5). Phase 3 is not landed;
+Q7. The closing list ran again at `71143d4` (`test/gates/phase.json` at `{ "landed": 3 }`, a fresh worktree): every
+command exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (887.2 and 772.8 MiB) among them (phase-3.md,
+"The closing gate", fix round 5). Phase 3 is not landed;
 nothing is merged or pushed.
 
 ## Review findings index
