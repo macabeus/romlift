@@ -3,10 +3,11 @@
 // module-scoped (printed with the _local macros), as static functions repeat in real decomps; a repeated name
 // one of whose labels is referenced from another module, or a name used twice inside one module, is
 // E_NAME_COLLISION.
-import { isSymbolName, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
+import { isModuleName, isSymbolName, MODULE_NAME_RULE, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { foldPath } from '../../foundation/util/fold.ts';
 import { hex, hexAddr } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
@@ -116,6 +117,37 @@ export function invalidNames(names: readonly { readonly name: string; readonly a
     if (isSymbolName(n.name) || seen.has(key)) continue;
     seen.add(key);
     out.push(diagnostic(ModelCodes, 'E_NAME_INVALID', `the name ${JSON.stringify(n.name)} at ${hexAddr(n.addr)} is not a symbol name (${SYMBOL_NAME_RULE})`, { addr: n.addr }));
+  }
+  return out;
+}
+
+/**
+ * E_NAME_INVALID for every module whose name is no module name (dialect.ts isModuleName): a module name is a path
+ * component and an object name, so `../x`, `a/b`, `.hidden` or an empty name would write outside the tree or not
+ * link. E_MODULE_NAME_DUPLICATE for every module whose name equals, or folds on a case-insensitive file system to,
+ * an earlier module's, whatever the two kinds: both would build `build/<name>.o`, which the linker script would
+ * name twice. In ROM order.
+ */
+export function moduleNameProblems(modules: readonly Pick<Module, 'name' | 'span'>[]): Diagnostic[] {
+  const seen = new Map<string, Pick<Module, 'name' | 'span'>>();
+  const out: Diagnostic[] = [];
+  for (const m of modules) {
+    if (!isModuleName(m.name)) {
+      out.push(diagnostic(ModelCodes, 'E_NAME_INVALID', `the module name ${JSON.stringify(m.name)} at ${hexAddr(m.span.start)} is not a module name (${MODULE_NAME_RULE})`, { addr: m.span.start }));
+      continue;
+    }
+    const first = seen.get(foldPath(m.name));
+    if (first === undefined) {
+      seen.set(foldPath(m.name), m);
+      continue;
+    }
+    const same = first.name === m.name ? `the name ${m.name}` : `the names ${first.name} and ${m.name}, one on a case-insensitive file system`;
+    out.push(
+      diagnostic(ModelCodes, 'E_MODULE_NAME_DUPLICATE', `the modules at ${hexAddr(first.span.start)} and ${hexAddr(m.span.start)} share ${same}, so both build build/${m.name}.o`, {
+        addr: m.span.start,
+        cites: [first.span.start],
+      }),
+    );
   }
   return out;
 }

@@ -3,6 +3,7 @@
 // error value, never a throw, so a damaged manifest is reported, not fatal.
 import { canonicalJson } from '../../foundation/formats/canonical-json.ts';
 import type { JsonValue } from '../../foundation/formats/types.ts';
+import { isProjectPath } from '../../foundation/util/project-path.ts';
 import { WRITER_IDS } from '../emit/tree.ts';
 import type { WriterId } from '../emit/tree.ts';
 import type { Manifest } from './types.ts';
@@ -11,15 +12,8 @@ export type DecodedManifest = { readonly ok: true; readonly manifest: Manifest }
 
 const SHA1 = /^[0-9a-f]{40}$/;
 
-/**
- * Whether `path` is a normalised project-relative path: '/'-separated, not absolute, no empty, '.' or '..'
- * segment, no backslash or NUL. Every path a manifest or journal names must be one, so no op can leave the
- * project directory.
- */
-export function isProjectPath(path: string): boolean {
-  if (path.length === 0 || path.startsWith('/') || path.includes('\\') || path.includes('\0')) return false;
-  return path.split('/').every((segment) => segment.length > 0 && segment !== '.' && segment !== '..');
-}
+/** Every path a manifest or journal names must be a project path (foundation/util/project-path.ts). */
+export { isProjectPath } from '../../foundation/util/project-path.ts';
 
 /** Whether `sha1` is forty lower-case hex digits. */
 export function isSha1(sha1: unknown): sha1 is string {

@@ -14,7 +14,10 @@
 // An instruction is an `insn` item when it prints as a mnemonic: its text, parsed and assembled at its run
 // address with the labels its module sees, gives back its bytes (foundation/isa roundtrip). Otherwise it is a
 // `raw-insn` with the reason; a short Thumb branch into another module is raw with
-// 'cross-module-short-branch' and W_CROSS_MODULE_SHORT_BRANCH (D15; architecture §12 item 3's safe default).
+// 'cross-module-short-branch' and W_CROSS_MODULE_SHORT_BRANCH (D15; architecture §12 item 3's safe default). A
+// b or bl that would name a function label of the other state (a [functions] entry listed `arm` that Thumb code
+// calls, or the reverse) is raw with 'interworking-branch' and W_INTERWORKING_BRANCH: GNU ld would put an
+// interworking veneer in the image for it, which no text-layout check sees and which moves every later byte.
 import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { decode } from '../../foundation/isa/decode.ts';
@@ -85,6 +88,13 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   const cache = printingCache();
   const relocated = relocatedModules(inputs.modules);
   const resolvers = inputs.modules.map((m) => resolverFor({ labels: inputs.labels, modules: inputs.modules }, m.name));
+  const functionLabels = new Map<Addr, Label[]>();
+  for (const l of inputs.labels) {
+    if (l.kind !== 'func') continue;
+    const list = functionLabels.get(l.addr);
+    if (list === undefined) functionLabels.set(l.addr, [l]);
+    else list.push(l);
+  }
   // Forward positions in the sorted lists: every address asked below is at or above the previous one.
   let segmentAt = 0;
   let noteAt = 0;
@@ -177,16 +187,39 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
     return true;
   };
 
+  /**
+   * Whether a branch in `mode` at run address `site` would name, at `target`, a function label of the other state;
+   * W_INTERWORKING_BRANCH when it does.
+   */
+  const interworks = (site: Addr, mode: Mode, target: Addr, resolver: SymbolResolver): boolean => {
+    const labels = functionLabels.get(target);
+    if (labels === undefined) return false;
+    const name = resolver.labelFor(target, site);
+    const label = labels.find((l) => l.name === name);
+    if (label === undefined || label.thumb === (mode === 'thumb')) return false;
+    const from = mode === 'thumb' ? 'Thumb' : 'ARM';
+    const to = label.thumb ? 'a Thumb' : 'an ARM';
+    diagnostics.push(
+      diagnostic(ModelCodes, 'W_INTERWORKING_BRANCH', `the ${from} branch at ${hexAddr(site)} reaches ${label.name} at ${hexAddr(target)}, ${to} function; GNU ld would insert an interworking veneer, so it prints raw`, {
+        addr: site,
+        cites: [target],
+      }),
+    );
+    return true;
+  };
+
   const itemReason = (insn: Insn, c: ChunkPlan, resolver: SymbolResolver): ItemRawReason | null => {
     const encoding = specOf(insn.specId).raw?.(insn.fields) ?? null;
     if (encoding !== null) return encoding;
     if (insn.mode === 'thumb' && insn.size === 2 && insn.flow.kind === 'branch' && crossesModule(insn.addr, insn.flow.target, c)) return 'cross-module-short-branch';
+    if ((insn.flow.kind === 'branch' || insn.flow.kind === 'bl') && interworks(insn.addr, insn.mode, insn.flow.target, resolver)) return 'interworking-branch';
     return cache.reasonOf(insn, resolver);
   };
 
   /** itemReason for an instruction codeRefs decoded already (its row has no encoding reason). */
   const refReason = (ref: CodeRef, mode: Mode, c: ChunkPlan, resolver: SymbolResolver): ItemRawReason | null => {
     if (ref.kind === 'short-branch' && crossesModule(ref.run, ref.target, c)) return 'cross-module-short-branch';
+    if ((ref.kind === 'short-branch' || ref.kind === 'branch' || ref.kind === 'bl') && interworks(ref.run, mode, ref.target, resolver)) return 'interworking-branch';
     return cache.reasonOfNaming(mode, ref.specId, ref.word, ref.run, ref.target, resolver, () => decode(mode, ref.word, ref.run));
   };
 

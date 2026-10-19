@@ -54,6 +54,20 @@ export function isSymbolName(name: string): boolean {
 /** What isSymbolName accepts, as the config schema and E_NAME_INVALID say it. */
 export const SYMBOL_NAME_RULE = `a letter or _, then letters, digits, _, . and $, at most ${MAX_SYMBOL_NAME} characters`;
 
+/**
+ * A module name: it names a source file (`asm/<name>.s`), a directory (`asm/nonmatchings/<name>/`), an object
+ * (`build/<name>.o`) and the object's linker-script line, so it is one path component with no `.` or `$`.
+ */
+const MODULE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Whether `name` is a module name (MODULE_NAME, at most MAX_SYMBOL_NAME characters). */
+export function isModuleName(name: string): boolean {
+  return name.length <= MAX_SYMBOL_NAME && MODULE_NAME.test(name);
+}
+
+/** What isModuleName accepts, as the config schema and E_NAME_INVALID say it. */
+export const MODULE_NAME_RULE = `letters, digits and _, not starting with a digit, at most ${MAX_SYMBOL_NAME} characters`;
+
 /** The macro file's project path, the one definition (core/model/paths.ts re-exports it as MACROS_PATH). */
 const MACROS_PATH = 'include/macros.inc';
 const MACROS_INCLUDE = `.include "${MACROS_PATH}"`;

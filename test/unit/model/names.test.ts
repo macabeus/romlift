@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { buildModel } from '../../../src/core/model/model.ts';
-import { dataName, functionName, invalidNames, isDefaultSpelling, localName, nameCollisions, nameSourceOf, orphanName } from '../../../src/core/model/names.ts';
+import { dataName, functionName, invalidNames, isDefaultSpelling, localName, moduleNameProblems, nameCollisions, nameSourceOf, orphanName } from '../../../src/core/model/names.ts';
 import type { Module } from '../../../src/core/model/types.ts';
 import { analysisOf, BASE, configOf, fact, HEADER_END, romWith, thumbAt } from '../layout/hand-made.ts';
 
@@ -72,4 +72,28 @@ test('a name longer than 200 characters is E_NAME_INVALID: it is a file name, wh
   const found = invalidNames([{ name: `F${'x'.repeat(299)}`, addr: at }]);
   assert.deepEqual(found.map((d) => [d.code, d.addr]), [['E_NAME_INVALID', at]]);
   assert.match(found[0]?.message ?? '', /at most 200 characters/);
+});
+
+test('buildModel: a module name that is no path component or object name is E_NAME_INVALID, and two modules of one object E_MODULE_NAME_DUPLICATE (correctness-r2-3)', () => {
+  const rom = romWith([], { size: 0x200 });
+  const analysis = analysisOf(rom, { functions: [] });
+  const codes = (modules: readonly (readonly [string, number])[]): (string | number | undefined)[][] =>
+    buildModel(rom, analysis, configOf({ modules: modules.map((m) => [m[0], m[1]] as const) })).diagnostics.map((d) => [d.code, d.addr]);
+  assert.deepEqual(codes([['rom_header', BASE], ['main', HEADER_END]]), []);
+  for (const bad of ['', '../../evil', '../x', 'a/b', '.hidden', 'a.b', '9lives', `M${'x'.repeat(200)}`]) {
+    assert.deepEqual(codes([['rom_header', BASE], [bad, HEADER_END]]), [['E_NAME_INVALID', HEADER_END]], JSON.stringify(bad));
+  }
+  // The data module's own name given to an asm module: both would build build/data.o.
+  const data = buildModel(
+    rom,
+    analysis,
+    configOf({ modules: [['rom_header', BASE], ['data', HEADER_END], { name: 'data', start: HEADER_END + 0x40, kind: 'data', generated: true }] }),
+  );
+  const duplicates = data.diagnostics.filter((d) => d.code !== 'E_MODULE_BORDER');
+  assert.deepEqual(duplicates.map((d) => [d.code, d.addr, d.cites]), [['E_MODULE_NAME_DUPLICATE', HEADER_END + 0x40, [HEADER_END]]]);
+  assert.match(duplicates[0]?.message ?? '', /share the name data, so both build build\/data\.o/);
+  // Names one on a case-insensitive file system.
+  const folded = moduleNameProblems([{ name: 'Main', span: { start: 0x100, end: 0x200 } }, { name: 'main', span: { start: 0x200, end: 0x300 } }]);
+  assert.deepEqual(folded.map((d) => [d.code, d.addr]), [['E_MODULE_NAME_DUPLICATE', 0x200]]);
+  assert.match(folded[0]?.message ?? '', /the names Main and main, one on a case-insensitive file system/);
 });

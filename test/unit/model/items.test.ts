@@ -276,6 +276,34 @@ test('a short Thumb branch across a moved border prints raw with W_CROSS_MODULE_
   assert.equal(split.labels.find((l) => l.name === 'B')?.scope, 'module', 'a raw branch references nothing');
 });
 
+test('a bl naming a function of the other state prints raw with W_INTERWORKING_BRANCH: ld would insert a veneer (correctness-r2-2)', () => {
+  const code = thumbAt(BASE + 0x100)`
+    push {lr}
+    bl _08000108
+    pop {r0}
+    bx r0
+    push {lr}
+    pop {r0}
+    bx r0
+  `;
+  const rom = romWith([{ at: BASE + 0x100, bytes: code }], { size: 0x200 });
+  const modules = [['rom_header', BASE], ['main', HEADER_END]] as const;
+  const caller = fact({ entry: BASE + 0x100, end: BASE + 0x108 });
+  // B as the bytes are (Thumb): the bl names it.
+  const thumb = buildModel(rom, analysisOf(rom, { functions: [caller, fact({ entry: BASE + 0x108, end: BASE + 0x10e })] }), configOf({ modules, functions: [[BASE + 0x100, 'A'], [BASE + 0x108, 'B']] }));
+  assert.deepEqual(thumb.diagnostics, []);
+  assert.equal(itemsOf(thumb, rom).find((i) => i.span.start === BASE + 0x102)?.kind, 'insn');
+  // B listed `arm`, as a config may say against its Thumb callers: the bl prints raw and its bytes stay the ROM's.
+  const armB = fact({ entry: BASE + 0x108, end: BASE + 0x108, mode: 'arm', code: [] });
+  const arm = buildModel(rom, analysisOf(rom, { functions: [caller, armB] }), configOf({ modules, functions: [[BASE + 0x100, 'A'], [BASE + 0x108, { name: 'B', mode: 'arm' }]] }));
+  assert.equal(arm.labels.find((l) => l.name === 'B')?.thumb, false);
+  assert.deepEqual(arm.diagnostics.map((d) => [d.code, d.addr, d.cites]), [['W_INTERWORKING_BRANCH', BASE + 0x102, [BASE + 0x108]]]);
+  assert.match(arm.diagnostics[0]?.message ?? '', /the Thumb branch at 0x08000102 reaches B at 0x08000108, an ARM function/);
+  const branch = itemsOf(arm, rom).find((i) => i.span.start === BASE + 0x102);
+  assert.deepEqual(branch?.kind === 'raw-insn' ? [branch.reason, branch.insn?.specId] : branch, ['interworking-branch', 'thumb.bl']);
+  assert.equal(arm.items.aux[[...arm.items.start].indexOf(BASE + 0x102)], ITEM_RAW_REASONS.indexOf('interworking-branch'));
+});
+
 test('the printing cache gives the answer rawReason gives, on every instruction of every fixture', () => {
   for (const fixture of listSyntheticFixtures()) {
     const rom = readFixtureRom(fixture);

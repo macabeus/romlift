@@ -18,10 +18,10 @@ export const ItemKind = { insn: 0, rawInsn: 1, pool: 2, tableEntry: 3, padding: 
 export type ItemKindCode = (typeof ItemKind)[keyof typeof ItemKind];
 
 /** Why an instruction prints raw: the ISA's encoding reasons, plus the model's one (D15, D45). */
-export type ItemRawReason = RawReason | 'cross-module-short-branch';
+export type ItemRawReason = RawReason | 'cross-module-short-branch' | 'interworking-branch';
 
 /** The code of each raw reason in ItemTable.aux of a rawInsn item: its index here. */
-export const ITEM_RAW_REASONS: readonly ItemRawReason[] = ['undefined', 'unpredictable', 'sbz-set', 'as-alias', 'no-roundtrip', 'cross-module-short-branch'];
+export const ITEM_RAW_REASONS: readonly ItemRawReason[] = ['undefined', 'unpredictable', 'sbz-set', 'as-alias', 'no-roundtrip', 'cross-module-short-branch', 'interworking-branch'];
 
 /**
  * The note of a `data` item inside an extent: `dead` (claim.dead-code-in-extent), `mixer-hole` (a tiled

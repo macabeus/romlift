@@ -2,11 +2,14 @@
 // stream are the same file, exactly or on a case-insensitive file system (macOS and Windows by default),
 // where `asm/nonmatchings/main/VBlankCB.s` and `.../VblankCB.s` are one file and the second write would
 // replace the first; and no component of a path is longer than a file system stores (255 bytes per name), so
-// the write cannot fail part-way. One pass over the paths, holding one folded key per path; every collision is
-// E_PATH_CASE_COLLISION naming both paths, every overlong component E_PATH_TOO_LONG.
+// the write cannot fail part-way; and every path is a project path (foundation/util/project-path.ts: relative, no
+// empty, '.' or '..' component), which the write plan requires. One pass over the paths, holding one folded key per
+// path; every collision is E_PATH_CASE_COLLISION naming both paths, every overlong component E_PATH_TOO_LONG,
+// every other path E_PATH_INVALID.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
+import { isProjectPath } from '../../foundation/util/project-path.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult } from './report.ts';
 import { VerifyCodes } from './codes.ts';
@@ -33,6 +36,9 @@ function scan(paths: Iterable<string>): { readonly diagnostics: readonly Diagnos
   let count = 0;
   for (const path of paths) {
     count++;
+    if (!isProjectPath(path)) {
+      diagnostics.push(diagnostic(VerifyCodes, 'E_PATH_INVALID', `${JSON.stringify(path)} is not a project path (relative, with no empty, . or .. component)`, { path }));
+    }
     const long = overlongComponent(path);
     if (long !== undefined) {
       diagnostics.push(diagnostic(VerifyCodes, 'E_PATH_TOO_LONG', `${path}: the name ${long.name.slice(0, 32)}… is ${long.bytes} bytes, more than the ${MAX_NAME_BYTES} a file system stores`, { path }));
@@ -50,7 +56,7 @@ function scan(paths: Iterable<string>): { readonly diagnostics: readonly Diagnos
   return { diagnostics, count };
 }
 
-/** Every duplicate and case-folded collision among `paths` (the later path of each pair) and every overlong name, in stream order. */
+/** Every path that is no project path, every duplicate and case-folded collision among `paths` (the later path of each pair) and every overlong name, in stream order. */
 export function checkPaths(paths: Iterable<string>): readonly Diagnostic[] {
   return scan(paths).diagnostics;
 }

@@ -16,7 +16,11 @@ export const ModelCodes = defineCodes({
   E_NAME_INVALID: {
     severity: 'error',
     meaning:
-      'a function, alias or symbol name is no symbol name a file may define (a leading $ is a mapping symbol, a leading . a section or local label; at most 200 characters, since a function name is a file name)',
+      'a function, alias or symbol name is no symbol name a file may define (a leading $ is a mapping symbol, a leading . a section or local label; at most 200 characters, since a function name is a file name), or a module name is no module name (letters, digits and _, not starting with a digit, at most 200 characters: it is a path component and an object name)',
+  },
+  E_MODULE_NAME_DUPLICATE: {
+    severity: 'error',
+    meaning: 'two modules share a name, or names one on a case-insensitive file system, whatever their kinds, so both would build one object',
   },
   E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
   W_FUNCTION_OUTSIDE_ROM: {
@@ -35,6 +39,11 @@ export const ModelCodes = defineCodes({
   W_CROSS_MODULE_SHORT_BRANCH: {
     severity: 'warning',
     meaning: 'a short Thumb branch (b, bcc) crosses a module border moved by hand, so it prints raw (D15)',
+  },
+  W_INTERWORKING_BRANCH: {
+    severity: 'warning',
+    meaning:
+      'a b or bl names a function label of the other state (a Thumb branch to an ARM function, or the reverse), for which GNU ld would insert an interworking veneer and move every byte after it, so it prints raw; the function\'s listed mode likely contradicts its callers',
   },
 });
 

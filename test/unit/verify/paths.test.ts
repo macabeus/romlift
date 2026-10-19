@@ -40,3 +40,12 @@ test('a path component longer than 255 bytes is E_PATH_TOO_LONG, so the write ca
   // UTF-8 bytes, not UTF-16 units: 128 two-byte characters are 256 bytes.
   assert.equal(checkPaths([`data/${'é'.repeat(128)}.s`])[0]?.code, 'E_PATH_TOO_LONG');
 });
+
+test('a path that is no project path is E_PATH_INVALID, so a tree the write plan would refuse never passes (correctness-r2-3)', () => {
+  for (const bad of ['asm/../../evil.s', '/abs.s', 'asm//x.s', 'asm/./x.s', '', 'a\\b.s', 'asm/.s/..']) {
+    const found = checkPaths(['asm/main.s', bad]);
+    assert.deepEqual(found.map((d) => [d.code, d.path]), [['E_PATH_INVALID', bad]], JSON.stringify(bad));
+    assert.equal(pathsCheck([bad]).ok, false);
+  }
+  assert.deepEqual(checkPaths(['asm/.romlift-ok.s', 'build/x..y.o']), []);
+});

@@ -5,7 +5,7 @@
 // yet (D62). Addresses are numbers here; the TOML spells them '0x' and eight upper-case hex digits.
 import { z } from 'zod';
 
-import { isSymbolName, MAX_SYMBOL_NAME, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
+import { isModuleName, isSymbolName, MODULE_NAME_RULE, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import { isBuildCompilerId } from './compilers.ts';
 import type { BuildCompilerId } from './compilers.ts';
@@ -77,10 +77,7 @@ const mode = z.enum(['thumb', 'arm']);
 /** An assembler symbol: what a function, symbol or alias name must be to print and link (dialect.ts isSymbolName). */
 const symbolName = z.string().refine(isSymbolName, `not an assembler symbol name (${SYMBOL_NAME_RULE})`);
 /** A module name: it names files (asm/<name>.s), objects and linker sections. */
-const moduleName = z
-  .string()
-  .max(MAX_SYMBOL_NAME, `not a module name (at most ${MAX_SYMBOL_NAME} characters)`)
-  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'not a module name (letters, digits and _, not starting with a digit)');
+const moduleName = z.string().refine(isModuleName, `not a module name (${MODULE_NAME_RULE})`);
 const compilerId = z.string().refine(isBuildCompilerId, 'not a registered build compiler (core/config/compilers.ts)');
 const sha1 = z.string().regex(/^[0-9a-f]{40}$/, 'not a lower-case hex SHA-1');
 const nonEmpty = z.string().min(1);
