@@ -647,7 +647,10 @@ The four minors of the review of phase 3's landing run (phase-3.md, "Review", th
 score 0", which is `g5.objdiff` since D68 a; text only), correctness-r0-1 (sa2's `g2.speed` sits at about 90 to 100%
 of its limit at `main` itself; the owner is asked before phase 4's landing run whether to re-baseline or take the
 median of more runs), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
-requirement recorded as a known limitation); correctness-r0-3 was fixed in the record.
+requirement recorded as a known limitation); correctness-r0-3 was fixed in the record. The phase pull request's CI
+found one more (correctness-ci-1, phase-3.md, "The closing gate", the phase pull request's CI): `exitQuietlyOnEpipe`
+in `src/cli/main.ts` treats only EPIPE as a closed reader, and macOS can report ENOTCONN on a socket-pair stdout, which
+made `test/unit/cli/process.test.ts`'s early-close test flaky on macOS; ENOTCONN is handled like EPIPE, with a test.
 
 ### Phase 4 exit
 
