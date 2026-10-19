@@ -42,8 +42,8 @@ D69): the objdiff gate moves to phase 5 (`g5.objdiff`), the `romlift` bin and `g
 memory budget set from the runs under that cap (1,088 MiB), unflushed generated files and the narrowed raw-printer
 parity are accepted, and two limitations become phase-4 work. The review of that landing found the bin's own
 `verify`, `model` and `analyze --json` running out of memory on the 32 MiB synthetic ROM under the cap; fix round 4
-(D70) makes them fit, and a local test runs every bin command on that ROM under the cap. The merge waits for the
-phase's pull request and its CI. The commands so far are `doctor`, `analyze`, `explain`,
+(D70) makes them fit, and a local test runs every bin command on that ROM under the cap. Every command of the
+closing list exits 0 at `landed` 3 after that round; the merge waits for the phase's pull request and its CI. The commands so far are `doctor`, `analyze`, `explain`,
 `model` and `verify`.
 
 | Phase | Delivers |

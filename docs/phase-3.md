@@ -8,14 +8,19 @@ measured on the owner's machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasM
 pokeemerald, sa2, sa3, tmc; D60), and every phase-3 threshold applies to all six (D62 h); the held-out ROMs
 (pokefirered, pokeruby) run sealed and report counts only (D25).
 
-**Verdict (after the owner's answers of 19 October 2026, D68, D69).** Phase 3 passes its closing gate. The owner
-answered Q1 to Q6 ("The owner's answers", below), and each answer is applied exactly: `g3.objdiff` is `g5.objdiff`, a
-phase-5 gate; the `romlift` bin and `g3.large-rom` run Node with `--max-old-space-size=384` (Q6's answer, replacing
-Q2's 256), and the gate's budget is 1,088 MiB, set from the recorded runs under that cap with a 25% margin; D64 d,
-the narrowed raw-printer parity and the alignment refusal are accepted; padding-only orphans and the confirm run's
-re-validation are phase-4 work items. With `test/gates/phase.json` raised to `{ "landed": 3 }` (`739d665`) the whole
-closing list ran in a fresh worktree and every command exited 0 ("The closing gate", the owner's answer to Q6). The
-branch is not merged or pushed: by AGENTS.md the merge waits for the phase's pull request and its CI workflows.
+**Verdict (after fix round 4, D70).** Phase 3 passes its closing gate. The owner answered Q1 to Q6 ("The owner's
+answers", below), and each answer is applied exactly: `g3.objdiff` is `g5.objdiff`, a phase-5 gate; the `romlift` bin
+and `g3.large-rom` run Node with `--max-old-space-size=384` (Q6's answer, replacing Q2's 256), and the gate's budget
+is 1,088 MiB, set from the runs recorded under that cap with a 25% margin (15.1% over the largest peak recorded since,
+D70 c); D64 d, the narrowed raw-printer parity and the alignment refusal are accepted; padding-only orphans and the
+confirm run's re-validation are phase-4 work items. The review of the first landing run (`d744f5d`) found that the
+bin's own `verify`, `model` and `analyze --json` ran out of memory on the 32 MiB synthetic ROM under the cap, against
+Q6's "every ROM size up to 32 MiB must complete under it"; fix round 4 makes every bin command complete there and on
+the six tuning ROMs with unchanged output, and `test/local/large-rom-bin.test.ts` requires it, with no gate changed
+(D70). With `test/gates/phase.json` at `{ "landed": 3 }` the whole closing list ran again in a fresh worktree at
+`81210eb` and every command exited 0 ("The closing gate", fix round 4). The live heap of the synthetic ROM's runs
+reaches 353.0 MiB of the 384 MiB old space, a recorded risk ("Known limitations"). The branch is not merged or
+pushed: by AGENTS.md the merge waits for the phase's pull request and its CI workflows.
 
 ## Components
 
@@ -37,7 +42,7 @@ Three waves on the branch `phase-3`, each component on its flat branch `phase-3-
 | closing fix round | lead | `phase-3` | committed (`c5d42cf`, `962fbb8`, `34a77cd`, `682da72`) | the confirm-mode startup fix, `[symbols]` outside the ROM as labels, the objdiff base's RAM names, the write and analysis speed and memory changes, the readability floors (D64) |
 | review fix round 1 | lead | `phase-3` | committed (`089ff8d` to `5f7267f`, then the docs and artifact commits) | the review's blocker and majors (D65), the minors, Q3 to Q5; section "Review" |
 | review fix round 2 | lead | `phase-3` | committed (`ac9934c` to `1ac3527`, then the docs and artifact commits) | the second review's two majors and fifteen minors (D66), the checked objdiff classifier; section "Review", fix round 2 |
-| review fix round 4 | lead | `phase-3` | committed (`0bb3d75` to `e8869c0`, then the docs and artifact commits) | the review of `d744f5d`: the bin's commands under the 384 MiB cap, `bench large-rom --bin` and its local test, the recorded headroom (D70); section "Review", fix round 4 |
+| review fix round 4 | lead | `phase-3` | committed (`0bb3d75` to `e8869c0`, the docs commit `81210eb`, then the artifact commit) | the review of `d744f5d`: the bin's commands under the 384 MiB cap, `bench large-rom --bin` and its local test, the recorded headroom (D70); section "Review", fix round 4 |
 
 ### p3-lead (wave 1)
 
@@ -360,6 +365,7 @@ tree digest as recorded below); `peakLiveHeapMiB` is the largest heap V8 found l
 | synthetic 1 | 814.0 | 318.8 | 785.4 | 349.2 |
 | synthetic 2 | 838.9 | 334.9 | 771.7 | 333.2 |
 | synthetic 3 | 840.9 | 351.6 | 765.6 | 330.4 |
+| synthetic, the closing list's `run --scaffold` at `81210eb` | 864.0 | 314.5 | 788.7 | 353.0 |
 | fe7j | 480.2 | 75.8 | 490.6 | 88.6 |
 | klonoa | 332.8 | 36.7 | 311.4 | 34.6 |
 | pokeemerald | 635.4 | 153.5 | 646.5 | 158.8 |
@@ -371,10 +377,11 @@ tree digest as recorded below); `peakLiveHeapMiB` is the largest heap V8 found l
 recorded at `05fd406` and `739d665` (`init` 817.2 to 866.5 MiB, `generate` 789.3 to 837.9 MiB), the review of
 `d744f5d` recorded four more: a fresh clone's `run --scaffold` (`init` 945.5, `generate` 827.1 MiB), a hand run in
 the main checkout (918.75, 804.48), the review's gate run (844.1, 836.8) and a fresh worktree's `bench large-rom`
-(853.8, 820.8); with the three above, sixteen runs: **`init` 814.0 to 945.5 MiB, `generate` 765.6 to 837.9 MiB**.
+(853.8, 820.8); with the three above and the closing list's two at `81210eb` (`run --scaffold` 864.0 and 788.7 MiB,
+the gate 840.4 and 772.3 MiB), eighteen runs: **`init` 814.0 to 945.5 MiB, `generate` 765.6 to 837.9 MiB**.
 The budget, 1,088 MiB, was the largest peak then recorded (866.5 MiB) plus 25%; it is **15.1%** above the largest
 recorded now (945.5 MiB), and 29.8% above the largest `generate`. It is not raised (D70 c). What meets its limit
-first is the old space, not the RSS: the live heap after a full GC reaches 351.6 MiB of the 384 MiB cap (about 32 MiB,
+first is the old space, not the RSS: the live heap after a full GC reaches 353.0 MiB of the 384 MiB cap (about 31 MiB,
 8%, of headroom; the review's `--trace-gc` run saw 326.2 MB), while RSS stays at least 140 MiB under the budget. A
 live peak past about 355 MiB is the regression signal (D70 d).
 
@@ -787,7 +794,47 @@ Options.
 
 ## The closing gate
 
+### Fix round 4 (landing run)
+
+After fix round 4 (D70), with `test/gates/phase.json` at `{ "landed": 3 }` (raised at `739d665`, not lowered: the
+landing run there is withdrawn, D69's revision), the whole list ran in a fresh worktree at `81210eb` (`git worktree
+add --detach`: no `node_modules`, no `bench/.local`; objdiff-cli 3.7.2 found in the main checkout's build, D65 j),
+every command from the worktree root in this order with the environment above, the real tier before the ci tier.
+Node 24.15, binutils 2.45.1, macOS. The worktree was clean afterwards but for the `bench/results.json` the run wrote
+(`poc-digests.json` and `poc-dump-rows.json` byte-identical), which is committed as this run's artifact
+(`meta.commit` `81210eb`, not dirty, source digest `4ad7a6b6…`; its memory member now carries each run's heap cap).
+
+| Command | Exit at `81210eb` | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | 8 packages |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 of 21 pass |
+| `npm test` | 0 | 1,948 tests, 1,948 pass, 0 fail |
+| `npm run fixtures -- check` | 0 | 47 of 47 fixtures agree (binutils 2.45.1) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (261 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs |
+| `npm run export-poc -- --mode raw` | 0 | 47 fixtures |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 76 tests, 76 pass, 0 skipped; among them `large-rom-bin`: every bin command completes on the 32 MiB synthetic ROM under the 384 MiB cap (342 s) |
+| `npm run bench -- doctor-real` | 0 | every input ok (objdiff-cli 3.7.2) |
+| `node --conditions=source src/cli/main.ts doctor --json < /dev/null` | 0 | summary ok |
+| `npm run corpus` | 0 | 100% round trip (thumb, bl, arm) |
+| `npm run bench -- run --scaffold` | 0 | six rows written, raw and readable SHA-1 on all six, sealed pair pass; the memory family under the 384 MiB cap: `init` exit 0 at 864.0 MiB (live heap 314.5 MiB), `generate` exit 0 at 788.7 MiB (353.0 MiB), tree `9d9c915d…` |
+| `npm run bench -- speed` | 0 | ratio 0.968, every ROM ok; pokeemerald `generate` 7,955 ms, `init` 10,427 ms CPU |
+| `npm run bench -- regression` | 0 | no regression against `c5cc0b1` |
+| `npm run bench -- dataset-check` | 0 | every dataset agrees with its ELF and its run |
+| `npm run bench -- poc-check` | 0 | six ROMs OK |
+| `npm run bench -- gates --require 3 --tier real` | 0 | pass: g1.bench-harness, g1.dataset-elf, g2.baseline-rows, g2.code-end, g2.confirm-equals-discover (tmc's 8 recorded), g2.determinism, g2.entries, g2.extents, g2.held-out, g2.no-unreviewed, g2.speed (ratio 0.994), g3.link (47 fixtures, 6 of 6 tuning ROMs), g3.raw-link (53), g3.readability, g3.self-check (53), g3.speed-budget (ratio 0.952; pokeemerald `generate` 8,297 of 9,520 ms, `init` 10,810 of 14,280 ms), g3.text-layout (53), g3.tree-determinism; historical: g2.poc-parity; `g5.objdiff` fail (a phase-5 gate, not required; its counts are Q1's); g4 to g6 others pending (1,194 s) |
+| `npm run bench -- gates --require 3 --tier ci` | 0 | every g1, g2 and g3 ci gate passes, among them **`g3.large-rom` pass**: heap cap 384 MiB, `init` 840.4 MiB, `generate` 772.3 MiB (budget 1,088 MiB), tree `9d9c915d…`; g4 to g6 pending |
+| `npm run bench -- provenance` | 0 | source digest `4ad7a6b6…` (Node 24), 19 real-tier gates of phase ≤ 3 pass or are historical, families live (memory included), 6 rows, no sealed row |
+| `npm run bench -- stale-check` | 0 | the artifact is current at `81210eb` |
+
+`phase.json` stays at `{ "landed": 3 }`. Nothing is merged or pushed.
+
 ### The owner's answer to Q6 (landing run)
+
+Withdrawn as a landing by the review of `d744f5d` (D69's revision, D70): the bin's own `verify`, `model` and
+`analyze --json` did not complete on the 32 MiB synthetic ROM under the cap, which no command of this list ran.
 
 The landing procedure after the owner's answers to Q1 to Q6 (D68, D69): `test/gates/phase.json` raised to `{ "landed":
 3 }` at `739d665`, then the whole list in a fresh worktree (`git worktree add --detach`: no `node_modules`, no
@@ -1017,7 +1064,7 @@ are answered.
   the earlier statement here, "the 32 MiB synthetic ROM complete[s] under it (0.3 to 0.9 GiB peak RSS)", came from
   the bench's workflow children, not the bin, and is withdrawn. A ROM whose live set exceeds the cap ends in V8's
   out-of-memory report (exit 134, outside the CLI's exit codes).
-- The live heap of the synthetic ROM's runs reaches 351.6 MiB of the 384 MiB old space (D70 d): about 8% of headroom.
+- The live heap of the synthetic ROM's runs reaches 353.0 MiB of the 384 MiB old space (D70 d): about 8% of headroom.
   The candidates of Q6's option (a) (instruction spans as typed arrays, flat rejection details, the validity memo
   and the harvest set outside the heap) would widen it; none is done in phase 3.
 - Fix round 1 (D65): a ROM whose size its last unit's alignment does not divide is refused by the text-layout
@@ -1200,6 +1247,6 @@ fails at `d744f5d` on `analyze --json`, `model`, `model --json` and the three `v
 | gate-honesty-r0-3 | minor | **Fixed** (`879a91f`, D70 e). The artifact's memory member keeps `maxOldSpaceSizeMiB`; the memory family's summary says the runs are recorded and `g3.large-rom` judges them. `provenance` is not given a second copy of the gate's threshold. |
 | gate-honesty-r0-4 | minor | **Fixed**: AGENTS.md's `bench large-rom` row says `< 1,088` (D69 b). |
 | gate-honesty-r0-5 | minor | **Fixed**: the README's index says D1–D70 and the answers to Q1 to Q6. |
-| correctness-r0-3 | minor | **Fixed** (`77a7a2f`, D70 d). Each child reports `peakLiveHeapMiB` (node:v8 GCProfiler, the largest heap live after a full mark-compact); recorded at 318.8 to 351.6 MiB (`init`) and 330.4 to 349.2 MiB (`generate`) of 384, with the regression signal at about 355 MiB. |
+| correctness-r0-3 | minor | **Fixed** (`77a7a2f`, D70 d). Each child reports `peakLiveHeapMiB` (node:v8 GCProfiler, the largest heap live after a full mark-compact); recorded at 314.5 to 351.6 MiB (`init`) and 330.4 to 353.0 MiB (`generate`) of 384, with the regression signal at about 355 MiB. |
 | correctness-r0-4 | minor | **Fixed** with gate-honesty-r0-4. |
 | correctness-r0-5 | minor | **Fixed in part** (`e8869c0`, D70 f). The data writer computes the relocated modules once per module; the orphan comment is gone; `moduleAt` is documented as the one-address form. pool.ts keeps calling it once per address with labels: threading the list through `wordText`, `labelForWord` and their callers changes the printer helpers' signatures for a filter over a few dozen modules. |

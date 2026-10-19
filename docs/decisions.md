@@ -2633,9 +2633,9 @@ to 32 MiB to complete under the cap, and says these are the only gate changes au
   done; the record states the headroom instead (phase-3.md, "Measured numbers", fix round 4).
 - (d) **The binding limit is the old space, and it is recorded.** Each child of `bench large-rom` reports
   `peakLiveHeapMiB`, the largest heap V8 finds live after a full mark-compact (`node:v8` `GCProfiler`); measured
-  on the synthetic ROM at 318.8 to 351.6 MiB (`init`) and 330.4 to 349.2 MiB (`generate`) of the 384 MiB cap, while
+  on the synthetic ROM at 314.5 to 351.6 MiB (`init`) and 330.4 to 353.0 MiB (`generate`) of the 384 MiB cap (five runs, the closing list's `run --scaffold` among them), while
   their RSS stays at least 140 MiB under the RSS budget. A run fails by the heap cap long before the RSS budget, and
-  the headroom against the cap is about 32 MiB (8%). Growth of the live peak past about 355 MiB is a regression
+  the headroom against the cap is about 31 MiB (8%). Growth of the live peak past about 355 MiB is a regression
   signal to act on before it becomes an abort; it is volatile (timings), not gated.
 - (e) **The artifact shows the cap.** The memory member of `bench/results.json` keeps each run's
   `maxOldSpaceSizeMiB`; the memory family's summary says the runs are recorded and `g3.large-rom` judges them, since
@@ -2648,7 +2648,9 @@ to 32 MiB to complete under the cap, and says these are the only gate changes au
 
 **Consequences.** Every phase-3 command of the bin completes on the 32 MiB synthetic ROM under the 384 MiB cap
 (peak RSS 765.3 to 811.8 MiB) and on the six tuning ROMs (238.8 to 697.4 MiB). The landing procedure runs again after
-this round (phase-3.md, "The closing gate"). No gate threshold changed.
+this round: at `81210eb`, `test/gates/phase.json` at `{ "landed": 3 }`, in a fresh worktree, every command of the
+closing list exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (840.4 and 772.3 MiB) among them
+(phase-3.md, "The closing gate", fix round 4). No gate threshold changed. Nothing is merged or pushed.
 
 ## Review findings index
 

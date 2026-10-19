@@ -1991,7 +1991,7 @@ seeded data and runs `init` and `generate` each in its own process under the hea
 answers to Q2 and Q6 of phase-3.md, D68 b, D69), so it measures what those workflows hold under the bin's cap rather
 than how far V8 lets its heap grow; it requires both to complete under the cap and their peak RSS to stay below the budget, recording
 `maxRssMiB` (and, recorded only, `peakLiveHeapMiB`, the heap live after a full GC, which is what meets the cap first:
-about 320 to 352 MiB, D70 d). The budget, 1,088 MiB, was the largest peak recorded under the cap when it was set
+about 315 to 353 MiB, D70 d). The budget, 1,088 MiB, was the largest peak recorded under the cap when it was set
 (866.5 MiB, `init`) plus 25%, rounded up to a multiple of 64 MiB (D69 b); the largest recorded since is 945.5 MiB
 (D70 c); 256 and 320 MiB do not hold the synthetic ROM. The bin's own commands (`analyze`, `explain`, `model`,
 `verify` with `--assemble` and `--link`) take other paths than those workflows; `bench large-rom --bin` runs each of
