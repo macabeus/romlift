@@ -31,12 +31,12 @@ interface LargeRom {
 
 const ROM_BYTES = 32 * 1024 * 1024;
 /**
- * The budget, set at a206ac1 from the runs of this ROM then recorded under the 384 MiB cap (D69 b): their largest
- * peak, 866.5 MiB (`init`), plus a 25% margin, rounded up to a multiple of 64 MiB. The largest peak recorded since
- * is 945.5 MiB (`init`, D70 c), which the budget is 15.1% above; it is not raised (D71 c; phase-3.md, "Measured
- * numbers").
+ * The budget, set again by the owner's answer to Q7 (D72 b) from the runs of this ROM recorded under the 1,024 MiB
+ * cap: sixteen runs (eight each of `init` and `generate`), their largest peak 1,210.1 MiB (`generate`), plus a 25%
+ * margin, rounded up to a multiple of 64 MiB: 1,536 MiB (phase-3.md, "Measured numbers", the owner's answer to Q7). It
+ * replaces the 1,088 MiB set under Q6's 384 MiB cap (D69 b).
  */
-const MAX_RSS_MIB = 1088;
+const MAX_RSS_MIB = 1536;
 /** The heap cap of the `romlift` bin (src/cli/main.ts's first line), which every measured run must run under. */
 const HEAP_CAP_MIB = 1024;
 const COMMANDS: readonly string[] = ['init', 'generate'];
