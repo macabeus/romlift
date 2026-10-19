@@ -7,6 +7,8 @@
 import type { MissReason, Origin } from 'romlift';
 
 import type { ListName } from './dataset.ts';
+import type { ObjdiffSummary } from './objdiff.ts';
+import type { ReadabilityMember } from './readability.ts';
 import type { ArtifactCategory } from './vocabulary.ts';
 
 export interface MissRow {
@@ -90,8 +92,17 @@ export interface BenchRow {
   };
   readonly codeEnd: { readonly found: string; readonly elf: string; readonly delta: number };
   readonly deterministic: boolean;
-  /** The PoC's scaffold verdict (from its dump until phase 3); absent when no dump was read. */
+  /**
+   * Whether the scaffold reproduces the SHA-1: the PoC's verdict from its dump in phases 1 and 2; from phase 3
+   * romlift's raw printer's tree linked (`bench run --scaffold`), absent without --scaffold.
+   */
   readonly scaffold?: { readonly ok: boolean };
+  /** The readable printer's shares and their floor (phase 3, romlift rows). */
+  readonly readability?: ReadabilityMember;
+  /** The objdiff family (phase 3, `bench run --scaffold`). */
+  readonly objdiff?: ObjdiffSummary;
+  /** The digest of the readable emission stream (phase 3, romlift rows; g3.tree-determinism's digest). */
+  readonly treeDigest?: string;
   /** sha256 of the canonical JSON of the analysis (romlift rows only). */
   readonly analysisDigest?: string;
   /** The PoC baseline's true positives (romlift rows only). */
@@ -108,8 +119,10 @@ export interface BenchRow {
  */
 export type PocSource = 'baseline' | 'dump' | 'none';
 
-/** The row of a scored romlift run: every phase-2 field present (what `bench run --json` prints). */
+/** The row of a scored romlift run: every phase-2 and phase-3 field present (what `bench run --json` prints); `objdiff` and `scaffold` with --scaffold. */
 export type RomliftRow = BenchRow & {
+  readonly readability: ReadabilityMember;
+  readonly treeDigest: string;
   readonly extents: BenchRow['extents'] & { readonly lost: readonly ExtentRow[] };
   readonly analysisDigest: string;
   readonly poc: { readonly tp: number; readonly source: PocSource };

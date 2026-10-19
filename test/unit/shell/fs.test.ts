@@ -89,3 +89,28 @@ test('atomicWrite into a missing directory reports E_IO_WRITE', async () => {
   assert.ok(!result.ok);
   assert.equal(result.diagnostic.code, 'E_IO_WRITE');
 });
+
+test('atomicWrite with inPlaceWhenAbsent and not durable creates an absent file in place, replaces an existing one, and removes a partial one', async () => {
+  const sub = join(dir, 'in-place');
+  await mkdir(sub);
+  const path = join(sub, 'gen.s');
+  const fast = { durable: false, inPlaceWhenAbsent: true } as const;
+  assert.deepEqual(await atomicWrite(path, 'first', fast), { ok: true, value: undefined });
+  assert.equal(await readFile(path, 'utf8'), 'first');
+  function* chunks(): Generator<string> {
+    for (let i = 0; i < 300_000; i++) yield `${i % 10}`;
+  }
+  assert.ok((await atomicWrite(path, chunks(), fast)).ok, 'an existing file goes through a temporary file');
+  assert.equal((await readFile(path, 'utf8')).length, 300_000);
+  const fresh = join(sub, 'stream.s');
+  assert.ok((await atomicWrite(fresh, chunks(), fast)).ok);
+  assert.equal((await readFile(fresh, 'utf8')).slice(0, 12), '012345678901');
+  function* broken(): Generator<string> {
+    yield 'partial';
+    throw new Error('stream broke');
+  }
+  const failed = await atomicWrite(join(sub, 'broken.s'), broken(), fast);
+  assert.ok(!failed.ok);
+  assert.equal(failed.diagnostic.code, 'E_IO_WRITE');
+  assert.deepEqual(await readdir(sub), ['gen.s', 'stream.s']);
+});

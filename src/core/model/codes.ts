@@ -1,0 +1,50 @@
+// Diagnostic codes raised by core/model (architecture §9.1, D45, D62 e): the config's modules and overrides
+// checked against the ROM's legal borders, names checked per module, and the one exception the printer takes
+// for a border moved by hand (D15).
+import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
+
+export const ModelCodes = defineCodes({
+  E_MODULE_BORDER: {
+    severity: 'error',
+    meaning: 'a module starts where no legal border is (core/layout/borders.ts); the message names the nearest legal borders',
+  },
+  E_MODULE_ORDER: { severity: 'error', meaning: 'the module starts do not increase from the ROM base' },
+  E_NAME_COLLISION: {
+    severity: 'error',
+    meaning: 'two labels of one module share a name, or a name repeats in another module while one of them is referenced from outside its module',
+  },
+  E_NAME_INVALID: {
+    severity: 'error',
+    meaning:
+      'a function, alias or symbol name is no symbol name a file may define (a leading $ is a mapping symbol, a leading . a section or local label; at most 200 characters, since a function name is a file name), or a module name is no module name (letters, digits and _, not starting with a digit, at most 200 characters: it is a path component and an object name)',
+  },
+  E_MODULE_NAME_DUPLICATE: {
+    severity: 'error',
+    meaning: 'two modules share a name, or names one on a case-insensitive file system, whatever their kinds, so both would build one object',
+  },
+  E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
+  W_FUNCTION_OUTSIDE_ROM: {
+    severity: 'warning',
+    meaning: 'a [functions] entry lies outside the ROM, so the model has no function for it',
+  },
+  W_OVERRIDE_OUTSIDE_ROM: {
+    severity: 'warning',
+    meaning: 'an [[overrides]] range reaches outside the ROM, where it applies to nothing; the part inside still applies',
+  },
+  W_SYMBOL_UNPLACED: {
+    severity: 'warning',
+    meaning:
+      'a [symbols] entry inside the ROM lies inside an instruction, a pool word or a table entry, where no file can define a label (D63 d), so its name is not printed',
+  },
+  W_CROSS_MODULE_SHORT_BRANCH: {
+    severity: 'warning',
+    meaning: 'a short Thumb branch (b, bcc) crosses a module border moved by hand, so it prints raw (D15)',
+  },
+  W_INTERWORKING_BRANCH: {
+    severity: 'warning',
+    meaning:
+      'a b or bl names a function label of the other state (a Thumb branch to an ARM function, or the reverse), for which GNU ld would insert an interworking veneer and move every byte after it, so it prints raw; the function\'s listed mode likely contradicts its callers',
+  },
+});
+
+export type ModelCode = keyof typeof ModelCodes;

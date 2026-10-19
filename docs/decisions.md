@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -775,6 +775,11 @@ not needed, because the targets come from the reference build, not from romlift'
 **Rejected.** Deferring to phase 5 (reinterprets the plan's phase table). Targets built from the linked
 ELF without relocations (every relocated word would differ).
 
+**Revision (19 October 2026, the owner's answer to Q1 of phase-3.md, D68 a).** The owner chose "Move gate to
+phase 5": the gate is `g5.objdiff`, judged in phase 5, where the `expected/` objects and objdiff targets are built,
+and applies there as this decision writes it unless the owner amends it then. Phase 3 records the classified counts
+as its measurement, and the committed classifier stays.
+
 ## D35. `explain` re-runs the analysis the command would run, and is composed by layer
 
 **Context.** Storing a full trail costs memory on Emerald-size ROMs; replaying discover explains the wrong
@@ -921,6 +926,23 @@ deterministic synthetic 32 MiB ROM.
 
 **Rejected.** 1 GiB budgets (hide leaks). Gzip of in-memory artifacts (D18). An information-only
 measurement (nothing would stop a regression).
+
+**Revision (19 October 2026, the owner's answer to Q2 of phase-3.md, D68 b).** The owner chose "Measure under a heap
+cap": the `romlift` bin and the gate run Node with `--max-old-space-size=256`, the gate measures peak RSS under that
+cap, and its budget is set from that measurement with a stated margin. No run of the synthetic ROM completes under
+the cap (phase-3.md Q6), so the budget is still 512 MiB until the owner answers Q6.
+
+**Revision (19 October 2026, the owner's answer to Q6 of phase-3.md, D69).** The owner chose "384 MiB for bin and
+gate": the `romlift` bin and `g3.large-rom` run Node with `--max-old-space-size=384`, replacing Q2's 256. The budget
+is set from the recorded runs of the synthetic ROM under that cap plus a stated margin: the largest peak, 866.5 MiB,
+plus 25%, rounded up to a multiple of 64 MiB, is **1,088 MiB** (D69 b). The 1 GiB budgets rejected above were
+uncapped; under the cap V8's old space cannot grow past 384 MiB, so a leak in it ends in an out-of-memory exit,
+which the gate fails.
+
+**Revision (19 October 2026, the review of `d744f5d`, D70).** The gate measures the bench's `init` and `generate`
+workflow children, not the bin's commands; those are measured by `bench large-rom --bin` and required by
+`test/local/large-rom-bin.test.ts` (D70 b). With the runs recorded since, the largest `init` peak is 945.5 MiB, so
+1,088 MiB is 15.1% above it (D70 c); the binding limit is the old space, whose live peak is recorded (D70 d).
 
 ## D43. Each phase opens with a frozen-interface component, then parallel components, then an integrator
 
@@ -2081,7 +2103,730 @@ D61 withdrew Q7 (the meaning given with Q5 answers it, (a)) and applied `$d` to 
 The owner's answer to Q6 ("Yes, cover all 8", (g)) is the last gate change of phase 2; the closing
 measurements and the landing are in phase-2.md, "The closing gate".
 
+## D62. Phase-3 component boundaries as executed, and the contract members emission needs
+
+**Context.** Roadmap 3.0–3.I splits phase 3 into a lead, five parallel components (3.A model and layout,
+3.B printer and code writers, 3.C data and linker writers and self-checks, 3.D write plan and commands, 3.E
+bench emission families) and an integrator. As in phases 1 and 2 (D54, D56), a parallel component cannot be
+proven alone against exports that are not merged, and freezing the phase's types showed places where the
+edge table of architecture §2 and the frozen types of §3.4 do not fit together: the re-encode and
+text-layout checks (core/verify) need the printer's label resolution, but core/verify may import core/emit
+only through tree.ts; `configFromDiscover` returns a `RomliftConfig`, a core/config type, but core/layout
+may not import core/config; module inference proposes modules, but `ProposalSource` had no variant for a
+proposer that is not an analysis rule. The owner asked for no checkpoints: every owner decision of
+architecture §12 is built with its documented safe default (item 3 below).
+
+**Decision.** Phase 3 runs as eight components in three waves on the branch `phase-3`, each on its own flat
+branch `phase-3-<component>` and worktree (D56 h; roadmap.md, "As executed"):
+
+- (a) (Amended by D65 k: a ninth component, `p3-fixture-goldens`, ran in wave 3.) **Wave 1**: `p3-lead` (this record; 3.0 and the shared primitives below), `p3-asm-text`
+  (`foundation/asm/{statements,layout}.ts`, the parser of the directive subset romlift emits and the layout
+  of statements to bytes, D49, built before the writers so the text-layout check and the writers share
+  them) and `p3-bench-inputs` (the bench's phase-3 inputs: the pinned objdiff-cli version and its locator,
+  the reference objects of the tuning datasets, the deterministic 32 MiB synthetic image of `g3.large-rom`).
+  **Wave 2**: `p3-model` (3.A: `buildModel`, `encodeModel`, `legalBorders`, `inferModules`,
+  `configFromDiscover`, the model codes), `p3-printer` (3.B: `emitTree`, `printChunk`, `core/emit/print/**`,
+  the header, crt0, function, orphan and module writers, `romlift/internal`'s emission exports),
+  `p3-data-verify` (3.C: the data, ldscript and symbols writers, `verifyModel`, `checkEntry`, `checkPaths`,
+  the verify codes) and `p3-write-plan` (3.D's `planWrites`, the write-plan codes, `applyWrites`,
+  `withProjectLock` and `linkCheck` in `romlift/node`). **Wave 3**: `p3-generate` (3.D's
+  `core/workflow/generate.ts`, the `model --json` and `verify` commands in `cli/commands/lists/emission.ts`,
+  `src/api/workflow-generate.ts`, `bench/src/large-rom.ts`, and `explain`'s phase-3 part, `item` and
+  `chunk`, architecture §9.2, D35) and `p3-bench-scaffold` (3.E: `bench run --scaffold` with both printers,
+  the readability and objdiff families, `bench speed`'s `generate` and `init` timings, the `bench
+  large-rom` command). The lead integrates, refreshes `bench/results.json` and `bench/baseline/speed.json`,
+  writes `bench/baseline/readability.json` (the first committed readability shares, the floors of
+  `g3.readability`) once, raises `test/gates/phase.json` and runs the closing gate (phase-3.md).
+- (b) **Where the shared primitives live.** The label resolver (`resolverFor`, `resolverOver`, `moduleAt`,
+  `wordValueOf`), the item table (`itemTableBuilder`, `itemAt`, `findItem`) and the shared paths
+  (`chunkPaths`, `moduleSource`, `buildUnits`, `modulePathPrefixes`) live in `core/model/{resolver,
+  item-table,paths}.ts`, because the printer (core/emit), the self-checks (core/verify) and the write plan's
+  `retained` prefixes all need them, and core/verify may not import core/emit beyond tree.ts.
+  `core/emit/symbol-resolver.ts` is not created. `resolverFor` takes `Pick<Model, 'labels' | 'modules'>`
+  (a whole Model satisfies it) and indexes the labels once per Model (a WeakMap keyed by its labels array);
+  `resolverOver` indexes afresh, for buildModel while it assembles the labels. A label lies in the module
+  whose run range (runs_at modules first), else load span, contains its address; inside a module it is
+  visible when it is global or lies there; several labels at one address print in the order func, table,
+  pool, local, data, then name. `itemAt(items, i, rom, runOffset = 0)` gains the optional run offset of a
+  runs_at chunk (`runAt - span.start`), so an instruction decodes at its run address while its span stays in
+  load addresses (§6.7, D46).
+- (c) **`configFromDiscover` lives at `core/workflow/config-from-discover.ts`**, owned by `p3-model`: the
+  edge table forbids core/layout to import core/config, and `RomliftConfig` is a core/config type, while
+  core/workflow may import every core module. Its options, `ConfigFromDiscoverOptions`, are the inference
+  options and nothing else, in `core/layout/types.ts` with `DEFAULT_MODULE_SIZE` (0x10000, D20). In phase 3
+  it writes every code module as kind `'asm'` (architecture §6.1: "Every module is asm"); phase 4 switches
+  the agbcc-shaped modules to `'c'` when the c-stub writer lands.
+- (d) **Contract members added to architecture §3.4**, each the minimum emission needs:
+  - `EmitContext.printer?: Printer` (`'readable' | 'raw'`, default `'readable'`), so `verify --printer raw`
+    and `g3.raw-link` select the PoC's all-data emission through the same stream.
+  - `PrintStats` (`insns`, `rawInsns`, `branches` (b, bcc, bl and blx-immediate in code items),
+    `symbolicBranches`, `poolLoads` (PC-relative loads), `symbolicPoolLoads`, `rawReasons`) and
+    `PrintedChunk { lines; stats }`: what `printChunk(rom, model, chunk: number, cx: EmitContext):
+    PrintedChunk` returns and the readability family sums (`addPrintStats`). The readability shares are
+    `1 - rawInsns / insns`, `symbolicBranches / branches` and `symbolicPoolLoads / poolLoads`, each 1 when
+    its denominator is 0.
+  - The writer contract `Writer { id; scope: 'module' | 'global'; emit(rom, model, cx, module: number |
+    null) }` and the frozen stream order (core/emit/tree.ts): per generated module in ROM order, the entries
+    of every module-scoped writer sorted by path (code units), then the global writers' entries (ldscript.txt,
+    symbols.ld) sorted by path; a module whose `generated` is false yields nothing. The registry
+    (`core/emit/writers/index.ts`) lists the eight phase-3 writers.
+  - `WritePlanInputs.retained`: the path prefixes of the `generated = false` modules
+    (`modulePathPrefixes`), never written and never deleted, which §6.4's policy names but the inputs could
+    not express; `WritePlan { ops; manifest; diagnostics }` names planWrites' result; `GENERATED_ROOTS`,
+    `ROMLIFT_DIR`, `MANIFEST_PATH`, `JOURNAL_PATH` and `LOCK_PATH` are constants of
+    `core/write-plan/types.ts`; the manifest and journal codecs (`core/write-plan/{manifest,journal}.ts`)
+    are implemented in wave 1 (a decode returns an error value, never throws); `Journal = { schema: 1; ops:
+    { op; path; baseSha1?; resultSha1? }[] }`, derived from a plan by `journalOf` (a keep is left out).
+  - `ProposalSource` gains `{ kind: 'layout'; reason: 'header' | 'startup' | 'asm-only' | 'module-size' |
+    'data' }` for module inference, which is not an analysis rule, so a RuleId would be false provenance;
+    like `'analysis'` it is never persisted, and `sourceKey` returns undefined for both.
+  - The verify report: `CheckId` (`tiling`, `reencode`, `module-size`, `text-layout`, `paths`, `assemble`,
+    `link`), `CheckResult { id; ok; detail; diagnostics }`, `VerifyReport { ok; checks }`, `checkResult` and
+    `combineReports` (checks in `CHECK_IDS` order, one id merged). The wave-2 checks have the signatures
+    `verifyModel(rom, model): VerifyReport` (tiling, re-encode, module size), `checkEntry(rom, model, entry:
+    FileEntry): readonly Diagnostic[]` (the text layout of ONE entry, so the check pass streams the
+    emission and holds no tree, §9.4) and `checkPaths(paths: Iterable<string>): readonly Diagnostic[]`.
+    `g3.text-layout` requires the `paths` check with the text-layout check, as §6.4 runs them in one pass.
+  - The model's item encoding is public with `model --json`: `ITEM_RAW_REASONS` (an `aux` raw-reason code
+    is its index), `DATA_NOTES` (a data note code is its index plus one, 0 for none), `NO_SPEC` (0xFFFF), and
+    a table entry's `aux` is its target with bit 0 set when the stored value carries the Thumb bit. A
+    `ModelJsonItem` is `[kind, start, length, specId | null, aux]`, addresses spelled as the analysis codec
+    spells them.
+  - `Module.dataStart` and `ModuleConfig.dataStart` are left out of the phase-3 types: `data_start` is a
+    phase-5 key (§6.6), and nothing ships before its phase. `RomliftConfig` carries a zod schema
+    (`validateConfig`) for in-memory configs; core/config has no `codes.ts` in phase 3 (no raiser yet).
+  - The build compilers: `BUILD_COMPILERS` holds `agbcc` and `old_agbcc` (`tools/agbcc/bin/<id>`, the flags
+    `-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm`, `templates/compilers/<id>.mk`).
+- (e) **Codes.** The phase lead creates `core/{model,verify,write-plan}/codes.ts` empty and unions them into
+  `core/diagnostic-codes.ts`; each owner adds its codes in the commit of their first raiser (D45): model
+  `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_NAME_COLLISION`, `E_OVERRIDE_INVALID`,
+  `W_CROSS_MODULE_SHORT_BRANCH`; verify `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`,
+  `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`; write-plan `E_PATH_NOT_OWNED`, `E_STALE_EDIT`,
+  `W_UNOWNED_FILE`.
+- (f) **The seam.** `test/golden/analysis/<fixture>.json` holds, for every committed fixture, the canonical
+  `encodeAnalysis` of its seedless discover run under `profileById('agbcc')`; wave 2 builds on it before
+  `buildModel` exists, and `test/helpers/model.ts` builds small hand-made Models for the printer, writer,
+  check and write-plan unit tests.
+- (g) **The mutation tests of phase 3** (`test/mutation/phase3/**`, `g3.checks-fail`) are owned by the
+  checkers' components: `tiling`, `reencode`, `module-size` and `text-layout` by `p3-data-verify`,
+  `plan-writes` by `p3-write-plan`, not by the integrator as roadmap 3.I lists.
+- (h) **Every phase-3 threshold applies to all six tuning ROMs**: D60 revealed tmc as tuning data and kept
+  the thresholds for all six ("the thresholds apply to all six"), so the self-checks, the text-layout check
+  and the raw link cover six ROMs, the readable link at least three of the six (target all six), and the
+  readability and objdiff families all six. The gate files' comments say so; no threshold changed.
+- (i) **Architecture §12 item 3 is built with its safe default** while the owner has not answered (D15): a
+  short Thumb branch across a border the user moved prints raw with `W_CROSS_MODULE_SHORT_BRANCH` and is
+  counted in the readability family; `init`-style configs never contain such a border.
+- (j) **objdiff-cli** is located by `ROMLIFT_OBJDIFF`, then `PATH`, then
+  `$ROMLIFT_BENCH_ROOT/objdiff/target/release/objdiff-cli`, at the version of `bench/tools/objdiff.version`
+  (D34). Amended by D65 j: the repository's and the main checkout's `bench/.local/objdiff-target` builds come
+  before `PATH`.
+
+**Consequences.** Every wave-2 component typechecks against frozen types and implemented primitives, and owns
+files no other component of its wave touches; the g3 gates stay `pending` until the exports they need land;
+the resolver and paths have one definition for writers, checks and the write plan.
+
+**Rejected.** `core/emit/symbol-resolver.ts` (core/verify could not import it). `config-from-discover.ts`
+in core/layout (it would need a core/config edge the table forbids, or a second config type). A RuleId such as
+`layout.infer` on module proposals (no such rule exists; provenance would cite a rule that is not one).
+`checkTree(entries)` holding the whole stream (memory, §9.4). Stubbing `data_start` in phase 3 (nothing ships
+before its phase).
+
 ---
+
+## D63. Wave-2 integration: the interface changes the components made, and what linking them together found
+
+**Context.** The four wave-2 components of phase 3 (`p3-model`, `p3-printer`, `p3-data-verify`,
+`p3-write-plan`, D62 a) were built in parallel against the frozen types and merged into `phase-3` without a
+textual conflict. Their reports name interface changes no record held yet. Put together for the first time,
+the model, the printer, the self-checks and `linkCheck` were run on every committed fixture and every tuning
+ROM, both printers: the raw printer's tree linked to the ROM's SHA-1 everywhere, while the readable printer's
+tree failed to assemble on 2 of the 47 fixtures and on all six tuning ROMs, with every self-check green. GNU as
+2.45.1 refuses two shapes the model allowed: a PC-relative load or `adr` naming a label in another object
+("invalid offset", "undefined symbol ... used as an immediate value", "address calculation needs a strongly
+defined nearby symbol"), and a reference to a `local` label the printer could not place because it lies inside
+an item (an ARM `adr r0, X + 1` before `bx r0` into Thumb, the m4a mixer's mode switch, on klonoa, sa2, sa3,
+fe7j and pokeemerald; a Thumb `adr` naming the second halfword of a `bl`, on tmc).
+
+**Decision.**
+
+- (a) **`legalBorders(rom, analysis)`** replaces `legalBorders(analysis, profile)`, and `inferModules(rom,
+  analysis, options?)` and `configFromDiscover(rom, analysis, options?)` take no profile: finding the
+  references that cross a border means decoding the code bytes, and buildModel, which has no profile and may
+  not import the profile registry, must compute the same set as `init` and the TOML patcher. The borders rest
+  on the ARM word (4 bytes), agbcc's alignment. `test/gates/g4.toml-mutations.test.ts` is aligned to the new
+  call; nothing in it is weakened.
+- (b) **No PC-relative load or `adr` crosses a legal border** (`pcRelativeRefs` in core/layout/borders.ts:
+  Thumb `ldr rd, [pc, #]` and `add rd, pc, #`, ARM `ldr rd, [pc, #]` and `adr`, the references
+  core/model/labels.ts `codeRefs` names), for the same reason short branches do not (D15): `as` cannot
+  relocate one to another object. A border the user moves across one is `E_MODULE_BORDER`, as for a short
+  branch. architecture §5's "far pools ... labelled global when another module loads them" is replaced: a far
+  pool always stays in the module of the load that names it.
+- (c) **The data start moves past the code's PC-relative words.** `codeLayout`'s data start is the analysis'
+  code end rounded up to a word, moved past every pool word or `adr` target a reference of the code names
+  beyond it: such a word belongs with the code that loads it. Measured on tmc, the only tuning ROM where it
+  moves: ARM functions from 0x080B23F0 load a shared pool at 0x080B2A30..0x080B2A6C past the code end
+  0x080B2A30, so the data start is 0x080B2A70; without the move, (b) made the inferred data module's start
+  illegal (`E_MODULE_BORDER` on tmc's own config). The analysis' `codeEnd`, which the scorer measures, is
+  unchanged.
+- (d) **A `local` label is made only where an item can start**: never at an odd code address, the second
+  halfword of a 4-byte instruction that names an address (a `bl`), the inside of an ARM word, or the inside of
+  a pool or table word. The instruction naming such an address then fails the printing rule and prints raw
+  (`no-roundtrip`), counted by the readability family; the m4a mixer's `adr r0, X + 1` prints as `.inst
+  0xE28F002F @ adr r0, 0x0804F3A7 (no-roundtrip)` on klonoa.
+- (e) **Contract members the components added**, kept: `printChunk(rom, model, chunk, how?: Printer |
+  EmitContext)` (default `'readable'`; both callers of D62 d and the brief work); the included chunk files
+  start with `.thumb`/`.arm`, not the dialect preamble, which only the unit files (`rom_header.s`, `crt0.s`,
+  `<module>.s`, `data/<module>.s`) carry, because `as` refuses `macros.inc` twice; `WritePlanInputs.journal`
+  (an interrupted run's journal: its paths count as owned, an edit it shows done is kept) and
+  `WritePlanInputs.romlift` (the version on the new manifest), both optional; `checkEntries(rom, model,
+  entries): VerifyReport` (the text-layout and paths results of one pass over a stream, naming a file the model
+  needs that the stream lacks) beside `checkEntry`; `assembleCheck` beside `linkCheck` in `romlift/node`
+  (each object's `.text` against its unit's ROM range outside its relocated fields, the `assemble` check id).
+- (f) **The wave-2 round trip is a unit test**: `test/unit/emit/fixtures-round-trip.test.ts` runs, for every
+  committed fixture and both printers, the model self-checks, `checkEntries` and (with binutils) `linkCheck`
+  against the fixture's SHA-1. It is the ci-tier substance of `g3.self-check`, `g3.text-layout`, `g3.link`
+  and `g3.raw-link` before wave 3 lands the commands those gates drive; it fails on the two fixtures without
+  (b) and (c).
+
+**Consequences.** On the integrated tree (phase-3.md, "Wave-2 integration"): all 47 fixtures and all six
+tuning ROMs pass the model self-checks and the text-layout and paths checks, and link to their SHA-1 with
+both printers. Only `adr-label-and-data` and `arm-pools-in-front` change their model goldens (one module
+border each). The text-layout check passed every tree `as` refused: it does not check that a symbol an
+instruction names is defined, nor that a PC-relative reference stays in its object; phase-3.md records it as a
+limitation for wave 3, where `verify --assemble` and `g3.link` run the real toolchain.
+
+**Rejected.** Printing a PC-relative reference into another module raw, like a cross-module short branch,
+instead of (b): `init` would cut borders that make the readable tree less readable for no gain, and a new raw
+reason would change the frozen `ITEM_RAW_REASONS`. Spelling the mixer's target `X + 1` (a label at the even
+address plus an offset): the printing rule and the resolver have no offset form, and the instruction is in
+hand-written assembly either way. Leaving the data start at the code end and exempting it from (b): tmc's
+readable tree would still not assemble.
+
+---
+
+## D64. Closing phase 3: what the fix round changed, and the two gates it could not close
+
+**Context.** The closing run of phase 3 (phase-3.md, "The closing gate") found, at `52ad363`: every
+`generate`, `verify` and `init` run over the config `configFromDiscover` builds failed with
+`E_PATH_CASE_COLLISION` (asm/crt0.s emitted twice; the two `todo` tests of wave 3); `g3.objdiff` failed on all
+six tuning ROMs (45,414 differences on pokeemerald, 4,560 on klonoa, most of them pool words holding RAM
+addresses that the base printed as plain values); `g3.speed-budget` measured pokeemerald's `generate` at
+22.3 s and `init` at 26.9 s CPU (budgets 10 s and 15 s, calibrated 9.4 s and 14.1 s); `g3.large-rom`
+measured 1,845.7 MiB (`init`) and 1,366.3 MiB (`generate`) peak RSS (budget 512 MiB); `g3.readability` had
+no floor file. The orchestrator's brief takes every owner decision of architecture §12 with its safe default
+and forbids weakening a gate.
+
+**Decision.**
+
+- (a) **`configFromDiscover` labels every entry inside another found extent, nothing clipped**
+  (`coveredEntries`, the listed set `g2.confirm-equals-discover` builds), so the startup code inside the
+  cartridge entry's extent is `label = true`. Without it the confirm run cut the cartridge entry at the
+  startup code, read its `b` as a tail call and accepted the startup code as origin `call` before
+  `seed.rom-entry` proposed it, the startup region shrank to four bytes, and the `crt0` module held a
+  function chunk. The model and `codeLayout` keep the header clip of correctness-6 where they place chunks:
+  a `label = true` entry that only the cartridge entry's extent covers (`headerCoveredEntries`) still
+  starts a chunk (`isLabelEntry`). On the 47 fixtures the confirm run's functions, extents and startup region
+  equal the discover run's, and the tree `generate` emits is the discover model's.
+- (b) **A `[symbols]` entry outside the ROM names the pool words equal to its address.** It is a global data
+  label that no file places and `symbols.ld` defines; the text-layout check resolves it through `[symbols]`
+  as before. This is architecture §5's `ldr r0, _08001A3C @ =gFoo`, which the model did not implement (its
+  labels held only the symbols inside the ROM). `configFromDiscover` writes no symbol, so no default tree
+  and no golden changes.
+- (c) **The objdiff base names the RAM symbols an ELF section defines**, beside the ROM data symbols D34
+  already named, and leaves out absolute symbols (`REG_DMA3`, `INTR_VECTOR`), which the reference objects
+  hold as plain constants. Differences per ROM, before and after (b) and (c): fe7j 1,296 → 256, klonoa
+  4,560 → 320, pokeemerald 45,414 → 16,543, sa2 8,392 → 1,518, sa3 7,174 → 609, tmc 6,241 → 1,252.
+- (d) **Generated files are written without a flush, an absent one in place.** architecture §6.4's "apply
+  each op through a temporary file and a rename" is replaced by: the journal, the manifest, every `edit` and
+  every scaffold or c-stub file go through a temporary file, an `fsync` and a rename; a generated file goes
+  through a temporary file and a rename without the `fsync`, and one whose path does not exist yet is created
+  in place with `O_EXCL` (synchronous calls). Recovery is unchanged in substance: the next run snapshots the
+  sha1 of every generated path and the journal names its paths owned, so a file a crash left short or empty
+  is rewritten; nothing a user wrote is touched without the flush. Measured on pokeemerald: `generate` and
+  its write 22.3 s CPU (bench speed median, with the flushes) → 8.2 to 9.1 s warm with (d) and (e).
+- (e) **Result-neutral speed and memory changes**: a built Reading keeps its instruction lengths in one byte
+  array over its span, or a binary-searched pair of typed arrays when the span is sparse
+  (`core/analysis/insn-lookup.ts`), not the walker's 4 KiB pages (210 MiB in 37,140 readings on the 32 MiB
+  synthetic ROM); rejection keys are numbers (`2 * addr + arm`), not `${at}:${mode}` strings (47 MiB there);
+  `factFrom` finds the dead runs of an extent with a native scan; the layout memo is keyed by slot (state,
+  address mod 4) and then by the text itself; `hex()` formats eight digits from a byte table. The fixture
+  goldens, `npm test`, the PoC parity and lockstep evidence and `epoch-reuse` are unchanged.
+- (f) **The first readability floors** (`bench/baseline/readability.json`, D62 a) are the closing run's shares.
+
+**Consequences.** `generate`, `verify --link` and `init` work on every fixture with the config
+`configFromDiscover` builds, and the two `todo` tests pass; `g3.speed-budget` passes (pokeemerald `generate`
+8,116 of 10,355 ms and `init` 9,674 of 15,532 ms CPU in the gate's own run) and `g3.readability` passes on its
+floors. Two gates still fail and are owner questions in phase-3.md: `g3.objdiff` (Q1: what remains are naming
+and comparison artefacts, classified there, which the gate as D34 writes it counts as failures) and
+`g3.large-rom` (Q2: 1,019 to 1,495 MiB peak RSS measured against 512 MiB). Phase 3 does not land until the owner
+answers them; nothing is waived.
+
+## D65. Phase-3 fix round 1 of the review: what changed, and what stays with the owner
+
+**Context.** The review of phase 3 at `9b3f244` (phase-3.md, "Review") found a blocker, eleven majors and
+twenty-three minors. The brief takes every owner decision with its safe default and makes every gate change,
+waiver or limitation the owner has not authorised an owner question.
+
+**Decision.**
+
+- (a) **The text-layout check models the section alignment of each build unit** (correctness-4). GNU as pads
+  each object's section to the alignment it records (1 once Thumb state is entered, 2 for an ARM instruction, p
+  for `.align p`, `.align 0` read as 2; measured with binutils 2.45.1), and ld places each section on it. A unit
+  whose start or length is not a multiple of it fails text-layout, so a ROM whose size its last unit's
+  alignment does not divide is refused before anything is written; the tree is not changed to make it link
+  (owner question Q5).
+- (b) **A case-only rename between runs deletes the old spelling first** (correctness-2): a tree path that only
+  the case separates from a path the manifest or the journal lists is always written, and that old path's
+  delete sorts before every other op (architecture §6.4).
+- (c) **A `[symbols]` entry inside the ROM gets a label only where an item can start** (the D63 d predicate the
+  local labels use); one inside an instruction, pool word or table entry gets none and is `W_SYMBOL_UNPLACED`.
+  The text-layout check resolves through `[symbols]` only the entries outside the ROM, which symbols.ld defines
+  (correctness-1). D64 b is unchanged.
+- (d) **Names**: a function, alias or symbol name is a letter or `_`, then letters, digits, `_`, `.` and `$`
+  (`foundation/asm/dialect.ts` isSymbolName); the config schema refuses others and buildModel raises
+  `E_NAME_INVALID` (correctness-5). GNU as reads `$d` as a mapping symbol and `.text` as a section.
+- (e) **Until the phase-4 c-stub writer, a module of kind `c` fails the check**: its source is a path the
+  stream must hold (correctness-6). **`W_FUNCTION_OUTSIDE_ROM`** reports a `[functions]` entry outside the ROM
+  and an `[[overrides]]` range reaching outside it (correctness-7).
+- (f) **The re-encode check runs foundation/isa rawReason** for every instruction that names an address; only
+  instructions that name none go through a cache keyed by their exact word (architecture-4). pokeemerald
+  verifyModel 330-400 ms -> 610-700 ms.
+- (g) **Plain data and one workflow** (architecture-2, -3): GenerateResult holds its EmitContext, not a
+  closure (`generatedEntries` re-emits); core/workflow/generate.ts has the phase-3 `init` equivalents
+  (`initConfig`, `initModel`, `generateFromRom`, `discoverModel`) and the pure `freshTreePlanInputs`;
+  shell/project/fresh-tree.ts `writeFreshTree` is the one fresh-tree write.
+- (h) **The toolchain verdicts are core's** (architecture-1): foundation/formats/elf.ts relocationsOf reads the
+  relocations, core/verify/toolchain.ts decides `assemble` and `link`; link-check.ts runs the programs.
+- (i) **The objdiff family** (delivery-1, -6): a function's base is assembled with the chunks of its module up
+  to the far pools and adr targets it reaches (transitively), at the word phase it has in the ROM, so no base
+  fails to assemble for a reason the tree does not have; a Thumb `b` and an ARM `bl` (addend -8) the reference
+  resolved inside its object count as `resolved-call` like a `bl`. bench/src/objdiff-classes.ts and
+  bench/tools/objdiff-classes.ts give Q1's classes from committed code. D34's gate is unchanged.
+- (j) **Amends D62 j** (delivery-9): objdiff-cli is located by `ROMLIFT_OBJDIFF`, then the repository's
+  `bench/.local/objdiff-target/release/objdiff-cli`, then the main checkout's (from a worktree), then `PATH`,
+  then `$ROMLIFT_BENCH_ROOT/objdiff/target/release/objdiff-cli` (bench/src/objdiff-cli.ts findObjdiff), always
+  at the version of `bench/tools/objdiff.version`.
+- (k) **Amends D62 a** (delivery-8): phase 3 ran nine components; the ninth, `p3-fixture-goldens` (wave 3,
+  branch `phase-3-fixture-goldens`, merged `f726652`), owned the writer goldens (`test/golden/writers/**`) and
+  their test, `export-poc --mode raw` with `test/local/poc-raw-printer.test.ts`, `bench/tools/ci-digests.ts`
+  (`@2`, the tree digests) and `test/local/emission-real.test.ts`, taking the writer goldens from 3.B and 3.C
+  and the raw printer's PoC parity from 3.B.
+- (l) **Records** (delivery-7) that the raw printer's PoC parity of roadmap 3.B ran narrowed: the local test
+  feeds the PoC's own spans, labels and word kinds to printRawRange, so it proves the ported rawLines, not that
+  romlift's tiling equals the PoC's. As a gate change the owner has not authorised it is owner question Q4.
+
+**Consequences.** The blocker and the correctness majors are closed with tests that fail before their fix;
+generate, verify and the bench share one workflow; the objdiff numbers move (phase-3.md, "Measured numbers").
+The owner questions are Q1 to Q5 of phase-3.md (Q3: D64 d's durability, delivery-3; Q4: (l); Q5: the
+limitations carried into phase 4). Phase 3 does not land until he answers them; nothing is waived.
+
+## D66. Phase-3 fix round 2 of the review: what changed, and one recorded exception
+
+**Context.** The review of fix round 1 (phase-3.md, "Review", fix round 2) found two majors (an objdiff classifier
+whose same-word classes were not checked, architecture-r1-1; a case-only rename of a directory holding a file
+romlift does not own, correctness-r1-1) and fifteen minors. The brief is unchanged: every owner decision takes its
+safe default, and a gate change, waiver or limitation the owner has not authorised is an owner question.
+
+**Decision.**
+
+- (a) **A write gives its path the spelling the plan chose, on disk** (correctness-r1-1). Before a write or edit,
+  shell/project/spelling.ts renames each existing component of its path that is the same directory entry under
+  another case (same device and inode: a case-insensitive file system) to the op's spelling, through a temporary
+  name; what the directory holds moves with it. readDiskState lists a file the walk finds under another case than
+  an asked-for path, when both are one file, once, under the asked-for spelling. On a case-sensitive file system
+  nothing is renamed and the other spelling stays another directory. Amends D65 b, which ordered the deletes but
+  left a directory that did not become empty under its old spelling.
+- (b) **Names are at most 200 characters, and no path component over 255 bytes passes the check pass**
+  (correctness-r1-2): `foundation/asm/dialect.ts` MAX_SYMBOL_NAME bounds isSymbolName (and module names), so
+  `<Name>_<ADDR>.s` fits the 255 bytes a file system stores per name; the paths check raises E_PATH_TOO_LONG.
+  Amends D65 d.
+- (c) **`W_OVERRIDE_OUTSIDE_ROM`** is raised for an `[[overrides]]` range reaching outside the ROM;
+  `W_FUNCTION_OUTSIDE_ROM` only for `[functions]` entries (architecture-r1-14). Amends D65 e.
+- (d) **Derived per-model indexes are memos keyed by the model's frozen arrays** (the exception
+  architecture-r1-5 asked to record): core/model/paths.ts chunkPathsOf (by `model.chunks`, now shared by the
+  writers and the text-layout check, so a generate computes the paths once) and core/model/resolver.ts's label
+  index (by `model.labels`). Rejected: a field of the Model (it changes the public `romlift/model-json@1` lines and
+  the 47 model goldens for data that is a function of the rest); a member of EmitContext or an EmitIndex passed to
+  the writers (printChunk, resolverFor and the Writer contract take `(rom, model, ...)` and are frozen by D62 and
+  public: the bench and the tests print chunk by chunk with only a printer, so every reader would still need the
+  memo as its fallback). Correctness rests on a Model never changing, which its deeply readonly types state (D19);
+  resolverOver indexes arrays that are still growing and caches nothing. To revisit when phase 4 reopens the writer
+  contract for the C writers.
+- (e) **Plain data** (architecture-r1-12): DecompState.defined is a `readonly string[]` in code-unit order, not a
+  Set, so a GenerateResult's fields other than the model survive a JSON round trip. Amends the frozen
+  core/emit/tree.ts type (D62); no writer reads it before phase 5.
+- (f) **checkEntry takes the pass's index** (architecture-r1-9): `checkEntry(rom, model, index, entry)` with
+  `textLayoutIndex(model)`, exported from `romlift`, built once per pass.
+- (g) **The objdiff classifier checks every same-word claim** (architecture-r1-1): bench/src/objects.ts reads each
+  relocation's addend (a RELA entry's own, a REL entry's implicit one from its field), bench/src/objdiff-cli.ts
+  reads the base object too and gives each relocation difference the base addend or the base's plain value, and
+  bench/src/objdiff.ts gives each difference the linked start of its reference section. A difference is
+  `static-callee`, `value-named`, `alias`, `symbol-addend` or `value-for-symbol` only when the word (or branch
+  target) each side links to, computed from the ELF's addresses, the Thumb bit and the addends, is the same;
+  one whose facts are missing is the new class `unverified`, which option (b) of Q1 still gates. An objdiff kind
+  the classifier does not know is an error. D34's gate is unchanged; Q1's table is re-measured with it.
+
+**Consequences.** Both majors are closed with tests that fail before their fix; the public API changes are
+`checkEntry`'s signature, `textLayoutIndex`, `assembleUnits`, `TextLayoutIndex`, DecompState's field type and the
+two diagnostic codes. The owner questions stay Q1 to Q5 of phase-3.md (Q1 and Q2 with this round's numbers); phase
+3 does not land until he answers them, and nothing is waived.
+
+## D67. Phase-3 fix round 3 of the review: what changed
+
+**Context.** The review of fix round 2 (phase-3.md, "Review", fix round 3) found three majors (a unit test that
+assumed a case-insensitive file system, correctness-r2-1; a `[functions]` entry listed `arm` that Thumb code calls
+passing every check and failing the link, correctness-r2-2; module names the model never checked, correctness-r2-3)
+and eleven minors. The brief is unchanged: every owner decision takes its safe default, and a gate change, waiver or
+limitation the owner has not authorised is an owner question.
+
+**Decision.**
+
+- (a) **Module names are checked by the model** (correctness-r2-3). `foundation/asm/dialect.ts` isModuleName is the
+  schema's rule (letters, digits and `_`, not starting with a digit, at most MAX_SYMBOL_NAME characters), and
+  buildModel raises E_NAME_INVALID for a module name it refuses. Two modules whose names are equal or fold to one
+  (whatever their kinds) are the new E_MODULE_NAME_DUPLICATE: both would build `build/<name>.o`. The paths check
+  raises the new E_PATH_INVALID for an emitted path that is not a project path (`isProjectPath`, moved to
+  `foundation/util/project-path.ts` so core/verify can call it; core/write-plan re-exports it), so `writable()` can
+  no longer pass a tree that planWrites throws on. Amends D66 b, which bounded module names only in the schema.
+- (b) **A branch to a function of the other state prints raw** (correctness-r2-2). A `b` or `bl` whose target the
+  module's resolver names by a `func` label of the other state (Thumb code calling an entry listed `arm`, or ARM
+  code calling one listed `thumb`) is a raw-insn with the new reason `'interworking-branch'` (appended to
+  ITEM_RAW_REASONS, so the codes of the earlier reasons are unchanged) and W_INTERWORKING_BRANCH names it: GNU ld
+  would insert an interworking veneer for it, which moves every later byte and which the text-layout check, laying
+  out the text alone, cannot see. Rejected: refusing the config (the user's mode may be right and the callers dead
+  code; printing raw keeps the bytes either way) and re-validating the listed mode in the confirm run (an analysis
+  change measured against g2's gates). No tuning ROM's or fixture's tree changes: none of them has such a branch.
+- (c) **Case renames roll back** (architecture-r2-4): when the second rename of shell/project/spelling.ts renameCase
+  fails, the entry is renamed back to its old name, and E_IO_WRITE names where it actually is (the old name, or the
+  temporary `.romlift-case-*` name when the move back fails too). The rename is still not journalled; that stays a
+  limitation carried into phase 4.
+- (d) **Smaller cleanups** (architecture-r2-6, r2-7, r2-8): assembleUnits derives from buildUnits' one unit builder,
+  and AssembleUnit is exported from `romlift` beside it (the `romlift/node` re-export chain is gone); the package
+  layout of architecture §2 and the roadmap's ownership row list the files the earlier rounds added; label
+  candidates carry their load address as `load` again, sorted through a view; a misplaced doc comment and an alias
+  constant are gone. The case-rename test probes the file system's case sensitivity and passes on both (run on a
+  case-sensitive APFS image as TMPDIR).
+
+**Consequences.** The three majors are closed with tests that fail before their fix (test/local/config-mutations
+links klonoa's tree with a mode-flipped listed function and refuses the renamed modules). The public changes are
+three diagnostic codes, one raw reason and AssembleUnit's entry point. The other minors of the round are carried
+into phase 4 (phase-3.md). The owner questions stay Q1 to Q5 of phase-3.md; phase 3 does not land until he answers
+them, and nothing is waived.
+
+## D68. The owner's answers of 19 October 2026 to the phase-3 owner questions
+
+**Context.** Phase 3 did not land after fix rounds 1 to 3 (D64 to D67): `g3.objdiff` and `g3.large-rom` failed, and
+three narrowings or limitations had no authorisation in the owner's words. phase-3.md put five questions to the
+owner (Q1 to Q5). Bruno Macabeus answered them on 19 October 2026; each chosen option is quoted as he gave it, and
+these are the only gate changes he authorised.
+
+**Decision.**
+
+- (a) **Q1, `g3.objdiff`: "Move gate to phase 5".** `g3.objdiff` moves to phase 5 (where the `expected/` objects and
+  objdiff targets are built) as `test/gates/g5.objdiff.test.ts`; phase 3 records the classified counts as its
+  measurement (phase-3.md, Q1's table, from `bench/tools/objdiff-classes.ts`); the committed classifier stays. In
+  phase 5 the gate applies as D34 writes it unless the owner amends it then. Its check is unchanged, so it still
+  runs in every `bench gates` and fails on the six tuning ROMs; `--require 3` does not count a phase-5 gate.
+- (b) **Q2, `g3.large-rom`: "Measure under a heap cap".** The `romlift` bin runs Node with `--max-old-space-size=256`
+  (the first line of `src/cli/main.ts`, `#!/usr/bin/env -S node --max-old-space-size=256`, which `tsc` keeps in
+  `dist/cli/main.js`), and so does every child of `bench large-rom` (`CHILD_NODE_ARGS`); each child reports the cap
+  of its own command line (`maxOldSpaceSizeMiB`) and the gate requires both runs to exit 0 under it. The answer sets
+  the budget from the measurement under the cap with a stated margin, and requires the 16 MiB tuning ROMs to be
+  measured under the same cap and recorded, completing under it. Measured (phase-3.md, "Measured numbers"): the six
+  tuning ROMs complete under the cap, 309 to 585 MiB peak RSS (`bench large-rom --rom <path>`, two runs each); the
+  32 MiB synthetic ROM does not: `init` ends in V8's "Reached heap limit" (exit 128 for SIGABRT) in every run, and
+  `generate` over a config built without the cap fails the same way under 256 and 320 MiB; both complete under 384
+  MiB (866.5 and 801.4 MiB peak RSS). No budget can be set from a run that did not complete, so the gate keeps
+  D42's 512 MiB and fails; that the cap does not hold the synthetic ROM is owner question Q6 of phase-3.md, not a
+  silent change of the cap or of the image.
+- (c) **Q3, D64 d: "Accept, don't flush generated".** Generated files are not flushed; the journal, the manifest, user
+  edits, scaffold files and C stubs stay flushed (architecture §6.4); `g3.speed-budget` is unchanged.
+- (d) **Q4, the raw printer's PoC parity: "Accept".** The narrowed parity of D65 l (`test/local/poc-raw-printer.test.ts`
+  on the PoC's own spans, labels and word kinds) is roadmap 3.B's gate.
+- (e) **Q5, the limitations carried into phase 4: "Accept Q5a; fix Q5b, c in phase 4".** (a) A ROM whose size the
+  last unit's section alignment does not divide is refused (D65 a): a recorded release-1 limitation. (b) Padding-only
+  orphans are folded into the next function and (c) the confirm run stops re-validating the functions discover
+  listed (measured against g2's gates): both are phase-4 work items, in roadmap.md's phase 4.
+- (f) **The minors carried from the review of fix round 2** (phase-3.md, "Review", fix round 3): architecture-r2-9 is
+  fixed by a unit test (two module-scoped labels of one name in two modules, each module resolving its own).
+  architecture-r2-2 and r2-3 (the classifier's addend decoder and its untested plumbing) move with the gate to
+  phase 5; architecture-r2-1 and r2-5 stay carried into phase 4.
+
+**Consequences.** `g3.objdiff` no longer gates phase 3; `g3.large-rom` measures under the cap and fails on the
+synthetic ROM (Q6). Following the landing procedure, `test/gates/phase.json` was raised to `{ "landed": 3 }` and the
+whole closing list ran in a fresh worktree (phase-3.md, "The closing gate"); `bench gates --require 3 --tier ci`
+exited 1 on `g3.large-rom` alone, so the marker is back at `{ "landed": 2 }` and phase 3 does not land until the
+owner answers Q6.
+
+## D69. The owner's answer of 19 October 2026 to Q6 of phase 3
+
+**Context.** Applying Q2's answer (D68 b) found that no run of the 32 MiB synthetic ROM completes under a 256 MiB
+heap cap (`init` and `generate` end in V8's out-of-memory abort; 320 MiB likewise), while 384 MiB holds it.
+phase-3.md put that to the owner as Q6, with three options: (a) keep 256 MiB and make the analysis hold about 100
+MiB less, (b) raise the cap of the bin and the gate to a measured value that holds the synthetic ROM, (c) keep 256
+MiB for the bin and run the gate under a larger cap.
+
+**Decision.**
+
+- (a) **Q6: "384 MiB for bin and gate".** The `romlift` bin launcher (the first line of `src/cli/main.ts`,
+  `#!/usr/bin/env -S node --max-old-space-size=384`) and `g3.large-rom` (every child of `bench large-rom`,
+  `LARGE_ROM_MAX_OLD_SPACE_MIB`) both use `--max-old-space-size=384`; this replaces Q2's 256 (D68 b). Every ROM size
+  up to 32 MiB must complete under it. The gate requires both runs to exit 0 and to report the 384 MiB cap.
+- (b) **The budget.** The gate's peak-RSS budget is set from the recorded runs under the 384 MiB cap plus a stated
+  margin. Recorded (phase-3.md, "Measured numbers", the owner's answer to Q6; Node 24.15, macOS): seven runs of the
+  synthetic ROM, `init` 817.2 to 866.5 MiB and `generate` 789.3 to 837.9 MiB, every one exiting 0 with the tree
+  digest `9d9c915d…`. The margin is 25% over the largest recorded peak, rounded up to a multiple of 64 MiB: 866.5 ×
+  1.25 = 1,083.1, so **1,088 MiB** (`MAX_RSS_MIB` in `test/gates/g3.large-rom.test.ts`, `LARGE_ROM_MAX_RSS_MIB` in
+  `bench/src/large-rom.ts` for the human output). The gate's own runs in the closing list are recorded beside them.
+  The 16 MiB tuning ROMs (and klonoa, 4 MiB) are re-measured under 384 MiB, two runs each: all complete, 310.6 to
+  667.8 MiB peak RSS (pokeemerald the largest), each writing the same tree digest as under 256 MiB.
+- (c) **The minors carried from the last review.** architecture-r2-5 is fixed (moduleIndexAt's `relocated` is
+  required, the resolver.ts re-export is gone; no result changes). architecture-r2-1 stays carried into phase 4
+  (a public API change with the writer contract D66 d reopens); r2-2 and r2-3 go to phase 5 with `g5.objdiff` (D68
+  f).
+
+These are the only gate changes authorised with D68.
+
+**Consequences.** `g3.large-rom` measures the synthetic ROM under the bin's 384 MiB cap against 1,088 MiB. A user's
+`romlift` run on a 32 MiB ROM holds about 0.8 to 0.9 GiB resident; a ROM whose live set exceeds the 384 MiB old
+space ends in V8's out-of-memory report. With Q1 to Q6 answered, the landing procedure ran again at `739d665` (`test/gates/phase.json`
+at `{ "landed": 3 }`, a fresh worktree): every command of the closing list exited 0, `g3.large-rom` passing at 850.4
+MiB (`init`) and 789.9 MiB (`generate`) under the cap (phase-3.md, "The closing gate"). Nothing is merged or pushed.
+
+**Revision (19 October 2026, the review of `d744f5d`: correctness-r0-1, -r0-2, gate-honesty-r0-1, -r0-2; D70).** The
+sentence "A user's `romlift` run on a 32 MiB ROM holds about 0.8 to 0.9 GiB resident" was not measured on the bin:
+every number behind it came from the bench's `init` and `generate` workflow children. The bin's own `verify`,
+`model` and `analyze --json` aborted with V8's out-of-memory report on the synthetic ROM under the 384 MiB cap at
+`d744f5d`, so (a)'s "every ROM size up to 32 MiB must complete under it" did not hold for the bin until D70 a. The
+landing run at `739d665` is withdrawn as a landing for that reason. (b)'s range and margin are restated in D70 c.
+
+**Revision (19 October 2026, the review of `16d1280`; D71).** (a)'s "every ROM size up to 32 MiB must complete under
+it" is met for the synthetic image and the tuning ROMs, not for a 32 MiB ROM of real code density (pokeemerald twice
+over), on which every bin command aborts under the cap: owner question Q7 (D71 a).
+
+**Revision (19 October 2026, the owner's answer to Q7; D72).** (a)'s cap is replaced: the bin and `g3.large-rom` use
+`--max-old-space-size=1024` ("Raise cap to 1,024 MiB"), and "every ROM size up to 32 MiB must complete under it" now
+reads under that cap. (b)'s 1,088 MiB is replaced by 1,536 MiB, set again from the runs under 1,024 MiB with the same
+margin (D72 b).
+
+## D70. Phase-3 fix round 4: the bin's commands under the 384 MiB cap
+
+**Context.** The review of `d744f5d` (correctness-r0-1 to -r0-5, gate-honesty-r0-1 to -r0-5) ran the `romlift` bin
+itself on the 32 MiB synthetic ROM under the cap of D69 a: `verify` (with or without `--assemble`, `--link`, either
+printer), `model`, `model --json` and `analyze --json` exited 134 with V8's out-of-memory report, while
+`g3.large-rom` passed, because the gate measures the bench's `init` and `generate` workflow children
+(`bench/src/large-rom.ts`), which take other paths than the CLI. The owner's answer to Q6 requires every ROM size up
+to 32 MiB to complete under the cap, and says these are the only gate changes authorised.
+
+**Decision.**
+
+- (a) **The bin's paths fit under the cap; no result changes.** `generateFromRom` and `initModel` keep only the
+  config of the discover run (`configAlone`), so the discover analysis is garbage before the confirm analysis runs
+  (both were live at once). `analyze --json` and `model --json` stream their NDJSON through `writeLines`, 4,096 lines
+  per stdout write, awaiting `CliIo.drained` between batches, so neither the output (114 MB for `analyze --json` on
+  the synthetic ROM) nor a slow pipe's queue is ever whole in memory. Every output is byte-identical to `d744f5d`'s
+  uncapped run (`analyze --json`, `model --json`, `verify --json`, `verify --assemble --link --json`).
+- (b) **The bin's commands are measured, the gate is not changed.** `bench large-rom --bin [--rom <path>]`
+  (`bench/src/large-rom-bin.ts`) runs `analyze`, `analyze --json`, `explain --json`, `model`, `model --json`,
+  `verify --json`, `verify --assemble --link --json` and `verify --printer raw --link --json`, each its own process
+  from source with the Node options of `src/cli/main.ts`'s launcher line, its peak RSS from a preload
+  (`bench/src/rss-probe.ts`). `test/local/large-rom-bin.test.ts` requires every one to exit 0 with an ok summary (and
+  the ROM's SHA-1 after `--link`); it runs in the closing list through `test:local` and fails at `d744f5d`. Making
+  `g3.large-rom` run them would change a gate, which the owner has not authorised, so the gate keeps D69's `init`
+  and `generate` runs.
+- (c) **The budget's record.** `MAX_RSS_MIB` stays 1,088 MiB. It was set at `a206ac1` as the largest peak then
+  recorded (866.5 MiB) plus 25%. The runs recorded since, among them the review's (`init` 945.5 MiB in a fresh
+  clone's `run --scaffold`, 918.75 MiB by hand), put the largest recorded `init` peak at 945.5 MiB: the budget is
+  15.1% above it, not 25%. Raising the budget to keep 25% over the new maximum would change the gate, so it is not
+  done; the record states the headroom instead (phase-3.md, "Measured numbers", fix round 4).
+- (d) **The binding limit is the old space, and it is recorded.** Each child of `bench large-rom` reports
+  `peakLiveHeapMiB`, the largest heap V8 finds live after a full mark-compact (`node:v8` `GCProfiler`); measured
+  on the synthetic ROM at 314.5 to 351.6 MiB (`init`) and 330.4 to 353.0 MiB (`generate`) of the 384 MiB cap (four runs, the closing list's `run --scaffold` among them; corrected by D71 f), while
+  their RSS stays at least 140 MiB under the RSS budget. A run fails by the heap cap long before the RSS budget, and
+  the headroom against the cap is about 31 MiB (8%). Growth of the live peak past about 355 MiB is a regression
+  signal to act on before it becomes an abort; it is volatile (timings), not gated.
+- (e) **The artifact shows the cap.** The memory member of `bench/results.json` keeps each run's
+  `maxOldSpaceSizeMiB`; the memory family's summary says the runs are recorded and `g3.large-rom` judges them, since
+  nothing in `run`, `regression` or `provenance` judges the budget.
+- (f) **correctness-r0-5.** The data writer computes the relocated modules once per module; `moduleAt` is documented
+  as the one-address form (it filters per call); resolver.ts's orphan comment is gone. pool.ts's
+  `visibleLabelsAt` keeps calling `moduleAt`, once per address that has labels: threading the list through
+  `wordText`, `labelForWord` and their callers changes the printer helpers' signatures for a filter over at most a
+  few dozen modules.
+
+**Consequences.** Every phase-3 command of the bin completes on the 32 MiB synthetic ROM under the 384 MiB cap
+(peak RSS 765.3 to 811.8 MiB) and on the six tuning ROMs (238.8 to 697.4 MiB). The landing procedure runs again after
+this round: at `81210eb`, `test/gates/phase.json` at `{ "landed": 3 }`, in a fresh worktree, every command of the
+closing list exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (840.4 and 772.3 MiB) among them
+(phase-3.md, "The closing gate", fix round 4). No gate threshold changed. Nothing is merged or pushed.
+
+**Revision (19 October 2026, the review of `16d1280`: correctness-r1-1, -r1-2; D71).** "Every phase-3 command of the bin
+completes on the 32 MiB synthetic ROM" holds for that code-sparse image and the six tuning ROMs, not for every 32 MiB
+ROM: a code-dense one (pokeemerald twice over) does not complete under the cap (D71 a, Q7). (d)'s headroom of about 31
+MiB is that of the gate's children; the bin's commands reach 377.5 MiB of the 384 MiB old space (D71 b).
+
+**Revision (19 October 2026, the owner's answer to Q7; D72).** The cap is 1,024 MiB and the budget 1,536 MiB (D72 a, b);
+(c)'s and (d)'s numbers are those of the 384 MiB cap and stay as the record of it.
+
+## D71. Phase-3 fix round 5: a code-dense 32 MiB ROM, the bin's live heap, and owner question Q7
+
+**Context.** The review of `16d1280` (correctness-r1-1 to -r1-4, gate-honesty-r1-1 to -r1-3) built a 32 MiB ROM of real
+code density, `pokeemerald.gba` concatenated with itself (SHA-1 `fb17b88d…`, never committed), and ran the bin on it
+under the 384 MiB cap of D69 a: `analyze` and `verify --link` ended in V8's out-of-memory abort. D69 a reads "every
+ROM size up to 32 MiB must complete under it", and D70's consequences said every phase-3 command of the bin
+completes, which held for the code-sparse synthetic image only (3,639 functions; the doubled ROM has 29,084). The
+review also found the recorded headroom (D70 d) measured on the gate's workflow children alone, while the bin's own
+commands came within 9 to 22 MiB of the cap, four bin command forms above the recorded range, and the budget's basis
+and two run counts stated inconsistently.
+
+**Decision.**
+
+- (a) **Q7 goes to the owner; no cap, gate or claim changes in this round.** Measured on the doubled ROM (phase-3.md,
+  Q7): every one of the twelve bin command forms aborts under the cap, and so does `bench large-rom --rom`'s `init`;
+  without a cap `verify` holds 721 MiB live after a full mark-compact and `analyze` 421 MiB; at 768 MiB every `verify`
+  form still aborts, at 1,024 MiB every command completes. No change of a fix round's size halves `verify`'s live set:
+  the readings' instruction spans and the text-layout check's whole-tree text and statements are what it holds, and
+  shrinking them is a redesign. Fitting the doubled ROM under 384 MiB, raising the cap, or reading Q6's words as the
+  sizes the synthetic image measures is the owner's choice (Q7's options a to c). Until he answers, the record claims
+  completion under the cap for the synthetic image and the six tuning ROMs only, the doubled ROM is a recorded
+  counterexample, and phase 3 does not land.
+- (b) **The bin's live heap is measured, and the headroom restated from it.** `bench/src/rss-probe.ts` also reports
+  the largest heap live after a full mark-compact (`node:v8` `GCProfiler`, through `bench/src/live-heap.ts`, which the
+  gate's children share), and `bench large-rom --bin` records it per command (`peakLiveHeapMiB`). On the synthetic
+  image the bin's commands reach 377.5 MiB (macOS) and 377.4 MiB (Linux), `verify --assemble` under Node 24, of the
+  384 MiB old space: about 6.5 MiB, 2%, of headroom, where D70 d put it at 31 MiB from the gate's children (whose own
+  live peak is at most 354.6 MiB, Linux Node 24). A bin command's live peak past the recorded maximum is the
+  regression signal, replacing D70 d's 355 MiB; there is no margin left to set it at.
+- (c) **`analyze`'s text output streams.** With the live heap measured, `analyze <rom>` (text) aborted on the synthetic
+  image under the cap in 3 of 6 Node 22.18 runs on macOS and in the Linux Node 22.18 run: it built every row of its
+  600,000-odd rejection table, then the output, as one string. `columnLines` yields one line per row, computing the
+  widths in a first pass, and the command writes them through `writeLines` (D70 a); the output is byte-identical; the
+  live peak falls from about 346 to 291.1 to 300.8 MiB, and every run completes on both Node versions.
+- (d) **The budget's basis.** `MAX_RSS_MIB` stays 1,088 MiB. D69 b set it once, at `a206ac1`, from the runs then
+  recorded: their largest peak, 866.5 MiB, plus 25%, rounded up to a multiple of 64 MiB. The largest peak recorded
+  since is 945.5 MiB, which it is 15.1% above. Q6's rule ("set from the recorded runs under the 384 MiB cap plus a
+  stated margin") was applied when the budget was set and does not ask for it to be set again with each later run;
+  raising it would loosen the gate. The gate's comment, `bench/src/large-rom.ts`, roadmap 3.E and architecture §12 now
+  say this. No owner question is open on the budget; the fix report's "needs the owner" is withdrawn.
+- (e) **Four more bin command forms.** `BIN_RUNS` (and `test/local/large-rom-bin.test.ts`) adds `explain` and `verify
+  --assemble` (text), `verify --assemble --json` and `verify --printer raw --assemble --json`: twelve forms.
+- (f) **Counts corrected.** D70 d's live-heap ranges come from four runs (synthetic 1 to 3 and the closing list's `run
+  --scaffold`), not five; phase-3.md's review row says eighteen runs, as its measured numbers do.
+- (g) **Node 22.18 and Linux are measured.** `g3.large-rom`'s children and the bin's commands on the synthetic image run
+  under Node 22.18 on macOS and under Node 22.18 and 24 on Linux (arm64, Debian bookworm containers): every run of the
+  gate's children completes, and after (c) every bin command (phase-3.md, "Measured numbers", fix round 5). The phase
+  pull request's CI numbers (ubuntu-latest and macos-latest, Node 22.18 and 24) are recorded when that pull request
+  runs, before the merge.
+- (h) **A printer defect the doubled ROM shows.** The readable tree of the doubled ROM fails the text-layout check on
+  two `adr` lines naming a function label (verify exit 3); the check refuses it, so nothing wrong is written. No
+  tuning ROM or fixture shows it; it is recorded, not fixed, in this round.
+
+**Consequences.** No gate threshold changed. Every bin command completes under the cap on the synthetic image (Node
+24.15 and 22.18, macOS and Linux) and on the six tuning ROMs (Node 24.15, macOS); on a code-dense 32 MiB ROM none does, which is
+Q7. The closing list ran again at `71143d4` (`test/gates/phase.json` at `{ "landed": 3 }`, a fresh worktree): every
+command exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (887.2 and 772.8 MiB) among them (phase-3.md,
+"The closing gate", fix round 5). Phase 3 is not landed;
+nothing is merged or pushed.
+
+**Revision (19 October 2026, the owner's answer to Q7; D72).** Q7 is answered, "Raise cap to 1,024 MiB" (option b):
+(a)'s "no cap, gate or claim changes in this round" and "phase 3 does not land" are superseded. Under the 1,024 MiB cap
+every bin command form completes on the doubled ROM, the raw printer's tree linking to its SHA-1; (h)'s readable
+`verify` exit 3 there is a phase-4 work item the owner assigned and a recorded known limitation of phase 3 (D72 c).
+(b)'s headroom of 2% is that of the 384 MiB cap; under 1,024 MiB it is restated in D72's consequences.
+
+## D72. The owner's answer of 19 October 2026 to Q7 of phase 3
+
+**Context.** Fix round 5 (D71 a) found that a 32 MiB ROM of real code density, `pokeemerald.gba` concatenated with
+itself (SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`, never committed; "the doubled ROM"), does not complete any
+bin command under Q6's 384 MiB cap, while 1,024 MiB holds every command. phase-3.md put that to the owner as Q7 with
+three options: (a) keep 384 MiB and redesign the readings' storage and the check pass, (b) raise the cap of the bin
+and the gate to a measured value that holds the doubled ROM, (c) read Q6's "every ROM size up to 32 MiB" as the sizes
+the synthetic image and the tuning ROMs measure.
+
+**Decision.**
+
+- (a) **Q7: "Raise cap to 1,024 MiB" (option b).** The `romlift` bin launcher (the first line of `src/cli/main.ts`,
+  `#!/usr/bin/env -S node --max-old-space-size=1024`, which `tsc` keeps in `dist/cli/main.js`) and `g3.large-rom`
+  (every child of `bench large-rom`, `LARGE_ROM_MAX_OLD_SPACE_MIB`; the gate's `HEAP_CAP_MIB`, which each run's report
+  must carry) both use `--max-old-space-size=1024`; this replaces Q6's 384 (D69 a), which replaced Q2's 256 (D68 b).
+  Q6's "every ROM size up to 32 MiB must complete under it" now reads under the 1,024 MiB cap. Applied at `1443c2c`.
+- (b) **The budget, set again.** `g3.large-rom`'s peak-RSS budget is set again from recorded runs under the 1,024 MiB
+  cap plus a stated margin. Recorded at `1443c2c` (phase-3.md, "Measured numbers", the owner's answer to Q7; Node
+  24.15, macOS): eight runs of `bench large-rom --json` on the synthetic image, every child exiting 0 under the cap
+  with the tree `9d9c915d…`; `init` 964.1 to 1,040.6 MiB and `generate` 959.2 to 1,210.1 MiB peak RSS, live heap 287.7
+  to 348.9 MiB. The margin is D69 b's: 25% over the largest recorded peak, rounded up to a multiple of 64 MiB:
+  1,210.1 × 1.25 = 1,512.6, so **1,536 MiB** (`MAX_RSS_MIB` in `test/gates/g3.large-rom.test.ts`,
+  `LARGE_ROM_MAX_RSS_MIB` in `bench/src/large-rom.ts`, the memory family's summary), at `745505f`. It replaces D69 b's
+  1,088 MiB. V8 sizes its heap to the cap, so the same ROM's peak RSS rose by about 150 to 350 MiB from the runs under
+  384 MiB (814.0 to 945.5 MiB) while its live heap stayed where it was.
+- (c) **The doubled ROM, and the phase-4 work item.** Under the 1,024 MiB cap every one of the twelve bin command forms
+  of `bench large-rom --bin --rom <the doubled ROM>` completes, none aborting: 951.6 to 1,376.0 MiB peak RSS, live heap
+  365.4 to 922.7 MiB (the raw printer's two `verify` forms the largest, about 101 MiB, 10%, under the old space). The
+  raw printer's `verify --link` links to its SHA-1 `fb17b88d…`. The four readable `verify` forms exit 3 on the
+  text-layout check alone (two problems, `cannot encode \`adr r6, sub_0906A708\` at 0x0906A56C`): the readable printer
+  names an `adr` target by a function label `as` cannot encode there. By the owner's answer that is a phase-4 work item
+  (roadmap.md, phase 4, "Carried from phase 3"), and in phase 3 the exit 3 is a recorded known limitation, not a
+  failure; `bench large-rom --bin --rom` therefore exits 1 on that ROM. `bench large-rom --rom` on it (the workflow
+  children) completes too: `init` and `generate` exit 3 on the same check at 1,339.2 and 1,304.0 MiB, writing nothing.
+- (d) **The synthetic image and the tuning ROMs, re-measured under 1,024 MiB.** The bin's twelve forms on the synthetic
+  image: every one exits 0 (ok summaries, both `--link` forms linking `b846b945…`), 940.0 to 1,217.6 MiB peak RSS, live
+  heap 299.1 to 422.6 MiB. The six tuning ROMs, the workflow children (`bench large-rom --rom`) and the twelve bin forms
+  (`--bin --rom`), one run each: every run exits 0, each `--link` linking the ROM's SHA-1, the children writing the
+  tree digests they wrote under 384 MiB; peak RSS 313.1 to 750.8 MiB (children) and 212.7 to 847.5 MiB (bin), both
+  largest on pokeemerald.
+- (e) **Not done.** No dense ROM is added to `g3.large-rom` (the owner did not authorise it); the gate keeps the
+  synthetic image. `test/local/large-rom-bin.test.ts` keeps requiring the bin on the synthetic image, now under 1,024
+  MiB. These are the only gate changes authorised with D68 and D69.
+- (f) **The minors carried from the last review** (phase-3.md, "Review", fix round 5): gate-honesty-r1-3's remainder,
+  the phase pull request's CI numbers, waits for that pull request (nothing is pushed); correctness-r0-5's remainder
+  (pool.ts) and architecture-r2-1 and r2-4 stay carried into phase 4, r2-2 and r2-3 into phase 5. None is a change a
+  fix of this size makes cheaply.
+
+**Consequences.** The bin and `g3.large-rom` run under 1,024 MiB of old space, and the gate judges peak RSS below 1,536
+MiB. D69 b's budget, D70 d's and D71 b's headroom statements are of the 384 MiB cap: under 1,024 MiB the synthetic
+image's largest live heap of a bin command (422.6 MiB, `explain --json`) leaves about 601 MiB, and the doubled ROM's
+(922.7 MiB, the raw `verify`) about 101 MiB. A code-dense ROM larger than the doubled one may still exceed the cap,
+which ends in V8's out-of-memory report (exit 134); the memory work of Q7's option (a) stays possible later work, not a
+phase-3 item. Following the landing procedure, with `test/gates/phase.json` at `{ "landed": 3 }`, the whole closing
+list ran in a fresh worktree at `1b4d37f` (phase-3.md, "The closing gate", the owner's answer to Q7): every command
+exited 0, `test/local/large-rom-bin.test.ts` and `g3.large-rom` (996.7 and 1,093.3 MiB under the 1,024 MiB cap) among
+them, but `gates --require 3 --tier real`, whose `g2.speed` measured sa2's analysis at 787.3 ms against a limit of 786.8
+ms, and the two provenance checks that read that verdict. That is outside the answers: `phase.json` is back at
+`{ "landed": 2 }` and the question is Q8 of phase-3.md. Nothing is merged or pushed.
+
+## D73. The owner's answer of 19 October 2026 to Q8 of phase 3
+
+**Context.** The landing run after Q7's answer (D72), the whole closing list in a fresh worktree at `1b4d37f` with
+`test/gates/phase.json` at `{ "landed": 3 }`, exited 0 on every command but three: `bench gates --require 3 --tier
+real` failed on `g2.speed` alone, which measured sa2's median analysis CPU time at 787.3 ms against its limit of
+786.8 ms (0.5 ms, 0.06% over), and `g1.provenance` and `bench provenance` failed on the gate record holding that
+verdict. No analysis code had changed since the passing run at `71143d4`. That failure is outside the earlier answers,
+so `phase.json` went back to `{ "landed": 2 }` (`afe4f78`) and phase-3.md put it to the owner as Q8 with three options:
+(a) run the closing list again unchanged, (b) measure the cause before any further landing run, (c) change `g2.speed`.
+
+**Decision.**
+
+- (a) **Q8: "Re-run the gate list" (option a).** The whole closing list of phase-3.md runs again unchanged, at a commit
+  that raises `test/gates/phase.json` to `{ "landed": 3 }` again, and phase 3 lands if every command exits 0. The gate
+  is not changed (`g2.speed`, `bench/baseline/speed.json` and every threshold stay as they are), and the failed run at
+  `1b4d37f` stays recorded (phase-3.md, "The closing gate", the owner's answer to Q7).
+- (b) **No retry loop.** If `g2.speed`, or any other command of the list, fails again, that is a new owner question,
+  not a further run: `phase.json` goes back to `{ "landed": 2 }` and phase-3.md records the run and the question.
+- (c) **The only gate changes.** These and the answers of D68, D69 and D72 are the only gate changes the owner
+  authorised; Q8's answer authorises none.
+- (d) **The carried minors.** Looked at again with this answer: gate-honesty-r1-3's remainder (the phase pull
+  request's CI numbers) still waits for that pull request; correctness-r0-5's remainder (pool.ts), architecture-r2-1
+  and r2-4 stay carried into phase 4, r2-2 and r2-3 into phase 5 (D72 f). None changed since D72 f found them not cheap;
+  the one cheap fix taken is this file's preamble, which listed the decisions only through D64 and now names D65 to D73.
+
+**Consequences.** No code or gate changes. `test/gates/phase.json` was raised to `{ "landed": 3 }` at `0784b4e`, and the
+whole closing list ran in a fresh worktree at that commit (phase-3.md, "The closing gate", the owner's answer to Q8):
+every command exited 0, among them `gates --require 3 --tier real` with `g2.speed` passing (calibration ratio 0.978,
+sa2 725 ms against 798 ms) and `gates --require 3 --tier ci` with `g3.large-rom` passing under the 1,024 MiB cap (1,039.2
+and 1,002.9 MiB, budget 1,536 MiB). Phase 3 passes its closing gate; the marker stays at `{ "landed": 3 }`, the artifact
+of that run (`meta.commit` `0784b4e`) is committed, and the merge to `main` waits for the phase pull request's CI.
+Nothing is merged or pushed.
 
 ## Review findings index
 

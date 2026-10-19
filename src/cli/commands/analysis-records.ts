@@ -43,3 +43,21 @@ export function printDiagnosticsOnly(io: CliIo, json: boolean, command: string, 
   io.stdout(`${command}: ${formatSummaryText(summary)}\n`);
 }
 
+/** How many NDJSON lines a streaming command joins into one stdout write. */
+const LINES_PER_WRITE = 4096;
+
+/**
+ * Writes `lines` to stdout in batches, awaiting `io.drained` between them: an output of hundreds of thousands of
+ * lines (analyze's rejections, model's chunks on a 32 MiB ROM) is never one string or one queue (D69).
+ */
+export async function writeLines(io: CliIo, lines: Iterable<string>): Promise<void> {
+  let batch: string[] = [];
+  for (const line of lines) {
+    batch.push(line);
+    if (batch.length < LINES_PER_WRITE) continue;
+    io.stdout(batch.join(''));
+    batch = [];
+    await io.drained?.();
+  }
+  if (batch.length > 0) io.stdout(batch.join(''));
+}

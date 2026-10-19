@@ -15,3 +15,13 @@ The entry points `index.ts` (`romlift`), `node.ts` (`romlift/node`), `isa.ts` (`
 `analyze` (`api/profile.ts`, `api/analysis.ts`); `romlift/internal` exports the tuned analysis, the rule
 registry, `defineRule`, `diagnoseMisses` and `makeReading` (`api/internal-analysis.ts`). They are created by component 1.0 of
 phase 1, as is every file listed for it in [roadmap.md](../docs/roadmap.md).
+
+From phase 3, `romlift` exports the config, proposal and layout types with `BUILD_COMPILERS`, `sourceKey` and
+`validateConfig` (`api/config-types.ts`), the model types with `itemAt`, `resolverFor`, `wordValueOf` and the
+shared paths (`api/model.ts`), the emission stream's types (`api/emit.ts`), the verify report
+(`api/verify.ts`) and the write plan's types with the manifest and journal codecs (`api/write-plan.ts`); the
+phase-3 lead created them, with the empty `api/{layout,internal-emit,project,workflow-generate}.ts` that the
+wave-2 and wave-3 components fill (D62). `api/workflow-generate.ts` holds `generate` (its result is plain data;
+`generatedEntries` re-emits its stream), the phase-3 `init` equivalents `initConfig`, `initModel` and
+`generateFromRom`, `discoverModel` and `freshTreePlanInputs`; `romlift/node`'s `api/project.ts` adds
+`writeFreshTree`, the one way a fresh tree is written (D65).

@@ -32,8 +32,50 @@ const MACROS_INC = `${[
   endMacro('thumb_func_end'),
 ].join('\n\n')}\n`;
 
+/**
+ * A symbol name a generated file may define and reference: a letter or `_`, then letters, digits, `_`, `.` and
+ * `$`. GNU as reads a leading `$` as an ARM mapping symbol (`$a`, `$t`, `$d`, which change how objdump and ld
+ * see the bytes) and a leading `.` as a section name or a local `.L` label, so neither may start a name.
+ */
+const SYMBOL_NAME = /^[A-Za-z_][A-Za-z0-9_.$]*$/;
+
+/**
+ * The longest symbol name, in characters (ASCII, so bytes): a function's name is a file name,
+ * `<Name>_<ADDR>.s` in a case-folded group (core/model/paths.ts), and file systems store at most 255 bytes
+ * per name, so 200 leaves room for the 11 bytes of `_<ADDR>.s`.
+ */
+export const MAX_SYMBOL_NAME = 200;
+
+/** Whether `name` is a symbol name (SYMBOL_NAME, at most MAX_SYMBOL_NAME characters) a generated file may define. */
+export function isSymbolName(name: string): boolean {
+  return name.length <= MAX_SYMBOL_NAME && SYMBOL_NAME.test(name);
+}
+
+/** What isSymbolName accepts, as the config schema and E_NAME_INVALID say it. */
+export const SYMBOL_NAME_RULE = `a letter or _, then letters, digits, _, . and $, at most ${MAX_SYMBOL_NAME} characters`;
+
+/**
+ * A module name: it names a source file (`asm/<name>.s`), a directory (`asm/nonmatchings/<name>/`), an object
+ * (`build/<name>.o`) and the object's linker-script line, so it is one path component with no `.` or `$`.
+ */
+const MODULE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Whether `name` is a module name (MODULE_NAME, at most MAX_SYMBOL_NAME characters). */
+export function isModuleName(name: string): boolean {
+  return name.length <= MAX_SYMBOL_NAME && MODULE_NAME.test(name);
+}
+
+/** What isModuleName accepts, as the config schema and E_NAME_INVALID say it. */
+export const MODULE_NAME_RULE = `letters, digits and _, not starting with a digit, at most ${MAX_SYMBOL_NAME} characters`;
+
+/** The macro file's project path, the one definition (core/model/paths.ts re-exports it as MACROS_PATH). */
+const MACROS_PATH = 'include/macros.inc';
+const MACROS_INCLUDE = `.include "${MACROS_PATH}"`;
+
 export const DIALECT: Dialect = {
-  preamble: (mode) => `.syntax unified\n.include "include/macros.inc"\n${mode === 'arm' ? '.arm' : '.thumb'}\n`,
+  preamble: (mode) => `.syntax unified\n${MACROS_INCLUDE}\n${mode === 'arm' ? '.arm' : '.thumb'}\n`,
+  macrosPath: MACROS_PATH,
+  macrosInclude: MACROS_INCLUDE,
   macrosInc: MACROS_INC,
   asArgs: ['-mcpu=arm7tdmi'],
 };

@@ -6,6 +6,8 @@
   "sha1": "7bcd6a07af7c894746fa28073fe0c0e34408022d",
   "elfCommit": "393357f7c",
   "elfSha256": "34c0c9c5fd817b7d77502235ba3127cd83f023ee6eb15cdfe4bbd18d026ff265",
+  "objectsDir": "sa2/build/gba/sa2",
+  "objectsDigest": "8b5de59d45bec1f4af3c441b31d526bba0828549222185ccedd7ce8a5b3189a0",
   "family": "sat-r",
   "buildNote": "sa2 and sa3 tool builds need Apple's ar first in PATH (Homebrew binutils makes archives Apple's ld rejects); the checkout carried Linux ARM64 tool binaries that had to be rebuilt natively; satr-agbcc/build.sh fails on old_agbcc with gcc-13, but the main agbcc builds",
   "heldout": false,

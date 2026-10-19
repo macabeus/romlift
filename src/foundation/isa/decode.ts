@@ -4,6 +4,7 @@
 // 27..20 and 7..4, each listing the rows those bits allow, in table order. Decode never throws: every
 // word matches a row, because each table ends with a catch-all row, resolved once at module load.
 import { RomliftInvariantError } from '../diagnostics/diagnostic.ts';
+import { peek16 } from '../rom/rom.ts';
 import type { Rom } from '../rom/rom.ts';
 import type { Addr, Mode } from '../rom/span.ts';
 import { flowOf } from './flow.ts';
@@ -64,9 +65,34 @@ function armRow(word: number): Row {
   return ARM_LAST;
 }
 
+/** Whether a Thumb halfword is the prefix of a bl pair (its high offset). */
+export function isThumbBlPrefix(hw: number): boolean {
+  return (hw & 0xf800) === 0xf000;
+}
+
+/** Whether a Thumb halfword is the suffix of a bl pair (its low offset). */
+export function isThumbBlSuffix(hw: number): boolean {
+  return (hw & 0xf800) === 0xf800;
+}
+
+/** Whether a Thumb halfword may be a b or bcc (bcc's space also holds swi and the undefined forms): decode decides. */
+export function thumbMayBranchShort(hw: number): boolean {
+  return (hw & 0xf000) === 0xd000 || (hw & 0xf800) === 0xe000;
+}
+
+/** Whether a Thumb halfword may be a PC-relative load (`ldr rd, [pc, #]`) or an adr (`add rd, pc, #`): decode decides. */
+export function thumbMayReachPcRelative(hw: number): boolean {
+  return (hw & 0xf800) === 0x4800 || (hw & 0xf800) === 0xa000;
+}
+
+/** Whether a Thumb halfword alone may name an address (a short branch, a PC-relative load, an adr); a bl is its prefix and suffix. */
+export function thumbMayName(hw: number): boolean {
+  return thumbMayBranchShort(hw) || thumbMayReachPcRelative(hw);
+}
+
 function thumbRow(word: number): Row {
   const hw = word & 0xffff;
-  if ((hw & 0xf800) === 0xf000 && ((word >>> 16) & 0xf800) === 0xf800) return THUMB_BL;
+  if (isThumbBlPrefix(hw) && isThumbBlSuffix(word >>> 16)) return THUMB_BL;
   return THUMB16[THUMB_INDEX[hw] ?? THUMB16.length - 1] ?? THUMB_LAST;
 }
 
@@ -100,11 +126,8 @@ export function decode(mode: Mode, word: number, addr: Addr): Insn {
  * ROM (a bl pair decodes as one instruction). A halfword outside the ROM reads as zero.
  */
 export function thumbWordAt(rom: Rom, a: Addr): number {
-  const b = rom.bytes;
-  const k = a - rom.base;
-  const lo = (b[k] ?? 0) | ((b[k + 1] ?? 0) << 8);
-  const hi = a + 4 <= rom.end ? (b[k + 2] ?? 0) | ((b[k + 3] ?? 0) << 8) : 0;
-  return (lo | (hi << 16)) >>> 0;
+  const hi = a + 4 <= rom.end ? peek16(rom, a + 2) : 0;
+  return (peek16(rom, a) | (hi << 16)) >>> 0;
 }
 
 /** The condition field's value that means 'always' (al). */

@@ -6,6 +6,8 @@
   "sha1": "037702b1febd5c9535262165bf030551d153de81",
   "elfCommit": "f27a029",
   "elfSha256": "32b35ebe4ddf5ffa0b1fa438713fad213ea009c36cfae62ae10a9e82f44f983b",
+  "objectsDir": "FireEmblem7J/build",
+  "objectsDigest": "040781bd692dadc9450d1edbae55b23e813c78f38a6b7055081b113122003366",
   "family": "fe-gba",
   "buildNote": "unchanged",
   "heldout": false,

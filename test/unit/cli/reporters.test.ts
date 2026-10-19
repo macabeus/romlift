@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Diagnostic } from '../../../src/api/rom.ts';
+import { writeLines } from '../../../src/cli/commands/analysis-records.ts';
 import { ExitCode, isExitCode } from '../../../src/cli/exit-codes.ts';
+import type { CliIo } from '../../../src/cli/registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../../../src/cli/reporters/ndjson.ts';
-import { columns, formatDiagnosticText, formatSummaryText } from '../../../src/cli/reporters/text.ts';
+import { columnLines, columns, formatDiagnosticText, formatSummaryText } from '../../../src/cli/reporters/text.ts';
 
 const full: Diagnostic = {
   code: 'E_ROM_NOT_GBA',
@@ -105,4 +107,38 @@ test('isExitCode accepts exactly the five codes', () => {
 
 test('columns pads every column but the last and trims the line end', () => {
   assert.equal(columns([['a', 'bbb', 'c'], ['dddd', 'e', '']], '  '), '  a     bbb  c\n  dddd  e\n');
+});
+
+test('columnLines yields the lines of columns one row at a time, building each row twice and holding none', () => {
+  const rows = [['a', 'bbb', 'c'], ['dddd', 'e', '']];
+  const built: number[] = [];
+  const lines = [...columnLines(rows.length, (k) => (built.push(k), rows[k] ?? []), '  ')];
+  assert.deepEqual(lines, ['  a     bbb  c\n', '  dddd  e\n']);
+  assert.equal(lines.join(''), columns(rows, '  '));
+  assert.deepEqual(built, [0, 1, 0, 1], 'once for the widths, once to print');
+  assert.deepEqual([...columnLines(0, () => [])], []);
+});
+
+test('writeLines: batches of 4,096 lines, awaiting io.drained between batches, the text unchanged (D69, fix round 4)', async () => {
+  const out: string[] = [];
+  let drains = 0;
+  const io: CliIo = {
+    stdout: (text) => {
+      out.push(text);
+    },
+    stderr: () => undefined,
+    drained: async () => {
+      drains += 1;
+    },
+    cwd: '/',
+    env: {},
+  };
+  const lines = Array.from({ length: 10_000 }, (_, i) => `${i}\n`);
+  await writeLines(io, lines);
+  assert.equal(out.join(''), lines.join(''));
+  assert.deepEqual(out.map((t) => t.split('\n').length - 1), [4096, 4096, 1808]);
+  assert.equal(drains, 2, 'awaited after each full batch');
+  const bare: string[] = [];
+  await writeLines({ stdout: (t) => bare.push(t), stderr: () => undefined, cwd: '/', env: {} }, ['a\n']);
+  assert.deepEqual(bare, ['a\n'], 'an io without drained (the fakes) writes all the same');
 });

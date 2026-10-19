@@ -22,6 +22,18 @@ export interface ElfSection {
   readonly entsize: number;
 }
 
+/** One SHT_REL entry of an ARM ELF that applies to a section. */
+export interface ElfRelocation {
+  /** r_offset: the byte offset in the section it applies to. */
+  readonly offset: number;
+  /** ELF32_R_TYPE(r_info): the R_ARM_* type. */
+  readonly type: number;
+  /** ELF32_R_SYM(r_info): the symbol table index. */
+  readonly symbol: number;
+  /** The bytes the relocation's field covers in the section (0 for a type that changes no byte). */
+  readonly width: number;
+}
+
 export interface ElfSymbol {
   readonly name: string;
   /** The raw st_value. */

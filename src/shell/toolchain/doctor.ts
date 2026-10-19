@@ -7,6 +7,7 @@
 import { join } from 'node:path';
 
 import { DIALECT } from '../../foundation/asm/dialect.ts';
+import { MACROS_PATH } from '../../core/model/paths.ts';
 import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { DEFAULT_CORPUS_OPTIONS, mergeSections } from '../../foundation/corpus/corpus.ts';
@@ -69,7 +70,7 @@ async function binutilsCheck(tools: Binutils | Diagnostic): Promise<Outcome & { 
 // corpus
 
 /** `N cases (thumb …, bl …, arm …); disagreements: as N, encoder N, context N; raw: <reason> N, …`. */
-export function corpusDetail(counts: CorpusCounts, options: CorpusOptions): string {
+function corpusDetail(counts: CorpusCounts, options: CorpusOptions): string {
   const { thumb, bl, arm } = counts.sections;
   const total = mergeSections([thumb, bl, arm]);
   const parts = [
@@ -136,7 +137,7 @@ async function jump11Check(tools: Binutils): Promise<Outcome> {
   const expected = JUMP11_EXPECTED;
   const size = PROBE_TARGET - PROBE_BASE + 2;
   const what = `b at 0x${hex(PROBE_BASE, 8)} to a global of another object at 0x${hex(PROBE_TARGET, 8)}`;
-  const linked = await linkWithBinutils(PROBE_SOURCES, { script: PROBE_SCRIPT, tools, files: { 'include/macros.inc': DIALECT.macrosInc } });
+  const linked = await linkWithBinutils(PROBE_SOURCES, { script: PROBE_SCRIPT, tools, files: { [MACROS_PATH]: DIALECT.macrosInc } });
   if (!linked.ok) {
     const reason = linked.stderr.trim().split('\n')[0] ?? '';
     return outcome('thumb-jump11', 'fail', `${what}: ${linked.diagnostics[0]?.message ?? 'failed'}${reason === '' ? '' : `: ${reason}`}`, linked.diagnostics);

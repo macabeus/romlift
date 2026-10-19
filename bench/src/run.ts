@@ -1,8 +1,11 @@
-// `bench run [--only <rom>] [--json] [--disable <rule>...] [--cpu-prof]
-// [--reveal <rom> --reason <text>]` (architecture §8.2–8.5, D24, D25, D41, D43): scores romlift's own
-// seedless discover run of every tuning dataset against its ELF (analysis-run.ts, score.ts) and the PoC
-// baseline (baseline-rows.ts, accepted-diffs.ts), and runs the sealed held-out datasets through the
-// classifiers, keeping counts only (seal.ts, classify.ts).
+// `bench run [--only <rom>] [--json] [--scaffold] [--write-readability-floor] [--disable <rule>...]
+// [--cpu-prof] [--reveal <rom> --reason <text>]` (architecture §8.2–8.5, D24, D25, D34, D41, D43, D62):
+// scores romlift's own seedless discover run of every tuning dataset against its ELF (analysis-run.ts,
+// score.ts) and the PoC baseline (baseline-rows.ts, accepted-diffs.ts), measures the emission families of
+// phase 3 on it (scaffold.ts: the readability shares and the tree digest on every run; with --scaffold both
+// printers' trees built and linked, the raw link as the row's `scaffold` verdict, and the objdiff family
+// over the readable build), and runs the sealed held-out datasets through the classifiers, keeping counts
+// only (seal.ts, classify.ts); a sealed dataset gets no emission family.
 //
 //   --json   prints one last line {schema: 'romlift/bench-run@1', roms, sealed, failed} and writes no
 //            committed file (bench/timings.json only). Without --only it runs the tuning datasets.
@@ -13,40 +16,51 @@
 //   --only   one dataset; a sealed one runs sealed and prints its counts only, writing nothing.
 //   --reveal appends {at, commit, reason} to a held-out dataset's `revealed` log, which makes it tuning
 //            data, and prints its rows to stdout; rows are never written to results.json (D25).
+//   --scaffold  builds and links both printers' trees in temporary directories and runs objdiff-cli at the
+//            pinned version (toolchain.ts objdiffTool) on every agreeing function (objdiff.ts).
+//   --write-readability-floor  (the phase lead, once) adds the measured shares of every tuning ROM that has
+//            no floor to bench/baseline/readability.json; an existing floor is never changed (readability.ts).
+// A lead run (no --json) also runs the memory family, bench/src/large-rom.ts as a child process, into the
+// artifact's `memory` member (its peak RSS per command; its times go to bench/timings.json).
 //
 // Each row carries `parity: {digest, expected}`: the parity-view digest of the run (bench/src/parity.ts)
 // and the PoC's committed one (bench/baseline/poc-digests.json). The PoC-parity evidence of milestone M1,
 // the `parity` member of results.json (parity-evidence.ts), was recorded by a run under the PoC's LIFO
 // worklist before 'poc-lifo' was deleted; every lead run keeps it unchanged.
 import { arch, cpus, platform } from 'node:os';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
-import { compareCodeUnits, hexAddr } from 'romlift';
+import { compareCodeUnits, hexAddr, parseElf, parseGnuMap, type ElfSymbol } from 'romlift';
 
 import { acceptedFor, readAcceptedDiffs, type AcceptedDiffs } from './accepted-diffs.ts';
 import { analyzeDataset, analysisTuning, benchProfile, discoverOptions, isDefaultTuning, readRealInputs, sealedInput, type AnalysisRunner, type DatasetAnalysis, type RealInputs, type RunTuning, DEFAULT_RUN_TUNING } from './analysis-run.ts';
-import { readResultsFile, writeResultsFile, type GateEntry, type Results, type ResultsMeta, type RomInputs, type SealedEntry, type Toolchain } from './artifact.ts';
+import { parseMemory, readResultsFile, writeResultsFile, type GateEntry, type MemoryMember, type Results, type ResultsMeta, type RomInputs, type SealedEntry, type Toolchain } from './artifact.ts';
 import { baselineRowOf, readBaseline, type Baseline, type JsonRecord } from './baseline.ts';
 import { compareWithBaseline, parseBaselineRow } from './baseline-rows.ts';
 import { datasetDir, resultsPath, timingsPath, type BenchContext } from './context.ts';
 import { cpuProfPath, profiled, writeTopSelfTime } from './cpu-prof.ts';
 import { isSealed, loadDatasets, type Dataset } from './dataset.ts';
 import { currentNodeMajor, sourceDigest } from './digest.ts';
-import { phase2RomFamilies } from './families.ts';
-import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
+import { phase3RomFamilies } from './families.ts';
+import { BenchError, exists, isRecord, prettyJson, readFileBytes, readJson, readText, writeText } from './files.ts';
 import { gitDirty, gitHead } from './git.ts';
+import type { ObjdiffSummary } from './objdiff.ts';
+import { mapObjects, objectsDigest } from './objects.ts';
 import { resultParityDigest } from './parity.ts';
 import { parsePocDigests, pocDigestsPath, type PocDigests } from './parity-view.ts';
 import { dumpRowMismatch, readPocDumpRows, type PocDumpRows } from './poc-dump-rows.ts';
 import { readPinnedPocSource } from './poc-source.ts';
 import { printerMember } from './printer.ts';
+import { runProcess } from './process.ts';
+import { addFloors, readabilityMember, readReadabilityFloors, sharesOf, writeReadabilityFloors, type ReadabilityFloors, type ReadabilityMember, type Shares } from './readability.ts';
 import { readDump } from './rescore.ts';
 import type { PocSource, RomliftRow } from './row.ts';
+import { ROMLIFT_FAMILIES, type EmissionFamilies } from './scaffold.ts';
 import { analysisFunctions, scoreAnalysis, staleExceptions } from './score.ts';
 import { appendReveal, assertCountsOnly, sealedCounts, sealedPasses } from './seal.ts';
 import { readSpeedBaseline } from './speed.ts';
-import { toolchainVersions } from './toolchain.ts';
+import { objdiffTool, toolchainVersions } from './toolchain.ts';
 
 export const BENCH_RUN_SCHEMA = 'romlift/bench-run@1';
 
@@ -70,7 +84,17 @@ export interface RunOptions {
   readonly json?: boolean;
   readonly tuning?: RunTuning;
   readonly cpuProf?: boolean;
+  /** --scaffold: build and link both printers' trees and run the objdiff family. */
+  readonly scaffold?: boolean;
+  /** --write-readability-floor: add the floors of the tuning ROMs that have none (the phase lead). */
+  readonly writeReadabilityFloor?: boolean;
   readonly runner: AnalysisRunner;
+  /** The emission families; default romlift's (scaffold.ts ROMLIFT_FAMILIES). */
+  readonly emission?: EmissionFamilies;
+  /** The memory family of a lead run; default runLargeRom (bench/src/large-rom.ts as a child). */
+  readonly largeRom?: (cx: BenchContext) => Promise<MemoryFamilyRun>;
+  /** The objdiff-cli of a --scaffold run; default toolchain.ts objdiffTool. */
+  readonly objdiffTool?: (cx: BenchContext) => Promise<string>;
   readonly log?: (line: string) => void;
 }
 
@@ -119,11 +143,11 @@ export async function tuningContext(cx: BenchContext): Promise<TuningContext> {
 
 
 /**
- * The PoC's dump of `d`: its scaffold verdict (until phase 3) and its own row; refused when the dump is of
- * another PoC source, and, for a ROM the pinned baseline does not name, when it was made on another
- * dataset or its row differs from the one pinned in bench/baseline/poc-dump-rows.json.
+ * The PoC's dump of `d`: its own row; refused when the dump is of another PoC source, and, for a ROM the
+ * pinned baseline does not name, when it was made on another dataset or its row differs from the one
+ * pinned in bench/baseline/poc-dump-rows.json. (Its scaffold verdict was the row's until phase 3.)
  */
-async function pocDumpOf(cx: BenchContext, d: Dataset, tc: TuningContext): Promise<{ readonly scaffold: { readonly ok: boolean }; readonly pocRow: JsonRecord } | undefined> {
+async function pocDumpOf(cx: BenchContext, d: Dataset, tc: TuningContext): Promise<{ readonly pocRow: JsonRecord } | undefined> {
   const dump = await readDump(cx, d);
   if (dump === undefined) return undefined;
   const pinned = tc.pinnedPocDigest;
@@ -132,7 +156,7 @@ async function pocDumpOf(cx: BenchContext, d: Dataset, tc: TuningContext): Promi
     const why = dumpRowMismatch(d, tc.pocDumpRows, dump.pocSourceDigest, dump.datasetDigest, dump.pocRow);
     if (why !== undefined) throw new BenchError(why);
   }
-  return { scaffold: { ok: dump.scaffold.ok }, pocRow: dump.pocRow };
+  return { pocRow: dump.pocRow };
 }
 
 /**
@@ -147,8 +171,18 @@ export function pocReference(tc: TuningContext, d: Dataset, dumpRow: JsonRecord 
   return undefined;
 }
 
-/** The full row of one tuning dataset from its analysis. */
-export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: TuningContext, scaffold: { readonly ok: boolean } | undefined, dumpRow?: JsonRecord): RomliftRow {
+/** What the emission families measured of one tuning ROM. */
+export interface RomEmission {
+  readonly readability: ReadabilityMember;
+  readonly treeDigest: string;
+  /** romlift's raw link (--scaffold). */
+  readonly scaffold?: { readonly ok: boolean };
+  /** The objdiff family over the readable build (--scaffold). */
+  readonly objdiff?: ObjdiffSummary;
+}
+
+/** The full row of one tuning dataset from its analysis and its emission. */
+export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: TuningContext, emission: RomEmission, dumpRow?: JsonRecord): RomliftRow {
   const d = inputs.dataset;
   const row = scoreAnalysis({
     result: analysis.result,
@@ -157,7 +191,7 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
     dataset: d,
     sha1: inputs.sha1,
     deterministic: analysis.deterministic,
-    ...(scaffold === undefined ? {} : { scaffold }),
+    ...(emission.scaffold === undefined ? {} : { scaffold: emission.scaffold }),
   });
   const reference = pocReference(tc, d, dumpRow);
   const found = new Set(analysisFunctions(analysis.result).map((f) => hexAddr(f.entry)));
@@ -176,14 +210,82 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
     staleExceptions: staleExceptions(d, row),
     baselineRows: comparison.baselineRows,
     parity: { digest: resultParityDigest(analysis.result), expected: tc.pocDigests?.roms[d.name] ?? '' },
+    readability: emission.readability,
+    ...(emission.objdiff === undefined ? {} : { objdiff: emission.objdiff }),
+    treeDigest: emission.treeDigest,
   };
 }
 
-/** One tuning dataset analysed (profiled with --cpu-prof), scored and compared. */
-async function runTuning(cx: BenchContext, d: Dataset, tc: TuningContext, options: RunOptions, tuning: RunTuning): Promise<{ readonly row: RomliftRow; readonly inputs: RealInputs; readonly analysis: DatasetAnalysis; readonly scaffold: boolean }> {
+/** The reference ELF's symbols (readRealInputs already checked its digest). */
+export async function elfSymbols(cx: BenchContext, d: Dataset): Promise<readonly ElfSymbol[]> {
+  const elf = parseElf(await readFileBytes(join(cx.benchRoot, d.elf)));
+  if (!elf.ok) throw new BenchError(`${d.name}: ${d.elf}: ${elf.error}`);
+  return elf.value.symbols;
+}
+
+/**
+ * The reference objects of a tuning dataset, refused when the dataset records none or their digest differs
+ * (D50), with the objects its map links when it records a map (doctor-real's `<rom>.objects-linked` checks
+ * they are the linked ones).
+ */
+export async function referenceObjects(cx: BenchContext, d: Dataset): Promise<{ readonly dir: string; readonly digest: string; readonly linked?: ReadonlySet<string> }> {
+  if (d.objectsDir === undefined || d.objectsDigest === undefined) throw new BenchError(`${d.name}: the dataset records no objectsDir and objectsDigest, which --scaffold's objdiff family needs`);
+  const dir = join(cx.benchRoot, d.objectsDir);
+  const digest = await objectsDigest(dir).catch((error: unknown) => {
+    throw new BenchError(`${d.name}: cannot read the reference objects ${dir}: ${message(error)}`);
+  });
+  if (digest !== d.objectsDigest) throw new BenchError(`${d.name}: refusing ${d.objectsDir}: digest ${digest}, the dataset records ${d.objectsDigest}`);
+  if (d.map === undefined) return { dir, digest };
+  const map = parseGnuMap(await readText(join(cx.benchRoot, d.map)));
+  if (!map.ok) throw new BenchError(`${d.name}: ${d.map}: ${map.error}`);
+  return { dir, digest, linked: new Set(mapObjects(map.value).objects.map((o) => posix.normalize(o.file))) };
+}
+
+/** One tuning ROM's emission families: the readability shares always, the scaffold and objdiff with a tool. */
+async function emissionOf(cx: BenchContext, inputs: RealInputs, analysis: DatasetAnalysis, run: TuningRun): Promise<{ readonly emission: RomEmission; readonly objectsDigest?: string; readonly timings: Readonly<Record<string, number>> }> {
+  const d = inputs.dataset;
+  const emission = run.options.emission ?? ROMLIFT_FAMILIES;
+  let started = performance.now();
+  const read = emission.readability(inputs.rom, analysis.result);
+  const timings: Record<string, number> = { readabilityMs: Math.round(performance.now() - started) };
+  const readability = readabilityMember(sharesOf(read.stats), run.floors?.roms[d.name]);
+  if (run.objdiff === undefined) return { emission: { readability, treeDigest: read.treeDigest }, timings };
+  const objects = await referenceObjects(cx, d);
+  started = performance.now();
+  const built = await emission.scaffold({
+    rom: inputs.rom,
+    analysis: analysis.result,
+    truth: inputs.truth,
+    symbols: await elfSymbols(cx, d),
+    objectsDir: objects.dir,
+    objdiff: run.objdiff,
+    ...(objects.linked === undefined ? {} : { linkedObjects: objects.linked }),
+  });
+  Object.assign(timings, built.timings, { scaffoldMs: Math.round(performance.now() - started) });
+  run.options.log?.(scaffoldText(d.name, built.raw, built.readable, built.objdiff));
+  return { emission: { readability, treeDigest: read.treeDigest, scaffold: { ok: built.raw.ok }, objdiff: built.objdiff }, objectsDigest: objects.digest, timings };
+}
+
+/** What every tuning ROM of one run shares: the options, the readability floors, the objdiff-cli of --scaffold. */
+interface TuningRun {
+  readonly options: RunOptions;
+  readonly tuning: RunTuning;
+  readonly floors: ReadabilityFloors | undefined;
+  /** The objdiff-cli binary; undefined without --scaffold. */
+  readonly objdiff: string | undefined;
+}
+
+/** One tuning dataset analysed (profiled with --cpu-prof), scored, compared and emitted. */
+async function runTuning(
+  cx: BenchContext,
+  d: Dataset,
+  tc: TuningContext,
+  run: TuningRun,
+): Promise<{ readonly row: RomliftRow; readonly inputs: RealInputs; readonly analysis: DatasetAnalysis; readonly objectsDigest?: string; readonly timings: Readonly<Record<string, number>> }> {
+  const { options, tuning } = run;
   const inputs = await readRealInputs(cx, d);
+  // The dump still gives a revealed ROM's PoC row (D60); from phase 3 its scaffold verdict is not read.
   const dump = await pocDumpOf(cx, d, tc);
-  const scaffold = dump?.scaffold;
   let analysis: DatasetAnalysis;
   if (options.cpuProf === true) {
     const { value, profile } = await profiled(() => analyzeDataset(inputs, options.runner, tuning));
@@ -193,7 +295,14 @@ async function runTuning(cx: BenchContext, d: Dataset, tc: TuningContext, option
   } else {
     analysis = analyzeDataset(inputs, options.runner, tuning);
   }
-  return { row: romliftRow(inputs, analysis, tc, scaffold, dump?.pocRow), inputs, analysis, scaffold: scaffold !== undefined };
+  const emitted = await emissionOf(cx, inputs, analysis, run);
+  return {
+    row: romliftRow(inputs, analysis, tc, emitted.emission, dump?.pocRow),
+    inputs,
+    analysis,
+    ...(emitted.objectsDigest === undefined ? {} : { objectsDigest: emitted.objectsDigest }),
+    timings: emitted.timings,
+  };
 }
 
 /** One sealed dataset: a single run, classified; counts and verdict only. */
@@ -214,6 +323,7 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
   const tuning = options.tuning ?? DEFAULT_RUN_TUNING;
   const writing = options.json !== true;
   if (writing && !isDefaultTuning(tuning)) throw new BenchError('bench/results.json is written only with the default tuning: add --json to run with --disable');
+  if (options.writeReadabilityFloor === true && !isDefaultTuning(tuning)) throw new BenchError('the readability floors are written only with the default tuning: drop --disable');
   const { datasets, problems } = await loadDatasets(cx);
   if (problems.length > 0) throw new BenchError(`malformed datasets: ${problems.map((p) => p.detail).join('; ')}`);
   const chosen = datasets.filter((d) => (options.only === undefined ? !isSealed(d) || writing : d.name === options.only));
@@ -222,24 +332,31 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
   const sealedSet = chosen.filter(isSealed);
   const sealedOnly = tuningSet.length === 0;
   const tc = tuningSet.length > 0 ? await tuningContext(cx) : undefined;
+  const scaffolding = options.scaffold === true && !sealedOnly;
+  const run: TuningRun = {
+    options,
+    tuning,
+    floors: await readReadabilityFloors(cx),
+    objdiff: scaffolding ? await (options.objdiffTool ?? objdiffTool)(cx) : undefined,
+  };
 
-  const roms: RomliftRow[] = [];
+  let roms: RomliftRow[] = [];
   const sealed: SealedEntry[] = [];
   const failed: RunFailure[] = [];
   const inputs: Record<string, RomInputs | string> = {};
   const families: Record<string, readonly string[]> = {};
-  const timings: Record<string, { readonly scoreMs: number; readonly analysisCpuMs?: number; readonly analysisWallMs?: number }> = {};
+  const timings: Record<string, Readonly<Record<string, number>>> = {};
   const speed = await readSpeedBaseline(cx);
   for (const d of tuningSet) {
     if (tc === undefined) break;
     const started = performance.now();
     try {
-      const { row, inputs: read, analysis, scaffold } = await runTuning(cx, d, tc, options, tuning);
-      roms.push(row);
-      inputs[d.name] = { sha1: read.sha1, elfSha256: read.elfSha256 };
-      families[d.name] = phase2RomFamilies({ deterministic: analysis.deterministic, speedBaseline: speed?.roms[d.name] !== undefined, scaffold });
-      timings[d.name] = { scoreMs: Math.round(performance.now() - started), analysisCpuMs: Math.round(analysis.cpuMs), analysisWallMs: Math.round(analysis.wallMs) };
-      log(`${summaryText(row)}`);
+      const out = await runTuning(cx, d, tc, run);
+      roms.push(out.row);
+      inputs[d.name] = { sha1: out.inputs.sha1, elfSha256: out.inputs.elfSha256, ...(out.objectsDigest === undefined ? {} : { objectsDigest: out.objectsDigest }) };
+      families[d.name] = phase3RomFamilies({ deterministic: out.analysis.deterministic, speedBaseline: speed?.roms[d.name] !== undefined, scaffold: out.row.scaffold !== undefined });
+      timings[d.name] = { scoreMs: Math.round(performance.now() - started), analysisCpuMs: Math.round(out.analysis.cpuMs), analysisWallMs: Math.round(out.analysis.wallMs), ...out.timings };
+      log(`${summaryText(out.row)}`);
     } catch (error) {
       if (error instanceof BenchError) throw error;
       failed.push({ name: d.name, detail: message(error) });
@@ -258,18 +375,38 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
       failed.push({ name: d.name, detail: 'the analysis failed (detail withheld: sealed)' });
     }
   }
+  if (options.writeReadabilityFloor === true && roms.length > 0) {
+    if (failed.length > 0) throw new BenchError(`not writing the readability floors: the analysis failed on ${failed.map((f) => f.name).join(', ')}`);
+    const update = addFloors(run.floors, Object.fromEntries(roms.map((r) => [r.name, sharesOfMember(r.readability)] as const)));
+    await writeReadabilityFloors(cx, update.floors);
+    log(`bench/baseline/readability.json: floors added for ${update.added.join(', ') || 'no ROM'}; kept as committed for ${update.kept.join(', ') || 'no ROM'}`);
+    roms = roms.map((r) => ({ ...r, readability: readabilityMember(sharesOfMember(r.readability), update.floors.roms[r.name]) }));
+  }
   const report: BenchRunReport = {
     schema: BENCH_RUN_SCHEMA,
     roms: roms.sort((a, b) => compareCodeUnits(a.name, b.name)),
     sealed: sealed.sort((a, b) => compareCodeUnits(a.name, b.name)),
     failed,
   };
-  await writeTimings(cx, timings);
-  if (!writing || sealedOnly) return { report, gatesKept: false };
-  if (failed.length > 0) throw new BenchError(`not writing bench/results.json: the analysis failed on ${failed.map((f) => f.name).join(', ')}`);
+  if (!writing || sealedOnly) {
+    await writeTimings(cx, timings);
+    return { report, gatesKept: false };
+  }
+  if (failed.length > 0) {
+    await writeTimings(cx, timings);
+    throw new BenchError(`not writing bench/results.json: the analysis failed on ${failed.map((f) => f.name).join(', ')}`);
+  }
   if (tc !== undefined) inputs['pocSourceDigest'] = tc.pinnedPocDigest;
-  const { results, gatesKept } = await writeArtifact(cx, report, inputs, families);
+  const largeRom = await (options.largeRom ?? runLargeRom)(cx);
+  log(memoryText(largeRom.member));
+  await writeTimings(cx, { ...timings, ...(largeRom.timings === undefined ? {} : { 'large-rom': largeRom.timings }) });
+  const { results, gatesKept } = await writeArtifact(cx, report, inputs, families, largeRom.member, scaffolding);
   return { report, results, gatesKept };
+}
+
+/** The shares of a readability member, without its floor. */
+function sharesOfMember(m: ReadabilityMember): Shares {
+  return { mnemonicShare: m.mnemonicShare, symbolicBranchShare: m.symbolicBranchShare, symbolicPoolShare: m.symbolicPoolShare };
 }
 
 async function writeTimings(cx: BenchContext, roms: Readonly<Record<string, unknown>>): Promise<void> {
@@ -282,9 +419,12 @@ async function writeArtifact(
   report: BenchRunReport,
   inputs: Readonly<Record<string, RomInputs | string>>,
   families: Readonly<Record<string, readonly string[]>>,
+  memory: MemoryMember,
+  scaffolding: boolean,
 ): Promise<{ readonly results: Results; readonly gatesKept: boolean }> {
   const nodeMajor = currentNodeMajor();
-  const toolchain: Toolchain = await toolchainVersions();
+  // objdiff-cli's version is part of the toolchain of a run that used it.
+  const toolchain: Toolchain = await toolchainVersions(process.env, scaffolding ? cx : undefined);
   const meta: ResultsMeta = {
     commit: await gitHead(cx.repoRoot),
     dirty: await gitDirty(cx.repoRoot),
@@ -308,6 +448,7 @@ async function writeArtifact(
   const results: Results = {
     meta,
     ...(printer.summary === undefined ? {} : { printer: printer.summary }),
+    memory,
     gates: { real: gates },
     roms: report.roms,
     ...(report.sealed.length === 0 ? {} : { sealed: report.sealed }),
@@ -315,6 +456,58 @@ async function writeArtifact(
   };
   await writeResultsFile(resultsPath(cx), results);
   return { results, gatesKept: gates.length > 0 };
+}
+
+// ---------------------------------------------------------------- the memory family
+
+export const LARGE_ROM_SCHEMA = 'romlift/bench-large-rom@1';
+/** The large-ROM script (g3.large-rom), run by path; its schema and output are large-rom.ts LARGE_ROM_SCHEMA and LargeRomReport. */
+export const LARGE_ROM_SCRIPT = 'bench/src/large-rom.ts';
+
+/** What one run of the large-ROM script gave: the artifact's member, and its volatile values for timings.json. */
+export interface MemoryFamilyRun {
+  readonly member: MemoryMember;
+  readonly timings?: Readonly<Record<string, unknown>>;
+}
+
+/** The fields of the script's runs the artifact keeps; every other field (times) is volatile. */
+const MEMORY_RUN_FIELDS: ReadonlySet<string> = new Set(['command', 'exitCode', 'maxRssMiB', 'maxOldSpaceSizeMiB', 'treeDigest']);
+
+/** The script's last stdout line, as the memory member and the volatile rest; a BenchError when it is not one. */
+export function parseLargeRom(stdout: string): MemoryFamilyRun {
+  const line = stdout.trimEnd().split('\n').at(-1) ?? '';
+  let value: unknown;
+  try {
+    value = JSON.parse(line) as unknown;
+  } catch {
+    throw new BenchError(`${LARGE_ROM_SCRIPT} --json printed no JSON last line`);
+  }
+  if (!isRecord(value) || value['schema'] !== LARGE_ROM_SCHEMA) throw new BenchError(`${LARGE_ROM_SCRIPT} --json printed no ${LARGE_ROM_SCHEMA} line`);
+  const member = parseMemory(value, LARGE_ROM_SCRIPT);
+  const runs = Array.isArray(value['runs']) ? value['runs'] : [];
+  const volatile = runs.filter(isRecord).map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => k === 'command' || !MEMORY_RUN_FIELDS.has(k))));
+  return { member, timings: { runs: volatile } };
+}
+
+/** Runs `node --conditions=source bench/src/large-rom.ts <args>` from the repository root. */
+export async function largeRomProcess(cx: BenchContext, args: readonly string[]): Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }> {
+  const script = join(cx.repoRoot, LARGE_ROM_SCRIPT);
+  if (!(await exists(script))) throw new BenchError(`${LARGE_ROM_SCRIPT} is missing`);
+  return runProcess(process.execPath, ['--conditions=source', script, ...args], { cwd: cx.repoRoot, echoStderr: true });
+}
+
+/** The memory family of a lead run: the script with --json, its peak RSS per command. */
+export async function runLargeRom(cx: BenchContext): Promise<MemoryFamilyRun> {
+  const run = await largeRomProcess(cx, ['--json']);
+  try {
+    return parseLargeRom(run.stdout);
+  } catch (error) {
+    throw new BenchError(`not writing bench/results.json: ${message(error)} (exit ${run.code})`);
+  }
+}
+
+export function memoryText(m: MemoryMember): string {
+  return `memory: ${m.romBytes} bytes ${m.sha1}: ${m.runs.map((r) => `${r.command} exit ${r.exitCode} peak RSS ${r.maxRssMiB.toFixed(1)} MiB${r.maxOldSpaceSizeMiB === undefined ? '' : ` heap cap ${r.maxOldSpaceSizeMiB ?? 'none'}`}`).join(', ')}`;
 }
 
 const pct = (x: number): string => `${(100 * x).toFixed(2)}%`;
@@ -328,8 +521,19 @@ export function summaryText(r: RomliftRow): string {
     `misses ${r.misses.length} (${unlistedMisses} unlisted), false ${r.falseEntries.length} (${unlistedFalse} unlisted), ` +
     `extents ${r.extents.agree}/${r.extents.sized} (${r.extents.lost.length} lost), code end ${r.codeEnd.delta >= 0 ? '+' : ''}${r.codeEnd.delta}, ` +
     `${r.deterministic ? 'deterministic' : 'NOT DETERMINISTIC'}, baseline diffs ${r.baselineRows.diffs.length} (${r.baselineRows.unaccepted.length} unaccepted, ${r.baselineRows.staleAccepted.length} stale), ` +
-    `stale exceptions ${r.staleExceptions.length}`
+    `stale exceptions ${r.staleExceptions.length}, readability ${shareText(r.readability)}${r.readability.floor === null ? ' (no floor)' : ` (floor ${shareText(r.readability.floor)})`}` +
+    `${r.scaffold === undefined ? '' : `, scaffold ${r.scaffold.ok ? 'SHA-1' : 'FAILED'}`}`
   );
+}
+
+const shareText = (s: Shares): string => `${pct(s.mnemonicShare)}/${pct(s.symbolicBranchShare)}/${pct(s.symbolicPoolShare)}`;
+
+/** One line per tuning ROM of --scaffold: both links and the objdiff family. */
+export function scaffoldText(name: string, raw: { readonly ok: boolean; readonly detail: string }, readable: { readonly ok: boolean; readonly detail: string }, objdiff: ObjdiffSummary): string {
+  const link = (l: { readonly ok: boolean; readonly detail: string }): string => (l.ok ? 'SHA-1' : `FAILED (${l.detail})`);
+  const kinds = Object.entries(objdiff.differences).map(([k, n]) => `${n} ${k}`);
+  const judged = objdiff.linked ? `objdiff scored ${objdiff.scored}, differences: ${kinds.join(', ') || 'none'}` : 'objdiff not run (the readable build does not link)';
+  return `${name.padEnd(12)} raw link ${link(raw)}, readable link ${link(readable)}, ${judged}`;
 }
 
 /** One line per sealed ROM: counts and the verdict, never an address or a name. */
@@ -379,6 +583,7 @@ export async function revealDataset(cx: BenchContext, name: string, options: Rev
   await writeText(file, prettyJson({ ...raw, revealed: revealed.revealed }));
   options.log?.(`${name}: revealed (${file}); it is tuning data from now on and never counts toward g2.held-out again`);
   const tc = await tuningContext(cx);
-  const { row } = await runTuning(cx, revealed, tc, { runner: options.runner, json: true }, DEFAULT_RUN_TUNING);
+  const run: TuningRun = { options: { runner: options.runner, json: true }, tuning: DEFAULT_RUN_TUNING, floors: await readReadabilityFloors(cx), objdiff: undefined };
+  const { row } = await runTuning(cx, revealed, tc, run);
   return row;
 }

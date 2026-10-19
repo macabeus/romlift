@@ -7,6 +7,8 @@ import { parseCorpusSummary, type CorpusSummary } from 'romlift/internal';
 
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
 import { parseParityEvidence, type ParityEvidence } from './parity-evidence.ts';
+import type { ObjdiffExample, ObjdiffSummary } from './objdiff.ts';
+import { SHARE_NAMES, type ReadabilityMember, type Shares } from './readability.ts';
 import type { BaselineRows, BenchRow, ExtentRow, FalseRow, MissRow, PocSource, RowDiff, StaleException } from './row.ts';
 import { assertCountsOnly, type SealedCounts } from './seal.ts';
 import { isArtifactCategory, type ArtifactCategory } from './vocabulary.ts';
@@ -14,12 +16,33 @@ import { isArtifactCategory, type ArtifactCategory } from './vocabulary.ts';
 export interface RomInputs {
   readonly sha1: string;
   readonly elfSha256: string;
+  /** The reference objects' digest, when the run compared with them (`--scaffold`, the objdiff family). */
+  readonly objectsDigest?: string;
 }
 
 export interface Toolchain {
   readonly as: string | null;
   readonly ld: string | null;
   readonly objcopy: string | null;
+  /** objdiff-cli's version (from phase 3; absent in an older artifact). */
+  readonly objdiff?: string | null;
+}
+
+/** One measured command of the memory family (bench/src/large-rom.ts): its exit code and peak RSS. */
+export interface MemoryRun {
+  readonly command: string;
+  readonly exitCode: number;
+  readonly maxRssMiB: number;
+  /** The `--max-old-space-size` the command ran under (null: none); absent in artifacts written before fix round 4 of phase 3. */
+  readonly maxOldSpaceSizeMiB?: number | null;
+  readonly treeDigest?: string;
+}
+
+/** The memory family (architecture §8.4, g3.large-rom): the 32 MiB synthetic ROM and each command's peak RSS. */
+export interface MemoryMember {
+  readonly romBytes: number;
+  readonly sha1: string;
+  readonly runs: readonly MemoryRun[];
 }
 
 export interface ResultsMeta {
@@ -54,6 +77,8 @@ export interface Results {
   readonly meta: ResultsMeta;
   /** bench/.local/corpus/summary.json when current; absent otherwise. */
   readonly printer?: CorpusSummary;
+  /** The memory family (from phase 3), written by a lead run. */
+  readonly memory?: MemoryMember;
   readonly gates: { readonly real: readonly GateEntry[] };
   readonly roms: readonly BenchRow[];
   /** The sealed held-out ROMs, counts and verdicts only. */
@@ -161,6 +186,38 @@ function romliftFields(r: Readonly<Record<string, unknown>>, at: string): Partia
   };
 }
 
+function sharesAt(value: unknown, at: string): Shares {
+  const r = rec(value, at);
+  const [m, b, p] = SHARE_NAMES.map((name) => num(r[name], `${at}.${name}`));
+  return { mnemonicShare: m ?? 0, symbolicBranchShare: b ?? 0, symbolicPoolShare: p ?? 0 };
+}
+
+function readabilityField(value: unknown, at: string): ReadabilityMember {
+  const r = rec(value, at);
+  return { ...sharesAt(r, at), floor: r['floor'] === null ? null : sharesAt(r['floor'], `${at}.floor`) };
+}
+
+function objdiffExample(value: unknown, at: string): ObjdiffExample {
+  const r = rec(value, at);
+  return { function: str(r['function'], `${at}.function`), kind: str(r['kind'], `${at}.kind`), detail: str(r['detail'], `${at}.detail`) };
+}
+
+function objdiffField(value: unknown, at: string): ObjdiffSummary {
+  const r = rec(value, at);
+  const differences: Record<string, number> = {};
+  for (const [kind, count] of Object.entries(rec(r['differences'], `${at}.differences`))) differences[kind] = num(count, `${at}.differences.${kind}`);
+  return { linked: bool(r['linked'], `${at}.linked`), scored: num(r['scored'], `${at}.scored`), differences, examples: list(r['examples'], `${at}.examples`, objdiffExample) };
+}
+
+/** The optional phase-3 fields of a romlift row. */
+function emissionFields(r: Readonly<Record<string, unknown>>, at: string): Partial<Pick<BenchRow, 'readability' | 'objdiff' | 'treeDigest'>> {
+  return {
+    ...(r['readability'] === undefined ? {} : { readability: readabilityField(r['readability'], `${at}.readability`) }),
+    ...(r['objdiff'] === undefined ? {} : { objdiff: objdiffField(r['objdiff'], `${at}.objdiff`) }),
+    ...(r['treeDigest'] === undefined ? {} : { treeDigest: str(r['treeDigest'], `${at}.treeDigest`) }),
+  };
+}
+
 /** One row of results.json, every field checked against BenchRow. */
 export function parseRow(value: unknown, where: string): BenchRow {
   const r = rec(value, where);
@@ -193,6 +250,7 @@ export function parseRow(value: unknown, where: string): BenchRow {
     deterministic: bool(r['deterministic'], `${at}.deterministic`),
     ...(scaffold === undefined ? {} : { scaffold: { ok: bool(scaffold['ok'], `${at}.scaffold.ok`) } }),
     ...romliftFields(r, at),
+    ...emissionFields(r, at),
   };
 }
 
@@ -203,7 +261,11 @@ function parseInputs(value: unknown, at: string): Readonly<Record<string, RomInp
     if (typeof entry === 'string') out[key] = entry;
     else {
       const r = rec(entry, `${at}.${key}`);
-      out[key] = { sha1: str(r['sha1'], `${at}.${key}.sha1`), elfSha256: str(r['elfSha256'], `${at}.${key}.elfSha256`) };
+      out[key] = {
+        sha1: str(r['sha1'], `${at}.${key}.sha1`),
+        elfSha256: str(r['elfSha256'], `${at}.${key}.elfSha256`),
+        ...(r['objectsDigest'] === undefined ? {} : { objectsDigest: str(r['objectsDigest'], `${at}.${key}.objectsDigest`) }),
+      };
     }
   }
   return out;
@@ -213,6 +275,22 @@ function parsePrinter(value: unknown, where: string): CorpusSummary {
   const parsed = parseCorpusSummary(value);
   if (!parsed.ok) fail(`${where}: printer`, parsed.error);
   return parsed.value;
+}
+
+function memoryRun(value: unknown, at: string): MemoryRun {
+  const r = rec(value, at);
+  return {
+    command: str(r['command'], `${at}.command`),
+    exitCode: num(r['exitCode'], `${at}.exitCode`),
+    maxRssMiB: num(r['maxRssMiB'], `${at}.maxRssMiB`),
+    ...(r['maxOldSpaceSizeMiB'] === undefined ? {} : { maxOldSpaceSizeMiB: r['maxOldSpaceSizeMiB'] === null ? null : num(r['maxOldSpaceSizeMiB'], `${at}.maxOldSpaceSizeMiB`) }),
+    ...(r['treeDigest'] === undefined ? {} : { treeDigest: str(r['treeDigest'], `${at}.treeDigest`) }),
+  };
+}
+
+export function parseMemory(value: unknown, at: string): MemoryMember {
+  const r = rec(value, at);
+  return { romBytes: num(r['romBytes'], `${at}.romBytes`), sha1: str(r['sha1'], `${at}.sha1`), runs: list(r['runs'], `${at}.runs`, memoryRun) };
 }
 
 function gluedWhereOf(r: Record<string, unknown>, at: string): NonNullable<SealedEntry['gluedWhere']> {
@@ -285,12 +363,13 @@ export function parseResults(value: unknown, where: string): Results {
       nodeMajor: meta['nodeMajor'],
       romliftVersion: typeof meta['romliftVersion'] === 'string' ? meta['romliftVersion'] : '',
       inputs: parseInputs(meta['inputs'], `${where}: meta.inputs`),
-      toolchain: { as: tool('as'), ld: tool('ld'), objcopy: tool('objcopy') },
+      toolchain: { as: tool('as'), ld: tool('ld'), objcopy: tool('objcopy'), ...('objdiff' in toolchain ? { objdiff: tool('objdiff') } : {}) },
       families,
       source,
       ...(typeof meta['profile'] === 'string' ? { profile: meta['profile'] } : {}),
     },
     ...(value['printer'] === undefined ? {} : { printer: parsePrinter(value['printer'], where) }),
+    ...(value['memory'] === undefined ? {} : { memory: parseMemory(value['memory'], `${where}: memory`) }),
     gates: { real: real.map((g, i) => parseGateEntry(g, `${where}: gates.real[${i}]`)) },
     roms: roms.map((r, i) => parseRow(r, `${where}: roms[${i}]`)),
     ...(value['sealed'] === undefined ? {} : { sealed: list(value['sealed'], `${where}: sealed`, parseSealed) }),
@@ -318,6 +397,7 @@ export function resultsText(results: Results): string {
   const sorted: Results = {
     meta: results.meta,
     ...(results.printer === undefined ? {} : { printer: results.printer }),
+    ...(results.memory === undefined ? {} : { memory: results.memory }),
     gates: { real: [...results.gates.real].sort((a, b) => compareCodeUnits(a.id, b.id)) },
     roms: [...results.roms].sort((a, b) => compareCodeUnits(a.name, b.name)),
     ...(results.sealed === undefined ? {} : { sealed: [...results.sealed].sort((a, b) => compareCodeUnits(a.name, b.name)) }),

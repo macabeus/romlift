@@ -1,0 +1,99 @@
+==> asm/nonmatchings/main/sub_080000F4.s (generated, function) <==
+.thumb
+	thumb_func_start sub_080000F4
+sub_080000F4: @ 080000F4
+	push {lr}
+	movs r0, #3
+	movs r1, #9
+	bl sub_08000108
+	bl sub_080001A8
+	pop {r0}
+	bx r0
+	thumb_func_end sub_080000F4
+==> asm/nonmatchings/main/sub_08000108.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_08000108
+sub_08000108: @ 08000108
+	push {lr}
+	adds r2, r1, #0
+	ldr r1, _0800011C @ =0x02000000
+	cmp r0, #5
+	bhi _080001A0
+	lsls r0, r0, #2
+	ldr r1, _08000120 @ =_08000124
+	adds r0, r0, r1
+	ldr r0, [r0]
+	mov pc, r0
+_0800011C: .4byte 0x02000000
+_08000120: .4byte _08000124
+_08000124:
+	.4byte _0800013C
+	.4byte _08000148
+	.4byte _08000154
+	.4byte _08000164
+	.4byte _08000178
+	.4byte _0800018C
+_0800013C:
+	ldr r0, _08000144 @ =0x02000000
+	str r2, [r0]
+	adds r1, r0, #0
+	b _080001A0
+_08000144: .4byte 0x02000000
+_08000148:
+	ldr r1, _08000150 @ =0x02000000
+	adds r0, r2, #3
+	str r0, [r1]
+	b _080001A0
+_08000150: .4byte 0x02000000
+_08000154:
+	ldr r0, _0800015C @ =0x02000004
+	str r2, [r0]
+	ldr r1, _08000160 @ =0x02000000
+	b _080001A0
+_0800015C: .4byte 0x02000004
+_08000160: .4byte 0x02000000
+_08000164:
+	ldr r0, _08000170 @ =0x02000000
+	ldr r1, _08000174 @ =0x02000004
+	ldr r1, [r1]
+	str r1, [r0]
+	adds r1, r0, #0
+	b _080001A0
+_08000170: .4byte 0x02000000
+_08000174: .4byte 0x02000004
+_08000178:
+	ldr r1, _08000184 @ =0x02000004
+	movs r0, #7
+	str r0, [r1]
+	ldr r1, _08000188 @ =0x02000000
+	b _080001A0
+	.align 2, 0
+_08000184: .4byte 0x02000004
+_08000188: .4byte 0x02000000
+_0800018C:
+	ldr r0, _08000198 @ =0x02000004
+	ldr r1, _0800019C @ =0x02000000
+	ldr r0, [r0]
+	ldr r1, [r1]
+	adds r0, r0, r1
+	b _080001A2
+_08000198: .4byte 0x02000004
+_0800019C: .4byte 0x02000000
+_080001A0:
+	ldr r0, [r1]
+_080001A2:
+	pop {r1}
+	bx r1
+	thumb_func_end sub_08000108
+==> asm/nonmatchings/main/sub_080001A8.s (generated, function) <==
+.thumb
+	thumb_func_start_local sub_080001A8
+sub_080001A8: @ 080001A8
+	ldr r1, _080001B4 @ =0x02000004
+	ldr r1, [r1]
+	subs r1, r1, r0
+	adds r0, r1, #0
+	bx lr
+	.align 2, 0
+_080001B4: .4byte 0x02000004
+	thumb_func_end sub_080001A8

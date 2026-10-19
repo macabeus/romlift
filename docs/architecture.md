@@ -54,9 +54,9 @@ that make each gate pass are in [roadmap.md](roadmap.md).
 | --- | --- | --- |
 | 1 Decoder | ISA table, decoder, encoder, formatter, parser, raw fallback, the shared assembler dialect, `doctor`, bench harness over the PoC's runs, all gate files | `g1.architecture`, `g1.runtime-deps`, `g1.thumb-roundtrip`, `g1.bl-sample`, `g1.arm-sample`, `g1.encoder-agrees`, `g1.context-corpus`, `g1.doctor`, `g1.bench-harness`, `g1.dataset-elf`, `g1.provenance`, `g1.checks-fail` |
 | 2 Analysis | Rules, the driver ported from the PoC's control flow, the profile, `analyze`, `explain` (analysis part), fixtures, held-out runs | `g2.poc-parity`, `g2.baseline-rows`, `g2.entries`, `g2.extents`, `g2.code-end`, `g2.no-unreviewed`, `g2.confirm-equals-discover`, `g2.determinism`, `g2.synthetic-analysis`, `g2.rule-registry`, `g2.rule-coverage`, `g2.vocabulary-emitted`, `g2.second-profile`, `g2.held-out`, `g2.speed`, `g2.regression`, `g2.checks-fail` |
-| 3 Emission | Model, module inference without libraries, printer-driven writers, write plan, `verify`, `model --json` | `g3.self-check`, `g3.text-layout`, `g3.raw-link`, `g3.link`, `g3.readability`, `g3.objdiff`, `g3.tree-determinism`, `g3.golden-writers`, `g3.speed-budget`, `g3.large-rom`, `g3.checks-fail` |
+| 3 Emission | Model, module inference without libraries, printer-driven writers, write plan, `verify`, `model --json` | `g3.self-check`, `g3.text-layout`, `g3.raw-link`, `g3.link`, `g3.readability`, `g3.tree-determinism`, `g3.golden-writers`, `g3.speed-budget`, `g3.large-rom`, `g3.checks-fail` |
 | 4 One shot | Config on disk, scaffold, C stubs, per-module compilers, `init`, `generate`, `analyze --update` | `g4.e2e-fixtures`, `g4.e2e-real`, `g4.packed-e2e`, `g4.generate-idempotent`, `g4.toml-mutations`, `g4.no-toml-write`, `g4.worktree`, `g4.toml-canonical`, `g4.c-data-fails-loud`, `g4.multi-compiler`, `g4.cli-contract`, `g4.checks-fail` |
-| 5 Migration | Evidence facts and merge, `import-legacy`, reconciler, `rename`, `expected/`, `objdiff.json`, matchings, C data ranges, the Klonoa switch-over pull request | `g5.evidence-merge`, `g5.reconciler`, `g5.rename`, `g5.import-legacy`, `g5.expected-bytes`, `g5.c-data-ranges`, `g5.klonoa-rehearsal`, `g5.klonoa-switch` |
+| 5 Migration | Evidence facts and merge, `import-legacy`, reconciler, `rename`, `expected/`, `objdiff.json`, matchings, C data ranges, the Klonoa switch-over pull request | `g5.evidence-merge`, `g5.reconciler`, `g5.rename`, `g5.import-legacy`, `g5.expected-bytes`, `g5.objdiff`, `g5.c-data-ranges`, `g5.klonoa-rehearsal`, `g5.klonoa-switch` |
 | 6 Evidence | Signatures (build, match, propose), serial and BIOS-stub signatures, `trace`, code run from RAM, full `explain` | `g6.signatures-judged`, `g6.signatures-rebuild`, `g6.signatures-heldout`, `g6.signatures-loo`, `g6.no-heldout-references`, `g6.ram-code-mapped`, `g6.evidence-conflict`, `g6.explain-coverage` |
 
 **Non-goals for release 1** (plan): C decompilation, typed assets, analysis profiles other than agbcc
@@ -89,7 +89,8 @@ objects or string-literal unions.
 romlift/
   AGENTS.md                         agent instructions (never CLAUDE.md)
   README.md
-  package.json                      bin romlift; exports ".", "./node", "./isa", "./internal" (source/default
+  package.json                      bin romlift (dist/cli/main.js, whose first line runs Node with
+                                    --max-old-space-size=1024, D68 b, D72); exports ".", "./node", "./isa", "./internal" (source/default
                                     conditions); engines node >=22.18; files: dist/, templates/, signatures/specs/
   package-lock.json
   tsconfig.json, tsconfig.build.json
@@ -115,7 +116,9 @@ romlift/
       formats/                      elf.ts, gnu-map.ts, canonical-json.ts, luvdis-cfg.ts, ldscript-symbols.ts,
                                     thumb-aliases.ts, trace-json.ts
       diagnostics/                  diagnostic.ts (the mechanism; no codes)
-      util/                         hex.ts, sorted.ts, interval-index.ts, csr.ts, min-heap.ts
+      util/                         hex.ts, sorted.ts, interval-index.ts, csr.ts, min-heap.ts, arrays.ts (pushAll,
+                                    lowerBound, spanIndexAt), fold.ts (foldPath), project-path.ts
+                                    (isProjectPath: what every emitted, journalled and written path must be)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -128,31 +131,40 @@ romlift/
         rules/                      define-rule.ts, index.ts (concatenates the family registries)
           seed/ walk/ bl/ valid/ accept/ gap/ claim/ region/     index.ts + one file per rule (§4.1)
       proposals/                    types.ts (Proposal, ProposalSource, LibraryRegion, sourceKey)
-      layout/                       types.ts, borders.ts, infer-modules.ts, config-from-discover.ts
+      layout/                       types.ts, borders.ts (core/model's one entry; it re-exports the rest), align.ts,
+                                    asm-only.ts, entries.ts, refs.ts, tiling.ts, infer-modules.ts
       evidence/                     facts.ts, merge.ts, codes.ts
       legacy/                       facts.ts (legacy files to evidence facts), renames-toml.ts
       signatures/                   schema.ts, spec.ts, extract.ts, match.ts, resolve.ts, policy.ts, propose.ts, codes.ts
         rules/                      index.ts + one file per sig.* placement rule
       config/                       schema.ts, keys.ts, parse.ts, serialize.ts, patch.ts, compilers.ts,
                                     decomp-yaml.ts, codes.ts
-      model/                        types.ts, items.ts, chunks.ts, modules.ts, labels.ts, names.ts, symbols.ts,
-                                    model.ts, codec.ts, codes.ts
+      model/                        types.ts, item-table.ts (ItemTable builder, itemAt), resolver.ts (labels per
+                                    module, wordValueOf), paths.ts (the paths writers and checks share), segments.ts,
+                                    printing-cache.ts, items.ts, chunks.ts, modules.ts, labels.ts, names.ts,
+                                    symbols.ts, model.ts, codec.ts,
+                                    codes.ts (D62 b)
       reconcile/                    c-tokens.ts, include-asm.ts, rename-tokens.ts, text-edit.ts, codes.ts
-      emit/                         tree.ts, symbol-resolver.ts, emit-tree.ts
+      emit/                         tree.ts, emit-tree.ts, unit-text.ts (what the chunk-file and unit-file writers
+                                    share; the resolver is core/model/resolver.ts, D62 b)
         print/                      insn.ts, pool.ts, table.ts, data.ts, raw.ts
         writers/                    one file per WriterId (§6.3)
-      verify/                       tiling.ts, reencode.ts, module-size.ts, text-layout.ts, paths.ts, report.ts, codes.ts
+      verify/                       tiling.ts, reencode.ts, module-size.ts, text-layout.ts, link-scripts.ts (ldscript.txt
+                                    and symbols.ld), text-error.ts, paths.ts, toolchain.ts (the assemble and link
+                                    verdicts on the toolchain's bytes), report.ts, codes.ts
       write-plan/                   types.ts, plan-writes.ts, manifest.ts, journal.ts, codes.ts
       scaffold/                     render.ts, vars.ts
       workflow/                     doctor.ts (phase 1: the doctor's checks, corpus threshold and verdict, D55),
-                                    types.ts, discover.ts, explain.ts, generate.ts, init.ts, analyze-update.ts,
-                                    rename.ts, import-legacy.ts
+                                    types.ts, discover.ts, explain.ts, config-from-discover.ts (D62 c), generate.ts,
+                                    init.ts, analyze-update.ts, rename.ts, import-legacy.ts
     shell/                          the only code that touches files, processes, hashing or the environment
       codes.ts                      the shell's diagnostic codes
       hash.ts                       sha1/sha256 via node:crypto, incremental
       fs.ts                         listDir (sorted by code unit), atomic write (temp and rename)
       rom.ts                        readRom: a ROM file read, hashed and wrapped (D59)
-      project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts
+      project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts, disk-state.ts,
+                                    fresh-tree.ts (writeFreshTree), spelling.ts (case-only renames on a
+                                    case-insensitive file system)
       config/                       load.ts, save.ts
       evidence/                     read-elf.ts, read-map.ts, read-legacy.ts, read-trace.ts
       toolchain/                    binutils.ts, doctor.ts, corpus.ts (runCorpus), corpus-inputs.ts (the corpus
@@ -167,7 +179,8 @@ romlift/
     src/                            cli.ts, run.ts, score.ts, parity.ts, classify.ts, seal.ts,
                                     dataset.ts, dataset-check.ts, vocabulary.ts, gates.ts, provenance.ts,
                                     digest.ts, regression.ts, ablate.ts, speed.ts, readability.ts, objdiff.ts,
-                                    large-rom.ts, migration.ts, signatures.ts, doctor-real.ts, report.ts, serve.ts
+                                    large-rom.ts, large-rom-bin.ts, rss-probe.ts, live-heap.ts, migration.ts,
+                                    signatures.ts, doctor-real.ts, report.ts, serve.ts
     tools/export-poc.ts             runs the PoC (read-only, outside the repo) to dump its runs (§4.5)
     tools/objdiff.version           the pinned objdiff-cli version
     tools/convert-poc-signatures.ts converts the PoC's signature files to schema 3 into bench/.local/ (phase 6)
@@ -569,7 +582,7 @@ export interface ModuleConfig {
   readonly generated: boolean; readonly library?: string; readonly version?: string;
   readonly compiler?: BuildCompilerId;           // default: build.compiler (D47)
   readonly cflags?: readonly string[];           // appended to the compiler's default flags
-  readonly dataStart?: Addr;                     // phase 5: the module's C data range (§6.6)
+  // phase 5 adds `dataStart?: Addr`, the module's C data range (§6.6); not in the phase-3 schema (D62 d)
 }
 export interface FunctionConfig { readonly name: string; readonly mode: Mode; readonly size?: number;
   readonly label?: boolean;                      // a typed global label inside the containing function, not a chunk start
@@ -590,7 +603,8 @@ export type ProposalSource =
   | { readonly kind: 'signature'; readonly library: string; readonly version: string; readonly rule: RuleId }
   | { readonly kind: 'evidence'; readonly id: 'trace' | 'elf' | 'map' }
   | { readonly kind: 'legacy' }
-  | { readonly kind: 'analysis'; readonly rule: RuleId };
+  | { readonly kind: 'analysis'; readonly rule: RuleId }
+  | { readonly kind: 'layout'; readonly reason: 'header' | 'startup' | 'asm-only' | 'module-size' | 'data' };  // inferModules (D62 d)
 export type Proposal =
   | { readonly kind: 'function'; readonly addr: Addr; readonly mode: Mode; readonly name?: string;
       readonly size?: number; readonly label?: boolean; readonly source: ProposalSource }
@@ -600,12 +614,13 @@ export type Proposal =
       readonly library?: { readonly name: string; readonly version: string }; readonly source: ProposalSource }
   | { readonly kind: 'override'; readonly span: Span; readonly overrideKind: 'code' | 'data';
       readonly mode?: Mode; readonly runsAt?: Addr; readonly source: ProposalSource };
-export function sourceKey(s: ProposalSource): string;   // 'sig:m4a@2001', 'evidence:trace', 'legacy'; 'analysis' is never persisted
+export function sourceKey(s: ProposalSource): string | undefined;   // 'sig:m4a@2001', 'evidence:trace', 'legacy';
+                                                                    // undefined: 'analysis' and 'layout' are never persisted
 export interface LibraryRegion { readonly span: Span; readonly library: string; readonly version: string }
 
 // core/model/types.ts: plain data; `model --json` is its NDJSON form (D19)
 export const ItemKind = { insn: 0, rawInsn: 1, pool: 2, tableEntry: 3, padding: 4, data: 5 } as const;
-export type ItemRawReason = RawReason | 'cross-module-short-branch';
+export type ItemRawReason = RawReason | 'cross-module-short-branch' | 'interworking-branch';
 export interface ItemTable {                      // struct of arrays; tiles [base, end) in address order
   readonly count: number;
   readonly kind: Uint8Array;                      // ItemKind
@@ -631,7 +646,7 @@ export interface Module {
   readonly name: string; readonly span: Span; readonly kind: 'asm' | 'c' | 'data';
   readonly generated: boolean; readonly compiler: BuildCompilerId; readonly cflags: readonly string[];
   readonly library?: { readonly name: string; readonly version: string };
-  readonly runAt?: Addr; readonly dataStart?: Addr;
+  readonly runAt?: Addr;                          // phase 5 adds dataStart (D62 d)
   readonly chunks: { readonly first: number; readonly count: number };
 }
 export type LabelKind = 'func' | 'local' | 'pool' | 'table' | 'data';
@@ -658,7 +673,11 @@ export interface Model {
   readonly diagnostics: readonly Diagnostic[];
 }
 export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftConfig): Model;
-export function itemAt(items: ItemTable, i: number, rom: Rom): Item;
+// core/model/item-table.ts; runOffset = chunk.runAt - chunk.span.start inside a runs_at range (D62 b)
+export function itemAt(items: ItemTable, i: number, rom: Rom, runOffset?: number): Item;
+// core/model/resolver.ts (D62 b): visible in `module` = global, or lying in it; preferred label per address
+export function resolverFor(model: Pick<Model, 'labels' | 'modules'>, module: string): SymbolResolver;
+export function wordValueOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>): number;   // addr | 1 for a Thumb func
 
 // core/model/codec.ts: the public JSON contract for asmlift and Mizuchi
 export interface ModelJsonHeader { readonly schema: 'romlift/model-json@1'; /* rom, build, modules,
@@ -677,9 +696,18 @@ export type FileEntry =
 export interface TextEdit { readonly start: number; readonly end: number; readonly text: string;
   readonly reason: 'add-stub' | 'remove-stub' | 'move-stub' | 'rename' }
 export interface DecompState { readonly defined: ReadonlySet<string> }    // names defined in src/*.c
-export interface EmitContext { readonly decomp: DecompState }
-// core/emit/emit-tree.ts: modules in ROM order, each module's files in path order; re-callable, deterministic
+export type Printer = 'readable' | 'raw';
+export interface EmitContext { readonly decomp: DecompState; readonly printer?: Printer }   // default 'readable' (D62 d)
+export interface PrintStats { readonly insns: number; readonly rawInsns: number; readonly branches: number;
+  readonly symbolicBranches: number; readonly poolLoads: number; readonly symbolicPoolLoads: number;
+  readonly rawReasons: Readonly<Record<string, number>> }                   // the readability family's inputs
+export interface PrintedChunk { readonly lines: readonly string[]; readonly stats: PrintStats }
+export interface Writer { readonly id: WriterId; readonly scope: 'module' | 'global';
+  emit(rom: Rom, model: Model, cx: EmitContext, module: number | null): Iterable<FileEntry> }
+// core/emit/emit-tree.ts: per generated module in ROM order, its module-scoped writers' entries sorted by path,
+// then the global writers' entries (ldscript.txt, symbols.ld) sorted by path; re-callable, deterministic
 export function emitTree(rom: Rom, model: Model, cx: EmitContext): Iterable<FileEntry>;
+export function printChunk(rom: Rom, model: Model, chunk: number, how?: Printer | EmitContext): PrintedChunk;  // default 'readable' (D63)
 
 // core/write-plan/plan-writes.ts: the write policy, pure (D17)
 export interface Manifest { readonly schema: 1; readonly romlift: string;
@@ -696,9 +724,13 @@ export interface WritePlanInputs {
   readonly disk: ReadonlyMap<string, string | 'absent'>;   // sha1 of every path under the generated roots, and of every tree path
   readonly reconciledTexts: ReadonlyMap<string, string>;   // current text of each reconciled file
   readonly hash: (text: string) => string;                 // injected by the shell (D44)
+  readonly retained: readonly string[];                    // path prefixes of generated = false modules (D62 d)
+  readonly journal?: Journal | null;                       // an interrupted run's journal: its paths count as owned (D63)
+  readonly romlift?: string;                               // the version stamped on the new manifest (D63)
 }
-export function planWrites(inputs: WritePlanInputs): { readonly ops: readonly WriteOp[];
-  readonly manifest: Manifest; readonly diagnostics: readonly Diagnostic[] };
+export interface WritePlan { readonly ops: readonly WriteOp[]; readonly manifest: Manifest;
+  readonly diagnostics: readonly Diagnostic[] }
+export function planWrites(inputs: WritePlanInputs): WritePlan;
 ```
 
 What changes from the PoC: its `Func` mixed reading, acceptance and mutation (`absorbBlock` writes into
@@ -1091,8 +1123,9 @@ row('thumb.ldr_pc', { mask: 0xF800, match: 0x4800, size: 2,
 - `roundTrips(insn, resolver) = assemble(parse(format(insn)), insn.addr) === insn.word`.
 
 **The assembler dialect** (`foundation/asm/dialect.ts`) is the one definition of the text every
-generated `.s` file starts with (`.syntax unified`, the `include/macros.inc` include, `.thumb`/`.arm`)
-and of `macros.inc` itself. The corpus, the writers, the `macros.inc` template and the text-layout
+generated unit file (`rom_header.s`, `crt0.s`, `<module>.s`, `data/<module>.s`) starts with
+(`.syntax unified`, the `include/macros.inc` include, `.thumb`/`.arm`) and of `macros.inc` itself; a chunk
+file a unit includes starts with `.thumb` or `.arm` alone, because `as` refuses `macros.inc` twice (D63). The corpus, the writers, the `macros.inc` template and the text-layout
 check (§6.4) all take it from there, so the corpus tests the dialect the writers emit (D49).
 
 **Printing rule** (D14): an instruction is printed as a mnemonic only when `roundTrips` holds in
@@ -1129,7 +1162,8 @@ same corpus through the user's `as`. The same check on whole writer output (a Th
   name only when the linker would produce the same word: a Thumb function name stands for its address
   plus one, so an odd word equal to that prints as `.4byte Func`, and an even word equal to a Thumb
   function's address stays numeric (Emerald has 125 such words). Far pools are printed where they sit,
-  labelled global when another module loads them.
+  always in the module of the load that names them: `as` cannot assemble a PC-relative load of a symbol
+  in another object, so no legal border separates the two (D63).
 - **Jump tables.** One `table-entry` item per word, printed `.4byte _0800ABCD` (with `+ 1` when the
   stored value carries the Thumb bit) to a `local` label.
 - **Mode switches.** `bx pc` is followed by whatever bytes are there (`.align 2, 0` when they are zero,
@@ -1143,7 +1177,10 @@ same corpus through the user's `as`. The same check on whole writer output (a Th
   because `core/layout/borders.ts` makes that border illegal (§6.2). Only a border the user moves by
   hand can split one; that branch then prints raw with the target in the comment
   (`'cross-module-short-branch'`, `W_CROSS_MODULE_SHORT_BRANCH`) and is counted in the readability
-  family. This exception needs the owner's approval (§12, D15).
+  family. This exception needs the owner's approval (§12, D15). A `b` or `bl` that would name a function
+  label of the other state (a `[functions]` entry listed `arm` that Thumb code calls, or the reverse) prints
+  raw too (`'interworking-branch'`, `W_INTERWORKING_BRANCH`, D67 b): GNU ld would put an interworking veneer
+  into the image for it, which moves every later byte and which no text-layout check sees.
 - **Padding** (D16). Zero bytes up to a word boundary print as `.align 2, 0`, as the plan requires, so
   pools stay aligned when a neighbouring C function changes size.
 - **Data in code.** Dead or unreached bytes inside an extent are `data` items printed as
@@ -1178,7 +1215,9 @@ earlier gates.
    byte is in exactly one item.
 2. **Chunks** (`chunks.ts`, ported from the PoC's `tile()`): one chunk per listed function. In confirm
    mode every listed entry starts a chunk, except an entry with `label = true`, which becomes an inner
-   label of the chunk that contains it (a second entry, or a label a signature folded into its parent).
+   label of the chunk that contains it (a second entry, or a label a signature folded into its parent); a
+   `label = true` entry that only the cartridge entry's extent covers still starts a chunk, because the header
+   chunk clips that extent (D64 a).
    Bytes between functions in a code module become an `orphan` chunk named `unk_XXXXXXXX`, with its own
    file and stub line, never glued to a neighbour.
 3. **Modules** (`modules.ts`): taken from the config. Each module carries its build compiler and flags
@@ -1186,18 +1225,25 @@ earlier gates.
    `E_MODULE_BORDER`, naming the nearest legal borders.
 4. **Labels and names** (`labels.ts`, `names.ts`): a name comes from the TOML, else the default `sub_`,
    `unk_`, `_` or `gUnk_` plus eight upper-case hex digits; `NameSource` records which, and the TOML's
-   `from` key when present. A label referenced from another module has `scope: 'global'`, every other
-   label `scope: 'module'`. Names are unique within a module (`E_NAME_COLLISION`). A name may repeat in
+   `from` key when present. A `local` label is made only where an item can start: never at an odd code
+   address, the second halfword of a `bl`, the inside of an ARM word or of a pool or table word (an ARM
+   `adr r0, X + 1` before a `bx r0` into Thumb names one), so the instruction naming such an address fails
+   the printing rule and prints raw (D63). A label referenced from another module has `scope: 'global'`,
+   every other label `scope: 'module'`. Names are unique within a module (`E_NAME_COLLISION`). A name may repeat in
    different modules only when no other module references it, as static functions do in real decomps
    (Emerald has 117 duplicated static `FUNC` names); such labels print with the `_local` macros. Two file
    names in one directory that differ only by case (Emerald's `VBlankCB` and `VblankCB`, `InitBgs` and
-   `InitBGs`) are both written as `<Name>_<ADDR>.s`; the self-check `E_PATH_CASE_COLLISION` guards the
+   `InitBGs`) are both written as `<Name>_<ADDR>.s` (every member of a case-folded group, never only the second); the self-check `E_PATH_CASE_COLLISION` guards the
    invariant (§6.4).
 
 **Legal borders** (`core/layout/borders.ts`). A module border is legal when it is a word-aligned chunk
-start (`ld` word-aligns every object), when no short Thumb branch (`b`, `bcc`) crosses it, and when it
-does not fall inside an assembly-only range (below). `legalBorders(analysis, profile)` returns them
-sorted; the model, `init`, `analyze --update` and the TOML patcher all use it.
+start (`ld` word-aligns every object), when no short Thumb branch (`b`, `bcc`) crosses it, when no
+PC-relative load or `adr` (Thumb `ldr rd, [pc, #]` and `add rd, pc, #`, ARM `ldr rd, [pc, #]` and `adr`)
+crosses it, since `as` has no relocation for one that names a symbol in another object (D63), and when it
+does not fall inside an assembly-only range (below). The data start is the code end rounded up to a word,
+moved past every word the code loads PC-relative beyond it (D63). `legalBorders(rom, analysis)` returns
+them sorted, from the ROM's bytes and no compiler profile (the model has none, D63); the model, `init`,
+`analyze --update` and the TOML patcher all use it.
 
 **Module inference** (`core/layout/infer-modules.ts`, D20) returns `Proposal`s of kind `module` and
 follows the plan's rule:
@@ -1215,14 +1261,26 @@ follows the plan's rule:
   0x3D40, sa3 0x20AC, sa2 0x1840, FE7J 0x1228), so a default module never needs to be split to fit a real
   unit's typical size, and `start` stays easy to move.
 
-`core/layout/config-from-discover.ts` turns a discover result and the inferred modules into an in-memory
-`RomliftConfig` (every found entry listed; entries inside another found extent with `label = true`). In
-phase 3 it is what `generate`, `model` and `verify` run on; in phase 4 `init` serialises the same config.
+`core/workflow/config-from-discover.ts` turns a discover result and the inferred modules into an in-memory
+`RomliftConfig` (every found entry listed; entries inside another found extent with `label = true`, the
+startup code inside the cartridge entry's included, so the confirm run reads every extent as discover did,
+D64 a). It
+lives in `core/workflow` because the edge table forbids `core/layout` to import `core/config` (D62 c). In
+phase 3 it is what `generate`, `model` and `verify` run on, and every code module it writes is `asm`; in
+phase 4 `init` serialises the same config, with the agbcc-shaped modules as `c`.
+
+**Shared by writers and checks** (`core/model/resolver.ts`, `paths.ts`, D62 b). A label lies in the module
+whose run range (a `runs_at` module first), else load span, contains its address; in a module it is visible
+when it is global or lies there, and several labels at one address print in the order func, table, pool,
+local, data, then name. `chunkPaths` names every function and orphan file, applying the case-fold rule above
+to every member of a collision group; `buildUnits` lists one source and object per module in ROM order
+(`asm/rom_header.s`, `asm/crt0.s`, `asm/<module>.s`, `data/<module>.s`).
 
 ### 6.3 Writers and the emission stream
 
-Each writer is `(rom: Rom, model: Model, cx: EmitContext) => Iterable<FileEntry>`, with
-`EmitContext = { decomp: DecompState }`. Everything else a writer needs (build name, module compiler and
+Each writer is a `Writer` (§3.4): `emit(rom, model, cx, module)` yields one module's files of its kind
+(module scope, called per generated module) or the global files (`ldscript.txt`, `symbols.ld`, called once
+with `null`), with `EmitContext = { decomp: DecompState; printer?: Printer }` (D62 d). Everything else a writer needs (build name, module compiler and
 flags, library, labels) is on the `Model`, so a writer has one source of names and modules.
 `DecompState` is derived by the workflow from the C texts the shell passes in, with the reconciler's
 tokenizer, and it decides one thing: `matchings` against `nonmatchings`. `emitTree` runs the writers
@@ -1279,8 +1337,10 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      `foundation/asm/layout.ts`, and the bytes must equal the ROM range; every `.align` must emit exactly
      its padding item's length. A mismatch is `E_SELF_CHECK_TEXT` with the file, line and address. Paths
      are checked for duplicates and case-folded collisions in the same pass (`paths.ts`,
-     `E_PATH_CASE_COLLISION`). This makes every run on every ROM a link-equivalent check without a
-     toolchain; `verify --link` and the SHA-1 remain the final proof.
+     `E_PATH_CASE_COLLISION`). Each build unit must also start and end on a multiple of its section's
+     alignment, which GNU as pads a section's end to and ld places it on (D65 a). This makes every run on
+     every ROM a link-equivalent check without a toolchain; `verify --link` and the SHA-1 remain the final
+     proof.
 
    The check pass streams the emission once and keeps only paths and digests; the write pass re-runs
    the deterministic emission. Nothing is written unless the check pass completed.
@@ -1293,7 +1353,10 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      (`asm/`, `data/`, `expected/`, `ldscript.txt`, `symbols.ld`, `modules.mk`, `objdiff.json`), which
      `AGENTS.md` and `.gitignore` declare tool-owned; elsewhere it is `E_PATH_NOT_OWNED`. Without a
      manifest nothing is deleted and an unknown file under a generated root is `W_UNOWNED_FILE`. Files of
-     a `generated = false` module are never written.
+     a `generated = false` module are never written and never deleted (`WritePlanInputs.retained`, D62 d).
+     A tree path that only the case separates from a path the manifest or the journal lists (a module or
+     function renamed by case) is one file on a case-insensitive file system: it is always `write`n, and the
+     old spelling's `delete` comes before every other op, so it cannot remove the new file (D65 b).
    - **scaffold**: `write` only when absent; `scaffold --diff` shows template drift.
    - **reconciled**: `edit` only if the file's sha1 still equals `baseSha1`, else `E_STALE_EDIT`.
 4. **Apply** (`shell/project/apply-writes.ts`), mechanically:
@@ -1301,7 +1364,10 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      `E_PROJECT_LOCKED`; a lock whose pid is gone on the same host is taken over with `W_STALE_LOCK`;
    - write `.romlift/journal.json` (`core/write-plan/journal.ts` defines it: every op with its path,
      `baseSha1` and result sha1) before the first op;
-   - apply each op through a temporary file and a rename;
+   - apply each op through a temporary file and a rename; the journal, the manifest, edits, scaffold files
+     and C stubs are flushed (`fsync`) before their rename, generated files are not, and a generated file whose
+     path does not exist yet is created in place with `O_EXCL`: the next run's snapshot rewrites any generated
+     file a crash left short (D64 d, accepted by the owner's answer to Q3 of phase-3.md, D68 c);
    - write the new manifest last, through a temporary file and a rename, then delete the journal.
 
    A run that finds a journal first finishes the interrupted one: generated paths listed in the journal
@@ -1628,8 +1694,8 @@ it was built with.
   push and pop, a run of Thumb pointers that decodes as code, a pool word that decodes as `push {lr}`, a
   pool padded with `0x46C0`, code-end data that decodes, a 2-byte false stub.
 - **Composite** (phase 4): several objects linked into one ROM and scaffolded with `--module-size 0x200`,
-  so it has several modules, a cross-module `bl`, a pool loaded from another module (printed global), a
-  short branch that `init` must not cut, and a TOML with an illegal border that must fail with
+  so it has several modules, a cross-module `bl`, a pool word naming a function of another module (its label
+  printed global; a PC-relative load never crosses a border, D63), a short branch that `init` must not cut, and a TOML with an illegal border that must fail with
   `E_MODULE_BORDER`.
 - **Multi-compiler** (phase 4): two C modules, one built with `agbcc` and one with `old_agbcc` and extra
   flags (`g4.multi-compiler`).
@@ -1715,9 +1781,9 @@ message states the reason, as the working rule requires.
 | Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (both family conditions waived by the owner, the fresh-family one by the decision of D60 and the two-families one by the answer to Q4, "Waive both" (D61 b), for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
-| Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target five (`g3.link`); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
-| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM; objdiff score 0 (below) | 3 |
-| Memory | peak RSS < 512 MiB on the deterministic 32 MiB synthetic ROM (`g3.large-rom`) | 3 |
+| Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
+| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g5.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a; phase 3 records the classified counts) | 3, 5 |
+| Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=1024`, the owner's answer to Q7 of phase-3.md, D72, replacing Q6's 384) with peak RSS below 1,536 MiB, the budget set again from the recorded runs under that cap with a 25% margin (`g3.large-rom`, D68 b, D72 b); the six tuning ROMs and the code-dense doubled ROM are measured under the same cap and recorded; the bin's own commands complete on the synthetic ROM under the cap (`test/local/large-rom-bin.test.ts`, D70 b; not a gate) | 3 |
 | Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance); on a reference ROM every name equals that reference's own symbol; leave-one-reference-out adds or moves no placement; sealed held-out counts | 6 |
 
 The bench always scores a **seedless discover run** (no TOML, signature or evidence seeds) and judges
@@ -1725,7 +1791,10 @@ signatures afterwards, so library knowledge never flatters the library-agnostic 
 dataset, tuning and held-out alike, counts entries and ELF functions from the end of the startup
 region, as the PoC does, because each project types its startup labels by its own convention.
 
-**objdiff** (`g3.objdiff`, D34). The oracle is objdiff-cli at the version pinned in
+**objdiff** (`g5.objdiff`, D34; `g3.objdiff` until the owner's answer to Q1 of phase-3.md moved it to phase 5,
+where the `expected/` objects and objdiff targets are built, D68 a: it applies there as D34 writes it unless the
+owner amends it then, and phase 3 records the counts the committed classifier, `bench/src/objdiff-classes.ts`,
+sorts the differences into). The oracle is objdiff-cli at the version pinned in
 `bench/tools/objdiff.version`, which is part of the source digest. For each tuning ROM whose readable
 build links, the target of each unit is the reference project's own relocatable object from its build
 directory (`objectsDir`, digest recorded), and the base is the emitted function `.s`, assembled, with its
@@ -1835,9 +1904,9 @@ defined. The codes:
 | --- | --- |
 | `E_ROM_NOT_GBA`, `E_ROM_SHA1_MISMATCH` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER` | `core/config` |
-| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_NAME_COLLISION`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH` | `core/model` |
+| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_SYMBOL_UNPLACED` | `core/model` |
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
-| `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION` | `core/verify` |
+| `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
 | `W_C_ORDER` | `core/reconcile` |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |
@@ -1917,7 +1986,24 @@ instruction. Canonical JSON is produced as a stream of string chunks (`foundatio
 and hashed incrementally by the shell, so no artifact is ever one string; `model --json` is NDJSON per
 chunk; writers produce one module's files at a time, and the check and write passes keep only paths and
 digests (§6.4). `g3.large-rom` builds a deterministic synthetic 32 MiB ROM by tiling fixture code with
-seeded data and requires peak RSS < 512 MiB for `init` and `generate`, recording `maxRssMiB`.
+seeded data and runs `init` and `generate` each in its own process under the heap cap the `romlift` bin passes
+(`--max-old-space-size=1024`: the bin's first line is `#!/usr/bin/env -S node --max-old-space-size=1024`, the owner's
+answers to Q2, Q6 and Q7 of phase-3.md, D68 b, D69, D72; Q7's 1,024 MiB replaces Q6's 384, which replaced Q2's 256), so
+it measures what those workflows hold under the bin's cap rather than how far V8 lets its heap grow; it requires both to
+complete under the cap and their peak RSS to stay below the budget, recording `maxRssMiB` (and, recorded only,
+`peakLiveHeapMiB`, the heap live after a full GC, which is what meets the cap first: about 288 to 349 MiB, D72 b). The
+budget, 1,536 MiB, is the largest peak of the eight runs recorded under the 1,024 MiB cap (1,210.1 MiB, `generate`) plus
+25%, rounded up to a multiple of 64 MiB (D72 b); it replaces the 1,088 MiB set the same way under 384 MiB (D69 b). The
+bin's own commands (`analyze`, `explain`, `model`, `verify` with `--assemble` and `--link`) take other paths than those
+workflows; `bench large-rom --bin` runs each of them under the cap, recording each one's peak RSS and live heap, and
+`test/local/large-rom-bin.test.ts` requires all to complete on the synthetic ROM (D70 b, D71 b, e): the discover
+analysis is dropped before the confirm analysis runs, and `analyze`'s text table, `analyze --json` and `model --json`
+stream their output, waiting for stdout to drain. Under the 1,024 MiB cap (D72 c, d) the bin's commands complete on the
+synthetic ROM (peak RSS 940.0 to 1,217.6 MiB, live heap at most 422.6 MiB), on the six tuning ROMs (4 to 16 MiB; 212.7
+to 847.5 MiB) and on a 32 MiB ROM of real code density, pokeemerald twice over (29,084 functions; 951.6 to 1,376.0 MiB,
+live heap at most 922.7 MiB); that ROM is measured by `bench large-rom --bin --rom`, not gated. Its readable tree fails
+the text-layout check on two `adr` lines naming a function label (`verify` exit 3, nothing written), a phase-4 work
+item (roadmap.md, phase 4, "Carried from phase 3"); its raw tree links to its SHA-1.
 
 ## 10. Testing strategy
 
@@ -2030,6 +2116,25 @@ in roadmap.md pass. The gates per phase are those of §1.
 8. The Transmuter block in `decomp.yaml`.
 9. Which compiler built the other Klonoa GBA games, which decides whether a second analysis profile
    belongs in release 1.
+10. The phase-3 owner questions (phase-3.md, Q1 to Q8), **answered by the owner on 19 October 2026** (D68, D69, D72, D73):
+    Q1, "Move gate to phase 5" (`g3.objdiff` is `g5.objdiff`; phase 3 records the classified counts and keeps the
+    classifier); Q2, "Measure under a heap cap" (the `romlift` bin and `g3.large-rom` run Node with
+    `--max-old-space-size=256`, §9.4, raised to 384 by Q6 and to 1,024 by Q7); Q3, "Accept, don't flush generated" (§6.4, D64 d); Q4, "Accept" (the
+    narrowed raw-printer PoC parity of D65 l is roadmap 3.B's gate); Q5, "Accept Q5a; fix Q5b, c in phase 4" (the
+    alignment refusal is a release-1 limitation; padding-only orphans folded into the next function, and confirm
+    not re-validating the functions discover listed, are phase-4 work items in roadmap.md). Applying Q2 found that
+    no run of the 32 MiB synthetic ROM completes under 256 MiB; Q6, "384 MiB for bin and gate" (D69: the bin and
+    `g3.large-rom` use `--max-old-space-size=384`, the budget 1,088 MiB set from the runs then recorded under it with a
+    25% margin, 15.1% over the largest peak recorded since, D70 c);
+    the review of that landing found the bin's own commands out of memory on the synthetic ROM under the cap, which
+    fix round 4 resolved without a gate change (D70). Fix round 5 found a code-dense 32 MiB ROM that does not complete
+    under 384 MiB (D71); Q7, "Raise cap to 1,024 MiB" (D72: the bin and `g3.large-rom` use `--max-old-space-size=1024`,
+    the budget 1,536 MiB set again from the runs under it with the same margin; every bin command completes on that
+    ROM under the cap, its readable `verify`'s text-layout failure on two `adr` lines being a phase-4 work item and a
+    recorded phase-3 limitation; no dense ROM is added to the gate). The landing run after that answer failed `g2.speed`
+    by 0.5 ms on sa2 with the analysis unchanged; Q8, "Re-run the gate list" (D73: the whole closing list runs again
+    unchanged at a commit raising `phase.json` again; no gate change; a further failure is a new owner question), and
+    that run passed every command at `0784b4e`.
 
 ## 13. Gate index
 
@@ -2069,15 +2174,14 @@ one is missing.
 | `g2.regression` | ci | `bench regression` against the merge-base passes on the committed artifacts and datasets |
 | `g2.checks-fail` | ci | mutation tests of the classifier, seal, stale-exception and regression reporters (the lockstep reporter was deleted with the oracle, D59) |
 | `g3.self-check` | ci and real | tiling, re-encode and module-size checks pass on every fixture and tuning ROM |
-| `g3.text-layout` | ci and real | the text-layout check passes on every fixture and tuning ROM |
+| `g3.text-layout` | ci and real | the text-layout check, and the paths check of the same pass, pass on every fixture and tuning ROM |
 | `g3.raw-link` | ci and real | the raw printer links to the SHA-1 on every fixture and every tuning ROM |
-| `g3.link` | ci and real | the readable printer links to the SHA-1 on every fixture and on at least three tuning ROMs (target five) |
+| `g3.link` | ci and real | the readable printer links to the SHA-1 on every fixture and on at least three tuning ROMs (target all six, D62 h) |
 | `g3.readability` | real | readability shares only increase, on every tuning ROM |
-| `g3.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links |
 | `g3.tree-determinism` | ci and real | two processes with a varied environment give one tree digest; no generated file contains the project path; Linux and macOS agree |
 | `g3.golden-writers` | ci | every writer's output on every fixture equals its golden |
 | `g3.speed-budget` | real | the budgets of §9.3 (calibrated) |
-| `g3.large-rom` | ci | §9.4 |
+| `g3.large-rom` | ci | §9.4: under the `romlift` bin's heap cap, 1,024 MiB (D68 b, D72) |
 | `g3.checks-fail` | ci | mutation tests of the four self-checks and of `planWrites` |
 | `g4.e2e-fixtures` | ci | in a directory holding only the fixture ROM, `npx romlift init <rom> && ./setup.sh && make` ends at the SHA-1; the composite fixture's illegal border fails with `E_MODULE_BORDER` |
 | `g4.e2e-real` | real | the same command on every tuning ROM; sealed ROMs report counts only |
@@ -2096,6 +2200,7 @@ one is missing.
 | `g5.rename` | ci | identifier-only renames; refusals |
 | `g5.import-legacy` | real | §6.8 counts |
 | `g5.expected-bytes` | ci and real | §6.8 |
+| `g5.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links (`g3.objdiff` until D68 a) |
 | `g5.c-data-ranges` | ci | a C array replaces its slice of the ROM and the build still matches |
 | `g5.klonoa-rehearsal` | real | §6.8 |
 | `g5.klonoa-switch` | real | §6.8 |

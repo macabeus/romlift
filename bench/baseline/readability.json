@@ -1,0 +1,35 @@
+{
+  "schema": "romlift-bench/readability-floor@1",
+  "roms": {
+    "fe7j": {
+      "mnemonicShare": 0.9999938145413947,
+      "symbolicBranchShare": 1,
+      "symbolicPoolShare": 1
+    },
+    "klonoa": {
+      "mnemonicShare": 0.9999854158311153,
+      "symbolicBranchShare": 1,
+      "symbolicPoolShare": 1
+    },
+    "pokeemerald": {
+      "mnemonicShare": 0.9999974644805418,
+      "symbolicBranchShare": 1,
+      "symbolicPoolShare": 1
+    },
+    "sa2": {
+      "mnemonicShare": 0.9999924056304655,
+      "symbolicBranchShare": 1,
+      "symbolicPoolShare": 1
+    },
+    "sa3": {
+      "mnemonicShare": 0.9999944731838882,
+      "symbolicBranchShare": 1,
+      "symbolicPoolShare": 1
+    },
+    "tmc": {
+      "mnemonicShare": 0.9999850544392052,
+      "symbolicBranchShare": 0.9999786489025536,
+      "symbolicPoolShare": 1
+    }
+  }
+}

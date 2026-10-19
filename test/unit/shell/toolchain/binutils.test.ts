@@ -56,6 +56,8 @@ test('assembleWithBinutils returns the .text bytes', { skip: available ? false :
   const result = await assembleWithBinutils(source, { mode: 'thumb', files: { 'include/macros.inc': DIALECT.macrosInc } });
   assert.ok(result.ok, result.ok ? '' : result.stderr);
   assert.deepEqual([...result.bytes], [0x10, 0xb5, 0x70, 0x47]);
+  // The relocatable object itself, for a caller that reads its symbols and relocations (bench objdiff).
+  assert.deepEqual([...result.object.subarray(0, 4)], [0x7f, 0x45, 0x4c, 0x46]);
   const arm = await assembleWithBinutils('.syntax unified\n.arm\n\tbx lr\n');
   assert.ok(arm.ok);
   assert.deepEqual([...arm.bytes], [0x1e, 0xff, 0x2f, 0xe1]);

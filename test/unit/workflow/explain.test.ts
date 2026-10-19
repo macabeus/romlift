@@ -1,7 +1,8 @@
 // The explain workflow (architecture §9.2, D35): one discover run with trail 'full' kept to a window around
 // the address, filtered afterwards to explainFilter (the 256-byte bucket around the address widened to the
 // extents covering it); a second run only when an extent reaches past the window. explainAnalysis composes
-// it with the registered rules' metadata; the phase-2 report is the analysis part only.
+// it with the registered rules' metadata; phase 3 adds the item and chunk of the model configFromDiscover and
+// buildModel make of the same discover result (D35).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -11,7 +12,10 @@ import { explainAnalysis, explainBucket, explainFilter } from '../../../src/core
 import { Claim } from '../../../src/core/analysis/types.ts';
 import type { TrailEvent } from '../../../src/core/provenance/trail.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
-import { explain, explainOutcome } from '../../../src/core/workflow/explain.ts';
+import { buildModel } from '../../../src/core/model/model.ts';
+import { findItem, itemAt } from '../../../src/core/model/item-table.ts';
+import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
+import { explain, explainOutcome, modelPart } from '../../../src/core/workflow/explain.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
@@ -32,7 +36,38 @@ test('explain equals explainAnalysis over the filtered full-trail rerun of disco
   const events: TrailEvent[] = [];
   const result = discover(rom, { trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
   const expected = explainAnalysis(result, events, addr, Object.values(RULES).map((r) => r.meta));
-  assert.deepEqual(explain(rom, addr), expected);
+  const { item, chunk, ...analysisPart } = explain(rom, addr);
+  assert.deepEqual(analysisPart, expected);
+  assert.deepEqual({ item, chunk }, modelPart(rom, buildModel(rom, result, configFromDiscover(rom, result)), addr));
+});
+
+test('phase 3: the item and the chunk of the address in the model of the discover run', () => {
+  const rom = fixtureRom('far-jump');
+  const found = discover(rom);
+  const model = buildModel(rom, found, configFromDiscover(rom, found));
+  const entry = explain(rom, 0x0800_0104);
+  assert.deepEqual(entry.chunk, { name: 'sub_08000104', kind: 'function', module: 'main' });
+  assert.equal(entry.item?.kind, 'insn');
+  assert.deepEqual(entry.item, itemAt(model.items, findItem(model.items, 0x0800_0104), rom));
+  assert.deepEqual(entry.item?.span, { start: 0x0800_0104, end: 0x0800_0106 });
+  // The middle of an item is explained by that item; the header by the header chunk.
+  const inside = explain(rom, 0x0800_0105);
+  assert.deepEqual(inside.item, entry.item);
+  const header = explain(rom, 0x0800_0010);
+  assert.deepEqual(header.chunk, { name: 'rom_header', kind: 'header', module: 'rom_header' });
+  assert.equal(header.item?.kind, 'data');
+  // A pool word of a function is a pool item with its value.
+  const pool = found.functions.flatMap((f) => f.pools)[0];
+  assert.ok(pool !== undefined);
+  assert.equal(explain(rom, pool).item?.kind, 'pool');
+});
+
+test('an address outside the ROM has no item and no chunk', () => {
+  const rom = fixtureRom('far-jump');
+  const report = explain(rom, 0x0300_0000);
+  assert.equal(report.item, undefined);
+  assert.equal(report.chunk, undefined);
+  assert.deepEqual(modelPart(rom, buildModel(rom, discover(rom), configFromDiscover(rom, discover(rom))), rom.end + 4), {});
 });
 
 test('the trail filter keeps only events touching the bucket and the extents covering the address', () => {

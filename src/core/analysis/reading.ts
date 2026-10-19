@@ -7,6 +7,7 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import type { BlSite } from '../profile/types.ts';
+import { frozenInsnLookup } from './insn-lookup.ts';
 import type { BlVerdictRecord, CallSite, Exit, InsnLookup, InsnSpan, JumpTable, PoolWord, Reading, ReadingError, WalkDecision } from './types.ts';
 
 /** Everything a reading is built from; `end` comes from the extent rule (claim.adjacent-pools). */
@@ -62,17 +63,12 @@ function sortedUnique(list: readonly Addr[]): readonly Addr[] {
 }
 
 function uniqueInsns(insns: readonly InsnSpan[], prepared?: InsnLookup): { list: readonly InsnSpan[]; at: InsnLookup } {
-  if (prepared !== undefined && prepared.size === insns.length) return { list: insns, at: prepared };
-  const at = new Map<Addr, number>();
+  if (prepared !== undefined && prepared.size === insns.length) return { list: insns, at: frozenInsnLookup(insns) };
   let sorted = true;
-  for (let k = 0; k < insns.length; k++) {
-    const i = insns[k] as InsnSpan;
-    if (k > 0 && (insns[k - 1] as InsnSpan).addr >= i.addr) sorted = false;
-    if (!at.has(i.addr)) at.set(i.addr, i.len);
-  }
-  if (sorted) return { list: insns, at };
+  for (let k = 1; k < insns.length && sorted; k++) if ((insns[k - 1] as InsnSpan).addr >= (insns[k] as InsnSpan).addr) sorted = false;
+  if (sorted) return { list: insns, at: frozenInsnLookup(insns) };
   const list = [...insns].sort((a, b) => a.addr - b.addr).filter((i, k, all) => k === 0 || all[k - 1]?.addr !== i.addr);
-  return { list, at };
+  return { list, at: frozenInsnLookup(list) };
 }
 
 function uniquePools(pools: readonly PoolWord[]): { list: readonly PoolWord[]; at: Map<Addr, number> } {
@@ -182,7 +178,8 @@ function holesOf(rom: Rom, entry: Addr, end: Addr, insns: readonly InsnSpan[], p
 
 /**
  * Builds the immutable reading of `parts`. `insnAt` may hand over a lookup the caller already holds for
- * exactly `parts.insns`, sorted and unique (the walker's record); it is then not rebuilt.
+ * exactly `parts.insns`, sorted and unique (the walker's record), which says the list needs no sorting; the
+ * reading keeps its own compact lookup (insn-lookup.ts), never the caller's.
  */
 export function makeReading(parts: ReadingParts, rom: Rom, insnAt?: InsnLookup): Reading {
   const insns = uniqueInsns(parts.insns, insnAt);

@@ -1,0 +1,6 @@
+==> asm/nonmatchings/main/unk_0800012A.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 2 bytes
+.global unk_0800012A
+unk_0800012A: @ 0800012A
+	.2byte 0x46C0

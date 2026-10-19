@@ -375,6 +375,31 @@ Entry: phase 2 landed. Branch `phase/3-emission`. Seven components: 3.0, then 3.
 3.I. The seam is the committed canonical analysis of every fixture (`test/golden/analysis/*.json`), so
 3.B–3.E build on it before 3.A's model is complete.
 
+### As executed (D62)
+
+Phase 3 runs as nine components in three waves on the branch `phase-3` (eight planned by D62 a, the ninth, `p3-fixture-goldens`, added in wave 3, D65 k), each on its own flat branch
+`phase-3-<component>` and worktree (D56 h); sections 3.0–3.I below still describe what the phase delivers.
+D62 records each deviation and why; [phase-3.md](phase-3.md) records the components, the measured numbers and
+the closing gate. Every threshold of the phase applies to all six tuning ROMs (D60, D62 h). The owner's answers of
+19 October 2026 (D68) moved the objdiff gate to phase 5 (`g5.objdiff`, 5.C), made `g3.large-rom` measure under the
+`romlift` bin's heap cap (384 MiB by the answer to phase-3.md Q6, D69; 1,024 MiB by the answer to Q7, D72), accepted D64 d and the narrowed raw-printer parity (D65 l) as 3.B's gate, and put two
+work items into phase 4; Q7's answer put a third there ("Carried from phase 3", below). Q8's answer (D73) re-ran the
+closing list unchanged after a landing run failed `g2.speed` by 0.5 ms; it changes no gate, and the re-run passed every
+command at `0784b4e`.
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p3-lead` | 1 | 3.0: the frozen types (`core/model/types.ts`, `core/emit/tree.ts`, `core/write-plan/types.ts`, `core/verify/report.ts`, `core/config/{schema,compilers}.ts`, `core/proposals/types.ts`, `core/layout/types.ts`), the writer registry and the eight empty writer files, the shared primitives `core/model/{item-table,resolver,paths}.ts` (D62 b) and `core/write-plan/{manifest,journal}.ts`, the empty `core/{model,verify,write-plan}/codes.ts`, the barrels, `cli/commands/lists/emission.ts`, `test/golden/analysis/**`, `test/helpers/model.ts`, the g3 gate files; then 3.I |
+| `p3-asm-text` | 1 | 3.C's `foundation/asm/{statements,layout}.ts` and their tests (`parseStatements`, `layoutStatements`) |
+| `p3-bench-inputs` | 1 | 3.E's inputs: `bench/tools/objdiff.version` and the objdiff-cli locator (D62 j), the reference objects of the tuning datasets, the 32 MiB synthetic image of `g3.large-rom` |
+| `p3-model` | 2 | 3.A, with `config-from-discover.ts` at `core/workflow/` (D62 c) and the model codes; `src/api/{model,layout}.ts` |
+| `p3-printer` | 2 | 3.B without `symbol-resolver.ts` (the resolver is `core/model/resolver.ts`, D62 b): `emit-tree.ts`, `print/**`, the header, crt0, function, orphan and module writers, `printChunk`; `src/api/{emit,internal-emit}.ts` |
+| `p3-data-verify` | 2 | 3.C but `foundation/asm/**`: the data, ldscript and symbols writers, `verifyModel`, `checkEntry`, `checkPaths`, the verify codes, the mutation tests of the four self-checks (D62 g); `src/api/verify.ts` |
+| `p3-write-plan` | 2 | 3.D's `plan-writes.ts`, the write-plan codes, `shell/project/{apply-writes,lock}.ts`, `shell/toolchain/link-check.ts`, the `plan-writes` mutation test; `src/api/{write-plan,project}.ts` |
+| `p3-generate` | 3 | 3.D's `core/workflow/generate.ts` and the `model --json` and `verify` commands (`cli/commands/lists/emission.ts`), `src/api/workflow-generate.ts`, `bench/src/large-rom.ts`, `explain`'s phase-3 part (`item`, `chunk`) |
+| `p3-bench-scaffold` | 3 | 3.E's `bench run --scaffold` with both printers, the readability and objdiff families, `bench speed`'s `generate` and `init` timings, the `bench large-rom` command |
+| `p3-fixture-goldens` | 3 | 3.B's and 3.C's writer goldens (`test/golden/writers/**` and their test), 3.B's raw-printer PoC parity (`export-poc --mode raw`, `test/local/poc-raw-printer.test.ts`), `bench/tools/ci-digests.ts` `@2` (tree digests in CI), `test/local/emission-real.test.ts` (D65 k) |
+
 ### 3.0 Model, tree and write-plan interfaces (lead)
 
 - **Owns:** `src/core/model/types.ts`, `src/core/emit/tree.ts`, `src/core/emit/writers/index.ts` and one
@@ -397,7 +422,8 @@ Entry: phase 2 landed. Branch `phase/3-emission`. Seven components: 3.0, then 3.
 ### 3.A Model and layout
 
 - **Owns:** `src/core/model/{items,chunks,modules,labels,names,symbols,model,codec,codes}.ts`,
-  `src/core/layout/{borders,infer-modules,config-from-discover}.ts`, `test/unit/{model,layout}/**`,
+  `src/core/layout/{types,borders,align,asm-only,entries,refs,tiling,infer-modules}.ts`,
+  `src/core/workflow/config-from-discover.ts`, `test/unit/{model,layout}/**`,
   `test/golden/model/**`.
 - **Public API:** `buildModel`, `itemAt`, `encodeModel`, `legalBorders`, `inferModules`,
   `configFromDiscover`.
@@ -445,12 +471,14 @@ Entry: phase 2 landed. Branch `phase/3-emission`. Seven components: 3.0, then 3.
 
 ### 3.E Bench emission families
 
-- **Owns:** `bench/src/{readability,objdiff,large-rom}.ts`, `bench/tools/objdiff.version`,
+- **Owns:** `bench/src/{readability,objdiff,large-rom}.ts` (and, from fix round 4, D70 b,
+  `bench/src/{large-rom-bin,rss-probe,live-heap}.ts` and `test/local/large-rom-bin.test.ts`), `bench/tools/objdiff.version`,
   `test/helpers/large-rom.ts`, the `objectsDir`/`objectsDigest` fields of the five tuning datasets, the
   phase-3 extension of `bench/src/speed.ts` (`generate` and `init` timings) and of `bench/src/run.ts`
   (`--scaffold` with both printers), `test/unit/bench/emission/**`.
 - **Public API:** bench-internal only.
-- **Gated by:** unit tests; the misnamed-pool-word objdiff fixture test.
+- **Gated by:** unit tests; the misnamed-pool-word objdiff fixture test (the objdiff family is measured here and
+  gated by `g5.objdiff` in phase 5, D68 a).
 - **Ports from the PoC:** the `--scaffold` build step of `src/bench/run.ts`.
 - **Depends on:** 3.0; 3.B–3.D for real runs.
 
@@ -479,12 +507,19 @@ npm run bench -- gates --require 3 --tier ci
 npm run bench -- gates --require 3 --tier real
 ```
 
-Thresholds: the four self-checks pass on every fixture and all five tuning ROMs; the raw printer links to
-the SHA-1 on 5 of 5 tuning ROMs and on every fixture; the readable printer on every fixture and on at least
-3 of 5 tuning ROMs; readability shares not lower than the first committed value on any ROM; objdiff 0
-differences other than `unnamed-target` on every agreeing function of every ROM that links; ≤ 3 s CPU
-analysis per tuning ROM, `generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald (calibrated); peak RSS
-< 512 MiB on the 32 MiB synthetic ROM; every phase-1 and phase-2 gate still passes.
+Thresholds (every one over all six tuning ROMs since tmc's reveal, D60, D62 h): the four self-checks pass
+on every fixture and all six tuning ROMs; the raw printer links to the SHA-1 on 6 of 6 tuning ROMs and on
+every fixture; the readable printer on every fixture and on at least 3 of 6 tuning ROMs (target 6);
+readability shares not lower than the first committed value on any ROM; the objdiff differences of every ROM
+that links, sorted by the committed classifier, recorded as the phase's measurement (the gate is `g5.objdiff`,
+D68 a); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init`-equivalent ≤ 15 s on Emerald
+(calibrated); `init` and `generate` on the 32 MiB synthetic ROM complete under the `romlift` bin's heap cap
+(`--max-old-space-size=1024`, the owner's answer to Q7, which replaces Q6's 384, itself replacing Q2's 256) with peak
+RSS below the budget set again from the recorded runs under that cap with a stated margin (1,536 MiB: the largest of
+eight runs, 1,210.1 MiB, plus 25%, rounded up to a multiple of 64 MiB, D72 b), and the six tuning ROMs complete under
+the same cap, their peak RSS recorded (D68 b, D69, D72); every command of the `romlift` bin completes on the synthetic
+ROM under that cap (`test/local/large-rom-bin.test.ts`, D70 b) and, recorded, on the code-dense doubled ROM, whose
+readable `verify` exit 3 is a phase-4 work item (D72 c); every phase-1 and phase-2 gate still passes.
 
 ---
 
@@ -571,6 +606,52 @@ Entry: phase 3 landed. Branch `phase/4-one-shot`. Seven components: 4.0, then 4.
   mutation tests (lock, journal, patch planner); runs the exit commands.
 - **Gated by:** every `g4.*` gate.
 
+### Carried from phase 3 (D68 e, the owner's answer to Q5: "Accept Q5a; fix Q5b, c in phase 4"; D72 c, Q7)
+
+Three work items the owner put into phase 4 (two by Q5, one by Q7), each with a test that fails without it, and one
+recorded limitation:
+
+- **Padding-only orphans folded into the next function** (Q5 b, delivery-13). With the discover model most orphan
+  chunks hold only the zero padding between two functions (`.align 2, 0`: pokeemerald 3,203 of 3,222 orphan files,
+  tmc 2,289 of 2,320, fe7j 1,530 of 1,558, sa3 867 of 882, sa2 448 of 464, klonoa 64 of 87). The pad becomes part of
+  the next function's chunk, whose `thumb_func_start` already emits it, so the files go and no byte changes. It
+  changes the chunk model (`core/model/chunks.ts`, `planChunks`) and plan.md's reading of "No orphan bytes" (a pad
+  belongs to the function after it); done before 4.C plans the `INCLUDE_ASM` stubs, so no orphan in a C module
+  needs a stub of its own. Owner: 4.0 with 4.C. Measured by the writer goldens, `g3.link` and `g3.raw-link`.
+- **The confirm run stops re-validating the functions discover listed** (Q5 c, delivery-4). `generate` over
+  `init`'s config warns `W_LISTED_INVALID` on every tuning ROM (fe7j 5, klonoa 4, pokeemerald 6, sa2 4, sa3 4, tmc
+  24) for functions romlift's own discover run listed, and phase 4's `init` then `generate` would print them to
+  every user. The confirm run takes a function `configFromDiscover` listed without the valid.* rules (an analysis
+  change in `core/analysis/driver/confirm.ts`), measured against g2's gates: `g2.confirm-equals-discover`,
+  `g2.baseline-rows`, `g2.regression` and the analysis goldens unchanged, and no `W_LISTED_INVALID` on the tuning
+  ROMs. Owner: 4.D.
+- **Recorded release-1 limitation** (Q5 a, D65 a): a ROM whose size the last unit's section alignment does not
+  divide is refused by the text-layout check, and nothing is written.
+- **The readable printer's `adr` naming a function label** (D72 c, the owner's answer to Q7 of phase-3.md, "Raise
+  cap to 1,024 MiB", which assigns it to phase 4). On a 32 MiB ROM of real code density (pokeemerald twice over,
+  SHA-1 `fb17b88d…`, never committed) the readable printer names the target of two Thumb `adr`s of the second copy by
+  a function label (`adr r6, sub_0906A708` at 0x0906A56C among them), which the text-layout check refuses as
+  unencodable: `verify` exits 3 and nothing is written, while the raw printer's tree links to the SHA-1. The printer
+  prints such an `adr` in a form `as` encodes to the ROM's halfword (or raw), with a fixture that fails without the
+  fix; measured by the doubled ROM's readable `verify --assemble --link` linking to its SHA-1, `g3.link` and the
+  writer goldens. Owner: 4.0.
+
+The minors the review of fix round 2 carried (phase-3.md, "Review", fix round 3) stay with the code they touch:
+architecture-r2-1 (TextLayoutIndex exported with its Maps, with the writer contract D66 d reopens), architecture-r2-4
+(the case rename is not journalled), and phase-3.md's
+known limitation that the TOML patcher must keep `label = true` on the startup code inside the cartridge entry's
+extent (4.A).
+
+The four minors of the review of phase 3's landing run (phase-3.md, "Review", the review of the landing run at
+`ef2be76`) are carried here too: gate-honesty-r0-1 (`bench/src/families.ts`'s readability summary still says "objdiff
+score 0", which is `g5.objdiff` since D68 a; text only), correctness-r0-1 (sa2's `g2.speed` sits at about 90 to 100%
+of its limit at `main` itself; the owner is asked before phase 4's landing run whether to re-baseline or take the
+median of more runs), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
+requirement recorded as a known limitation); correctness-r0-3 was fixed in the record. The phase pull request's CI
+found one more (correctness-ci-1, phase-3.md, "The closing gate", the phase pull request's CI): `exitQuietlyOnEpipe`
+in `src/cli/main.ts` treats only EPIPE as a closed reader, and macOS can report ENOTCONN on a socket-pair stdout, which
+made `test/unit/cli/process.test.ts`'s early-close test flaky on macOS; ENOTCONN is handled like EPIPE, with a test.
+
 ### Phase 4 exit
 
 ```
@@ -643,7 +724,12 @@ Entry: phase 4 landed. Branch `phase/5-migration`. Six components: 5.0, then 5.A
   `src/core/model/modules.ts` and in `src/core/emit/writers/ldscript.ts` (replacing the phase-4
   assertion), `bench/dataset/synthetic/c-data/expect-ranges.json`, `test/golden/writers/{expected,objdiff}/**`.
 - **Public API:** the two writers.
-- **Gated by:** `g5.expected-bytes` (fixtures), `g5.c-data-ranges`.
+- **Gated by:** `g5.expected-bytes` (fixtures), `g5.c-data-ranges`, `g5.objdiff` (moved from phase 3 by the owner's
+  answer to Q1 of phase-3.md, "Move gate to phase 5", D68 a: on every tuning ROM whose readable build links, every
+  agreeing function scores 0 under objdiff-cli but `unnamed-target`, as D34 writes it unless the owner amends it
+  then). The phase-3 classifier (`bench/src/objdiff-classes.ts`) and its carried minors (architecture-r2-2: one
+  REL/RELA addend decoder with `foundation/formats/elf.ts` and the R_ARM_*/SHT_* constants in one place;
+  architecture-r2-3: fixture tests for objdiffDifferences' sectionBase and baseField plumbing) come with it.
 - **Ports from the PoC:** nothing.
 - **Depends on:** 5.0.
 
@@ -685,7 +771,8 @@ npm run bench -- gates --require 5 --tier real
 Thresholds: at `693ccb7` the import report lists 282 legacy entries inside found functions, 1 failing
 validation and unlisted discoveries of which 183 are ELF functions; the rehearsal and the `switch` commit
 both build to `klonoa-eod.gba: OK` without the four legacy tools; every `expected/<module>.s` symbol equals
-the ROM; every earlier gate still passes.
+the ROM; objdiff 0 differences other than `unnamed-target` on every agreeing function of every tuning ROM that
+links (`g5.objdiff`, D34, D68 a); every earlier gate still passes.
 
 ---
 

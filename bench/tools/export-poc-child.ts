@@ -1,4 +1,4 @@
-// Runs inside the PoC's own tsx (spawned by export-poc.ts) for one dataset, in one of three modes
+// Runs inside the PoC's own tsx (spawned by export-poc.ts) for one dataset or fixture, in one of four modes
 // (architecture §4.5):
 //
 //   scored   prints one JSON document: two analyses of the ROM by the PoC's Analyzer, the PoC's miss
@@ -9,7 +9,13 @@
 //   queries  writes the lockstep log (bench/src/poc-log.ts) to <out>/queries.ndjson and
 //            <out>/readings.ndjson, and prints {parity, queries, readings, queryBytes, readingBytes,
 //            seconds} for the same run, so the parent can check that the instrumented run is the run
-//            the committed parity digest describes.
+//            the committed parity digest describes;
+//   raw      for one committed fixture ROM: the PoC's analysis and its writeGenerated() into <out> (the
+//            raw tree, every chunk's bytes as data), and one JSON document {summary, chunks, claims}: per
+//            chunk of the PoC's tile() its span, name, kind, mode, module and labels, and the PoC's claim
+//            kind of every ROM byte (0 free, 1 code, 2 pool, 3 table, 4 dead), so the parent can cut the
+//            chunks' body lines out of the written files and romlift's raw printer can be fed the same
+//            spans, labels and word kinds (roadmap 3.B).
 //
 // It imports only node:* and the PoC's modules, by non-literal dynamic import from ROMLIFT_POC, typed
 // through the local interfaces below. It never writes inside the PoC checkout and never edits a PoC
@@ -19,6 +25,7 @@
 //
 // Usage: tsx export-poc-child.ts <dataset> scored|parity
 //        tsx export-poc-child.ts <dataset> queries <out dir> <rom sha1> <poc source digest>
+//        tsx export-poc-child.ts <fixture> raw <rom path> <out dir>
 import { createHash } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, renameSync, writeSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve } from 'node:path';
@@ -99,6 +106,24 @@ interface DatasetModule {
 }
 interface RunModule {
   runRom(d: PocDataset, opts: { scaffold: boolean }): unknown;
+}
+interface PocLabel {
+  readonly addr: number;
+  readonly name: string;
+  readonly note?: string;
+}
+interface PocChunk {
+  readonly start: number;
+  readonly end: number;
+  readonly name: string;
+  readonly kind: 'func' | 'gap';
+  readonly mode: 'thumb' | 'arm' | 'none';
+  readonly labels: readonly PocLabel[];
+  readonly module: string;
+}
+interface EmitModule {
+  tile(an: PocAnalyzer): { readonly chunks: readonly PocChunk[] };
+  writeGenerated(an: PocAnalyzer, outDir: string, name: string): string;
 }
 
 const hexAddr = (v: number): string => `0x${(v >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
@@ -521,8 +546,7 @@ async function parity(pocRoot: string, name: string): Promise<void> {
 }
 
 async function queries(pocRoot: string, name: string, out: string, sha1: string, pocSourceDigest: string): Promise<void> {
-  const inside = relative(resolve(pocRoot), resolve(out));
-  if (inside === '' || (!inside.startsWith('..') && !isAbsolute(inside))) throw new Error(`refusing to write inside the PoC checkout: ${out}`);
+  outsidePoc(pocRoot, out);
   const { Analyzer, rom, base } = await loadAnalyzer(pocRoot, name);
   mkdirSync(out, { recursive: true });
   const sets = captureSettleSets(Analyzer.prototype);
@@ -537,17 +561,54 @@ async function queries(pocRoot: string, name: string, out: string, sha1: string,
   process.stdout.write(`${JSON.stringify({ parity: parityOf(an, sets, base), ...stats, seconds })}\n`);
 }
 
+// ---------------------------------------------------------------- raw mode (phase 3)
+
+/** Refuses an output directory inside the PoC checkout: the PoC is read-only. */
+function outsidePoc(pocRoot: string, out: string): void {
+  const inside = relative(resolve(pocRoot), resolve(out));
+  if (inside === '' || (!inside.startsWith('..') && !isAbsolute(inside))) throw new Error(`refusing to write inside the PoC checkout: ${out}`);
+}
+
+async function raw(pocRoot: string, name: string, romPath: string, out: string): Promise<void> {
+  outsidePoc(pocRoot, out);
+  const { Analyzer } = (await load(pocRoot, 'analysis.ts')) as AnalysisModule;
+  const { Rom } = (await load(pocRoot, 'rom.ts')) as RomModule;
+  const { tile, writeGenerated } = (await load(pocRoot, 'emit.ts')) as EmitModule;
+  const an = new Analyzer(Rom.load(romPath));
+  an.run();
+  mkdirSync(out, { recursive: true });
+  const summary = writeGenerated(an, out, name);
+  // tile() is what writeGenerated tiles with; it is deterministic, so a second call gives the same chunks.
+  const chunks = tile(an).chunks.map((c) => ({
+    start: c.start,
+    end: c.end,
+    name: c.name,
+    kind: c.kind,
+    mode: c.mode,
+    module: c.module,
+    labels: c.labels.map((l) => (l.note === undefined ? { addr: l.addr, name: l.name } : { addr: l.addr, name: l.name, note: l.note })),
+  }));
+  console.error(`${name}: ${summary}`);
+  process.stdout.write(`${JSON.stringify({ summary, chunks, claims: [...an.claimed] })}\n`);
+}
+
 async function main(): Promise<void> {
-  const [name, mode, out, sha1, digest] = process.argv.slice(2);
+  const [name, mode, ...rest] = process.argv.slice(2);
   const pocRoot = process.env['ROMLIFT_POC'];
-  const usage = 'usage: ROMLIFT_POC=<poc> tsx export-poc-child.ts <dataset> scored|parity|queries [<out dir> <rom sha1> <poc source digest>]';
+  const usage =
+    'usage: ROMLIFT_POC=<poc> tsx export-poc-child.ts <dataset> scored|parity|queries [<out dir> <rom sha1> <poc source digest>] | <fixture> raw <rom path> <out dir>';
   if (name === undefined || pocRoot === undefined) throw new Error(usage);
   // The PoC may log; stdout carries only the one JSON document.
   console.log = (...args: unknown[]): void => console.error(...args);
   if (mode === 'scored') await scored(pocRoot, name);
   else if (mode === 'parity') await parity(pocRoot, name);
-  else if (mode === 'queries' && out !== undefined && sha1 !== undefined && digest !== undefined) await queries(pocRoot, name, out, sha1, digest);
-  else throw new Error(usage);
+  else if (mode === 'queries' && rest.length === 3) {
+    const [out = '', sha1 = '', digest = ''] = rest;
+    await queries(pocRoot, name, out, sha1, digest);
+  } else if (mode === 'raw' && rest.length === 2) {
+    const [romPath = '', out = ''] = rest;
+    await raw(pocRoot, name, romPath, out);
+  } else throw new Error(usage);
 }
 
 main().catch((error: unknown) => {

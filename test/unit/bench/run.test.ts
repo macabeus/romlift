@@ -18,7 +18,7 @@ import { LOCKSTEP_SETS, PARITY_EVIDENCE_SCHEMA } from '../../../bench/src/parity
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import { assertCountsOnly } from '../../../bench/src/seal.ts';
 import { failingRunner, withTempDir } from './fixtures.ts';
-import { EXPECTED_ROMLIFT_ROW, syntheticTier, TINY_DEPS, tinyDeps, tinyDump, tinyResult } from './harness.ts';
+import { EXPECTED_ROMLIFT_ROW, runWith, syntheticTier, TINY_DEPS, tinyDeps, tinyDump, TINY_MEMORY, tinyResult } from './harness.ts';
 
 function capture(): BenchIo & { readonly lines: string[]; readonly errors: string[] } {
   const lines: string[] = [];
@@ -38,24 +38,28 @@ async function addHeldOut(cx: BenchContext, name: string, revealed: readonly unk
 test("bench run scores romlift's analysis and writes results.json without volatile values", async () => {
   await withTempDir('romlift-run-', async (root) => {
     const cx = await syntheticTier(root);
-    const { results, report } = await benchRun(cx, { runner: RUNNER });
+    const { results, report } = await benchRun(cx, runWith());
     assert.deepEqual(report.roms, [EXPECTED_ROMLIFT_ROW]);
     assert.deepEqual(results?.roms, [EXPECTED_ROMLIFT_ROW]);
     const text = await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8');
     const written = JSON.parse(text) as { meta: Record<string, unknown>; gates: unknown };
-    assert.deepEqual(Object.keys(written), ['meta', 'gates', 'roms']);
+    // The memory family of a lead run (the large-ROM script, faked here) sits after the printer summary.
+    assert.deepEqual(Object.keys(written), ['meta', 'memory', 'gates', 'roms']);
+    assert.deepEqual(results?.memory, TINY_MEMORY.member);
     assert.deepEqual(Object.keys(written.meta), ['commit', 'dirty', 'sourceDigest', 'nodeMajor', 'romliftVersion', 'inputs', 'toolchain', 'families', 'source', 'profile']);
     assert.equal(written.meta['romliftVersion'], '1.2.3');
     assert.equal(written.meta['source'], 'romlift');
     assert.equal(written.meta['profile'], 'agbcc');
-    // Determinism ran (the two digests agree) and the PoC dump gave the scaffold verdict; no speed baseline.
-    assert.deepEqual(written.meta['families'], { tiny: ['code-end', 'determinism', 'entries', 'extents', 'scaffold'] });
+    // Determinism ran (the two digests agree) and readability always runs; the scaffold family comes from
+    // romlift's raw link under --scaffold only (the PoC dump's verdict is no longer read); no speed baseline.
+    assert.deepEqual(written.meta['families'], { tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability'] });
     assert.deepEqual(Object.keys(written.meta['inputs'] as object), ['tiny', 'pocSourceDigest']);
-    assert.ok(!/generatedAt|"seconds"|scoreMs|CpuMs/.test(text));
-    const timings = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'timings.json'), 'utf8')) as { roms: Record<string, Record<string, number>> };
-    assert.deepEqual(Object.keys(timings.roms['tiny'] ?? {}), ['scoreMs', 'analysisCpuMs', 'analysisWallMs']);
+    assert.ok(!/generatedAt|"seconds"|scoreMs|CpuMs|wallMs/.test(text));
+    const timings = JSON.parse(await readFile(join(cx.repoRoot, 'bench', 'timings.json'), 'utf8')) as { roms: Record<string, Record<string, unknown>> };
+    assert.deepEqual(Object.keys(timings.roms['tiny'] ?? {}), ['scoreMs', 'analysisCpuMs', 'analysisWallMs', 'readabilityMs']);
+    assert.deepEqual(timings.roms['large-rom'], TINY_MEMORY.timings);
     // A second run on the same sources and inputs writes the same artifact.
-    await benchRun(cx, { runner: RUNNER });
+    await benchRun(cx, runWith());
     assert.equal(await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8'), text);
   });
 });
@@ -63,23 +67,23 @@ test("bench run scores romlift's analysis and writes results.json without volati
 test('bench run records a non-deterministic analysis and a missing dump', async () => {
   await withTempDir('romlift-run-nondet-', async (root) => {
     const cx = await syntheticTier(root);
-    const { report } = await benchRun(cx, { runner: tinyDeps(tinyResult(), { second: tinyResult([0x0800_0018]) }).runner, json: true });
+    const { report } = await benchRun(cx, { ...runWith(tinyDeps(tinyResult(), { second: tinyResult([0x0800_0018]) })), json: true });
     assert.equal(report.roms[0]?.deterministic, false);
     await rm(join(cx.repoRoot, 'bench', '.local'), { recursive: true });
-    const { results } = await benchRun(cx, { runner: RUNNER });
+    const { results } = await benchRun(cx, runWith());
     assert.equal(results?.roms[0]?.scaffold, undefined);
-    assert.deepEqual(results?.meta.families, { tiny: ['code-end', 'determinism', 'entries', 'extents'] });
+    assert.deepEqual(results?.meta.families, { tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability'] });
   });
 });
 
 test('bench run refuses a ROM or an ELF whose digest differs from the dataset, and a dump of another PoC', async () => {
   await withTempDir('romlift-run-refuse-', async (root) => {
     const sha = await syntheticTier(join(root, 'a'), { datasetOverrides: { sha1: '1'.repeat(40) } });
-    await assert.rejects(benchRun(sha, { runner: RUNNER }), /refusing tiny\/tiny\.gba: SHA-1/);
+    await assert.rejects(benchRun(sha, runWith()), /refusing tiny\/tiny\.gba: SHA-1/);
     const elf = await syntheticTier(join(root, 'b'), { datasetOverrides: { elfSha256: '2'.repeat(64) } });
-    await assert.rejects(benchRun(elf, { runner: RUNNER }), /refusing tiny\/tiny\.elf: sha256/);
+    await assert.rejects(benchRun(elf, runWith()), /refusing tiny\/tiny\.elf: sha256/);
     const poc = await syntheticTier(join(root, 'c'), { dump: tinyDump({ pocSourceDigest: '3'.repeat(64) }) });
-    await assert.rejects(benchRun(poc, { runner: RUNNER }), /not the pinned/);
+    await assert.rejects(benchRun(poc, runWith()), /not the pinned/);
   });
 });
 
@@ -190,7 +194,7 @@ test('--reveal appends to the revealed log, prints the rows, and writes no rows 
 test('a written artifact keeps the PoC-parity evidence an earlier run recorded', async () => {
   await withTempDir('romlift-run-parity-', async (root) => {
     const cx = await syntheticTier(root);
-    await benchRun(cx, { runner: RUNNER });
+    await benchRun(cx, runWith());
     const path = join(cx.repoRoot, 'bench', 'results.json');
     const value = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
     const digest = resultParityDigest(tinyResult());
@@ -203,7 +207,7 @@ test('a written artifact keeps the PoC-parity evidence an earlier run recorded',
       roms: { tiny: { digest, expected: digest, rowDiffs: 0, lockstep: LOCKSTEP_SETS.map((s) => ({ set: s.name, real: [...s.real], queries: 4, matched: 3, answered: 1, compared: 2, markers: 1, skipped: 1, recalled: 0, parityDigest: digest, divergence: null })) } },
     };
     await writeFile(path, JSON.stringify({ ...value, parity: evidence }));
-    const { results } = await benchRun(cx, { runner: RUNNER });
+    const { results } = await benchRun(cx, runWith());
     assert.deepEqual(results?.parity, evidence);
     assert.deepEqual(results?.roms[0]?.parity, { digest, expected: '' });
   });
@@ -215,7 +219,7 @@ test('poc-check, dataset-check and provenance pass on the synthetic tier', async
     const report = await pocCheck(cx);
     assert.deepEqual(report, { ok: true, roms: [{ name: 'tiny', rowsEqual: true, pocRowEqual: true, baselineRow: true, diffs: [], scaffoldOk: true, deterministic: true, pocSourceDigestOk: true }] });
     assert.deepEqual(await datasetCheck(cx, RUNNER), { ok: true, problems: [] });
-    await benchRun(cx, { runner: RUNNER });
+    await benchRun(cx, runWith());
     assert.ok(provenanceChecks(await provenanceInputs(cx)).every((c) => c.ok));
     // Editing a source the digest covers makes the artifact stale.
     await writeFile(join(cx.repoRoot, 'src', 'index.ts'), 'export const changed = 1;\n');
@@ -236,7 +240,7 @@ test('poc-check reports a dump whose rescored row differs from the baseline', as
 });
 
 test('the CLI dispatches the phase-2 commands and prints the frozen --json lines', async () => {
-  assert.deepEqual(Object.keys(COMMANDS).sort(), ['ablate', 'adopt', 'baseline', 'dataset-check', 'diff', 'doctor-real', 'explain', 'gates', 'poc-check', 'provenance', 'regression', 'run', 'speed', 'stale-check', 'web']);
+  assert.deepEqual(Object.keys(COMMANDS).sort(), ['ablate', 'adopt', 'baseline', 'dataset-check', 'diff', 'doctor-real', 'explain', 'gates', 'large-rom', 'poc-check', 'provenance', 'regression', 'run', 'speed', 'stale-check', 'web']);
   await withTempDir('romlift-cli-', async (root) => {
     const cx = await syntheticTier(root);
     let io = capture();

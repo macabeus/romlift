@@ -1,0 +1,167 @@
+==> asm/nonmatchings/main/sub_080000F4.s (generated, function) <==
+.thumb
+	thumb_func_start sub_080000F4
+sub_080000F4: @ 080000F4
+	push {lr}
+	movs r0, #3
+	bl sub_0800074C
+	bl sub_08000DC8
+	pop {r0}
+	bx r0
+	thumb_func_end sub_080000F4
+==> asm/nonmatchings/main/sub_08000108.s (generated, function) <==
+.thumb
+	thumb_func_start sub_08000108
+sub_08000108: @ 08000108
+	adds r0, #1
+	bx lr
+	thumb_func_end sub_08000108
+==> asm/nonmatchings/asm_0800074C/sub_0800074C.s (generated, function) <==
+.thumb
+	thumb_func_start sub_0800074C
+sub_0800074C: @ 0800074C
+	push {r4, r5, r6, r7, lr}
+	adds r4, r0, #0
+	bl sub_08000108
+	push {r0}
+	bl sub_08000DB8
+	adds r4, r4, r0
+	push {r0}
+	bl sub_08000DC4
+	ldr r0, _0800076C @ =0x02000000
+	str r4, [r0]
+	bl _08000DB0
+	.align 2, 0
+_0800076C: .4byte 0x02000000
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
+_08000DB0:
+	pop {r4, r5, r6, r7}
+	pop {r0}
+	bx r0
+	thumb_func_end sub_0800074C
+==> asm/nonmatchings/main_2/sub_08000DB8.s (generated, function) <==
+.thumb
+	thumb_func_start sub_08000DB8
+sub_08000DB8: @ 08000DB8
+	push {lr}
+	movs r0, #0
+	pop {r3}
+	add sp, #4
+	bx r3
+	thumb_func_end sub_08000DB8
+==> asm/nonmatchings/main_2/sub_08000DC4.s (generated, function) <==
+.thumb
+	thumb_func_start sub_08000DC4
+sub_08000DC4: @ 08000DC4
+	add sp, #4
+	bx lr
+	thumb_func_end sub_08000DC4
+==> asm/nonmatchings/main_2/sub_08000DC8.s (generated, function) <==
+.thumb
+	thumb_func_start sub_08000DC8
+sub_08000DC8: @ 08000DC8
+	push {lr}
+	push {r0}
+	bl sub_08000DC4
+	pop {r0}
+	bx r0
+	thumb_func_end sub_08000DC8

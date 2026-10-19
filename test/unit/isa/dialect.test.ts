@@ -3,11 +3,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { MACROS_PATH } from '../../../src/core/model/paths.ts';
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
 
 test('the preamble selects unified syntax, includes the macros and sets the mode', () => {
   assert.equal(DIALECT.preamble('thumb'), '.syntax unified\n.include "include/macros.inc"\n.thumb\n');
   assert.equal(DIALECT.preamble('arm'), '.syntax unified\n.include "include/macros.inc"\n.arm\n');
+});
+
+test('the macro file has one path, the one the preamble includes and core/model/paths.ts names (architecture-r1-7)', () => {
+  assert.equal(DIALECT.macrosPath, 'include/macros.inc');
+  assert.equal(DIALECT.macrosInclude, `.include "${DIALECT.macrosPath}"`);
+  for (const mode of ['thumb', 'arm'] as const) assert.equal(DIALECT.preamble(mode).split('\n')[1], DIALECT.macrosInclude);
+  assert.equal(MACROS_PATH, DIALECT.macrosPath);
 });
 
 test('macros.inc defines the function macros and their module-local variants', () => {

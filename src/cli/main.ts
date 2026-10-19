@@ -1,6 +1,10 @@
+#!/usr/bin/env -S node --max-old-space-size=1024
 // The `romlift` entry point (architecture §2.1). `main` is the whole command line as a function: it
 // prints usage or help, parses, runs the command and maps a thrown error to exit 70. It never reads
-// stdin and never prompts. Run as the process's main module, it wires itself to the process.
+// stdin and never prompts. Run as the process's main module, it wires itself to the process. The first line is the
+// `romlift` bin's launcher (dist/cli/main.js keeps it): Node runs every command with V8's old space capped at 1,024 MiB,
+// the cap g3.large-rom measures under (D68 b, D69, D72: the owner's answer to Q7, which replaces Q6's 384;
+// bench/src/large-rom.ts LARGE_ROM_MAX_OLD_SPACE_MIB).
 import { RomliftInvariantError } from '../api/rom.ts';
 import { parseArgs } from './args.ts';
 import { COMMANDS } from './commands/index.ts';
@@ -65,6 +69,7 @@ if (import.meta.main) {
     stderr: (text) => {
       process.stderr.write(text);
     },
+    drained: () => (process.stdout.writableNeedDrain ? new Promise((resolve) => process.stdout.once('drain', resolve)) : Promise.resolve()),
     cwd: process.cwd(),
     env: process.env,
   };

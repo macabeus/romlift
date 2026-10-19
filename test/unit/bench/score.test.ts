@@ -7,7 +7,7 @@ import { parseElf } from 'romlift';
 import type { MissDiagnosis } from 'romlift/internal';
 
 import { missQueries } from '../../../bench/src/analysis-run.ts';
-import { dumpFunctions, extentAgrees, insideFoundFunction, scoreAnalysis, scoreRun, staleExceptions } from '../../../bench/src/score.ts';
+import { agreeingFunctions, dumpFunctions, extentAgrees, extentJudgement, insideFoundFunction, scoreAnalysis, scoreRun, staleExceptions } from '../../../bench/src/score.ts';
 import { elfTruth, pocCodeEnd } from '../../../bench/src/truth.ts';
 import { analysisResult, dataset, dump, elfFile, fact, fn } from './fixtures.ts';
 
@@ -90,6 +90,23 @@ test('extents agree exactly or with the 4-byte padding allowance', () => {
   assert.ok(extentAgrees(0x24, 0x21));
   assert.ok(!extentAgrees(0x24, 0x20));
   assert.ok(!extentAgrees(0x22, 0x24));
+});
+
+test('agreeingFunctions: the sized functions from the startup end whose extent agrees, the ones the extents family counts', () => {
+  const truth = elfTruth(ELF, ROM_SIZE);
+  const found = [
+    { entry: 0x0800_0300, end: 0x0800_0330 }, // big: 0x30 against 0x40
+    { entry: 0x0800_0200, end: 0x0800_0222 }, // main: 0x22 padded to 0x24, the largest size of the address
+    { entry: 0x0800_0000, end: 0x0800_00c0 }, // crt0 agrees but lies before the startup end
+    { entry: 0x0800_0500, end: 0x0800_0510 }, // label: unsized
+    { entry: 0x0800_0310, end: 0x0800_0318 }, // not an ELF function
+  ];
+  assert.deepEqual(
+    agreeingFunctions(found, truth, 0x0800_0100).map((a) => [a.found.entry, a.elf.name]),
+    [[0x0800_0200, 'main']],
+  );
+  assert.equal(extentJudgement({ entry: 0x0800_0300, end: 0x0800_0330 }, truth, 0x0800_0100)?.agrees, false);
+  assert.equal(extentJudgement({ entry: 0x0800_0500, end: 0x0800_0510 }, truth, 0x0800_0100), undefined);
 });
 
 test('scoreRun counts from the startup end and classifies every miss and false entry', () => {

@@ -5,6 +5,7 @@ import type { Span } from '../rom/span.ts';
 import type {
   ElfFile,
   ElfFunction,
+  ElfRelocation,
   ElfSection,
   ElfSymbol,
   ElfSymbolBind,
@@ -17,6 +18,8 @@ const ELF_HEADER_SIZE = 52;
 const SECTION_HEADER_SIZE = 40;
 const SYMBOL_SIZE = 16;
 const SHT_SYMTAB = 2;
+const SHT_REL = 9;
+const REL_SIZE = 8;
 const SHN_UNDEF = 0;
 const SHN_LORESERVE = 0xff00;
 const SHN_XINDEX = 0xffff;
@@ -212,4 +215,41 @@ export function elfFunctions(elf: ElfFile, within: Span, order: ElfFunctionOrder
     const f = byAddr.get(a);
     return f === undefined ? [] : [f];
   });
+}
+
+/** R_ARM_* types that change no byte of their section (ARM ELF, 4.6.1.2): R_ARM_NONE and R_ARM_V4BX. */
+const NO_FIELD: ReadonlySet<number> = new Set([0, 40]);
+
+/** The bytes the field of an R_ARM_* type covers, where it is not a word (ARM ELF, table 4-8). */
+const FIELD_BYTES: Readonly<Record<number, number>> = {
+  5: 2, // R_ARM_ABS16
+  8: 1, // R_ARM_ABS8
+  11: 2, // R_ARM_THM_PC8
+  102: 2, // R_ARM_THM_JUMP11
+  103: 2, // R_ARM_THM_JUMP8
+};
+
+/** The width of an R_ARM_* type's field in bytes: 0 for one that changes no byte, a word unless listed. */
+export function relocationWidth(type: number): number {
+  return NO_FIELD.has(type) ? 0 : (FIELD_BYTES[type] ?? 4);
+}
+
+/**
+ * Every SHT_REL relocation of `bytes` (the file `elf` was parsed from) that applies to `section`, in file order;
+ * ok:false when a relocation section lies outside the file or its entry size is below 8 bytes.
+ */
+export function relocationsOf(bytes: Uint8Array, elf: ElfFile, section: ElfSection): ParseResult<readonly ElfRelocation[]> {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const out: ElfRelocation[] = [];
+  for (const rel of elf.sections) {
+    if (rel.type !== SHT_REL || rel.info !== section.index) continue;
+    const size = rel.entsize === 0 ? REL_SIZE : rel.entsize;
+    if (size < REL_SIZE || rel.offset + rel.size > bytes.length) return { ok: false, error: `ELF: relocation section ${rel.name} is malformed` };
+    for (let at = rel.offset; at + REL_SIZE <= rel.offset + rel.size; at += size) {
+      const info = view.getUint32(at + 4, true);
+      const type = info & 0xff;
+      out.push({ offset: view.getUint32(at, true), type, symbol: info >>> 8, width: relocationWidth(type) });
+    }
+  }
+  return { ok: true, value: out };
 }

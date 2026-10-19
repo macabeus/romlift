@@ -145,6 +145,10 @@ export interface Assembled {
 /** The text every generated `.s` file starts with and the `include/macros.inc` it includes (D49). */
 export interface Dialect {
   preamble(mode: Mode): string;
+  /** The project path of the macro file every generated `.s` includes (core/model/paths.ts MACROS_PATH). */
+  readonly macrosPath: string;
+  /** The preamble's `.include` of that file. */
+  readonly macrosInclude: string;
   readonly macrosInc: string;
   readonly asArgs: readonly string[];
 }

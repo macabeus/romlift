@@ -6,7 +6,6 @@ import { compareNumbers } from '../../../foundation/util/sorted.ts';
 import { innermost, intervalIndex } from '../../../foundation/util/interval-index.ts';
 import { Claim } from '../types.ts';
 import type { FunctionFact, Reading } from '../types.ts';
-import { claimAt } from './state.ts';
 import type { Accepted, DriverState } from './state.ts';
 
 /** The FunctionFact of an accepted entry under the current claims. */
@@ -21,6 +20,23 @@ export function factOfBlock(s: DriverState, into: Addr, block: Reading): Functio
   return f === undefined ? undefined : factFrom(s, block, { origin: f.origin, accepted: f.accepted, also: f.also, absorbed: [] });
 }
 
+/** The runs of `dead` claims inside `extent`, in address order (a native scan of the claim bytes, not one claimAt per byte). */
+function deadRuns(s: DriverState, extent: Span): Span[] {
+  const base = s.rom.base;
+  const lo = Math.max(extent.start - base, 0);
+  const hi = Math.min(extent.end - base, s.claims.length);
+  const dead: Span[] = [];
+  if (lo >= hi) return dead;
+  const claims = s.claims.subarray(lo, hi);
+  for (let k = claims.indexOf(Claim.dead); k >= 0; ) {
+    let e = k + 1;
+    while (e < claims.length && claims[e] === Claim.dead) e++;
+    dead.push({ start: base + lo + k, end: base + lo + e });
+    k = e < claims.length ? claims.indexOf(Claim.dead, e) : -1;
+  }
+  return dead;
+}
+
 /** The FunctionFact of reading `r` with the acceptance record `f`, under the current claims. */
 function factFrom(s: DriverState, r: Reading, f: Pick<Accepted, 'origin' | 'accepted' | 'also' | 'absorbed'>): FunctionFact {
   const extent = { start: r.entry, end: extentEndOf(s, r) };
@@ -30,13 +46,7 @@ function factFrom(s: DriverState, r: Reading, f: Pick<Accepted, 'origin' | 'acce
     if (last !== undefined && last.end >= i.addr) code[code.length - 1] = { start: last.start, end: Math.max(last.end, i.addr + i.len) };
     else code.push({ start: i.addr, end: i.addr + i.len });
   }
-  const dead: Span[] = [];
-  for (let a = extent.start; a < extent.end; a++) {
-    if (claimAt(s, a) !== Claim.dead) continue;
-    const last = dead[dead.length - 1];
-    if (last !== undefined && last.end === a) dead[dead.length - 1] = { start: last.start, end: a + 1 };
-    else dead.push({ start: a, end: a + 1 });
-  }
+  const dead = deadRuns(s, extent);
   const pools = r.pools.map((p) => p.addr).sort(compareNumbers);
   const inside = (a: Addr): boolean => a >= extent.start && a + 4 <= extent.end;
   return {

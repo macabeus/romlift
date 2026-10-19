@@ -25,7 +25,19 @@ export function formatSummaryText(summary: RunSummary): string {
 
 /** Rows of cells as lines, every column but the last padded to its widest cell plus two spaces. */
 export function columns(rows: readonly (readonly string[])[], indent = ''): string {
+  return [...columnLines(rows.length, (k) => rows[k] ?? [], indent)].join('');
+}
+
+/**
+ * columns' lines one at a time, for a table too large to hold whole: row `k` of `count` is built by `rowAt(k)` twice,
+ * once for the column widths and once to print it, so no more than one row is ever held (the text output of
+ * `analyze` on a 32 MiB ROM has over 600,000 rejection rows).
+ */
+export function* columnLines(count: number, rowAt: (k: number) => readonly string[], indent = ''): Generator<string> {
   const widths: number[] = [];
-  for (const row of rows) row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
-  return rows.map((row) => `${indent}${row.map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0))).join('  ')}`.trimEnd() + '\n').join('');
+  for (let k = 0; k < count; k++) rowAt(k).forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
+  for (let k = 0; k < count; k++) {
+    const row = rowAt(k);
+    yield `${indent}${row.map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0))).join('  ')}`.trimEnd() + '\n';
+  }
 }

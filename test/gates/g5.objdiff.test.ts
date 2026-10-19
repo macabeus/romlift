@@ -1,11 +1,17 @@
-// g3.objdiff (architecture §8.4 "objdiff", §13, D34): on every tuning ROM whose readable build links, every
+// g5.objdiff (architecture §8.4 "objdiff", §13, D34, D68 a): moved from phase 3 (it was g3.objdiff) to phase 5, where
+// the `expected/` objects and objdiff targets are built, by the owner's answer to Q1 of phase-3.md ("Move gate to
+// phase 5"); it applies as D34 writes it unless the owner amends it then. Phase 3 recorded the classified counts
+// (bench/tools/objdiff-classes.ts) as its measurement. On every tuning ROM whose readable build links, every
 // function whose entry and extent agree with the ELF scores 0 under objdiff-cli (the pinned
 // bench/tools/objdiff.version): 100% match and no relocation difference. The reference side is the
 // project's own object (`objectsDir`); the base is the emitted function `.s`, assembled, with labels renamed
 // to the ELF's names. A relocation whose reference targets a section symbol is `unnamed-target`: reported,
-// not gated. Every other difference fails.
+// not gated. Every other difference fails. The share metrics and the scoring run on all six tuning ROMs
+// (D62); objdiff-cli is located by ROMLIFT_OBJDIFF, then the repository's bench/.local/objdiff-target build
+// (then the main checkout's, from a worktree), then PATH, then $ROMLIFT_BENCH_ROOT/objdiff/target/release/
+// objdiff-cli (D65 j).
 //
-// Expected output, for the phase-3 lead to align (architecture §8.5):
+// The command (architecture §8.5; aligned to the frozen API by the phase-3 lead, D62):
 //   npm run bench -- run --scaffold --json   exit 0; the last stdout line is romlift/bench-run@1; --json
 //   writes no committed file. Per tuning ROM in `roms[]` this gate reads
 //     name
@@ -40,8 +46,8 @@ function tail(run: ExecResult, lines = 30): string {
 }
 
 gate({
-  id: 'g3.objdiff',
-  phase: 3,
+  id: 'g5.objdiff',
+  phase: 5,
   tier: 'real',
   inputs: ['roms', 'elfs', 'objects', 'toolchain'],
   needs: ['buildModel', 'emitTree', 'linkCheck'],

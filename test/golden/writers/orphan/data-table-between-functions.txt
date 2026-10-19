@@ -1,0 +1,31 @@
+==> asm/nonmatchings/main/unk_08000110.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 12 bytes
+.global unk_08000110
+unk_08000110: @ 08000110
+	.4byte 0x00020001, 0x00080004, 0x00200010
+==> asm/nonmatchings/main/unk_08000128.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 8 bytes
+.global unk_08000128
+unk_08000128: @ 08000128
+	.4byte 0xFFFDFFFF, 0xFFF9FFFB
+==> asm/nonmatchings/main/unk_08000136.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 2 bytes
+.global unk_08000136
+unk_08000136: @ 08000136
+	.align 2, 0
+==> asm/nonmatchings/main/unk_0800013E.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 10 bytes
+.global unk_0800013E
+unk_0800013E: @ 0800013E
+	.2byte 0x0000
+	.4byte 0xFFFCFFFE, 0xFFF8FFFA
+==> asm/nonmatchings/main/unk_08000152.s (generated, orphan) <==
+.thumb
+@ bytes between functions: 2 bytes
+.global unk_08000152
+unk_08000152: @ 08000152
+	.2byte 0x46C0

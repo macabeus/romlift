@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { analyzeNdjson, analyzeSummary } from '../../../src/cli/commands/analyze.ts';
+import { analyzeNdjson, analyzeSummary, analyzeTextLines } from '../../../src/cli/commands/analyze.ts';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
@@ -91,6 +91,20 @@ test('analyze text: the function table, then the summary line', async () => {
   assert.match(lines[0] ?? '', /^entry\s+mode\s+extent\s+code end\s+origin\s+accepted\s+also$/);
   assert.equal(lines.length, farJumpResult().functions.length + 2);
   assert.match(lines.at(-1) ?? '', /^analyze: ok \(exit 0\): diagnostics 0, functions \d+, rejections \d+$/);
+});
+
+test('analyze text is built one line at a time, as the command streams it (fix round 5)', async () => {
+  const base = farJumpResult();
+  const rejection = { at: 0x08000100, mode: 'thumb' as const, rule: 'valid.decodes' as const, reason: 'decodes to nothing', intrinsic: true, round: 1, detail: 'x', count: 1 };
+  const result = { ...base, rejections: Array.from({ length: 5_000 }, (_, i) => ({ ...rejection, at: 0x08000100 + 2 * i })) };
+  const lines = [...analyzeTextLines(result as typeof base, analyzeSummary(result as typeof base, ExitCode.ok))];
+  assert.equal(lines.length, base.functions.length + 1 + 1 + 5_000 + 1, 'header, functions, "rejections:", rejections, summary');
+  assert.ok(lines.every((l) => l.endsWith('\n') && l.indexOf('\n') === l.length - 1), 'each yielded string is one line');
+  assert.equal(lines[base.functions.length + 1], 'rejections:\n');
+  assert.match(lines[base.functions.length + 2] ?? '', /^  0x08000100  thumb  valid\.decodes  decodes to nothing  x1  x\n$/);
+  const io = capturingIo();
+  assert.equal(await main(['analyze', ROM], io), ExitCode.ok);
+  assert.equal(io.out.join(''), [...analyzeTextLines(base, analyzeSummary(base, ExitCode.ok))].join(''), 'the command prints exactly these lines');
 });
 
 

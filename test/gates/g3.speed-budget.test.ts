@@ -1,8 +1,8 @@
 // g3.speed-budget (architecture §9.3, §13, D41): calibrated to this machine, the analysis of every tuning
-// ROM takes at most 3 s of CPU, and on Emerald `generate` takes at most 10 s and the `init` equivalent at
+// ROM (all six, D62) takes at most 3 s of CPU, and on Emerald `generate` takes at most 10 s and the `init` equivalent at
 // most 15 s (CPU, as the speed family gates). Every budget is multiplied by the calibration ratio.
 //
-// Expected output, for the phase-3 lead to align (architecture §8.5; the phase-3 extension of bench speed):
+// The command (architecture §8.5, the phase-3 extension of bench speed; aligned by the phase-3 lead, D62):
 //   npm run bench -- speed --json   exit 0; the last stdout line is
 //   {schema: 'romlift/bench-speed@1',
 //    calibration: {cpuMs, baselineCpuMs, ratio},

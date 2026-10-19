@@ -22,7 +22,7 @@ export const FAMILIES = {
   determinism: { liveFrom: 2, scope: 'rom', summary: 'two processes with a varied environment give one digest' },
   speed: { liveFrom: 2, scope: 'rom', summary: 'CPU time within the ratchet and the budget' },
   readability: { liveFrom: 3, scope: 'rom', summary: 'readability shares only increase; objdiff score 0' },
-  memory: { liveFrom: 3, scope: 'global', summary: 'peak RSS below 512 MiB on the 32 MiB synthetic ROM' },
+  memory: { liveFrom: 3, scope: 'global', summary: 'each command\'s exit code, peak RSS and heap cap on the 32 MiB synthetic ROM, recorded; g3.large-rom judges them (exit 0 under the 1,024 MiB cap, below 1,536 MiB)' },
   signatures: { liveFrom: 6, scope: 'rom', summary: 'every placement at an ELF FUNC or a listed untyped address' },
 } as const satisfies Record<string, FamilySpec>;
 
@@ -37,7 +37,7 @@ export interface RomEvidence {
   readonly deterministic: boolean;
   /** bench/baseline/speed.json holds the ROM, so the speed ratchet has a reference. */
   readonly speedBaseline: boolean;
-  /** The PoC's dump held a scaffold verdict (until phase 3). */
+  /** The PoC's dump held a scaffold verdict (phase 2; from phase 3 romlift's raw link, phase3RomFamilies). */
   readonly scaffold: boolean;
 }
 
@@ -48,6 +48,23 @@ export function phase2RomFamilies(e: RomEvidence): Family[] {
   if (e.scaffold) families.push('scaffold');
   if (e.speedBaseline) families.push('speed');
   return families.sort(compareCodeUnits);
+}
+
+/** What one phase-3 `bench run` of a tuning ROM measured besides the phase-2 evidence. */
+export interface Phase3Evidence {
+  readonly deterministic: boolean;
+  readonly speedBaseline: boolean;
+  /** romlift's raw printer's tree was built and linked (`--scaffold`); it replaces the PoC dump's verdict. */
+  readonly scaffold: boolean;
+}
+
+/**
+ * The per-ROM families a phase-3 `bench run` records for one tuning ROM, in name order: the phase-2
+ * families, `readability` always (every run measures the readable printer's shares), and `scaffold` only
+ * from romlift's own raw link under `--scaffold`, never from the PoC's dump.
+ */
+export function phase3RomFamilies(e: Phase3Evidence): Family[] {
+  return [...phase2RomFamilies(e), 'readability' as const].sort(compareCodeUnits);
 }
 
 export function familySpec(family: Family): FamilySpec {

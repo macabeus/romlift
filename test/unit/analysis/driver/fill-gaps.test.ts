@@ -3,6 +3,7 @@
 // a mid-gap absorb, and an accept veto recorded as a rejection.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { rejectionKey } from '../../../../src/core/analysis/driver/trail.ts';
 
 import { accept } from '../../../../src/core/analysis/driver/accept.ts';
 import { fillGaps } from '../../../../src/core/analysis/driver/fill-gaps.ts';
@@ -217,7 +218,7 @@ test('an accept veto on a forward proposal is recorded as a rejection under the 
   const { s } = setup({ forward: (c) => c.at === F + 4, code: thumbAt(F + 4)`bx lr`, extra: [veto], pipeline: { accept: ['accept.tiny-anchored-at-start'] } });
   fillGaps(s, 'impatient');
   assert.equal(s.funcs.has(F + 4), false);
-  const r = s.rejections.get(`${F + 4}:thumb`);
+  const r = s.rejections.get(rejectionKey(F + 4, 'thumb'));
   assert.equal(r?.rule, 'accept.tiny-anchored-at-start');
   assert.equal(r?.reason, 'unanchored');
   assert.match(r?.detail ?? '', /proposed by gap.forward-chain: a stub/);

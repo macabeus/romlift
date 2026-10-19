@@ -7,12 +7,15 @@ import { join } from 'node:path';
 
 import { sha1Of, sha256Of } from 'romlift/node';
 
-import type { AnalysisResult, MissReason } from 'romlift';
+import type { AnalysisResult, MissReason, PrintStats } from 'romlift';
 
 import { resultDigest } from '../../../bench/src/analysis-run.ts';
 import { stripSeconds } from '../../../bench/src/baseline.ts';
 import { resultParityDigest } from '../../../bench/src/parity.ts';
 import type { BenchDeps } from '../../../bench/src/cli.ts';
+import type { ObjdiffSummary } from '../../../bench/src/objdiff.ts';
+import type { MemoryFamilyRun, RunOptions } from '../../../bench/src/run.ts';
+import type { EmissionFamilies, LinkOutcome, ScaffoldInput } from '../../../bench/src/scaffold.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import type { ScoredRun } from '../../../bench/src/scored-run.ts';
@@ -42,6 +45,9 @@ export const EXPECTED_ROW = {
   scaffold: { ok: true },
 } as const;
 
+/** EXPECTED_ROW without the scaffold verdict: a romlift run gives one only with --scaffold (phase 3). */
+const { scaffold: _pocScaffold, ...ROW_WITHOUT_SCAFFOLD } = EXPECTED_ROW;
+
 /** romlift's analysis of the synthetic ROM: the functions of tinyDump, minus `drop`. */
 export function tinyResult(drop: readonly number[] = []): AnalysisResult {
   const functions = [fact(0x0800_0000, 0x0800_0008, 'rom-entry', 'arm'), fact(0x0800_0008, 0x0800_000e), fact(0x0800_0010, 0x0800_0014, 'gap-scan'), fact(0x0800_0018, 0x0800_001c)];
@@ -55,16 +61,77 @@ export function tinyResult(drop: readonly number[] = []): AnalysisResult {
 /** The reasons the synthetic run gives its misses. */
 export const TINY_REASONS: ReadonlyMap<number, MissReason> = new Map([[0x0800_000e, 'unanchored']]);
 
-export function tinyDeps(result: AnalysisResult = tinyResult(), options: FixedRunnerOptions = {}): BenchDeps {
-  return { runner: fixedRunner(result, { reasons: TINY_REASONS, ...options }), now: () => '2026-10-17T00:00:00.000Z' };
+/** The readable printer's statistics the fake emission reports for every ROM. */
+export const TINY_STATS: PrintStats = { insns: 10, rawInsns: 1, branches: 4, symbolicBranches: 4, poolLoads: 2, symbolicPoolLoads: 1, rawReasons: { 'no-roundtrip': 1 } };
+export const TINY_TREE_DIGEST = 'a'.repeat(64);
+/** The shares of TINY_STATS. */
+export const TINY_SHARES = { mnemonicShare: 0.9, symbolicBranchShare: 1, symbolicPoolShare: 0.5 } as const;
+/** The objdiff member the fake emission reports when the readable tree links. */
+export const TINY_OBJDIFF: ObjdiffSummary = {
+  linked: true,
+  scored: 2,
+  differences: { 'unnamed-target': 1 },
+  examples: [{ function: 'thumb_one', kind: 'unnamed-target', detail: '+0x4 R_ARM_ABS32: section .rodata | gUnk_08000020' }],
+};
+
+export interface FakeEmissionOptions {
+  readonly rawOk?: boolean;
+  readonly readableOk?: boolean;
+  /** Receives every scaffold call. */
+  readonly onScaffold?: (input: ScaffoldInput) => void;
+}
+
+const link = (ok: boolean): LinkOutcome => ({ ok, sha1: ok ? sha1Of(ROM_BYTES) : null, detail: ok ? 'linked' : 'ld exited with 1', treeDigest: TINY_TREE_DIGEST });
+
+/** An emission that prints and links nothing: fixed statistics, digests and links. */
+export function fakeEmission(options: FakeEmissionOptions = {}): EmissionFamilies {
+  return {
+    readability: () => ({ stats: TINY_STATS, treeDigest: TINY_TREE_DIGEST }),
+    scaffold: async (input) => {
+      options.onScaffold?.(input);
+      const readable = link(options.readableOk ?? true);
+      return {
+        raw: link(options.rawOk ?? true),
+        readable,
+        objdiff: readable.ok ? TINY_OBJDIFF : { linked: false, scored: 0, differences: {}, examples: [] },
+        timings: { rawLinkMs: 1, readableLinkMs: 2, objdiffMs: 3 },
+      };
+    },
+  };
+}
+
+/** The memory family's fake report: the large-ROM script's member and its volatile times. */
+export const TINY_MEMORY: MemoryFamilyRun = {
+  member: { romBytes: 32 * 1024 * 1024, sha1: 'b846b9453414ce93afc5e8fd559eaac582dc570e', runs: [{ command: 'init', exitCode: 0, maxRssMiB: 300.5 }, { command: 'generate', exitCode: 0, maxRssMiB: 280.25, treeDigest: 'c'.repeat(64) }] },
+  timings: { runs: [{ command: 'init', wallMs: 1000 }, { command: 'generate', wallMs: 900 }] },
+};
+
+export function tinyDeps(result: AnalysisResult = tinyResult(), options: FixedRunnerOptions = {}, emission: FakeEmissionOptions = {}): BenchDeps {
+  return {
+    runner: fixedRunner(result, { reasons: TINY_REASONS, ...options }),
+    now: () => '2026-10-17T00:00:00.000Z',
+    emission: fakeEmission(emission),
+    largeRom: async () => TINY_MEMORY,
+    objdiffTool: async () => '/fake/objdiff-cli',
+  };
 }
 
 /** The bench's dependencies on the synthetic tier: tinyResult, served whatever is asked. */
 export const TINY_DEPS: BenchDeps = tinyDeps();
 
-/** The row `bench run` scores from tinyResult: EXPECTED_ROW and the phase-2 fields. */
+/** benchRun's options from a BenchDeps: its runner and the phase-3 fakes. */
+export function runWith(deps: BenchDeps = TINY_DEPS): Pick<RunOptions, 'runner' | 'emission' | 'largeRom' | 'objdiffTool'> {
+  return {
+    runner: deps.runner,
+    ...(deps.emission === undefined ? {} : { emission: deps.emission }),
+    ...(deps.largeRom === undefined ? {} : { largeRom: deps.largeRom }),
+    ...(deps.objdiffTool === undefined ? {} : { objdiffTool: deps.objdiffTool }),
+  };
+}
+
+/** The row `bench run` scores from tinyResult: EXPECTED_ROW without the PoC's scaffold verdict, the phase-2 fields and the readability family. */
 export const EXPECTED_ROMLIFT_ROW = {
-  ...EXPECTED_ROW,
+  ...ROW_WITHOUT_SCAFFOLD,
   extents: { ...EXPECTED_ROW.extents, lost: [] },
   analysisDigest: resultDigest(tinyResult()),
   poc: { tp: 2, source: 'baseline' },
@@ -72,7 +139,12 @@ export const EXPECTED_ROMLIFT_ROW = {
   baselineRows: { diffs: [], unaccepted: [], staleAccepted: [] },
   // The synthetic tier commits no poc-digests.json, so nothing is expected.
   parity: { digest: resultParityDigest(tinyResult()), expected: '' },
+  readability: { ...TINY_SHARES, floor: null },
+  treeDigest: TINY_TREE_DIGEST,
 } as const;
+
+/** The row of `bench run --scaffold`: romlift's raw link as the scaffold verdict, and the objdiff family. */
+export const EXPECTED_SCAFFOLD_ROW = { ...EXPECTED_ROMLIFT_ROW, scaffold: { ok: true }, objdiff: TINY_OBJDIFF } as const;
 
 const POC_ROW = { ...EXPECTED_ROW, seconds: 0.1, scaffold: { ok: true, seconds: 0.2, summary: 'built' }, signatures: { functions: 0, seconds: 0 }, datasetProblems: [] };
 

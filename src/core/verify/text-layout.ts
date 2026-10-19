@@ -1,0 +1,465 @@
+// The text-layout self-check (architecture §6.4, §6.7, D49): every file the emission stream produces is
+// read back and must rebuild exactly what the model says it holds, without a toolchain. checkEntry checks
+// ONE FileEntry under an index of the model built once per pass (textLayoutIndex), so the check pass streams
+// the emission and keeps no tree (§9.4); checkEntries folds a whole stream into the 'text-layout' and 'paths'
+// results.
+//
+// - A function or orphan file (core/model/paths.ts chunkPaths) is parsed with foundation/asm/statements.ts
+//   (include/macros.inc is DIALECT.macrosInc) and laid out by foundation/asm/layout.ts from its chunk's
+//   start, in the state the previous chunk of its module leaves (Thumb before a module's first chunk: the
+//   module file's preamble), at its run address inside a runs_at range, so local labels take the addresses
+//   ld gives them. It is read as `as` reads it, inside its module file, after that file's include of the
+//   macro file: a chunk file that includes the macro file again redefines every macro, which `as` refuses.
+//   Names it does not define resolve to the model: a label of its module, else a global label (resolver.ts
+//   wordValueOf: a Thumb function carries the Thumb bit), else a [symbols] entry outside the ROM (what
+//   symbols.ld defines); only a label a printer can place counts, one at an item's start or inside a data item
+//   (chunk.ts places no other), so a name the tree never defines is an undefined symbol here as for `as`. A
+//   [symbols] entry inside the ROM is defined only by its label, so one no printer can place resolves to nothing. A PC-relative load or
+//   `adr` may name only a label of its own module, the object `as` assembles it into (D63).
+//   `.incbin "baserom.gba"` reads the ROM.
+// - A module's source (asm/rom_header.s, asm/crt0.s, asm/<module>.s, data/<module>.s; paths.ts
+//   moduleSource) is laid out from the module's start in ARM state (GNU as starts every file in ARM state).
+//   Each `.include` of one of the module's chunk files stands for that chunk's ROM bytes; the includes must
+//   be exactly the module's chunk files in ROM order, so the file adds no byte of its own beyond what the
+//   model puts between them (a header, startup or data chunk it holds inline).
+// - Every laid-out file must reproduce its ROM range byte for byte, and every `.align` (and every pad of a
+//   switch to ARM state) that emits bytes must emit exactly the padding item at that address.
+// - Each build unit must start and end on a multiple of its section's alignment (the largest any of its files
+//   asks, foundation/asm/layout.ts sectionAlign): GNU as pads a section's end to it and ld places a section on
+//   it, so an odd-sized ROM's last unit, or a unit at a misaligned border, would link to other bytes.
+// - ldscript.txt and symbols.ld are checked structurally (link-scripts.ts): each build unit once, in ROM order,
+//   a runs_at unit at its run address loaded at its load address with its __load_ symbol; each symbol outside
+//   the ROM defined once with the model's value, and nothing else.
+//
+// Every failure is E_SELF_CHECK_TEXT with the file (`path`), the line (in the message) and the load
+// address (`addr`) of the first difference. Scaffold and reconciled entries, and entries of writers of later
+// phases, are not this check's.
+import { DIALECT } from '../../foundation/asm/dialect.ts';
+import { layoutMemo, layoutStatements } from '../../foundation/asm/layout.ts';
+import type { Layout, LayoutInput, LayoutMemo } from '../../foundation/asm/layout.ts';
+import { parseStatements, stripComment } from '../../foundation/asm/statements.ts';
+import type { Statement } from '../../foundation/asm/statements.ts';
+import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
+import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { ROM_BASE } from '../../foundation/rom/rom.ts';
+import type { Rom } from '../../foundation/rom/rom.ts';
+import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
+import { pushAll } from '../../foundation/util/arrays.ts';
+import { hexAddr } from '../../foundation/util/hex.ts';
+import type { FileEntry, WriterId } from '../emit/tree.ts';
+import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
+import { moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
+import { BASEROM_PATH, chunkPathsOf, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
+import { wordValueOf } from '../model/resolver.ts';
+import { ItemKind } from '../model/types.ts';
+import type { Label, Model, Module } from '../model/types.ts';
+import { checkLdscript, checkSymbolsFile, externalSymbolValues } from './link-scripts.ts';
+import { pathsCheck } from './paths.ts';
+import { checkResult } from './report.ts';
+import type { CheckResult, VerifyReport } from './report.ts';
+import { textError } from './text-error.ts';
+
+/** How many problems one entry reports at most; the first is the one that matters. */
+export const MAX_PER_ENTRY = 16;
+
+/** The writers whose files this check reads; an unknown path of one of them is an error. */
+const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>(['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols']);
+
+const INCLUDES: ReadonlyMap<string, string> = new Map([[MACROS_PATH, DIALECT.macrosInc]]);
+
+// ---------------------------------------------------------------------------------------------------
+// What each path of the model holds, indexed once per check pass and dropped with it.
+
+type Target =
+  | { readonly kind: 'chunk'; readonly module: number; readonly chunk: number }
+  | { readonly kind: 'source'; readonly module: number }
+  | { readonly kind: 'ldscript' }
+  | { readonly kind: 'symbols' };
+
+/**
+ * What each path of the model holds, indexed once per check pass: build it with textLayoutIndex(model) and pass it
+ * to every checkEntry of the pass. Opaque: its members are this file's.
+ */
+export interface TextLayoutIndex {
+  readonly targets: ReadonlyMap<string, Target>;
+  /** chunkPathsOf(model), aligned with model.chunks: the writers' own. */
+  readonly chunkPaths: readonly (string | undefined)[];
+  /** Every path the stream of the model must hold, in model order, with the address its bytes start at. */
+  readonly expected: readonly { readonly path: string; readonly addr: Addr }[];
+  /** relocatedModules(model.modules), for moduleIndexAt. */
+  readonly relocated: readonly Module[];
+  /** The labels a printer can place (definable), by name, each list by address. */
+  readonly labelsByName: ReadonlyMap<string, readonly Label[]>;
+  /** The [symbols] entries outside the ROM, which symbols.ld defines, by name (the first by address). */
+  readonly symbolsByName: ReadonlyMap<string, Addr>;
+  /** What every layout of the pass's files remembers of instruction texts (foundation/asm/layout.ts). */
+  readonly memo: LayoutMemo;
+}
+
+/**
+ * Whether a printer can place `label`: its load address is an item's start, or lies inside a data item (the
+ * readable printer splits a data item there, the data writer an `.incbin`, the header its `.byte` lines). An
+ * instruction, pool word or table entry cannot be cut, so a label inside one is never defined (D63 d).
+ */
+function definable(model: Model, relocated: readonly Module[], label: Label): boolean {
+  const module = model.modules[moduleIndexAt(model.modules, label.addr, relocated)];
+  if (module === undefined) return false;
+  const load = toLoad(module, label.addr);
+  const i = findItem(model.items, load);
+  return i >= 0 && (model.items.start[i] === load || model.items.kind[i] === ItemKind.data);
+}
+
+/** The index of `model` one check pass shares (TextLayoutIndex); O(model), so built once per pass, never per entry. */
+export function textLayoutIndex(model: Model): TextLayoutIndex {
+  const paths = chunkPathsOf(model);
+  const targets = new Map<string, Target>([
+    [LDSCRIPT_PATH, { kind: 'ldscript' }],
+    [SYMBOLS_PATH, { kind: 'symbols' }],
+  ]);
+  const expected: { readonly path: string; readonly addr: Addr }[] = [];
+  model.modules.forEach((module, m) => {
+    if (!module.generated) return;
+    // A C module's source is the c-stub writer's (phase 4): the stream must hold it, and its function files are
+    // laid out all the same, but the file itself is not this check's.
+    const source = moduleSource(model, module);
+    if (module.kind !== 'c') targets.set(source, { kind: 'source', module: m });
+    expected.push({ path: source, addr: module.span.start });
+    for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
+      const path = paths[c];
+      const chunk = model.chunks[c];
+      if (path === undefined || chunk === undefined) continue;
+      targets.set(path, { kind: 'chunk', module: m, chunk: c });
+      expected.push({ path, addr: chunk.span.start });
+    }
+  });
+  expected.push({ path: LDSCRIPT_PATH, addr: ROM_BASE }, { path: SYMBOLS_PATH, addr: ROM_BASE });
+  const relocated = relocatedModules(model.modules);
+  const labelsByName = new Map<string, Label[]>();
+  for (const label of model.labels) {
+    if (!definable(model, relocated, label)) continue;
+    const list = labelsByName.get(label.name);
+    if (list === undefined) labelsByName.set(label.name, [label]);
+    else list.push(label);
+  }
+  return { targets, chunkPaths: paths, expected, relocated, labelsByName, symbolsByName: externalSymbolValues(model), memo: layoutMemo() };
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Laying a file out.
+
+/** The value of a name a file of module `m` does not define (what ld would give it), or undefined. */
+function resolveIn(model: Model, index: TextLayoutIndex, m: number): (name: string) => number | undefined {
+  return (name) => {
+    const labels = index.labelsByName.get(name) ?? [];
+    const label = labels.find((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m) ?? labels.find((l) => l.scope === 'global');
+    if (label !== undefined) return wordValueOf(label);
+    return index.symbolsByName.get(name);
+  };
+}
+
+/** Whether a name a file of module `m` does not define is a label of module `m` itself (one object). */
+function inModule(model: Model, index: TextLayoutIndex, m: number): (name: string) => boolean {
+  return (name) => (index.labelsByName.get(name) ?? []).some((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m);
+}
+
+function romIncbin(rom: Rom): (file: string, offset: number, length: number) => Uint8Array | undefined {
+  return (file, offset, length) => (file === BASEROM_PATH && offset + length <= rom.bytes.length ? rom.bytes.subarray(offset, offset + length) : undefined);
+}
+
+/** The mode of an item's isa row, or undefined when it names none. */
+function itemMode(model: Model, i: number): Mode | undefined {
+  const kind = model.items.kind[i];
+  if (kind !== ItemKind.insn && kind !== ItemKind.rawInsn) return undefined;
+  const spec = specIdAt(model.items.spec[i] ?? 0xffff);
+  return spec === undefined ? undefined : modeOfSpec(spec);
+}
+
+/**
+ * The state GNU as is in when the module file includes chunk `c`: Thumb before the module's first chunk
+ * (the module file's preamble), else the mode of the previous chunk's last instruction, else its mode.
+ */
+function incomingMode(model: Model, module: Module, c: number): Mode {
+  const prev = model.chunks[c - 1];
+  if (c === module.chunks.first || prev === undefined) return 'thumb';
+  for (let i = prev.items.first + prev.items.count - 1; i >= prev.items.first; i--) {
+    const mode = itemMode(model, i);
+    if (mode !== undefined) return mode;
+  }
+  return prev.mode ?? 'thumb';
+}
+
+/** One file to lay out: its statements and where they go. */
+interface Job {
+  readonly path: string;
+  readonly statements: readonly Statement[];
+  readonly input: Omit<LayoutInput, 'statements'>;
+  /** The load range the bytes must equal. */
+  readonly range: Span;
+  /** Run address minus load address (0 outside runs_at). */
+  readonly runOffset: number;
+}
+
+function layoutOf(job: Job, statements: readonly Statement[]): Layout {
+  return layoutStatements({ ...job.input, statements });
+}
+
+/** The line of the statement that lays out the byte at run address `at` (found by laying out prefixes). */
+function lineAt(job: Job, at: Addr): number {
+  const all = job.statements;
+  let lo = 1;
+  let hi = all.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (layoutOf(job, all.slice(0, mid)).end > at) hi = mid;
+    else lo = mid + 1;
+  }
+  return all[lo - 1]?.line ?? 1;
+}
+
+/** The run address the statements before `line` reach. */
+function addressBefore(job: Job, line: number): Addr {
+  return layoutOf(
+    job,
+    job.statements.filter((s) => s.line < line),
+  ).end;
+}
+
+/** What checking one file found: its problems, and the section alignment its statements ask of their unit. */
+interface FileCheck {
+  readonly diagnostics: Diagnostic[];
+  /** Layout.sectionAlign of the file; 0 when it was not laid out. */
+  readonly sectionAlign: number;
+}
+
+/** Every difference between a laid-out file and the model: bytes, length and padding. */
+function compareLayout(rom: Rom, model: Model, job: Job, parseErrors: readonly { readonly line: number; readonly message: string }[]): FileCheck {
+  const out: Diagnostic[] = [];
+  const load = (at: Addr): Addr => at - job.runOffset;
+  // Each parse error costs a layout of the statements before it, so only as many as an entry reports.
+  for (const e of parseErrors.slice(0, MAX_PER_ENTRY)) out.push(textError(job.path, e.line, load(addressBefore(job, e.line)), e.message));
+  const layout = layoutOf(job, job.statements);
+  for (const e of layout.errors) out.push(textError(job.path, e.line, load(e.at), e.message));
+
+  const expected = job.range.end - job.range.start;
+  const got = layout.bytes.length;
+  const base = job.range.start - ROM_BASE;
+  let diff = -1;
+  for (let k = 0; k < Math.min(expected, got); k++) {
+    if (layout.bytes[k] !== rom.bytes[base + k]) {
+      diff = k;
+      break;
+    }
+  }
+  if (diff >= 0) {
+    const addr = job.range.start + diff;
+    const message = `the file lays out 0x${(layout.bytes[diff] ?? 0).toString(16).padStart(2, '0')} where the ROM holds 0x${(rom.bytes[base + diff] ?? 0).toString(16).padStart(2, '0')}`;
+    out.push(textError(job.path, lineAt(job, addr + job.runOffset), addr, message));
+  } else if (got !== expected) {
+    const addr = job.range.start + Math.min(expected, got);
+    const message = `the file lays out ${got} bytes, but its range ${hexAddr(job.range.start)}..${hexAddr(job.range.end)} holds ${expected}`;
+    out.push(textError(job.path, got > expected ? lineAt(job, addr + job.runOffset) : (job.statements[job.statements.length - 1]?.line ?? 1), addr, message));
+  }
+
+  for (const a of layout.aligns) {
+    if (a.length === 0) continue;
+    const at = load(a.at);
+    const i = findItem(model.items, at);
+    const isPadding = i >= 0 && model.items.kind[i] === ItemKind.padding && model.items.start[i] === at;
+    const padding = isPadding ? (model.items.length[i] ?? 0) : 0;
+    if (padding !== a.length) {
+      const what = isPadding ? `the padding item there is ${padding} bytes` : 'no padding item starts there';
+      out.push(textError(job.path, a.line, at, `the alignment emits ${a.length} bytes, but ${what}`));
+    }
+  }
+  return { diagnostics: out, sectionAlign: layout.sectionAlign };
+}
+
+function parse(text: string): { readonly statements: readonly Statement[]; readonly errors: readonly { readonly line: number; readonly message: string }[] } {
+  return parseStatements(text, { includes: INCLUDES });
+}
+
+/**
+ * A chunk file as GNU as reads it inside its module file: after the module file's `.include` of the macro
+ * file. The include is put in front of line 1 (`;` separates statements), so line numbers stay the file's,
+ * and a chunk file that includes the macro file again fails as `as` fails, on a second macro definition.
+ */
+function asIncluded(text: string): string {
+  return `${DIALECT.macrosInclude}; ${text}`;
+}
+
+/** The line of the module file's `.include` of the macro file, or undefined (parseStatements leaves it no statement). */
+function macrosIncludeLine(text: string): number | undefined {
+  const index = text.split('\n').findIndex((raw) => stripComment(raw).trim() === DIALECT.macrosInclude);
+  return index < 0 ? undefined : index + 1;
+}
+
+/** A function or orphan file: laid out from its chunk's start. */
+function checkChunkFile(rom: Rom, model: Model, index: TextLayoutIndex, entry: { readonly path: string; readonly text: string }, m: number, c: number): FileCheck {
+  const module = model.modules[m];
+  const chunk = model.chunks[c];
+  if (module === undefined || chunk === undefined) throw new RomliftInvariantError(`text-layout: the path index names chunk ${c} of module ${m}, which the model lacks`);
+  const runOffset = runOffsetOf(chunk);
+  const parsed = parse(asIncluded(entry.text));
+  const job: Job = {
+    path: entry.path,
+    statements: parsed.statements,
+    input: { start: chunk.span.start + runOffset, mode: incomingMode(model, module, c), resolve: resolveIn(model, index, m), incbin: romIncbin(rom), include: () => undefined, memo: index.memo, sameObject: inModule(model, index, m) },
+    range: chunk.span,
+    runOffset,
+  };
+  return compareLayout(rom, model, job, parsed.errors);
+}
+
+/** A module's source: laid out from the module's start, each include of a chunk file standing for its bytes. */
+function checkSourceFile(rom: Rom, model: Model, index: TextLayoutIndex, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
+  const module = model.modules[m];
+  if (module === undefined) throw new RomliftInvariantError(`text-layout: the path index names module ${m}, which the model lacks`);
+  const runOffset = runOffsetOf(module);
+  const files = new Map<string, Span>();
+  const order: { readonly path: string; readonly span: Span }[] = [];
+  for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
+    const path = index.chunkPaths[c];
+    const chunk = model.chunks[c];
+    if (path === undefined || chunk === undefined) continue;
+    files.set(path, chunk.span);
+    order.push({ path, span: chunk.span });
+  }
+  const parsed = parse(entry.text);
+  const job: Job = {
+    path: entry.path,
+    statements: parsed.statements,
+    input: {
+      start: module.span.start + runOffset,
+      mode: 'arm',
+      resolve: resolveIn(model, index, m),
+      incbin: romIncbin(rom),
+      memo: index.memo,
+      include: (path) => {
+        const span = files.get(path);
+        return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_PATH, offset: span.start - ROM_BASE, length: span.end - span.start }];
+      },
+    },
+    range: module.span,
+    runOffset,
+  };
+
+  const includes = parsed.statements.filter((s): s is Statement & { readonly kind: 'include' } => s.kind === 'include');
+  const lastLine = parsed.statements[parsed.statements.length - 1]?.line ?? 1;
+  const firstInclude = includes[0];
+  const macrosLine = macrosIncludeLine(entry.text);
+  if (firstInclude !== undefined && (macrosLine === undefined || macrosLine > firstInclude.line)) {
+    // Its chunk files use the macros without including them (asIncluded): the module file defines them once.
+    return { diagnostics: [textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`)], sectionAlign: 0 };
+  }
+  for (let k = 0; k < Math.max(includes.length, order.length); k++) {
+    const got = includes[k];
+    const want = order[k];
+    if (got?.path === want?.path) continue;
+    const line = got?.line ?? lastLine;
+    const addr = want?.span.start ?? module.span.end;
+    const message =
+      want === undefined
+        ? `includes "${got?.path ?? ''}" after the module's last chunk file`
+        : got === undefined
+          ? `does not include "${want.path}", the chunk file at ${hexAddr(want.span.start)}`
+          : `includes "${got.path}" where the module's chunk file in ROM order is "${want.path}"`;
+    // The order is wrong from here on; the byte comparison would only repeat it.
+    return { diagnostics: [textError(entry.path, line, addr, message)], sectionAlign: 0 };
+  }
+  return compareLayout(rom, model, job, parsed.errors);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// The check.
+
+/** What one entry contributes: its problems (at most MAX_PER_ENTRY), and for a file of a unit the alignment it asks. */
+interface EntryCheck {
+  readonly diagnostics: readonly Diagnostic[];
+  /** The unit (model.modules index) the file is assembled into, and its Layout.sectionAlign. */
+  readonly unit?: { readonly module: number; readonly sectionAlign: number };
+}
+
+function checkOne(rom: Rom, model: Model, index: TextLayoutIndex, entry: FileEntry): EntryCheck {
+  if (entry.ownership !== 'generated') return { diagnostics: [] };
+  const target = index.targets.get(entry.path);
+  if (target === undefined) {
+    return { diagnostics: CHECKED_WRITERS.has(entry.writer) ? [textError(entry.path, 1, ROM_BASE, `the ${entry.writer} writer emits a file no chunk or module of the model has`)] : [] };
+  }
+  let file: FileCheck;
+  switch (target.kind) {
+    case 'chunk':
+      file = checkChunkFile(rom, model, index, entry, target.module, target.chunk);
+      break;
+    case 'source':
+      file = checkSourceFile(rom, model, index, entry, target.module);
+      break;
+    case 'ldscript':
+      return { diagnostics: checkLdscript(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
+    case 'symbols':
+      return { diagnostics: checkSymbolsFile(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
+  }
+  return { diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY), unit: { module: target.module, sectionAlign: file.sectionAlign } };
+}
+
+/**
+ * The text-layout check of one entry of the emission stream, under the pass's `index` (textLayoutIndex(model),
+ * built once for every entry of the pass); [] when it is not this check's or it passes. The unit-level part
+ * (each unit's section alignment) and the paths the stream lacks need the whole stream: checkEntries.
+ */
+export function checkEntry(rom: Rom, model: Model, index: TextLayoutIndex, entry: FileEntry): readonly Diagnostic[] {
+  return checkOne(rom, model, index, entry).diagnostics;
+}
+
+/**
+ * The unit-level part of the check, once the stream has passed: GNU as pads each object's section to a multiple
+ * of its alignment (the largest any of the unit's files asks, Layout.sectionAlign) and ld places it at a
+ * multiple of it, so a unit whose start or length is not one links to an image that is longer or shifted.
+ */
+function unitAlignment(model: Model, aligns: ReadonlyMap<number, number>): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  model.modules.forEach((module, m) => {
+    const power = aligns.get(m);
+    if (power === undefined || !module.generated) return;
+    const unit = 2 ** power;
+    const source = moduleSource(model, module);
+    const length = module.span.end - module.span.start;
+    if ((module.span.start - ROM_BASE) % unit !== 0) {
+      out.push(textError(source, 1, module.span.start, `the object's section is aligned to ${unit} bytes, so ld places it past ${hexAddr(module.span.start)}, the module's start`));
+    } else if (length % unit !== 0) {
+      const pad = unit - (length % unit);
+      out.push(textError(source, 1, module.span.end, `GNU as pads the object's section to a multiple of ${unit} bytes, ${pad} past the module's end ${hexAddr(module.span.end)}, so the image is longer than the ROM range`));
+    }
+  });
+  return out;
+}
+
+/** The 'text-layout' CheckResult of the diagnostics of `files` checked entries. */
+export function textLayoutResult(diagnostics: readonly Diagnostic[], files: number): CheckResult {
+  const first = diagnostics[0]?.message;
+  const detail = first === undefined ? `${files} files lay out to their ROM ranges` : diagnostics.length > 1 ? `${first} (${diagnostics.length} problems in all)` : first;
+  return checkResult('text-layout', diagnostics, detail);
+}
+
+/**
+ * The text-layout and paths checks of a whole stream, in one pass that keeps only the paths: checkEntry on
+ * each entry, then every path the model needs that the stream lacked (E_SELF_CHECK_TEXT), then checkPaths.
+ */
+export function checkEntries(rom: Rom, model: Model, entries: Iterable<FileEntry>): VerifyReport {
+  const diagnostics: Diagnostic[] = [];
+  const paths: string[] = [];
+  const aligns = new Map<number, number>();
+  const index = textLayoutIndex(model);
+  for (const entry of entries) {
+    paths.push(entry.path);
+    const found = checkOne(rom, model, index, entry);
+    pushAll(diagnostics, found.diagnostics);
+    if (found.unit !== undefined) aligns.set(found.unit.module, Math.max(aligns.get(found.unit.module) ?? 0, found.unit.sectionAlign));
+  }
+  const emitted = new Set(paths);
+  for (const { path, addr } of index.expected) {
+    if (!emitted.has(path)) diagnostics.push(textError(path, 1, addr, 'the stream emits no such file, which the model needs'));
+  }
+  pushAll(diagnostics, unitAlignment(model, aligns));
+  const checks = [textLayoutResult(diagnostics, paths.length), pathsCheck(paths)];
+  return { ok: checks.every((c) => c.ok), checks };
+}

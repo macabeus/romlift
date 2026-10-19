@@ -6,6 +6,8 @@
   "sha1": "b4bd50e4131b027c334547b4524e2dbbd4227130",
   "elfCommit": "6fb6dfb",
   "elfSha256": "7d27e8d999c5f14b11885e530fc99669b08880deda79e98f3e3e8411482005d6",
+  "objectsDir": "tmc/build/USA",
+  "objectsDigest": "32d4dc71fb6e659fc3ecc0d0b930c44fbd7ed75199fbc49a921cda2c89f23089",
   "family": "zeldaret-tmc",
   "buildNote": "unchanged",
   "heldout": true,
