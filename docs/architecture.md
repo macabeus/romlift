@@ -106,7 +106,8 @@ romlift/
   src/
     index.ts, node.ts, isa.ts, internal.ts   barrels: only `export * from './api/<component>.ts'` lines
     api/                            one barrel per component, created empty by its phase's component 0 (D43)
-    foundation/                     no project knowledge; imports nothing outside foundation/
+    foundation/                     no project knowledge (one recorded exception, util/project-files.ts, D76 h);
+                                    imports nothing outside foundation/
       rom/                          span.ts, rom.ts, header.ts, memory-map.ts, bios.ts, codes.ts
       isa/                          types.ts, thumb-table.ts, arm-table.ts, decode.ts, encode.ts, format.ts,
                                     parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59)
@@ -119,7 +120,10 @@ romlift/
       diagnostics/                  diagnostic.ts (the mechanism; no codes)
       util/                         hex.ts, sorted.ts, interval-index.ts, csr.ts, min-heap.ts, arrays.ts (pushAll,
                                     lowerBound, spanIndexAt), fold.ts (foldPath), project-path.ts
-                                    (isProjectPath: what every emitted, journalled and written path must be)
+                                    (isProjectPath: what every emitted, journalled and written path must be),
+                                    line-diff.ts, project-files.ts (the exception: a project's file names and the
+                                    default function name, which core/config, core/model, core/scaffold and the
+                                    shell share, D75 g, D76 h)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -143,7 +147,8 @@ romlift/
       model/                        types.ts, item-table.ts (ItemTable builder, itemAt), resolver.ts (labels per
                                     module, wordValueOf), paths.ts (the paths writers and checks share), segments.ts,
                                     printing-cache.ts, items.ts, chunks.ts, modules.ts, labels.ts, names.ts,
-                                    symbols.ts, model.ts, codec.ts,
+                                    symbols.ts, model.ts, codec.ts, c-unit.ts, c-data-assert.ts (the C-data
+                                    section and ASSERT lines the ldscript writer prints and its check reads, D76 h),
                                     codes.ts (D62 b)
       reconcile/                    c-tokens.ts, include-asm.ts, rename-tokens.ts, text-edit.ts, codes.ts
       emit/                         tree.ts, emit-tree.ts, unit-text.ts (what the chunk-file and unit-file writers
@@ -1810,7 +1815,7 @@ message states the reason, as the working rule requires.
 | Code end | within 16 bytes of the ELF's code end (`bench/src/truth.ts` `elfCodeEnd`): the largest end of its functions, a sized function at addr + size and an unsized one (hand-written asm without `.size`) at the `$d` mapping symbol or typed symbol that closes its last code run before the next typed symbol (an inline pool followed by more of its code does not end it), one convention for every ROM, tuning and sealed, in every scorer, the rescoring of the PoC's own dumps included (the owner's answer to Q5, "Use $d for every ROM", D61 a). The PoC's pinned rows keep the PoC's own convention (`pocCodeEnd`, addr + size): `bench poc-check` compares the rescored row with them as the scorer measures them and checks separately that they carry the PoC's convention | 2 |
 | Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (both family conditions waived by the owner, the fresh-family one by the decision of D60 and the two-families one by the answer to Q4, "Waive both" (D61 b), for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
-| Speed | median CPU time of the analysis ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
+| Speed | median CPU time of the analysis, over nine serial runs, ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`; nine since the owner's answer to Q2 of phase 4, D76 b); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
 | Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g5.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a; phase 3 records the classified counts) | 3, 5 |
 | Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=1024`, the owner's answer to Q7 of phase-3.md, D72, replacing Q6's 384) with peak RSS below 1,536 MiB, the budget set again from the recorded runs under that cap with a 25% margin (`g3.large-rom`, D68 b, D72 b); the six tuning ROMs and the code-dense doubled ROM are measured under the same cap and recorded; the bin's own commands complete on the synthetic ROM under the cap (`test/local/large-rom-bin.test.ts`, D70 b; not a gate) | 3 |
@@ -1876,7 +1881,7 @@ per-ROM thresholds and "at least two sealed ROMs pass" still decide.
 | Command | Does |
 | --- | --- |
 | `run [--only <rom>] [--scaffold] [--cpu-prof]` | scores each dataset, optionally scaffolds and builds in a temporary directory, writes `results.json` (lead only) and `timings.json`; `--cpu-prof` writes the top self-time functions per ROM |
-| `speed [--only <rom>]` | serial, one ROM at a time, no workers: a warm-up run, then the median of 5 CPU times (`process.cpuUsage`), wall time for information; compares with `baseline/speed.json` and the calibration ratio |
+| `speed [--only <rom>]` | serial, one ROM at a time, no workers: a warm-up run, then the median of 9 CPU times of the analysis (`process.cpuUsage`; 9 since D76 b, 5 before; the calibration and the emission timings stay the median of 5), wall time for information; compares with `baseline/speed.json` and the calibration ratio; the `--json` line names its run counts (`runs`) |
 | `regression [--base <ref\|file>] [--fresh <file>]` | compares two artifacts and their datasets; default base `git merge-base origin/main HEAD`, never HEAD; fails on fewer true positives, a new extent mismatch, a higher raw share, a lower readability share, or a `labels`/`untyped` row added without a `Bench-Exception: <rom> <addr> <reason>` commit trailer |
 | `diff --base <ref\|file>` | prints the rows that moved, newly missed and newly false first |
 | `stale-check` | fails when the source digest differs from the artifact's |
@@ -2201,7 +2206,7 @@ one is missing.
 | `g2.vocabulary-emitted` | ci | every miss reason and origin is emitted by some rule |
 | `g2.second-profile` | ci | the dummy profile of §4.3 typechecks and runs on every fixture |
 | `g2.held-out` | real (sealed) | the held-out family of §8.4 |
-| `g2.speed` | real | `bench speed` within 1.5 × `baseline/speed.json` (calibrated) |
+| `g2.speed` | real | `bench speed` within 1.5 × `baseline/speed.json` (calibrated), each ROM's analysis the median of nine serial runs (D76 b) |
 | `g2.regression` | ci | `bench regression` against the merge-base passes on the committed artifacts and datasets |
 | `g2.checks-fail` | ci | mutation tests of the classifier, seal, stale-exception and regression reporters (the lockstep reporter was deleted with the oracle, D59) |
 | `g3.self-check` | ci and real | tiling, re-encode and module-size checks pass on every fixture and tuning ROM |

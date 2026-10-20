@@ -669,7 +669,8 @@ The four minors of the review of phase 3's landing run (phase-3.md, "Review", th
 `ef2be76`) are carried here too: gate-honesty-r0-1 (`bench/src/families.ts`'s readability summary still says "objdiff
 score 0", which is `g5.objdiff` since D68 a; text only), correctness-r0-1 (sa2's `g2.speed` sits at about 90 to 100%
 of its limit at `main` itself; the owner is asked before phase 4's landing run whether to re-baseline or take the
-median of more runs), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
+median of more runs; answered on 20 October 2026, Q2 of phase-4.md, "Median of more runs", D76 b: `g2.speed` takes the
+median of nine serial runs per ROM instead of five, with the limits and `bench/baseline/speed.json` unchanged), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
 requirement recorded as a known limitation); correctness-r0-3 was fixed in the record. The phase pull request's CI
 found one more (correctness-ci-1, phase-3.md, "The closing gate", the phase pull request's CI): `exitQuietlyOnEpipe`
 in `src/cli/main.ts` treats only EPIPE as a closed reader, and macOS can report ENOTCONN on a socket-pair stdout, which
@@ -700,6 +701,11 @@ every seeded legal TOML edit still links; the composite fixture's illegal border
 ---
 
 ## Phase 5: Migration
+
+**Skipped by the owner** (20 October 2026: "We don't need it. Skip phase 5", and "Keep rename and objdiff", D76 g).
+Legacy import, the Klonoa migration tooling and the switch-over are dropped; rename and the reconciler, the `expected/`
+and `objdiff.json` writers, the C data ranges and the objdiff gate move into phase 6, which records both decisions and
+rewrites this plan. The sections below are the plan as written before that decision.
 
 Entry: phase 4 landed. Branch `phase/5-migration`. Six components: 5.0, then 5.A–5.D in parallel, then
 5.I, which also produces the Klonoa switch-over pull request.
@@ -802,7 +808,38 @@ links (`g5.objdiff`, D34, D68 a); every earlier gate still passes.
 ## Phase 6: Evidence
 
 Entry: phase 5 landed. Branch `phase/6-evidence`. Six components: 6.0, then 6.A–6.D in parallel, then 6.I.
-Signature files stay local and gitignored unless the owner decides otherwise (D40).
+Signature files stay local and gitignored unless the owner decides otherwise (D40). Since the owner skipped phase 5
+(D76 g), phase 6 takes rename and the reconciler, the `expected/` and `objdiff.json` writers, the C data ranges and the
+objdiff gate from phase 5, drops the gba-kit trace integration, records both decisions and rewrites this plan; its
+entry is phase 4 landed.
+
+### Carried from phase 4 (D76 g, h)
+
+Each changes code without a defect behind it, and phase 6 reworks the same modules. Nothing here depends on
+`g5.import-legacy`.
+
+- **correctness-r0-5's remainder** (from phase 3, carried again; phase-4.md, "The carried minors"): pool.ts calls
+  `moduleAt` once per address with labels; thread the relocated-module list through `wordText`, `labelForWord` and
+  their callers with the matchings split.
+- **The C-data ASSERT's text**: the ldscript's message and the scaffold's `AGENTS.md` say "data ranges arrive in phase
+  5"; they change with the data ranges that replace the ASSERT (the goldens and `g4.c-data-fails-loud`'s expected
+  message with them).
+- **architecture-r1-2**: delete the aliases of `BASEROM_FILE` (`BASEROM_PATH`, `SCAFFOLD_ROM_FILE`, `TARGET`, the
+  decomp-yaml re-export) and import it and the file-name constants from `foundation/util/project-files.ts`; keep every
+  default spelling and its parser in one module and remove one of `functionName` and `defaultFunctionName`.
+- **architecture-r1-3**: core/layout owns the whole legal-start rule (for example `isLegalStart(layout, addr)` beside
+  `borders`), `core/model/modules.ts` and `describeBorders` use it, `planModules` takes only `BorderRule`, and
+  architecture §6.2's "legalBorders … all use it" sentence is updated.
+- **architecture-r1-4**: pass the module's compiler into `stubUnitAssembly`/`stubAssemblyText` and use
+  `buildCompilerOf(module.compiler).banner`, an invariant error when unknown, as `moduleCompile` does; or drop the
+  field and keep one documented constant without the `?? ''`.
+- **architecture-r1-6**: `test/helpers/e2e.ts` calls one shared agbcc pin check (`agbccCacheCurrent`, or one function
+  with a stated policy for an unstamped prebuilt) and reads the pin through one `readAgbccPin`.
+- **architecture-r1-7's remainder**: move `initDirVerdict`/`replacedProblems` tests to
+  `test/unit/workflow/init.test.ts` and the project-plan tests to `test/unit/write-plan/project-plan.test.ts`; add
+  `test/unit/workflow/c-stubs.test.ts`.
+- **architecture-r1-8's remainder**: remove `checkEntry` from `core/verify/text-layout.ts` (thirty text-layout tests
+  call it; a one-entry `checkEntries` adds stream-level diagnostics, so the tests need a helper of their own).
 
 ### 6.0 Signature and trace interfaces (lead)
 

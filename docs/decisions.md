@@ -3105,6 +3105,74 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   roadmap.md said two lines (with `Claude-Session:`, which phases 1 to 3 carry). Both now state the one line, so the
   instruction and the history agree.
 
+## D76. The owner's answers of 20 October 2026 to the phase-4 owner questions, and his scope decisions
+
+**Context.** After fix round 1 (D75) the whole closing list of phase 4 passed at `34865f5`, and the phase waited only
+for the owner: phase-4.md put Q1, Q2, Q3, Q5, Q6 and Q7 to him (Q4 was withdrawn by fix round 1, D75 a), each built
+with its default. Bruno Macabeus answered them on 20 October 2026; each chosen option is quoted as he gave it, and these
+are the only gate changes he authorised. The same day he took two scope decisions for the phases after this one, which
+phase 4's documents must follow.
+
+**Decision.**
+
+- (a) **Q1, the scope of phase-3 Q5 c: "Only entries with `from`" (option a).** The confirm run validates only the
+  `[functions]` entries that carry a `from` key (`Seed.validate`, set by `listedSeedsOf` exactly when the entry has
+  `from`, as `p4-confirm-listed` built it); an entry without `from` is taken without the valid.* rules. Consequence,
+  recorded as a release-1 limitation: a hand-added entry without `from` that fails validity no longer warns
+  `W_LISTED_INVALID`. Nothing changes in the code: the default was the answer. Q1's facts cited `g5.import-legacy`'s
+  expectation for a legacy entry; with (g) legacy import is dropped, so the `from` entries the confirm run validates
+  are the proposals of the sources phase 6 keeps (`sig:<library>@<version>`, `evidence:<id>`) and an entry a user
+  writes with `from`. Nothing in phase 4 depends on `g5.import-legacy`.
+- (b) **Q2, sa2's `g2.speed` headroom: "Median of more runs" (option c, a gate change the owner authorises).**
+  `g2.speed` measures each tuning ROM's analysis over nine serial runs instead of five and takes the median
+  (`ANALYSIS_SPEED_RUNS` in `bench/src/speed.ts`); the limit (1.5 × baseline × calibration ratio) and
+  `bench/baseline/speed.json` are unchanged, and the calibration and the emission timings of `g3.speed-budget` stay the
+  median of five (the answer names each ROM's runs, nothing else). `bench speed --json` names its run counts (`runs:
+  {calibration: 5, analysis: 9, emission: 5}`), and the gate requires `runs.analysis` to be nine, so a bench that
+  measured fewer cannot pass it. Stated in the gate's source, architecture §8.4, §8.5 and §13, and roadmap.md. If sa2
+  still fails `g2.speed` at the landing run, that is a new owner question, not a retry.
+- (c) **Q3, the `env -S` launcher: "Known limitation" (option a).** The bin's need for an `env` that accepts `-S`
+  (BusyBox or Alpine, GNU coreutils before 8.30 cannot start it; `node dist/cli/main.js` runs uncapped) is a release-1
+  known limitation, with the unit test of the built launcher's first line that `p4-safety-minors` added.
+- (d) **Q5, `ROMLIFT_CLI` for an unpublished romlift: "Pre-release limitation" (option a).** Until romlift is published
+  to the npm registry, a project `init` makes needs `ROMLIFT_CLI` (or a hand edit of package.json) for setup.sh's duty
+  4, and every `init` ends with `W_LOCKFILE_DEFERRED`: a pre-release limitation. `ROMLIFT_CLI` is documented in the
+  scaffold's `AGENTS.md` and `README.md` (`templates/`) as the way until then. Nothing is published.
+- (e) **Q6, `W_UNLISTED_FUNCTION` after `init`: "Known limitation" (option a).** `generate` over `init`'s config raises
+  `W_UNLISTED_FUNCTION` on tmc (1, 0x080B1A28) and on the doubled pokeemerald ROM (161): a known limitation of the same
+  root as tmc's accepted confirm/discover differences (D61 e).
+- (f) **Q7, the 0x46C0 nop pads: "Keep as orphans" (option a).** A pad of one Thumb nop up to a word boundary stays its
+  own orphan file and, in a `c` module, its own `INCLUDE_ASM` stub (fe7j 21, klonoa 21, pokeemerald 15, sa2 15, sa3
+  15, tmc 0); byte-exact, and the libgcc ones leave the `c` modules with phase 6's signatures.
+- (g) **The owner's scope decisions: phase 5 skipped ("We don't need it. Skip phase 5") and "Keep rename and
+  objdiff".** Legacy import (`import-legacy`, `g5.import-legacy`, the evidence merge of legacy files), the Klonoa
+  migration tooling and the switch-over pull request are dropped; rename and the reconciler, the `expected/` and
+  `objdiff.json` writers, the C data ranges and the objdiff gate move into phase 6. The owner also dropped the gba-kit
+  trace integration from phase 6. Phase 6 records both decisions in its own decision and rewrites its plan (roadmap.md
+  phases 5 and 6, architecture §11 and §13's g5 rows); phase 4 does not rewrite them. In phase 4's documents every item
+  carried "to phase 5" that survives points to phase 6 instead (phase-4.md, roadmap.md "Carried from phase 4"), and the
+  `g5.*` gate files keep their ids until phase 6 renames or drops them; `--require 4` never counts them.
+- (h) **The minors of the review of fix round 1** (its architecture lens; the correctness lens and the landing agent
+  failed on a service error, not a finding). Fixed: architecture-r1-1 (`cDataSectionLine` and `cDataAssertLine` in
+  `core/model/c-data-assert.ts`, out of foundation; `foundation/util/project-files.ts` is a recorded exception to
+  "foundation holds no project knowledge": the project's file names and the default function name, which core/config,
+  core/model, core/scaffold and the shell share and no core module is upstream of all four, D75 g; architecture §2's
+  tree says so); architecture-r1-5 (`E_UNKNOWN_COMPILER` decided by the refinement's structured marker, `params:
+  {romliftCode}`, carried into `ConfigIssue.code`, never by the message; a unit test holds a compiler of the wrong type
+  to `E_TOML_SCHEMA`); architecture-r1-8 in part (`projectRomProblems` deleted, its callers call `romSha1Problems`);
+  architecture-r1-7 in part (`test/unit/util/line-diff.test.ts`, `test/unit/config/rom-sha1.test.ts`). Carried to
+  phase 6 (roadmap.md, "Carried from phase 4"): architecture-r1-2 (the aliases of `BASEROM_FILE` and the two default
+  name functions), r1-3 (one owner of the legal-start rule in core/layout), r1-4 (the stub banner from the module's
+  compiler), r1-6 (one agbcc pin check and one `readAgbccPin`), r1-7's remainder (the tests that stayed in
+  `read-inputs.test.ts` and a `c-stubs` unit test) and r1-8's remainder (`checkEntry`, which thirty text-layout tests
+  call; a one-entry `checkEntries` adds the stream-level diagnostics those tests do not expect). Each changes code
+  without a defect behind it, and phase 6 reworks the same modules (the reconciler, the C-data ranges).
+
+**Consequences.** Q1, Q3, Q5, Q6 and Q7 change no code; Q2 changes `bench speed` and `g2.speed` (more runs, the same
+limit). The landing procedure follows: `test/gates/phase.json` raised to `{ "landed": 4 }`, the whole closing list of
+phase-4.md in a fresh git worktree with no local caches, every command exiting 0 (phase-4.md, "The closing gate", the
+owner's answers).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

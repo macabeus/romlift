@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D74). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D76). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -157,9 +157,17 @@ forced by a fact:
 
 ## Owner questions
 
-The phase does not land until each is answered. Work proceeds with the stated default.
+Bruno Macabeus answered Q1, Q2, Q3, Q5, Q6 and Q7 on 20 October 2026 (Q4 was withdrawn by fix round 1); each chosen
+option is quoted below as he gave it, and is recorded in D76. These are the only gate changes he authorised. The same
+day he took two scope decisions for the later phases ("The owner's scope decisions", below).
 
 ### Q1. The scope of Q5 c: which listed functions the confirm run still validates
+
+**Answered** (D76 a): **"Only entries with `from`"** (option a). The confirm run validates only `[functions]` entries
+that carry a `from` key; entries without `from` are taken without the valid.* rules. Consequence, recorded as a
+limitation ("Known limitations"): a hand-added entry without `from` that fails validity no longer warns
+`W_LISTED_INVALID`. Applied as `p4-confirm-listed` built it; no code changed. The facts below cite `g5.import-legacy`,
+which the owner's scope decisions drop; nothing in phase 4 depends on it.
 
 The owner's answer to phase-3 Q5 (D68 e) asks that the confirm run stop re-validating the functions discover listed, so
 `init` then `generate` print no spurious `W_LISTED_INVALID`. A `[functions]` entry does not record who wrote it:
@@ -190,6 +198,13 @@ Options.
 Default while unanswered: (a), as `p4-confirm-listed` builds it.
 
 ### Q2. correctness-r0-1: sa2's `g2.speed` headroom before phase 4's landing run
+
+**Answered** (D76 b): **"Median of more runs"** (option c, a gate change the owner authorises). `g2.speed` measures
+each ROM over 9 serial runs instead of 5 and takes the median; the limits (1.5 × baseline × calibration ratio) and
+`bench/baseline/speed.json` are unchanged. Applied in `bench/src/speed.ts` (`ANALYSIS_SPEED_RUNS`; the calibration and
+`g3.speed-budget`'s emission timings stay five), in `bench speed --json`'s `runs` member, which the gate requires to say
+nine, and stated in `test/gates/g2.speed.test.ts`, roadmap.md and architecture §8.4, §8.5 and §13. If sa2 still fails
+at the landing run, that is a new owner question, not a retry.
 
 Roadmap "Carried from phase 3" asks the owner, before phase 4's landing run, whether to re-baseline or to take the
 median of more runs: sa2's `g2.speed` sat at about 90 to 100% of its limit at `main` (phase-3.md, "Review",
@@ -228,6 +243,9 @@ Default while unanswered: (a).
 
 ### Q3. correctness-r0-2: the `env -S` launcher requirement as a known limitation
 
+**Answered** (D76 c): **"Known limitation"** (option a). A release-1 known limitation, with the unit test of the built
+launcher's first line (`p4-safety-minors`).
+
 The heap cap of D72 reaches users only through the bin's first line, `#!/usr/bin/env -S node --max-old-space-size=1024`.
 Roadmap "Carried from phase 3" says phase 4 adds a unit test of the built launcher's first line (`p4-safety-minors`) and
 records the `env -S` requirement as a known limitation; that limitation is in the phase-3 review's words (phase-3.md,
@@ -261,6 +279,10 @@ changes. Nothing waits on the owner here.
 
 ### Q5. A project made by an unpublished romlift needs ROMLIFT_CLI (review delivery-4)
 
+**Answered** (D76 d): **"Pre-release limitation"** (option a). Recorded as a pre-release limitation; `ROMLIFT_CLI` is
+documented in the scaffold's `AGENTS.md` and `README.md` (`templates/`, the scaffold golden updated) as the way until
+romlift is published. Nothing is published.
+
 `init` writes a package.json that pins the exact romlift version, and setup.sh's duty 4 installs it (`npm ci`, or `npm
 install` without a lock). romlift is not on the npm registry, so every `init` ends with `W_LOCKFILE_DEFERRED` (E404),
 and setup.sh fails at duty 4 unless `ROMLIFT_CLI` names a romlift command (it then skips duty 4 and runs that command
@@ -282,6 +304,9 @@ Default while unanswered: (a).
 
 ### Q6. W_UNLISTED_FUNCTION after init on tmc and the doubled ROM (review correctness-5)
 
+**Answered** (D76 e): **"Known limitation"** (option a), of the same root as tmc's accepted confirm/discover differences
+(D61 e).
+
 Q5 c removed `W_LISTED_INVALID` from `generate` after `init` (0 on all six tuning ROMs), but `generate` over the config
 `init` writes still raises `W_UNLISTED_FUNCTION` where the confirm run would accept a function discover did not find:
 tmc 1 (0x080B1A28, ARM, proposed by `seed.ram-copy`, in the RAM-copied ARM code where the owner accepted tmc's eight
@@ -302,6 +327,8 @@ Default while unanswered: (a).
 
 ### Q7. The 0x46C0 nop pads stay orphan files (review correctness-4)
 
+**Answered** (D76 f): **"Keep as orphans"** (option a).
+
 Q5 b's fold now covers every zero pad (before a function and at a module's end, D75 d; `padding-orphans` finds none on
 the six tuning ROMs). A pad of one Thumb nop (0x46C0) up to a word boundary stays its own orphan file and, in a `c`
 module, its own `INCLUDE_ASM` stub: fe7j 21, klonoa 21, pokeemerald 15, sa2 15, sa3 15, tmc 0, all in `c` modules. By
@@ -320,34 +347,51 @@ Options.
 
 Default while unanswered: (a).
 
+### The owner's scope decisions (20 October 2026)
+
+The owner skipped phase 5 ("We don't need it. Skip phase 5") and chose **"Keep rename and objdiff"**: legacy import,
+the Klonoa migration tooling and the switch-over are dropped; rename and the reconciler, the `expected/` and
+`objdiff.json` writers, the C data ranges and the objdiff gate move into phase 6. He also dropped the gba-kit trace
+integration from phase 6. Phase 6 records both decisions and rewrites its plan; in this record and in roadmap.md
+"Carried from phase 4", every item carried to phase 5 that survives points to phase 6 (D76 g), and nothing depends on
+`g5.import-legacy`. The `g5.*` gate files keep their ids until phase 6 renames or drops them; `--require 4` does not
+count them.
+
 ## Known limitations
 
 - **Authorised by the owner** (D68 e, "Accept Q5a"): a ROM whose size the last unit's section alignment does not divide is
   refused by the text-layout check, and nothing is written (D65 a), a release-1 limitation.
-- Pending the owner (Q3): the bin needs an `env` that accepts `-S`.
-- Pending the owner (Q1, default (a)): a `[functions]` entry without `from` is taken without the valid.* rules, so one
-  added by hand that fails validity no longer warns `W_LISTED_INVALID`.
-- Pending the owner (Q6, default (a)): `generate` after `init` raises `W_UNLISTED_FUNCTION` on tmc (1) and the doubled
-  pokeemerald ROM (161).
-- Pending the owner (Q7, default (a)): a 0x46C0 nop pad stays an orphan file with its own `INCLUDE_ASM` stub (fe7j 21,
-  klonoa 21, pokeemerald 15, sa2 15, sa3 15).
+- **Authorised by the owner** (Q3, "Known limitation", D76 c): a release-1 limitation, the bin needs an `env` that
+  accepts `-S` (BusyBox or Alpine, GNU coreutils before 8.30 cannot start it; `node dist/cli/main.js` runs uncapped);
+  the unit test of the built launcher's first line holds the line.
+- **Authorised by the owner** (Q1, "Only entries with `from`", D76 a): a `[functions]` entry without `from` is taken
+  without the valid.* rules, so one added by hand that fails validity no longer warns `W_LISTED_INVALID`.
+- **Authorised by the owner** (Q6, "Known limitation", D76 e): `generate` after `init` raises `W_UNLISTED_FUNCTION` on
+  tmc (1) and the doubled pokeemerald ROM (161), the same root as tmc's accepted confirm/discover differences (D61 e).
+- **Authorised by the owner** (Q7, "Keep as orphans", D76 f): a 0x46C0 nop pad stays an orphan file with its own
+  `INCLUDE_ASM` stub (fe7j 21, klonoa 21, pokeemerald 15, sa2 15, sa3 15).
 - By design (architecture §6.4, D74 g, D75 b): project-mode `verify --assemble/--link` builds a C unit from its
   `INCLUDE_ASM` statements without a compiler, so a `src/<module>.c` that holds decompiled C makes it exit 1
-  (`E_TOOLCHAIN_FAILED`, "defines the function …"); `make` is the verdict there, and the matchings split is phase 5's.
-- By design until phase 5 (architecture §6.6, D21): a C module that defines data fails the link on its `ASSERT`; the
-  data ranges arrive with `g5.c-data-ranges`.
-- Pending the owner (Q5, default (a)): `init` runs `npm install --package-lock-only` for the scaffold's `package.json`;
-  romlift is not on the npm registry yet, so every `init` ends with `W_LOCKFILE_DEFERRED` (a warning, exit 0) and
-  `setup.sh`'s duty 4 needs a published romlift, `ROMLIFT_CLI`, or package.json pointed at a tarball.
+  (`E_TOOLCHAIN_FAILED`, "defines the function …"); `make` is the verdict there, and the matchings split is phase 6's
+  (with the reconciler, D76 g).
+- By design until phase 6 (architecture §6.6, D21, D76 g): a C module that defines data fails the link on its
+  `ASSERT`; the data ranges arrive in phase 6 (gated by `g5.c-data-ranges` until phase 6 renames it). The ASSERT's
+  message and the scaffold's `AGENTS.md` still say "data ranges arrive in phase 5": product text in every project's
+  ldscript and in the goldens, carried to phase 6, whose data ranges replace the ASSERT (roadmap.md, "Carried from
+  phase 4").
+- **Authorised by the owner** (Q5, "Pre-release limitation", D76 d): `init` runs `npm install --package-lock-only` for
+  the scaffold's `package.json`; romlift is not on the npm registry yet, so every `init` ends with
+  `W_LOCKFILE_DEFERRED` (a warning, exit 0) and `setup.sh`'s duty 4 needs `ROMLIFT_CLI` (documented in the scaffold's
+  `AGENTS.md` and `README.md` as the way until romlift is published) or package.json pointed at a tarball.
 - `setup.sh` builds agbcc from source at the pin (network, git and a host C compiler; about 50 s); a mirror is
   `AGBCC_URL`.
 - Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,133 to 1,568 MiB RSS across
   the runs of this phase (largest live heap 924.8 MiB, the raw `verify`), and its readable `verify --link` went over
   D72 b's 1,536 MiB budget in one run of six ("The closing gate", fix round 1); a code-dense ROM larger than 32 MiB of
   that density may exceed the cap (D72, unchanged). No gate measures the doubled ROM (D72 e).
-- Three phase-5 gates fail instead of reporting `pending` once their inputs exist (`g5.c-data-ranges`: no
+- Three `g5.*` gates fail instead of reporting `pending` once their inputs exist (`g5.c-data-ranges`: no
   `expect-ranges.json`; `g5.expected-bytes`: no `expected/`; `g5.reconciler`: no reconcile goldens); `--require 4` does
-  not require them, and phase 5 builds what they read.
+  not require them, and phase 6 builds what they read (D76 g).
 
 ## Measured numbers
 
@@ -544,9 +588,27 @@ not authorised became owner questions (Q5, Q6, Q7). The decisions are D75 (a) to
 - architecture-r2-1 (TextLayoutIndex exported with its Maps): `a328c13` made it an opaque handle; fix round 1 removed the
   handle and its registry from the public API (architecture-14, D75 n). Closed.
 - architecture-r2-4 (the case rename is not journalled): `p4-safety-minors` (above). Closed.
-- correctness-r0-5's remainder (pool.ts calls `moduleAt` once per address with labels): carried again to phase 5, for
-  the reason phase-3.md gave (threading the relocated-module list through `wordText`, `labelForWord` and their callers
-  changes the printer helpers' signatures for a filter over a few dozen modules) and because phase 5 reworks the
-  printer's matchings split, which touches the same helpers.
+- correctness-r0-5's remainder (pool.ts calls `moduleAt` once per address with labels): carried again, to phase 6
+  (D76 g; phase 5 is skipped), for the reason phase-3.md gave (threading the relocated-module list through `wordText`,
+  `labelForWord` and their callers changes the printer helpers' signatures for a filter over a few dozen modules) and
+  because phase 6 now reworks the printer's matchings split, which touches the same helpers (roadmap.md, "Carried from
+  phase 4").
 - gate-honesty-r1-3's remainder (the phase pull request's CI numbers): done in phase 3; phase-3.md "The phase pull
   request's CI" records them (ci.yml on both OSes and both Node versions). Closed.
+
+### The review of fix round 1 (`d3c2da5`)
+
+Only its architecture lens ran (the correctness lens and the landing agent failed on a service error, not a finding):
+eight minors. The cheap ones are fixed with the owner's answers; the rest are carried to phase 6 (roadmap.md, "Carried
+from phase 4"), since each changes code with no defect behind it and phase 6 reworks the same modules (D76 h).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| architecture-r1-1 | minor | **Fixed**: `cDataSectionLine` and `cDataAssertLine` moved to `core/model/c-data-assert.ts`; `foundation/util/project-files.ts` recorded as the one exception to "foundation holds no project knowledge" (D76 h), and architecture §2's package layout amended to say so. |
+| architecture-r1-2 | minor | **Carried to phase 6**: the aliases of `BASEROM_FILE` (`BASEROM_PATH`, `SCAFFOLD_ROM_FILE`, `TARGET`, the decomp-yaml re-export) and one of `functionName`/`defaultFunctionName`. |
+| architecture-r1-3 | minor | **Carried to phase 6**: core/layout to own the whole legal-start rule (`isLegalStart` beside `borders`), `planModules` to take only `BorderRule`, §6.2's sentence updated. |
+| architecture-r1-4 | minor | **Carried to phase 6**: the stub encoding to take the banner from the module's compiler (`buildCompilerOf(module.compiler).banner`, an invariant error when unknown), or one constant without the `?? ''`. |
+| architecture-r1-5 | minor | **Fixed**: `E_UNKNOWN_COMPILER` comes from the refinement's structured marker (`params: {romliftCode}`, carried into `ConfigIssue.code`), never from its message; `test/unit/config/schema.test.ts` holds a compiler of the wrong type to `E_TOML_SCHEMA`. |
+| architecture-r1-6 | minor | **Carried to phase 6**: one agbcc pin check (`agbccCacheCurrent`, or one function with a stated policy for an unstamped prebuilt) and one `readAgbccPin` for e2e.ts and the bench; D75's and this record's wording ("the agbcc pin check is the bench's") is corrected here: the e2e helper still re-implements it. |
+| architecture-r1-7 | minor | **Fixed in part**: `test/unit/util/line-diff.test.ts` and `test/unit/config/rom-sha1.test.ts` are new. Carried to phase 6: moving the `initDirVerdict`/`replacedProblems` and project-plan tests out of `read-inputs.test.ts`, and a `test/unit/workflow/c-stubs.test.ts`. |
+| architecture-r1-8 | minor | **Fixed in part**: `projectRomProblems` deleted (its callers and the public barrel use `romSha1Problems`). Carried to phase 6: removing `checkEntry`, which thirty text-layout tests call; a one-entry `checkEntries` adds the stream-level diagnostics those tests do not expect, so it needs a test helper of its own. |
