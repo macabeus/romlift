@@ -3169,9 +3169,10 @@ phase 4's documents must follow.
   without a defect behind it, and phase 6 reworks the same modules (the reconciler, the C-data ranges).
 
 **Consequences.** Q1, Q3, Q5, Q6 and Q7 change no code; Q2 changes `bench speed` and `g2.speed` (more runs, the same
-limit). The landing procedure follows: `test/gates/phase.json` raised to `{ "landed": 4 }`, the whole closing list of
-phase-4.md in a fresh git worktree with no local caches, every command exiting 0 (phase-4.md, "The closing gate", the
-owner's answers).
+limit). The landing procedure followed: `test/gates/phase.json` raised to `{ "landed": 4 }` at `55899d1`, the whole
+closing list of phase-4.md in a fresh git worktree with no local caches, and every command exited 0, `g2.speed` among
+them (sa2 731 of 790 ms over nine runs; phase-4.md, "The closing gate", the owner's answers): phase 4 passes its closing
+gate, and its merge waits for the phase pull request's CI.
 
 ## Review findings index
 

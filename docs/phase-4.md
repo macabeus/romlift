@@ -8,11 +8,13 @@ machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 sa2, sa3, tmc; D60), and every phase-4 threshold applies to all six (D74 j); the held-out ROMs (pokefirered, pokeruby)
 run sealed and report counts only (D25).
 
-**Verdict.** Not landed, waiting only for the owner. After fix round 1 (the review of `10ff9ed`, "Review" below) the whole
-closing list passes at `34865f5` (below, "The closing run of fix round 1"): every command exits 0, `gates --require 4`
-passes on both tiers, and no gate was changed or waived (`g4.toml-mutations` is stricter: it builds every legal edit
-with `make`). The phase does not land until the owner answers Q1, Q2, Q3, Q5, Q6 and Q7 (Q4 is withdrawn), each built
-with its default; `test/gates/phase.json` stays at `{ "landed": 3 }`, and nothing is merged to `main` or pushed.
+**Verdict.** Phase 4 passes its closing gate at `landed` 4. The owner answered Q1, Q2, Q3, Q5, Q6 and Q7 on 20 October
+2026 (D76; Q4 was withdrawn by fix round 1), each applied exactly: Q2's answer is the one gate change (`g2.speed` takes
+the median of nine runs per ROM), the others are recorded limitations or as built. The landing procedure then raised
+`test/gates/phase.json` to `{ "landed": 4 }` (`55899d1`) and ran the whole closing list in a fresh git worktree with no
+local caches ("The closing gate", the owner's answers): every command exited 0, `gates --require 4` passed on both
+tiers, and sa2 passed `g2.speed` at 731 of 790 ms. Nothing is merged to `main` or pushed; the merge waits for the
+phase pull request's CI (AGENTS.md).
 
 ## Components
 
@@ -135,8 +137,9 @@ reads "five tuning ROMs" as the six of D60 (D74 j). The component branches are `
 cannot hold `phase-4/<component>` beside `phase-4` (D56 h); the lead's worktree is
 `/Users/macabeus/ApenasMeu/decompiler/romlift-wt/phase-4-p4-lead`.
 
-The closing run deviates from roadmap "Phase 4 exit" and AGENTS.md in five ways, each by the orchestrator's plan or
-forced by a fact:
+The closing runs before the owner's answers (at `a4c753e` and fix round 1's) deviate from roadmap "Phase 4 exit" and
+AGENTS.md in five ways, each by the orchestrator's plan or forced by a fact (the landing run after the answers ran in a
+fresh worktree with the marker raised; its own deviations are under "The closing gate"):
 
 - **The list.** The orchestrator's list adds to the roadmap's `npm run lint`, `npm run export-poc -- --mode raw` (the
   input of `poc-raw-printer`), `ROMLIFT_REQUIRE_LOCAL=1` on `test:local`, the doubled ROM's readable `verify
@@ -451,6 +454,52 @@ Measured on branch `phase-4-workflows` (Node 24.15, macOS; the machine shared wi
   `generate` right after: 29,537 keep, 17.8 s, 1,499 MiB (below D72 b's 1,536 MiB budget, with 2% to spare).
 
 ## The closing gate
+
+### The owner's answers (landing run)
+
+The landing procedure after the owner's answers (D76): `test/gates/phase.json` raised to `{ "landed": 4 }` at `55899d1`
+(after the commits that apply the answers: `a6854f7` the records, `aee6cb7` g2.speed's nine runs, `275bea3` ROMLIFT_CLI
+in the scaffold, `2452525` the review's cheap minors), then the whole closing list in a fresh worktree at `55899d1`
+(`git worktree add --detach` under the system temporary directory: no `node_modules`, no `bench/.local`, so the PoC
+dumps, the corpus summary and the agbcc cache were all made in the run; objdiff-cli 3.7.2 found in the main checkout's
+build, D65 j), every command from the worktree root in this order with the environment above, the real tier before the
+ci tier, from 15:06 to 16:51 on 20 October 2026. Node 24.15, binutils 2.45.1, macOS; nothing else ran on the machine.
+The worktree was clean afterwards but for the `bench/results.json` the run wrote (`poc-digests.json` and
+`poc-dump-rows.json` byte-identical), which is committed as this run's artifact (`2251098`: `meta.commit` `55899d1`,
+not dirty, source digest `c78418c3…`, Node 24, with the real-tier gate record).
+
+Three deviations from fix round 1's list, each forced by the cache-free worktree: `npm run export-poc -- --mode
+scored`, `--mode parity` and `--mode queries` run after `--mode raw` (the gates read their dumps from `bench/.local/poc`,
+as phase 3's landing list ran them), and `npm run corpus` before `run --scaffold` (which refuses a missing corpus
+summary). The doubled ROM is `pokeemerald.gba` twice over, rebuilt for the run (`fb17b88d…`, never committed).
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (1 s) |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | the architecture checker and its mutation test pass |
+| `npm test` | 0 | 2,364 tests, 2,364 pass, 0 fail (29 s) |
+| `npm run fixtures -- check` | 0 | 51 of 51 fixtures agree (binutils 2.45.1) |
+| `npm run build && npm pack --pack-destination "$(mktemp -d)"` | 0 | `romlift-0.0.0.tgz`, 672 files, 449.6 kB |
+| `npm run export-poc -- --mode raw` | 0 | 51 fixtures dumped |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (255 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs (51 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 95 tests, 95 pass, 0 skipped (773 s); `listed-invalid` W_LISTED_INVALID 0 on all six (5, 4, 6, 4, 4, 24 with every listed entry validated; other diagnostics: sa3 four W_WALK_LIMIT, tmc W_UNLISTED_FUNCTION 0x080B1A28, Q6); `large-rom-bin` (every bin form on the 32 MiB synthetic ROM under the 1,024 MiB cap), `padding-orphans`, `emission-real`, `poc-raw-printer`, `c-stub-agbcc`, `config-mutations`, `objdiff` pass |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (objdiff-cli 3.7.2) |
+| `npm run corpus` | 0 | 100% round trip (4.2 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1 and the init build (init 0, setup.sh 0, make 0, SHA-1 match) on all six tuning ROMs; both sealed ROMs pass, init build SHA-1; memory family `init` 1,260.4 MiB, `generate` 1,112.2 MiB peak RSS under the 1,024 MiB cap, tree `9c4bda7e…` (340 s, agbcc built at the pin included) |
+| `npm run bench -- regression` | 0 | no regression against `e915c82` |
+| `node --max-old-space-size=1024 --conditions=source src/cli/main.ts verify --rom <emx2.gba> --assemble --link --json < /dev/null` | 0 | the doubled pokeemerald ROM (`fb17b88d…`): tiling, reencode, module-size, text-layout (29,404 files), paths, assemble (521 modules) and link all ok, linked SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`; 161 W_UNLISTED_FUNCTION (Q6) and 1 W_READING_BUDGET; 45.4 s, peak RSS 1,474.3 MiB |
+| `npm run bench -- large-rom --bin --rom <emx2.gba>` | 0 | all fourteen forms exit 0 with ok summaries or completed, 1,132.0 to 1,513.2 MiB peak RSS (`generate --json` the largest; `verify --assemble --link --json` 1,493.3, `init --json` 1,504.1), live heap up to 924.8 MiB (the raw `verify`); both `--link` forms link `fb17b88d…` (399 s) |
+| `npm run bench -- gates --require 4 --tier real` | 0 | 22 pass, 1 historical (g2.poc-parity), 2 fail (g5.expected-bytes, g5.objdiff: not required, phase 6's since D76 g), 8 pending (g5, g6). Among them: **g2.speed** ("median of 9 runs"; ratio 0.969; sa2 731 of 790 ms, 92.5%; klonoa 231 of 309, tmc 1,404 of 1,800, sa3 1,069 of 1,505, pokeemerald 2,090 of 4,256, fe7j 1,093 of 12,804), g3.speed-budget (pokeemerald `generate` 7,735 of 9,790 ms, `init` 9,939 of 14,685 ms), g3.link (51 fixtures, 6 of 6 tuning ROMs), g4.e2e-real (all six tuning ROMs from the source tree and from the installed tarball; sealed 2 of 2, counts only), g4.toml-mutations (258 legal edits build with `make` to the SHA-1 and 170 illegal edits give their codes, on 57 ROMs), g4.worktree (56), g4.generate-idempotent (2,788 s) |
+| `npm run bench -- gates --require 4 --tier ci` | 0 | 37 pass, 3 fail (g5.c-data-ranges, g5.expected-bytes, g5.reconciler: not required, phase 6's since D76 g), 7 pending. Among them: g1.provenance (source digest `c78418c3…`; 23 real-tier gates of phase ≤ 4 pass or are historical), g3.large-rom (`init` 1,301.0 MiB, `generate` 1,179.0 MiB under the 1,536 MiB budget, tree `9c4bda7e…`), g4.toml-mutations, g4.packed-e2e (672 files; adr-function-label through setup.sh's npm and npx duties without ROMLIFT_CLI; 50 fixtures), g4.e2e-fixtures (50; the composite's illegal border is E_MODULE_BORDER), g4.worktree (50), g4.cli-contract (8 commands, 12 `--json` runs), g4.no-toml-write (153 runs), g4.checks-fail (3 files, 24 tests), g4.c-data-fails-loud, g4.multi-compiler, g4.toml-canonical (1,535 s) |
+| `npm run bench -- provenance` | 0 | source digest `c78418c3…` (Node 24) ok; gate record ok (23 real-tier gates of phase ≤ 4 pass or are historical); families live; 6 rows, no sealed row |
+
+Every command exits 0, so by the landing procedure and the owner's answers **phase 4 passes its closing gate** at
+`landed` 4, and the marker stays raised. The doubled ROM's readable `verify --link` peak (1,474.3 MiB) joins the spread
+recorded below. The merge to `main` waits for the phase pull request's CI (`ci.yml`, `printer.yml`, `provenance.yml`),
+as AGENTS.md requires; nothing is merged or pushed.
 
 ### The closing run of fix round 1 (`fb20674`, then `34865f5`)
 

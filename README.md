@@ -49,8 +49,12 @@ ROM, the six tuning ROMs and the doubled ROM. The landing run after Q7's answer 
 whole closing list again unchanged with no gate change, and every command exited 0 at `landed` 3 (`0784b4e`), and the
 phase pull request's CI passed before the merge.
 
-Phase 4 (One shot) is built and passes its closing gate, but has not landed: it waits for the owner's answers to its
-open questions ([docs/phase-4.md](docs/phase-4.md)). `romlift init <rom>` writes `romlift.toml`, `decomp.yaml`, the build
+Phase 4 (One shot) passes its closing gate at `landed` 4 ([docs/phase-4.md](docs/phase-4.md)); its merge to `main` waits
+for the phase pull request's CI. The owner answered its questions (D76): `g2.speed` takes the median of nine runs per
+ROM, and the `env -S` launcher, `ROMLIFT_CLI` until romlift is published, listed entries without `from` taken without
+validation, tmc's `W_UNLISTED_FUNCTION` after `init` and the 0x46C0 nop-pad orphans are recorded limitations. He also
+skipped phase 5: rename, the reconciler, `expected/`, `objdiff.json`, the C data ranges and the objdiff gate move into
+phase 6, and legacy import and the Klonoa switch-over are dropped. `romlift init <rom>` writes `romlift.toml`, `decomp.yaml`, the build
 scaffold (`Makefile`, `setup.sh`, …), `INCLUDE_ASM` C stubs and the generated tree, and `./setup.sh && make` then
 rebuilds the ROM to its SHA-1 with no file edited, on 50 committed fixtures and all six tuning ROMs (from the source
 tree, the packed tarball and fresh git worktrees); `generate` regenerates the tree from the TOML without ever writing
@@ -73,7 +77,7 @@ The commands are `doctor`, `analyze`, `explain`, `model`, `verify`, `init`, `gen
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D74 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D76 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
