@@ -2954,7 +2954,11 @@ its default while it waits (Q1 to Q3).
   validated in the confirm run; a hand-added entry without `from` no longer warns), default (a), accept; Q2,
   correctness-r0-1 (sa2's `g2.speed` headroom), default (a), no change to the gate or `speed.json`; Q3, correctness-r0-2's
   `env -S` launcher requirement as a known limitation (the phase-3 review's words, not the owner's), default (a), record
-  it with the launcher test. The phase does not land until all three are answered. Q5 a (the alignment refusal, D65 a) stays a recorded release-1 limitation by the owner's
+  it with the launcher test. Q4 (raised by `p4-workflows` in wave 3: is deleting the last listed function a legal
+  edit, which `g4.toml-mutations` failed on) was withdrawn by fix round 1, which made the edit legal in the product
+  (D75 a). Fix round 1 adds Q5 (a project made by an unpublished romlift needs `ROMLIFT_CLI`, D75 o) and Q6 (the
+  `W_UNLISTED_FUNCTION` that `generate` still raises after `init` on tmc and the doubled ROM). The phase does not land
+  until Q1, Q2, Q3, Q5 and Q6 are answered. Q5 a (the alignment refusal, D65 a) stays a recorded release-1 limitation by the owner's
   answer (D68 e).
 
 **Consequences.** Every wave-2 and wave-3 component codes against frozen types, paths and texts, and owns files no other
