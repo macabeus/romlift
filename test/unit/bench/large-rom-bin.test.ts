@@ -1,7 +1,10 @@
 // bench/src/large-rom-bin.ts: the launcher's Node options, what one finished CLI process reports, and the verdict of
-// `large-rom --bin` (phase-3.md, fix round 4). The real runs are test/local/large-rom-bin.test.ts's.
+// `large-rom --bin` (phase-3.md, fix round 4), with phase 4's init and generate in a project directory (roadmap 4.E).
+// The real runs are test/local/large-rom-bin.test.ts's.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { allCompleted, BIN_RUNS, binRunOf, CLI_MAIN, completed, largeRomBin, launcherOptions, type BinRun } from '../../../bench/src/large-rom-bin.ts';
@@ -36,16 +39,25 @@ test('binRunOf: the RSS and live-heap lines, the summary, the linked SHA-1; an a
 test('largeRomBin runs every command with the launcher options and the RSS probe, and allCompleted judges them', async () => {
   const image = Uint8Array.from({ length: 64 }, (_, i) => i);
   const calls: (readonly string[])[] = [];
+  const places: { readonly command: string; readonly cwd: string | undefined; readonly files: readonly string[] }[] = [];
   const report = await largeRomBin({
     image: async () => image,
-    spawn: async (args) => {
+    spawn: async (args, cwd) => {
       calls.push(args);
+      places.push({ command: args.slice(5).join(' '), cwd, files: cwd === undefined ? [] : await readdir(cwd) });
+      if (cwd !== undefined && args[5] === 'init') await writeFile(join(cwd, 'romlift.toml'), '');
       return { code: 0, stdout: '{"type":"summary","ok":true,"sha1":"c6138d514ffa2135bfce0ed0b8fac65669917ec7"}\n', stderr: 'romlift-bench-rss 2048\nromlift-bench-live-heap 1.50\n' };
     },
     log: () => {},
   });
+  // The project runs come last, in one directory: init finds only the ROM as baserom.gba, generate the project init wrote.
+  const project = places.filter((p) => p.cwd !== undefined);
+  assert.deepEqual(project.map((p) => [p.command, p.files]), [['init baserom.gba --json', ['baserom.gba']], ['generate --json', ['baserom.gba', 'romlift.toml']]]);
+  assert.equal(project[0]?.cwd, project[1]?.cwd);
+  assert.deepEqual(places.slice(-2), project, 'every other command runs in the bench\'s own directory');
   assert.deepEqual(report.nodeOptions, ['--max-old-space-size=1024']);
   assert.deepEqual(report.runs.map((r) => r.command), BIN_RUNS.map((r) => r.command));
+  assert.deepEqual(BIN_RUNS.slice(-2).map((r) => [r.command, r.inProject]), [['init --json', true], ['generate --json', true]]);
   assert.ok(report.runs.every((r) => r.peakLiveHeapMiB === 1.5));
   assert.ok(calls.every((a) => a[0] === '--conditions=source' && a[1] === '--max-old-space-size=1024' && a[2] === '--import' && a[4] === CLI_MAIN));
   assert.ok(calls.every((a) => !a.includes('{rom}')), 'the ROM path replaces the placeholder');

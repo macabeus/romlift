@@ -10,6 +10,7 @@ import { parseParityEvidence, type ParityEvidence } from './parity-evidence.ts';
 import type { ObjdiffExample, ObjdiffSummary } from './objdiff.ts';
 import { SHARE_NAMES, type ReadabilityMember, type Shares } from './readability.ts';
 import type { BaselineRows, BenchRow, ExtentRow, FalseRow, MissRow, PocSource, RowDiff, StaleException } from './row.ts';
+import type { InitBuildVerdict } from './scaffold.ts';
 import { assertCountsOnly, type SealedCounts } from './seal.ts';
 import { isArtifactCategory, type ArtifactCategory } from './vocabulary.ts';
 
@@ -62,8 +63,11 @@ export interface ResultsMeta {
   readonly profile?: string;
 }
 
-/** One sealed held-out ROM in results.json: its counts and whether it passes (D25); never an address or a name. */
-export type SealedEntry = SealedCounts & { readonly pass: boolean };
+/**
+ * One sealed held-out ROM in results.json: its counts and whether it passes (D25); never an address or a name. With
+ * `bench run --scaffold` (phase 4) also `init`, its build through init, setup.sh and make: exit codes and a boolean.
+ */
+export type SealedEntry = SealedCounts & { readonly pass: boolean; readonly init?: InitBuildVerdict };
 
 /** One real-tier gate verdict, as `bench gates --tier real` records it. */
 export interface GateEntry {
@@ -248,7 +252,9 @@ export function parseRow(value: unknown, where: string): BenchRow {
     },
     codeEnd: { found: str(codeEnd['found'], `${at}.codeEnd.found`), elf: str(codeEnd['elf'], `${at}.codeEnd.elf`), delta: num(codeEnd['delta'], `${at}.codeEnd.delta`) },
     deterministic: bool(r['deterministic'], `${at}.deterministic`),
-    ...(scaffold === undefined ? {} : { scaffold: { ok: bool(scaffold['ok'], `${at}.scaffold.ok`) } }),
+    ...(scaffold === undefined
+      ? {}
+      : { scaffold: { ok: bool(scaffold['ok'], `${at}.scaffold.ok`), ...(scaffold['init'] === undefined ? {} : { init: initVerdictField(scaffold['init'], `${at}.scaffold.init`) }) } }),
     ...romliftFields(r, at),
     ...emissionFields(r, at),
   };
@@ -297,6 +303,12 @@ function gluedWhereOf(r: Record<string, unknown>, at: string): NonNullable<Seale
   return { insideExtent: num(r['insideExtent'], `${at}.insideExtent`), outsideExtents: num(r['outsideExtents'], `${at}.outsideExtents`), pastCodeEnd: num(r['pastCodeEnd'], `${at}.pastCodeEnd`) };
 }
 
+/** An init build's verdict (bench run --scaffold, phase 4): three exit codes and whether the built ROM matched. */
+function initVerdictField(value: unknown, at: string): InitBuildVerdict {
+  const r = rec(value, at);
+  return { initExit: num(r['initExit'], `${at}.initExit`), setupExit: num(r['setupExit'], `${at}.setupExit`), makeExit: num(r['makeExit'], `${at}.makeExit`), sha1Match: bool(r['sha1Match'], `${at}.sha1Match`) };
+}
+
 /** One sealed entry: counts only (assertCountsOnly) with every count and the verdict present (`other` and `gluedWhere` only from the phase-2 fix round on). */
 function parseSealed(value: unknown, at: string): SealedEntry {
   try {
@@ -325,6 +337,7 @@ function parseSealed(value: unknown, at: string): SealedEntry {
     extents: { sized: num(extents['sized'], `${at}.extents.sized`), agree: num(extents['agree'], `${at}.extents.agree`) },
     codeEnd: { delta: num(rec(r['codeEnd'], `${at}.codeEnd`)['delta'], `${at}.codeEnd.delta`) },
     pass: bool(r['pass'], `${at}.pass`),
+    ...(r['init'] === undefined ? {} : { init: initVerdictField(r['init'], `${at}.init`) }),
   };
 }
 
