@@ -1,5 +1,5 @@
 // The confirm run takes the functions configFromDiscover listed without the valid.* rules (phase-3.md Q5 c, the
-// owner's answer of 19 October 2026, D68 e; D74): on each tuning ROM, initConfig then the confirm analysis over
+// owner's answer of 19 October 2026, D68 e; D74): on each tuning ROM, initConfigOf then the confirm analysis over
 // that config (what `generate` runs right after `init`) raises no W_LISTED_INVALID and records no listedInvalid
 // row, while its other diagnostics stay as phase 3 measured them (sa3's four W_WALK_LIMIT, tmc's
 // W_UNLISTED_FUNCTION at 0x080B1A28, none elsewhere). The same config with every seed marked `validate: true`
@@ -12,7 +12,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { analyze, canonicalJson, confirmModel, confirmOptions, initConfig, profileById, romFromBytes, type AnalysisResult, type JsonValue } from 'romlift';
+import { analyze, canonicalJson, confirmModel, confirmOptions, initConfigOf, profileById, romFromBytes, type AnalysisResult, type JsonValue } from 'romlift';
 import { sha1Of, sha256Stream } from 'romlift/node';
 
 const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -52,7 +52,7 @@ for (const rom of Object.keys(OTHERS)) {
     const sha1 = sha1Of(bytes);
     assert.equal(sha1, dataset.sha1, `${romPath} is not the dataset's ROM`);
     const r = romFromBytes(bytes, sha1);
-    const init = initConfig(r);
+    const init = initConfigOf(r);
     assert.ok(init.ok, `${rom}: init refused`);
     const { analysis } = confirmModel({ rom: r, config: init.config });
     assert.equal(analysis.mode, 'confirm');

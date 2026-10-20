@@ -1,6 +1,6 @@
 // parseConfig (architecture §3.4, §6.5, D22): §6.5's illustrative file, comments and all, parses to its in-memory
 // config; every key of schema 1 and its TOML spelling; the defaults; a hand-restructured table; and the codes,
-// each with its line: E_TOML_SYNTAX, E_TOML_SCHEMA, and on every committed fixture's config the two illegal edits
+// each with its line: E_TOML_PARSE, E_TOML_SCHEMA, and on every committed fixture's config the two illegal edits
 // of g4.toml-mutations (a repeated [functions] line is E_DUPLICATE_ADDRESS, a key without its leading zero is
 // E_TOML_KEY_SPELLING). A module start that is no legal border parses: that is the model's E_MODULE_BORDER.
 import assert from 'node:assert/strict';
@@ -206,12 +206,22 @@ test('a [functions.0x…] table or dotted keys restructured by hand parse to the
   assert.deepEqual(dotted, line);
 });
 
-test('text that is not TOML is E_TOML_SYNTAX with its line and column', () => {
-  assert.deepEqual(messages(`${MINIMAL}cflags = ["-O1"\n`), ['E_TOML_SYNTAX line 14, column 1: expected comma or end of structure']);
-  assert.deepEqual(messages('schema = \n'), ['E_TOML_SYNTAX line 1, column 10: invalid value']);
+test('text that is not TOML is E_TOML_PARSE with its line and column', () => {
+  assert.deepEqual(messages(`${MINIMAL}cflags = ["-O1"\n`), ['E_TOML_PARSE line 14, column 1: expected comma or end of structure']);
+  assert.deepEqual(messages('schema = \n'), ['E_TOML_PARSE line 1, column 10: invalid value']);
   const duplicateKey = messages(`${MINIMAL.replace('enabled = false', 'enabled = false\nenabled = true')}`);
   assert.equal(duplicateKey.length, 1);
-  assert.match(duplicateKey[0] ?? '', /^E_TOML_SYNTAX line 13, column \d+: /);
+  assert.match(duplicateKey[0] ?? '', /^E_TOML_PARSE line 13, column \d+: /);
+});
+
+test('the build name is one init accepts, and the project\'s ROM is always baserom.gba (D75 i)', () => {
+  const name = MINIMAL.match(/^name = "([^"]+)"$/m)?.[1] ?? assert.fail('MINIMAL has no [build] name');
+  assert.deepEqual(messages(MINIMAL.replace(`name = "${name}"`, 'name = "../../evil name"')), [
+    "E_TOML_SCHEMA line 8: build.name: not a build name (letters, digits, '.', '_' and '-', a letter or digit first, at most 100 characters)",
+  ]);
+  assert.deepEqual(messages(MINIMAL.replace('path = "baserom.gba"', 'path = "nonexistent.gba"')), [
+    "E_TOML_SCHEMA line 4: rom.path: the project's ROM is always baserom.gba, which setup.sh, the Makefile and every .incbin name (D74 c)",
+  ]);
 });
 
 test('TOML that is not schema 1 is E_TOML_SCHEMA, every issue at once, with its line', () => {
@@ -222,7 +232,7 @@ test('TOML that is not schema 1 is E_TOML_SCHEMA, every issue at once, with its 
     'E_TOML_SCHEMA line 18: overrides[0].runsAt: unknown key `runsAt` (schema 1 has start, size, kind, mode, runs_at, from)',
   ]);
   assert.deepEqual(messages(`${MINIMAL.replace('compiler = "agbcc"', 'compiler = "gcc"')}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "rom"\n[functions]\n0x08000000 = { name = "1bad" }\n`), [
-    'E_TOML_SCHEMA line 9: build.compiler: not a registered build compiler (core/config/compilers.ts)',
+    'E_UNKNOWN_COMPILER line 9: build.compiler: not a registered build compiler (core/config/compilers.ts)',
     'E_TOML_SCHEMA line 17: modules[0].kind: Invalid option: expected one of "asm"|"c"|"data"',
     'E_TOML_SCHEMA line 19: functions.0x08000000.name: not an assembler symbol name (a letter or _, then letters, digits, _, . and $, at most 200 characters)',
   ]);

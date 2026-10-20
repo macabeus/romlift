@@ -151,10 +151,11 @@ test('strings are TOML basic strings, escaped where they must be', () => {
   assert.equal(tomlString('a "q" \\ b'), '"a \\"q\\" \\\\ b"');
   assert.equal(tomlString('line\nfeed\ttab\u0001\u007f'), '"line\\nfeed\\ttab\\u0001\\u007F"');
   assert.equal(tomlString('ポケモン'), '"ポケモン"');
-  const config = { ...EXAMPLE, rom: { path: 'roms/"odd" \\ name.gba', sha1: EXAMPLE.rom.sha1 } };
+  const odd = '-DNAME="odd" \\ name';
+  const config = { ...EXAMPLE, modules: EXAMPLE.modules.map((m, i) => (i === 0 ? { ...m, cflags: [odd] } : m)) };
   const parsed = parseConfig(serializeConfig(config));
-  assert.ok(parsed.ok);
-  assert.equal(parsed.value.rom.path, 'roms/"odd" \\ name.gba');
+  assert.ok(parsed.ok, parsed.ok ? '' : parsed.diagnostics.map((d) => d.message).join('; '));
+  assert.deepEqual(parsed.value.modules[0]?.cflags, [odd]);
 });
 
 test('parse∘serialize is the identity on the config and serialize∘parse on the text, on every fixture', () => {

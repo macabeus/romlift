@@ -1,9 +1,9 @@
 // romlift.toml (schema 1) to the in-memory config (architecture §3.4, §6.5, D22): the address-key checks of keys.ts,
 // then smol-toml, then the TOML spelling to the in-memory shape (snake_case `runs_at` is `runsAt`; a function or
 // symbol written as a bare string is its name; `mode` defaults to thumb, `aliases` to none, `generated` to true),
-// then the zod schema (schema.ts). Codes: E_TOML_KEY_SPELLING and E_DUPLICATE_ADDRESS (keys.ts), E_TOML_SYNTAX
-// (smol-toml refused the text), E_TOML_SCHEMA (TOML, but not schema 1), each with its line where the outline knows
-// it. A `[functions.0x…]` table restructured by hand is valid TOML and parses to the same entry. Whether module
+// then the zod schema (schema.ts). Codes: E_TOML_KEY_SPELLING and E_DUPLICATE_ADDRESS (keys.ts), E_TOML_PARSE
+// (smol-toml refused the text), E_TOML_SCHEMA (TOML, but not schema 1), E_UNKNOWN_COMPILER (`[build] compiler` or a
+// module's `compiler` names no build compiler), each with its line where the outline knows it. A `[functions.0x…]` table restructured by hand is valid TOML and parses to the same entry. Whether module
 // starts are legal borders is the model's question (E_MODULE_BORDER), not the parser's. Pure; never throws.
 import { parse, TomlError } from 'smol-toml';
 
@@ -15,7 +15,7 @@ import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
 import { addressKey, addressKeyUses, checkAddressKeys, duplicateDefinitions, isAddressKey, outlineToml } from './keys.ts';
 import type { TomlOutline } from './keys.ts';
-import { validateConfig } from './schema.ts';
+import { UNKNOWN_COMPILER, validateConfig } from './schema.ts';
 import type { RomliftConfig } from './schema.ts';
 
 export type ConfigParseResult =
@@ -80,7 +80,8 @@ function schemaIssue(out: Collector, path: readonly Segment[], message: string):
   out.reported.add(pathText(path));
   const line = lineOfPath(out.outline, path);
   const where = path.length === 0 ? '' : `${pathText(path)}: `;
-  out.diagnostics.push(diagnostic(ConfigCodes, 'E_TOML_SCHEMA', `${line === undefined ? '' : `line ${line}: `}${where}${message}`));
+  const code = message === UNKNOWN_COMPILER ? 'E_UNKNOWN_COMPILER' : 'E_TOML_SCHEMA';
+  out.diagnostics.push(diagnostic(ConfigCodes, code, `${line === undefined ? '' : `line ${line}: `}${where}${message}`));
 }
 
 /** The members of `table` renamed to their in-memory keys; every other key is reported. */
@@ -196,10 +197,10 @@ export function parseConfig(text: string): ConfigParseResult {
     root = parse(text, { unsafeKeyBehaviour: 'throw' });
   } catch (error) {
     if (!(error instanceof TomlError)) {
-      diagnostics.push(diagnostic(ConfigCodes, 'E_TOML_SYNTAX', `not TOML: ${error instanceof Error ? error.message : String(error)}`));
+      diagnostics.push(diagnostic(ConfigCodes, 'E_TOML_PARSE', `not TOML: ${error instanceof Error ? error.message : String(error)}`));
     } else if (!duplicateLines.has(error.line)) {
       // smol-toml refuses a repeated key at the repetition; when keys.ts already named it, that is the report.
-      diagnostics.push(diagnostic(ConfigCodes, 'E_TOML_SYNTAX', `line ${error.line}, column ${error.column}: ${tomlReason(error)}`));
+      diagnostics.push(diagnostic(ConfigCodes, 'E_TOML_PARSE', `line ${error.line}, column ${error.column}: ${tomlReason(error)}`));
     }
     return { ok: false, diagnostics };
   }

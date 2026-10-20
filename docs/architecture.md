@@ -1929,17 +1929,18 @@ defined. The codes:
 
 | Code | Module |
 | --- | --- |
-| `E_ROM_NOT_GBA`, `E_ROM_SHA1_MISMATCH` | `foundation/rom` |
-| `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER` | `core/config` |
+| `E_ROM_NOT_GBA` | `foundation/rom` |
+| `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER`, `E_DECOMP_YAML_INVALID`, `E_ROM_SHA1_MISMATCH` | `core/config` |
 | `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_SYMBOL_UNPLACED` | `core/model` |
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
 | `W_C_ORDER` | `core/reconcile` |
+| `E_DIR_NOT_EMPTY` | `core/workflow` (`init`'s verdict on its directory, D75 j) |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |
 | `W_EVIDENCE_CONFLICT` | `core/evidence` |
 | `W_SIGNATURE_CONSTANT` | `core/signatures` |
-| `E_IO_READ`, `E_IO_WRITE`, `E_TOOLCHAIN_MISSING`, `E_DIR_NOT_EMPTY`, `E_PROJECT_LOCKED`, `W_STALE_LOCK`, `W_LOCKFILE_DEFERRED`, `W_SIGNATURES_ABSENT` | `shell` (its own `codes.ts`, outside the core union) |
+| `E_IO_READ`, `E_IO_WRITE`, `E_TOOLCHAIN_MISSING`, `E_TOOLCHAIN_FAILED`, `E_PROJECT_NOT_FOUND`, `E_PROJECT_LOCKED`, `W_STALE_LOCK`, `W_LOCKFILE_DEFERRED`, `W_SIGNATURES_ABSENT` | `shell` (its own `codes.ts`, outside the core union) |
 
 Core never throws for content: it returns diagnostics, and a config error returns all errors at once.
 It throws only `RomliftInvariantError` on a broken internal invariant (exit 70). The shell wraps I/O

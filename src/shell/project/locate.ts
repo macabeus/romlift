@@ -10,10 +10,10 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ShellCodes } from '../codes.ts';
 import type { ShellCode } from '../codes.ts';
+import { DECOMP_YAML_NAMES } from '../../foundation/util/project-files.ts';
 import { errnoOf, errorReason } from '../fs.ts';
 
-/** The names a project's settings file may have, in the order they are looked for. */
-export const DECOMP_YAML_NAMES: readonly string[] = ['decomp.yaml', 'decomp.yml'];
+export { DECOMP_YAML_NAMES } from '../../foundation/util/project-files.ts';
 
 /** A located project: its root directory and its decomp.yaml, both absolute. */
 export interface ProjectLocation {

@@ -10,9 +10,11 @@ import { test } from 'node:test';
 
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
-import { decompStateOf, generatedEntries, generateProject, planChangesNothing, projectPlanInputs, projectTreeEntries, reconciledTextsOf } from '../../../src/core/workflow/generate.ts';
+import { decompStateOf, generatedEntries, generateProject, projectTreeEntries, reconciledTextsOf } from '../../../src/core/workflow/generate.ts';
+import { retainedPrefixes } from '../../../src/core/model/paths.ts';
+import { planChangesNothing, projectPlanInputs } from '../../../src/core/write-plan/project-plan.ts';
 import { C_STUB_HEADER, includeAsmStatement } from '../../../src/foundation/asm/dialect.ts';
-import type { ProjectWriteState } from '../../../src/core/workflow/generate.ts';
+import type { ProjectWriteState } from '../../../src/core/write-plan/project-plan.ts';
 import { init } from '../../../src/core/workflow/init.ts';
 import type { ProjectInputs } from '../../../src/core/workflow/types.ts';
 import { planWrites } from '../../../src/core/write-plan/plan-writes.ts';
@@ -50,7 +52,7 @@ test('right after init, generate over the project plans only keeps and changes n
     const plan = generateProject(project);
     assert.ok(plan.ok, `${fixture.name}: ${plan.ok ? '' : plan.diagnostics.map((d) => d.code).join(', ')}`);
     assert.ok(plan.result.report.ok, fixture.name);
-    const writes = planWrites(projectPlanInputs(plan.result.model, generatedEntries(rom, plan.result), state, hash, VERSION));
+    const writes = planWrites(projectPlanInputs(generatedEntries(rom, plan.result), state, hash, VERSION, retainedPrefixes(plan.result.model)));
     const active = writes.ops.filter((op) => op.op !== 'keep').map((op) => `${op.op} ${op.path}`);
     assert.deepEqual(active, [], fixture.name);
     assert.ok(writes.ops.length > 0, fixture.name);
@@ -70,7 +72,7 @@ test('a C file the user changed is reconciled: its C is kept and the missing INC
   disk.set(firstAsm, 'absent');
   const plan = generateProject({ ...project, cTexts: new Map([['src/main.c', mine]]) });
   assert.ok(plan.ok);
-  const writes = planWrites(projectPlanInputs(plan.result.model, projectTreeEntries(rom, plan.result, hash), { ...state, disk, reconciledTexts: reconciledTextsOf(plan.result) }, hash, VERSION));
+  const writes = planWrites(projectPlanInputs(projectTreeEntries(rom, plan.result, hash), { ...state, disk, reconciledTexts: reconciledTextsOf(plan.result) }, hash, VERSION, retainedPrefixes(plan.result.model)));
   assert.deepEqual(writes.ops.filter((op) => op.op !== 'keep').map((op) => `${op.op} ${op.path}`), [`write ${firstAsm}`, 'edit src/main.c']);
   const edit = writes.ops.find((op) => op.op === 'edit');
   const fresh = texts.get('src/main.c') ?? assert.fail('init wrote no src/main.c');
@@ -92,14 +94,14 @@ test('a renamed function: generate replaces its INCLUDE_ASM line in src/<module>
   const known = new Map(state.disk);
   for (const p of plan.result.paths) if (!known.has(p)) known.set(p, 'absent');
   const inputs = { ...state, disk: known, reconciledTexts: reconciledTextsOf(plan.result) };
-  const writes = planWrites(projectPlanInputs(plan.result.model, projectTreeEntries(rom, plan.result, hash), inputs, hash, VERSION));
+  const writes = planWrites(projectPlanInputs(projectTreeEntries(rom, plan.result, hash), inputs, hash, VERSION, retainedPrefixes(plan.result.model)));
   const edit = writes.ops.find((op) => op.op === 'edit' && op.path === path);
   assert.equal(edit?.op === 'edit' ? edit.text : '', base.replace(includeAsmStatement(module.name, fn.name), includeAsmStatement(module.name, 'Renamed')));
   const resolved = [...generatedEntries(rom, plan.result)].find((e) => e.path === path);
   assert.equal(resolved !== undefined && 'text' in resolved ? resolved.text : '', edit?.op === 'edit' ? edit.text : 'no edit', 'a fresh tree gets the reconciled text');
   const disk = new Map(known);
   disk.set(path, hash(`${base}// edited meanwhile\n`));
-  const stale = planWrites(projectPlanInputs(plan.result.model, projectTreeEntries(rom, plan.result, hash), { ...inputs, disk }, hash, VERSION));
+  const stale = planWrites(projectPlanInputs(projectTreeEntries(rom, plan.result, hash), { ...inputs, disk }, hash, VERSION, retainedPrefixes(plan.result.model)));
   assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.path]), [['E_STALE_EDIT', path]]);
 });
 

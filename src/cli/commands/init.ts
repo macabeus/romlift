@@ -13,9 +13,10 @@
 import { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../api/config.ts';
 import { SCAFFOLD_ROM_FILE } from '../../api/one-shot-types.ts';
 import type { Diagnostic } from '../../api/rom.ts';
-import { init } from '../../core/workflow/init.ts';
+import { init, initDirVerdict, replacedProblems, wantsLockStep } from '../../core/workflow/init.ts';
 import type { InitOptions } from '../../core/workflow/types.ts';
-import { checkReplaced, readInitDir, readScaffoldInputs, resolveFrom } from '../../shell/project/read-inputs.ts';
+import { sha1Of } from '../../shell/hash.ts';
+import { readDigests, readInitDir, readScaffoldInputs, resolveFrom } from '../../shell/project/read-inputs.ts';
 import { hasPackageLock, writeInitProject } from '../../shell/project/write-project.ts';
 import { readRom } from '../../shell/rom.ts';
 import { writePackageLock } from '../../shell/toolchain/npm.ts';
@@ -68,28 +69,33 @@ export const initCommand: CommandSpec = {
       return exitCode;
     };
 
-    const target = await readInitDir(resolveFrom(io.cwd, dirArg ?? '.'), romPath);
-    if (!target.ok) return refuse(target.diagnostics);
-    const dir = target.value.dir;
+    const listing = await readInitDir(resolveFrom(io.cwd, dirArg ?? '.'), romPath);
+    if (!listing.ok) return refuse(listing.diagnostics);
+    const verdict = initDirVerdict(listing.value);
+    if (!verdict.ok) return refuse(verdict.diagnostics);
+    const dir = listing.value.dir;
     const rom = await readRom(romPath);
     if (!rom.ok) return refuse([rom.diagnostic]);
     const scaffold = await readScaffoldInputs();
     if (!scaffold.ok) return refuse(scaffold.diagnostics);
-    const plan = init({ rom: rom.value, romFile: target.value.romInside ?? romArg, options, templates: scaffold.value.templates, romliftVersion: scaffold.value.romliftVersion, agbcc: scaffold.value.agbcc });
+    const plan = init({ rom: rom.value, romFile: listing.value.romInside ?? romArg, options, templates: scaffold.value.templates, romliftVersion: scaffold.value.romliftVersion, agbcc: scaffold.value.agbcc });
     if (!plan.ok) return refuse(plan.diagnostics, refusedExitCode(plan.diagnostics));
-    if (target.value.project) {
-      const replaced = await checkReplaced(dir, new Map<string, string | Uint8Array>([[ROMLIFT_CONFIG_FILE, plan.tomlText], [DECOMP_YAML_FILE, plan.decompYamlText], [SCAFFOLD_ROM_FILE, rom.value.bytes]]));
-      if (!replaced.ok) return refuse(replaced.diagnostics);
+    if (verdict.project) {
+      const wanted = new Map([[ROMLIFT_CONFIG_FILE, sha1Of(plan.tomlText)], [DECOMP_YAML_FILE, sha1Of(plan.decompYamlText)], [SCAFFOLD_ROM_FILE, rom.value.sha1]]);
+      const current = await readDigests(dir, wanted.keys());
+      if (!current.ok) return refuse(current.diagnostics);
+      const replaced = replacedProblems(dir, wanted, current.value);
+      if (replaced.length > 0) return refuse(replaced);
     }
 
     const files = { romPath, tomlText: plan.tomlText, decompYamlText: plan.decompYamlText };
     const written = await writeInitProject(dir, files, { result: plan.result, rom: rom.value, extra: plan.scaffold }, scaffold.value.romliftVersion);
     let diagnostics: readonly Diagnostic[] = [...plan.diagnostics, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
-    const failed = diagnostics.some((d) => d.severity === 'error');
-    if (!failed && !(await hasPackageLock(dir))) {
+    if (wantsLockStep(diagnostics, await hasPackageLock(dir))) {
       const lock = await writePackageLock(dir, { env: io.env });
       if (!lock.ok) diagnostics = [...diagnostics, lock.diagnostic];
     }
+    const failed = diagnostics.some((d) => d.severity === 'error');
     const exitCode = failed ? ExitCode.errors : ExitCode.ok;
     const ops = written.ok ? written.value.plan.ops : [];
     const summary: RunSummary = { ok: !failed, exitCode, counts: { ...opCounts(ops), functions: plan.config.functions.size, modules: plan.config.modules.length } };

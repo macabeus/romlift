@@ -2,21 +2,19 @@
 // decomp.yaml through locateProject, its romlift.toml through loadConfig, its ROM through readRom, every src/*.c),
 // the write state planWrites needs of a directory (the disk snapshot, the manifest, the journal), the package's own
 // scaffold inputs (the templates through readTemplates, the agbcc pin, the romlift version from package.json), and
-// whether a directory may receive `init`. Mechanical: it reads, hashes and reports; every decision is a workflow's or
-// planWrites'. Each refusal is a diagnostic: E_PROJECT_NOT_FOUND, E_IO_READ, E_DECOMP_YAML_INVALID, the config's
-// parse codes, E_DIR_NOT_EMPTY.
+// what `init`'s directory holds. Mechanical: it reads, hashes and reports; every decision is a workflow's or
+// planWrites' (whether `init` may write in a directory is core/workflow/init.ts's). Each refusal is a diagnostic:
+// E_PROJECT_NOT_FOUND, E_IO_READ, E_DECOMP_YAML_INVALID, the config's parse codes.
 import { readFile, stat } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../core/config/decomp-yaml.ts';
-import { SCAFFOLD_ROM_FILE } from '../../core/scaffold/vars.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
-import type { ProjectWriteState } from '../../core/workflow/generate.ts';
-import { ROMLIFT_DIR } from '../../core/write-plan/types.ts';
+import type { ProjectWriteState } from '../../core/write-plan/project-plan.ts';
+import type { InitDirListing } from '../../core/workflow/init.ts';
 import { ShellCodes } from '../codes.ts';
 import { loadConfig } from '../config/load.ts';
 import type { ProjectConfig } from '../config/load.ts';
@@ -24,7 +22,8 @@ import { errnoOf, errorReason, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { readRom } from '../rom.ts';
 import { readDiskState, readJournal, readManifest, readReconciledTexts } from './disk-state.ts';
-import { DECOMP_YAML_NAMES, locateProject } from './locate.ts';
+import { sha1Of } from '../hash.ts';
+import { locateProject } from './locate.ts';
 import { readAgbccPin, readTemplates } from './templates.ts';
 
 /** A refusal: every diagnostic that stopped the read. */
@@ -162,72 +161,38 @@ export async function readProjectTexts(dir: string, paths: Iterable<string>): Pr
 }
 
 // ---------------------------------------------------------------------------------------------------
-// init's directory.
-
-/** What `init` found in its directory. */
-export interface InitDir {
-  /** The directory, absolute; it may not exist yet. */
-  readonly dir: string;
-  /** It already is a romlift project (decomp.yaml, romlift.toml or .romlift/ in it). */
-  readonly project: boolean;
-  /** The ROM `init` was given, as a project path, when it lies inside `dir`; else undefined. */
-  readonly romInside?: string;
-}
-
-/** Whether a directory entry belongs to a romlift project. */
-function projectEntry(name: string): boolean {
-  return DECOMP_YAML_NAMES.includes(name) || name === ROMLIFT_CONFIG_FILE || name === ROMLIFT_DIR;
-}
+// init's directory: read here, judged by core/workflow/init.ts (initDirVerdict, replacedProblems).
 
 /**
- * Whether `dir` may receive `init <rom>` (architecture §2.1): it is absent or empty, it holds only the given ROM
- * plus `.git` and dot-files, or it is a romlift project; anything else is E_DIR_NOT_EMPTY, naming what it holds.
+ * What `init` finds where it is to write (InitDirListing): the directory, absolute, whether it exists as a directory,
+ * its entry names, and the ROM's name when the ROM lies directly in it. Decides nothing.
  */
-export async function readInitDir(dir: string, romPath: string): Promise<ReadResult<InitDir>> {
+export async function readInitDir(dir: string, romPath: string): Promise<ReadResult<InitDirListing>> {
   const at = resolve(dir);
-  const rom = resolve(romPath);
-  const inside = relative(at, rom);
+  const inside = relative(at, resolve(romPath));
   const romInside = inside !== '' && !inside.startsWith('..') && !inside.includes(sep) ? inside : undefined;
+  const base = { dir: at, ...(romInside === undefined ? {} : { romInside }) };
   try {
-    if (!(await stat(at)).isDirectory()) {
-      return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_DIR_NOT_EMPTY', `${at} is a file, not a directory`, { path: at })] };
-    }
+    if (!(await stat(at)).isDirectory()) return { ok: true, value: { ...base, state: 'not-directory', names: [] } };
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT') return { ok: true, value: { dir: at, project: false, ...(romInside === undefined ? {} : { romInside }) } };
+    if (errnoOf(error) === 'ENOENT') return { ok: true, value: { ...base, state: 'absent', names: [] } };
     return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${at}: ${errorReason(error)}`, { path: at })] };
   }
   const names = await listDir(at);
   if (!names.ok) return fromIo(names);
-  const project = names.value.some(projectEntry);
-  const others = names.value.filter((name) => !name.startsWith('.') && name !== romInside);
-  if (!project && others.length > 0) {
-    const shown = others.slice(0, 5).join(', ') + (others.length > 5 ? `, … (${others.length} in all)` : '');
-    const message = `${at} is not empty and is not a romlift project: it holds ${shown}; run init in an empty directory, or one that holds only the ROM`;
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_DIR_NOT_EMPTY', message, { path: at })] };
-  }
-  return { ok: true, value: { dir: at, project, ...(romInside === undefined ? {} : { romInside }) } };
+  return { ok: true, value: { ...base, state: 'directory', names: names.value } };
 }
 
-/**
- * E_DIR_NOT_EMPTY when `init` would replace a file of an existing project with other content: romlift.toml (the
- * user's config from then on), decomp.yaml or baserom.gba. `files` maps each project path to the text or bytes
- * init would write there; a file that is absent or already equal is fine.
- */
-export async function checkReplaced(dir: string, files: ReadonlyMap<string, string | Uint8Array>): Promise<ReadResult<void>> {
-  const problems: Diagnostic[] = [];
-  for (const [path, wanted] of files) {
-    let current: Buffer;
+/** The sha1 of each project path of `paths` under `dir`, or 'absent' (replacedProblems compares them). */
+export async function readDigests(dir: string, paths: Iterable<string>): Promise<ReadResult<ReadonlyMap<string, string | 'absent'>>> {
+  const out = new Map<string, string | 'absent'>();
+  for (const path of paths) {
     try {
-      current = await readFile(join(dir, ...path.split('/')));
+      out.set(path, sha1Of(await readFile(join(dir, ...path.split('/')))));
     } catch (error) {
-      if (errnoOf(error) === 'ENOENT') continue;
-      problems.push(diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${join(dir, path)}: ${errorReason(error)}`, { path }));
-      continue;
+      if (errnoOf(error) !== 'ENOENT') return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${join(dir, path)}: ${errorReason(error)}`, { path })] };
+      out.set(path, 'absent');
     }
-    const same = typeof wanted === 'string' ? current.toString('utf8') === wanted : Buffer.compare(current, Buffer.from(wanted.buffer, wanted.byteOffset, wanted.byteLength)) === 0;
-    if (same) continue;
-    const hint = path === ROMLIFT_CONFIG_FILE || path === DECOMP_YAML_FILE ? 'run `romlift generate` to regenerate the tree from it, or remove it to start over' : `it is another ROM; remove ${SCAFFOLD_ROM_FILE} to start over`;
-    problems.push(diagnostic(ShellCodes, 'E_DIR_NOT_EMPTY', `${dir} is a romlift project whose ${path} differs from what init would write: ${hint}`, { path }));
   }
-  return problems.length > 0 ? { ok: false, diagnostics: problems } : { ok: true, value: undefined };
+  return { ok: true, value: out };
 }

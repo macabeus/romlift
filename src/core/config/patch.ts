@@ -20,7 +20,7 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
-import { hex } from '../../foundation/util/hex.ts';
+import { defaultFunctionName } from '../../foundation/util/project-files.ts';
 import { compareNumbers, sortedEntries, sortedKeys } from '../../foundation/util/sorted.ts';
 import { sourceKey } from '../proposals/types.ts';
 import type { Proposal } from '../proposals/types.ts';
@@ -35,11 +35,6 @@ import { functionLine, moduleLines, overrideLines, serializeConfig, symbolLine }
 export type ConfigPatchResult =
   | { readonly ok: true; readonly text: string; readonly diagnostics: readonly Diagnostic<ConfigCode>[] }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic<ConfigCode>[] };
-
-/** The default name of a function a proposal adds without one: core/model's functionName spelling. */
-function defaultFunctionName(addr: Addr): string {
-  return `sub_${hex(addr)}`;
-}
 
 function proposedFunction(existing: FunctionConfig | undefined, p: Extract<Proposal, { kind: 'function' }>): FunctionConfig {
   const size = p.size ?? existing?.size;

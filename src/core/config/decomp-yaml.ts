@@ -18,19 +18,17 @@ import { NONMATCHINGS_ROOT } from '../../foundation/asm/dialect.ts';
 import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { isProjectPath } from '../../foundation/util/project-path.ts';
+import { BASEROM_FILE, DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
 import { buildCompilerOf, DEFAULT_BUILD_COMPILER } from './compilers.ts';
 import type { BuildCompilerId } from './compilers.ts';
 
-/** The file the tools look for in the project root. */
-export const DECOMP_YAML_FILE = 'decomp.yaml';
-/** romlift's config file, as `init` names it and `tools.romlift.config` points to it. */
-export const ROMLIFT_CONFIG_FILE = 'romlift.toml';
+export { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 /** romlift's key under `tools`. */
 export const ROMLIFT_TOOL = 'romlift';
-/** The ROM every project reads (core/model/paths.ts BASEROM_PATH, the config's [rom] path). */
-const TARGET = 'baserom.gba';
+/** The ROM every project reads (the config's [rom] path). */
+const TARGET = BASEROM_FILE;
 
 /** `tools.romlift`: a key it does not name is an error, so a typo is refused. */
 const ROMLIFT_BLOCK = z.strictObject({

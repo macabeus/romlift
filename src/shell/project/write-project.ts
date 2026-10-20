@@ -14,7 +14,9 @@ import { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../core/config/decomp-
 import type { FileEntry } from '../../core/emit/tree.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { SCAFFOLD_ROM_FILE } from '../../core/scaffold/vars.ts';
-import { generatedEntries, planChangesNothing, projectPlanInputs, projectTreeEntries, reconciledTextsOf } from '../../core/workflow/generate.ts';
+import { retainedPrefixes } from '../../core/model/paths.ts';
+import { generatedEntries, projectTreeEntries, reconciledTextsOf } from '../../core/workflow/generate.ts';
+import { planChangesNothing, projectPlanInputs } from '../../core/write-plan/project-plan.ts';
 import type { GenerateResult } from '../../core/workflow/generate.ts';
 import { planWrites } from '../../core/write-plan/plan-writes.ts';
 import type { WritePlan } from '../../core/write-plan/types.ts';
@@ -73,7 +75,7 @@ export async function planAndApply(dir: string, source: TreeSource, romlift: str
   }
   const reconciledTexts = source.inProject === true ? reconciledTextsOf(source.result) : state.value.reconciledTexts;
   const executables = await readExecutables(dir, (source.extra ?? []).filter((e) => e.ownership === 'scaffold' && e.executable === true).map((e) => e.path));
-  const plan = planWrites(projectPlanInputs(source.result.model, streamOf(source), { ...state.value, reconciledTexts, executables }, (text) => sha1Of(text), romlift));
+  const plan = planWrites(projectPlanInputs(streamOf(source), { ...state.value, reconciledTexts, executables }, (text) => sha1Of(text), romlift, retainedPrefixes(source.result.model)));
   const errors = plan.diagnostics.some((d) => d.severity === 'error');
   if (dryRun || errors || planChangesNothing(plan, state.value)) return { ok: true, value: { plan, applied: false, diagnostics: plan.diagnostics } };
   const applied = await applyWrites(dir, plan);

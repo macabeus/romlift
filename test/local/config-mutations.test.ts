@@ -13,7 +13,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { buildUnits, generate, generatedEntries, initConfig, romFromBytes, writable, type RomliftConfig, type Rom } from 'romlift';
+import { buildUnits, generate, generatedEntries, initConfigOf, romFromBytes, writable, type RomliftConfig, type Rom } from 'romlift';
 import { findBinutils, linkCheck, sha1Of, writeFreshTree } from 'romlift/node';
 
 const REPO = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -46,7 +46,7 @@ test('klonoa: a mode-flipped listed function links, and a module name the model 
   const bytes = new Uint8Array(readFileSync(romPath));
   const rom = romFromBytes(bytes, sha1Of(bytes));
   assert.equal(rom.sha1, dataset.sha1);
-  const init = initConfig(rom);
+  const init = initConfigOf(rom);
   assert.ok(init.ok);
   const base = init.config;
 

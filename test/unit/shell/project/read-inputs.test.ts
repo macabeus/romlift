@@ -1,7 +1,8 @@
-// What the one-shot commands read (shell/project/read-inputs.ts), on temporary directories: init's directory rule
-// (empty, absent, the ROM with .git and dot-files, a project; anything else E_DIR_NOT_EMPTY), a project read from
-// any directory inside it (decomp.yaml, romlift.toml, the ROM, src/*.c; --rom; no project), the write state planWrites
-// needs, the package's scaffold inputs and version, and the check that init replaces no file of a project.
+// What the one-shot commands read (shell/project/read-inputs.ts), on temporary directories: init's directory as a
+// listing, judged by core/workflow/init.ts's initDirVerdict (empty, absent, the ROM with .git and dot-files, a
+// project; anything else E_DIR_NOT_EMPTY), a project read from any directory inside it (decomp.yaml, romlift.toml, the
+// ROM, src/*.c; --rom; no project), the write state planWrites needs, the package's scaffold inputs and version, and
+// the digests replacedProblems compares so init replaces no file of a project.
 import assert from 'node:assert/strict';
 import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -14,11 +15,13 @@ import { configFromDiscover } from '../../../../src/core/workflow/config-from-di
 import { discover } from '../../../../src/core/workflow/discover.ts';
 import { encodeManifest } from '../../../../src/core/write-plan/manifest.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
+import { initDirVerdict, replacedProblems } from '../../../../src/core/workflow/init.ts';
+import type { InitDirListing } from '../../../../src/core/workflow/init.ts';
 import {
-  checkReplaced,
   packageRoot,
   packageVersion,
   readCTexts,
+  readDigests,
   readInitDir,
   readProject,
   readProjectTexts,
@@ -58,29 +61,38 @@ async function project(): Promise<{ readonly dir: string; readonly toml: string 
   return { dir, toml };
 }
 
+/** readInitDir's listing judged by initDirVerdict, as the init command sequences them. */
+async function judged(dir: string, rom: string): Promise<{ readonly listing: InitDirListing; readonly verdict: ReturnType<typeof initDirVerdict> }> {
+  const read = await readInitDir(dir, rom);
+  assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+  return { listing: read.value, verdict: initDirVerdict(read.value) };
+}
+
 test("init's directory: absent, empty, or the ROM with .git and dot-files is accepted; another file is E_DIR_NOT_EMPTY", async () => {
-  const absent = await readInitDir(path.join(TMP, 'not-yet'), path.join(TMP, 'x.gba'));
-  assert.ok(absent.ok && !absent.value.project && absent.value.romInside === undefined);
-  const empty = await readInitDir(await dirWith({}), '/elsewhere/rom.gba');
-  assert.ok(empty.ok && !empty.value.project);
+  const absent = await judged(path.join(TMP, 'not-yet'), path.join(TMP, 'x.gba'));
+  assert.equal(absent.listing.state, 'absent');
+  assert.ok(absent.verdict.ok && !absent.verdict.project && absent.listing.romInside === undefined);
+  const empty = await judged(await dirWith({}), '/elsewhere/rom.gba');
+  assert.ok(empty.verdict.ok && !empty.verdict.project);
   const romDir = await dirWith({ 'game.gba': 'x', '.DS_Store': '', '.git/HEAD': 'ref' });
-  const withRom = await readInitDir(romDir, path.join(romDir, 'game.gba'));
-  assert.ok(withRom.ok);
-  assert.equal(withRom.value.romInside, 'game.gba');
+  const withRom = await judged(romDir, path.join(romDir, 'game.gba'));
+  assert.ok(withRom.verdict.ok);
+  assert.equal(withRom.listing.romInside, 'game.gba');
   const crowded = await dirWith({ 'game.gba': 'x', 'another.gba': 'y' });
-  const refused = await readInitDir(crowded, path.join(crowded, 'game.gba'));
-  assert.ok(!refused.ok);
-  assert.deepEqual(refused.diagnostics.map((d) => d.code), ['E_DIR_NOT_EMPTY']);
-  assert.match(refused.diagnostics[0]?.message ?? '', /another\.gba/);
-  const file = await readInitDir(path.join(crowded, 'game.gba'), path.join(crowded, 'game.gba'));
-  assert.ok(!file.ok && file.diagnostics[0]?.code === 'E_DIR_NOT_EMPTY');
+  const refused = await judged(crowded, path.join(crowded, 'game.gba'));
+  assert.ok(!refused.verdict.ok);
+  assert.deepEqual(refused.verdict.diagnostics.map((d) => d.code), ['E_DIR_NOT_EMPTY']);
+  assert.match(refused.verdict.diagnostics[0]?.message ?? '', /another\.gba/);
+  const file = await judged(path.join(crowded, 'game.gba'), path.join(crowded, 'game.gba'));
+  assert.equal(file.listing.state, 'not-directory');
+  assert.ok(!file.verdict.ok && file.verdict.diagnostics[0]?.code === 'E_DIR_NOT_EMPTY');
 });
 
 test("init's directory: a romlift project is accepted whatever else it holds", async () => {
   const { dir } = await project();
-  const read = await readInitDir(dir, path.join(dir, 'baserom.gba'));
-  assert.ok(read.ok && read.value.project);
-  assert.equal(read.value.romInside, 'baserom.gba');
+  const { listing, verdict } = await judged(dir, path.join(dir, 'baserom.gba'));
+  assert.ok(verdict.ok && verdict.project);
+  assert.equal(listing.romInside, 'baserom.gba');
 });
 
 test('readProject from a subdirectory: the config, its text, the ROM and src/*.c (not deeper, not other files)', async () => {
@@ -146,11 +158,13 @@ test("the package's scaffold inputs: the manifest's templates, the agbcc pin and
   assert.ok(!nowhere.ok && nowhere.diagnostics[0]?.code === 'E_IO_READ');
 });
 
-test('checkReplaced: absent and equal files are fine; another romlift.toml or another ROM is E_DIR_NOT_EMPTY', async () => {
+test('readDigests and replacedProblems: absent and equal files are fine; another romlift.toml or another ROM is E_DIR_NOT_EMPTY', async () => {
   const dir = await dirWith({ 'romlift.toml': 'a = 1\n', 'baserom.gba': 'ROM' });
-  const same = await checkReplaced(dir, new Map<string, string | Uint8Array>([['romlift.toml', 'a = 1\n'], ['decomp.yaml', 'x'], ['baserom.gba', new TextEncoder().encode('ROM')]]));
-  assert.ok(same.ok);
-  const other = await checkReplaced(dir, new Map<string, string | Uint8Array>([['romlift.toml', 'a = 2\n'], ['baserom.gba', new TextEncoder().encode('MOR')]]));
-  assert.ok(!other.ok);
-  assert.deepEqual(other.diagnostics.map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'romlift.toml'], ['E_DIR_NOT_EMPTY', 'baserom.gba']]);
+  const current = await readDigests(dir, ['romlift.toml', 'decomp.yaml', 'baserom.gba']);
+  assert.ok(current.ok);
+  assert.deepEqual([...current.value], [['romlift.toml', sha1Of('a = 1\n')], ['decomp.yaml', 'absent'], ['baserom.gba', sha1Of('ROM')]]);
+  const same = new Map([['romlift.toml', sha1Of('a = 1\n')], ['decomp.yaml', sha1Of('x')], ['baserom.gba', sha1Of('ROM')]]);
+  assert.deepEqual(replacedProblems(dir, same, current.value), []);
+  const other = new Map([['romlift.toml', sha1Of('a = 2\n')], ['baserom.gba', sha1Of('MOR')]]);
+  assert.deepEqual(replacedProblems(dir, other, current.value).map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'romlift.toml'], ['E_DIR_NOT_EMPTY', 'baserom.gba']]);
 });

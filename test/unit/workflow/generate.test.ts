@@ -16,16 +16,15 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import {
   confirmModel,
   confirmOptions,
-  freshTreePlanInputs,
   generate,
   generatedEntries,
-  generateFromRom,
-  initConfig,
-  initModel,
   listedSeedsOf,
   overrideFactsOf,
   writable,
 } from '../../../src/core/workflow/generate.ts';
+import { generateFromRom, initConfigOf, initModel } from '../../../src/core/workflow/init-config.ts';
+import { retainedPrefixes } from '../../../src/core/model/paths.ts';
+import { freshTreePlanInputs } from '../../../src/core/write-plan/project-plan.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
@@ -194,14 +193,19 @@ test('a generate result is plain data: no function anywhere in it (D19)', () => 
   assert.deepEqual(JSON.parse(JSON.stringify(result.cx)) as unknown, { decomp: { defined: [] }, printer: 'readable' });
 });
 
-test('initConfig, initModel and generateFromRom: the config configFromDiscover builds, refused on a discover error', () => {
+test('initConfigOf, initModel and generateFromRom: the config configFromDiscover builds, named and parsed back as init writes it, refused on a discover error', () => {
   const fixture = fixtures.find((f) => f.name === 'far-jump');
   assert.ok(fixture !== undefined);
   const rom = readFixtureRom(fixture);
   const found = discover(rom);
-  const init = initConfig(rom);
+  const init = initConfigOf(rom);
   assert.ok(init.ok);
-  assert.deepEqual(init.config, configFromDiscover(rom, found));
+  const built = configFromDiscover(rom, found);
+  assert.deepEqual(init.config, { ...built, build: { ...built.build, name: init.config.build.name } });
+  const sized = initConfigOf(rom, { moduleSize: 0x40, name: 'named' });
+  assert.ok(sized.ok);
+  assert.equal(sized.config.build.name, 'named');
+  assert.deepEqual(sized.config.modules, configFromDiscover(rom, found, { moduleSize: 0x40 }).modules, 'the --module-size init passes');
   const model = initModel(rom);
   assert.ok(model.ok);
   assert.deepEqual(model.model, confirmModel({ rom, config: init.config }).model);
@@ -210,7 +214,7 @@ test('initConfig, initModel and generateFromRom: the config configFromDiscover b
   assert.equal(writable(generated), true);
   const bytes = Uint8Array.from({ length: 0x30 }, (_, i) => (i * 7) & 0xff);
   const notGba = romFromBytes(bytes, SHA1);
-  for (const refused of [initConfig(notGba), initModel(notGba), generateFromRom(notGba, { decomp: NO_C, printer: 'readable' })]) {
+  for (const refused of [initConfigOf(notGba), initModel(notGba), generateFromRom(notGba, { decomp: NO_C, printer: 'readable' })]) {
     assert.equal(refused.ok, false);
     if (!refused.ok) assert.ok(refused.diagnostics.some((d) => d.code === 'E_ROM_NOT_GBA'));
   }
@@ -222,7 +226,7 @@ test('freshTreePlanInputs: no manifest, every path absent, no reconciled text, t
   const rom = readFixtureRom(fixture);
   const result = generate({ rom, config: configFromDiscover(rom, discover(rom)), decomp: NO_C, printer: 'readable' });
   const kept = { ...result.model, modules: result.model.modules.map((m, i) => (i === 1 ? { ...m, generated: false } : m)) };
-  const inputs = freshTreePlanInputs(kept, generatedEntries(rom, result), result.paths, (t) => String(t.length));
+  const inputs = freshTreePlanInputs(generatedEntries(rom, result), result.paths, (t) => String(t.length), retainedPrefixes(kept));
   assert.equal(inputs.manifest, null);
   assert.deepEqual([...inputs.disk.values()].every((v) => v === 'absent'), true);
   assert.deepEqual([...inputs.disk.keys()], result.paths);

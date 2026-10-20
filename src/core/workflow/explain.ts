@@ -15,7 +15,6 @@
 // (E_ROM_SHA1_MISMATCH). An image that is not a cartridge is not modelled, so its report has no item, chunk or
 // name. Pure.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
@@ -29,12 +28,11 @@ import { findItem, itemAt } from '../model/item-table.ts';
 import { runOffsetOf } from '../model/modules.ts';
 import { buildModel } from '../model/model.ts';
 import type { ChunkKind, Item, Model, NameSource } from '../model/types.ts';
-import { profileById } from '../profile/registry.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { RuleMeta } from '../provenance/rule-id.ts';
 import { trailKeeps } from '../provenance/trail.ts';
 import type { TrailEvent } from '../provenance/trail.ts';
-import { discover, DISCOVER_PROFILE } from './discover.ts';
+import { discover, profileOrDefault } from './discover.ts';
 import { confirmOptions, discoverModel, projectRomProblems } from './generate.ts';
 import type { DiscoverOptions } from './discover.ts';
 import type { ProjectInputs } from './types.ts';
@@ -147,12 +145,6 @@ export function explainOutcome(rom: Rom, addr: Addr, options: ExplainOptions = {
   return explainWith(rom, addr, run, (result) => discoverModel(rom, result));
 }
 
-function defaultProfile(): CompilerProfile {
-  const profile = profileById(DISCOVER_PROFILE);
-  if (profile === undefined) throw new RomliftInvariantError(`the ${DISCOVER_PROFILE} profile is not registered`);
-  return profile;
-}
-
 /**
  * The explanation of `addr` inside a project (architecture §9.2): the confirm run `generate` makes over the
  * project's config, traced as on a bare ROM, and the model of that run under the config. Refused (`ok: false`)
@@ -162,7 +154,7 @@ export function explainProject(inputs: Pick<ProjectInputs, 'rom' | 'config' | 'p
   const refused = projectRomProblems(inputs);
   if (refused.length > 0) return { ok: false, diagnostics: refused };
   const { rom, config } = inputs;
-  const profile = inputs.profile ?? defaultProfile();
+  const profile = profileOrDefault(inputs.profile);
   const options = confirmOptions(config);
   const run: TracedRun = (filter, events) => {
     if (checkRom(rom.bytes).length > 0) return discover(rom, { profile, trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });

@@ -4,6 +4,7 @@
 // reference (templates/agbcc.json). renderScaffold (core/scaffold/render.ts) renders them; the shell reads
 // the template files (shell/project/templates.ts). Pure: a text that is not a manifest or a pin decodes to an
 // error value, never a throw.
+import { BASEROM_FILE } from '../../foundation/util/project-files.ts';
 import { isProjectPath } from '../../foundation/util/project-path.ts';
 
 /** The pinned agbcc a project builds with: templates/agbcc.json, the submodule `.gitmodules` and setup.sh name. */
@@ -15,7 +16,7 @@ export interface AgbccPin {
 }
 
 /** The ROM's file name in every project: the config's [rom] path and the only file an `.incbin` reads (core/model/paths.ts BASEROM_PATH). */
-export const SCAFFOLD_ROM_FILE = 'baserom.gba';
+export const SCAFFOLD_ROM_FILE = BASEROM_FILE;
 
 /** What a scaffold is rendered with; every member is plain data (D19). */
 export interface ScaffoldVars {

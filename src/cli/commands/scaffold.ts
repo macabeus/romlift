@@ -6,8 +6,8 @@
 // {"type":"scaffold","path","status","diff"} lines, the diagnostics, then the summary. The scaffold is rendered from
 // the project's [build] name, its ROM's SHA-1 and header title, and the package's templates, agbcc pin and version.
 // Exit codes: 0 (whatever drifted), 1 an error diagnostic (no project, an unreadable file), 2 usage (no --diff).
-import { projectScaffold, scaffoldDrift } from '../../core/workflow/init.ts';
-import type { ScaffoldDrift } from '../../core/workflow/init.ts';
+import { projectScaffold, scaffoldDrift } from '../../core/workflow/scaffold-diff.ts';
+import type { ScaffoldDrift } from '../../core/workflow/scaffold-diff.ts';
 import { readProject, readProjectTexts, readScaffoldInputs } from '../../shell/project/read-inputs.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';

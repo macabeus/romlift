@@ -4,10 +4,9 @@
 // the Model; then the check pass: verifyModel (tiling, re-encode, module size) and ONE streaming pass over
 // emitTree in which every entry is laid out by checkEntry and its path kept for checkPaths, so no tree is
 // held (§9.4). The result is plain data (D19): generatedEntries(rom, result) re-runs the deterministic emission
-// for the write pass, and freshTreePlanInputs plans that pass into an empty directory; nothing is written here.
-// In phase 3 the config is the in-memory one configFromDiscover builds (D62 c), and initConfig, initModel and
-// generateFromRom are the `init` equivalents every phase-3 command and the bench start from; phase 4 reads the
-// TOML. Pure: the shell reads the ROM, hashes it, plans the writes and applies them.
+// for the write pass (core/write-plan/project-plan.ts plans it); nothing is written here. The config `init` writes
+// for a bare ROM is init-config.ts's (initConfigOf, initModel, generateFromRom). Pure: the shell reads the ROM,
+// hashes it, plans the writes and applies them.
 //
 // Phase 4 (architecture §2.1, §6.3, §6.4, D74 c) adds generateProject, generate over a project as the shell read it
 // (ProjectInputs): the ROM must be the one `[rom] sha1` records (E_ROM_SHA1_MISMATCH, refused before any analysis),
@@ -16,37 +15,30 @@
 // is refused before the check pass. The stream holds the c-stub entries (scaffold: written only when absent) and
 // modules.mk; an existing src/<module>.c is reconciled with the model (c-stubs.ts, D75 b: the stubs of functions the
 // TOML renamed, deleted or moved go, the missing ones come), as edits the write plan applies only to the text it read,
-// and the TOML is never touched (g4.no-toml-write). projectPlanInputs and planChangesNothing are the pure halves of
-// the write the shell makes (§6.4 steps 3 and 4).
+// and the TOML is never touched (g4.no-toml-write). The write's pure halves (projectPlanInputs, planChangesNothing)
+// are core/write-plan/project-plan.ts's (§6.4 steps 3 and 4).
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
-import { expectedSha1Problems } from '../../foundation/rom/expected-sha1.ts';
 import { compareCodeUnits, sortedEntries } from '../../foundation/util/sorted.ts';
 import { analyze } from '../analysis/driver/run.ts';
 import type { AnalysisOptions, AnalysisResult, OverrideFact, Seed } from '../analysis/types.ts';
-import { ROMLIFT_CONFIG_FILE } from '../config/decomp-yaml.ts';
+import { romSha1Problems } from '../config/rom-sha1.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import { emitTree } from '../emit/emit-tree.ts';
 import type { DecompState, EmitContext, FileEntry, Printer } from '../emit/tree.ts';
 import { buildModel } from '../model/model.ts';
-import { modulePathPrefixes } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
-import { profileById } from '../profile/registry.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import { scanC } from '../reconcile/include-asm.ts';
 import { combineReports } from '../verify/report.ts';
 import type { VerifyReport } from '../verify/report.ts';
 import { checkEntries } from '../verify/text-layout.ts';
 import { verifyModel } from '../verify/tiling.ts';
-import type { Journal } from '../write-plan/journal.ts';
-import { encodeManifest } from '../write-plan/manifest.ts';
-import type { Manifest, WritePlan, WritePlanInputs } from '../write-plan/types.ts';
 import { NO_STUBS, projectEntries, reconcileStubs, resolvedEntries } from './c-stubs.ts';
 import type { StubReconciliation } from './c-stubs.ts';
 import { configFromDiscover } from './config-from-discover.ts';
-import { discover, DISCOVER_PROFILE } from './discover.ts';
+import { profileOrDefault } from './discover.ts';
 import type { GeneratePlan, ProjectInputs } from './types.ts';
 
 export interface GenerateInputs {
@@ -76,12 +68,6 @@ export interface GenerateResult extends ConfirmedModel {
   readonly cx: EmitContext;
   /** The project's existing C files reconciled with the model (generateProject; none for a fresh tree, D75 b). */
   readonly stubs?: StubReconciliation;
-}
-
-function defaultProfile(): CompilerProfile {
-  const profile = profileById(DISCOVER_PROFILE);
-  if (profile === undefined) throw new RomliftInvariantError(`the ${DISCOVER_PROFILE} profile is not registered`);
-  return profile;
 }
 
 /**
@@ -141,7 +127,7 @@ function notAnalysed(rom: Rom, profile: CompilerProfile, options: AnalysisOption
 /** The confirm analysis of `config` and its Model (architecture §3.4): the model `generate` emits. */
 export function confirmModel(inputs: Pick<GenerateInputs, 'rom' | 'config' | 'profile'>): ConfirmedModel {
   const { rom, config } = inputs;
-  const profile = inputs.profile ?? defaultProfile();
+  const profile = profileOrDefault(inputs.profile);
   const options = confirmOptions(config);
   const problems = checkRom(rom.bytes);
   const analysis = problems.length > 0 ? notAnalysed(rom, profile, options, problems) : analyze(rom, profile, options);
@@ -200,70 +186,6 @@ export function writable(result: Pick<GenerateResult, 'report' | 'diagnostics'>)
   return result.report.ok && !result.diagnostics.some((d) => d.severity === 'error');
 }
 
-/**
- * The planWrites inputs of writing `entries` (a model's stream, whose paths are `paths`) into an empty
- * directory, as a fresh project is written: no manifest, every path absent on disk, no reconciled text, and the
- * files of the modules romlift does not generate retained. `hash` is the shell's sha1 (core never hashes).
- */
-export function freshTreePlanInputs(model: Model, entries: Iterable<FileEntry>, paths: readonly string[], hash: (text: string) => string): WritePlanInputs {
-  return {
-    entries,
-    manifest: null,
-    disk: new Map(paths.map((p) => [p, 'absent'] as const)),
-    reconciledTexts: new Map(),
-    hash,
-    retained: retainedPrefixes(model),
-  };
-}
-
-/** The path prefixes of the modules romlift does not generate (`generated = false`): planWrites never touches them. */
-export function retainedPrefixes(model: Pick<Model, 'modules' | 'chunks'>): readonly string[] {
-  return model.modules.filter((m) => !m.generated).flatMap((m) => [...modulePathPrefixes(model, m)]);
-}
-
-// ---------------------------------------------------------------------------------------------------
-// The phase-3 `init` equivalents: a ROM alone, the config configFromDiscover builds from its discover run.
-
-/** The config `init` would write for a ROM, with the discover analysis it came from; refused on a discover error. */
-export type InitConfig =
-  | { readonly ok: true; readonly discovered: AnalysisResult; readonly config: RomliftConfig }
-  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
-
-/** The discover analysis of `rom` and configFromDiscover over it, or the discover run's diagnostics when one is an error. */
-export function initConfig(rom: Rom, options: { readonly profile?: CompilerProfile } = {}): InitConfig {
-  const discovered = discover(rom, options.profile === undefined ? {} : { profile: options.profile });
-  if (discovered.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: discovered.diagnostics };
-  return { ok: true, discovered, config: configFromDiscover(rom, discovered) };
-}
-
-/**
- * initConfig without its discover analysis: initModel and generateFromRom run the confirm analysis next, and the
- * discover result (about as large as the confirm one on a 32 MiB ROM) must be garbage by then, or the two together
- * do not fit under the `romlift` bin's heap cap (384 MiB then, 1,024 MiB since D72; D69; phase-3.md, fix round 4).
- */
-function configAlone(rom: Rom, options: { readonly profile?: CompilerProfile }): { readonly ok: true; readonly config: RomliftConfig } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
-  const init = initConfig(rom, options);
-  return init.ok ? { ok: true, config: init.config } : init;
-}
-
-/** What `model --json` prints for a ROM: initConfig, then the confirm analysis over that config and its Model. */
-export type InitModel = ({ readonly ok: true; readonly config: RomliftConfig } & ConfirmedModel) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
-
-export function initModel(rom: Rom, options: { readonly profile?: CompilerProfile } = {}): InitModel {
-  const init = configAlone(rom, options);
-  if (!init.ok) return init;
-  return { ok: true, config: init.config, ...confirmModel({ rom, config: init.config, ...(options.profile === undefined ? {} : { profile: options.profile }) }) };
-}
-
-/** generate over the config initConfig builds: what `verify --rom` and the bench's `init` run check and write. */
-export type GenerateFromRom = ({ readonly ok: true; readonly config: RomliftConfig } & GenerateResult) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
-
-export function generateFromRom(rom: Rom, inputs: Omit<GenerateInputs, 'rom' | 'config'>): GenerateFromRom {
-  const init = configAlone(rom, inputs.profile === undefined ? {} : { profile: inputs.profile });
-  if (!init.ok) return init;
-  return { ok: true, config: init.config, ...generate({ ...inputs, rom, config: init.config }) };
-}
-
 /** The Model of a discover run under the config configFromDiscover builds from it (explain's and the bench's readability model). */
 export function discoverModel(rom: Rom, discovered: AnalysisResult): Model {
   return buildModel(rom, discovered, configFromDiscover(rom, discovered));
@@ -291,7 +213,7 @@ export function decompStateOf(cTexts: ReadonlyMap<string, string>): DecompState 
 
 /** E_ROM_SHA1_MISMATCH when the project's ROM is not the one its config's `[rom] sha1` records; empty otherwise. */
 export function projectRomProblems(inputs: Pick<ProjectInputs, 'rom' | 'config'>): readonly Diagnostic[] {
-  return expectedSha1Problems(inputs.rom, inputs.config.rom.sha1, ROMLIFT_CONFIG_FILE);
+  return romSha1Problems(inputs.rom, inputs.config);
 }
 
 /** The confirm analysis and Model of a project's config, or the refusal of another ROM (`model` and `explain` in a project). */
@@ -316,51 +238,4 @@ export function generateProject(inputs: ProjectInputs, options: ProjectGenerateO
   const stubs = reconcileStubs(confirmed.model, inputs.cTexts);
   const result: GenerateResult = { ...checked, stubs, diagnostics: [...checked.diagnostics, ...stubs.diagnostics] };
   return { ok: true, result, diagnostics: result.diagnostics };
-}
-
-/** What the shell read of the directory a tree is written into, for planWrites (§6.4 step 3). */
-export interface ProjectWriteState {
-  readonly manifest: Manifest | null;
-  readonly journal: Journal | null;
-  /** The sha1 of every tree path, manifest path and file under the generated roots, or 'absent'. */
-  readonly disk: ReadonlyMap<string, string | 'absent'>;
-  readonly reconciledTexts: ReadonlyMap<string, string>;
-  /** The tree paths of executable scaffold entries whose file has its executable bits (WritePlanInputs.executables). */
-  readonly executables?: ReadonlySet<string>;
-}
-
-/** The planWrites inputs of writing `entries` (a model's stream, plus any scaffold entries) over `state`. */
-export function projectPlanInputs(
-  model: Pick<Model, 'modules' | 'chunks'>,
-  entries: Iterable<FileEntry>,
-  state: ProjectWriteState,
-  hash: (text: string) => string,
-  romlift: string,
-): WritePlanInputs {
-  return {
-    entries,
-    manifest: state.manifest,
-    disk: state.disk,
-    reconciledTexts: state.reconciledTexts,
-    hash,
-    retained: retainedPrefixes(model),
-    journal: state.journal,
-    romlift,
-    ...(state.executables === undefined ? {} : { executables: state.executables }),
-  };
-}
-
-function manifestText(manifest: Manifest): string {
-  return [...encodeManifest(manifest)].join('');
-}
-
-/**
- * Whether applying `plan` would change nothing on disk: every op is a keep, no interrupted run's journal is left,
- * and the manifest it would write is the one already there. The shell then skips the apply step, so `generate`
- * right after `init` leaves every file, the manifest included, with its modification time (g4.generate-idempotent).
- */
-export function planChangesNothing(plan: Pick<WritePlan, 'ops' | 'manifest'>, state: Pick<ProjectWriteState, 'manifest' | 'journal'>): boolean {
-  if (state.journal !== null || state.manifest === null) return false;
-  if (!plan.ops.every((op) => op.op === 'keep')) return false;
-  return manifestText(plan.manifest) === manifestText(state.manifest);
 }

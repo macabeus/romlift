@@ -7,7 +7,8 @@
 // every member of a group of function or orphan chunks whose names fold to the same text inside one
 // directory is written `<Name>_<ADDR>.s` (ADDR: eight upper-case hex digits of its load address), never
 // only the second one. core/verify/paths.ts (E_PATH_CASE_COLLISION) guards the result.
-import { DIALECT } from '../../foundation/asm/dialect.ts';
+import { DIALECT, NONMATCHINGS_ROOT } from '../../foundation/asm/dialect.ts';
+import { BASEROM_FILE } from '../../foundation/util/project-files.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
 import type { Span } from '../../foundation/rom/span.ts';
@@ -20,13 +21,13 @@ export const SYMBOLS_PATH = 'symbols.ld';
 /** The per-unit build variables the scaffold's Makefile includes (the modules-mk writer, D74 f). */
 export const MODULES_MK_PATH = 'modules.mk';
 /** The user's ROM at the project root: the config's rom.path, and the only file an `.incbin` reads. */
-export const BASEROM_PATH = 'baserom.gba';
+export const BASEROM_PATH = BASEROM_FILE;
 /** The macro file every generated `.s` includes, as the dialect defines it (foundation/asm/dialect.ts DIALECT.macrosPath). */
 export const MACROS_PATH = DIALECT.macrosPath;
 
 /** The directory of a module's function and orphan files, without a trailing '/'. */
 export function nonmatchingDir(module: string): string {
-  return `asm/nonmatchings/${module}`;
+  return `${NONMATCHINGS_ROOT}/${module}`;
 }
 
 /** The object an asm or data module builds to (as from its `.s` source). */
@@ -155,4 +156,9 @@ export function assembleUnits(model: Pick<Model, 'modules' | 'chunks'>): readonl
 export function modulePathPrefixes(model: Pick<Model, 'chunks'>, module: Module): readonly string[] {
   const source = moduleSource(model, module);
   return chunksOf(model, module).some(isFileChunk) ? [source, `${nonmatchingDir(module.name)}/`] : [source];
+}
+
+/** The path prefixes of the modules romlift does not generate (`generated = false`): planWrites never touches them (D62 d). */
+export function retainedPrefixes(model: Pick<Model, 'modules' | 'chunks'>): readonly string[] {
+  return model.modules.filter((m) => !m.generated).flatMap((m) => [...modulePathPrefixes(model, m)]);
 }

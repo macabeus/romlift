@@ -3034,6 +3034,36 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   `mode` op (`WritePlanInputs.executables`, read by the shell), journalled as `{op: "mode", path}`. The chmod after the
   plan, outside the journal, which a crash could skip for good, is gone, and so is `isExecutableEntry`.
 
+- (f) **One path to the config `init` writes** (review architecture-2). `core/workflow/init-config.ts` holds
+  `initConfigOf(rom, options)`: the build name (`--name`, or the header's with `_build` on a collision), the discover
+  run, configFromDiscover with `--module-size`, serialisation and the parse back. `init`, `generateFromRom` (`verify
+  --rom`), `initModel` (`model --rom`) and the bench's "as init would write it" all call it; `discoveredConfig`,
+  `configAlone` and the old `initConfig` are gone, so no command checks a config `init` never writes. The scaffold's
+  rendering and drift (`projectScaffold`, `scaffoldDrift`) move to `core/workflow/scaffold-diff.ts`, the Myers line
+  diff to `foundation/util/line-diff.ts` (architecture-5), and the four copies of the default-profile lookup become
+  `discover.ts`'s `profileOrDefault` (architecture-6).
+- (g) **The project's file names and the default function spelling live in `foundation/util/project-files.ts`**
+  (`BASEROM_FILE`, `ROMLIFT_CONFIG_FILE`, `DECOMP_YAML_FILE`, `DECOMP_YAML_NAMES`, `defaultFunctionName`); core/config,
+  core/model, core/scaffold and the shell import them, `nonmatchingDir` uses `NONMATCHINGS_ROOT`, and core/emit's
+  `TextEdit` is core/reconcile's re-exported (architecture-7).
+- (h) **Codes as architecture §9.1 lists them** (architecture-8, architecture-9). `E_TOML_SYNTAX` is renamed
+  `E_TOML_PARSE`; `parseConfig` raises `E_UNKNOWN_COMPILER` for an unknown `[build] compiler` or module `compiler`
+  (it was `E_TOML_SCHEMA`); `E_ROM_SHA1_MISMATCH` and its check move from `foundation/rom` (which then held project
+  knowledge) to `core/config/rom-sha1.ts` (`romSha1Problems`). §9.1's table lists `E_DECOMP_YAML_INVALID`,
+  `E_PROJECT_NOT_FOUND` and `E_TOOLCHAIN_FAILED`, which phase 4 raises.
+- (i) **`[build] name` and `[rom] path` are held to the contract `init` and the scaffold assume** (correctness-6). The
+  schema accepts only a build name `init` accepts (letters, digits, `.`, `_`, `-`, a letter or digit first, at most 100
+  characters) and only `baserom.gba` as `[rom] path` (D74 c), which setup.sh, the Makefile and every `.incbin` name;
+  either edit is `E_TOML_SCHEMA` with its line.
+- (j) **`init`'s directory policy is core's** (architecture-1). `initDirVerdict(listing)` (absent, empty, the ROM plus
+  `.git` and dot-files, or a project; otherwise `E_DIR_NOT_EMPTY`), `replacedProblems(dir, wanted, current)` (an
+  existing project's romlift.toml, decomp.yaml or baserom.gba init would replace, compared by sha1) and
+  `wantsLockStep` live in `core/workflow/init.ts`; `E_DIR_NOT_EMPTY` moves to `core/workflow/codes.ts`. The shell only
+  lists the directory (`readInitDir`) and hashes files (`readDigests`), and the CLI sequences the calls.
+- (k) **generate.ts sheds what is not generate** (architecture-13). `ProjectWriteState`, `projectPlanInputs`,
+  `freshTreePlanInputs` and `planChangesNothing` move to `core/write-plan/project-plan.ts` (they take the retained
+  prefixes as input) and `retainedPrefixes` to `core/model/paths.ts`; the init equivalents move to init-config.ts (f).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

@@ -12,7 +12,9 @@ import { serializeConfig } from '../../../src/core/config/serialize.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
-import { BUILD_NAME_SUFFIX, builtRomCollides, init, initBuildName, projectScaffold, scaffoldDrift } from '../../../src/core/workflow/init.ts';
+import { init, wantsLockStep } from '../../../src/core/workflow/init.ts';
+import { BUILD_NAME_SUFFIX, builtRomCollides, initBuildName } from '../../../src/core/workflow/init-config.ts';
+import { projectScaffold, scaffoldDrift } from '../../../src/core/workflow/scaffold-diff.ts';
 import type { InitInputs } from '../../../src/core/workflow/types.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
@@ -132,4 +134,12 @@ test('scaffoldDrift: same, differs (with a unified diff) and absent, in entry or
   assert.match(makefile?.diff ?? '', /^--- a\/Makefile\n\+\+\+ b\/Makefile\n@@ .* @@\n/);
   assert.match(makefile?.diff ?? '', /\n-# mine\n$/);
   assert.equal(drift.filter((d) => d.status === 'same').length, entries.length - 2);
+});
+
+test('wantsLockStep: only after a write without an error, and only while no package-lock.json exists', () => {
+  const warning = { code: 'W_X', severity: 'warning', message: '' } as const;
+  const error = { code: 'E_X', severity: 'error', message: '' } as const;
+  assert.equal(wantsLockStep([warning], false), true);
+  assert.equal(wantsLockStep([warning], true), false);
+  assert.equal(wantsLockStep([error], false), false);
 });
