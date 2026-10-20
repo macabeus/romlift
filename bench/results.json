@@ -1,6 +1,6 @@
 {
   "meta": {
-    "commit": "34865f5d7e105f30aa3c151bf68a5ba0b1fee2d8",
+    "commit": "d3c2da50cbea30e5c56823653d134354a5ea7e7e",
     "dirty": false,
     "sourceDigest": "bf499ebe328a9596486e6b268de7a15aee6665ad005ff37769fe7e74a3aeb557",
     "nodeMajor": 24,
@@ -1897,14 +1897,14 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1156.5,
+        "maxRssMiB": 1206.69,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "9c4bda7e718a3f4d5c8bfc6a4cceda2572c5d42ae15866188f120bb9e1d13ca8"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1173.11,
+        "maxRssMiB": 1093.38,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "9c4bda7e718a3f4d5c8bfc6a4cceda2572c5d42ae15866188f120bb9e1d13ca8"
       }
