@@ -69,7 +69,7 @@ ROMs (`bench run --scaffold`, below); `generate` right after `init` changes no f
 | Command | What it does |
 | --- | --- |
 | `romlift init <rom> [dir] [--name <name>] [--module-size <bytes>] [--json]` | creates the project in an empty directory: copies the ROM to `baserom.gba`, runs discover, `configFromDiscover` (agbcc-shaped modules as `c`), serialises `romlift.toml` in the canonical layout and parses it back, writes `decomp.yaml`, the scaffold, the `src/<module>.c` stubs and the generated tree through the write plan, then `npm install --package-lock-only` (`W_LOCKFILE_DEFERRED` when npm cannot resolve romlift) |
-| `romlift generate [--rom <rom>] [--dry-run] [--out <dir>] [--json]` | inside a project (found by walking up to `decomp.yaml`): the confirm analysis over `romlift.toml`, the model, the check pass and the write plan under the project lock; never opens the TOML for writing (`g4.no-toml-write`); a ROM whose SHA-1 is not `[rom] sha1` is `E_ROM_SHA1_MISMATCH` and a model error (`E_MODULE_BORDER`, …) writes nothing and exits 1; a keep-only plan is not applied, so mtimes stay |
+| `romlift generate [--rom <rom>] [--dry-run] [--out <dir>] [--json]` | inside a project (found by walking up to `decomp.yaml`): the confirm analysis over `romlift.toml`, the model, the check pass and the write plan under the project lock; the `INCLUDE_ASM` lines of every existing `src/<module>.c` reconciled with the TOML (fix round 1, D75 b); never opens the TOML for writing (`g4.no-toml-write`); a ROM whose SHA-1 is not `[rom] sha1` is `E_ROM_SHA1_MISMATCH` and a model error (`E_MODULE_BORDER`, …) writes nothing and exits 1; a keep-only plan is not applied, so mtimes stay |
 | `romlift analyze --update [--write] [--json]` | discover's unlisted functions and nested labels as a patch of `romlift.toml` (`planPatch`, which keeps comments and refuses a restructured entry with `E_TOML_PATCH_REFUSED`); `--write` saves it atomically |
 | `romlift scaffold --diff [--json]` | how each scaffold file differs from what the current templates render for the project; writes nothing |
 | `romlift model`, `verify`, `explain` | without `--rom`, the project's ROM and TOML in confirm mode (phase 3's `--rom` behaviour unchanged) |
@@ -90,9 +90,10 @@ ROMs (`bench run --scaffold`, below); `generate` right after `init` changes no f
   `modules.mk` holds `OBJS`, `C_OBJS` and each C object's `CC1` and `CFLAGS`; the ldscript's `.c_data_<m>` section and
   `ASSERT` make C data fail the link loudly (`g4.c-data-fails-loud`); `agbcc` and `old_agbcc` per module
   (`g4.multi-compiler`).
-- The phase-3 work items the owner assigned (D68 e, D72 c): padding-only orphans folded into the next function (orphan
-  files on pokeemerald 3,222 → 24, tmc 2,321 → 34, fe7j 1,558 → 41, sa3 882 → 16, sa2 464 → 17, klonoa 87 → 24; no byte
-  changes; `test/local/padding-orphans.test.ts`); the confirm run validates only `[functions]` entries with `from`
+- The phase-3 work items the owner assigned (D68 e, D72 c): padding-only orphans folded into a neighbour, the next
+  function or, at a module's end, the chunk before (fix round 1, D75 d; orphan files on pokeemerald 3,222 → 18, tmc
+  2,321 → 32, fe7j 1,558 → 28, sa3 882 → 15, sa2 464 → 15, klonoa 87 → 23; no byte changes; the 0x46C0 nop pads stay
+  orphans, Q7; `test/local/padding-orphans.test.ts`); the confirm run validates only `[functions]` entries with `from`
   (W_LISTED_INVALID 0 on all six tuning ROMs, against fe7j 5, klonoa 4, pokeemerald 6, sa2 4, sa3 4, tmc 24 before;
   `test/local/listed-invalid.test.ts`); an `adr` names its target only by a label that links to the target itself
   (fixture `adr-function-label`, `test/unit/emit/adr-function-label.test.ts`), so the doubled pokeemerald ROM's
@@ -245,40 +246,79 @@ Options.
 
 Default while unanswered: (a).
 
-### Q4. g4.toml-mutations: is deleting the last listed function a legal edit?
+### Q4. g4.toml-mutations: is deleting the last listed function a legal edit? (withdrawn by fix round 1)
 
-Raised by `p4-workflows` (wave 3), the first branch on which `init` exists and the g4 gates run. `g4.toml-mutations`
-draws its "delete a listed function that starts no module" edit from every `[functions]` entry that starts no module.
-On 10 of the 51 committed fixtures the draw is the **last** listed function (adr-function-label 0x0800010C, c-data
-0x08000130, code-copied-to-ram 0x08000128, code-end-data-decodes 0x08000100, code-end-unsized-last 0x08000100,
-data-frame-not-function 0x08000164, pointer-table-before-leaf 0x08000144, pointer-word-in-gap 0x08000120,
-ram-code-entries 0x08000158, ram-copy-memcpy 0x08000164; checked by script: each is the highest key of its config).
+Raised by `p4-workflows` (wave 3) with no default: on 10 of the 51 fixtures the gate's delete edit drew the last
+listed function, the confirm run's code end and data start moved down to the deleted entry, and `generate` refused the
+`data` module's start (E_MODULE_BORDER), which the TOML states. The review of fix round 1 (delivery-1) found the record
+wrong to leave it unanswered: R3 says `generate` takes every border from the TOML, and §13 lists the edit as legal.
+Fixed in the product with the gate unchanged (D75 a, `27ab98d`): at or past the data start every word-aligned address
+is a legal module start, since no instruction lies there, so the `data` module keeps its start and the bytes between
+the new data start and it are an orphan of the module before (option (c) of this question; option (b) would have
+changed the confirm analysis for the same result). `g4.toml-mutations` then passes on both tiers (closing run below),
+the property test always deletes the last entry too (19 of its cases fail without the fix), and no analysis golden
+changes. Nothing waits on the owner here.
 
-Facts. Without that entry the confirm run takes nothing past the previous function (W_UNLISTED_FUNCTION: discovery
-would accept it, but confirm mode claims nothing it does not list, architecture §4.2, D8), so the analysis' code end,
-and with it the data start of the layout (`core/layout/borders.ts` codeLayout), moves down to the deleted entry; the
-`data` module still starts at the old data start, which is no longer a legal border, and `generate` refuses the
-config with E_MODULE_BORDER (exit 1, nothing written), naming the new data start as the nearest legal border below.
-Example (adr-function-label): `module data starts at 0x08000118, which is not a legal border: the nearest legal borders
-are 0x0800010C below`. Every other legal edit of the gate (move-start, rename, add-override, split-module, and
-delete-function when the entry is not the last) passes `generate` and `verify --link` to the SHA-1 on all 51
-fixtures, and every illegal edit gives its code; the gate fails on these 10 only. `p4-e2e`'s pure property test
-(`test/unit/workflow/toml-mutations.prop.test.ts`, wave 3) excludes the last entry from its delete edit for this reason
-("and is not the last one, whose deletion moves the data start").
+### Q5. A project made by an unpublished romlift needs ROMLIFT_CLI (review delivery-4)
+
+`init` writes a package.json that pins the exact romlift version, and setup.sh's duty 4 installs it (`npm ci`, or `npm
+install` without a lock). romlift is not on the npm registry, so every `init` ends with `W_LOCKFILE_DEFERRED` (E404),
+and setup.sh fails at duty 4 unless `ROMLIFT_CLI` names a romlift command (it then skips duty 4 and runs that command
+for duty 5). Every phase-4 gate and workflow sets it. Fix round 1 records `ROMLIFT_CLI` in architecture §6.3 (D75 o) and
+gates duties 4 and 5 without it: `g4.packed-e2e`'s first fixture points package.json's romlift at the packed tarball
+(`file:`) and removes asm/, and setup.sh's `npm install` and `npx romlift generate` then build it to its SHA-1. What is
+not authorised is the limitation itself: until romlift is published, a user's project needs `ROMLIFT_CLI` or a hand
+edit of package.json.
 
 Options.
 
-- (a) **The gate's delete edit skips the last listed function**, as the property test does: a gate change. A user who
-  deletes the last entry still gets E_MODULE_BORDER and must move the data module to the start it names.
-- (b) **The confirm run keeps what discovery accepts beyond the list inside the code region**: the code end covers
-  the extent of each W_UNLISTED_FUNCTION finding (an analysis change in `core/analysis/driver`, measured against g2's
-  gates; today an unlisted candidate is not read at all), so the bytes become an orphan chunk of the module before
-  and the data start does not move.
-- (c) **Any word-aligned address at or past the data start is a legal border for a `data` module**, so the data
-  module may start after the code end and the bytes in between are data at the end of the module before (a layout and
-  model change, `core/layout/borders.ts`, `core/model`).
+- (a) **Record it as a pre-release limitation**: release 1 publishes romlift to the registry, after which duty 4 needs
+  nothing; until then `ROMLIFT_CLI` (documented in the scaffold's AGENTS.md and README) is the way.
+- (b) **`init --romlift-spec <spec>`**: `init` writes the given npm spec (a tarball path, a git URL) into package.json
+  instead of the version, so duty 4 installs it without `ROMLIFT_CLI` (a new option, phase 4).
+- (c) **Publish a pre-release** (`romlift@0.x`) to the registry now, so the pinned version resolves.
 
-No default: the gate is not changed and fails until the owner answers; `p4-workflows` is committed, not merged.
+Default while unanswered: (a).
+
+### Q6. W_UNLISTED_FUNCTION after init on tmc and the doubled ROM (review correctness-5)
+
+Q5 c removed `W_LISTED_INVALID` from `generate` after `init` (0 on all six tuning ROMs), but `generate` over the config
+`init` writes still raises `W_UNLISTED_FUNCTION` where the confirm run would accept a function discover did not find:
+tmc 1 (0x080B1A28, ARM, proposed by `seed.ram-copy`, in the RAM-copied ARM code where the owner accepted tmc's eight
+confirm/discover differences, D61 e: 0x080B1A8C, 0x080B255C and 0x080B2874 lie beside it), the doubled pokeemerald ROM
+161 (as in phase 3), the five other tuning ROMs and every fixture 0. The entries are not wrong (the tree links to the
+SHA-1); the warning tells the user `analyze --update` would add them.
+
+Options.
+
+- (a) **Record it as a known limitation** of the same root as tmc's accepted differences (D61 e).
+- (b) **`initConfigOf` lists what confirm would accept**: after the config, a confirm run whose `unlisted` findings are
+  added (repeated until none), so `init`'s config is confirm's fixpoint. Costs one more confirm run in `init` and in
+  `verify --rom` (about 1.5 s on tmc; the doubled ROM's `verify --rom` already peaks near the 1,536 MiB budget).
+- (c) **Make discover and confirm agree there** (an analysis change in `core/analysis/driver`, measured against the g2
+  gates; D61 c's resettle stage was built for tmc and reverted because it changed rows on other ROMs).
+
+Default while unanswered: (a).
+
+### Q7. The 0x46C0 nop pads stay orphan files (review correctness-4)
+
+Q5 b's fold now covers every zero pad (before a function and at a module's end, D75 d; `padding-orphans` finds none on
+the six tuning ROMs). A pad of one Thumb nop (0x46C0) up to a word boundary stays its own orphan file and, in a `c`
+module, its own `INCLUDE_ASM` stub: fe7j 21, klonoa 21, pokeemerald 15, sa2 15, sa3 15, tmc 0, all in `c` modules. By
+the ELF maps, 15 on each ROM but tmc lie in libgcc's `_call_via_rX.o` (phase 6's signatures put libgcc in a library
+`asm` module, architecture §12) and 6 each in a hand-written assembly object (fe7j's `arm-call.o`, klonoa's `thunk.o`).
+No start macro emits a nop (they open with `.align 2, 0`), and agbcc's output for the function before it does not hold
+one, so folding it into either neighbour puts into a function's file a byte its C cannot produce.
+
+Options.
+
+- (a) **Keep them as orphans** (byte-exact, one stub line each; the libgcc ones leave the `c` modules in phase 6).
+- (b) **Fold a nop pad into the function before it** as trailing data (`.2byte 0x46C0`): no stub of its own, but a
+  user who decompiles that function must keep the nop by hand.
+- (c) **Fold it into the function after it with a nop-filling start macro** (`.align 2` in Thumb, which GNU as fills
+  with 0x46C0): no stub of its own, but decompiling that function makes agbcc emit zeros there.
+
+Default while unanswered: (a).
 
 ## Known limitations
 
@@ -287,14 +327,18 @@ No default: the gate is not changed and fails until the owner answers; `p4-workf
 - Pending the owner (Q3): the bin needs an `env` that accepts `-S`.
 - Pending the owner (Q1, default (a)): a `[functions]` entry without `from` is taken without the valid.* rules, so one
   added by hand that fails validity no longer warns `W_LISTED_INVALID`.
-- Pending the owner (Q4, no default): deleting the last listed function of a project moves the code end, and `generate`
-  refuses the config with `E_MODULE_BORDER` until the `data` module is moved to the start the message names;
-  `g4.toml-mutations` fails on the ten fixtures where its delete edit draws that entry.
+- Pending the owner (Q6, default (a)): `generate` after `init` raises `W_UNLISTED_FUNCTION` on tmc (1) and the doubled
+  pokeemerald ROM (161).
+- Pending the owner (Q7, default (a)): a 0x46C0 nop pad stays an orphan file with its own `INCLUDE_ASM` stub (fe7j 21,
+  klonoa 21, pokeemerald 15, sa2 15, sa3 15).
+- By design (architecture §6.4, D74 g, D75 b): project-mode `verify --assemble/--link` builds a C unit from its
+  `INCLUDE_ASM` statements without a compiler, so a `src/<module>.c` that holds decompiled C makes it exit 1
+  (`E_TOOLCHAIN_FAILED`, "defines the function …"); `make` is the verdict there, and the matchings split is phase 5's.
 - By design until phase 5 (architecture §6.6, D21): a C module that defines data fails the link on its `ASSERT`; the
   data ranges arrive with `g5.c-data-ranges`.
-- `init` runs `npm install --package-lock-only` for the scaffold's `package.json`; romlift is not on the npm registry
-  yet, so every `init` ends with `W_LOCKFILE_DEFERRED` (a warning, exit 0) and `setup.sh`'s `npm ci` needs a published
-  romlift or `ROMLIFT_CLI`.
+- Pending the owner (Q5, default (a)): `init` runs `npm install --package-lock-only` for the scaffold's `package.json`;
+  romlift is not on the npm registry yet, so every `init` ends with `W_LOCKFILE_DEFERRED` (a warning, exit 0) and
+  `setup.sh`'s duty 4 needs a published romlift, `ROMLIFT_CLI`, or package.json pointed at a tarball.
 - `setup.sh` builds agbcc from source at the pin (network, git and a host C compiler; about 50 s); a mirror is
   `AGBCC_URL`.
 - Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,213 to 1,526 MiB RSS (largest
@@ -405,3 +449,60 @@ config exit 1 with E_MODULE_BORDER, the closing round's defect), and a discovery
 failed `g4.toml-mutations` (Q4) and `g1.provenance` (the source digest before the artifact was regenerated). The
 doubled ROM's readable `verify --assemble --link` exited 0 there too (55.6 s, 1,498.8 MiB), and `large-rom --bin` on
 it completed every form.
+
+## Review
+
+### Fix round 1 (the review of the closing run at `10ff9ed`)
+
+Thirty-two findings: two blockers, nine majors, twenty-one minors. Every blocker and major is fixed; every minor is
+fixed but three, which are fixed in part or answered with a reason; three facts the review raised that the owner has
+not authorised became owner questions (Q5, Q6, Q7). The decisions are D75 (a) to (p). Commits on `phase-4` after
+`10ff9ed`, in order: `27ab98d`, `f970fa1`, `82d9bcc`, `af2baf4`, `614894c`, `40be45f`, `d1a5a1a`, `587f56f`, `29c28de`,
+`d77c401`, `71a30f9`, `2d71975`, `516f97f`, `066ec21`, `ab8f53e`, `9244205`, and this record's.
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-1 | blocker | **Fixed** (`f970fa1`, D75 b, c). `generate` reconciles every existing `src/<module>.c` of a generated `c` module: `planIncludeAsm` adds the stub of a function the module gained and removes the stub of its own directory whose function it lost (a rename, a deletion, a move or split: a move is a removal plus an insertion in the other file), as a `reconciled` entry applied only while the file has the sha1 it was read with (`E_STALE_EDIT`), journalled. A tree written elsewhere (`verify`'s temporary directory, `generate --out`) gets the reconciled text, so project-mode `verify --link` links the C `make` compiles and refuses a unit with decompiled C instead of linking a fresh stub. Roadmap 5.A's remove and move cases land here because without them every legal edit of a `c` module breaks `make` (D75 b). The scaffold's Makefile also rebuilt an asm object from a file `generate` rewrote within the second only for C units; every object now records the SHA-1 of what its dependency lists name (D75 c; measured: `undefined reference to Renamed` from a stale `build/crt0.o` before it). Tests: `test/unit/reconcile/include-asm.test.ts` (removal, rename, split, shared lines, CRLF), `test/unit/workflow/generate-project.test.ts` (rename edit, `E_STALE_EDIT`, reconciled text in a fresh tree), `test/unit/cli/generate.test.ts` (a TOML rename and delete reach `src/main.c`), `test/unit/cli/verify.test.ts` (the reconciled C links; decompiled C refuses the link); templates/AGENTS.md says what `generate` does to `src/*.c`. |
+| correctness-2 | major | **Fixed** (`82d9bcc`). `g4.toml-mutations` runs `./setup.sh` once per target and `make` after every legal edit, which must exit 0 (`make` exits 0 only at the SHA-1 `<name>.sha1` records), besides `generate` and `verify --link`. Measured at `82d9bcc`: ci tier 228 legal edits build with `make`, 152 illegal edits give their codes, 51 fixtures; real tier 258 and 170 on 57 ROMs (51 fixtures and the six tuning ROMs); both pass. The real set of failing edits before the fix was every rename, delete, split and move of a `c` module (correctness-1). |
+| delivery-1 | blocker | **Fixed** (`27ab98d`, D75 a): Q4's option (c) in the product, the gate unchanged; Q4 withdrawn (above). |
+| architecture-1 | major | **Fixed** (`40be45f`, D75 j). `initDirVerdict`, `replacedProblems` and `wantsLockStep` in `core/workflow/init.ts` decide; `E_DIR_NOT_EMPTY` moved to `core/workflow/codes.ts`; the shell only lists (`readInitDir`) and hashes (`readDigests`); the CLI sequences. |
+| architecture-2 | major | **Fixed** (`40be45f`, D75 f). `initConfigOf` (`core/workflow/init-config.ts`) is the one path: build name with `_build`, `--module-size`, serialise and parse back; `init`, `generateFromRom`, `initModel` and the bench call it; `discoveredConfig`, `configAlone` and `initConfig` are gone. |
+| architecture-3 | major | **Fixed** (`af2baf4`, D75 d). `Chunk.entry` (and the model-json chunk line's `entry`, present when it is not the span's start) comes from the chunk plan; `chunkEntry(chunk)` reads it; the printer's `leadingPad` reads the item table only. |
+| architecture-4 | major | **Fixed** (`614894c`, D75 e). `executable?: true` on the scaffold entry and the `write` op; the mode is set on the temporary file before the rename; a `mode` op (journalled) restores missing bits; `markExecutable` and `isExecutableEntry` are gone. |
+| delivery-2 | major | **Fixed** (`af2baf4`, D75 d). A zero pad at its module's end is the last item of the chunk before it, printed `.align 2, 0`; `padding-orphans.test.ts` now asserts no zero-pad orphan anywhere (fe7j 1,558 → 28 orphan files, klonoa 87 → 23, pokeemerald 3,222 → 18, sa2 464 → 15, sa3 882 → 15, tmc 2,321 → 32). |
+| delivery-3 | major | **Fixed** (`71a30f9`, D75 o). `g4.e2e-real` runs the six tuning ROMs a second time from the packed and installed tarball (`npx romlift init` below the install). |
+| delivery-4 | major | **Fixed** (`71a30f9`, D75 o), and the limitation is owner question Q5. `ROMLIFT_CLI` is recorded in architecture §6.3; `g4.packed-e2e`'s first fixture runs setup.sh without it (package.json at the tarball, asm/ removed), so duty 4's `npm install` and duty 5's `npx romlift generate` run. |
+| delivery-5 | major | **Fixed** (`af2baf4`): architecture §3.4 (`Chunk.entry`), §6.2 step 2 (the pad exception) and plan.md's "No orphan bytes", citing D68 e and D75 d. |
+| architecture-5 | minor | **Fixed** (`40be45f`): `foundation/util/line-diff.ts`, `core/workflow/scaffold-diff.ts`. |
+| architecture-6 | minor | **Fixed** (`40be45f`): `profileOrDefault` in discover.ts, used by all four workflows. |
+| architecture-7 | minor | **Fixed** (`40be45f`, D75 g): `foundation/util/project-files.ts`; `nonmatchingDir` uses `NONMATCHINGS_ROOT`; core/emit re-exports reconcile's `TextEdit`. |
+| architecture-8 | minor | **Fixed** (`40be45f`, D75 h): `E_TOML_PARSE`; `E_UNKNOWN_COMPILER` raised for `[build] compiler` and module `compiler`; the comment is now true. |
+| architecture-9 | minor | **Fixed** (`40be45f`, D75 h): `romSha1Problems` and `E_ROM_SHA1_MISMATCH` in `core/config/rom-sha1.ts`. |
+| architecture-10 | minor | **Fixed** (`d1a5a1a`, D75 l): `BuildCompiler.banner`; the dead `rule` removed and MANIFEST.json held to one fragment per compiler by a test; the C-data lines in `foundation/asm/c-data-assert.ts`; `moduleCompile` throws for an unknown compiler. |
+| architecture-11 | minor | **Fixed in part** (`2d71975`). The defect (only the bench's cache checked the agbcc pin; two shims) is fixed: test/helpers/e2e.ts builds its shim with the bench's `sourceCliScript` and refuses a prebuilt agbcc stamped with another pin. Not merged: the two process runners, because the harness's adds a time limit and process-group kill the bench's `runProcess` does not need, and merging them would change the bench's process semantics with no defect behind it. |
+| architecture-12 | minor | **Fixed** (`587f56f`, D75 m): under the lock the TOML is re-read and must equal the text the plan came from, else `E_STALE_CONFIG` and nothing is saved. |
+| architecture-13 | minor | **Fixed** (`40be45f`, D75 k): `core/write-plan/project-plan.ts` (`ProjectWriteState`, `projectPlanInputs`, `freshTreePlanInputs`, `planChangesNothing`), `retainedPrefixes` in `core/model/paths.ts`, the init equivalents in init-config.ts. |
+| architecture-14 | minor | **Fixed** (`587f56f`, D75 n): no handle, no `WeakMap`; `checkEntries` is the public entry. |
+| correctness-3 | minor | **Fixed in the record**: the doubled ROM's peaks are recorded as the spread of the runs measured, and the record says plainly that the readable `verify --link` on it can go over the 1,536 MiB budget ("Measured numbers", fix round 1). No gate measures the doubled ROM (D72 e, unchanged). |
+| correctness-4 | minor | **Fixed in part**: the zero pads at module borders fold (`af2baf4`, delivery-2). The 0x46C0 nop pads stay orphans, with their counts and objects; the limitation is owner question Q7. |
+| correctness-5 | minor | **Owner question Q6**, default (a): recorded as a limitation with its counts (tmc 1, the doubled ROM 161, the rest 0). |
+| correctness-6 | minor | **Fixed** (`40be45f`, D75 i): the schema holds `[build] name` to init's rule and `[rom] path` to `baserom.gba`, each `E_TOML_SCHEMA` with its line. |
+| correctness-7 | minor | **Fixed** (`d77c401`): `g4.worktree`'s first target runs setup.sh in the main checkout before the commit, requires the 160000 gitlink, and its worktree checks the submodule out; measured ci: 50 worktrees pass, adr-function-label through the submodule. |
+| correctness-8 | minor | **Fixed** (`f970fa1`): the link writes the ROM once; the ROM rule only restores a removed ROM. |
+| delivery-6 | minor | **Fixed** (`ab8f53e`): D74 (k) names Q1 to Q7, Q4 withdrawn. |
+| delivery-7 | minor | **Fixed** (this record, "The carried minors" below). |
+| delivery-8 | minor | **Fixed** (`516f97f`). |
+| delivery-9 | minor | **Fixed** (`066ec21`, D75 p): AGENTS.md and roadmap.md state the one trailer phase 4 uses. |
+| delivery-10 | minor | **Fixed** (`29c28de`): the test passes its own temporary-directory prefix and asserts only on it. |
+
+### The carried minors
+
+- architecture-r2-1 (TextLayoutIndex exported with its Maps): `a328c13` made it an opaque handle; fix round 1 removed the
+  handle and its registry from the public API (architecture-14, D75 n). Closed.
+- architecture-r2-4 (the case rename is not journalled): `p4-safety-minors` (above). Closed.
+- correctness-r0-5's remainder (pool.ts calls `moduleAt` once per address with labels): carried again to phase 5, for
+  the reason phase-3.md gave (threading the relocated-module list through `wordText`, `labelForWord` and their callers
+  changes the printer helpers' signatures for a filter over a few dozen modules) and because phase 5 reworks the
+  printer's matchings split, which touches the same helpers.
+- gate-honesty-r1-3's remainder (the phase pull request's CI numbers): done in phase 3; phase-3.md "The phase pull
+  request's CI" records them (ci.yml on both OSes and both Node versions). Closed.
