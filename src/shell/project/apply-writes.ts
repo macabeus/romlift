@@ -10,7 +10,11 @@
 // Recovery: a run that stops part-way (a crash, a full disk) leaves `.romlift/journal.json` and the old
 // manifest. The next run reads both (readJournal, readManifest in disk-state.ts) into planWrites, which
 // treats the journal's paths as owned and an edit it shows done as done, so that run converges to the same
-// tree and manifest as an uninterrupted one.
+// tree and manifest as an uninterrupted one. A case rename the crash cut between its two renames is part of that
+// recovery (architecture-r2-4): before it writes its own journal, applyWrites reads the one it finds and puts each
+// entry left under a case rename's temporary name back under its old name (spelling.ts restoreCaseRenames), and its
+// ops rename it again. A command calls restoreCaseRenames itself before it snapshots the disk, so the plan sees the
+// tree as the interrupted op found it; the call here makes sure no temporary name outlives a run either way.
 import { mkdir, rmdir, unlink } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
@@ -23,8 +27,8 @@ import { JOURNAL_PATH, MANIFEST_PATH, ROMLIFT_DIR } from '../../core/write-plan/
 import type { WriteOp, WritePlan } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
 import { atomicWrite, errnoOf, errorReason } from '../fs.ts';
-import { onDisk } from './disk-state.ts';
-import { respell } from './spelling.ts';
+import { onDisk, readJournal } from './disk-state.ts';
+import { respell, restoreCaseRenames } from './spelling.ts';
 import type { Listings } from './spelling.ts';
 
 export interface ApplyResult {
@@ -114,10 +118,11 @@ async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diag
 
 /**
  * Applies `plan` to the project at `dir`: refuses it when it holds an error diagnostic (nothing is touched);
- * otherwise writes `.romlift/journal.json`, applies the ops in plan order (each write and edit through a
- * temporary file and a rename, each delete removing the file and the directories it leaves empty), writes
- * `.romlift/manifest.json` through a temporary file and a rename, and removes the journal. The first
- * failure stops it with E_IO_WRITE and leaves the journal for the next run.
+ * otherwise finishes the case renames the journal of an interrupted run shows half done (restoreCaseRenames; a
+ * journal that cannot be read is E_IO_READ, and no op is applied), writes `.romlift/journal.json`, applies the
+ * ops in plan order (each write and edit through a temporary file and a rename, each delete removing the file and
+ * the directories it leaves empty), writes `.romlift/manifest.json` through a temporary file and a rename, and
+ * removes the journal. The first failure stops it with E_IO_WRITE and leaves the journal for the next run.
  */
 export async function applyWrites(dir: string, plan: WritePlan): Promise<ApplyResult> {
   if (planHasErrors(plan)) return { ok: false, applied: 0, diagnostics: plan.diagnostics.filter((d) => d.severity === 'error') };
@@ -130,6 +135,12 @@ export async function applyWrites(dir: string, plan: WritePlan): Promise<ApplyRe
     await mkdir(join(dir, ROMLIFT_DIR), { recursive: true });
   } catch (error) {
     return { ok: false, applied: 0, diagnostics: [writeError(join(dir, ROMLIFT_DIR), error)] };
+  }
+  const interrupted = await readJournal(dir);
+  if (!interrupted.ok) return { ok: false, applied: 0, diagnostics: [interrupted.diagnostic] };
+  if (interrupted.value !== null) {
+    const restored = await restoreCaseRenames(dir, interrupted.value);
+    if (restored !== undefined) return { ok: false, applied: 0, diagnostics: [restored] };
   }
   const known: DiskKnown = { made: new Set(), listings: new Map() };
   const journal = await writeText(onDisk(dir, JOURNAL_PATH), encodeJournal(journalOf(plan.ops)), true, known);
