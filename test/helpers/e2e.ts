@@ -13,7 +13,9 @@
 //     finds it present (agbccCache);
 //   - setup.sh and make run with a time limit (buildProject), and the whole loop (runEndToEnd).
 // The interfaces are the frozen ones of D74 that g4.e2e-fixtures, g4.packed-e2e, g4.e2e-real and g4.worktree
-// read; the gates keep their own copies, since they import romlift only through its entry points (D37).
+// read; the gates keep their own copies, since they import romlift only through its entry points (D37). The source-CLI
+// shim and the agbcc cache's pin check are bench/src/scaffold.ts's, the one implementation `bench run --scaffold` uses
+// too (architecture-11): a cached or prebuilt agbcc that records another pin than templates/agbcc.json is refused.
 // Every command runs with stdin closed (g4.cli-contract) through a CommandRunner, which the unit tests replace.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -22,7 +24,12 @@ import { constants, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { AGBCC_CACHE_PIN, pinText, sourceCliScript } from '../../bench/src/scaffold.ts';
+import { decodeAgbccPin } from '../../src/core/scaffold/vars.ts';
+import type { AgbccPin } from '../../src/core/scaffold/vars.ts';
 import { listSyntheticFixtures, type SyntheticFixture } from './fixtures.ts';
+
+export { shellQuote } from '../../bench/src/scaffold.ts';
 
 /** The repository root of this checkout. */
 export const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -103,10 +110,6 @@ export function outputTail(result: Pick<CommandResult, 'stdout' | 'stderr'>, lin
 // ---------------------------------------------------------------------------------------------------
 // The source CLI.
 
-/** `text` as one single-quoted shell word. */
-export function shellQuote(text: string): string {
-  return `'${text.replaceAll("'", `'\\''`)}'`;
-}
 
 export interface SourceCliOptions {
   /** Default this checkout. */
@@ -117,11 +120,11 @@ export interface SourceCliOptions {
   readonly maxOldSpaceMiB?: number;
 }
 
-/** The text of a `romlift` shell script that runs the source CLI with every argument it is given. */
+/** The text of a `romlift` shell script that runs the source CLI with every argument it is given (bench's sourceCliScript). */
 export function sourceCliText(options: SourceCliOptions = {}): string {
   const main = path.join(options.repoRoot ?? REPO_ROOT, 'src', 'cli', 'main.ts');
-  const heap = options.maxOldSpaceMiB === undefined ? '' : ` --max-old-space-size=${options.maxOldSpaceMiB}`;
-  return `#!/bin/sh\nexec ${shellQuote(options.node ?? process.execPath)}${heap} --conditions=source ${shellQuote(main)} "$@"\n`;
+  const heap = options.maxOldSpaceMiB === undefined ? [] : [`--max-old-space-size=${options.maxOldSpaceMiB}`];
+  return sourceCliScript(options.node ?? process.execPath, heap, main);
 }
 
 /** Writes an executable `romlift` into `dir` that runs the source CLI; returns its path, the value for ROMLIFT_CLI. */
@@ -397,17 +400,41 @@ async function copyInstalled(from: string, to: string): Promise<void> {
   }
 }
 
+/** templates/agbcc.json of `repoRoot`, the pin every project's setup.sh builds agbcc at. */
+export async function readAgbccPin(repoRoot: string = REPO_ROOT): Promise<AgbccPin> {
+  const decoded = decodeAgbccPin(await readFile(path.join(repoRoot, 'templates', 'agbcc.json'), 'utf8'));
+  if (!decoded.ok) throw new Error(`templates/agbcc.json: ${decoded.message}`);
+  return decoded.value;
+}
+
+/**
+ * Why a prebuilt agbcc may not be used under `pin`, or undefined: it records another pin (bench/src/scaffold.ts's
+ * stamp, AGBCC_CACHE_PIN, as `bench run --scaffold`'s cache writes it). One without a stamp (the workflows' build at
+ * the pinned commit, ROMLIFT_AGBCC) is taken as built at the pin.
+ */
+async function stalePrebuilt(prebuilt: string, pin: AgbccPin): Promise<string | undefined> {
+  let stamp: string;
+  try {
+    stamp = await readFile(path.join(prebuilt, AGBCC_CACHE_PIN), 'utf8');
+  } catch {
+    return undefined;
+  }
+  return stamp === pinText(pin) ? undefined : `the prebuilt agbcc ${prebuilt} was built at ${stamp.trim()}, not at templates/agbcc.json's ${pinText(pin).trim()}`;
+}
+
 /**
  * A per-run cache of tools/agbcc in `dir`: the first project setup.sh builds agbcc in fills it (remember), and every
  * later project gets a copy before its setup.sh runs (provide), so one run builds agbcc once. `prebuilt`, a directory
- * holding bin/agbcc (and bin/old_agbcc), such as ROMLIFT_AGBCC or the workflows' build at the pinned commit, fills it
- * from the start.
+ * holding bin/agbcc (and bin/old_agbcc), such as ROMLIFT_AGBCC, the workflows' build at the pinned commit or the
+ * bench's cache, fills it from the start, unless it records another pin than `pin` (default templates/agbcc.json's).
  */
-export async function agbccCache(dir: string, prebuilt?: string): Promise<AgbccCache> {
+export async function agbccCache(dir: string, prebuilt?: string, pin?: AgbccPin): Promise<AgbccCache> {
   await mkdir(dir, { recursive: true });
   const filled = (): Promise<boolean> => isFile(path.join(dir, AGBCC_BIN));
   if (prebuilt !== undefined && !(await filled())) {
     if (!(await isFile(path.join(prebuilt, AGBCC_BIN)))) throw new Error(`no ${AGBCC_BIN} under the prebuilt agbcc ${prebuilt}`);
+    const stale = await stalePrebuilt(prebuilt, pin ?? (await readAgbccPin()));
+    if (stale !== undefined) throw new Error(stale);
     await copyInstalled(prebuilt, dir);
   }
   return {

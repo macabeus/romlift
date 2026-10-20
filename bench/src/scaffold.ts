@@ -189,7 +189,8 @@ export async function agbccCacheCurrent(dir: string, pin: AgbccPin): Promise<boo
   return (await readFile(stamp, 'utf8')) === pinText(pin);
 }
 
-const pinText = (pin: AgbccPin): string => `${JSON.stringify({ url: pin.url, commit: pin.commit })}\n`;
+/** The text of an agbcc cache's pin stamp (AGBCC_CACHE_PIN). */
+export const pinText = (pin: AgbccPin): string => `${JSON.stringify({ url: pin.url, commit: pin.commit })}\n`;
 
 const tail = (run: ProcessResult, lines = 20): string => `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 
@@ -250,10 +251,17 @@ export async function agbccCache(cx: BenchContext, deps: AgbccCacheDeps): Promis
   }
 }
 
-/** The shell script that runs the CLI from source with the bin's Node options (setup.sh's ROMLIFT_CLI, and init). */
+/** `text` as one single-quoted shell word. */
+export function shellQuote(text: string): string {
+  return `'${text.replaceAll("'", "'\\''")}'`;
+}
+
+/**
+ * The shell script that runs the CLI from source with the bin's Node options (setup.sh's ROMLIFT_CLI, and init): the
+ * one source-CLI shim of the bench and of test/helpers/e2e.ts.
+ */
 export function sourceCliScript(nodePath: string, nodeOptions: readonly string[], main: string): string {
-  const quote = (s: string): string => `'${s.replaceAll("'", "'\\''")}'`;
-  return `#!/bin/sh\nexec ${[nodePath, '--conditions=source', ...nodeOptions, main].map(quote).join(' ')} "$@"\n`;
+  return `#!/bin/sh\nexec ${[nodePath, '--conditions=source', ...nodeOptions, main].map(shellQuote).join(' ')} "$@"\n`;
 }
 
 export interface InitBuildDeps {

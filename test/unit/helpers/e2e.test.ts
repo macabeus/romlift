@@ -78,8 +78,8 @@ test('the source-CLI shim runs node --conditions=source src/cli/main.ts with eve
   const dir = await scratch(t, "romlift e2e 'quoted' ");
   assert.equal(shellQuote("it's"), `'it'\\''s'`);
   const text = sourceCliText({ node: '/opt/node', repoRoot: '/repo' });
-  assert.equal(text, `#!/bin/sh\nexec '/opt/node' --conditions=source '/repo/src/cli/main.ts' "$@"\n`);
-  assert.match(sourceCliText({ node: '/opt/node', repoRoot: '/repo', maxOldSpaceMiB: 1024 }), /^exec '\/opt\/node' --max-old-space-size=1024 --conditions=source /m);
+  assert.equal(text, `#!/bin/sh\nexec '/opt/node' '--conditions=source' '/repo/src/cli/main.ts' "$@"\n`);
+  assert.match(sourceCliText({ node: '/opt/node', repoRoot: '/repo', maxOldSpaceMiB: 1024 }), /^exec '\/opt\/node' '--conditions=source' '--max-old-space-size=1024' /m);
   assert.match(sourceCliText(), new RegExp(`${path.join(REPO_ROOT, 'src', 'cli', 'main.ts').replaceAll('/', '\\/').replaceAll('.', '\\.')}`));
 
   const node = await script(path.join(dir, 'fake node'), 'for a in "$@"; do printf "[%s]" "$a"; done');
@@ -222,6 +222,10 @@ test('agbccCache fills once, from a prebuilt directory or the first project, and
   assert.equal((await runCommand(path.join(project, 'tools', 'agbcc', 'bin', 'old_agbcc'), [])).stdout, 'old_agbcc\n', 'still executable');
   assert.equal(await cache.provide(project), false, 'a project that has agbcc keeps its own');
   await assert.rejects(agbccCache(path.join(dir, 'other'), path.join(dir, 'empty')), /no bin\/agbcc under the prebuilt agbcc/);
+  const stale = path.join(dir, 'stale');
+  await script(path.join(stale, 'bin', 'agbcc'), 'echo agbcc');
+  await writeFile(path.join(stale, 'romlift-agbcc-pin.json'), `${JSON.stringify({ url: 'https://example.invalid/agbcc', commit: '0'.repeat(40) })}\n`);
+  await assert.rejects(agbccCache(path.join(dir, 'other2'), stale), /was built at .*, not at templates\/agbcc\.json's/, 'a prebuilt agbcc of another pin is refused (architecture-11)');
 
   const empty = await agbccCache(path.join(dir, 'cache2'));
   const first = path.join(dir, 'first');
