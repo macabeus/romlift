@@ -528,6 +528,29 @@ readable `verify` exit 3 is a phase-4 work item (D72 c); every phase-1 and phase
 Entry: phase 3 landed. Branch `phase/4-one-shot`. Seven components: 4.0, then 4.A–4.E in parallel, then
 4.I.
 
+### As executed (D74)
+
+Phase 4 runs as eleven components in three waves on the branch `phase-4`, each on its own flat branch
+`phase-4-<component>` and worktree (D56 h); sections 4.0–4.I and "Carried from phase 3" below still describe what the
+phase delivers. D74 records each deviation and why, and the contracts the lead froze (the workflow types, the scaffold
+manifest and placeholders, the C-stub texts, the C build pipeline and object paths, modules.mk's variables, the C-data
+ASSERT); [phase-4.md](phase-4.md) records the components, the measured numbers, the owner questions and the closing gate.
+Every threshold of the phase applies to the six tuning ROMs (D60; the "five" below reads as six, D74 j).
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p4-lead` | 1 | 4.0: `core/workflow/types.ts`, `core/scaffold/vars.ts`, `templates/MANIFEST.json`, the C-stub constants of `foundation/asm/dialect.ts`, the empty `core/{config,reconcile}/codes.ts`, the barrels (`src/api/{config,config-files,scaffold,scaffold-files,reconcile,workflow-one-shot,one-shot-files}.ts` empty, `src/api/one-shot-types.ts` with the frozen types), `cli/commands/lists/{one-shot,scaffold}.ts`, the `core/verify` edge (D74 g), the g4 gate files aligned, D74, phase-4.md; then 4.I after each wave |
+| `p4-emission-carried` | 1 | "Carried from phase 3": padding-only orphans folded into the next function (Q5 b), then the readable `adr` naming a function label (Q7) with its fixture |
+| `p4-confirm-listed` | 1 | "Carried from phase 3": the confirm run no longer re-validates the functions configFromDiscover listed (Q5 c, moved from 4.D; scope: owner question Q1) |
+| `p4-config` | 2 | 4.A, with `E_PROJECT_NOT_FOUND` in `src/shell/codes.ts` and `test/mutation/phase4/patch-planner.test.ts` |
+| `p4-scaffold` | 2 | 4.B without `scaffold --diff`'s command (moved to `p4-workflows`): the templates but `MANIFEST.json`, `renderScaffold`, `readTemplates` |
+| `p4-c-modules` | 2 | 4.C, plus configFromDiscover's kind flip to `c` (D62 c), the C units of the text-layout check and of `verify --assemble/--link`, `objectPath` for C modules |
+| `p4-fixtures` | 2 | 4.E's fixtures `composite`, `multi-compiler`, `c-data` and the old_agbcc support of the fixture build |
+| `p4-safety-minors` | 2 | 4.I's lock and journal mutation tests, and the carried minors architecture-r2-4, correctness-ci-1, correctness-r0-2, gate-honesty-r0-1 |
+| `p4-workflows` | 3 | 4.D, `scaffold --diff`, and the project mode of `model`, `verify` and `explain`; the shell codes it raises |
+| `p4-e2e` | 3 | 4.E's harness: `test/helpers/e2e.ts`, the TOML mutation property test, `packed.yml`, the fixtures workflow's init step |
+| `p4-bench-init` | 3 | 4.E's bench part: `bench run --scaffold` through `init`, `setup.sh` and `make`; `init` and `generate` in `bench large-rom --bin` |
+
 ### 4.0 Workflow and scaffold interfaces (lead)
 
 - **Owns:** `src/core/workflow/types.ts` (`InitInputs`, `InitPlan`, `GenerateInputs`, `GeneratePlan`,

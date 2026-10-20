@@ -130,7 +130,12 @@ export const EDGE_TABLE: readonly EdgeRow[] = [
   { from: 'src/core/reconcile/**', allow: [FOUNDATION, 'src/core/reconcile/**'] },
   { from: 'src/core/scaffold/**', allow: [FOUNDATION, 'src/core/scaffold/**'] },
   { from: 'src/core/emit/**', allow: [FOUNDATION, 'src/core/model/**', 'src/core/reconcile/**', 'src/core/emit/**'] },
-  { from: 'src/core/verify/**', allow: [FOUNDATION, 'src/core/model/**', 'src/core/emit/tree.ts', 'src/core/verify/**'] },
+  {
+    from: 'src/core/verify/**',
+    // core/reconcile and core/config/compilers.ts: the text-layout check reads a C stub's INCLUDE_ASM statements with
+    // the one C tokenizer (no regex runs over code, §6.6) and a C unit's compiler (D74).
+    allow: [FOUNDATION, 'src/core/model/**', 'src/core/emit/tree.ts', 'src/core/reconcile/**', 'src/core/config/compilers.ts', 'src/core/verify/**'],
+  },
   { from: 'src/core/write-plan/**', allow: [FOUNDATION, 'src/core/emit/tree.ts', 'src/core/write-plan/**'] },
   {
     from: 'src/core/diagnostic-codes.ts',

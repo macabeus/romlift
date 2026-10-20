@@ -10,8 +10,10 @@
 //     never 70 (internal).
 // A command with no recipe here fails the gate, so a new command cannot skip the contract.
 //
-// Expected interfaces, for the phase-4 lead to align (architecture §2.1, D33):
+// Interfaces, frozen by D74 (architecture §2.1, D33):
 //   exit codes 0 ok, 1 errors, 2 usage, 3 verifyFailed, 70 internal; NDJSON as in g4.e2e-fixtures.
+//   init's options are [dir], --name, --module-size and --json in phase 4 (--no-signatures is phase 6's, D74);
+//   init in a directory holding another file than the given ROM, .git and dot-files is E_DIR_NOT_EMPTY, exit 1.
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult, type GateContext } from './gate.ts';

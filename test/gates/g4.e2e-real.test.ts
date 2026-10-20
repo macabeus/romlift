@@ -1,9 +1,9 @@
 // g4.e2e-real (architecture §1, §8.4 "Scaffold", §13, R1): in a directory that holds only the ROM,
-// `romlift init <rom> && ./setup.sh && make` ends at the ROM's SHA-1 with no file edited by hand, on all five
-// tuning ROMs. Sealed held-out ROMs run the same command and report counts only (how many reach their
+// `romlift init <rom> && ./setup.sh && make` ends at the ROM's SHA-1 with no file edited by hand, on all six
+// tuning ROMs (D60: the roadmap's "five" reads as the six since tmc's reveal, D62 h, D74). Sealed held-out ROMs run the same command and report counts only (how many reach their
 // SHA-1); nothing of their output is printed or recorded, and they do not decide the verdict.
 //
-// Expected interfaces, for the phase-4 lead to align (as in g4.e2e-fixtures):
+// Interfaces, frozen by D74 (as in g4.e2e-fixtures):
 //   romlift init <rom> --json                            exit 0; NDJSON, last line {"type":"summary",...}
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set and then skips its npm duty
 //   <name>.sha1 holds `<sha1>  <file>` (sha1sum format), <file> being the ROM `make` builds
@@ -20,7 +20,7 @@ interface CliLine {
 }
 
 const ROM_FILE = 'baserom.gba';
-const TUNING_ROMS = 5;
+const TUNING_ROMS = 6;
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');

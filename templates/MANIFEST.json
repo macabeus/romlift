@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "files": [
+    { "target": ".github/workflows/build.yml", "source": "build.yml", "executable": false },
+    { "target": ".gitignore", "source": "gitignore", "executable": false },
+    { "target": ".gitmodules", "source": null, "executable": false },
+    { "target": "@@sha1File@@", "source": null, "executable": false },
+    { "target": "AGENTS.md", "source": "AGENTS.md", "executable": false },
+    { "target": "Makefile", "source": "Makefile", "executable": false },
+    { "target": "README.md", "source": "README.md", "executable": false },
+    { "target": "include/include_asm.h", "source": null, "executable": false },
+    { "target": "include/macros.inc", "source": null, "executable": false },
+    { "target": "mk/agbcc.mk", "source": "compilers/agbcc.mk", "executable": false },
+    { "target": "mk/old_agbcc.mk", "source": "compilers/old_agbcc.mk", "executable": false },
+    { "target": "package.json", "source": null, "executable": false },
+    { "target": "setup.sh", "source": "setup.sh", "executable": true }
+  ]
+}

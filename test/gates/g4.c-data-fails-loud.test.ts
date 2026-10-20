@@ -5,8 +5,11 @@
 //   src/<module>.c defines data; see AGENTS.md (data ranges arrive in phase 5)
 // for that module; the ROM the control built is removed first, and the failed link must not leave one.
 //
-// Expected interfaces, for the phase-4 lead to align (as in g4.e2e-fixtures, plus):
-//   bench/dataset/synthetic/c-data/overlay/src/<module>.c   the decompiled C file with its const array
+// Interfaces, frozen by D74 (as in g4.e2e-fixtures, plus):
+//   bench/dataset/synthetic/c-data/overlay/src/<module>.c   the decompiled C file with its const array (p4-fixtures)
+//   ldscript.txt, per C module (p4-c-modules):
+//     .c_data_<module> (NOLOAD) : { *src/<module>.o(.rodata* .data* .bss* COMMON) }
+//     ASSERT(SIZEOF(.c_data_<module>) == 0, "src/<module>.c defines data; see AGENTS.md (data ranges arrive in phase 5)")
 import { createHash } from 'node:crypto';
 import { copyFile, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';

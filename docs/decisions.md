@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -2827,6 +2827,144 @@ sa2 725 ms against 798 ms) and `gates --require 3 --tier ci` with `g3.large-rom`
 and 1,002.9 MiB, budget 1,536 MiB). Phase 3 passes its closing gate; the marker stays at `{ "landed": 3 }`, the artifact
 of that run (`meta.commit` `0784b4e`) is committed, and the merge to `main` waits for the phase pull request's CI.
 Nothing is merged or pushed.
+
+## D74. Phase-4 component boundaries as executed, and the contract members phase 4 needs
+
+**Context.** Roadmap 4.0–4.I splits phase 4 into a lead, five parallel components (4.A config on disk, 4.B scaffold
+and templates, 4.C C stubs, modules.mk and the C-data assertion, 4.D workflows and commands, 4.E end-to-end harness)
+and an integrator, and its section "Carried from phase 3" adds three work items the owner assigned on 19 October 2026
+(phase-3.md Q5 b, Q5 c and Q7, D68 e, D72 c) plus the carried minors. As in phases 1 to 3 (D54, D56, D62), freezing the
+phase's types showed where the roadmap's split and the edge table do not fit: the C-unit text-layout check needs the C
+tokenizer, which core/verify may not import; `scaffold --diff`'s command needs the project loading of 4.A; the C build
+(compiler invocation, object paths, modules.mk's variables, the C-data ASSERT) is written by three components and read
+by a fourth. The owner asked for no checkpoints: every owner decision of architecture §12 is built with its documented
+safe default, and every choice below that is not in the owner's words is an owner question in phase-4.md, built with
+its default while it waits (Q1 to Q3).
+
+**Decision.** Phase 4 runs as eleven components in three waves on the branch `phase-4`, each on its own flat branch
+`phase-4-<component>` and worktree (D56 h; roadmap.md, "Phase 4", "As executed (D74)"):
+
+- (a) **Wave 1**: `p4-lead` (this record; 4.0 below), `p4-emission-carried` (Q5 b, padding-only orphans folded into the
+  next function without changing a byte, then Q7, the readable printer's `adr` naming a function label, with the fixture
+  `adr-function-label` that fails without the fix: `core/model/{chunks,items,labels,resolver,codec,printing-cache}.ts`,
+  `core/layout/{borders,tiling}.ts`, `core/emit/print/{chunk,insn,pool,raw}.ts`, the function and orphan writers,
+  `core/verify/text-layout.ts`, the writer, model and explain goldens) and `p4-confirm-listed` (Q5 c, the confirm run no
+  longer re-validating the functions configFromDiscover listed: `core/analysis/{types,codec}.ts`,
+  `core/analysis/driver/confirm.ts`, `core/workflow/generate.ts`'s `listedSeedsOf`, `test/local/listed-invalid.test.ts`).
+  **Wave 2**: `p4-config` (4.A: `core/config/{keys,parse,serialize,patch,decomp-yaml,codes}.ts`,
+  `shell/config/{load,save}.ts`, `shell/project/locate.ts`, the config goldens, `test/mutation/phase4/patch-planner`),
+  `p4-scaffold` (4.B without its CLI: the templates but `MANIFEST.json`, `core/scaffold/render.ts`,
+  `shell/project/templates.ts`, the scaffold goldens), `p4-c-modules` (4.C, below), `p4-fixtures` (4.E's three fixtures,
+  `composite`, `multi-compiler` and `c-data`, and the old_agbcc support of the fixture build) and `p4-safety-minors`
+  (`test/mutation/phase4/{lock,journal}`, and the carried minors that touch code outside the other components:
+  architecture-r2-4, correctness-ci-1, correctness-r0-2, gate-honesty-r0-1). **Wave 3**: `p4-workflows` (4.D: `init`,
+  `generate` over a project, `analyze --update`, `scaffold --diff`, the project mode of `model`, `verify` and `explain`,
+  `shell/project/read-inputs.ts`, `shell/toolchain/npm.ts`), `p4-e2e` (4.E's harness: `test/helpers/e2e.ts`, the TOML
+  mutation property test, `packed.yml`, the fixtures workflow's init step) and `p4-bench-init` (4.E's bench part: `bench
+  run --scaffold` through `init`, `setup.sh` and `make`; `init` and `generate` in `bench large-rom --bin`). The lead
+  integrates after each wave, regenerates `bench/results.json`, raises `test/gates/phase.json` and runs the closing gate.
+- (b) **Deviations from the roadmap's owners.** Q5 b and Q7, which roadmap "Carried from phase 3" gives to 4.0, are one
+  wave-1 component (`p4-emission-carried`): both regenerate the writer goldens, so they run in sequence in one place, and
+  the lead's freeze is not blocked on them. Q5 c, which the roadmap gives to 4.D, is its own wave-1 component
+  (`p4-confirm-listed`), measured against g2's gates before the workflows land. `scaffold --diff`'s command moves from 4.B
+  to `p4-workflows`, because it reads a project through 4.A. `p4-c-modules` also owns configFromDiscover's kind flip of
+  the agbcc-shaped modules to `c` (D62 c), the C units of the text-layout check and of `verify --assemble/--link`
+  (`core/verify/{text-layout,link-scripts}.ts`, `shell/toolchain/link-check.ts`) and `objectPath` for C modules
+  (`core/model/paths.ts`). 4.E is three components (fixtures in wave 2; harness and bench in wave 3). The roadmap gives
+  `src/shell/codes.ts` to 4.0; the shell's codes land with their raisers instead (`p4-config`: `E_PROJECT_NOT_FOUND`;
+  `p4-workflows`: `E_DIR_NOT_EMPTY`, `W_LOCKFILE_DEFERRED` and the others it raises), because
+  `test/unit/diagnostics/codes.test.ts` requires every defined code to have a raiser (D45). Nothing else moves.
+- (c) **The frozen workflow types** (`core/workflow/types.ts`, plain readonly data): `InitOptions { name?; moduleSize? }`
+  (phase 4's `init` takes `<rom> [dir] [--name] [--module-size] [--json]`; `--no-signatures` lands with signatures in
+  phase 6, since nothing ships before its phase); `InitInputs { rom; romFile; options; templates: ScaffoldTemplates;
+  romliftVersion; agbcc: AgbccPin; profile? }`; `InitPlan = { ok: true; config; tomlText; decompYamlText; result:
+  GenerateResult; scaffold: readonly FileEntry[]; diagnostics } | { ok: false; diagnostics }`; `ProjectInputs { rom;
+  configText; config; cTexts: ReadonlyMap<src/<module>.c, text>; profile? }`; `GeneratePlan = { ok: true; result:
+  GenerateResult; diagnostics } | { ok: false; diagnostics }`; `AnalyzeUpdateInputs { rom; configText; config; profile? }`;
+  `AnalyzeUpdatePlan = { ok: true; proposals; text; changed; diagnostics } | { ok: false; diagnostics }`. Three choices
+  beyond the roadmap's names: `GeneratePlan` is a union like the other two plans, because a ROM whose SHA-1 is not the
+  config's `[rom] sha1` is refused before any analysis and has no result; `ProjectInputs.profile?` mirrors
+  `GenerateInputs.profile?` (the dummy profile of `g2.second-profile`); `AgbccPin` is defined in
+  `core/scaffold/vars.ts`, since core/scaffold may not import core/workflow. `GenerateInputs` and `GenerateResult` stay
+  in `core/workflow/generate.ts` in their phase-3 form. The project's ROM is always `baserom.gba` (`BASEROM_PATH`, the
+  config's `[rom] path`, the only file an `.incbin` reads); `InitInputs.romFile` is the name the user gave, which
+  `init`'s shell copies to `baserom.gba` when it differs, keeping the original (g4.e2e-fixtures initialises
+  `<fixture>.gba`).
+- (d) **The scaffold contract** (`core/scaffold/vars.ts`). `ScaffoldVars { name; romFile: 'baserom.gba'; builtRom
+  (<name>.gba); sha1; sha1File (<name>.sha1); romliftVersion; agbcc: AgbccPin; title (the header's game title) }`, built by
+  `scaffoldVars`. `ScaffoldTemplate { target; source: string | null; executable }`, `ScaffoldManifest { schema: 1; files
+  }`, `ScaffoldTemplates { manifest; texts: ReadonlyMap<source, text> }`. Templates and manifest targets spell a value as
+  `@@<placeholder>@@`, one of `SCAFFOLD_PLACEHOLDERS` (`name`, `romFile`, `builtRom`, `sha1`, `sha1File`,
+  `romliftVersion`, `title`, `agbccUrl`, `agbccCommit`; `placeholderValues`): `@@` occurs in none of the file kinds
+  romlift ships, unlike `{{` (GitHub's `${{ … }}`). `decodeScaffoldManifest(json)` and `decodeAgbccPin(json)` return
+  `{ ok: true; value } | { ok: false; message }` and never throw. A null `source` is exactly the five targets romlift
+  renders itself (`ROMLIFT_RENDERED_TARGETS`): `@@sha1File@@` (`<sha1>  <name>.gba`, sha1sum format), `package.json`
+  (the exact romlift version), `.gitmodules` (`tools/agbcc` at the pin's URL), `include/macros.inc` (`DIALECT.macrosInc`)
+  and `include/include_asm.h` (`INCLUDE_ASM_HEADER`), so neither header can drift from the text the checks read.
+  `templates/MANIFEST.json` lists `.github/workflows/build.yml` (from `build.yml`), `.gitignore` (from `gitignore`, as
+  npm drops a packed `.gitignore`), `AGENTS.md`, `Makefile`, `README.md`, `setup.sh` (the only executable),
+  `mk/<id>.mk` from `compilers/<id>.mk` for each build compiler (`BuildCompiler.rule`, D47), and the five rendered
+  targets. `templates/agbcc.json` is `{ "url": "https://github.com/pret/agbcc", "commit":
+  "da598c1d918402c42c0c0d7128ba14567f3175e9" }`, the commit the synthetic fixtures were built with; it is read, never
+  copied.
+- (e) **The C-stub constants** (`foundation/asm/dialect.ts`, shared by the c-stub writer, the reconciler, the
+  text-layout check and the scaffold): `includeAsmStatement(module, name)` = `INCLUDE_ASM("asm/nonmatchings/<module>",
+  <name>);`, where `name` is the chunk file's base name (`chunkPaths`: `<Name>_<ADDR>` for a member of a case-folded
+  group), since the macro includes `<dir>/<name>.s`; `NONMATCHINGS_ROOT` (`asm/nonmatchings`); `INCLUDE_ASM_HEADER_PATH`
+  (`include/include_asm.h`); `INCLUDE_ASM_HEADER`, guarded, defining `INCLUDE_ASM(DIR, NAME) asm(".syntax
+  unified\n.include \"" DIR "/" #NAME ".s\"\n.syntax divided\n")` and including the macro file once per translation unit
+  with a file-scope `asm` (romlift's `.s` files are unified syntax, agbcc emits divided; Klonoa's decomp uses the same
+  form with agbcc and old_agbcc); `C_STUB_HEADER` (`#include "include_asm.h"` and a blank line), the lines every
+  generated `src/<module>.c` starts with, its INCLUDE_ASM statements following one per line.
+- (f) **The C build, frozen for the writers, the scaffold and the checks.** A C module `src/<m>.c` is preprocessed by
+  the host C compiler (`$(HOSTCC) -E -x c -nostdinc -undef -I include src/<m>.c`), compiled by
+  `tools/agbcc/bin/<compiler>` with `BUILD_COMPILERS[<compiler>].flags` plus the module's `cflags` into
+  `build/src/<m>.s`, and assembled (`arm-none-eabi-as -mcpu=arm7tdmi`) to `build/src/<m>.o`; asm and data units keep
+  `build/<m>.o` (`objectPath`). What agbcc appends or aligns at a unit's end is measured by `p4-c-modules` (D65 a's unit
+  alignment) and encoded once. The Makefile includes `modules.mk` (generated, the `modules-mk` writer) and every
+  `mk/<id>.mk`, whose C recipe reads the object's `CC1` and `CFLAGS`; an explicit rule the user adds for one object wins
+  over the pattern rule (D47). modules.mk holds exactly: `OBJS := <every unit object in link order>`, `C_OBJS := <the C
+  objects>`, and per C object the target-specific lines `build/src/<m>.o: CC1 := tools/agbcc/bin/<id>` and
+  `build/src/<m>.o: CFLAGS := <flags>` (each names `src/<m>.o`, as `g4.multi-compiler` reads it). The ldscript places
+  only `.text` of a C object and, per C module, exactly:
+
+  ```
+  .c_data_<m> (NOLOAD) : { *src/<m>.o(.rodata* .data* .bss* COMMON) }
+  ASSERT(SIZEOF(.c_data_<m>) == 0, "src/<m>.c defines data; see AGENTS.md (data ranges arrive in phase 5)")
+  ```
+
+  The leading `*` (architecture §6.6 wrote `src/<m>.o`) matches the object ld is given, `build/src/<m>.o`.
+- (g) **One more edge.** `core/verify` may import `core/reconcile` and `core/config/compilers.ts` (architecture §2,
+  `test/helpers/architecture.ts`): the text-layout check reads a C stub's INCLUDE_ASM statements to lay out a C unit, and
+  no regex runs over code (§6.6), so it must use the one C tokenizer and INCLUDE_ASM finder; it reads the module's build
+  compiler for the unit's measured layout. core/reconcile imports only foundation, so no cycle arises.
+- (h) **Codes.** The lead creates `core/config/codes.ts` and `core/reconcile/codes.ts` empty and unions them into
+  `core/diagnostic-codes.ts`; their owners add each code with its first raiser (D45). `src/shell/codes.ts` is not the
+  lead's in phase 4 (b).
+- (i) **Barrels.** Empty: `src/api/{config,config-files}.ts` (`p4-config`), `src/api/{scaffold,scaffold-files}.ts`
+  (`p4-scaffold`), `src/api/reconcile.ts` (`p4-c-modules`), `src/api/{workflow-one-shot,one-shot-files}.ts`
+  (`p4-workflows`); the `*-files.ts` ones in `romlift/node`, the others in `romlift`. The frozen types and values of (c)
+  to (e) are exported by the lead's `src/api/one-shot-types.ts` (`romlift`), as phase 3's `config-types.ts` was. The
+  command lists `cli/commands/lists/{one-shot,scaffold}.ts` start empty and pass to `p4-workflows`.
+- (j) **Every phase-4 threshold applies to the six tuning ROMs** (D60, as D62 h did for phase 3): the roadmap's "all
+  five tuning ROMs" reads as the six; `g4.e2e-real` requires six tuning datasets, and the other gates' comments say six.
+  This is stricter and loosens nothing. The g4 gate files' "expected interfaces" comments now name the frozen
+  interfaces; no assertion changed, and every g4 gate stays `pending` until `init` is exported (wave 3).
+- (k) **Owner questions** (phase-4.md): Q1, the scope of Q5 c (only `[functions]` entries with a `from` key are
+  validated in the confirm run; a hand-added entry without `from` no longer warns), default (a), accept; Q2,
+  correctness-r0-1 (sa2's `g2.speed` headroom), default (a), no change to the gate or `speed.json`; Q3, correctness-r0-2's
+  `env -S` launcher requirement as a known limitation (the phase-3 review's words, not the owner's), default (a), record
+  it with the launcher test. The phase does not land until all three are answered. Q5 a (the alignment refusal, D65 a) stays a recorded release-1 limitation by the owner's
+  answer (D68 e).
+
+**Consequences.** Every wave-2 and wave-3 component codes against frozen types, paths and texts, and owns files no other
+component of its wave touches; the g4 gates stay `pending` until `init` lands; the C-stub texts, the C object paths and
+the ASSERT have one definition each.
+
+**Rejected.** `{{name}}` placeholders (they collide with GitHub Actions expressions in `build.yml`). Rendering
+`include/macros.inc` and `include/include_asm.h` from template files (two copies of a text the checks read). Exporting
+the frozen types from an owner's barrel (two components would edit one file). Validating hand-added entries by a TOML
+marker key (Q1's option c; it bloats `[functions]` against §6.5's layout).
 
 ## Review findings index
 
