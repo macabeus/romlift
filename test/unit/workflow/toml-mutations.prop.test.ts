@@ -6,8 +6,8 @@
 // a repeated [functions] line (E_DUPLICATE_ADDRESS) and a [functions] key of seven hex digits (E_TOML_KEY_SPELLING),
 // both from parseConfig. The legal edits are g4.toml-mutations' five, which that gate then links with the toolchain:
 // move a `c` module's start to another legal border between its neighbours, rename a function that still has its
-// default name, delete a listed function that starts no module (and is not the last one, whose deletion moves the
-// data start), add a `code` override that covers one found function
+// default name, delete a listed function that starts no module (always the last one too, whose deletion moves the
+// confirm run's data start below the data module's start, which stays legal, D75 a), add a `code` override that covers one found function
 // exactly, and split a `c` module at a legal border inside it. No toolchain, no file; the seed is fixed.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -116,12 +116,14 @@ function legalEdits(kind: LegalKind, facts: Facts, draw: Draw): readonly Edit[] 
       });
     }
     case 'delete-function': {
-      // Not the last listed function: deleting that one moves the code end, and with it the data start, which a
-      // module may start at (then E_MODULE_BORDER is right, and the edit is not a legal one).
+      // The last listed function always among them: deleting it moves the confirm run's code end, and with it the
+      // data start, below the data module's start, which stays a legal border (D75 a).
       const listed = [...config.functions.keys()].sort(byNumber);
       const last = listed[listed.length - 1];
       const entries = listed.filter((a) => !starts.has(a) && a !== last);
-      return drawSome(draw, entries, EDITS_PER_KIND).map((addr) => {
+      const drawn = drawSome(draw, entries, EDITS_PER_KIND);
+      const chosen = last !== undefined && !starts.has(last) ? [...drawn, last] : drawn;
+      return chosen.map((addr) => {
         const functions = new Map(config.functions);
         functions.delete(addr);
         return { what: `delete the [functions] entry 0x${hex(addr)}`, config: { ...config, functions } };

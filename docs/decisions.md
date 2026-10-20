@@ -2966,6 +2966,27 @@ the ASSERT have one definition each.
 the frozen types from an owner's barrel (two components would edit one file). Validating hand-added entries by a TOML
 marker key (Q1's option c; it bloats `[functions]` against §6.5's layout).
 
+## D75. Phase-4 fix round 1
+
+**Context.** The review of phase 4's closing run at `10ff9ed` (phase-4.md, "Review", fix round 1) found two blockers:
+the legal TOML edits of a `c` module left a project `make` could not build while `generate` and project-mode `verify
+--link` reported success (correctness-1, correctness-2), and `g4.toml-mutations` failed on deleting the last listed
+function, which phase-4.md filed as owner question Q4 with no default (delivery-1). R3 and architecture §13 say every
+seeded legal edit keeps the link green and `generate` takes every border from the TOML; neither blocker is a gate
+change, so each is fixed in the product, and the gates stay as they are or get stricter.
+
+**Decision.**
+
+- (a) **A module start in the data region is legal at every word-aligned address** (architecture §6.2, "Legal
+  borders"): at or past the layout's data start no instruction lies, so no branch, PC-relative load or `adr` can cross
+  a border there, and ld word-aligns every object. `planModules` takes the data start beside the legal borders
+  (`BorderRule`, `isLegalStart`); `legalBorders` itself is unchanged, so `init`, the TOML patcher and every analysis
+  golden stay as they were. After the user deletes the last listed function, the confirm run's code ends at the
+  deleted entry and its data start moves down, but the `data` module keeps the start the TOML states: the bytes
+  between are the tail of the module before, an orphan chunk there. This is phase-4.md's Q4 option (c), taken because
+  it conforms to R3 (the TOML states the border) and leaves the gate unchanged; option (b) would have changed the
+  confirm analysis and the g2 gates' inputs for the same result. Q4 is withdrawn as an owner question.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

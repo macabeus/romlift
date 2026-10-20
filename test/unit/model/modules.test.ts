@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
-import { loadAddressOf, loadModuleAt, moduleIndexAt, planModules, relocatedModules, runOffsetAt, runStartOf, toLoad } from '../../../src/core/model/modules.ts';
+import { isLegalStart, loadAddressOf, loadModuleAt, moduleIndexAt, planModules, relocatedModules, runOffsetAt, runStartOf, toLoad } from '../../../src/core/model/modules.ts';
 import { BASE, configOf, HEADER_END, romWith } from '../layout/hand-made.ts';
 
 const ROM = romWith([], { size: 0x400 });
@@ -48,6 +48,17 @@ test('a start that is not a legal border is E_MODULE_BORDER naming the nearest l
   assert.deepEqual(d?.cites, [BASE + 0x100, BASE + 0x200]);
   assert.match(d?.message ?? '', /0x08000100 below and 0x08000200 above/);
   assert.equal(modules[2]?.span.start, BASE + 0x180, 'the module is kept where the config puts it');
+});
+
+test('past the data start every word-aligned address is a legal start (D75 a); below it only the legal borders are', () => {
+  const rule = { borders: BORDERS, dataStart: BASE + 0x2f0 };
+  const config = configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], ['data', BASE + 0x318]] });
+  assert.deepEqual(planModules(ROM, config, rule).diagnostics, [], 'a data border the TOML keeps past a lower data start');
+  assert.deepEqual(planModules(ROM, config, BORDERS).diagnostics.map((d) => d.code), ['E_MODULE_BORDER'], 'without the data start the same start is refused');
+  assert.equal(isLegalStart(ROM, rule, BASE + 0x2f0), true);
+  assert.equal(isLegalStart(ROM, rule, BASE + 0x31a), false, 'not word-aligned');
+  assert.equal(isLegalStart(ROM, rule, BASE + 0x2ec), false, 'below the data start, and no legal border');
+  assert.equal(isLegalStart(ROM, rule, ROM.end), false, 'the ROM end starts nothing');
 });
 
 test('starts that do not increase are E_MODULE_ORDER and are left out; a first start above the base is moved to it', () => {

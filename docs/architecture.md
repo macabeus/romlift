@@ -1242,7 +1242,10 @@ start (`ld` word-aligns every object), when no short Thumb branch (`b`, `bcc`) c
 PC-relative load or `adr` (Thumb `ldr rd, [pc, #]` and `add rd, pc, #`, ARM `ldr rd, [pc, #]` and `adr`)
 crosses it, since `as` has no relocation for one that names a symbol in another object (D63), and when it
 does not fall inside an assembly-only range (below). The data start is the code end rounded up to a word,
-moved past every word the code loads PC-relative beyond it (D63). `legalBorders(rom, analysis)` returns
+moved past every word the code loads PC-relative beyond it (D63). At or past the data start every word-aligned
+address is a legal module start too, since no instruction lies there (D75 a): a `data` module the TOML starts above
+the confirm run's data start (after the last listed function is deleted) keeps its start, and the bytes between
+are an orphan chunk of the module before. `legalBorders(rom, analysis)` returns
 them sorted, from the ROM's bytes and no compiler profile (the model has none, D63); the model, `init`,
 `analyze --update` and the TOML patcher all use it.
 
