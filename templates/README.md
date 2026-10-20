@@ -20,6 +20,17 @@ Then:
    generates the disassembly when `asm/` is absent. In a new `git worktree` it copies `@@romFile@@` from the main one.
 3. Run `make`. It builds `@@builtRom@@` and ends with `@@builtRom@@: OK` when the SHA-1 matches `@@sha1File@@`.
 
+Until romlift is published to the npm registry (a pre-release limitation), the version `package.json` pins does not
+resolve, so step 2 cannot install it. Set `ROMLIFT_CLI` to a romlift command you have, for example a built checkout
+of romlift (`npm run build` there):
+
+```sh
+ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js" ./setup.sh
+```
+
+setup.sh then skips the npm install and runs that command to generate the tree; run the other romlift commands the
+same way (`$ROMLIFT_CLI generate` where this file says `npx romlift generate`).
+
 ## Layout
 
 | Path | What it is |

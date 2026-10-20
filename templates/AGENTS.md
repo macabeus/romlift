@@ -16,6 +16,12 @@ was created by [romlift](https://github.com/macabeus/romlift) @@romliftVersion@@
 
 `@@romFile@@` is the original ROM. It is never committed (`.gitignore`); bring your own copy.
 
+**`ROMLIFT_CLI`, until romlift is published.** romlift is not on the npm registry yet (a pre-release limitation), so
+`package.json`'s pinned version does not resolve and `./setup.sh` cannot install it. Set `ROMLIFT_CLI` to a romlift
+command (for example `ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js" ./setup.sh`, from a built checkout of
+romlift): setup.sh then skips the npm install and runs that command instead of `npx romlift`. Run every romlift command
+of this file the same way (`$ROMLIFT_CLI generate` for `npx romlift generate`).
+
 ## What is generated and what is yours
 
 - **Tool-owned, never edit:** `asm/`, `data/`, `ldscript.txt`, `symbols.ld`, `modules.mk`. `romlift generate`
