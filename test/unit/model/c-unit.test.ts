@@ -4,9 +4,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
+import { cDataAssertLine, cDataSectionLine } from '../../../src/foundation/asm/c-data-assert.ts';
 import {
-  cDataAssertLine,
-  cDataSectionLine,
   includedChunkFile,
   moduleCompile,
   STUB_UNIT_MODE,
@@ -68,7 +68,7 @@ test('a module\'s stub chunk files and names, and its assembly', () => {
 test('a C module compiles with its compiler\'s cc1 and the Model\'s flags', () => {
   assert.deepEqual(moduleCompile({ compiler: 'old_agbcc', cflags: ['-O2', '-g'] }), { cc1: 'tools/agbcc/bin/old_agbcc', flags: ['-O2', '-g'] });
   assert.deepEqual(moduleCompile({ compiler: 'agbcc', cflags: [] }), { cc1: 'tools/agbcc/bin/agbcc', flags: [] });
-  assert.equal(moduleCompile({ compiler: 'mycc', cflags: [] }).cc1, 'tools/agbcc/bin/mycc');
+  assert.throws(() => moduleCompile({ compiler: 'mycc', cflags: [] }), RomliftInvariantError, 'the schema refuses an unknown compiler (E_UNKNOWN_COMPILER)');
 });
 
 test('the C-data check lines are the frozen text (D74 f, architecture §6.6)', () => {

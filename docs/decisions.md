@@ -3064,6 +3064,13 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   `freshTreePlanInputs` and `planChangesNothing` move to `core/write-plan/project-plan.ts` (they take the retained
   prefixes as input) and `retainedPrefixes` to `core/model/paths.ts`; the init equivalents move to init-config.ts (f).
 
+- (l) **c-unit.ts keeps one job** (architecture-10): the stub assembly agbcc emits and the chunk files a C stub
+  includes. The banner each compiler prints is `BuildCompiler.banner` (measured once, both compilers print `gcc
+  2.9-arm-000512`); the dead `BuildCompiler.rule` is gone, and a unit test holds `templates/MANIFEST.json` to one
+  `mk/<id>.mk` from `compilers/<id>.mk` per registered compiler; the C-data `ASSERT` lines live in
+  `foundation/asm/c-data-assert.ts`, which the ldscript writer and the ldscript check both import; `moduleCompile`
+  throws `RomliftInvariantError` for a compiler the schema would have refused instead of inventing a path.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

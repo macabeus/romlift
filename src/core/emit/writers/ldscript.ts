@@ -27,7 +27,7 @@
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
-import { cDataAssertLine, cDataSectionLine } from '../../model/c-unit.ts';
+import { cDataAssertLine, cDataSectionLine } from '../../../foundation/asm/c-data-assert.ts';
 import { buildUnits, isCSource, LDSCRIPT_PATH, SYMBOLS_PATH } from '../../model/paths.ts';
 import { externalSymbols } from '../../model/symbols.ts';
 import type { Model, Module } from '../../model/types.ts';

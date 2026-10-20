@@ -9,7 +9,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
-import { cDataAssertLine, cDataSectionLine } from '../model/c-unit.ts';
+import { cDataAssertLine, cDataSectionLine } from '../../foundation/asm/c-data-assert.ts';
 import { buildUnits, isCSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { externalSymbols } from '../model/symbols.ts';
 import type { Model } from '../model/types.ts';

@@ -8,7 +8,8 @@ export { INCLUDE_ASM_MACRO, includeAsmDir, planIncludeAsm, scanC } from '../core
 export { applyTextEdits } from '../core/reconcile/text-edit.ts';
 export { ReconcileCodes } from '../core/reconcile/codes.ts';
 export type { ReconcileCode } from '../core/reconcile/codes.ts';
-export { cDataAssertLine, cDataSectionLine, includedChunkFile, moduleCompile, STUB_UNIT_MODE, STUB_UNIT_PRELUDE, stubAssemblyText, stubChunkFiles, stubName, stubUnitAssembly } from '../core/model/c-unit.ts';
+export { includedChunkFile, moduleCompile, STUB_UNIT_MODE, STUB_UNIT_PRELUDE, stubAssemblyText, stubChunkFiles, stubName, stubUnitAssembly, stubUnitPrelude } from '../core/model/c-unit.ts';
+export { cDataAssertLine, cDataSectionLine } from '../foundation/asm/c-data-assert.ts';
 export { cAssemblyPath, cObjectPath, isCSource, MODULES_MK_PATH } from '../core/model/paths.ts';
 export type { StubAssembly, StubInclude, StubProblem, StubReading } from '../core/verify/c-stub.ts';
 export { readStub, stubAssemblyOf } from '../core/verify/c-stub.ts';

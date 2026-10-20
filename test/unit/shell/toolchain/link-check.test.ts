@@ -10,7 +10,8 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 
 import { C_STUB_HEADER, DIALECT } from '../../../../src/foundation/asm/dialect.ts';
-import { cDataAssertLine, cDataSectionLine, stubAssemblyText } from '../../../../src/core/model/c-unit.ts';
+import { stubAssemblyText } from '../../../../src/core/model/c-unit.ts';
+import { cDataAssertLine, cDataSectionLine } from '../../../../src/foundation/asm/c-data-assert.ts';
 import { romFromBytes } from '../../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import type { AssembleUnit } from '../../../../src/core/model/paths.ts';

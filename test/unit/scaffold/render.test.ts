@@ -129,7 +129,6 @@ test('the Makefile assembles with the dialect\'s arguments, includes modules.mk 
 test('each build compiler has its fragment at mk/<id>.mk, defining the recipe its CC1 file name selects', () => {
   for (const compiler of Object.values(BUILD_COMPILERS)) {
     assert.equal(compiler.cc1, `tools/agbcc/bin/${compiler.id}`, 'the Makefile dispatches on $(notdir $(CC1))');
-    assert.equal(compiler.rule, `templates/compilers/${compiler.id}.mk`);
     const fragment = textOf(SCAFFOLD, `mk/${compiler.id}.mk`);
     assert.match(fragment, new RegExp(`^define C_RECIPE_${compiler.id}$`, 'm'));
     assert.match(fragment, /^\$\(HOSTCC\) \$\(CPPFLAGS\) .* -o \$\(@:\.o=\.i\) \$<$/m);

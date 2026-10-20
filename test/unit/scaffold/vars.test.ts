@@ -65,7 +65,7 @@ test('the committed MANIFEST.json decodes and lists every scaffold file of archi
     const compiler = BUILD_COMPILERS[id];
     const entry = files.find((f) => f.target === `mk/${id}.mk`);
     assert.ok(compiler !== undefined && entry !== undefined, `mk/${id}.mk`);
-    assert.equal(`templates/${entry.source ?? ''}`, compiler.rule, `mk/${id}.mk comes from the compiler's rule template`);
+    assert.equal(entry.source, `compilers/${id}.mk`, `mk/${id}.mk comes from the compiler's fragment template`);
   }
   for (const target of targets) {
     assert.ok(!underGeneratedRoot(target), `${target} lies under a generated root`);
