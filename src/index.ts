@@ -12,3 +12,8 @@ export * from './api/emit.ts';
 export * from './api/verify.ts';
 export * from './api/write-plan.ts';
 export * from './api/workflow-generate.ts';
+export * from './api/one-shot-types.ts';
+export * from './api/config.ts';
+export * from './api/scaffold.ts';
+export * from './api/reconcile.ts';
+export * from './api/workflow-one-shot.ts';

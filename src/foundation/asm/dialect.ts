@@ -79,3 +79,50 @@ export const DIALECT: Dialect = {
   macrosInc: MACROS_INC,
   asArgs: ['-mcpu=arm7tdmi'],
 };
+
+// ---------------------------------------------------------------------------------------------------
+// C stubs (architecture §6.3 `c-stub`, §6.6, D74): what every generated `src/<module>.c` holds before its
+// functions are decompiled, and the header that makes it build. The c-stub writer, the reconciler, the
+// text-layout check and the scaffold's include/include_asm.h all take them from here, so the stub a writer
+// emits and the stub a check reads cannot differ.
+
+/** The directory an `INCLUDE_ASM` statement names for a module: `<NONMATCHINGS_ROOT>/<module>` (core/model/paths.ts nonmatchingDir). */
+export const NONMATCHINGS_ROOT = 'asm/nonmatchings';
+
+/**
+ * The stub of one chunk file in a C module: `INCLUDE_ASM("asm/nonmatchings/<module>", <name>);`, where `name` is
+ * the chunk file's base name without `.s` (core/model/paths.ts chunkPaths: the function's name, or
+ * `<Name>_<ADDR>` for a member of a case-folded group), since the macro includes `<dir>/<name>.s`.
+ */
+export function includeAsmStatement(module: string, name: string): string {
+  return `INCLUDE_ASM("${NONMATCHINGS_ROOT}/${module}", ${name});`;
+}
+
+/** The project path of the header that defines INCLUDE_ASM; `src/<module>.c` includes it through `-I include`. */
+export const INCLUDE_ASM_HEADER_PATH = 'include/include_asm.h';
+
+/** A C string literal's body for `text`: backslashes and double quotes escaped, a newline as `\n`. */
+function cStringBody(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+}
+
+/**
+ * include/include_asm.h. INCLUDE_ASM expands, after the host C preprocessor, to a file-scope `asm` statement
+ * that agbcc copies into its output: `.syntax unified` (the dialect of romlift's `.s` files), the `.include` of
+ * the chunk file, then `.syntax divided` (the dialect agbcc emits its own code in). The header's own file-scope
+ * `asm` includes the macro file once per translation unit, as the preamble of an `asm` module does.
+ */
+export const INCLUDE_ASM_HEADER = [
+  '#ifndef GUARD_INCLUDE_ASM_H',
+  '#define GUARD_INCLUDE_ASM_H',
+  '',
+  `#define INCLUDE_ASM(DIR, NAME) asm(".syntax unified\\n.include \\"" DIR "/" #NAME ".s\\"\\n.syntax divided\\n")`,
+  '',
+  `asm("${cStringBody(`${MACROS_INCLUDE}\n`)}");`,
+  '',
+  '#endif',
+  '',
+].join('\n');
+
+/** The lines every generated `src/<module>.c` starts with; its INCLUDE_ASM statements follow, one per line. */
+export const C_STUB_HEADER = `#include "${INCLUDE_ASM_HEADER_PATH.slice('include/'.length)}"\n\n`;
