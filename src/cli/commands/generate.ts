@@ -20,8 +20,7 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CliIo, CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { opCounts, printDiagnosticsOnly, refusedExitCode, writeLines } from './analysis-records.ts';
-import { verifyExitCode } from './verify.ts';
+import { opCounts, printDiagnosticsOnly, refusedExitCode, verifyExitCode, writeLines } from './command-common.ts';
 
 /** The `{"type":"op","op","path"}` line of one op (g4.generate-idempotent). */
 export function opLine(op: WriteOp): string {
@@ -89,7 +88,7 @@ export const generateCommand: CommandSpec = {
     }
     const out = args.options['out'];
     const dir = out === undefined ? project.dir : resolveFrom(io.cwd, out);
-    const written = await writeTree(dir, { result, rom: project.inputs.rom, ...(dir === project.dir ? { inProject: true } : { outTree: true }) }, version.value, dryRun);
+    const written = await writeTree(dir, { result, rom: project.inputs.rom, target: dir === project.dir ? 'project' : 'out' }, version.value, dryRun);
     const ops: readonly WriteOp[] = written.ok ? written.value.plan.ops : [];
     const diagnostics: readonly Diagnostic[] = [...checked, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
     const exitCode = writeExitCode(diagnostics);

@@ -59,10 +59,10 @@ function projectEntry(name: string): boolean {
 
 /**
  * Whether the directory may receive `init <rom>`: it is absent or empty, it holds only the given ROM plus `.git` and
- * dot-files, or it is a romlift project (`project`: init then checks replacedProblems); anything else is
- * E_DIR_NOT_EMPTY, naming up to five of the entries it holds.
+ * dot-files, or it is a romlift project (whose own files init's write then checks under the lock, replacedProblems);
+ * anything else is E_DIR_NOT_EMPTY, naming up to five of the entries it holds.
  */
-export function initDirVerdict(listing: InitDirListing): { readonly ok: true; readonly project: boolean } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+export function initDirVerdict(listing: InitDirListing): { readonly ok: true } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const { dir } = listing;
   if (listing.state === 'not-directory') return { ok: false, diagnostics: [diagnostic(WorkflowCodes, 'E_DIR_NOT_EMPTY', `${dir} is a file, not a directory`, { path: dir })] };
   const project = listing.names.some(projectEntry);
@@ -72,7 +72,7 @@ export function initDirVerdict(listing: InitDirListing): { readonly ok: true; re
     const message = `${dir} is not empty and is not a romlift project: it holds ${shown}; run init in an empty directory, or one that holds only the ROM`;
     return { ok: false, diagnostics: [diagnostic(WorkflowCodes, 'E_DIR_NOT_EMPTY', message, { path: dir })] };
   }
-  return { ok: true, project };
+  return { ok: true };
 }
 
 /**

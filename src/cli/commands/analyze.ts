@@ -33,7 +33,7 @@ import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
 import { columnLines, formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError, writeLines } from './analysis-records.ts';
+import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError, writeLines } from './command-common.ts';
 
 // The analyze output.
 

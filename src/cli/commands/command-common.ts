@@ -1,10 +1,12 @@
-// What the commands share: exit codes from diagnostics (and a refusal's, which tells a self-check from an input
-// error), usage errors raised after parsing, the JSON shapes of spans and provenance, the op counts of a write, and
-// printing a failure that came before any analysis. One module, so no command imports another's helpers (D77 j).
+// What the commands share: exit codes from diagnostics (a refusal's and a checked run's, which tell a self-check from an
+// input error), usage errors raised after parsing, the JSON shapes of spans and provenance, the op counts of a write,
+// printing a failure that came before any analysis, and batched NDJSON output. One module, so no command imports
+// another's helpers (D77 j; fix round 3 moved verifyExitCode here and named the module for what it holds, D78 f).
 import type { Provenance } from '../../api/profile.ts';
 import { hexAddr } from '../../api/rom.ts';
 import type { Diagnostic, Span } from '../../api/rom.ts';
 import { VerifyCodes } from '../../api/verify.ts';
+import type { VerifyReport } from '../../api/verify.ts';
 import type { WriteOp } from '../../api/write-plan.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
@@ -23,6 +25,17 @@ export const VERIFY_CODES: ReadonlySet<string> = new Set(Object.keys(VerifyCodes
  */
 export function refusedExitCode(diagnostics: readonly Diagnostic[]): ExitCode {
   return diagnostics.some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code)) ? ExitCode.errors : ExitCode.verifyFailed;
+}
+
+/**
+ * The exit code of a checked run (`verify`, and `generate`'s check pass): 1 when an error diagnostic is not a
+ * self-check's (the input, the model or the toolchain is wrong), else 3 when a check failed, else 0 (architecture
+ * §2.1, D33). The diagnostics are the run's and each check's.
+ */
+export function verifyExitCode(outcome: { readonly report: VerifyReport; readonly diagnostics: readonly Diagnostic[] }): ExitCode {
+  const all = [...outcome.diagnostics, ...outcome.report.checks.flatMap((c) => c.diagnostics)];
+  if (all.some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))) return ExitCode.errors;
+  return outcome.report.ok ? ExitCode.ok : ExitCode.verifyFailed;
 }
 
 /** The counts of a write: ops by kind. */

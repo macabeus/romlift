@@ -14,7 +14,7 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CommandSpec } from '../registry.ts';
 import { recordLine, summaryLine } from '../reporters/ndjson.ts';
 import { formatSummaryText } from '../reporters/text.ts';
-import { printDiagnosticsOnly, usageError, writeLines } from './analysis-records.ts';
+import { printDiagnosticsOnly, usageError, writeLines } from './command-common.ts';
 
 /** The counts of a drift report: files by status. */
 export function driftCounts(drift: readonly ScaffoldDrift[]): Readonly<Record<string, number>> {

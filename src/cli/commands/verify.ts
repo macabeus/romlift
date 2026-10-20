@@ -31,7 +31,7 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CliIo, CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, refusedExitCode, usageError, VERIFY_CODES } from './analysis-records.ts';
+import { exitCodeOf, printDiagnosticsOnly, refusedExitCode, usageError, verifyExitCode } from './command-common.ts';
 
 const PRINTERS: readonly Printer[] = ['readable', 'raw'];
 /** Where the tree of --assemble and --link is written: under os.tmpdir(), never the working directory. */
@@ -59,15 +59,6 @@ function notRun(id: CheckId, detail: string, diagnostics: readonly Diagnostic[] 
 /** Every diagnostic of an outcome: the analysis and model ones, then each check's, in report order. */
 function allDiagnostics(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): readonly Diagnostic[] {
   return [...outcome.diagnostics, ...outcome.report.checks.flatMap((c) => c.diagnostics)];
-}
-
-/**
- * 1 when an error diagnostic is not a self-check's (the input, the model or the toolchain is wrong), else 3 when
- * a check failed, else 0 (architecture §2.1, D33).
- */
-export function verifyExitCode(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): ExitCode {
-  if (allDiagnostics(outcome).some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))) return ExitCode.errors;
-  return outcome.report.ok ? ExitCode.ok : ExitCode.verifyFailed;
 }
 
 /** The toolchain checks a run asks for, in CHECK_IDS order. */

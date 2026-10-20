@@ -71,9 +71,9 @@ async function judged(dir: string, rom: string): Promise<{ readonly listing: Ini
 test("init's directory: absent, empty, or the ROM with .git and dot-files is accepted; another file is E_DIR_NOT_EMPTY", async () => {
   const absent = await judged(path.join(TMP, 'not-yet'), path.join(TMP, 'x.gba'));
   assert.equal(absent.listing.state, 'absent');
-  assert.ok(absent.verdict.ok && !absent.verdict.project && absent.listing.romInside === undefined);
+  assert.ok(absent.verdict.ok && absent.listing.romInside === undefined);
   const empty = await judged(await dirWith({}), '/elsewhere/rom.gba');
-  assert.ok(empty.verdict.ok && !empty.verdict.project);
+  assert.ok(empty.verdict.ok);
   const romDir = await dirWith({ 'game.gba': 'x', '.DS_Store': '', '.git/HEAD': 'ref' });
   const withRom = await judged(romDir, path.join(romDir, 'game.gba'));
   assert.ok(withRom.verdict.ok);
@@ -91,7 +91,7 @@ test("init's directory: absent, empty, or the ROM with .git and dot-files is acc
 test("init's directory: a romlift project is accepted whatever else it holds", async () => {
   const { dir } = await project();
   const { listing, verdict } = await judged(dir, path.join(dir, 'baserom.gba'));
-  assert.ok(verdict.ok && verdict.project);
+  assert.ok(verdict.ok);
   assert.equal(listing.romInside, 'baserom.gba');
 });
 

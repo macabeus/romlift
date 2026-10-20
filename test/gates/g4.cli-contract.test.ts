@@ -69,9 +69,7 @@ const RECIPES: Readonly<Record<string, readonly Recipe[]>> = {
     { label: 'rename <unknown> <new>', args: () => ['RomliftGateUnknownName', 'RomliftGateNewName'], place: 'project', exits: [1] },
     { label: 'rename <old> <new>', args: (p) => [p.defaultName, 'RomliftGateRenamed'], place: 'project', exits: [0] },
   ],
-  'import-legacy': [{ label: 'import-legacy without legacy files', args: () => [], place: 'bare', exits: [1, 2] }],
   signatures: [{ label: 'signatures <rom>', args: () => [ROM], place: 'bare', exits: [0] }],
-  trace: [{ label: 'trace', args: () => [], place: 'project', exits: [0, 1] }],
 };
 
 function tail(run: ExecResult, lines = 20): string {

@@ -41,26 +41,37 @@ export interface TreeWrite {
 /** A tree write, or why it could not be planned (the snapshot could not be read, the lock is held). */
 export type WriteOutcome = { readonly ok: true; readonly value: TreeWrite } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
+/**
+ * Which directory a tree is written into, which decides how its C files are written:
+ * - 'project': the project whose C files the result reconciled; they are edited in place (reconciled entries, D75 b);
+ * - 'out': `generate --out`'s directory; every C file is a generated file there, rewritten by a later run into it
+ *   (outTreeEntriesOf, D77 d);
+ * - 'fresh': a new tree (init's); the C files are the c-stub writer's scaffold files (generatedEntries).
+ */
+export type TreeTarget = 'project' | 'out' | 'fresh';
+
 /** What a tree write reads: a checked generate result's stream (plus any scaffold entries). */
 export interface TreeSource {
   readonly rom: Rom;
   readonly result: Pick<GenerateResult, 'model' | 'cx' | 'paths' | 'stubs'>;
   /** Entries written beside the stream (init's scaffold). */
   readonly extra?: readonly FileEntry[];
-  /**
-   * The directory is the project whose C files the result reconciled: they are edited in place (reconciled entries,
-   * D75 b). Otherwise (`generate --out`) the directory gets their reconciled texts as generated files, rewritten by
-   * a later run into it (D77 d).
-   */
-  readonly inProject?: boolean;
-  /** The directory is `generate --out`'s: every C file is a generated file there (outTreeEntriesOf, D77 d). */
-  readonly outTree?: boolean;
+  /** Default 'fresh'. */
+  readonly target?: TreeTarget;
 }
 
 function* streamOf(source: TreeSource): Generator<FileEntry> {
-  if (source.inProject === true) yield* projectTreeEntries(source.rom, source.result, (text) => sha1Of(text));
-  else if (source.outTree === true) yield* outTreeEntriesOf(source.rom, source.result);
-  else yield* generatedEntries(source.rom, source.result);
+  switch (source.target ?? 'fresh') {
+    case 'project':
+      yield* projectTreeEntries(source.rom, source.result, (text) => sha1Of(text));
+      break;
+    case 'out':
+      yield* outTreeEntriesOf(source.rom, source.result);
+      break;
+    case 'fresh':
+      yield* generatedEntries(source.rom, source.result);
+      break;
+  }
   yield* source.extra ?? [];
 }
 
@@ -79,7 +90,7 @@ export async function planAndApply(dir: string, source: TreeSource, romlift: str
     state = await readWriteState(dir, paths);
     if (!state.ok) return state;
   }
-  const reconciledTexts = source.inProject === true ? reconciledTextsOf(source.result) : state.value.reconciledTexts;
+  const reconciledTexts = source.target === 'project' ? reconciledTextsOf(source.result) : state.value.reconciledTexts;
   const executables = await readExecutables(dir, (source.extra ?? []).filter((e) => e.ownership === 'scaffold' && e.executable === true).map((e) => e.path));
   const plan = planWrites(projectPlanInputs(streamOf(source), { ...state.value, reconciledTexts, executables }, (text) => sha1Of(text), romlift, retainedPrefixes(source.result.model)));
   const errors = plan.diagnostics.some((d) => d.severity === 'error');
@@ -125,6 +136,14 @@ export interface InitFiles {
   readonly decompYamlText: string;
 }
 
+/** init's own text files and their texts: romlift.toml and decomp.yaml (the one spelling of the set, with the ROM). */
+function initTexts(files: InitFiles): readonly (readonly [string, string])[] {
+  return [
+    [ROMLIFT_CONFIG_FILE, files.tomlText],
+    [DECOMP_YAML_FILE, files.decompYamlText],
+  ];
+}
+
 /**
  * Writes init's own files into `dir`, each only when it is absent (a project init runs in again holds them unchanged,
  * which writeInitProject checked under the lock): the ROM as baserom.gba (copied, the original kept), romlift.toml and
@@ -139,7 +158,7 @@ async function writeInitFiles(dir: string, files: InitFiles): Promise<Diagnostic
       return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot copy ${files.romPath} to ${rom}: ${errorReason(error)}`, { path: SCAFFOLD_ROM_FILE });
     }
   }
-  for (const [path, text] of [[ROMLIFT_CONFIG_FILE, files.tomlText], [DECOMP_YAML_FILE, files.decompYamlText]] as const) {
+  for (const [path, text] of initTexts(files)) {
     if (await exists(join(dir, path))) continue;
     const saved = await saveConfig(dir, text, path);
     if (!saved.ok) return saved.diagnostic;
@@ -148,27 +167,45 @@ async function writeInitFiles(dir: string, files: InitFiles): Promise<Diagnostic
 }
 
 /**
- * `init`'s write, under the project lock of `dir` (created when absent): first the digests of init's own files on disk,
- * which must be absent or what init writes (`wanted`: project path -> sha1; core/workflow/init.ts replacedProblems
- * decides, E_DIR_NOT_EMPTY), read under the lock so a file changed since the command looked cannot be kept beside a
- * tree made from another config (D77 j); then its own files (writeInitFiles), then the tree and the scaffold
- * (planAndApply with `source.extra` the scaffold; setup.sh is written executable).
+ * `init`'s write: a tree write, or a failure, `refused` when init's directory check refused it before anything was
+ * written (one of init's own files differs from what init writes, or its digest could not be read), so the command
+ * prints only that refusal.
  */
-export async function writeInitProject(dir: string, files: InitFiles, source: TreeSource, romlift: string, wanted: ReadonlyMap<string, string> = new Map()): Promise<WriteOutcome> {
+export type InitWriteOutcome = { readonly ok: true; readonly value: TreeWrite } | { readonly ok: false; readonly refused: boolean; readonly diagnostics: readonly Diagnostic[] };
+
+/** What init's own files must be on disk (absent or these digests): its two texts (initTexts) and baserom.gba. */
+function initDigests(files: InitFiles, rom: Rom): ReadonlyMap<string, string> {
+  return new Map([...initTexts(files).map(([path, text]) => [path, sha1Of(text)] as const), [SCAFFOLD_ROM_FILE, rom.sha1]]);
+}
+
+/**
+ * `init`'s write, under the project lock of `dir` (created when absent): first the digests of init's own files on disk,
+ * which must be absent or what init writes (initDigests, from `files` and the ROM; core/workflow/init.ts
+ * replacedProblems decides, E_DIR_NOT_EMPTY), read under the lock so a file changed since the command looked cannot
+ * be kept beside a tree made from another config (D77 j; computed here since fix round 3, so the check cannot be
+ * skipped, D78 f); then its own files (writeInitFiles, the same set), then the tree and the scaffold (planAndApply
+ * with `source.extra` the scaffold; setup.sh is written executable).
+ */
+export async function writeInitProject(dir: string, files: InitFiles, source: TreeSource, romlift: string): Promise<InitWriteOutcome> {
   try {
     await mkdir(dir, { recursive: true });
   } catch (error) {
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${dir}: ${errorReason(error)}`, { path: dir })] };
+    return { ok: false, refused: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${dir}: ${errorReason(error)}`, { path: dir })] };
   }
-  return underProjectLock(dir, async () => {
+  const wanted = initDigests(files, source.rom);
+  let refused = false;
+  const outcome = await underProjectLock(dir, async () => {
     const current = await readDigests(dir, wanted.keys());
-    if (!current.ok) return current;
-    const replaced = replacedProblems(dir, wanted, current.value);
-    if (replaced.length > 0) return { ok: false, diagnostics: replaced };
+    const replaced = current.ok ? replacedProblems(dir, wanted, current.value) : current.diagnostics;
+    if (replaced.length > 0) {
+      refused = true;
+      return { ok: false, diagnostics: replaced };
+    }
     const failed = await writeInitFiles(dir, files);
     if (failed !== undefined) return { ok: false, diagnostics: [failed] };
     return planAndApply(dir, source, romlift, false);
   });
+  return outcome.ok ? outcome : { ok: false, refused, diagnostics: outcome.diagnostics };
 }
 
 /** Whether `dir` holds a package-lock.json already (init's lock step is then skipped). */

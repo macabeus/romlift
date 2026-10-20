@@ -29,7 +29,7 @@ test('the families live at phase 3: readability per ROM, memory and the printer 
   assert.deepEqual(liveFamilies(2, 'global'), ['printer']);
 });
 
-test('the readability summary leaves the objdiff score to g5.objdiff, a phase-5 gate (gate-honesty-r0-1, D68 a)', () => {
+test('the readability summary leaves the objdiff score to g5.objdiff, phase 6\'s since D76 g (gate-honesty-r0-1, D68 a)', () => {
   assert.equal(FAMILIES.readability.summary, 'readability shares only increase (objdiff: g5.objdiff, phase 6 since D76 g)');
   assert.equal(FAMILIES.readability.liveFrom, 3);
   for (const [name, spec] of Object.entries(FAMILIES)) assert.doesNotMatch(spec.summary, /objdiff score 0/, name);

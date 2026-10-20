@@ -21,7 +21,7 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, summaryLine } from '../reporters/ndjson.ts';
 import { columns, formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, writeLines } from './analysis-records.ts';
+import { exitCodeOf, printDiagnosticsOnly, writeLines } from './command-common.ts';
 
 /** The summary of a model run: the exit code and the model's counts. */
 function modelSummary(model: Model, exitCode: ExitCode): RunSummary {

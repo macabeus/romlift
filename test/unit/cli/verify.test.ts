@@ -11,7 +11,8 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { toolchainChecks, verifyExitCode, verifyNdjson, verifyText, VERIFY_TEMP_PREFIX } from '../../../src/cli/commands/verify.ts';
+import { verifyExitCode } from '../../../src/cli/commands/command-common.ts';
+import { toolchainChecks, verifyNdjson, verifyText, VERIFY_TEMP_PREFIX } from '../../../src/cli/commands/verify.ts';
 import type { VerifyOutcome } from '../../../src/cli/commands/verify.ts';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';

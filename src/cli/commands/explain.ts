@@ -27,7 +27,7 @@ import type { CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError } from './analysis-records.ts';
+import { exitCodeOf, printDiagnosticsOnly, provenanceJson, spanJson, usageError } from './command-common.ts';
 
 /** The address argument: '0x' and one to eight hex digits, or a decimal number; undefined otherwise. */
 export function parseAddrArg(text: string): Addr | undefined {

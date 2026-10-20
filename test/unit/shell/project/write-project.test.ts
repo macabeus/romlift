@@ -1,7 +1,8 @@
 // Writing a project (shell/project/write-project.ts) on temporary directories: init's write (the ROM copied, the TOML
 // and decomp.yaml saved, the tree and the scaffold applied, setup.sh executable), a second tree write that changes
 // nothing and so applies nothing (the manifest keeps its modification time), a dry run that touches nothing, and an
-// existing romlift.toml that init's write never replaces, and, under the lock, refuses when one differs from init's.
+// existing romlift.toml that differs from init's, which init's write never replaces and, under the lock, refuses (the
+// check is the write's own since fix round 3: it cannot be skipped, D78 f).
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -9,7 +10,6 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 
 import { init } from '../../../../src/core/workflow/init.ts';
-import { sha1Of } from '../../../../src/shell/hash.ts';
 import { readScaffoldInputs } from '../../../../src/shell/project/read-inputs.ts';
 import { writeInitProject, writeTree } from '../../../../src/shell/project/write-project.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../../helpers/fixtures.ts';
@@ -46,28 +46,18 @@ test("init's write, then a tree write that changes nothing and applies nothing, 
   await assert.rejects(stat(path.join(dir, 'symbols.ld')));
 });
 
-test("init's write never replaces a romlift.toml that is there", async () => {
-  const dir = path.join(TMP, 'b');
-  const files = { romPath: FIXTURE.rom, tomlText: P.tomlText, decompYamlText: P.decompYamlText };
-  await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
-  await writeFile(path.join(dir, 'romlift.toml'), '# mine\n');
-  const written = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
-  assert.ok(written.ok);
-  assert.equal(await readFile(path.join(dir, 'romlift.toml'), 'utf8'), '# mine\n');
-});
-
 test("init's write checks its own files under the lock: a romlift.toml that differs from init's refuses the write (E_DIR_NOT_EMPTY)", async () => {
   const dir = path.join(TMP, 'c');
   const files = { romPath: FIXTURE.rom, tomlText: P.tomlText, decompYamlText: P.decompYamlText };
-  const wanted = new Map([['romlift.toml', sha1Of(P.tomlText)], ['decomp.yaml', sha1Of(P.decompYamlText)], ['baserom.gba', ROM.sha1]]);
-  const first = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion, wanted);
+  const first = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
   assert.ok(first.ok && first.value.applied);
-  const again = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion, wanted);
+  const again = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
   assert.ok(again.ok, 'the files init wrote are what it would write: a repeated init is fine');
   await writeFile(path.join(dir, 'romlift.toml'), '# changed after the command looked\n');
   await rm(path.join(dir, 'symbols.ld'));
-  const refused = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion, wanted);
-  assert.ok(!refused.ok);
+  const refused = await writeInitProject(dir, files, { rom: ROM, result: P.result, extra: P.scaffold }, S.romliftVersion);
+  assert.ok(!refused.ok && refused.refused, 'a refusal of the directory check, which the command prints alone');
   assert.deepEqual(refused.diagnostics.map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'romlift.toml']]);
+  assert.equal(await readFile(path.join(dir, 'romlift.toml'), 'utf8'), '# changed after the command looked\n', 'never replaced');
   await assert.rejects(stat(path.join(dir, 'symbols.ld')), 'nothing was written');
 });
