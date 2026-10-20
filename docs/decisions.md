@@ -2839,7 +2839,7 @@ tokenizer, which core/verify may not import; `scaffold --diff`'s command needs t
 (compiler invocation, object paths, modules.mk's variables, the C-data ASSERT) is written by three components and read
 by a fourth. The owner asked for no checkpoints: every owner decision of architecture §12 is built with its documented
 safe default, and every choice below that is not in the owner's words is an owner question in phase-4.md, built with
-its default while it waits (Q1, Q2).
+its default while it waits (Q1 to Q3).
 
 **Decision.** Phase 4 runs as eleven components in three waves on the branch `phase-4`, each on its own flat branch
 `phase-4-<component>` and worktree (D56 h; roadmap.md, "Phase 4", "As executed (D74)"):
@@ -2952,8 +2952,9 @@ its default while it waits (Q1, Q2).
   interfaces; no assertion changed, and every g4 gate stays `pending` until `init` is exported (wave 3).
 - (k) **Owner questions** (phase-4.md): Q1, the scope of Q5 c (only `[functions]` entries with a `from` key are
   validated in the confirm run; a hand-added entry without `from` no longer warns), default (a), accept; Q2,
-  correctness-r0-1 (sa2's `g2.speed` headroom), default (a), no change to the gate or `speed.json`. The phase does not land
-  until both are answered. Q5 a (the alignment refusal, D65 a) stays a recorded release-1 limitation by the owner's
+  correctness-r0-1 (sa2's `g2.speed` headroom), default (a), no change to the gate or `speed.json`; Q3, correctness-r0-2's
+  `env -S` launcher requirement as a known limitation (the phase-3 review's words, not the owner's), default (a), record
+  it with the launcher test. The phase does not land until all three are answered. Q5 a (the alignment refusal, D65 a) stays a recorded release-1 limitation by the owner's
   answer (D68 e).
 
 **Consequences.** Every wave-2 and wave-3 component codes against frozen types, paths and texts, and owns files no other

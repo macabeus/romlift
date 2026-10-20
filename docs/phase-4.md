@@ -121,7 +121,9 @@ against the baseline's 196.62 ms, ratio 1.090. Each ROM's analysis CPU time agai
 
 One run, not a controlled measurement: it shared the machine with this worktree's `npm run lint` (during sa2 and sa3)
 and `npm test` (from sa3's `generate` timing on), and with the two other wave-1 components' work in their own
-worktrees throughout. The phase-3 records at
+worktrees throughout. Three later `gates --require 3 --tier real` runs in this worktree on `p4-lead`'s
+commits (no analysis change from `e915c82`; the machine as busy as above) measured sa2 in `g2.speed` at 741 of 797 ms
+(93.0%, ratio 0.978), 802 of 821 ms (97.7%, ratio 1.007) and 755 of 853 ms (88.5%, ratio 1.046), all passing. The phase-3 records at
 `main`: 725 of 798 ms (90.9%) at the passing landing run, 787.3 of 786.8 ms at the failed one, and 731.0 to 854.8 ms
 against 811.1 to 837.6 ms in the review's five runs (phase-3.md).
 
@@ -166,6 +168,13 @@ Default while unanswered: (a).
 ### Wave 1 (`p4-lead`)
 
 - `npm run bench -- speed` at `e915c82`: Q2's table.
+- The gates at `de5c7a8` (wave 1 of `p4-lead`), in its worktree, with the PoC dumps of the main checkout's
+  `bench/.local/poc` copied in (gitignored): `npm run bench -- run --scaffold` exit 0, then `gates --require 3 --tier
+  real` exit 0 (every phase-1 to phase-3 real gate passes or is historical; `g5.objdiff` fails as recorded since D68 a,
+  not required), then `gates --require 3 --tier ci` exit 0: 26 pass, every g4 gate `pending` (`init` not exported), the
+  g5 and g6 ones `pending`. `bench/results.json` was restored afterwards (never committed by a component). Without a
+  regenerated artifact `g1.provenance` fails on the source digest, as on every branch that changes `src/`; without the
+  PoC dumps `g1.bench-harness`, `g2.baseline-rows`, `g2.entries` and `g2.extents` fail on tmc's missing PoC reference.
 - The frozen C stub builds with both compilers (a smoke test, not a gate; `p4-c-modules` measures and encodes the unit's
   layout, D74 f): a `src/main.c` of `C_STUB_HEADER` and two `includeAsmStatement` lines, with `include/include_asm.h`
   = `INCLUDE_ASM_HEADER`, preprocessed by the host `cc -E -x c -nostdinc -undef -I include` (Apple clang) and compiled
