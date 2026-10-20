@@ -27,6 +27,8 @@ import type { CompilerProfile } from '../profile/types.ts';
 import type { Proposal } from '../proposals/types.ts';
 import { discover, profileOrDefault } from './discover.ts';
 import { confirmOptions, projectRomProblems } from './generate.ts';
+import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { WorkflowCodes } from './codes.ts';
 import type { AnalyzeUpdateInputs, AnalyzeUpdatePlan } from './types.ts';
 
 /** The report a listed entry that fails validity gets. */
@@ -91,4 +93,14 @@ export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
   const patch = planPatch(inputs.configText, config, found.proposals);
   if (!patch.ok) return { ok: false, diagnostics: [...reports, ...patch.diagnostics] };
   return { ok: true, proposals: found.proposals, text: patch.text, changed: patch.text !== inputs.configText, diagnostics: [...reports, ...patch.diagnostics] };
+}
+
+/**
+ * E_STALE_CONFIG when the config on disk (`now`, read under the project lock just before the save) is not the text the
+ * plan was made from (`read`): a user edit, or another `--write`, landed while the analyses ran, and saving the patch
+ * would silently undo it. Empty when they are equal.
+ */
+export function staleConfigProblems(path: string, read: string, now: string): readonly Diagnostic[] {
+  if (read === now) return [];
+  return [diagnostic(WorkflowCodes, 'E_STALE_CONFIG', `${path} changed on disk since analyze --update read it; nothing was saved: run analyze --update --write again`, { path })];
 }

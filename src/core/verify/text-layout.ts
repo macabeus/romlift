@@ -1,6 +1,6 @@
 // The text-layout self-check (architecture §6.4, §6.7, D49): every file the emission stream produces is
-// read back and must rebuild exactly what the model says it holds, without a toolchain. checkEntry checks
-// ONE FileEntry under an index of the model built once per pass (textLayoutIndex), so the check pass streams
+// read back and must rebuild exactly what the model says it holds, without a toolchain. Each FileEntry is checked
+// alone under an index of the model built once per pass (indexData, internal to this file), so the check pass streams
 // the emission and keeps no tree (§9.4); checkEntries folds a whole stream into the 'text-layout' and 'paths'
 // results.
 //
@@ -84,16 +84,7 @@ type Target =
   | { readonly kind: 'ldscript' }
   | { readonly kind: 'symbols' };
 
-/**
- * What each path of the model holds, indexed once per check pass: build it with textLayoutIndex(model) and pass it
- * to every checkEntry of the pass. An opaque handle (architecture-r2-1, D66 d reopened in phase 4): plain frozen
- * data with no members a caller reads; the index itself stays in this file (INDEXES).
- */
-export interface TextLayoutIndex {
-  readonly kind: 'text-layout-index';
-}
-
-/** The index behind a TextLayoutIndex handle. */
+/** What each path of the model holds, indexed once per check pass (indexData) and dropped with it; never exported. */
 interface IndexData {
   readonly targets: ReadonlyMap<string, Target>;
   /** chunkPathsOf(model), aligned with model.chunks: the writers' own. */
@@ -123,24 +114,7 @@ function definable(model: Model, relocated: readonly Module[], label: Label): bo
   return i >= 0 && (model.items.start[i] === load || model.items.kind[i] === ItemKind.data);
 }
 
-/** Each handle's index; a handle and its index go together once the pass drops the handle. */
-const INDEXES = new WeakMap<TextLayoutIndex, IndexData>();
-
-/** The index a handle stands for; a handle textLayoutIndex did not make is a caller's bug. */
-function indexOf(handle: TextLayoutIndex): IndexData {
-  const data = INDEXES.get(handle);
-  if (data === undefined) throw new RomliftInvariantError('text-layout: an index handle textLayoutIndex did not make');
-  return data;
-}
-
-/** The index of `model` one check pass shares (TextLayoutIndex); O(model), so built once per pass, never per entry. */
-export function textLayoutIndex(model: Model): TextLayoutIndex {
-  const handle: TextLayoutIndex = Object.freeze({ kind: 'text-layout-index' });
-  INDEXES.set(handle, indexData(model));
-  return handle;
-}
-
-/** What textLayoutIndex indexes: every path the stream must hold, its target, and the labels files may name. */
+/** The pass's index: every path the stream must hold, its target, and the labels files may name. */
 function indexData(model: Model): IndexData {
   const paths = chunkPathsOf(model);
   const targets = new Map<string, Target>([
@@ -484,13 +458,14 @@ function checkOne(rom: Rom, model: Model, index: IndexData, entry: FileEntry): E
   return { diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY), unit: { module: target.module, sectionAlign: file.sectionAlign } };
 }
 
+
 /**
- * The text-layout check of one entry of the emission stream, under the pass's `index` (textLayoutIndex(model),
- * built once for every entry of the pass); [] when it is not this check's or it passes. The unit-level part
- * (each unit's section alignment) and the paths the stream lacks need the whole stream: checkEntries.
+ * The text-layout check of ONE entry against `model`, with an index built for it alone: O(model) per call, so for
+ * tests and single files, never for a stream (checkEntries indexes once per pass). [] when it is not this check's or
+ * it passes. Not part of romlift's public API.
  */
-export function checkEntry(rom: Rom, model: Model, index: TextLayoutIndex, entry: FileEntry): readonly Diagnostic[] {
-  return checkOne(rom, model, indexOf(index), entry).diagnostics;
+export function checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[] {
+  return checkOne(rom, model, indexData(model), entry).diagnostics;
 }
 
 /**
@@ -524,7 +499,7 @@ export function textLayoutResult(diagnostics: readonly Diagnostic[], files: numb
 }
 
 /**
- * The text-layout and paths checks of a whole stream, in one pass that keeps only the paths: checkEntry on
+ * The text-layout and paths checks of a whole stream, in one pass that keeps only the paths: each entry checked on
  * each entry, then every path the model needs that the stream lacked (E_SELF_CHECK_TEXT), then checkPaths.
  */
 export function checkEntries(rom: Rom, model: Model, entries: Iterable<FileEntry>): VerifyReport {

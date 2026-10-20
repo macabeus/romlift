@@ -12,7 +12,7 @@ import { WRITERS } from '../../../src/core/emit/writers/index.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import type { Model } from '../../../src/core/model/types.ts';
-import { checkEntries, checkEntry, MAX_PER_ENTRY, textLayoutIndex, textLayoutResult } from '../../../src/core/verify/text-layout.ts';
+import { checkEntries, checkEntry, MAX_PER_ENTRY, textLayoutResult } from '../../../src/core/verify/text-layout.ts';
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
 import type { Diagnostic } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
@@ -39,18 +39,18 @@ function textOf(path: string, entries: readonly FileEntry[] = written(rom, model
 
 /** checkEntry on `path` with `text`, as [code, path, addr, line] rows. */
 function check(path: string, text: string, m: Model = model, r: Rom = rom): readonly (readonly [string, string | undefined, number | undefined, number])[] {
-  return checkEntry(r, m, textLayoutIndex(m), entry(path, text)).map((d: Diagnostic) => [d.code, d.path, d.addr, Number(/ line (\d+):/.exec(d.message)?.[1] ?? -1)] as const);
+  return checkEntry(r, m, entry(path, text)).map((d: Diagnostic) => [d.code, d.path, d.addr, Number(/ line (\d+):/.exec(d.message)?.[1] ?? -1)] as const);
 }
 
 function messages(path: string, text: string, m: Model = model): string {
-  return checkEntry(rom, m, textLayoutIndex(m), entry(path, text))
+  return checkEntry(rom, m, entry(path, text))
     .map((d) => d.message)
     .join('\n');
 }
 
 test('every file of the consistent fixture lays out to its ROM range, and the paths are distinct', () => {
   const entries = [...fixtureEntries(), ...written(rom, model)];
-  for (const e of entries) assert.deepEqual(checkEntry(rom, model, textLayoutIndex(model), e), [], e.path);
+  for (const e of entries) assert.deepEqual(checkEntry(rom, model, e), [], e.path);
   const report = checkEntries(rom, model, entries);
   assert.equal(report.ok, true);
   assert.deepEqual(
@@ -86,7 +86,7 @@ test('the pool after `.align 2, 0`: the alignment must be the padding item, and 
     labels: [label('F', 0x0800_0100)],
   });
   const text = `.thumb\n\tthumb_func_start F\nF:\n\tbx lr\n\t.align 2, 0\n\t.incbin "baserom.gba", 0x104, 0x2FC\n`;
-  const found = checkEntry(r, m, textLayoutIndex(m), entry('asm/nonmatchings/main/F.s', text));
+  const found = checkEntry(r, m, entry('asm/nonmatchings/main/F.s', text));
   assert.equal(found.length, 1);
   assert.equal(found[0]?.addr, 0x0800_0102);
   assert.match(found[0]?.message ?? '', /line 5: the alignment emits 2 bytes, but no padding item starts there/);
@@ -147,9 +147,9 @@ test('a flipped byte of a data file, the header and crt0 is found with its line'
 
 test('paths no chunk or module has: an error for a phase-3 writer, nothing for other writers and ownerships', () => {
   assert.match(messages('asm/nonmatchings/main/Ghost.s', '.thumb\n'), /the function writer emits a file no chunk or module of the model has/);
-  assert.deepEqual(checkEntry(rom, model, textLayoutIndex(model), entry('objdiff.json', '{}', 'objdiff')), []);
-  assert.deepEqual(checkEntry(rom, model, textLayoutIndex(model), { ownership: 'scaffold', path: 'Makefile', text: 'all:\n', writer: 'scaffold' }), []);
-  assert.deepEqual(checkEntry(rom, model, textLayoutIndex(model), { ownership: 'reconciled', path: 'src/main.c', baseSha1: 'x', edits: [] }), []);
+  assert.deepEqual(checkEntry(rom, model, entry('objdiff.json', '{}', 'objdiff')), []);
+  assert.deepEqual(checkEntry(rom, model, { ownership: 'scaffold', path: 'Makefile', text: 'all:\n', writer: 'scaffold' }), []);
+  assert.deepEqual(checkEntry(rom, model, { ownership: 'reconciled', path: 'src/main.c', baseSha1: 'x', edits: [] }), []);
 });
 
 test('ldscript.txt: every build unit once in ROM order, INCLUDE symbols.ld when it defines a symbol', () => {
@@ -175,11 +175,11 @@ test('ldscript.txt: a runs_at unit opens its own section at its run address, loa
   });
   const text = textOf('ldscript.txt', written(r, m));
   assert.deepEqual(check('ldscript.txt', text, m, r), []);
-  assert.match(checkEntry(r, m, textLayoutIndex(m), entry('ldscript.txt', text.replace('.ram 0x03000000', '.ram 0x03000004'))).map((d) => d.message).join(), /runs from 0x03000000 and must open its own section/);
-  assert.match(checkEntry(r, m, textLayoutIndex(m), entry('ldscript.txt', text.replace(/ *__load_ram = LOADADDR\(\.ram\);\n/, ''))).map((d) => d.message).join(), /no `__load_ram = LOADADDR\(\.ram\);`/);
-  assert.match(checkEntry(r, m, textLayoutIndex(m), entry('ldscript.txt', text.replace('.text.tail 0x08000110 : AT(0x08000110)', '.text.tail 0x08000114 : AT(0x08000114)'))).map((d) => d.message).join(), /but build\/tail\.o loads at 0x08000110/);
+  assert.match(checkEntry(r, m, entry('ldscript.txt', text.replace('.ram 0x03000000', '.ram 0x03000004'))).map((d) => d.message).join(), /runs from 0x03000000 and must open its own section/);
+  assert.match(checkEntry(r, m, entry('ldscript.txt', text.replace(/ *__load_ram = LOADADDR\(\.ram\);\n/, ''))).map((d) => d.message).join(), /no `__load_ram = LOADADDR\(\.ram\);`/);
+  assert.match(checkEntry(r, m, entry('ldscript.txt', text.replace('.text.tail 0x08000110 : AT(0x08000110)', '.text.tail 0x08000114 : AT(0x08000114)'))).map((d) => d.message).join(), /but build\/tail\.o loads at 0x08000110/);
   // The other units of the stream lay out at their run address: ram's file names its own label at 0x03000000.
-  for (const e of written(r, m)) assert.deepEqual(checkEntry(r, m, textLayoutIndex(m), e), [], e.path);
+  for (const e of written(r, m)) assert.deepEqual(checkEntry(r, m, e), [], e.path);
 });
 
 test('symbols.ld: each symbol outside the ROM once, with the model value, and nothing else', () => {
@@ -204,8 +204,8 @@ test('a stream that lacks a file the model needs, or emits one twice, fails the 
 
 test('one entry reports at most MAX_PER_ENTRY problems; the aggregate counts them', () => {
   const junk = Array.from({ length: 40 }, (_, i) => `.bogus${i}`).join('\n');
-  assert.equal(checkEntry(rom, model, textLayoutIndex(model), entry('asm/nonmatchings/main/Func.s', junk)).length, MAX_PER_ENTRY);
-  const result = textLayoutResult(checkEntry(rom, model, textLayoutIndex(model), entry('asm/nonmatchings/main/Func.s', junk)), 1);
+  assert.equal(checkEntry(rom, model, entry('asm/nonmatchings/main/Func.s', junk)).length, MAX_PER_ENTRY);
+  const result = textLayoutResult(checkEntry(rom, model, entry('asm/nonmatchings/main/Func.s', junk)), 1);
   assert.equal(result.ok, false);
   assert.match(result.detail, /\(16 problems in all\)$/);
 });
@@ -222,10 +222,10 @@ test('a function file of a runs_at module lays out at its run address, so its ow
     labels: [label('RamFunc', 0x0300_0000, { scope: 'global' }), label('_03000004', 0x0300_0004, { kind: 'pool', thumb: false })],
   });
   const text = '.thumb\n\tthumb_func_start RamFunc\nRamFunc:\n\tldr r0, _03000004\n\tbx lr\n_03000004: .4byte RamFunc\n\tthumb_func_end RamFunc\n';
-  assert.deepEqual(checkEntry(r, m, textLayoutIndex(m), entry('asm/nonmatchings/ram/RamFunc.s', text)), []);
+  assert.deepEqual(checkEntry(r, m, entry('asm/nonmatchings/ram/RamFunc.s', text)), []);
   // Laid out at its load address, `.4byte RamFunc` would be 0x08000101.
   const atLoad = { ...m, chunks: m.chunks.map(({ runAt: _, ...c }) => c) };
-  const found = checkEntry(r, atLoad, textLayoutIndex(atLoad), entry('asm/nonmatchings/ram/RamFunc.s', text));
+  const found = checkEntry(r, atLoad, entry('asm/nonmatchings/ram/RamFunc.s', text));
   assert.equal(found[0]?.addr, 0x0800_0105);
   assert.match(found[0]?.message ?? '', /line 6: the file lays out 0x01 where the ROM holds 0x00/);
 });
@@ -242,8 +242,8 @@ test('a PC-relative load of a label in another module fails, as `as` refuses it 
   const split = modelOf(r, { modules: [head, { name: 'main', chunks: [func] }, { name: 'main_2', chunks: [orphan] }, tail], labels });
   const joined = modelOf(r, { modules: [head, { name: 'main', chunks: [func, orphan] }, tail], labels });
   const text = '.thumb\n\tthumb_func_start Func\nFunc: @ 08000100\n\tpush {lr}\n\tldr r0, _08000108\n\tpop {pc}\n\t.align 2, 0\n\tthumb_func_end Func\n';
-  assert.deepEqual(checkEntry(r, joined, textLayoutIndex(joined), entry('asm/nonmatchings/main/Func.s', text)), []);
-  const found = checkEntry(r, split, textLayoutIndex(split), entry('asm/nonmatchings/main/Func.s', text));
+  assert.deepEqual(checkEntry(r, joined, entry('asm/nonmatchings/main/Func.s', text)), []);
+  const found = checkEntry(r, split, entry('asm/nonmatchings/main/Func.s', text));
   assert.equal(found[0]?.code, 'E_SELF_CHECK_TEXT');
   assert.equal(found[0]?.addr, 0x0800_0102);
   assert.match(found[0]?.message ?? '', /line 5: `ldr r0, _08000108` reaches `_08000108` PC-relatively in another object, which `as` cannot relocate/);
@@ -254,7 +254,7 @@ test('a name the printers cannot place (a label inside an instruction) is an und
   const inside = { ...model, labels: [...model.labels, label('FuncPlus1', 0x0800_0101, { kind: 'data', thumb: false, scope: 'global' })] };
   const dataText = textOf('data/data.s').replace('.4byte Func', '.4byte FuncPlus1');
   assert.match(
-    checkEntry(rom, inside, textLayoutIndex(inside), entry('data/data.s', dataText, 'data'))
+    checkEntry(rom, inside, entry('data/data.s', dataText, 'data'))
       .map((d) => d.message)
       .join('\n'),
     /undefined symbol `FuncPlus1`/,
@@ -263,7 +263,7 @@ test('a name the printers cannot place (a label inside an instruction) is an und
   const atStart = { ...model, labels: [...model.labels, label('AtPool', 0x0800_0108, { kind: 'data', thumb: false, scope: 'global' })] };
   const poolText = textOf('data/data.s').replace('.4byte Func', '.4byte AtPool');
   assert.doesNotMatch(
-    checkEntry(rom, atStart, textLayoutIndex(atStart), entry('data/data.s', poolText, 'data'))
+    checkEntry(rom, atStart, entry('data/data.s', poolText, 'data'))
       .map((d) => d.message)
       .join('\n'),
     /undefined symbol/,
@@ -282,7 +282,7 @@ function cFixture(): { readonly model: Model; readonly stub: FileEntry; readonly
 /** checkEntry of a C stub text on the C fixture, as [code, addr, line, message] rows. */
 function checkStub(text: string): readonly (readonly [string, number | undefined, number, string])[] {
   const { model: c, stub } = cFixture();
-  const found = checkEntry(rom, c, textLayoutIndex(c), { ...stub, text } as FileEntry);
+  const found = checkEntry(rom, c, { ...stub, text } as FileEntry);
   return found.map((d) => [d.code, d.addr, Number(/ line (\d+):/.exec(d.message)?.[1] ?? -1), d.message] as const);
 }
 
@@ -294,7 +294,7 @@ test('a C unit: the c-stub writer\'s stub lays out as agbcc compiles it, its chu
     'text' in stub ? stub.text : '',
     '#include "include_asm.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", Func);\nINCLUDE_ASM("asm/nonmatchings/main", Veneer);\nINCLUDE_ASM("asm/nonmatchings/main", ArmFunc);\nINCLUDE_ASM("asm/nonmatchings/main", unk_08000114);\n',
   );
-  assert.deepEqual(checkEntry(rom, c, textLayoutIndex(c), stub), []);
+  assert.deepEqual(checkEntry(rom, c, stub), []);
   const report = checkEntries(rom, c, entries);
   assert.deepEqual(report.checks.map((r) => [r.id, r.ok]), [['text-layout', true], ['paths', true]]);
 });
@@ -353,7 +353,7 @@ test('a C module holding a chunk without a file cannot be a stub: E_SELF_CHECK_T
   });
   const [stub] = [...cStubWriter.emit(r, m, CX, 1)];
   assert.ok(stub !== undefined && 'text' in stub);
-  const found = checkEntry(r, m, textLayoutIndex(m), stub);
+  const found = checkEntry(r, m, stub);
   assert.deepEqual(found.map((d) => [d.code, d.addr]), [['E_SELF_CHECK_TEXT', 0x0800_00e0]]);
   assert.match(found[0]?.message ?? '', /the data chunk gTable at 0x080000E0 has no file of its own/);
 });
@@ -379,14 +379,6 @@ test('a C unit asks the alignment of Thumb state and of its chunk files, as an a
   assert.equal(checkEntries(r, whole, [...emitTree(r, whole, CX)]).ok, true);
 });
 
-test('the index is an opaque handle: a handle textLayoutIndex did not make is an invariant error (architecture-r2-1)', () => {
-  const index = textLayoutIndex(model);
-  assert.deepEqual(Object.keys(index), ['kind']);
-  assert.ok(Object.isFrozen(index));
-  const forged = { kind: 'text-layout-index' as const };
-  assert.throws(() => checkEntry(rom, model, forged, entry('asm/main.s', textOf('asm/main.s'))), /an index handle textLayoutIndex did not make/);
-});
-
 test('two definable labels of one static name in two modules: each module resolves its own (architecture-r2-9)', () => {
   // Module `a` holds a table word naming its `sLocal` (0x08000108), module `b` one naming its own (0x08000188); both labels
   // are module-scoped and start a data item, so the index holds two labels under one name.
@@ -396,20 +388,19 @@ test('two definable labels of one static name in two modules: each module resolv
   const b = { name: 'b', kind: 'data' as const, chunks: [{ kind: 'data' as const, name: 'b', items: [{ kind: 'table-entry' as const, start: 0x0800_0180, target: 0x0800_0188, thumbBit: false }, dataItem(0x0800_0184, 4), dataItem(0x0800_0188, 0x78)] }] };
   const labels = [label('sLocal', 0x0800_0108, { kind: 'data', thumb: false }), label('sLocal', 0x0800_0188, { kind: 'data', thumb: false })];
   const m = modelOf(r, { modules: [head, a, b], labels });
-  const index = textLayoutIndex(m);
   const files = written(r, m);
   for (const name of ['a', 'b']) {
     const file = files.find((e) => e.path === `data/${name}.s`);
     assert.ok(file !== undefined && file.ownership === 'generated', name);
     assert.match(file.text, /\.4byte sLocal\b/, name);
-    assert.deepEqual(checkEntry(r, m, index, file), [], name);
+    assert.deepEqual(checkEntry(r, m, file), [], name);
   }
   // Had module b's `.4byte sLocal` resolved to module a's label (the first of the name), it would lay out a's address,
   // which the check finds at b's word: the clean verdicts above rest on each module resolving its own.
   const bText = files.find((e) => e.path === 'data/b.s');
   assert.ok(bText !== undefined && bText.ownership === 'generated');
   const swapped = bText.text.replace(/\.4byte sLocal\b/, '.4byte 0x08000108');
-  assert.equal(checkEntry(r, m, index, entry('data/b.s', swapped, 'data'))[0]?.addr, 0x0800_0180);
+  assert.equal(checkEntry(r, m, entry('data/b.s', swapped, 'data'))[0]?.addr, 0x0800_0180);
 });
 
 test('a folded pad: the function file lays out from the pad, its start macro emitting the padding item; without that alignment it fails', () => {
@@ -429,14 +420,13 @@ test('a folded pad: the function file lays out from the pad, its start macro emi
   assert.equal(entries.some((e) => e.path === 'asm/nonmatchings/main/unk_0800010A.s'), false, 'no orphan file');
   assert.equal(file.text.includes('.align'), false);
   assert.equal(checkEntries(r, m, entries).ok, true);
-  const index = textLayoutIndex(m);
-  assert.deepEqual(checkEntry(r, m, index, file), []);
-  const unaligned = checkEntry(r, m, index, entry(file.path, file.text.replace('thumb_func_start_local B', 'non_word_aligned_thumb_func_start_local B')));
+  assert.deepEqual(checkEntry(r, m, file), []);
+  const unaligned = checkEntry(r, m, entry(file.path, file.text.replace('thumb_func_start_local B', 'non_word_aligned_thumb_func_start_local B')));
   assert.deepEqual(
     unaligned.map((d) => [d.code, d.addr]),
     [['E_SELF_CHECK_TEXT', BASE + 0x10a]],
   );
   // A pad the file emits again after the macro is a second copy of its bytes.
-  const twice = checkEntry(r, m, index, entry(file.path, file.text.replace('B: @ 0800010C', '\t.2byte 0\nB: @ 0800010C')));
+  const twice = checkEntry(r, m, entry(file.path, file.text.replace('B: @ 0800010C', '\t.2byte 0\nB: @ 0800010C')));
   assert.equal(twice[0]?.code, 'E_SELF_CHECK_TEXT');
 });

@@ -3071,6 +3071,17 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   `foundation/asm/c-data-assert.ts`, which the ldscript writer and the ldscript check both import; `moduleCompile`
   throws `RomliftInvariantError` for a compiler the schema would have refused instead of inventing a path.
 
+- (m) **`analyze --update --write` saves only over the text it read** (architecture-12). Under the project lock, the
+  command reads romlift.toml again and `staleConfigProblems` (core/workflow/analyze-update.ts) compares it with the
+  text the patch was planned from; a difference (a user edit or another `--write` during the analyses) is
+  `E_STALE_CONFIG` (core/workflow/codes.ts) and nothing is saved, as a reconciled file's stale edit is `E_STALE_EDIT`.
+
+- (n) **No index handle in the public API** (architecture-14, the carried architecture-r2-1). Phase 4 turned
+  `TextLayoutIndex` into an opaque handle backed by a module-level `WeakMap`, hidden mutable state in pure core whose
+  cloned handle threw. The handle, its registry and `textLayoutIndex` are gone: the index is built and dropped inside
+  `checkEntries`, romlift's one public entry of the text-layout check; `checkEntry(rom, model, entry)`, which builds an
+  index for one entry, stays in `core/verify/text-layout.ts` for tests and is not exported from `romlift`.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

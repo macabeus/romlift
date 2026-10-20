@@ -20,12 +20,12 @@ import type { Rejection } from '../../api/profile.ts';
 import type { Diagnostic } from '../../api/rom.ts';
 import { hexAddr } from '../../api/rom.ts';
 import type { Proposal } from '../../api/config-types.ts';
-import { analyzeUpdate } from '../../core/workflow/analyze-update.ts';
+import { analyzeUpdate, staleConfigProblems } from '../../core/workflow/analyze-update.ts';
 import { unifiedDiff } from '../../api/workflow-one-shot.ts';
 import { disabledTuning, discoverTuned, parseRuleIds } from '../../core/workflow/discover.ts';
 import { saveConfig } from '../../shell/config/save.ts';
 import { withProjectLock } from '../../shell/project/lock.ts';
-import { readProject } from '../../shell/project/read-inputs.ts';
+import { readProject, readProjectTexts } from '../../shell/project/read-inputs.ts';
 import type { CliIo } from '../registry.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
@@ -162,7 +162,12 @@ async function runUpdate(io: CliIo, json: boolean, write: boolean): Promise<Exit
   let diagnostics: readonly Diagnostic[] = plan.diagnostics;
   let written = false;
   if (write && plan.changed) {
-    const saved = await withProjectLock(project.dir, () => saveConfig(project.dir, plan.text, path));
+    // Under the lock: the config on disk must still be the text the plan was made from (D75 m).
+    const saved = await withProjectLock(project.dir, async () => {
+      const now = await readProjectTexts(project.dir, [path]);
+      const problem = now.ok ? staleConfigProblems(path, project.inputs.configText, now.value.get(path) ?? '')[0] : now.diagnostics[0];
+      return problem === undefined ? saveConfig(project.dir, plan.text, path) : ({ ok: false, diagnostic: problem } as const);
+    });
     if (!saved.ok) diagnostics = [...diagnostics, ...saved.diagnostics];
     else {
       diagnostics = [...diagnostics, ...saved.diagnostics];

@@ -1936,7 +1936,7 @@ defined. The codes:
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
 | `W_C_ORDER` | `core/reconcile` |
-| `E_DIR_NOT_EMPTY` | `core/workflow` (`init`'s verdict on its directory, D75 j) |
+| `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG` | `core/workflow` (`init`'s verdict on its directory, D75 j; `analyze --update --write` over a changed config, D75 m) |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |
 | `W_EVIDENCE_CONFLICT` | `core/evidence` |
 | `W_SIGNATURE_CONSTANT` | `core/signatures` |

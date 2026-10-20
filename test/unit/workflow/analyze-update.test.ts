@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import type { Seed } from '../../../src/core/analysis/types.ts';
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import { serializeConfig } from '../../../src/core/config/serialize.ts';
-import { analyzeUpdate, unlistedProposals, updateSeeds } from '../../../src/core/workflow/analyze-update.ts';
+import { analyzeUpdate, staleConfigProblems, unlistedProposals, updateSeeds } from '../../../src/core/workflow/analyze-update.ts';
 import { unifiedDiff } from '../../../src/foundation/util/line-diff.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
@@ -114,4 +114,10 @@ test('unifiedDiff: empty for equal texts, hunks with three lines of context, add
   );
   assert.equal(unifiedDiff('', 'a\n', 'n'), '--- a/n\n+++ b/n\n@@ -0,0 +1,1 @@\n+a\n');
   assert.equal(unifiedDiff('a\n', '', 'n'), '--- a/n\n+++ b/n\n@@ -1,1 +0,0 @@\n-a\n');
+});
+
+test('staleConfigProblems: a config that changed on disk since it was read is E_STALE_CONFIG, so --write saves nothing (architecture-12)', () => {
+  assert.deepEqual(staleConfigProblems('romlift.toml', 'a = 1\n', 'a = 1\n'), []);
+  const stale = staleConfigProblems('romlift.toml', 'a = 1\n', 'a = 1\n# edited meanwhile\n');
+  assert.deepEqual(stale.map((d) => [d.code, d.severity, d.path]), [['E_STALE_CONFIG', 'error', 'romlift.toml']]);
 });

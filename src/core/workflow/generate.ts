@@ -2,7 +2,7 @@
 // a ROM and its config in, a checked emission stream out. The analysis runs in confirm mode with exactly the
 // config's [functions] as `seed.listed` seeds (name, size, label) and its overrides; buildModel turns it into
 // the Model; then the check pass: verifyModel (tiling, re-encode, module size) and ONE streaming pass over
-// emitTree in which every entry is laid out by checkEntry and its path kept for checkPaths, so no tree is
+// emitTree in which every entry is laid out by checkEntries and its path kept for checkPaths, so no tree is
 // held (§9.4). The result is plain data (D19): generatedEntries(rom, result) re-runs the deterministic emission
 // for the write pass (core/write-plan/project-plan.ts plans it); nothing is written here. The config `init` writes
 // for a bare ROM is init-config.ts's (initConfigOf, initModel, generateFromRom). Pure: the shell reads the ROM,
