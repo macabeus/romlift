@@ -27,7 +27,7 @@ function messages(m: Model, text: string): string[] {
 }
 
 const DATA_MAIN = '    .c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }\n';
-const ASSERT_MAIN = '    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (data ranges arrive in phase 5)")\n';
+const ASSERT_MAIN = '    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")\n';
 
 test('the writer\'s script passes, with and without C units', () => {
   for (const m of [model('asm', 'asm'), model('c', 'asm'), model('c', 'c')]) assert.deepEqual(messages(m, ldscriptText(m)), []);
@@ -37,7 +37,7 @@ test('a missing ASSERT, a missing check section, or both for a C unit fail at th
   const m = model('c', 'asm');
   const text = ldscriptText(m);
   assert.deepEqual(messages(m, text.replace(ASSERT_MAIN, '')), [
-    'E_SELF_CHECK_TEXT ldscript.txt line 12: lacks `ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (data ranges arrive in phase 5)")`, which C unit main needs (at 0x080000C0)',
+    'E_SELF_CHECK_TEXT ldscript.txt line 12: lacks `ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")`, which C unit main needs (at 0x080000C0)',
   ]);
   assert.match(messages(m, text.replace(DATA_MAIN, '').replace(ASSERT_MAIN, ''))[0] ?? '', /lacks `\.c_data_main \(NOLOAD\)/);
 });

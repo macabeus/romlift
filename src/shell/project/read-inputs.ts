@@ -10,6 +10,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
@@ -112,9 +113,39 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
   return fromIo(await readReconciledTexts(dir, paths));
 }
 
+/** Whether `path` is a directory; false when it is absent or not one. */
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The project paths of the chunk files under the project's asm/nonmatchings/ (`asm/nonmatchings/<module>/<name>.s`,
+ * one level of module directories), in code-unit order: the tree romlift last generated, which the C
+ * reconciliation reads (D78 a). Empty when there is no such directory.
+ */
+export async function readChunkFiles(dir: string): Promise<ReadResult<readonly string[]>> {
+  const root = join(dir, ...NONMATCHINGS_ROOT.split('/'));
+  if (!(await isDirectory(root))) return { ok: true, value: [] };
+  const modules = await listDir(root);
+  if (!modules.ok) return fromIo(modules);
+  const out: string[] = [];
+  for (const module of modules.value) {
+    if (!(await isDirectory(join(root, module)))) continue;
+    const names = await listDir(join(root, module));
+    if (!names.ok) return fromIo(names);
+    for (const name of names.value) if (name.endsWith('.s')) out.push(`${NONMATCHINGS_ROOT}/${module}/${name}`);
+  }
+  return { ok: true, value: out };
+}
+
 /**
  * The project that holds `from` (a directory): located (decomp.yaml), its config loaded and parsed, its ROM read
- * (the config's `[rom] path` under the project, or `options.rom` resolved from `from`), and its C texts.
+ * (the config's `[rom] path` under the project, or `options.rom` resolved from `from`), and its C texts with the chunk
+ * files on disk (readChunkFiles).
  */
 export async function readProject(from: string, options: ReadProjectOptions = {}): Promise<ReadResult<ReadProject>> {
   const located = await locateProject(from);
@@ -126,15 +157,17 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
   const rom = await readRom(romPath);
   if (!rom.ok) return fromIo(rom);
   let cTexts: ReadonlyMap<string, string> = new Map();
+  let previousChunkFiles: readonly string[] | undefined;
   if (options.withoutC !== true) {
     const read = await readCTexts(dir);
     if (!read.ok) return read;
     cTexts = read.value;
+    const chunks = await readChunkFiles(dir);
+    if (!chunks.ok) return chunks;
+    previousChunkFiles = chunks.value;
   }
-  return {
-    ok: true,
-    value: { dir, config: loaded.value, romPath, inputs: { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, cTexts } },
-  };
+  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }) };
+  return { ok: true, value: { dir, config: loaded.value, romPath, inputs } };
 }
 
 /**

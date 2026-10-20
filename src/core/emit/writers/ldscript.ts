@@ -14,7 +14,7 @@
 //           ...
 //       }
 //       .c_data_<m> (NOLOAD) : { *src/<m>.o(.rodata* .data* .bss* COMMON) }     per C unit, in ROM order (D21, D74 f)
-//       ASSERT(SIZEOF(.c_data_<m>) == 0, "src/<m>.c defines data; see AGENTS.md (data ranges arrive in phase 5)")
+//       ASSERT(SIZEOF(.c_data_<m>) == 0, "src/<m>.c defines data; see AGENTS.md (romlift does not place C data yet)")
 //   }
 //
 // Every byte of the ROM is in exactly one unit and the units follow each other without a gap, so
@@ -22,7 +22,7 @@
 // A section after a runs_at one names its load address because the location counter is then in run space.
 // Asm and data objects hold only .text. A C unit's object (build/src/<m>.o) has only its .text placed; every other
 // section it has goes into its NOLOAD check section, which the ASSERT requires to be empty, so a C file that defines
-// data fails the link with a message naming it until phase 6 gives modules data ranges (D76 g; the ASSERT's own text still says phase 5, carried) (architecture §6.6, D21).
+// data fails the link with a message naming it until phase 6 gives modules data ranges (D76 g; the ASSERT's text names no phase since D78 c) (architecture §6.6, D21).
 // The check sections hold nothing in a linking tree and NOLOAD loads nothing, so the image is the units' .text.
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { ROM_BASE } from '../../../foundation/rom/rom.ts';

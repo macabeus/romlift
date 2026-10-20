@@ -8,9 +8,10 @@
 // directory is written `<Name>_<ADDR>.s` (ADDR: eight upper-case hex digits of its load address), never
 // only the second one. core/verify/paths.ts (E_PATH_CASE_COLLISION) guards the result.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
-import { BASEROM_FILE, chunkFileOf, nonmatchingDir } from '../../foundation/util/project-files.ts';
+import { BASEROM_FILE, chunkFileOf, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
+import { sortedKeys } from '../../foundation/util/sorted.ts';
 import type { Span } from '../../foundation/rom/span.ts';
 import type { Chunk, Model, Module } from './types.ts';
 
@@ -24,9 +25,6 @@ export const MODULES_MK_PATH = 'modules.mk';
 export const BASEROM_PATH = BASEROM_FILE;
 /** The macro file every generated `.s` includes, as the dialect defines it (foundation/asm/dialect.ts DIALECT.macrosPath). */
 export const MACROS_PATH = DIALECT.macrosPath;
-
-/** The directory of a module's function and orphan files, without a trailing '/' (one definition, foundation/util/project-files.ts). */
-export { nonmatchingDir };
 
 /** The object an asm or data module builds to (as from its `.s` source). */
 export function objectPath(module: string): string {
@@ -77,6 +75,39 @@ export function chunkPaths(model: Pick<Model, 'chunks'>): readonly (string | und
     const name = (groupSize.get(keyOf(chunk)) ?? 0) > 1 ? `${chunk.name}_${hex(chunk.span.start)}` : chunk.name;
     return chunkFileOf(nonmatchingDir(chunk.module), name);
   });
+}
+
+/** A case-folded group member's file base name: `<Name>_<ADDR>`, ADDR eight upper-case hex digits (chunkPaths). */
+const GROUP_MEMBER = /^(.+)_[0-9A-F]{8}$/;
+
+/**
+ * The names of the function and orphan chunks a tree's chunk files hold, from their paths alone (chunkPaths'
+ * inverse), unique, in code-unit order: each file's base name, and also `<Name>` for each member of a case-folded
+ * group, a file `<Name>_<ADDR>.s` whose directory holds another such file of a different `<Name>` that folds to the
+ * same text. A function named `sub_<ADDR>` is not mistaken for a group named `sub`, since every such file of a
+ * directory has the same `<Name>`. Files outside the nonmatchings directories are ignored.
+ */
+export function chunkNamesOf(files: Iterable<string>): readonly string[] {
+  const names = new Set<string>();
+  /** Per directory and folded group name, the distinct `<Name>`s of its `<Name>_<ADDR>` files. */
+  const groups = new Map<string, Set<string>>();
+  for (const file of files) {
+    const dir = file.slice(0, Math.max(0, file.lastIndexOf('/')));
+    const base = stubNameOf(file);
+    if (!dir.startsWith(`${NONMATCHINGS_ROOT}/`) || chunkFileOf(dir, base) !== file) continue;
+    names.add(base);
+    const member = GROUP_MEMBER.exec(base)?.[1];
+    if (member === undefined) continue;
+    const key = `${dir}/${folded(member)}`;
+    const group = groups.get(key) ?? new Set<string>();
+    group.add(member);
+    groups.set(key, group);
+  }
+  for (const key of sortedKeys(groups)) {
+    const group = groups.get(key) ?? new Set<string>();
+    if (group.size > 1) for (const name of sortedKeys(group)) names.add(name);
+  }
+  return sortedKeys(names);
 }
 
 const CHUNK_PATHS = new WeakMap<readonly Chunk[], readonly (string | undefined)[]>();

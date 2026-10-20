@@ -30,10 +30,28 @@ export function nonmatchingDir(module: string): string {
   return `${NONMATCHINGS_ROOT}/${module}`;
 }
 
+/** The extension of a chunk file. */
+const CHUNK_FILE_EXTENSION = '.s';
+
 /** The chunk file `INCLUDE_ASM("<dir>", <name>);` includes, and the file a chunk named `name` is written to in `dir`. */
 export function chunkFileOf(dir: string, name: string): string {
-  return `${dir}/${name}.s`;
+  return `${dir}/${name}${CHUNK_FILE_EXTENSION}`;
 }
 
-/** The project path of the header that defines INCLUDE_ASM; `src/<module>.c` includes it through `-I include`. */
-export const INCLUDE_ASM_HEADER_PATH = 'include/include_asm.h';
+/**
+ * chunkFileOf's inverse: the base name an INCLUDE_ASM statement names for chunk file `file` (`<dir>/<name>.s` ->
+ * `<name>`): the file's last path segment without its extension.
+ */
+export function stubNameOf(file: string): string {
+  const base = file.slice(file.lastIndexOf('/') + 1);
+  return base.endsWith(CHUNK_FILE_EXTENSION) ? base.slice(0, -CHUNK_FILE_EXTENSION.length) : base;
+}
+
+/** The include directory of a project: the Makefile's `-I include`, through which `src/<module>.c` finds its header. */
+export const INCLUDE_DIR = 'include';
+
+/** The header that defines INCLUDE_ASM, as `src/<module>.c` includes it (relative to INCLUDE_DIR). */
+export const INCLUDE_ASM_HEADER_NAME = 'include_asm.h';
+
+/** The project path of the header that defines INCLUDE_ASM. */
+export const INCLUDE_ASM_HEADER_PATH = `${INCLUDE_DIR}/${INCLUDE_ASM_HEADER_NAME}`;

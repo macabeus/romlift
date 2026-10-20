@@ -260,3 +260,93 @@ test('--out twice into one directory: the second run rewrites src/main.c with th
   assert.match(main, /INCLUDE_ASM\("asm\/nonmatchings\/main", Poly\);/);
   assert.doesNotMatch(main, new RegExp(`, ${fn}\\);`));
 });
+
+// Fix round 3 (D78 a): the NONMATCHING pattern after a rename, a rename or deletion with a border move, a helper next
+// to a renamed asm-only function, a move of decompiled C, and a case-folded pair.
+
+const stubIn = (module: string, n: string): string => `INCLUDE_ASM("asm/nonmatchings/${module}", ${n});`;
+
+test('a NONMATCHING block after a rename: renaming only its C is E_C_CONDITIONAL_STUB; renaming its #else stub too keeps the default build whole', async () => {
+  const dir = await initProject();
+  const { names, toml, main } = await firstStubs(dir);
+  const fn = names[1] ?? assert.fail(main);
+  const block = (def: string, inner: string): string => `#ifdef NONMATCHING\nvoid ${def}(void) {\n}\n#else\n${stubIn('main', inner)}\n#endif`;
+  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), block(fn, fn)));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'the pattern as written builds');
+  await writeFile(path.join(dir, 'romlift.toml'), renamed(toml, fn, 'Nop'));
+  const errorsOf = (stdout: string): unknown[] => lines(stdout).filter((l) => l['severity'] === 'error').map((l) => l['code']);
+  assert.deepEqual(errorsOf((await run(dir, ['generate', '--json'])).stdout), ['E_C_CONDITIONAL_STUB', 'E_C_STALE_DEFINITION']);
+  // E_C_STALE_DEFINITION's advice followed for the C alone: the #else stub still names the old chunk, and nothing is written.
+  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), block('Nop', fn)));
+  const before = await snapshot(dir);
+  const half = await run(dir, ['generate', '--json']);
+  assert.equal(half.code, ExitCode.errors, half.stdout);
+  assert.deepEqual(errorsOf(half.stdout), ['E_C_CONDITIONAL_STUB']);
+  assert.deepEqual(await snapshot(dir), before, 'nothing written: the #else branch keeps its INCLUDE_ASM');
+  // Both renamed: generate goes through and the default build includes Nop's chunk exactly once, from the #else branch.
+  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), block('Nop', 'Nop')));
+  const done = await run(dir, ['generate', '--json']);
+  assert.equal(done.code, ExitCode.ok, done.stdout);
+  const after = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
+  assert.equal(after.split(stubIn('main', 'Nop')).length - 1, 1, after);
+  assert.ok(after.includes(`#else\n${stubIn('main', 'Nop')}\n#endif`), after);
+  assert.ok((await stat(path.join(dir, 'asm', 'nonmatchings', 'main', 'Nop.s'))).isFile(), 'the chunk the #else branch includes is written');
+});
+
+/** romlift.toml with main_3 starting at main_2's last function (0x08000488, a legal border of the composite). */
+function movedBorder(toml: string): string {
+  return toml.replace('start = 0x080004DC', 'start = 0x08000488');
+}
+
+test('decompiled C and a border move: moved is E_C_DEFINITION_MOVED; renamed or deleted too is E_C_STALE_DEFINITION; each exits 1 and writes nothing', async () => {
+  const dir = await initProject();
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');
+  assert.ok(toml.includes('start = 0x080004DC') && main2.includes(stubIn('main_2', 'sub_08000488')), 'the composite as this test knows it');
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(stubIn('main_2', 'sub_08000488'), 'int sub_08000488(void) {\n  return 0;\n}'));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+  for (const [edited, code] of [
+    [movedBorder(toml), 'E_C_DEFINITION_MOVED'],
+    [movedBorder(renamed(toml, 'sub_08000488', 'Nop')), 'E_C_STALE_DEFINITION'],
+    [movedBorder(toml).split('\n').filter((l) => !l.startsWith('0x08000488 = ')).join('\n'), 'E_C_STALE_DEFINITION'],
+  ] as const) {
+    await writeFile(path.join(dir, 'romlift.toml'), edited);
+    const before = await snapshot(dir);
+    const out = await run(dir, ['generate', '--json']);
+    assert.equal(out.code, ExitCode.errors, out.stdout);
+    assert.deepEqual(lines(out.stdout).filter((l) => l['severity'] === 'error').map((l) => l['code']), [code], out.stdout);
+    assert.deepEqual(await snapshot(dir), before, code);
+  }
+});
+
+test('renaming an asm-only function next to a static helper adds its stub and raises nothing', async () => {
+  const dir = await initProject();
+  const { names, toml, main } = await firstStubs(dir);
+  const fn = names[1] ?? assert.fail(main);
+  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), `static inline int Helper(int a) {\n    return a + 1;\n}\n${stubIn('main', fn)}`));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+  await writeFile(path.join(dir, 'romlift.toml'), renamed(toml, fn, 'DmaThing'));
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic'), []);
+  const after = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
+  assert.ok(after.includes(`${stubIn('main', names[0] ?? '')}\n${stubIn('main', 'DmaThing')}\nstatic inline int Helper(`), after);
+});
+
+test('a case-folded pair (Foo and foo in one module): decompiling Foo needs no edit, generate exits 0 and keeps the C', async () => {
+  const dir = await initProject();
+  const { names, toml, main } = await firstStubs(dir);
+  const [a, b] = [names[1] ?? assert.fail(main), names[2] ?? assert.fail(main)];
+  await writeFile(path.join(dir, 'romlift.toml'), renamed(renamed(toml, a, 'Foo'), b, 'foo'));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+  const stubs = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
+  // Each member's file is `<Name>_<ADDR>.s`, ADDR its chunk's start (paths.ts chunkPaths).
+  const foo = /, (Foo_[0-9A-F]{8})\);/.exec(stubs)?.[1] ?? assert.fail(stubs);
+  assert.match(stubs, /, foo_[0-9A-F]{8}\);/);
+  const decompiled = stubs.replace(stubIn('main', foo), 'void Foo(void) {\n}');
+  await writeFile(path.join(dir, 'src', 'main.c'), decompiled);
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic'), []);
+  assert.equal(await readFile(path.join(dir, 'src', 'main.c'), 'utf8'), decompiled);
+});

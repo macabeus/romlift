@@ -60,6 +60,12 @@ export interface ProjectInputs {
   readonly config: RomliftConfig;
   /** Every `src/<module>.c` path -> its text: the C the DecompState and the stub check read. */
   readonly cTexts: ReadonlyMap<string, string>;
+  /**
+   * The project paths of the chunk files on disk (`asm/nonmatchings/<module>/<name>.s`): the tree romlift last
+   * generated, whose function names tell the C of a renamed or deleted function from a helper (D78 a). Absent when
+   * the shell read none.
+   */
+  readonly previousChunkFiles?: readonly string[];
   /** The analysis profile; default the discover profile (agbcc). */
   readonly profile?: CompilerProfile;
 }

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 
 import { cStubText, cStubWriter } from '../../../../src/core/emit/writers/c-stub.ts';
 import { stubAssemblyOf } from '../../../../src/core/verify/c-stub.ts';
-import { stubUnitAssembly } from '../../../../src/core/model/c-unit.ts';
+import { stubChunks, stubUnitAssembly } from '../../../../src/core/model/c-unit.ts';
 import { planIncludeAsm } from '../../../../src/core/reconcile/include-asm.ts';
 import { applyTextEdits } from '../../../../src/core/reconcile/text-edit.ts';
 import { C_STUB_HEADER } from '../../../../src/foundation/asm/dialect.ts';
@@ -59,10 +59,16 @@ test('a C module gets src/<module>.c: the header, then its chunk files in ROM or
 test('the text is the planner run on the template header, a stub-only unit whose assembly is the module\'s', () => {
   const main = model.modules[2]!;
   const text = cStubText(model, main);
-  const names = ['AgbMain', 'unk_08000120', 'VBlankCB_08000130', 'VblankCB_08000140'];
-  assert.equal(text, applyTextEdits(C_STUB_HEADER, planIncludeAsm(C_STUB_HEADER, { module: 'main', names }).edits));
+  const chunks = [
+    { name: 'AgbMain', stub: 'AgbMain' },
+    { name: 'unk_08000120', stub: 'unk_08000120' },
+    { name: 'VBlankCB', stub: 'VBlankCB_08000130' },
+    { name: 'VblankCB', stub: 'VblankCB_08000140' },
+  ];
+  assert.deepEqual(stubChunks(model, main), chunks, 'a case-folded pair: the symbol and the stub name differ');
+  assert.equal(text, applyTextEdits(C_STUB_HEADER, planIncludeAsm(C_STUB_HEADER, { module: 'main', chunks }).edits));
   assert.ok(text.startsWith(C_STUB_HEADER));
-  assert.deepEqual(planIncludeAsm(text, { module: 'main', names }), { edits: [], diagnostics: [], unplaced: [], undeclared: [] }, 'the planner has nothing to add');
+  assert.deepEqual(planIncludeAsm(text, { module: 'main', chunks }), { edits: [], diagnostics: [], unplaced: [], undeclared: [] }, 'the planner has nothing to add');
   const assembly = stubAssemblyOf(text);
   assert.ok(assembly.ok);
   assert.equal(assembly.text, stubUnitAssembly(model, main));

@@ -6,11 +6,15 @@
 // That is what keeps `make` building after a legal TOML edit: a rename, a deleted function, a moved or split module
 // change which chunk files `generate` writes, and the C files must include exactly those.
 //
-// What the edits cannot fix is refused or reported (fix round 2, correctness-a0-1): planIncludeAsm's E_C_STALE_DEFINITION
-// (the C of a function the TOML renamed) and E_C_STUB_UNPLACED; here E_C_DEFINITION_MOVED, a C definition of a
-// function the TOML now gives another module (a move or split of decompiled code), whose stub there would define it
-// twice; and W_C_FILE_UNUSED, a src/*.c that is the source of no module (a renamed `c` module), which `make` no longer
-// builds. The errors make `generate` write nothing (writable), so `make` never sees a function defined twice.
+// What the edits cannot fix is refused or reported (fix round 2, correctness-a0-1; fix round 3, D78 a): planIncludeAsm's
+// E_C_STALE_DEFINITION (the C of a function of the tree romlift last generated that no module has now: one the TOML
+// renamed or deleted, wherever it lies, a border move included), E_C_CONDITIONAL_STUB and E_C_STUB_UNPLACED; here
+// E_C_DEFINITION_MOVED, a C definition of a function the TOML now gives another module (a move or split of decompiled
+// code), whose stub there would define it twice; and W_C_FILE_UNUSED, a src/*.c that is the source of no module (a
+// renamed `c` module), which `make` no longer builds. The errors make `generate` write nothing (writable), so `make`
+// never sees a function defined twice. The previous tree is the chunk files on disk (`previousChunkFiles`, which the
+// shell lists: asm/ is committed, so a fresh clone has them too); without them only a definition where a missing
+// stub goes is stale.
 //
 // Three views of one reconciliation:
 // - projectEntries: the stream written into the project; an existing C file's c-stub entry becomes a `reconciled`
@@ -26,8 +30,8 @@
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
-import { stubChunkFiles, stubName } from '../model/c-unit.ts';
-import { isCSource, moduleSource } from '../model/paths.ts';
+import { stubChunks } from '../model/c-unit.ts';
+import { chunkNamesOf, isCSource, moduleSource } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
 import { planIncludeAsm } from '../reconcile/include-asm.ts';
 import { applyTextEdits } from '../reconcile/text-edit.ts';
@@ -55,11 +59,6 @@ export interface StubReconciliation {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-/** The INCLUDE_ASM names the generated stub of module `m` holds, in ROM order. */
-function wantedNames(model: Pick<Model, 'chunks'>, module: Model['modules'][number]): readonly string[] {
-  return stubChunkFiles(model, module).map((file) => stubName(module.name, file));
-}
-
 /** The module of every function chunk of the model, by name. */
 function functionModules(model: Pick<Model, 'chunks'>): ReadonlyMap<string, string> {
   const out = new Map<string, string>();
@@ -67,30 +66,41 @@ function functionModules(model: Pick<Model, 'chunks'>): ReadonlyMap<string, stri
   return out;
 }
 
+/** E_C_DEFINITION_MOVED for definition `d` of `path`, whose function romlift.toml now puts in module `owner`. */
+function movedDiagnostic(path: string, d: { readonly name: string; readonly line: number }, owner: Model['modules'][number] | undefined, ownerName: string): Diagnostic {
+  const advice =
+    owner?.kind === 'c'
+      ? `move its C to ${ownerName}'s source, or the function is defined twice`
+      : `${ownerName} is ${owner?.kind === 'data' ? 'a data' : 'an asm'} module, which builds no C: delete the C definition, or make ${ownerName} a c module in romlift.toml, or the function is defined twice`;
+  return diagnostic(WorkflowCodes, 'E_C_DEFINITION_MOVED', `${path} defines ${d.name} (line ${d.line}), which romlift.toml now puts in module ${ownerName}: ${advice}`, { path });
+}
+
 /**
  * The reconciliation of every C file of `cTexts` (project path -> text) that is the source of a generated C module of
  * `model`; a C file of no such module is not romlift's to edit and is left out (W_C_FILE_UNUSED when it is the source
- * of no module at all).
+ * of no module at all). `previousChunkFiles`: the project paths of the chunk files of the tree on disk (the one
+ * romlift last generated), or undefined (or empty) when there is none.
  */
-export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>): StubReconciliation {
+export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>, previousChunkFiles?: readonly string[]): StubReconciliation {
   const files: ReconciledStub[] = [];
   const diagnostics: Diagnostic[] = [];
   const sources = new Set(model.modules.map((m) => moduleSource(model, m)));
   const owners = functionModules(model);
+  const modules = new Map(model.modules.map((m) => [m.name, m] as const));
+  // A function of the previous tree that a module still has is wanted there (or E_C_DEFINITION_MOVED), never stale.
+  const previous = previousChunkFiles === undefined || previousChunkFiles.length === 0 ? undefined : chunkNamesOf(previousChunkFiles).filter((name) => !owners.has(name));
   for (const module of model.modules) {
     if (!module.generated || module.kind !== 'c') continue;
     const path = moduleSource(model, module);
     const base = cTexts.get(path);
     if (!isCSource(path) || base === undefined) continue;
-    const plan = planIncludeAsm(base, { module: module.name, names: wantedNames(model, module), path });
+    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, ...(previous === undefined ? {} : { previous }) });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
     for (const d of plan.undeclared) {
       const owner = owners.get(d.name);
       if (owner === undefined || owner === module.name) continue;
-      diagnostics.push(
-        diagnostic(WorkflowCodes, 'E_C_DEFINITION_MOVED', `${path} defines ${d.name} (line ${d.line}), which romlift.toml now puts in module ${owner}: move its C to that module's source, or the function is defined twice`, { path }),
-      );
+      diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner));
     }
   }
   for (const path of [...cTexts.keys()].sort(compareCodeUnits)) {

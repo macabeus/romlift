@@ -138,24 +138,27 @@ line of one it lost or renamed), and it never touches a line of C you wrote. A f
 is the exception: rename its C definition to the new name before (or together with) the `romlift.toml` edit, and move
 its C to the other module's file when the edit moves it. Otherwise `romlift generate` refuses and writes nothing
 (`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`), since the new `INCLUDE_ASM` line would define the function twice.
-`INCLUDE_ASM` lines inside `#if`/`#ifdef` blocks are yours too: `romlift generate` puts new ones outside them. A
-renamed `c` module leaves its old `src/<module>.c` unbuilt (`W_C_FILE_UNUSED`): move its C to the new file.
+`INCLUDE_ASM` lines inside `#if`/`#ifdef` blocks are yours too: `romlift generate` never edits them and puts new
+ones outside them, and when an edit leaves one naming a function its module no longer has it refuses
+(`E_C_CONDITIONAL_STUB`) until you rename or remove it. A definition inside such a block holds nothing for the default
+build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch or outside the block. A renamed `c`
+module leaves its old `src/<module>.c` unbuilt (`W_C_FILE_UNUSED`): move its C to the new file.
 
 Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler` in `romlift.toml`, default
 `[build] compiler`), with the flags `modules.mk` lists; `mk/<compiler>.mk` holds the recipe.
 
-## Data defined in C fails the link until phase 5
+## Data defined in C fails the link
 
 The linker script places only the code (`.text`) of a C object. A C file that defines data (a `const` array, a
 string table, an initialised or zero-initialised global) fails the link with:
 
 ```
-src/<module>.c defines data; see AGENTS.md (data ranges arrive in phase 5)
+src/<module>.c defines data; see AGENTS.md (romlift does not place C data yet)
 ```
 
 That is deliberate: romlift cannot yet place a C object's data at its address in the ROM. Keep the data in the
-generated `data/` files and refer to it by its symbol (`extern`), until romlift's data ranges (phase 5) let a C array
-replace its slice of the ROM.
+generated `data/` files and refer to it by its symbol (`extern`), until a later romlift release's data ranges let a C
+array replace its slice of the ROM.
 ==> Makefile (scaffold, scaffold) <==
 # Makefile: builds klonoa-eod.gba from this project's sources and checks it against klonoa-eod.sha1.
 #

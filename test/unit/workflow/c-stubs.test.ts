@@ -8,7 +8,7 @@ import { test } from 'node:test';
 
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { emitTree } from '../../../src/core/emit/emit-tree.ts';
-import { stubChunkFiles, stubName } from '../../../src/core/model/c-unit.ts';
+import { stubChunks } from '../../../src/core/model/c-unit.ts';
 import { outTreeEntries, projectEntries, reconcileStubs, reconciledBases, resolvedEntries } from '../../../src/core/workflow/c-stubs.ts';
 import { generatedEntries } from '../../../src/core/workflow/generate.ts';
 import { init } from '../../../src/core/workflow/init.ts';
@@ -16,6 +16,7 @@ import { includeAsmStatement } from '../../../src/foundation/asm/dialect.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
 import { readScaffoldInputs } from '../../../src/shell/project/read-inputs.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
+import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 
 const scaffold = await readScaffoldInputs();
 if (!scaffold.ok) throw new Error('the package templates do not read');
@@ -27,7 +28,7 @@ const MODEL = PLAN.result.model;
 const TEXTS = new Map<string, string>();
 for (const e of generatedEntries(ROM, PLAN.result)) if (e.path.startsWith('src/') && 'text' in e) TEXTS.set(e.path, e.text);
 const moduleNamed = (name: string) => MODEL.modules.find((m) => m.name === name) ?? assert.fail(name);
-const namesOf = (name: string): readonly string[] => stubChunkFiles(MODEL, moduleNamed(name)).map((f) => stubName(name, f));
+const namesOf = (name: string): readonly string[] => stubChunks(MODEL, moduleNamed(name)).map((c) => c.stub);
 
 test('the C files init wrote need no edit and raise nothing; the result survives a JSON round trip', () => {
   assert.deepEqual([...TEXTS.keys()], ['src/main.c', 'src/main_2.c']);
@@ -67,4 +68,40 @@ test('the three views: the project gets an edit, a fresh tree the text, generate
   assert.ok(fresh?.ownership === 'scaffold' && fresh.text === file.text);
   const out = [...outTreeEntries(resolvedEntries(entries(), stubs))].filter((e) => e.path.startsWith('src/'));
   assert.deepEqual(out.map((e) => [e.path, e.ownership]), [['src/main.c', 'generated'], ['src/main_2.c', 'generated']]);
+});
+
+// Fix round 3 (D78 a): the previous tree's chunk files, case-folded pairs, and the kind of the module a function moved to.
+
+const ROM2 = romWith([], { size: 0x200 });
+/** rom_header; c module `main` with a case-folded pair Foo/foo and Nop; asm module `tail` with Moved. */
+const PAIR = modelOf(ROM2, {
+  modules: [
+    { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
+    { name: 'main', kind: 'c', chunks: [{ name: 'Foo', items: [dataItem(0x0800_00c0, 0x20)] }, { name: 'foo', items: [dataItem(0x0800_00e0, 0x20)] }, { name: 'Nop', items: [dataItem(0x0800_0100, 0x80)] }] },
+    { name: 'tail', chunks: [{ name: 'Moved', items: [dataItem(0x0800_0180, 0x80)] }] },
+  ],
+});
+const PAIR_STUB = `#include "include_asm.h"\n\n${includeAsmStatement('main', 'Foo_080000C0')}\n${includeAsmStatement('main', 'foo_080000E0')}\n${includeAsmStatement('main', 'Nop')}\n`;
+
+test('a case-folded pair with one member decompiled needs no edit and raises nothing (architecture-a1-1)', () => {
+  const text = PAIR_STUB.replace(`${includeAsmStatement('main', 'Foo_080000C0')}\n`, 'void Foo(void) {\n}\n');
+  const stubs = reconcileStubs(PAIR, new Map([['src/main.c', text]]));
+  assert.deepEqual(stubs.diagnostics, []);
+  assert.deepEqual(stubs.files.map((f) => f.edits), [[]]);
+});
+
+test('the previous tree: the C of a renamed or deleted function is stale anywhere; a helper is not (correctness-a1-2, a1-3)', () => {
+  const previous = ['asm/nonmatchings/main/Foo_080000C0.s', 'asm/nonmatchings/main/foo_080000E0.s', 'asm/nonmatchings/main/sub_08000100.s', 'asm/nonmatchings/tail/Moved.s'];
+  // sub_08000100 was decompiled and the TOML renamed it Nop (a border move could put Nop anywhere): stale.
+  const renamed = `${PAIR_STUB}void sub_08000100(void) {\n}\n`;
+  const stale = reconcileStubs(PAIR, new Map([['src/main.c', renamed]]), previous);
+  assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.severity]), [['E_C_STALE_DEFINITION', 'error']]);
+  // A helper no tree had: nothing.
+  const helper = `${PAIR_STUB}static int Helper(void) {\n    return 1;\n}\n`;
+  assert.deepEqual(reconcileStubs(PAIR, new Map([['src/main.c', helper]]), previous).diagnostics, []);
+  // A previous function another module still has is E_C_DEFINITION_MOVED, never stale; an asm module builds no C.
+  const moved = `${PAIR_STUB}void Moved(void) {\n}\n`;
+  const refused = reconcileStubs(PAIR, new Map([['src/main.c', moved]]), previous).diagnostics;
+  assert.deepEqual(refused.map((d) => d.code), ['E_C_DEFINITION_MOVED']);
+  assert.match(refused[0]?.message ?? '', /now puts in module tail: tail is an asm module, which builds no C: delete the C definition, or make tail a c module in romlift.toml/);
 });

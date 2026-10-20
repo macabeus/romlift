@@ -2,7 +2,10 @@
 // D68 e; D75 d; roadmap.md, phase 4, "Carried from phase 3"). Per ROM: the model `generate` emits from it, initModel
 // (initConfig, then confirmModel over the config configFromDiscover builds), must hold no orphan chunk that is only a
 // zero pad: 1 to 3 zero bytes up to a word-aligned address with no label inside, whether a function of its module
-// follows (its start macro emits the pad) or its module ends there (the chunk before takes it as its last item).
+// follows (its start macro emits the pad) or its module ends there (the chunk before takes it as its last item), but
+// one: a pad that ends a `c` module right after a function stays its own orphan, since that function's C object, once
+// decompiled, ends with gas's nop padding instead of zeros (fix round 3, correctness-a1-4, D78 b); those are counted
+// and printed, and each must be exactly that.
 // Each ROM's orphan files before the fold (the orphans left plus the chunks that folded a pad) and after it are
 // printed as a diagnostic, with the 0x46C0 nop pads that stay orphans (D75 d) and how many of those lie in `c`
 // modules; phase-3.md measured the before counts on the discover model (pokeemerald 3,222, tmc 2,320, fe7j 1,558,
@@ -46,8 +49,10 @@ interface Counts {
   readonly orphans: number;
   /** Chunks that folded a pad: before their entry (Chunk.entry) or as their last item at their module's end. */
   readonly folded: number;
-  /** Orphan chunks that are a zero pad with no label inside (none expected). */
+  /** Orphan chunks that are a zero pad with no label inside, but those kept at a c module's end (none expected). */
   readonly padOrphans: readonly string[];
+  /** Zero-pad orphans that end a c module right after a function (D78 b). */
+  readonly keptAtCEnd: number;
   /** Orphan chunks that are one 0x46C0 nop pad, and how many of them lie in `c` modules. */
   readonly nopOrphans: number;
   readonly nopInC: number;
@@ -58,10 +63,11 @@ function countsOf(rom: Rom, model: Model): Counts {
   let folded = 0;
   let nopOrphans = 0;
   let nopInC = 0;
+  let keptAtCEnd = 0;
   const padOrphans: string[] = [];
   const kinds = new Map(model.modules.map((m) => [m.name, m.kind] as const));
   const labelled = new Set(model.labels.map((l) => l.addr));
-  model.chunks.forEach((c) => {
+  model.chunks.forEach((c, index) => {
     if (c.kind === 'function' && chunkEntry(c) > c.span.start) folded++;
     const last = c.items.first + c.items.count - 1;
     const lastStart = model.items.start[last] ?? c.span.start;
@@ -70,13 +76,18 @@ function countsOf(rom: Rom, model: Model): Counts {
     orphans++;
     let inside = false;
     for (let a = c.span.start + 1; a < c.span.end; a++) if (labelled.has(a)) inside = true;
-    if (isPad(rom, c.span.start, c.span.end) && c.innerLabels.length === 0 && !inside) padOrphans.push(c.name);
+    if (isPad(rom, c.span.start, c.span.end) && c.innerLabels.length === 0 && !inside) {
+      const before = model.chunks[index - 1];
+      const endsC = kinds.get(c.module) === 'c' && model.modules.some((m) => m.name === c.module && m.span.end === c.span.end);
+      if (endsC && before?.kind === 'function' && before.module === c.module && before.span.end === c.span.start) keptAtCEnd++;
+      else padOrphans.push(c.name);
+    }
     if (isNopPad(rom, c.span.start, c.span.end)) {
       nopOrphans++;
       if (kinds.get(c.module) === 'c') nopInC++;
     }
   });
-  return { orphans, folded, padOrphans, nopOrphans, nopInC };
+  return { orphans, folded, padOrphans, keptAtCEnd, nopOrphans, nopInC };
 }
 
 for (const name of TUNING) {
@@ -93,7 +104,7 @@ for (const name of TUNING) {
     const init = initModel(rom, { profile });
     assert.ok(init.ok, init.ok ? '' : init.diagnostics.map((d) => d.message).join('; '));
     const counts = countsOf(rom, init.model);
-    t.diagnostic(`${name}: orphan files before ${counts.orphans + counts.folded}, after ${counts.orphans} (${counts.folded} pads folded); 0x46C0 nop pads left as orphans ${counts.nopOrphans}, ${counts.nopInC} of them in c modules`);
+    t.diagnostic(`${name}: orphan files before ${counts.orphans + counts.folded}, after ${counts.orphans} (${counts.folded} pads folded); zero pads kept after a c module's last function ${counts.keptAtCEnd}; 0x46C0 nop pads left as orphans ${counts.nopOrphans}, ${counts.nopInC} of them in c modules`);
     assert.deepEqual(counts.padOrphans.slice(0, 10), [], `${name}: ${counts.padOrphans.length} padding-only orphans`);
     assert.ok(counts.folded > 0, `${name}: no pad folded`);
   });

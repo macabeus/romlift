@@ -7,13 +7,12 @@ import { test } from 'node:test';
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import { cDataAssertLine, cDataSectionLine } from '../../../src/core/model/c-data-assert.ts';
 import {
-  includedChunkFile,
   moduleCompile,
   STUB_UNIT_MODE,
   STUB_UNIT_PRELUDE,
   stubAssemblyText,
   stubChunkFiles,
-  stubName,
+  stubChunks,
   stubUnitAssembly,
 } from '../../../src/core/model/c-unit.ts';
 import { DIALECT, INCLUDE_ASM_HEADER } from '../../../src/foundation/asm/dialect.ts';
@@ -47,7 +46,6 @@ test('the stub assembly is what agbcc printed, byte for byte, and only the prelu
 test('the expansion it encodes is include_asm.h\'s: INCLUDE_ASM and the file-scope include of the macro file', () => {
   assert.ok(INCLUDE_ASM_HEADER.includes('#define INCLUDE_ASM(DIR, NAME) asm(".syntax unified\\n.include \\"" DIR "/" #NAME ".s\\"\\n.syntax divided\\n")'));
   assert.ok(INCLUDE_ASM_HEADER.includes(`asm("${DIALECT.macrosInclude.replace(/"/g, '\\"')}\\n");`));
-  assert.equal(includedChunkFile('asm/nonmatchings/main', 'Func'), 'asm/nonmatchings/main/Func.s');
 });
 
 test('a module\'s stub chunk files and names, and its assembly', () => {
@@ -61,7 +59,11 @@ test('a module\'s stub chunk files and names, and its assembly', () => {
   const main = model.modules[1]!;
   const files = stubChunkFiles(model, main);
   assert.deepEqual(files, ['asm/nonmatchings/main/VBlankCB_080000C0.s', 'asm/nonmatchings/main/VblankCB_080000E0.s', 'asm/nonmatchings/main/unk_08000100.s']);
-  assert.deepEqual(files.map((f) => stubName('main', f)), ['VBlankCB_080000C0', 'VblankCB_080000E0', 'unk_08000100']);
+  assert.deepEqual(stubChunks(model, main), [
+    { name: 'VBlankCB', stub: 'VBlankCB_080000C0' },
+    { name: 'VblankCB', stub: 'VblankCB_080000E0' },
+    { name: 'unk_08000100', stub: 'unk_08000100' },
+  ]);
   assert.equal(stubUnitAssembly(model, main), stubAssemblyText(files));
 });
 
@@ -73,5 +75,5 @@ test('a C module compiles with its compiler\'s cc1 and the Model\'s flags', () =
 
 test('the C-data check lines are the frozen text (D74 f, architecture §6.6)', () => {
   assert.equal(cDataSectionLine('main'), '.c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }');
-  assert.equal(cDataAssertLine('main'), 'ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (data ranges arrive in phase 5)")');
+  assert.equal(cDataAssertLine('main'), 'ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")');
 });

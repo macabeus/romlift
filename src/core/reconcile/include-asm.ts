@@ -8,29 +8,38 @@
 //   `;` at depth 0 or the end of the text;
 // comments and preprocessor lines are kept apart (`directives`), never part of an item.
 //
-// planIncludeAsm inserts a stub, `includeAsmStatement(module, name)` on a line of its own, for every wanted function
-// that the file neither includes nor defines, at its ROM-order position: after the nearest earlier wanted function the
-// file holds, else before the nearest later one, else at the end. A function the file defines counts as held (its
-// stub was replaced by C). It removes every stub of the module's own directory (`asm/nonmatchings/<module>`) whose
-// name is not wanted: a function the TOML renamed, deleted or moved to another module, whose file `generate` no longer
-// writes there (D75 b; a move is this removal plus the insertion in the other module's file). A removed stub alone on
-// its line takes the line with it; one that shares its line keeps the rest of it (and, when it is the line's last
-// item, takes the blanks before it). A stub of another directory and a definition are never removed. W_C_ORDER when
-// the file holds the wanted functions in another order than ROM order; the edits never reorder. Every edit is an
-// insertion between tokens or the removal of a whole statement (and its line's blanks), so no comment, string or
-// directive changes.
+// planIncludeAsm inserts a stub, `includeAsmStatement(module, stub)` on a line of its own, for every wanted chunk
+// that the file neither includes nor defines, at its ROM-order position: after the nearest earlier wanted chunk the
+// file holds, else before the nearest later one, else at the end. A wanted chunk is a pair (WantedChunk): its symbol,
+// which a C definition of it is called, and its stub name, the chunk file's base name an INCLUDE_ASM statement names
+// (they differ for a member of a case-folded group, `<Name>_<ADDR>`; architecture-a1-1). A stub is matched by stub
+// name, a definition by symbol. A function the file defines counts as held (its stub was replaced by C). It removes
+// every stub of the module's own directory (`asm/nonmatchings/<module>`) whose stub name is not wanted: a function the
+// TOML renamed, deleted or moved to another module, whose file `generate` no longer writes there (D75 b; a move is
+// this removal plus the insertion in the other module's file). A removed stub alone on its line takes the line with
+// it; one that shares its line keeps the rest of it (and, when it is the line's last item, takes the blanks before
+// it). A stub of another directory and a definition are never removed. W_C_ORDER when the file holds the wanted
+// chunks in another order than ROM order; the edits never reorder. Every edit is an insertion between tokens or the
+// removal of a whole statement (and its line's blanks), so no comment, string or directive changes.
 //
-// Preprocessor conditionals (fix round 2, correctness-a0-2): a stub never goes inside an `#if`/`#ifdef`/`#ifndef` …
-// `#endif` region, whose branches the default build may not compile (the decomp pattern `#ifdef NONMATCHING <C> #else
-// INCLUDE_ASM(…); #endif`). An anchor inside a region moves to the region's outer edge: after its `#endif` line, or
-// before its opening directive. A name with no safe place (the text ends inside a comment, a literal, a directive or
-// an unclosed conditional) is E_C_STUB_UNPLACED, an error, so `generate` writes nothing rather than leave a function
-// without its stub.
+// Preprocessor conditionals (fix round 2, correctness-a0-2; fix round 3, correctness-a1-1): a stub never goes inside
+// an `#if`/`#ifdef`/`#ifndef` … `#endif` region, whose branches the default build may not compile (the decomp pattern
+// `#ifdef NONMATCHING <C> #else INCLUDE_ASM(…); #endif`), and nothing inside one is ever edited. An anchor inside a
+// region moves to the region's outer edge: after its `#endif` line, or before its opening directive. A stub inside a
+// region holds its chunk (the `#else` branch is the default build's); a definition inside one does not, so a chunk
+// whose only C is conditional gets its stub after the region. An unwanted stub inside a region is
+// E_C_CONDITIONAL_STUB, an error, instead of a removal: removing it from the `#else` branch would leave the default
+// build without the function's code. A name with no safe place (the text ends inside a comment, a literal, a
+// directive or an unclosed conditional) is E_C_STUB_UNPLACED, an error, so `generate` writes nothing rather than
+// leave a function without its stub.
 //
-// A definition whose name the module does not want, lying where a missing stub goes (the C of a function the TOML
-// renamed, correctness-a0-1), is E_C_STALE_DEFINITION, an error: inserting the new name's stub there would define the
-// function twice and break `make`. The other unwanted definitions are returned (`undeclared`) for the caller, which
-// knows the other modules (core/workflow/c-stubs.ts: E_C_DEFINITION_MOVED).
+// A definition whose name the module does not want is E_C_STALE_DEFINITION, an error, when its name is a function
+// of the tree romlift last generated that no module has now (`wanted.previous`, the chunk files on disk; fix round 3,
+// correctness-a1-2, a1-3): the C of a function the TOML renamed or deleted, wherever it lies, while a static helper
+// (no function of any tree) raises nothing. When that tree is not known, a definition is stale only where a missing
+// stub goes (correctness-a0-1), since inserting the new name's stub there would define the function twice. The other
+// unwanted definitions are returned (`undeclared`) for the caller, which knows the other modules
+// (core/workflow/c-stubs.ts: E_C_DEFINITION_MOVED).
 import { includeAsmStatement } from '../../foundation/asm/dialect.ts';
 import { nonmatchingDir } from '../../foundation/util/project-files.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -246,41 +255,60 @@ export function scanC(text: string): CFileScan {
 // ---------------------------------------------------------------------------------------------------
 // Planning.
 
-/** The functions a C file must hold: its module, and the chunk files' base names in ROM order. */
+/**
+ * One chunk a C file must hold: `name`, its symbol (what a C definition of it is called), and `stub`, its chunk file's
+ * base name, which its INCLUDE_ASM statement names (core/model/c-unit.ts StubChunk; they differ for a member of a
+ * case-folded group, `<Name>_<ADDR>`).
+ */
+export interface WantedChunk {
+  readonly name: string;
+  readonly stub: string;
+}
+
+/** The chunks a C file must hold: its module, and the module's chunks in ROM order. */
 export interface IncludeAsmWanted {
   readonly module: string;
-  /** The base names of the module's chunk files (core/model/paths.ts chunkPaths), in ROM order. */
-  readonly names: readonly string[];
+  /** The module's function and orphan chunks, in ROM order (core/model/c-unit.ts stubChunks). */
+  readonly chunks: readonly WantedChunk[];
   /** The file's project path, for the diagnostics (`src/<module>.c`). */
   readonly path?: string;
+  /**
+   * The names of the functions of the tree romlift last generated that no module has now (core/workflow/c-stubs.ts,
+   * from the chunk files on disk): a definition of one is stale wherever it lies. Undefined when that tree is not
+   * known; a definition is then stale only where a missing stub goes.
+   */
+  readonly previous?: readonly string[];
 }
 
 export interface IncludeAsmPlan {
   /** Insertions and removals, in text order; apply with applyTextEdits. */
   readonly edits: readonly TextEdit[];
-  /** W_C_ORDER (at most once), E_C_STUB_UNPLACED, E_C_STALE_DEFINITION. */
+  /** W_C_ORDER (at most once), E_C_STUB_UNPLACED, E_C_STALE_DEFINITION, E_C_CONDITIONAL_STUB. */
   readonly diagnostics: readonly Diagnostic<ReconcileCode>[];
-  /** Wanted names the planner found no safe place for (each also an E_C_STUB_UNPLACED). */
+  /** Wanted stub names the planner found no safe place for (each also an E_C_STUB_UNPLACED). */
   readonly unplaced: readonly string[];
   /** Named definitions the module does not want and no E_C_STALE_DEFINITION reports, in text order. */
   readonly undeclared: readonly CDefinition[];
 }
 
-/** Where a held function sits: offsets of its first token and of its end. */
+/** Where a held chunk sits: offsets of its first token and of its end. */
 interface Held {
   readonly start: number;
   readonly end: number;
 }
 
-/** The directory an INCLUDE_ASM statement of `module` names: foundation/util/project-files.ts nonmatchingDir, the one definition. */
-export const includeAsmDir: (module: string) => string = nonmatchingDir;
-
-/** The functions of `scan` that hold a stub of `dir` or a definition, by name, the first occurrence each. */
-function heldByName(scan: CFileScan, dir: string): ReadonlyMap<string, Held> {
-  const held = new Map<string, Held>();
-  const items = [...scan.statements.filter((s) => s.dir === dir), ...scan.definitions].sort((a, b) => a.start - b.start);
-  for (const item of items) if (!held.has(item.name)) held.set(item.name, { start: item.start, end: item.end });
-  return held;
+/**
+ * For each wanted chunk, where the file holds it, or undefined: the first stub of `dir` that names its stub name
+ * (inside a conditional too: the `#else` branch of the NONMATCHING pattern is the default build's), else the first
+ * definition of its symbol outside every conditional. A definition inside a conditional does not hold its chunk,
+ * since the default build may not compile it (correctness-a1-1).
+ */
+function heldOf(scan: CFileScan, dir: string, chunks: readonly WantedChunk[]): readonly (Held | undefined)[] {
+  const stubs = new Map<string, Held>();
+  for (const s of scan.statements) if (s.dir === dir && !stubs.has(s.name)) stubs.set(s.name, { start: s.start, end: s.end });
+  const defined = new Map<string, Held>();
+  for (const d of scan.definitions) if (!defined.has(d.name) && regionAt(scan, d.start) === undefined) defined.set(d.name, { start: d.start, end: d.end });
+  return chunks.map((c) => stubs.get(c.stub) ?? defined.get(c.name));
 }
 
 /** The length of a leading byte order mark (U+FEFF), which no edit may move off the text's start. */
@@ -333,19 +361,19 @@ function regionAt(scan: CFileScan, offset: number): CConditional | undefined {
   return scan.conditionals.find((c) => c.start <= offset && offset < c.end);
 }
 
-/** For each wanted name, the nearest held function before it (`previous`) and after it (`next`) in ROM order. */
-function neighbours(names: readonly string[], held: ReadonlyMap<string, Held>): { readonly previous: readonly (Held | undefined)[]; readonly next: readonly (Held | undefined)[] } {
+/** For each wanted chunk, the nearest held chunk before it (`previous`) and after it (`next`) in ROM order. */
+function neighbours(held: readonly (Held | undefined)[]): { readonly previous: readonly (Held | undefined)[]; readonly next: readonly (Held | undefined)[] } {
   const previous: (Held | undefined)[] = [];
-  const next: (Held | undefined)[] = new Array<Held | undefined>(names.length).fill(undefined);
+  const next: (Held | undefined)[] = new Array<Held | undefined>(held.length).fill(undefined);
   let last: Held | undefined;
-  for (const name of names) {
+  for (const h of held) {
     previous.push(last);
-    last = held.get(name) ?? last;
+    last = h ?? last;
   }
   let following: Held | undefined;
-  for (let k = names.length - 1; k >= 0; k--) {
+  for (let k = held.length - 1; k >= 0; k--) {
     next[k] = following;
-    following = held.get(names[k] ?? '') ?? following;
+    following = held[k] ?? following;
   }
   return { previous, next };
 }
@@ -355,11 +383,11 @@ function whereOf(wanted: IncludeAsmWanted): { readonly where: string; readonly e
   return { where: wanted.path ?? `the C file of module ${wanted.module}`, extra: wanted.path === undefined ? {} : { path: wanted.path } };
 }
 
-/** W_C_ORDER when the held wanted functions are not in ROM order in the text (the first pair out of order). */
-function orderDiagnostics(wanted: IncludeAsmWanted, held: ReadonlyMap<string, Held>): Diagnostic<ReconcileCode>[] {
-  const order = wanted.names.flatMap((name) => {
-    const h = held.get(name);
-    return h === undefined ? [] : [{ name, ...h }];
+/** W_C_ORDER when the held wanted chunks are not in ROM order in the text (the first pair out of order). */
+function orderDiagnostics(wanted: IncludeAsmWanted, held: readonly (Held | undefined)[]): Diagnostic<ReconcileCode>[] {
+  const order = wanted.chunks.flatMap((chunk, k) => {
+    const h = held[k];
+    return h === undefined ? [] : [{ name: chunk.name, ...h }];
   });
   for (let k = 1; k < order.length; k++) {
     const prev = order[k - 1];
@@ -407,48 +435,71 @@ function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, num
   return { start: text.length, end: text.length, text: `${needsNewline ? '\n' : ''}${stub}\n`, reason: 'add-stub' };
 }
 
+/** The E_C_STALE_DEFINITION of definition `d`; `slot`: the missing chunk whose stub goes where it lies, if any. */
+function staleDiagnostic(wanted: IncludeAsmWanted, d: CDefinition, slot: WantedChunk | undefined): Diagnostic<ReconcileCode> {
+  const { where, extra } = whereOf(wanted);
+  const dir = nonmatchingDir(wanted.module);
+  if (wanted.previous === undefined) {
+    // The tree romlift last generated is not known, so d may be the user's helper.
+    const stub = slot?.stub ?? '';
+    return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}), which module ${wanted.module} no longer has, where the INCLUDE_ASM of ${stub} goes: if romlift.toml renamed it, rename the C function to ${slot?.name ?? ''}; otherwise write INCLUDE_ASM("${dir}", ${stub}); yourself`, extra);
+  }
+  const here = slot === undefined ? '' : `; the INCLUDE_ASM of ${slot.stub} goes where it lies: if romlift.toml renamed it to ${slot.name}, rename the C function to ${slot.name}`;
+  return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}), a function of the tree romlift last generated that romlift.toml no longer has${here}; a function it renamed takes its new name, in the source of the module that holds it now, and one it deleted loses its C, else make builds its bytes twice`, extra);
+}
+
 /**
- * The edits that add every wanted function `text` neither includes (from `asm/nonmatchings/<module>`) nor defines,
- * each at its ROM-order position outside any preprocessor conditional, and remove every stub of that directory whose
- * function is not wanted; W_C_ORDER when the file's order of the held ones is not ROM order; E_C_STUB_UNPLACED for a
- * name with no safe place; E_C_STALE_DEFINITION for an unwanted definition where a missing stub goes.
+ * The edits that add the stub of every wanted chunk `text` neither includes (from `asm/nonmatchings/<module>`) nor
+ * defines outside a conditional, each at its ROM-order position outside any preprocessor conditional, and remove every
+ * stub of that directory whose chunk is not wanted and that lies outside every conditional; W_C_ORDER when the file's
+ * order of the held ones is not ROM order; E_C_STUB_UNPLACED for a chunk with no safe place; E_C_CONDITIONAL_STUB for an
+ * unwanted stub inside a conditional, which is never edited; E_C_STALE_DEFINITION for an unwanted definition of a
+ * function of the previous tree (`wanted.previous`; when it is not known, one where a missing stub goes).
  */
 export function planIncludeAsm(text: string, wanted: IncludeAsmWanted): IncludeAsmPlan {
   const scan = scanC(text);
-  const dir = includeAsmDir(wanted.module);
-  const held = heldByName(scan, dir);
-  const { previous, next } = neighbours(wanted.names, held);
-  const names = new Set(wanted.names);
-  const removed = scan.statements.filter((s) => s.dir === dir && !names.has(s.name));
+  const dir = nonmatchingDir(wanted.module);
+  const held = heldOf(scan, dir, wanted.chunks);
+  const { previous, next } = neighbours(held);
+  const stubs = new Set(wanted.chunks.map((c) => c.stub));
+  const symbols = new Set(wanted.chunks.map((c) => c.name));
+  const unwanted = scan.statements.filter((s) => s.dir === dir && !stubs.has(s.name));
+  const conditional = unwanted.filter((s) => regionAt(scan, s.start) !== undefined);
+  const removed = unwanted.filter((s) => regionAt(scan, s.start) === undefined);
   const skips = new Map<number, number>([
     ...scan.directives.filter((t) => t.kind === 'comment' && t.terminated).map((t) => [t.start, t.end] as const),
     ...removed.map((s) => [s.start, s.end] as const),
   ]);
-  const strangers = scan.definitions.filter((d) => d.name !== '' && !names.has(d.name));
-  const stale = new Map<CDefinition, string>();
+  const strangers = scan.definitions.filter((d) => d.name !== '' && !symbols.has(d.name));
+  const previousNames = wanted.previous === undefined ? undefined : new Set(wanted.previous);
+  /** Each stranger's slot: the first missing chunk whose stub goes where it lies. */
+  const slots = new Map<CDefinition, WantedChunk>();
   const edits: TextEdit[] = [];
   const unplaced: string[] = [];
-  wanted.names.forEach((name, k) => {
-    if (held.has(name)) return;
+  wanted.chunks.forEach((chunk, k) => {
+    if (held[k] !== undefined) return;
     const before = previous[k];
     const after = next[k];
     const from = before?.end ?? 0;
     const to = after?.start ?? text.length;
-    for (const d of strangers) if (d.start >= from && d.end <= to && !stale.has(d)) stale.set(d, name);
-    const edit = placement(text, scan, skips, includeAsmStatement(wanted.module, name), before, after);
-    if (edit === undefined) unplaced.push(name);
+    for (const d of strangers) if (d.start >= from && d.end <= to && !slots.has(d)) slots.set(d, chunk);
+    const edit = placement(text, scan, skips, includeAsmStatement(wanted.module, chunk.stub), before, after);
+    if (edit === undefined) unplaced.push(chunk.stub);
     else edits.push(edit);
   });
   for (const statement of removed) edits.push(removalOf(text, statement));
+  const stale = strangers.filter((d) => (previousNames === undefined ? slots.has(d) : previousNames.has(d.name)));
   const { where, extra } = whereOf(wanted);
   const diagnostics: Diagnostic<ReconcileCode>[] = [...orderDiagnostics(wanted, held)];
   if (unplaced.length > 0) {
     diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} has no safe place for the INCLUDE_ASM of ${unplaced.join(', ')}: the text ends inside a comment, a literal, a directive or an unclosed #if; close it, or write the statements yourself`, extra));
   }
-  for (const [d, name] of stale) {
-    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}), which module ${wanted.module} no longer has, where the INCLUDE_ASM of ${name} goes: if romlift.toml renamed it, rename the C function to ${name}; otherwise write INCLUDE_ASM("${dir}", ${name}); yourself`, extra));
+  for (const s of conditional) {
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_CONDITIONAL_STUB', `${where} holds INCLUDE_ASM("${s.dir}", ${s.name}); (line ${s.line}) inside an #if region, and module ${wanted.module} no longer has ${s.name}: romlift never edits conditional code, so rename or remove it there yourself (and the C beside it)`, extra));
   }
-  return { edits: joinAtOffsets(edits), diagnostics, unplaced, undeclared: strangers.filter((d) => !stale.has(d)) };
+  for (const d of stale) diagnostics.push(staleDiagnostic(wanted, d, slots.get(d)));
+  const isStale = new Set(stale);
+  return { edits: joinAtOffsets(edits), diagnostics, unplaced, undeclared: strangers.filter((d) => !isStale.has(d)) };
 }
 
 /**

@@ -27,7 +27,7 @@
 // test/local/c-stub-agbcc.test.ts compiles every emitted stub of two fixtures and klonoa and compares both the text
 // and the object's `.text` with this encoding.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
-import { chunkFileOf, nonmatchingDir } from '../../foundation/util/project-files.ts';
+import { stubNameOf } from '../../foundation/util/project-files.ts';
 import type { Mode } from '../../foundation/rom/span.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import { BUILD_COMPILERS, buildCompilerOf, DEFAULT_BUILD_COMPILER } from '../config/compilers.ts';
@@ -65,11 +65,6 @@ export function stubAssemblyText(chunkFiles: readonly string[]): string {
   return parts.join('');
 }
 
-/** The chunk file `INCLUDE_ASM("<dir>", <name>);` includes. */
-export function includedChunkFile(dir: string, name: string): string {
-  return chunkFileOf(dir, name);
-}
-
 /** The chunk files of a C module, in ROM order: what its generated stub includes (one INCLUDE_ASM each). */
 export function stubChunkFiles(model: Pick<Model, 'chunks'>, module: Module): readonly string[] {
   const paths = chunkPathsOf(model);
@@ -81,11 +76,26 @@ export function stubChunkFiles(model: Pick<Model, 'chunks'>, module: Module): re
   return out;
 }
 
-/** The base name of a chunk file of `module`, as its INCLUDE_ASM statement names it (`asm/nonmatchings/<m>/<name>.s` → `<name>`). */
-export function stubName(module: string, chunkFile: string): string {
-  const dir = `${nonmatchingDir(module)}/`;
-  const base = chunkFile.startsWith(dir) ? chunkFile.slice(dir.length) : chunkFile;
-  return base.endsWith('.s') ? base.slice(0, -2) : base;
+/**
+ * One chunk of a C module as its stub holds it: `name`, the chunk's (and a C definition's) symbol, and `stub`, the
+ * base name of its chunk file, which its INCLUDE_ASM statement names; the two differ for a member of a case-folded
+ * group (`<Name>_<ADDR>`, core/model/paths.ts chunkPaths).
+ */
+export interface StubChunk {
+  readonly name: string;
+  readonly stub: string;
+}
+
+/** The chunks of a C module that its stub includes, in ROM order, each with its symbol and its stub name. */
+export function stubChunks(model: Pick<Model, 'chunks'>, module: Module): readonly StubChunk[] {
+  const paths = chunkPathsOf(model);
+  const out: StubChunk[] = [];
+  for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
+    const path = paths[c];
+    const chunk = model.chunks[c];
+    if (path !== undefined && chunk !== undefined) out.push({ name: chunk.name, stub: stubNameOf(path) });
+  }
+  return out;
 }
 
 /** The assembly agbcc emits for the generated stub of C module `module` (stubAssemblyText over its chunk files). */

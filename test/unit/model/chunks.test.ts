@@ -253,6 +253,23 @@ test('a pad before a module border, or at a code module\'s end before data, is t
   ]);
 });
 
+test('at a c module\'s end, a pad after a function stays its own orphan, with its own stub (D78 b)', () => {
+  // A decompiled last function ends its C object, which gas pads with a nop (0x46C0), so the zeros stay assembly.
+  const cBorder = padModel({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'c', generated: true }, ['next', BASE + 0x10c], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }] });
+  assert.deepEqual(cBorder.diagnostics, []);
+  assert.deepEqual(around(cBorder), [
+    ['function', 'A', 0x100, 0x10a],
+    ['orphan', 'unk_0800010A', 0x10a, 0x10c],
+    ['function', 'B', 0x10c, 0x110],
+  ]);
+  const cAtEnd = padModel({ facts: [{ entry: BASE + 0x100, end: BASE + 0x10a }], functions: [[BASE + 0x100, 'A']], modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'c', generated: true }, { name: 'data', start: BASE + 0x10c, kind: 'data', generated: true }] });
+  assert.deepEqual(around(cAtEnd), [
+    ['function', 'A', 0x100, 0x10a],
+    ['orphan', 'unk_0800010A', 0x10a, 0x10c],
+    ['data', 'gUnk_0800010C', 0x10c, 0x400],
+  ]);
+});
+
 test('never folded: a pad inside the startup region', () => {
   const startup = padModel({ startupEnd: BASE + 0x10c, modules: [['rom_header', BASE], ['crt0', HEADER_END], ['main', BASE + 0x10c], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }] });
   assert.deepEqual(around(startup), [

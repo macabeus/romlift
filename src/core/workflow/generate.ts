@@ -238,7 +238,7 @@ export function generateProject(inputs: ProjectInputs, options: ProjectGenerateO
   const modelDiagnostics = [...confirmed.analysis.diagnostics, ...confirmed.model.diagnostics];
   if (modelDiagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: modelDiagnostics };
   const checked = checkPass(inputs.rom, confirmed, { decomp: decompStateOf(inputs.cTexts), printer: options.printer ?? 'readable' });
-  const stubs = reconcileStubs(confirmed.model, inputs.cTexts);
+  const stubs = reconcileStubs(confirmed.model, inputs.cTexts, inputs.previousChunkFiles);
   const result: GenerateResult = { ...checked, stubs, diagnostics: [...checked.diagnostics, ...stubs.diagnostics] };
   return { ok: true, result, diagnostics: result.diagnostics };
 }

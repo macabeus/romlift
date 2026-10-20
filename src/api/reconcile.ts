@@ -4,11 +4,12 @@
 export type { CToken, CTokenKind } from '../core/reconcile/c-tokens.ts';
 export { tokenizeC } from '../core/reconcile/c-tokens.ts';
 export type { CDefinition, CFileScan, COther, IncludeAsmPlan, IncludeAsmStatement, IncludeAsmWanted } from '../core/reconcile/include-asm.ts';
-export { INCLUDE_ASM_MACRO, includeAsmDir, planIncludeAsm, scanC } from '../core/reconcile/include-asm.ts';
+export { INCLUDE_ASM_MACRO, planIncludeAsm, scanC } from '../core/reconcile/include-asm.ts';
 export { applyTextEdits } from '../core/reconcile/text-edit.ts';
 export { ReconcileCodes } from '../core/reconcile/codes.ts';
 export type { ReconcileCode } from '../core/reconcile/codes.ts';
-export { includedChunkFile, moduleCompile, STUB_UNIT_MODE, STUB_UNIT_PRELUDE, stubAssemblyText, stubChunkFiles, stubName, stubUnitAssembly, stubUnitPrelude } from '../core/model/c-unit.ts';
+export type { StubChunk } from '../core/model/c-unit.ts';
+export { moduleCompile, STUB_UNIT_MODE, STUB_UNIT_PRELUDE, stubAssemblyText, stubChunkFiles, stubChunks, stubUnitAssembly, stubUnitPrelude } from '../core/model/c-unit.ts';
 export { cDataAssertLine, cDataSectionLine } from '../core/model/c-data-assert.ts';
 export { cAssemblyPath, cObjectPath, isCSource, MODULES_MK_PATH } from '../core/model/paths.ts';
 export type { StubAssembly, StubInclude, StubProblem, StubReading } from '../core/verify/c-stub.ts';

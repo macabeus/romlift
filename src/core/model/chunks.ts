@@ -15,12 +15,16 @@
 //   the function chunk spans [pad start, its end), its `entry` stays (Chunk.entry), and its first item is the
 //   padding item (items.ts), which the printers leave to the start macro (core/emit/print/chunk.ts);
 // - at its module's end (a module border, or the data start, follows), it is the alignment of the object's end, which
-//   the chunk before it in the module (a function or an orphan) takes as its last item, a padding item printed
-//   `.align 2, 0` (ChunkPlan.tailPad): a decompiled function there ends its C object, whose section ld aligns the
-//   same way.
-// A pad of other bytes (a 0x46C0 nop, which no start macro emits and agbcc's output for the function before it does
-// not hold; phase-4.md owner question Q7), one in the startup region or a data module, and one before an entry at 2
-// mod 4 stay orphans.
+//   the chunk before it in the module takes as its last item, a padding item printed `.align 2, 0`
+//   (ChunkPlan.tailPad), when that chunk stays assembly: any chunk of an `asm` module, and an orphan of a `c` module.
+//   After a function of a `c` module the pad stays its own orphan (with its own INCLUDE_ASM stub): once that function
+//   is decompiled its C object ends with agbcc's code, and gas pads the end of that object's `.text` to the section's
+//   alignment with a Thumb nop (0x46C0), not zeros, so the zeros must stay in an assembly chunk after it (fix round 3,
+//   correctness-a1-4, D78 b; D75 d's claim that ld aligns the next object the same way was wrong: the object's own
+//   section already ends aligned, so ld has nothing left to fill).
+// A pad after a function at a `c` module's end, a pad of other bytes (a 0x46C0 nop, which no start macro emits and
+// agbcc's output for the function before it does not hold; phase-4.md owner question Q7), one in the startup region
+// or a data module, and one before an entry at 2 mod 4 stay orphans.
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { lowerBound, pushAll } from '../../foundation/util/arrays.ts';
@@ -93,10 +97,16 @@ function foldsForward(pad: ChunkPlan, next: ChunkPlan | undefined): next is Chun
   return next !== undefined && next.kind === 'function' && next.module === pad.module && next.entry === pad.span.end && next.span.start === pad.span.end;
 }
 
-/** Whether pad `pad` ends its module's code (nothing of its module follows) and `previous`, a function or orphan of that module, can take it. */
-function foldsBackward(pad: ChunkPlan, previous: ChunkPlan | undefined, next: ChunkPlan | undefined): previous is ChunkPlan {
+/**
+ * Whether pad `pad` ends its module's code (nothing of its module follows) and `previous`, a chunk of that module that
+ * stays assembly, can take it: a function or orphan of an `asm` module, an orphan of a `c` module (never a function of
+ * a `c` module, whose decompiled C object gas would end with a nop instead).
+ */
+function foldsBackward(inputs: ChunkInputs, pad: ChunkPlan, previous: ChunkPlan | undefined, next: ChunkPlan | undefined): previous is ChunkPlan {
   if (next !== undefined && next.module === pad.module) return false;
-  return previous !== undefined && (previous.kind === 'function' || previous.kind === 'orphan') && previous.module === pad.module && previous.span.end === pad.span.start;
+  if (previous === undefined || previous.module !== pad.module || previous.span.end !== pad.span.start) return false;
+  if (previous.kind === 'orphan') return true;
+  return previous.kind === 'function' && inputs.modules[pad.module]?.kind !== 'c';
 }
 
 /** The chunks of one module's code with every pad folded into a neighbour (the module comment above); `named` as in isPad. */
@@ -112,7 +122,7 @@ function foldPads(inputs: ChunkInputs, named: readonly Addr[], chunks: readonly 
     } else if (foldsForward(c, next)) {
       out.push({ ...next, span: { start: c.span.start, end: next.span.end } });
       i++;
-    } else if (foldsBackward(c, previous, next)) {
+    } else if (foldsBackward(inputs, c, previous, next)) {
       out[out.length - 1] = { ...previous, span: { start: previous.span.start, end: c.span.end }, tailPad: c.span.start };
     } else {
       out.push(c);

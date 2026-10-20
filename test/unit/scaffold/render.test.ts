@@ -148,7 +148,7 @@ test('.gitignore ignores the ROMs, the build and romlift\'s state, and never a g
 });
 
 test('AGENTS.md cites the C-data ASSERT\'s message, and setup.sh runs its five duties in order', () => {
-  assert.match(textOf(SCAFFOLD, 'AGENTS.md'), /src\/<module>\.c defines data; see AGENTS\.md \(data ranges arrive in phase 5\)/);
+  assert.match(textOf(SCAFFOLD, 'AGENTS.md'), /src\/<module>\.c defines data; see AGENTS\.md \(romlift does not place C data yet\)/);
   const setup = textOf(SCAFFOLD, 'setup.sh');
   assert.ok(setup.startsWith('#!/bin/sh\n'));
   assert.match(setup, /^set -eu$/m);

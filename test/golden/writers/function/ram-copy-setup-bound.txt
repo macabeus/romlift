@@ -39,7 +39,6 @@ _0800012E:
 	b _0800012E
 _08000138:
 	bx lr
-	.align 2, 0
 	thumb_func_end sub_0800012C
 ==> asm/nonmatchings/asm_0800013C/sub_0800013C.s (generated, function) <==
 .thumb

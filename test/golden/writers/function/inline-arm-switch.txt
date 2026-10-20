@@ -9,7 +9,6 @@ sub_080000F4: @ 080000F4
 	bl sub_08000118
 	pop {r0}
 	bx r0
-	.align 2, 0
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/asm_08000108/sub_08000108.s (generated, function) <==
 .thumb

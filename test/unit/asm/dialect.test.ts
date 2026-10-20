@@ -2,11 +2,11 @@
 // that defines the macro, and the lines a generated src/<module>.c starts with. The header must expand, after a C
 // preprocessor, to a file-scope asm statement that includes the chunk file in romlift's `.s` dialect.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { nonmatchingDir } from '../../../src/core/model/paths.ts';
 import { C_STUB_HEADER, DIALECT, INCLUDE_ASM_HEADER, includeAsmStatement } from '../../../src/foundation/asm/dialect.ts';
-import { INCLUDE_ASM_HEADER_PATH, NONMATCHINGS_ROOT } from '../../../src/foundation/util/project-files.ts';
+import { chunkFileOf, INCLUDE_ASM_HEADER_PATH, INCLUDE_DIR, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../../src/foundation/util/project-files.ts';
 
 test('includeAsmStatement spells the stub of a chunk file in its module directory', () => {
   assert.equal(includeAsmStatement('main', 'AgbMain'), 'INCLUDE_ASM("asm/nonmatchings/main", AgbMain);');
@@ -14,9 +14,16 @@ test('includeAsmStatement spells the stub of a chunk file in its module director
   assert.equal(`${NONMATCHINGS_ROOT}/m`, nonmatchingDir('m'), 'the directory the function writer writes to');
 });
 
-test('the C stub header includes include_asm.h through -I include', () => {
+test('the C stub header includes include_asm.h through -I include, the include directory the Makefile passes', () => {
   assert.equal(INCLUDE_ASM_HEADER_PATH, 'include/include_asm.h');
   assert.equal(C_STUB_HEADER, '#include "include_asm.h"\n\n');
+  const makefile = readFileSync(new URL('../../../templates/Makefile', import.meta.url), 'utf8');
+  assert.match(makefile, new RegExp(`^CPPFLAGS := .* -I ${INCLUDE_DIR}$`, 'm'), 'the scaffold preprocesses with -I <INCLUDE_DIR>');
+});
+
+test('stubNameOf is chunkFileOf\'s inverse: the base name an INCLUDE_ASM statement names', () => {
+  assert.equal(stubNameOf(chunkFileOf(nonmatchingDir('main'), 'VBlankCB_08001234')), 'VBlankCB_08001234');
+  assert.equal(stubNameOf('asm/nonmatchings/m/a.b.s'), 'a.b');
 });
 
 test('INCLUDE_ASM_HEADER defines the macro once, guarded, and includes the macro file once', () => {

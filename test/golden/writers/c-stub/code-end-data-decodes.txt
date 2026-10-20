@@ -3,3 +3,4 @@
 
 INCLUDE_ASM("asm/nonmatchings/main", sub_080000F4);
 INCLUDE_ASM("asm/nonmatchings/main", sub_08000100);
+INCLUDE_ASM("asm/nonmatchings/main", unk_08000106);

@@ -7,7 +7,8 @@
 // is a problem at its line. What the statements must include (the module's chunk files in ROM order) is the
 // text-layout check's.
 import { C_STUB_HEADER } from '../../foundation/asm/dialect.ts';
-import { includedChunkFile, stubAssemblyText } from '../model/c-unit.ts';
+import { stubAssemblyText } from '../model/c-unit.ts';
+import { chunkFileOf } from '../../foundation/util/project-files.ts';
 import { scanC } from '../reconcile/include-asm.ts';
 
 /** The header include a stub starts with (C_STUB_HEADER without its blank line). */
@@ -50,7 +51,7 @@ export function readStub(text: string): StubReading {
   }
   for (const o of scan.others) problems.push({ line: o.line, message: `holds \`${o.first}…\` at file scope; a stub-only unit holds only INCLUDE_ASM statements` });
   problems.sort((a, b) => a.line - b.line);
-  return { includes: scan.statements.map((s) => ({ path: includedChunkFile(s.dir, s.name), line: s.line })), problems };
+  return { includes: scan.statements.map((s) => ({ path: chunkFileOf(s.dir, s.name), line: s.line })), problems };
 }
 
 /** The assembly agbcc emits for a stub-only C text (core/model/c-unit.ts), or why the text is not one. */

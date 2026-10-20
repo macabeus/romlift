@@ -14,7 +14,12 @@ import type { IncludeAsmWanted } from '../../../src/core/reconcile/include-asm.t
 import { applyTextEdits } from '../../../src/core/reconcile/text-edit.ts';
 import { C_STUB_HEADER, includeAsmStatement } from '../../../src/foundation/asm/dialect.ts';
 
-const WANTED: IncludeAsmWanted = { module: 'main', names: ['A', 'B', 'C', 'D'], path: 'src/main.c' };
+/** Chunks whose symbol is their stub name (no case-folded group). */
+function same(names: readonly string[]): IncludeAsmWanted['chunks'] {
+  return names.map((name) => ({ name, stub: name }));
+}
+
+const WANTED: IncludeAsmWanted = { module: 'main', chunks: same(['A', 'B', 'C', 'D']), path: 'src/main.c' };
 
 function stub(name: string, module = 'main'): string {
   return includeAsmStatement(module, name);
@@ -60,7 +65,7 @@ test('the empty file and the template header: one stub per wanted function, in R
   assert.equal(planned(''), `${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`);
   assert.equal(planned(C_STUB_HEADER), `#include "include_asm.h"\n\n${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`);
   assert.equal(planned('int x;'), `int x;\n${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`, 'a last line without its newline');
-  assert.deepEqual(planIncludeAsm('', { module: 'main', names: [] }).edits, []);
+  assert.deepEqual(planIncludeAsm('', { module: 'main', chunks: same([]) }).edits, []);
   assert.ok(planIncludeAsm('', WANTED).edits.every((e) => e.reason === 'add-stub' && e.start === e.end));
 });
 
@@ -83,7 +88,7 @@ test('a function the file defines is held: no stub for it, and a decompiled file
 
 test('stubs of another module do not hold a function of this one; they are left alone', () => {
   const text = `${stub('A', 'other')}\n`;
-  assert.equal(planned(text, { module: 'main', names: ['A'] }), `${stub('A', 'other')}\n${stub('A')}\n`);
+  assert.equal(planned(text, { module: 'main', chunks: same(['A']) }), `${stub('A', 'other')}\n${stub('A')}\n`);
 });
 
 test('W_C_ORDER when the held functions are out of ROM order; the planner still only inserts', () => {
@@ -92,7 +97,7 @@ test('W_C_ORDER when the held functions are out of ROM order; the planner still 
   assert.deepEqual(plan.diagnostics.map((d) => [d.code, d.severity, d.path, d.message]), [['W_C_ORDER', 'warning', 'src/main.c', 'src/main.c holds C before A, which comes first in ROM order']]);
   assert.equal(applyTextEdits(text, plan.edits), `${stub('C')}\n${stub('D')}\n${stub('A')}\n${stub('B')}\n`);
   assert.deepEqual(planIncludeAsm(`${stub('A')}\n${stub('C')}\n`, WANTED).diagnostics, [], 'in order');
-  const unnamed = planIncludeAsm(text, { module: 'main', names: ['A', 'C'] }).diagnostics[0];
+  const unnamed = planIncludeAsm(text, { module: 'main', chunks: same(['A', 'C']) }).diagnostics[0];
   assert.equal(unnamed?.path, undefined);
   assert.match(unnamed?.message ?? '', /^the C file of module main holds C before A/);
 });
@@ -118,30 +123,30 @@ test('a file that ends inside a comment gets no stub at its end: the names are u
 });
 
 test('a stub that follows code on the same line goes on a line of its own', () => {
-  assert.equal(planned(`${stub('A')} int x;`, { module: 'main', names: ['A', 'B'] }), `${stub('A')} \n${stub('B')}\nint x;`);
+  assert.equal(planned(`${stub('A')} int x;`, { module: 'main', chunks: same(['A', 'B']) }), `${stub('A')} \n${stub('B')}\nint x;`);
 });
 
 test('a stub whose function is no longer wanted is removed with its line; a rename is a removal and an insertion', () => {
   const text = `${C_STUB_HEADER}${stub('A')}\n${stub('Old')}\n${stub('C')}\n${stub('Gone')}\n`;
-  const plan = planIncludeAsm(text, { module: 'main', names: ['A', 'New', 'C'] });
+  const plan = planIncludeAsm(text, { module: 'main', chunks: same(['A', 'New', 'C']) });
   assert.deepEqual(plan.edits.map((e) => e.reason), ['add-stub', 'remove-stub', 'remove-stub']);
   assert.equal(applyTextEdits(text, plan.edits), `${C_STUB_HEADER}${stub('A')}\n${stub('New')}\n${stub('C')}\n`);
 });
 
 test('a module split or moved: the stubs of the functions that left are removed, those of another directory kept', () => {
   const text = `${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('X', 'other')}\n${stub('C')}\n${stub('D')}`;
-  assert.equal(planned(text, { module: 'main', names: ['A', 'B'] }), `${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('X', 'other')}\n`);
-  assert.equal(planned(`${C_STUB_HEADER}${stub('A')}\n`, { module: 'main', names: [] }), C_STUB_HEADER, 'every function gone');
+  assert.equal(planned(text, { module: 'main', chunks: same(['A', 'B']) }), `${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('X', 'other')}\n`);
+  assert.equal(planned(`${C_STUB_HEADER}${stub('A')}\n`, { module: 'main', chunks: same([]) }), C_STUB_HEADER, 'every function gone');
 });
 
 test('a removed stub that shares its line keeps the rest of the line; comments and definitions are never removed', () => {
   const text = `${stub('Old')} // was Old\nvoid Old(void) { }\n/* ${stub('Old')} */\n`;
-  assert.equal(planned(text, { module: 'main', names: ['A'] }), ` // was Old\nvoid Old(void) { }\n/* ${stub('Old')} */\n${stub('A')}\n`);
+  assert.equal(planned(text, { module: 'main', chunks: same(['A']) }), ` // was Old\nvoid Old(void) { }\n/* ${stub('Old')} */\n${stub('A')}\n`);
 });
 
 test('an insertion at the start of a removed line goes before the removal; the CRLF line ending goes with it', () => {
   const text = `${stub('A')}\r\n${stub('Old')}\r\n${stub('C')}\r\n`;
-  assert.equal(planned(text, { module: 'main', names: ['A', 'B', 'C'] }), `${stub('A')}\r\n${stub('B')}\n${stub('C')}\r\n`);
+  assert.equal(planned(text, { module: 'main', chunks: same(['A', 'B', 'C']) }), `${stub('A')}\r\n${stub('B')}\n${stub('C')}\r\n`);
 });
 
 const NONMATCHING = (inner: string): string => `#ifdef NONMATCHING\nint A(int x) {\n  return x;\n}\n#else\n${stub(inner)}\n#endif\n`;
@@ -154,22 +159,22 @@ test('a stub never goes inside a conditional: after the #endif of a held item in
   assert.equal(applyTextEdits(text, plan.edits), `${C_STUB_HEADER}${NONMATCHING('A')}${stub('B')}\n${stub('C')}\n${stub('D')}\n`);
   // Nothing held before the region: the stubs go above its #if (and the comment that leads into it).
   const later = `${C_STUB_HEADER}/* A, matched one day */\n${NONMATCHING('A')}`;
-  assert.equal(planned(later, { module: 'main', names: ['Z', 'A'] }), `${C_STUB_HEADER}${stub('Z')}\n/* A, matched one day */\n${NONMATCHING('A')}`);
+  assert.equal(planned(later, { module: 'main', chunks: same(['Z', 'A']) }), `${C_STUB_HEADER}${stub('Z')}\n/* A, matched one day */\n${NONMATCHING('A')}`);
   // Nested conditionals count as one outer region.
   const nested = `#if 1\n#ifdef X\n${stub('A')}\n#endif\n#endif\n`;
-  assert.equal(planned(nested, { module: 'main', names: ['A', 'B'] }), `${nested}${stub('B')}\n`);
+  assert.equal(planned(nested, { module: 'main', chunks: same(['A', 'B']) }), `${nested}${stub('B')}\n`);
 });
 
 test('an unclosed #if leaves no safe place inside or after it: E_C_STUB_UNPLACED; before it is safe', () => {
   const before = `${stub('A')}\n#ifdef NONMATCHING\n`;
-  assert.equal(planned(before, { module: 'main', names: ['A', 'B'] }), `${stub('A')}\n${stub('B')}\n#ifdef NONMATCHING\n`, 'after a held item at depth 0');
+  assert.equal(planned(before, { module: 'main', chunks: same(['A', 'B']) }), `${stub('A')}\n${stub('B')}\n#ifdef NONMATCHING\n`, 'after a held item at depth 0');
   const inside = `#ifdef NONMATCHING\n${stub('A')}\n`;
-  const plan = planIncludeAsm(inside, { module: 'main', names: ['A', 'B'], path: 'src/main.c' });
+  const plan = planIncludeAsm(inside, { module: 'main', chunks: same(['A', 'B']), path: 'src/main.c' });
   assert.deepEqual(plan.unplaced, ['B']);
   assert.deepEqual(plan.edits, []);
   assert.deepEqual(plan.diagnostics.map((d) => d.code), ['E_C_STUB_UNPLACED']);
-  assert.deepEqual(planIncludeAsm('#if 0\n', { module: 'main', names: ['A'] }).unplaced, ['A'], 'nothing held: not at the end either');
-  assert.deepEqual(planIncludeAsm(inside, { module: 'main', names: ['Z', 'A'] }).edits.map((e) => e.start), [0], 'before the #if is safe');
+  assert.deepEqual(planIncludeAsm('#if 0\n', { module: 'main', chunks: same(['A']) }).unplaced, ['A'], 'nothing held: not at the end either');
+  assert.deepEqual(planIncludeAsm(inside, { module: 'main', chunks: same(['Z', 'A']) }).edits.map((e) => e.start), [0], 'before the #if is safe');
 });
 
 test('a leading byte order mark is no code: the file is read as without it, and stays first', () => {
@@ -178,7 +183,7 @@ test('a leading byte order mark is no code: the file is read as without it, and 
   assert.deepEqual(planIncludeAsm(text, WANTED).edits, [], 'nothing to add: the first stub is recognised');
   assert.equal(scanC(text).directives[0]?.kind, 'preprocessor', 'the #include after the mark is a directive');
   assert.equal(planned(`${BOM}${stub('B')}\n`, WANTED), `${BOM}${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`);
-  assert.equal(planned(`${BOM}${stub('Old')}\n`, { module: 'main', names: [] }), BOM, 'a removal keeps the mark');
+  assert.equal(planned(`${BOM}${stub('Old')}\n`, { module: 'main', chunks: same([]) }), BOM, 'a removal keeps the mark');
 });
 
 test('the C of a renamed function where its new stub goes is E_C_STALE_DEFINITION; other unwanted definitions are returned', () => {
@@ -199,5 +204,55 @@ test('the C of a renamed function where its new stub goes is E_C_STALE_DEFINITIO
 
 test('the last stub of a shared line goes with the blanks before it; the stub that follows it gets a line of its own', () => {
   const text = `${stub('A')} ${stub('Old')}\n`;
-  assert.equal(planned(text, { module: 'main', names: ['A', 'C'] }), `${stub('A')}\n${stub('C')}\n`);
+  assert.equal(planned(text, { module: 'main', chunks: same(['A', 'C']) }), `${stub('A')}\n${stub('C')}\n`);
+});
+
+// Fix round 3 (D78 a): conditional code is never edited, a definition inside a conditional holds nothing, the previous
+// tree tells a renamed function's C from a helper, and a chunk is matched by its symbol and its stub name apart.
+
+test('the NONMATCHING pattern after a rename: the #else stub is never removed (E_C_CONDITIONAL_STUB) until renamed by hand', () => {
+  const block = (def: string, inner: string): string => `#ifdef NONMATCHING\nvoid ${def}(void) {\n}\n#else\n${stub(inner)}\n#endif\n`;
+  const wanted: IncludeAsmWanted = { module: 'main', chunks: same(['A', 'Nop', 'C']), path: 'src/main.c', previous: ['sub_08000100'] };
+  // The C function renamed as E_C_STALE_DEFINITION advised, the #else stub not: nothing in the block is edited.
+  const half = `${C_STUB_HEADER}${stub('A')}\n${block('Nop', 'sub_08000100')}${stub('C')}\n`;
+  const refused = planIncludeAsm(half, wanted);
+  assert.deepEqual(refused.diagnostics.map((d) => [d.code, d.severity]), [['E_C_CONDITIONAL_STUB', 'error']]);
+  assert.match(refused.diagnostics[0]?.message ?? '', /holds INCLUDE_ASM\("asm\/nonmatchings\/main", sub_08000100\); \(line 8\) inside an #if region/);
+  assert.deepEqual(refused.edits.map((e) => [e.reason, e.text]), [['add-stub', `${stub('Nop')}\n`]], 'no removal; Nop, defined only inside the region, gets a stub outside it');
+  // Both renamed: the #else stub holds Nop, nothing to do.
+  const done = `${C_STUB_HEADER}${stub('A')}\n${block('Nop', 'Nop')}${stub('C')}\n`;
+  assert.deepEqual(planIncludeAsm(done, wanted), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
+  // Neither renamed: the stale C and the conditional stub are both refused.
+  const before = `${C_STUB_HEADER}${stub('A')}\n${block('sub_08000100', 'sub_08000100')}${stub('C')}\n`;
+  assert.deepEqual(planIncludeAsm(before, wanted).diagnostics.map((d) => d.code), ['E_C_CONDITIONAL_STUB', 'E_C_STALE_DEFINITION']);
+});
+
+test('a definition inside a conditional does not hold its chunk: its stub goes outside the region', () => {
+  const text = `${stub('A')}\n#ifdef NONMATCHING\nvoid B(void) {\n}\n#endif\n${stub('C')}\n${stub('D')}\n`;
+  assert.equal(planned(text), `${stub('A')}\n${stub('B')}\n#ifdef NONMATCHING\nvoid B(void) {\n}\n#endif\n${stub('C')}\n${stub('D')}\n`);
+});
+
+test('with the previous tree known, a helper where a renamed asm-only function goes raises nothing; the C of a previous function is stale anywhere', () => {
+  const helper = `${C_STUB_HEADER}${stub('A')}\nstatic inline int Helper(int a) {\n    return a + 1;\n}\n${stub('Old')}\n${stub('C')}\n${stub('D')}\n`;
+  const renamed: IncludeAsmWanted = { module: 'main', chunks: same(['A', 'B', 'C', 'D']), path: 'src/main.c', previous: ['Old'] };
+  const plan = planIncludeAsm(helper, renamed);
+  assert.deepEqual(plan.diagnostics, [], 'Helper was no function of the previous tree');
+  assert.equal(applyTextEdits(helper, plan.edits), helper.replace(`${stub('Old')}\n`, '').replace(`${stub('A')}\n`, `${stub('A')}\n${stub('B')}\n`));
+  assert.deepEqual(plan.undeclared.map((d) => d.name), ['Helper']);
+  // Without the previous tree the same file is refused, as before (correctness-a0-1's rule).
+  assert.deepEqual(planIncludeAsm(helper, { module: renamed.module, chunks: renamed.chunks, path: 'src/main.c' }).diagnostics.map((d) => d.code), ['E_C_STALE_DEFINITION']);
+  // A decompiled previous function no missing stub lands next to (its function moved away under a new name).
+  const moved = `${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\nvoid Old(void) {\n}\n`;
+  const stale = planIncludeAsm(moved, renamed);
+  assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.severity]), [['E_C_STALE_DEFINITION', 'error']]);
+  assert.match(stale.diagnostics[0]?.message ?? '', /defines Old \(line 7\), a function of the tree romlift last generated that romlift.toml no longer has; a function it renamed/);
+  assert.deepEqual(planIncludeAsm(moved, { ...renamed, previous: [] }).diagnostics, [], 'Old is no previous function');
+});
+
+test('a case-folded pair: a definition holds its chunk by symbol, a stub by stub name, and the stub is inserted by stub name', () => {
+  const chunks = [{ name: 'Foo', stub: 'Foo_080000F6' }, { name: 'foo', stub: 'foo_08000100' }];
+  const decompiled = `${C_STUB_HEADER}void Foo(void) {\n}\n${stub('foo_08000100')}\n`;
+  assert.deepEqual(planIncludeAsm(decompiled, { module: 'main', chunks, path: 'src/main.c' }), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
+  assert.equal(planned(C_STUB_HEADER, { module: 'main', chunks }), `${C_STUB_HEADER}${stub('Foo_080000F6')}\n${stub('foo_08000100')}\n`);
+  assert.equal(planned(`${C_STUB_HEADER}${stub('Foo')}\n`, { module: 'main', chunks }), `${C_STUB_HEADER}${stub('Foo_080000F6')}\n${stub('foo_08000100')}\n`, 'a stub of the symbol is not the chunk file\'s');
 });

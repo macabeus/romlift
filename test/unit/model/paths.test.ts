@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { assembleUnits, buildUnits, cAssemblyPath, chunkPaths, cObjectPath, CRT0_PATH, HEADER_PATH, isCSource, MODULES_MK_PATH, modulePathPrefixes, moduleSource, objectPath } from '../../../src/core/model/paths.ts';
+import { assembleUnits, buildUnits, cAssemblyPath, chunkNamesOf, chunkPaths, cObjectPath, CRT0_PATH, HEADER_PATH, isCSource, MODULES_MK_PATH, modulePathPrefixes, moduleSource, objectPath } from '../../../src/core/model/paths.ts';
 import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 
 function model() {
@@ -87,4 +87,29 @@ test('a C module builds src/<m>.c through build/src/<m>.s to build/src/<m>.o; it
   // The header's module keeps its file and object whatever its kind says.
   const header = { ...c, modules: c.modules.map((x) => (x.name === 'rom_header' ? { ...x, kind: 'c' as const } : x)) };
   assert.deepEqual(buildUnits(header)[0], { module: 'rom_header', source: HEADER_PATH, object: 'build/rom_header.o' });
+});
+
+test('chunkNamesOf reads the chunk names back from chunk files: base names, and the names of a case-folded group', () => {
+  const files = [
+    'asm/nonmatchings/main/VBlankCB_080000C0.s',
+    'asm/nonmatchings/main/VblankCB_080000E0.s',
+    'asm/nonmatchings/main/sub_08000100.s',
+    'asm/nonmatchings/main/sub_08000200.s',
+    'asm/nonmatchings/main_2/AgbMain.s',
+    'asm/nonmatchings/main_2/Solo_08000300.s',
+    'asm/main.s',
+    'asm/nonmatchings/main/notes.txt',
+  ];
+  assert.deepEqual(chunkNamesOf(files), ['AgbMain', 'Solo_08000300', 'VBlankCB', 'VBlankCB_080000C0', 'VblankCB', 'VblankCB_080000E0', 'sub_08000100', 'sub_08000200']);
+  assert.deepEqual(chunkNamesOf([]), []);
+  // The inverse of chunkPaths: every chunk name of a model is among the names its files give back.
+  const rom = romWith([], { size: 0x200 });
+  const model = modelOf(rom, {
+    modules: [
+      { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
+      { name: 'main', kind: 'c', chunks: [{ name: 'VBlankCB', items: [dataItem(0x0800_00c0, 0x20)] }, { name: 'VblankCB', items: [dataItem(0x0800_00e0, 0x20)] }, { kind: 'orphan', name: 'unk_08000100', items: [dataItem(0x0800_0100, 0x100)] }] },
+    ],
+  });
+  const names = chunkNamesOf(chunkPaths(model).flatMap((p) => (p === undefined ? [] : [p])));
+  for (const chunk of model.chunks.slice(1)) assert.ok(names.includes(chunk.name), chunk.name);
 });

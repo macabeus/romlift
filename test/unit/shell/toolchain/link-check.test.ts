@@ -245,5 +245,5 @@ test('a C object that defines data fails the link with the ldscript ASSERT messa
   assert.equal((await runTool(linkTools.as, [...DIALECT.asArgs, '-I', dir, '-o', 'build/main.o', 'asm/main.s'], dir)).code, 0);
   const ld = await runTool(linkTools.ld, ['-T', 'ldscript.txt', '-o', 'out.elf', 'build/main.o', 'build/src/helper.o'], dir);
   assert.notEqual(ld.code, 0);
-  assert.match(ld.stderr, /src\/helper\.c defines data; see AGENTS\.md \(data ranges arrive in phase 5\)/);
+  assert.match(ld.stderr, /src\/helper\.c defines data; see AGENTS\.md \(romlift does not place C data yet\)/);
 });

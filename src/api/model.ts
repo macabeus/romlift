@@ -41,10 +41,10 @@ export {
   MACROS_PATH,
   modulePathPrefixes,
   moduleSource,
-  nonmatchingDir,
   objectPath,
   SYMBOLS_PATH,
 } from '../core/model/paths.ts';
+export { nonmatchingDir } from '../foundation/util/project-files.ts';
 export { buildModel } from '../core/model/model.ts';
 export { chunkEntry } from '../core/model/chunks.ts';
 export { encodeModel, MODEL_JSON_SCHEMA } from '../core/model/codec.ts';
