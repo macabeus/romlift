@@ -6,7 +6,9 @@
 //            still has its default name; delete a listed function that starts no module; add a `code`
 //            override that covers one found function exactly; split a `c` module at a legal border inside it.
 //            Each edit is applied alone to the original config and serialised; then `generate --json` and
-//            `verify --link --json` must exit 0 and the link must reproduce the ROM's SHA-1.
+//            `verify --link --json` must exit 0 and the link must reproduce the ROM's SHA-1, and `make` (the user's
+//            build, from the project's own src/*.c, after `./setup.sh` once per target) must exit 0, which it does
+//            only when `<name>.gba` has the SHA-1 `<name>.sha1` records (D75 b).
 //   illegal: a module start moved by 2 bytes (E_MODULE_BORDER), a [functions] line repeated
 //            (E_DUPLICATE_ADDRESS), a [functions] key without its leading zero (E_TOML_KEY_SPELLING); each
 //            makes `generate --json` exit 1 with that code and leaves every file but romlift.toml unchanged.
@@ -19,8 +21,10 @@
 //   overrides: [], trail: 'off'})
 // CLI: generate --json and verify --link --json print NDJSON whose last line is
 //   {"type":"summary","ok":boolean,"exitCode":number,"sha1"?:string} (sha1 of the linked ROM with --link).
+//   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set (the source CLI here); the first target builds agbcc through
+//   its duty (2) and later targets get a copy of that tools/agbcc, as g4.e2e-fixtures does.
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult, type GateContext } from './gate.ts';
 
@@ -203,6 +207,24 @@ function illegalEdits(text: string, api: Api, facts: Facts): readonly { readonly
   return out;
 }
 
+async function exists(file: string): Promise<boolean> {
+  try {
+    await stat(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A `romlift` executable that runs the source CLI, for `$ROMLIFT_CLI`. */
+async function sourceCli(cx: GateContext): Promise<string> {
+  const dir = await cx.tmpDir('romlift-cli-');
+  const shim = path.join(dir, 'romlift');
+  const main = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
+  await writeFile(shim, `#!/bin/sh\nexec '${process.execPath}' --conditions=source '${main}' "$@"\n`, { mode: 0o755 });
+  return shim;
+}
+
 async function romlift(cx: GateContext, cwd: string, args: readonly string[]): Promise<{ readonly run: ExecResult; readonly lines: readonly CliLine[] }> {
   const cli = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
   const run = await cx.exec(process.execPath, ['--conditions=source', cli, ...args, '--json'], { cwd });
@@ -216,7 +238,7 @@ async function snapshot(dir: string, prefix = ''): Promise<Map<string, string>> 
   const out = new Map<string, string>();
   for (const entry of await readdir(path.join(dir, prefix), { withFileTypes: true })) {
     const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
-    if (relative === '.git' || relative === 'romlift.toml') continue;
+    if (relative === '.git' || relative === 'tools' || relative === 'romlift.toml') continue;
     if (entry.isDirectory()) for (const [key, value] of await snapshot(dir, relative)) out.set(key, value);
     else if (entry.isFile()) out.set(relative, createHash('sha1').update(await readFile(path.join(dir, relative))).digest('hex'));
   }
@@ -247,9 +269,12 @@ gate({
     if (targets.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
     if (cx.tier === 'real') for (const d of cx.datasets) targets.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) });
     const base = await cx.tmpDir('romlift-toml-mutations-');
+    const cli = await sourceCli(cx);
+    const env = { ROMLIFT_CLI: cli };
     const problems: string[] = [];
     let legal = 0;
     let illegal = 0;
+    let agbcc: string | undefined;
     for (const target of targets) {
       const dir = path.join(base, target.name);
       await mkdir(dir, { recursive: true });
@@ -265,6 +290,10 @@ gate({
       const analysis = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
       const facts: Facts = { config: parsed.value, borders: legalBorders(rom, analysis), analysis, end: rom.end };
       const random = prng(nameSeed(target.name));
+      if (agbcc !== undefined) await cp(agbcc, path.join(dir, 'tools', 'agbcc'), { recursive: true });
+      const setup = await cx.exec('./setup.sh', [], { cwd: dir, env });
+      if (setup.code !== 0) throw new Error(`${target.name}: ./setup.sh exited ${setup.code}:\n${tail(setup)}`);
+      if (agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc')))) agbcc = path.join(dir, 'tools', 'agbcc');
 
       for (const kind of LEGAL_KINDS) {
         const edit = legalEdit(kind, facts, random);
@@ -276,9 +305,11 @@ gate({
         const generate = await romlift(cx, dir, ['generate']);
         const verify = generate.run.code === 0 ? await romlift(cx, dir, ['verify', '--link']) : undefined;
         const linked = verify?.lines.at(-1)?.sha1;
-        if (generate.run.code !== 0 || verify?.run.code !== 0 || linked !== rom.sha1) {
+        const make = generate.run.code === 0 ? await cx.exec('make', [], { cwd: dir, env }) : undefined;
+        if (generate.run.code !== 0 || verify?.run.code !== 0 || linked !== rom.sha1 || make?.code !== 0) {
           const codes = [...generate.lines, ...(verify?.lines ?? [])].filter((l) => l.type === 'diagnostic').map((l) => l.code ?? '?');
-          problems.push(`${target.name}: ${edit.what}: generate exit ${generate.run.code}, verify exit ${verify?.run.code ?? 'not run'}, linked ${linked ?? 'nothing'}, codes [${codes.join(', ')}]`);
+          const built = make === undefined ? 'not run' : make.code === 0 ? '0' : `${make.code}: ${tail(make, 4).replace(/\n/g, ' / ')}`;
+          problems.push(`${target.name}: ${edit.what}: generate exit ${generate.run.code}, verify exit ${verify?.run.code ?? 'not run'}, linked ${linked ?? 'nothing'}, make exit ${built}, codes [${codes.join(', ')}]`);
         } else {
           legal++;
         }
@@ -296,6 +327,6 @@ gate({
       await writeFile(tomlPath, text);
     }
     if (problems.length > 0) throw new Error(`TOML mutations: ${problems.join(' | ')}`);
-    cx.note(`${legal} legal edits link to the SHA-1 and ${illegal} illegal edits give their codes, on ${targets.length} ROMs`);
+    cx.note(`${legal} legal edits link to the SHA-1 and build with make to it, and ${illegal} illegal edits give their codes, on ${targets.length} ROMs`);
   },
 });
