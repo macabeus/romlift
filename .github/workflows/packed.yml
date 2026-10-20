@@ -1,0 +1,171 @@
+# The published tarball works on its own (architecture §2, §8.6, g4.packed-e2e). The package is built and packed
+# with Node 24; the tarball must list templates/** and dist/** (with the bin, dist/cli/main.js) and no ROM, ELF, map,
+# object, save or built signature file. It is then installed with --ignore-scripts into an empty directory, on the
+# matrix's Node (24, and 22.18, the engines floor, D2, D30), where `romlift doctor` must pass, and every committed
+# fixture but c-data (whose C array must fail the link, g4.c-data-fails-loud) goes through `npx romlift init <rom>`
+# in a directory below the install that holds only its ROM, `./setup.sh` and `make`, which must end at the fixture's
+# SHA-1. ROMLIFT_CLI points setup.sh at the installed bin, since the pinned version is not on the registry, and it
+# then skips its npm duty. agbcc and old_agbcc are built once per job at the commit templates/agbcc.json pins (as
+# fixtures.yml builds them) and copied into each project's tools/agbcc, where setup.sh's agbcc duty finds them.
+name: packed
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  packed:
+    name: ${{ matrix.os }}, installed on Node ${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ['22.18', '24']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install binutils (apt)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
+      - name: Install binutils (Homebrew)
+        if: runner.os == 'macOS'
+        run: brew install arm-none-eabi-binutils
+      # The commit and URL the package's setup.sh would fetch, read from the template the tarball ships.
+      - name: Read the agbcc pin
+        id: agbcc
+        run: |
+          echo "url=$(node -p "require('./templates/agbcc.json').url")" >> "$GITHUB_OUTPUT"
+          echo "commit=$(node -p "require('./templates/agbcc.json').commit")" >> "$GITHUB_OUTPUT"
+      # Both compilers from the one commit, in the order of pret/agbcc's build.sh (old_agbcc first, each after a
+      # clean, since they share the object files), side by side in bin/ as its install.sh puts them.
+      - name: Build agbcc and old_agbcc at the pinned commit
+        env:
+          AGBCC_URL: ${{ steps.agbcc.outputs.url }}
+          AGBCC_COMMIT: ${{ steps.agbcc.outputs.commit }}
+        run: |
+          git init -q "$RUNNER_TEMP/agbcc-src"
+          git -C "$RUNNER_TEMP/agbcc-src" fetch -q --depth 1 "$AGBCC_URL" "$AGBCC_COMMIT"
+          git -C "$RUNNER_TEMP/agbcc-src" checkout -q FETCH_HEAD
+          mkdir -p "$RUNNER_TEMP/agbcc/bin"
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" old -j1
+          cp "$RUNNER_TEMP/agbcc-src/gcc/old_agbcc" "$RUNNER_TEMP/agbcc/bin/old_agbcc"
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" -j1
+          cp "$RUNNER_TEMP/agbcc-src/gcc/agbcc" "$RUNNER_TEMP/agbcc/bin/agbcc"
+      - name: Install exactly the lock file
+        run: npm ci --ignore-scripts
+      - name: Build dist/
+        run: npm run build
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --json --pack-destination "$RUNNER_TEMP/pack" > "$RUNNER_TEMP/pack.json"
+      # templates/** and dist/** with the bin, and nothing derived from a ROM or built locally.
+      - name: Check the tarball's file list
+        run: |
+          node -e '
+            const [packed] = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            if (packed === undefined) throw new Error("npm pack --json listed no tarball");
+            const files = packed.files.map((f) => f.path);
+            const problems = [];
+            if (!files.some((f) => f.startsWith("dist/"))) problems.push("no dist/** file");
+            if (!files.some((f) => f.startsWith("templates/"))) problems.push("no templates/** file");
+            if (!files.includes("dist/cli/main.js")) problems.push("no dist/cli/main.js (the bin)");
+            const forbidden = files.filter((f) => /\.(gba|elf|map|o|sav)$/i.test(f) || /^signatures\/(?!specs\/)[^/]+\.json$/.test(f));
+            if (forbidden.length > 0) problems.push(`forbidden files: ${forbidden.join(", ")}`);
+            if (problems.length > 0) { console.error(problems.join("\n")); process.exit(1); }
+            console.log(`${packed.filename}: ${files.length} files, no ROM, ELF, map, object or built signature file`);
+            require("fs").appendFileSync(process.env.GITHUB_ENV, `ROMLIFT_TARBALL=${process.argv[2]}/${packed.filename}\n`);
+          ' "$RUNNER_TEMP/pack.json" "$RUNNER_TEMP/pack"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # An empty directory, outside the checkout, so nothing resolves to the repository's sources or node_modules. Its
+      # own package.json makes it npm's prefix: without one npm installs into the nearest parent that has one.
+      - name: Install the tarball with --ignore-scripts into an empty directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/install"
+          cd "$RUNNER_TEMP/install"
+          printf '{ "private": true }\n' > package.json
+          npm install --ignore-scripts --no-audit --no-fund "$ROMLIFT_TARBALL"
+          test -x node_modules/.bin/romlift
+          echo "ROMLIFT_BIN=$RUNNER_TEMP/install/node_modules/.bin/romlift" >> "$GITHUB_ENV"
+      - name: romlift doctor from the tarball
+        working-directory: ${{ runner.temp }}/install
+        run: |
+          node --version
+          "$ROMLIFT_BIN" doctor --json > "$RUNNER_TEMP/doctor.ndjson" || { cat "$RUNNER_TEMP/doctor.ndjson"; exit 1; }
+          node -e '
+            const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n").filter((l) => l.trim() !== "");
+            const last = JSON.parse(lines.at(-1) ?? "null");
+            if (last?.type !== "summary" || last.exitCode !== 0) { console.error(lines.join("\n")); process.exit(1); }
+          ' "$RUNNER_TEMP/doctor.ndjson"
+      # Each project sits below the install's package.json, so `npx --no romlift` resolves the installed bin.
+      - name: npx romlift init, setup.sh and make on every fixture but c-data, from the tarball
+        timeout-minutes: 30
+        env:
+          AGBCC_BUILD: ${{ runner.temp }}/agbcc
+        run: |
+          set -eu
+          export ROMLIFT_CLI="$ROMLIFT_BIN"
+          projects="$RUNNER_TEMP/install/projects"
+          logs="$RUNNER_TEMP/packed-e2e"
+          mkdir -p "$projects" "$logs"
+
+          # The last NDJSON line of a --json run is {"type":"summary","exitCode":0}.
+          summary_ok() {
+            node -e '
+              const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n").filter((l) => l.trim() !== "");
+              const last = JSON.parse(lines.at(-1) ?? "null");
+              if (last?.type !== "summary" || last.exitCode !== 0) { console.error(lines.slice(-8).join("\n")); process.exit(1); }
+            ' "$1"
+          }
+
+          # npx romlift init, setup.sh and make for one fixture; prints why it failed and returns 1.
+          build_one() {
+            name=$1
+            gba="$GITHUB_WORKSPACE/bench/dataset/synthetic/$name/build/$name.gba"
+            dir="$projects/$name"
+            mkdir -p "$dir"
+            cp "$gba" "$dir/$name.gba"
+            (cd "$dir" && npx --no romlift init "$name.gba" --json) > "$logs/$name.init.ndjson" || { echo "npx romlift init exited $?"; tail -n 8 "$logs/$name.init.ndjson"; return 1; }
+            summary_ok "$logs/$name.init.ndjson" || { echo 'init printed no ok summary'; return 1; }
+            cp "$dir/romlift.toml" "$logs/$name.toml"
+            mkdir -p "$dir/tools"
+            cp -R "$AGBCC_BUILD" "$dir/tools/agbcc"
+            (cd "$dir" && ./setup.sh) || { echo "./setup.sh exited $?"; return 1; }
+            (cd "$dir" && make) || { echo "make exited $?"; return 1; }
+            cmp -s "$dir/romlift.toml" "$logs/$name.toml" || { echo 'setup.sh or make changed romlift.toml'; return 1; }
+            set -- "$dir"/*.sha1
+            [ "$#" -eq 1 ] && [ -f "$1" ] || { echo 'the project has no single <name>.sha1'; return 1; }
+            built=$(sed -E -n '1s/^[0-9a-f]{40} [ *]//p' "$1")
+            [ -n "$built" ] && cmp "$dir/$built" "$gba" || { echo "make did not build $built with the fixture's bytes"; return 1; }
+            echo "$name: $built reproduces $(cut -d ' ' -f 1 "$1")"
+          }
+
+          failed=''
+          count=0
+          for gba in "$GITHUB_WORKSPACE"/bench/dataset/synthetic/*/build/*.gba; do
+            name=$(basename "$gba" .gba)
+            [ "$gba" = "$GITHUB_WORKSPACE/bench/dataset/synthetic/$name/build/$name.gba" ] || continue
+            if [ "$name" = c-data ]; then
+              echo "c-data not built here: its C array must fail the link (g4.c-data-fails-loud)"
+              continue
+            fi
+            echo "::group::$name"
+            if build_one "$name"; then count=$((count + 1)); else failed="$failed $name"; echo "::error::$name: npx romlift init, setup.sh and make did not reach the SHA-1"; fi
+            echo '::endgroup::'
+          done
+          [ "$count" -gt 0 ] || { echo '::error::no fixture was built'; exit 1; }
+          [ -z "$failed" ] || { echo "::error::failed:$failed"; exit 1; }
+          echo "$count fixtures reach their SHA-1 from the installed tarball"
