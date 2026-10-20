@@ -1,8 +1,12 @@
-// Runs the real entry point as a child process with stdin closed: it must never wait for input.
+// Runs the real entry point as a child process with stdin closed: it must never wait for input. A write to a reader
+// that has gone (EPIPE on a pipe, ENOTCONN on macOS's socket-pair stdout) exits quietly; any other error is thrown.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+
+import { exitQuietlyOnEpipe } from '../../../src/cli/main.ts';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -64,4 +68,32 @@ test('a reader that closes the pipe early is no error: analyze | head exits quie
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+/** An emitter's error event with errno `code`, as a stream raises it on a failed write. */
+function writeError(code: string): NodeJS.ErrnoException {
+  return Object.assign(new Error(`write ${code}`), { code, errno: -1, syscall: 'write' });
+}
+
+for (const code of ['EPIPE', 'ENOTCONN']) {
+  test(`a write that fails with ${code} (a reader that has gone) exits quietly (correctness-ci-1)`, () => {
+    const stream = new EventEmitter();
+    let exits = 0;
+    exitQuietlyOnEpipe(stream, () => {
+      exits++;
+    });
+    assert.doesNotThrow(() => stream.emit('error', writeError(code)));
+    assert.equal(exits, 1);
+  });
+}
+
+test('any other write error is thrown, and the process does not exit quietly', () => {
+  const stream = new EventEmitter();
+  let exits = 0;
+  exitQuietlyOnEpipe(stream, () => {
+    exits++;
+  });
+  for (const code of ['EIO', 'ENOSPC']) assert.throws(() => stream.emit('error', writeError(code)), new RegExp(`write ${code}`));
+  assert.throws(() => stream.emit('error', new Error('no code')), /no code/);
+  assert.equal(exits, 0);
 });
