@@ -86,7 +86,7 @@ test('the frozen shapes hold at runtime too', () => {
   assert.deepEqual([...writer.emit(rom, model, cxDefault, null)], []);
 });
 
-test('the registry holds the eight phase-3 writers, ldscript and symbols global, each yielding nothing yet', () => {
+test('the registry holds the eight phase-3 writers and phase 4\'s modules-mk and c-stub, ldscript, symbols and modules-mk global', () => {
   assert.deepEqual(
     WRITERS.map((w) => [w.id, w.scope]),
     [
@@ -98,6 +98,8 @@ test('the registry holds the eight phase-3 writers, ldscript and symbols global,
       ['data', 'module'],
       ['ldscript', 'global'],
       ['symbols', 'global'],
+      ['modules-mk', 'global'],
+      ['c-stub', 'module'],
     ],
   );
   const ids: readonly WriterId[] = WRITERS.map((w) => w.id);

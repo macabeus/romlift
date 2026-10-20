@@ -1,8 +1,1 @@
-==> asm/main.s (generated, module) <==
-.syntax unified
-.include "include/macros.inc"
-.thumb
-.include "asm/nonmatchings/main/sub_080000F4.s"
-.include "asm/nonmatchings/main/sub_08000100.s"
-.include "asm/nonmatchings/main/unk_08000102.s"
-.include "asm/nonmatchings/main/sub_08000104.s"
+(no files)

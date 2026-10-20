@@ -1,13 +1,16 @@
-// The structural part of the text-layout check (architecture §6.4, §6.7): ldscript.txt and symbols.ld are not
+// The structural part of the text-layout check (architecture §6.4, §6.6, §6.7): ldscript.txt and symbols.ld are not
 // laid out to bytes but read as the lines the ldscript and symbols writers print. The linker script must link
 // each build unit once, in ROM order, a runs_at unit at its run address loaded at its load address with its
-// __load_ symbol, and INCLUDE symbols.ld exactly when there are symbols outside the ROM; symbols.ld must define
-// each symbol outside the ROM once with the model's value, and nothing else. Failures are E_SELF_CHECK_TEXT.
+// __load_ symbol, and INCLUDE symbols.ld exactly when there are symbols outside the ROM; outside every section it
+// must hold, for each C unit in ROM order and for no other, its C-data check section and its ASSERT, exactly as
+// core/model/c-unit.ts spells them (D21, D74 f); symbols.ld must define each symbol outside the ROM once with the
+// model's value, and nothing else. Failures are E_SELF_CHECK_TEXT.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
-import { buildUnits, SYMBOLS_PATH } from '../model/paths.ts';
+import { cDataAssertLine, cDataSectionLine } from '../model/c-unit.ts';
+import { buildUnits, isCSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { externalSymbols } from '../model/symbols.ts';
 import type { Model } from '../model/types.ts';
 import { textError } from './text-error.ts';
@@ -41,10 +44,53 @@ const LOAD_SYMBOL = /^__load_([A-Za-z0-9_.$]+)\s*=\s*LOADADDR\(\s*\.([A-Za-z0-9_
 const START = /^\.\s*=\s*(0x[0-9A-Fa-f]+)\s*;$/;
 const ASSIGNMENT = /^([A-Za-z_.$][A-Za-z0-9_.$]*)\s*=\s*(0x[0-9A-Fa-f]+)\s*;$/;
 
+/** One C-data line of the script: the text and where it is. */
+interface CDataLine {
+  readonly text: string;
+  readonly line: number;
+}
+
+/** The C-data lines the model's C units need, in ROM order: each unit's check section, then its ASSERT. */
+function expectedCDataLines(model: Model): readonly { readonly text: string; readonly addr: Addr; readonly module: string }[] {
+  const units = buildUnits(model);
+  return model.modules.flatMap((module, i) =>
+    isCSource(units[i]?.source ?? '')
+      ? [
+          { text: cDataSectionLine(module.name), addr: module.span.start, module: module.name },
+          { text: cDataAssertLine(module.name), addr: module.span.start, module: module.name },
+        ]
+      : [],
+  );
+}
+
+/** The first place the script's C-data lines differ from the model's, or nothing. */
+function checkCDataLines(model: Model, path: string, got: readonly CDataLine[], lastLine: number): Diagnostic[] {
+  const want = expectedCDataLines(model);
+  for (let k = 0; k < Math.max(want.length, got.length); k++) {
+    const w = want[k];
+    const g = got[k];
+    if (w?.text === g?.text) continue;
+    const message =
+      w === undefined
+        ? `holds \`${g?.text ?? ''}\`, which no C unit of the model needs there`
+        : g === undefined
+          ? `lacks \`${w.text}\`, which C unit ${w.module} needs`
+          : `holds \`${g.text}\` where C unit ${w.module} needs \`${w.text}\``;
+    return [textError(path, g?.line ?? lastLine, w?.addr ?? ROM_BASE, message)];
+  }
+  return [];
+}
+
+/** Whether a line outside every section is a C-data line (a check section or its ASSERT), by its form. */
+function isCDataLine(s: string): boolean {
+  return s.startsWith('.c_data_') || s.startsWith('ASSERT(');
+}
+
 export function checkLdscript(model: Model, path: string, text: string): Diagnostic[] {
   const out: Diagnostic[] = [];
   const lines = withoutComments(text).split('\n');
   const objects: ScriptObject[] = [];
+  const cData: CDataLine[] = [];
   const loads = new Map<string, string>();
   let includesSymbols = false;
   let start: Addr | undefined;
@@ -79,6 +125,10 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
       else err(`unexpected \`${s}\` inside section .${section.name}`);
       return;
     }
+    if (isCDataLine(s)) {
+      cData.push({ text: s, line });
+      return;
+    }
     const at = SECTION_AT.exec(s);
     const plain = SECTION.exec(s);
     const loadSymbol = LOAD_SYMBOL.exec(s);
@@ -100,6 +150,7 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
   if (wantSymbols !== includesSymbols) {
     out.push(textError(path, 1, ROM_BASE, wantSymbols ? `does not INCLUDE ${SYMBOLS_PATH}, which defines symbols the code names` : `INCLUDEs ${SYMBOLS_PATH}, which defines nothing`));
   }
+  out.push(...checkCDataLines(model, path, cData, lastLine));
   const units = buildUnits(model);
   for (let k = 0; k < Math.max(units.length, objects.length); k++) {
     const unit = units[k];

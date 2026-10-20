@@ -1,9 +1,10 @@
-// Shared paths (architecture §6.2, §6.3, D62): function and orphan files per module, the case-fold rule
-// (every member of a collision group gets its address), module sources and build units in ROM order.
+// Shared paths (architecture §6.2, §6.3, D62, D74 f): function and orphan files per module, the case-fold rule
+// (every member of a collision group gets its address), module sources and build units in ROM order, a C module's
+// stub, assembly and object.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { assembleUnits, buildUnits, chunkPaths, CRT0_PATH, HEADER_PATH, modulePathPrefixes, moduleSource } from '../../../src/core/model/paths.ts';
+import { assembleUnits, buildUnits, cAssemblyPath, chunkPaths, cObjectPath, CRT0_PATH, HEADER_PATH, isCSource, MODULES_MK_PATH, modulePathPrefixes, moduleSource, objectPath } from '../../../src/core/model/paths.ts';
 import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 
 function model() {
@@ -69,4 +70,21 @@ test('the path prefixes of a module: its source, and its nonmatchings directory 
   assert.deepEqual(modulePathPrefixes(m, m.modules[2]!), ['asm/main.s', 'asm/nonmatchings/main/']);
   assert.deepEqual(modulePathPrefixes(m, m.modules[4]!), ['data/data.s']);
   assert.deepEqual(modulePathPrefixes(m, m.modules[0]!), ['asm/rom_header.s']);
+});
+
+test('a C module builds src/<m>.c through build/src/<m>.s to build/src/<m>.o; its prefixes are its stub and its directory (D74 f)', () => {
+  const m = model();
+  const c = { ...m, modules: m.modules.map((x) => (x.name === 'main' ? { ...x, kind: 'c' as const } : x)) };
+  assert.deepEqual(buildUnits(c)[2], { module: 'main', source: 'src/main.c', object: 'build/src/main.o' });
+  assert.deepEqual(assembleUnits(c)[2], { module: 'main', source: 'src/main.c', object: 'build/src/main.o', span: c.modules[2]!.span });
+  assert.deepEqual(buildUnits(c).filter((_, i) => i !== 2), buildUnits(m).filter((_, i) => i !== 2), 'the other units keep build/<m>.o');
+  assert.equal(cObjectPath('main'), 'build/src/main.o');
+  assert.equal(cAssemblyPath('main'), 'build/src/main.s');
+  assert.equal(objectPath('main'), 'build/main.o');
+  assert.deepEqual(['src/main.c', 'asm/main.s', 'data/data.s'].map(isCSource), [true, false, false]);
+  assert.deepEqual(modulePathPrefixes(c, c.modules[2]!), ['src/main.c', 'asm/nonmatchings/main/']);
+  assert.equal(MODULES_MK_PATH, 'modules.mk');
+  // The header's module keeps its file and object whatever its kind says.
+  const header = { ...c, modules: c.modules.map((x) => (x.name === 'rom_header' ? { ...x, kind: 'c' as const } : x)) };
+  assert.deepEqual(buildUnits(header)[0], { module: 'rom_header', source: HEADER_PATH, object: 'build/rom_header.o' });
 });

@@ -1,0 +1,5 @@
+==> src/main.c (scaffold, c-stub) <==
+#include "include_asm.h"
+
+INCLUDE_ASM("asm/nonmatchings/main", sub_0800011C);
+INCLUDE_ASM("asm/nonmatchings/main", unk_08000122);

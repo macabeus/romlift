@@ -1,10 +1,12 @@
 // configFromDiscover (architecture §6.1, §6.2, D62 c): every found entry listed with its mode and default name,
-// nested entries as labels; the inferred modules with every code module 'asm' in phase 3; the build name from
-// the header's game code and never from a path; a config validateConfig accepts and buildModel builds cleanly.
+// nested entries as labels; the inferred modules, the agbcc-shaped ones without a library 'c' since phase 4 (D62 c),
+// the header, startup, asm-only and library ones 'asm'; the build name from the header's game code and never from a
+// path; a config validateConfig accepts and buildModel builds cleanly.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { validateConfig } from '../../../src/core/config/schema.ts';
+import { inferModules } from '../../../src/core/layout/infer-modules.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
 import { buildNameOf, configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
@@ -54,7 +56,7 @@ test('every found entry is listed with its mode and default name; an entry insid
     [
       ['rom_header', 0, 'asm', true],
       ['crt0', 0xc0, 'asm', true],
-      ['main', 0xe0, 'asm', true],
+      ['main', 0xe0, 'c', true],
       ['asm_08000120', 0x120, 'asm', true],
       ['data', 0x130, 'data', true],
     ],
@@ -88,4 +90,27 @@ test('on every committed fixture the config validates, lists the cartridge and s
     const model = buildModel(rom, analysis, config);
     assert.deepEqual(model.diagnostics, [], fixture.name);
   }
+});
+
+test('the kind flip (D62 c): every agbcc-shaped module inferModules proposes without a library is c, every other keeps its proposed kind', () => {
+  let cModules = 0;
+  for (const fixture of listSyntheticFixtures()) {
+    const rom = readFixtureRom(fixture);
+    const analysis = discover(rom);
+    const proposed = inferModules(rom, analysis, {}).flatMap((p) => (p.kind === 'module' ? [p] : []));
+    const config = configFromDiscover(rom, analysis);
+    assert.deepEqual(
+      config.modules.map((m) => [m.name, m.kind]),
+      proposed.map((p) => [p.name, p.moduleKind === 'c' && p.library === undefined ? 'c' : p.moduleKind]),
+      fixture.name,
+    );
+    for (const m of config.modules) {
+      if (m.kind !== 'c') continue;
+      cModules++;
+      assert.equal(m.library, undefined, `${fixture.name}: ${m.name}`);
+      assert.notEqual(m.name, 'rom_header');
+      assert.notEqual(m.name, 'crt0');
+    }
+  }
+  assert.ok(cModules > 0, 'some fixture has a C module');
 });
