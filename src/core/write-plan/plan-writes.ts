@@ -6,7 +6,9 @@
 //               other content is overwritten only when romlift owns it (the manifest or the journal lists
 //               it) or it lies under a generated root; elsewhere E_PATH_NOT_OWNED and no op. A manifest
 //               path the tree no longer has is deleted; without a manifest nothing is deleted.
-//   scaffold    `write` only when absent, else `keep`; never in the manifest.
+//   scaffold    `write` only when absent (with its executable bits when the entry is executable), else `keep`, or a
+//               `mode` op when an executable entry's file lacks its executable bits (a crash between the write and
+//               the mode, or a checkout that lost them); never in the manifest.
 //   reconciled  `edit` only while the file still has its baseSha1 (and its text hashes to it), else
 //               E_STALE_EDIT and no op; an edit the journal shows done is a `keep`.
 //   retained    a path under a `retained` prefix (a generated = false module) gets no op at all, and the
@@ -130,7 +132,7 @@ class Planner {
         this.generated(path, entry.text, entry.writer);
         return;
       case 'scaffold':
-        this.scaffold(path, entry.text, entry.writer);
+        this.scaffold(path, entry.text, entry.writer, entry.executable === true);
         return;
       case 'reconciled':
         this.reconciled(path, entry.baseSha1, entry.edits);
@@ -158,9 +160,10 @@ class Planner {
     this.files.set(path, { sha1, writer });
   }
 
-  scaffold(path: string, text: string, writer: WriterId): void {
+  scaffold(path: string, text: string, writer: WriterId, executable: boolean): void {
     const disk = this.diskOf(path);
-    if (disk === 'absent') this.ops.push({ op: 'write', path, text, sha1: this.inputs.hash(text), writer });
+    if (disk === 'absent') this.ops.push({ op: 'write', path, text, sha1: this.inputs.hash(text), writer, ...(executable ? { executable: true as const } : {}) });
+    else if (executable && !(this.inputs.executables?.has(path) ?? false)) this.ops.push({ op: 'mode', path, executable: true });
     else this.ops.push({ op: 'keep', path, sha1: disk });
   }
 

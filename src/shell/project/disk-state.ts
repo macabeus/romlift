@@ -3,7 +3,7 @@
 // Mechanical: the shell lists, reads and hashes; what the digests mean is planWrites'. Directories are
 // listed only through shell/fs.ts's listDir (architecture §2).
 import type { Stats } from 'node:fs';
-import { lstat, readFile } from 'node:fs/promises';
+import { lstat, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -134,6 +134,19 @@ export async function readJournal(dir: string): Promise<IoResult<Journal | null>
   if (decoded.ok) return { ok: true, value: decoded.journal };
   const file = onDisk(dir, JOURNAL_PATH);
   return ioError('E_IO_READ', file, `${file} is not a romlift journal (${decoded.error})`);
+}
+
+/** Those of `paths` whose file exists with its owner's executable bit, for WritePlanInputs.executables. */
+export async function readExecutables(dir: string, paths: Iterable<string>): Promise<ReadonlySet<string>> {
+  const out = new Set<string>();
+  for (const path of paths) {
+    try {
+      if (((await stat(onDisk(dir, path))).mode & 0o100) !== 0) out.add(path);
+    } catch {
+      // Absent or unreadable: planWrites writes it, or the snapshot reports it.
+    }
+  }
+  return out;
 }
 
 /** The current text of each reconciled path, for WritePlanInputs.reconciledTexts; an absent file has none. */

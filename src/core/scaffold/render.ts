@@ -21,8 +21,8 @@ export interface ScaffoldFileEntry {
   readonly path: string;
   readonly text: string;
   readonly writer: 'scaffold';
-  /** The manifest's `executable`: written with the executable bits. */
-  readonly executable: boolean;
+  /** The manifest's `executable`: written with the executable bits (absent: not executable). */
+  readonly executable?: true;
 }
 
 const PLACEHOLDER = /@@([A-Za-z0-9]*)@@/g;
@@ -119,7 +119,7 @@ export function renderScaffold(vars: ScaffoldVars, templates: ScaffoldTemplates)
       if (template === undefined) throw new RomliftInvariantError(`scaffold: no text for the template ${file.source} of ${file.target}`);
       text = fill(template, values, `templates/${file.source}`);
     }
-    return { ownership: 'scaffold', path, text, writer: 'scaffold', executable: file.executable };
+    return { ownership: 'scaffold', path, text, writer: 'scaffold', ...(file.executable ? { executable: true as const } : {}) };
   });
   return out.sort((a, b) => compareCodeUnits(a.path, b.path));
 }

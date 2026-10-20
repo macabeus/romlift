@@ -325,6 +325,8 @@ export interface ProjectWriteState {
   /** The sha1 of every tree path, manifest path and file under the generated roots, or 'absent'. */
   readonly disk: ReadonlyMap<string, string | 'absent'>;
   readonly reconciledTexts: ReadonlyMap<string, string>;
+  /** The tree paths of executable scaffold entries whose file has its executable bits (WritePlanInputs.executables). */
+  readonly executables?: ReadonlySet<string>;
 }
 
 /** The planWrites inputs of writing `entries` (a model's stream, plus any scaffold entries) over `state`. */
@@ -344,6 +346,7 @@ export function projectPlanInputs(
     retained: retainedPrefixes(model),
     journal: state.journal,
     romlift,
+    ...(state.executables === undefined ? {} : { executables: state.executables }),
   };
 }
 

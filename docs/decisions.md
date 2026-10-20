@@ -3028,6 +3028,12 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   modules only until phase 6's signatures give the libraries `asm` modules (architecture §12, "Signatures arrive in
   phase 6": unrecognised library code stays in game modules as `INCLUDE_ASM` stubs).
 
+- (e) **The executable bit is part of the write plan** (review architecture-4). `FileEntry`'s scaffold member and the
+  `write` op carry `executable?: true`; `applyWrites` sets the mode on the temporary file before the rename
+  (`atomicWrite`'s `mode`), and `planWrites` gives an executable entry whose file exists without its executable bits a
+  `mode` op (`WritePlanInputs.executables`, read by the shell), journalled as `{op: "mode", path}`. The chmod after the
+  plan, outside the journal, which a crash could skip for good, is gone, and so is `isExecutableEntry`.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

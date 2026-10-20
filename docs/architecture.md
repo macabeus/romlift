@@ -1378,7 +1378,9 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      A tree path that only the case separates from a path the manifest or the journal lists (a module or
      function renamed by case) is one file on a case-insensitive file system: it is always `write`n, and the
      old spelling's `delete` comes before every other op, so it cannot remove the new file (D65 b).
-   - **scaffold**: `write` only when absent; `scaffold --diff` shows template drift.
+   - **scaffold**: `write` only when absent; `scaffold --diff` shows template drift. An executable entry
+     (setup.sh) is written with its mode on the temporary file before the rename, and one whose file lacks the
+     executable bits gets a `mode` op, journalled like the others (D75 e).
    - **reconciled**: `edit` only if the file's sha1 still equals `baseSha1`, else `E_STALE_EDIT`.
 4. **Apply** (`shell/project/apply-writes.ts`), mechanically:
    - take `.romlift/lock` with `O_EXCL` (it holds the pid and host); a second run fails with

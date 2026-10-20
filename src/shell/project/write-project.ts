@@ -3,8 +3,9 @@
 // by planWrites and applied by applyWrites under the project lock; a plan that changes nothing is not applied at all,
 // so no file, the manifest included, gets a new modification time (g4.generate-idempotent). `init`'s own files are
 // written here too: the ROM copied to baserom.gba, romlift.toml and decomp.yaml saved (shell/config/save.ts), the
-// scaffold's executable files made executable. Mechanical: every decision is planWrites' or a workflow's.
-import { chmod, copyFile, mkdir, stat } from 'node:fs/promises';
+// scaffold's executable files written with their mode (planWrites' `executable` writes and `mode` ops, applyWrites).
+// Mechanical: every decision is planWrites' or a workflow's.
+import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -15,7 +16,6 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import { SCAFFOLD_ROM_FILE } from '../../core/scaffold/vars.ts';
 import { generatedEntries, planChangesNothing, projectPlanInputs, projectTreeEntries, reconciledTextsOf } from '../../core/workflow/generate.ts';
 import type { GenerateResult } from '../../core/workflow/generate.ts';
-import { isExecutableEntry } from '../../core/workflow/init.ts';
 import { planWrites } from '../../core/write-plan/plan-writes.ts';
 import type { WritePlan } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
@@ -23,7 +23,7 @@ import { saveConfig } from '../config/save.ts';
 import { errorReason } from '../fs.ts';
 import { sha1Of } from '../hash.ts';
 import { applyWrites } from './apply-writes.ts';
-import { onDisk } from './disk-state.ts';
+import { readExecutables } from './disk-state.ts';
 import { withProjectLock } from './lock.ts';
 import { readWriteState } from './read-inputs.ts';
 import { restoreCaseRenames } from './spelling.ts';
@@ -72,7 +72,8 @@ export async function planAndApply(dir: string, source: TreeSource, romlift: str
     if (!state.ok) return state;
   }
   const reconciledTexts = source.inProject === true ? reconciledTextsOf(source.result) : state.value.reconciledTexts;
-  const plan = planWrites(projectPlanInputs(source.result.model, streamOf(source), { ...state.value, reconciledTexts }, (text) => sha1Of(text), romlift));
+  const executables = await readExecutables(dir, (source.extra ?? []).filter((e) => e.ownership === 'scaffold' && e.executable === true).map((e) => e.path));
+  const plan = planWrites(projectPlanInputs(source.result.model, streamOf(source), { ...state.value, reconciledTexts, executables }, (text) => sha1Of(text), romlift));
   const errors = plan.diagnostics.some((d) => d.severity === 'error');
   if (dryRun || errors || planChangesNothing(plan, state.value)) return { ok: true, value: { plan, applied: false, diagnostics: plan.diagnostics } };
   const applied = await applyWrites(dir, plan);
@@ -138,23 +139,9 @@ async function writeInitFiles(dir: string, files: InitFiles): Promise<Diagnostic
   return undefined;
 }
 
-/** Gives the executable bits to every scaffold file the manifest marks executable (setup.sh) that `plan` wrote. */
-async function markExecutable(dir: string, scaffold: readonly FileEntry[], plan: WritePlan): Promise<Diagnostic | undefined> {
-  const written = new Set(plan.ops.filter((op) => op.op === 'write').map((op) => op.path));
-  for (const entry of scaffold) {
-    if (!isExecutableEntry(entry) || !written.has(entry.path)) continue;
-    try {
-      await chmod(onDisk(dir, entry.path), 0o755);
-    } catch (error) {
-      return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot make ${entry.path} executable: ${errorReason(error)}`, { path: entry.path });
-    }
-  }
-  return undefined;
-}
-
 /**
  * `init`'s write, under the project lock of `dir` (created when absent): its own files (writeInitFiles), then the
- * tree and the scaffold (planAndApply with `source.extra` the scaffold), then the executable bits.
+ * tree and the scaffold (planAndApply with `source.extra` the scaffold; setup.sh is written executable).
  */
 export async function writeInitProject(dir: string, files: InitFiles, source: TreeSource, romlift: string): Promise<WriteOutcome> {
   try {
@@ -165,10 +152,7 @@ export async function writeInitProject(dir: string, files: InitFiles, source: Tr
   return underProjectLock(dir, async () => {
     const failed = await writeInitFiles(dir, files);
     if (failed !== undefined) return { ok: false, diagnostics: [failed] };
-    const tree = await planAndApply(dir, source, romlift, false);
-    if (!tree.ok || !tree.value.applied) return tree;
-    const chmodFailed = await markExecutable(dir, source.extra ?? [], tree.value.plan);
-    return chmodFailed === undefined ? tree : { ok: true, value: { ...tree.value, diagnostics: [...tree.value.diagnostics, chmodFailed] } };
+    return planAndApply(dir, source, romlift, false);
   });
 }
 

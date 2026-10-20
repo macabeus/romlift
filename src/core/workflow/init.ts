@@ -78,11 +78,6 @@ function discoveredConfig(rom: Rom, options: InitOptions, profile: CompilerProfi
   return { ok: true, config: configFromDiscover(rom, discovered, options.moduleSize === undefined ? {} : { moduleSize: options.moduleSize }) };
 }
 
-/** Whether a scaffold entry is written with the executable bits (setup.sh): renderScaffold's entries carry it. */
-export function isExecutableEntry(entry: FileEntry): boolean {
-  return 'executable' in entry && entry.executable === true;
-}
-
 /** What a project's scaffold is rendered from: its build name, its ROM's SHA-1 and title, and the package's inputs. */
 export interface ProjectScaffoldInputs {
   readonly name: string;

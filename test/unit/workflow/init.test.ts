@@ -12,7 +12,7 @@ import { serializeConfig } from '../../../src/core/config/serialize.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
-import { BUILD_NAME_SUFFIX, builtRomCollides, init, initBuildName, isExecutableEntry, projectScaffold, scaffoldDrift } from '../../../src/core/workflow/init.ts';
+import { BUILD_NAME_SUFFIX, builtRomCollides, init, initBuildName, projectScaffold, scaffoldDrift } from '../../../src/core/workflow/init.ts';
 import type { InitInputs } from '../../../src/core/workflow/types.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
@@ -61,7 +61,7 @@ test('the plan of a fixture: the canonical TOML of its config, decomp.yaml, the 
     [...paths(plan.scaffold)],
     [...SCAFFOLD.templates.manifest.files.map((f) => f.target.replace('@@sha1File@@', `${name}.sha1`))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
   );
-  assert.deepEqual(plan.scaffold.filter(isExecutableEntry).map((e) => e.path), ['setup.sh']);
+  assert.deepEqual(plan.scaffold.filter((e) => e.ownership === 'scaffold' && e.executable === true).map((e) => e.path), ['setup.sh']);
   const sha1File = plan.scaffold.find((e) => e.path === `${name}.sha1`);
   assert.equal(sha1File !== undefined && 'text' in sha1File ? sha1File.text : '', `${rom.sha1}  ${name}.gba\n`);
   assert.ok(plan.scaffold.every((e) => e.ownership === 'scaffold'));

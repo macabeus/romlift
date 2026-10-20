@@ -3,7 +3,9 @@
 // write and edit first gives the components of its path that exist under another case the op's spelling
 // (spelling.ts respell: a case-only rename of a directory on a case-insensitive file system). The
 // journal, the manifest, edits and scaffold files are flushed to disk before their rename; generated files are
-// not, and one whose path does not exist yet is created in place (durableOp).
+// not, and one whose path does not exist yet is created in place (durableOp). A write of an executable entry gets its
+// mode on the temporary file, before the rename, so no crash leaves setup.sh without it; a `mode` op sets it on a file
+// that lacks it (planWrites).
 // Every decision is planWrites'; a plan with an error diagnostic is refused before anything is touched.
 // The caller holds the project lock (withProjectLock, lock.ts) around the snapshot, the plan and this.
 //
@@ -15,7 +17,7 @@
 // entry left under a case rename's temporary name back under its old name (spelling.ts restoreCaseRenames), and its
 // ops rename it again. A command calls restoreCaseRenames itself before it snapshots the disk, so the plan sees the
 // tree as the interrupted op found it; the call here makes sure no temporary name outlives a run either way.
-import { mkdir, rmdir, unlink } from 'node:fs/promises';
+import { chmod, mkdir, rmdir, unlink } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -72,7 +74,10 @@ interface DiskKnown {
   readonly listings: Listings;
 }
 
-async function writeText(file: string, text: string | Iterable<string>, durable: boolean, known: DiskKnown): Promise<Diagnostic | undefined> {
+/** The permission bits of a file written executable (setup.sh) and of a `mode` op. */
+export const EXECUTABLE_MODE = 0o755;
+
+async function writeText(file: string, text: string | Iterable<string>, durable: boolean, known: DiskKnown, mode?: number): Promise<Diagnostic | undefined> {
   const parent = dirname(file);
   if (!known.made.has(parent)) {
     try {
@@ -82,7 +87,7 @@ async function writeText(file: string, text: string | Iterable<string>, durable:
     }
     known.made.add(parent);
   }
-  const written = await atomicWrite(file, text, { durable, inPlaceWhenAbsent: !durable });
+  const written = await atomicWrite(file, text, { durable, inPlaceWhenAbsent: !durable, ...(mode === undefined ? {} : { mode }) });
   return written.ok ? undefined : written.diagnostic;
 }
 
@@ -101,8 +106,16 @@ async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diag
   const file = onDisk(dir, op.path);
   switch (op.op) {
     case 'write':
+      return (await respell(dir, op.path, known.listings)) ?? writeText(file, op.text, durableOp(op), known, op.executable === true ? EXECUTABLE_MODE : undefined);
     case 'edit':
       return (await respell(dir, op.path, known.listings)) ?? writeText(file, op.text, durableOp(op), known);
+    case 'mode':
+      try {
+        await chmod(file, EXECUTABLE_MODE);
+        return undefined;
+      } catch (error) {
+        return writeError(file, error);
+      }
     case 'delete': {
       const failed = await removeFile(file);
       if (failed === undefined) await pruneEmptyParents(dir, file);

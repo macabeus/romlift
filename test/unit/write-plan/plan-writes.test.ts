@@ -163,6 +163,17 @@ test('scaffold: written only when absent, kept otherwise, never in the manifest'
   assert.deepEqual(p.manifest.files, {});
 });
 
+test('scaffold: an executable entry is written executable; one on disk without its executable bits gets a mode op (architecture-4)', () => {
+  const setup: FileEntry = { ownership: 'scaffold', path: 'setup.sh', text: '#!/bin/sh\n', writer: 'scaffold', executable: true };
+  const absent = plan({ entries: [setup], disk: diskOf({ 'setup.sh': null }) });
+  assert.deepEqual(absent.ops, [{ op: 'write', path: 'setup.sh', text: '#!/bin/sh\n', sha1: fakeHash('#!/bin/sh\n'), writer: 'scaffold', executable: true }]);
+  const lost = plan({ entries: [setup], disk: diskOf({ 'setup.sh': 'my own setup' }) });
+  assert.deepEqual(lost.ops, [{ op: 'mode', path: 'setup.sh', executable: true }], 'the content is the user\'s, only the mode is set');
+  const fine = plan({ entries: [setup], disk: diskOf({ 'setup.sh': 'my own setup' }), executables: new Set(['setup.sh']) });
+  assert.deepEqual(fine.ops, [{ op: 'keep', path: 'setup.sh', sha1: fakeHash('my own setup') }]);
+  assert.deepEqual(fine.manifest.files, {});
+});
+
 const BASE = 'int a;\nINCLUDE_ASM("asm/nonmatchings/main", F);\n';
 
 function reconciled(path: string, baseText: string, edits: readonly TextEdit[]): FileEntry {

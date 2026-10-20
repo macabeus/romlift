@@ -69,6 +69,8 @@ export interface AtomicWriteOptions {
    * run rewrites; an existing file still goes through the temporary file.
    */
   readonly inPlaceWhenAbsent?: boolean;
+  /** The file's permission bits (e.g. 0o755 for an executable), set on the file before it takes `path`'s place; default the umask's. */
+  readonly mode?: number;
 }
 
 type Data = string | Uint8Array | Iterable<string>;
@@ -139,7 +141,7 @@ function writeAll(fd: number, data: string | Uint8Array): void {
  */
 export async function atomicWrite(path: string, data: Data, options: AtomicWriteOptions = {}): Promise<IoResult<void>> {
   const durable = options.durable !== false;
-  if (!durable && options.inPlaceWhenAbsent === true) {
+  if (!durable && options.inPlaceWhenAbsent === true && options.mode === undefined) {
     try {
       if (createInPlace(path, data)) return { ok: true, value: undefined };
     } catch (error) {
@@ -151,6 +153,7 @@ export async function atomicWrite(path: string, data: Data, options: AtomicWrite
     const handle = await open(temp, 'wx');
     try {
       await writeData(handle, data);
+      if (options.mode !== undefined) await handle.chmod(options.mode);
       if (durable) await handle.sync();
     } finally {
       await handle.close();

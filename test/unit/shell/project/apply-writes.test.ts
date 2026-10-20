@@ -8,7 +8,7 @@
 // between the two renames of a case rename is a child process killed there (architecture-r2-4).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, readFile, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
@@ -21,7 +21,7 @@ import { JOURNAL_PATH, MANIFEST_PATH } from '../../../../src/core/write-plan/typ
 import type { Manifest, WritePlan } from '../../../../src/core/write-plan/types.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
 import { applyWrites, durableOp } from '../../../../src/shell/project/apply-writes.ts';
-import { readDiskState, readJournal, readManifest, readReconciledTexts } from '../../../../src/shell/project/disk-state.ts';
+import { readDiskState, readExecutables, readJournal, readManifest, readReconciledTexts } from '../../../../src/shell/project/disk-state.ts';
 import { withProjectLock } from '../../../../src/shell/project/lock.ts';
 
 const roots: string[] = [];
@@ -255,6 +255,22 @@ test('an op path that is not a project path is refused before anything is writte
   assert.equal(applied.ok, false);
   assert.deepEqual(applied.diagnostics.map((d) => d.code), ['E_IO_WRITE']);
   assert.deepEqual(await filesOf(dir), {});
+});
+
+test('an executable entry is written executable before its rename; a mode op restores the bits a crash or a checkout lost (architecture-4)', async () => {
+  const dir = await tempDir();
+  const setup: FileEntry = { ownership: 'scaffold', path: 'setup.sh', text: '#!/bin/sh\n', writer: 'scaffold', executable: true };
+  const plan1 = planWrites({ entries: [setup], manifest: null, disk: new Map([['setup.sh', 'absent']]), reconciledTexts: new Map(), hash: sha1Of, retained: [] });
+  assert.equal((await applyWrites(dir, plan1)).ok, true);
+  assert.equal((await stat(join(dir, 'setup.sh'))).mode & 0o777, 0o755);
+  await chmod(join(dir, 'setup.sh'), 0o644);
+  const disk = await readDiskState(dir, ['setup.sh']);
+  assert.ok(disk.ok);
+  const plan2 = planWrites({ entries: [setup], manifest: plan1.manifest, disk: disk.value, reconciledTexts: new Map(), hash: sha1Of, retained: [], executables: await readExecutables(dir, ['setup.sh']) });
+  assert.deepEqual(plan2.ops, [{ op: 'mode', path: 'setup.sh', executable: true }]);
+  assert.equal((await applyWrites(dir, plan2)).ok, true);
+  assert.equal((await stat(join(dir, 'setup.sh'))).mode & 0o777, 0o755);
+  assert.deepEqual([...(await readExecutables(dir, ['setup.sh', 'absent.sh']))], ['setup.sh']);
 });
 
 test('durableOp: an edit and a scaffold or c-stub file are flushed before their rename, a generated file is not', () => {

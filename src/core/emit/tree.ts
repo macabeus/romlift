@@ -50,7 +50,7 @@ import type { TextEdit } from '../reconcile/text-edit.ts';
 /** One file of the tree; `path` is relative to the project root, with '/' separators. */
 export type FileEntry =
   | { readonly ownership: 'generated'; readonly path: string; readonly text: string; readonly writer: WriterId }
-  | { readonly ownership: 'scaffold'; readonly path: string; readonly text: string; readonly writer: 'scaffold' | 'c-stub' }
+  | { readonly ownership: 'scaffold'; readonly path: string; readonly text: string; readonly writer: 'scaffold' | 'c-stub'; readonly executable?: true }
   | { readonly ownership: 'reconciled'; readonly path: string; readonly baseSha1: string; readonly edits: readonly TextEdit[] };
 
 /**
