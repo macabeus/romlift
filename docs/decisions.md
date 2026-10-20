@@ -3028,9 +3028,10 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   0x46C0 nop pad stays an orphan: no start macro emits it (they open with `.align 2, 0`, zeros), and agbcc's output for
   the function before it does not hold it, so folding it either way would put into a function's file a byte its C
   cannot produce. On the tuning ROMs those are 21 (fe7j), 21 (klonoa), 15 (pokeemerald), 15 (sa2), 15 (sa3) and 0
-  (tmc), all in library code (klonoa's at 0x080518B6 and on lie in m4a, 0x0804F000 to 0x08051BD4), which sits in `c`
-  modules only until phase 6's signatures give the libraries `asm` modules (architecture §12, "Signatures arrive in
-  phase 6": unrecognised library code stays in game modules as `INCLUDE_ASM` stubs).
+  (tmc), every one in `c` modules; by the ELF maps, 15 on each ROM but tmc lie in libgcc's `_call_via_rX.o`, which
+  phase 6's signatures move into a library `asm` module (architecture §12, "Signatures arrive in phase 6"), and 6 each
+  in a hand-written assembly object (fe7j's `arm-call.o`, klonoa's `thunk.o`), which stays in a `c` module. Keeping
+  them as orphans is phase-4.md owner question Q7.
 
 - (e) **The executable bit is part of the write plan** (review architecture-4). `FileEntry`'s scaffold member and the
   `write` op carry `executable?: true`; `applyWrites` sets the mode on the temporary file before the rename

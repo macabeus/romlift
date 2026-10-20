@@ -19,7 +19,8 @@
 //   `.align 2, 0` (ChunkPlan.tailPad): a decompiled function there ends its C object, whose section ld aligns the
 //   same way.
 // A pad of other bytes (a 0x46C0 nop, which no start macro emits and agbcc's output for the function before it does
-// not hold), one in the startup region or a data module, and one before an entry at 2 mod 4 stay orphans.
+// not hold; phase-4.md owner question Q7), one in the startup region or a data module, and one before an entry at 2
+// mod 4 stay orphans.
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { lowerBound, pushAll } from '../../foundation/util/arrays.ts';

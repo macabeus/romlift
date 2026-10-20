@@ -1227,8 +1227,8 @@ earlier gates.
    `.align 2, 0` emits it: the chunk's span opens with the pad and `Chunk.entry` is the entry its label and macro
    go at. A pad at its module's end (a border or the data start follows) is the last item of the function or
    orphan chunk before it, printed `.align 2, 0`. A 0x46C0 nop pad stays an orphan: no start macro emits it, and
-   the function before it does not hold it once decompiled (on the tuning ROMs every one lies in library code,
-   which phase 6's library modules take out of the C modules).
+   the function before it does not hold it once decompiled (on the tuning ROMs they lie in libgcc's
+   `_call_via_rX` and in hand-written thunks).
 3. **Modules** (`modules.ts`): taken from the config. Each module carries its build compiler and flags
    (`compiler` defaults to `build.compiler`). A `start` that is not a legal border (below) is
    `E_MODULE_BORDER`, naming the nearest legal borders.
