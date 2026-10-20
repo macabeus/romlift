@@ -13,9 +13,10 @@ from our own assembly and C with binutils and pret/agbcc. Their builds are commi
 | `common/rom.ld` | The linker script: crt0 first, then the fixture's objects in `SRCS` order at the cartridge base; `.iwram` runs at 0x03000000 with its load address after the ROM code |
 | `common/rules.mk` | The make rules every `build.mk` includes |
 | `common/macros.inc` | `thumb_func_start`, `non_word_aligned_thumb_func_start`, `arm_func_start`, `func_end`, as romlift's dialect spells them |
-| `<name>/build.mk` | `NAME`, `SRCS` (link order) and the toolchain record (`AGBCC_COMMIT`, `AS_VERSION`); its comment names the phenomenon and the rule the fixture makes decisive |
-| `<name>/*.s`, `<name>/*.c` | The sources; C is compiled by agbcc `-O2 -mthumb-interwork -fhex-asm` without a preprocessor, so it holds no comments |
-| `<name>/expect.json` | `{negative?, entries: [{addr, mode, extent?}], codeEnd?}`, frozen by `test/gates/g2.synthetic-analysis.test.ts` |
+| `<name>/build.mk` | `NAME`, `SRCS` (link order) and the toolchain record (`AGBCC_COMMIT`, `AS_VERSION`); `OLD_AGBCC_SRCS` (the C sources old_agbcc compiles) and `CFLAGS_<stem>` (a source's own flags) where a fixture needs them; its comment names the phenomenon and the rule the fixture makes decisive |
+| `<name>/*.s`, `<name>/*.c` | The sources; C is compiled by agbcc (or old_agbcc, `OLD_AGBCC_SRCS`) `-O2 -mthumb-interwork -fhex-asm` without a preprocessor, so it holds no comments |
+| `<name>/expect.json` | `{negative?, entries: [{addr, mode, extent?}], codeEnd?}`, frozen by `test/gates/g2.synthetic-analysis.test.ts`; the phase-4 fixtures add the keys the g4 gates read: `init: {args}` (`romlift init`'s extra arguments), `illegalBorder: {module, start}` (composite) and `compilers: {<module>: {compiler, cflags}}` (multi-compiler) |
+| `<name>/overlay/src/<module>.c` | The decompiled C a gate copies over the project `init` made (multi-compiler: every C module; c-data: the module with its `const` array); read by the host C preprocessor and agbcc in the project, never by the fixture's own build |
 | `<name>/build/<name>.gba`, `.elf` | The committed build |
 
 `common/` has no `build/common.gba`, so no fixture lister takes it for a fixture.
@@ -46,8 +47,10 @@ npm run fixtures -- check [--only <name>] [--json]     # rebuild into a temporar
 and the toolchain record: an agbcc commit other than the record fails, a different `as --version` is a
 note, and when nothing names the agbcc commit in use (no `ROMLIFT_AGBCC_COMMIT`, and the agbcc
 directory is not a git checkout's top level) that is a note and the bytes decide. agbcc comes from
-`ROMLIFT_AGBCC` (a directory holding `bin/agbcc`), else `$ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc`;
-binutils from the PATH. `rebuild` needs the commit named.
+`ROMLIFT_AGBCC` (a directory holding `bin/agbcc`), else `$ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc`,
+and old_agbcc from beside it (`bin/old_agbcc`, built from the same recorded commit by pret/agbcc's
+`build.sh`; make gets it as `OLD_AGBCC`, and a fixture whose build.mk lists `OLD_AGBCC_SRCS` fails
+without it); binutils from the PATH. `rebuild` needs the commit named.
 
 The committed builds were made with pret/agbcc `da598c1d918402c42c0c0d7128ba14567f3175e9` (master on
 17 October 2026) and `GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126`.
@@ -112,6 +115,9 @@ entry, an extent or the code end of that fixture moves, and its `expect.json` fa
 | `code-end-data-decodes` | negative | stub-shaped data after the last function; a `main` loop with no prologue | `seed.startup-pointer` (code end) |
 | `code-end-unsized-last` | negative | the last function is hand-written asm without `.size` (FUNC size 0), an OBJECT and its `$d` right after it | (code end: the bench's ELF code end is that `$d`, D61 a; addr + size would put it at the function's entry, 8 bytes before) |
 | `false-stub-2byte` | negative | a lone `b` fragment after a jump table's cases | `accept.tiny-anchored-at-start` (its not-a-branch condition), `walk.table-by-register` |
+| `composite` | composite | five agbcc C sources around hand-written assembly (a shared tail, a 2-mod-4 entry, an ARM interrupt handler), cross-module calls and callback pool words, a jump table and a `.rodata` data tail; `--module-size 0x200` gives three C modules, one assembly-only and a data module, and `illegalBorder` moves `main_2` onto the shared tail | none of the analysis: `g4.e2e-fixtures` (init to the SHA-1, E_MODULE_BORDER), `g4.toml-mutations` |
+| `multi-compiler` | multi-compiler | `main.c` by agbcc, `old.c` by old_agbcc with `-mno-thumb-interwork` (leaves return `bx lr`, not `pop {r1}; bx r1`; the non-leaf `pop {pc}`); `--module-size 0x80` makes each source its own C module (`main`, `main_2`), and `overlay/src` holds both decompiled | none of the analysis: `g4.multi-compiler` |
+| `c-data` | C data | one C module reading a `const` table linked after the code; `overlay/src/main.c` decompiles it with the table as a C array | none of the analysis: `g4.c-data-fails-loud` (the ldscript's ASSERT) |
 
 `seed.rom-entry`, `seed.call` and `walk.pc-load-is-pool` move outcomes in every fixture,
 `claim.adjacent-pools` in most.
