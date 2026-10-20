@@ -46,8 +46,16 @@ exit 3 (its raw tree links to its SHA-1). Under the 1,024 MiB cap every command 
 ROM, the six tuning ROMs and the doubled ROM. The landing run after Q7's answer failed one phase-2 timing gate,
 `g2.speed`, by 0.5 ms on sa2 with the analysis unchanged; the owner's answer to Q8, "Re-run the gate list", ran the
 whole closing list again unchanged with no gate change, and every command exited 0 at `landed` 3 (`0784b4e`). The
-merge waits for the phase pull request's CI. The commands so far are `doctor`, `analyze`, `explain`, `model` and
-`verify`.
+merge waits for the phase pull request's CI.
+
+Phase 4 (One shot) is built but has not landed ([docs/phase-4.md](docs/phase-4.md)): `romlift init <rom>` writes
+`romlift.toml`, `decomp.yaml`, the build scaffold (`Makefile`, `setup.sh`, …), `INCLUDE_ASM` C stubs and the generated
+tree, and `./setup.sh && make` then rebuilds the ROM to its SHA-1 with no file edited, on 50 committed fixtures (from
+the source tree, the packed tarball and fresh git worktrees) and all six tuning ROMs; `generate` regenerates the tree
+from the TOML without ever writing it, and `analyze --update` proposes TOML patches that keep comments. Every gate of
+phases 1 to 4 passes but `g4.toml-mutations`, which fails on deleting the last listed function of a project (owner
+question Q4), and the phase waits for the owner's answers to its four questions. The commands are `doctor`,
+`analyze`, `explain`, `model`, `verify`, `init`, `generate` and `scaffold`.
 
 | Phase | Delivers |
 | --- | --- |
@@ -64,11 +72,12 @@ merge waits for the phase pull request's CI. The commands so far are `doctor`, `
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D73 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D74 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
 | [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q8 with the owner's answers, the review fix rounds, and known limitations |
+| [docs/phase-4.md](docs/phase-4.md) | the record of phase 4: components in three waves, what the phase delivered (commands, scaffold, C stubs, formats), the closing round and the closing gate run, deviations, the owner questions Q1 to Q4, and known limitations |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |
