@@ -1,7 +1,7 @@
-# The rebuild check of the synthetic fixtures (architecture §8.1, D28): builds pret/agbcc at the
-# commit every fixture's build.mk records, rebuilds each fixture under bench/dataset/synthetic, and
-# compares the .gba bytes and the sorted (name, value, size, type) symbol list with the committed
-# build. The unit tests read the committed builds and need no toolchain; this job proves they are
+# The rebuild check of the synthetic fixtures (architecture §8.1, D28): builds pret/agbcc and its
+# old_agbcc at the commit every fixture's build.mk records, rebuilds each fixture under
+# bench/dataset/synthetic, and compares the .gba bytes and the sorted (name, value, size, type) symbol
+# list with the committed build. The unit tests read the committed builds and need no toolchain; this job proves they are
 # reproducible. A different `as --version` than the record is only a note; another agbcc commit fails.
 name: fixtures
 
@@ -37,14 +37,20 @@ jobs:
       - name: Install binutils (Homebrew)
         if: runner.os == 'macOS'
         run: brew install arm-none-eabi-binutils
-      - name: Build pret/agbcc at the pinned commit
+      # Both compilers from the one commit, in the order of pret/agbcc's build.sh (old_agbcc first, each
+      # after a clean, since they share the object files) and installed side by side as its install.sh does:
+      # the fixture build takes old_agbcc from beside agbcc (OLD_AGBCC_SRCS in a build.mk).
+      - name: Build pret/agbcc and old_agbcc at the pinned commit
         run: |
           git init -q "$RUNNER_TEMP/agbcc-src"
           git -C "$RUNNER_TEMP/agbcc-src" fetch -q --depth 1 https://github.com/pret/agbcc.git "$AGBCC_COMMIT"
           git -C "$RUNNER_TEMP/agbcc-src" checkout -q FETCH_HEAD
+          mkdir -p "$RUNNER_TEMP/agbcc/bin"
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" old -j1
+          cp "$RUNNER_TEMP/agbcc-src/gcc/old_agbcc" "$RUNNER_TEMP/agbcc/bin/old_agbcc"
           make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
           make -C "$RUNNER_TEMP/agbcc-src/gcc" -j1
-          mkdir -p "$RUNNER_TEMP/agbcc/bin"
           cp "$RUNNER_TEMP/agbcc-src/gcc/agbcc" "$RUNNER_TEMP/agbcc/bin/agbcc"
       - name: Install exactly the lock file
         run: npm ci --ignore-scripts

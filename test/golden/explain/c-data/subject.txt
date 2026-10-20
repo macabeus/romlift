@@ -1,0 +1,41 @@
+0x08000130
+  claim: code
+  owner: 0x08000130 (origin startup-pointer)
+  provenance:
+    seed.startup-pointer round 0 cites 0x080000F0, 0x08000000
+  chunk: sub_08000130 (function) in module main
+  item: insn 0x08000130..0x08000132: .inst.n 0xB510 @ push {r4, lr}
+  proposals (5):
+    0x08000130 seed.startup-pointer round 0 cites 0x080000F0, 0x08000000: thumb
+    0x080000F4 seed.call round 0 cites 0x08000132: thumb
+    0x0800010C seed.call round 0 cites 0x0800013E: thumb
+    0x080000F8 seed.call round 0 cites 0x0800011A: thumb
+    0x08000130 seed.startup-pointer round 0 cites 0x080000F0, 0x080000C0: thumb
+  accepts (4):
+    0x08000130 seed.startup-pointer round 0 cites 0x080000F0, 0x08000000
+    0x080000F4 seed.call round 0 cites 0x08000132
+    0x0800010C seed.call round 0 cites 0x0800013E
+    0x080000F8 seed.call round 0 cites 0x0800011A
+  rejections: none
+  verdicts (3):
+    0x08000132 bl.target-before-entry round 0 cites 0x08000132, 0x080000F4: call
+    0x0800013E bl.target-before-entry round 0 cites 0x0800013E, 0x0800010C: call
+    0x0800011A bl.target-before-entry round 0 cites 0x0800011A, 0x080000F8: call
+  waits: none
+  claims (2):
+    0x08000130 claim.dead-code-in-extent round 0 cites 0x08000130: 1 edits
+    0x0800010C claim.dead-code-in-extent round 0 cites 0x0800010C: 1 edits
+  rules (4):
+    bl.target-before-entry: a bl to an address below the caller's entry is a call
+      rests on: agbcc uses bl as a jump only to reach the far tail of the same function, which lies after its entry
+      recovers: calls to functions not yet found that sit before the caller, misread as far jumps
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+    seed.startup-pointer: Thumb pointers in the literal pools of the ARM startup functions are Thumb functions
+      rests on: crt0 is ARM and enters the Thumb program with ldr rN, =func+1; bx rN
+      recovers: main and the other Thumb entry points the startup code names only through a pointer
+explain: ok (exit 0)

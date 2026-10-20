@@ -1,0 +1,23 @@
+==> asm/crt0.s (generated, crt0) <==
+.syntax unified
+.include "include/macros.inc"
+.arm
+@ startup region 080000C0..080000F4
+
+.arm
+	arm_func_start sub_080000C0
+sub_080000C0: @ 080000C0
+	mov r0, #0x12
+	msr cpsr_fc, r0
+	ldr sp, _080000E8 @ =0x03007FA0
+	mov r0, #0x1f
+	msr cpsr_fc, r0
+	ldr sp, _080000EC @ =0x03007F00
+	ldr r1, _080000F0 @ =sub_08000130
+	mov lr, pc
+	bx r1
+	b sub_080000C0
+_080000E8: .4byte 0x03007FA0
+_080000EC: .4byte 0x03007F00
+_080000F0: .4byte sub_08000130
+	arm_func_end sub_080000C0
