@@ -203,9 +203,12 @@ rom: $(ROM)
 $(ROM): $(ELF)
 	$(OBJCOPY) -O binary $< $@
 
-# ldscript.txt places every object in link order and INCLUDEs symbols.ld when it defines a symbol.
+# ldscript.txt places every object in link order and INCLUDEs symbols.ld when it defines a symbol. The ROM is written
+# with every link, not only when it looks older than the ELF: GNU make 3.81 (macOS) compares modification times to
+# the second, so a ROM from a link in the same second would otherwise survive the new one.
 $(ELF): $(OBJS) ldscript.txt symbols.ld
 	$(LD) -T ldscript.txt -Map $(MAP) -o $@ $(OBJS)
+	$(OBJCOPY) -O binary $@ $(ROM)
 
 # An asm unit (asm/<module>.s, or asm/rom_header.s and asm/crt0.s) and a data unit (data/<module>.s).
 build/%.o: asm/%.s

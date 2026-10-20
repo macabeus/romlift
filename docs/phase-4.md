@@ -240,7 +240,9 @@ Measured on branch `phase-4-workflows` (Node 24.15, macOS; the machine shared wi
   relinked (measured: `src/main.c` 16 ms newer than `build/src/main.o`, the same second), and a C object did not
   depend on `modules.mk`, so a compiler change by `generate` never reached it. `templates/Makefile` (p4-scaffold's)
   now records each C object's source and modules.mk SHA-1 in `build/src/<m>.sum` and removes a stale object and the
-  ELF before make decides. Both gates then pass (`node --test` of each with `ROMLIFT_GATE_TIER=ci`).
+  ELF before make decides (`5410c6f`), and writes the ROM in the link's own recipe, since a ROM objcopied in the same
+  second as a new ELF otherwise survived it (g4.multi-compiler then failed 1 run in 3: the control's ROM was the
+  first build's). After both, g4.multi-compiler passed 4 runs of 4 and g4.c-data-fails-loud 1 of 1 alone.
 - `init` and `generate` on pokeemerald under `node --max-old-space-size=1024` (`/usr/bin/time -l`): init 10.9 s
   wall, peak RSS 714 MiB, 15,866 functions, 43 modules, 15,937 files written, only W_LOCKFILE_DEFERRED (romlift is
   not on the npm registry: E404); generate right after it 8.0 s, 697 MiB, 15,924 keep, 0 writes, no diagnostic (no
