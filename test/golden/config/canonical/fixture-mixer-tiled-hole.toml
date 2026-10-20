@@ -24,7 +24,7 @@ kind = "asm"
 [[modules]]
 name = "main"
 start = 0x080000F4
-kind = "asm"
+kind = "c"
 
 [[modules]]
 name = "asm_08000110"
@@ -34,7 +34,7 @@ kind = "asm"
 [[modules]]
 name = "main_2"
 start = 0x08000138
-kind = "asm"
+kind = "c"
 
 [[modules]]
 name = "asm_08000148"
@@ -44,7 +44,7 @@ kind = "asm"
 [[modules]]
 name = "main_3"
 start = 0x08000164
-kind = "asm"
+kind = "c"
 
 [functions]
 0x08000000 = { name = "sub_08000000", mode = "arm" }

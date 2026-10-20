@@ -24,7 +24,7 @@ kind = "asm"
 [[modules]]
 name = "main"
 start = 0x080000F4
-kind = "asm"
+kind = "c"
 
 [[modules]]
 name = "asm_08000104"

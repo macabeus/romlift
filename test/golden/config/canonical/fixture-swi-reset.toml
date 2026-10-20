@@ -24,7 +24,7 @@ kind = "asm"
 [[modules]]
 name = "main"
 start = 0x080000F4
-kind = "asm"
+kind = "c"
 
 [functions]
 0x08000000 = { name = "sub_08000000", mode = "arm" }

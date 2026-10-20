@@ -1,18 +1,3 @@
-==> asm/main.s (generated, module) <==
-.syntax unified
-.include "include/macros.inc"
-.thumb
-.include "asm/nonmatchings/main/sub_080000F4.s"
-.include "asm/nonmatchings/main/sub_080000F8.s"
-.include "asm/nonmatchings/main/sub_08000114.s"
-.include "asm/nonmatchings/main/sub_080001A8.s"
-.include "asm/nonmatchings/main/sub_080001C4.s"
-.include "asm/nonmatchings/main/sub_080001E4.s"
-.include "asm/nonmatchings/main/sub_080001F4.s"
-.include "asm/nonmatchings/main/sub_08000208.s"
-.include "asm/nonmatchings/main/sub_0800022C.s"
-.include "asm/nonmatchings/main/sub_08000238.s"
-.include "asm/nonmatchings/main/sub_0800025C.s"
 ==> asm/asm_0800028C.s (generated, module) <==
 .syntax unified
 .include "include/macros.inc"
@@ -21,22 +6,3 @@
 .include "asm/nonmatchings/asm_0800028C/sub_0800029C.s"
 .include "asm/nonmatchings/asm_0800028C/sub_080002A2.s"
 .include "asm/nonmatchings/asm_0800028C/sub_080002A8.s"
-==> asm/main_2.s (generated, module) <==
-.syntax unified
-.include "include/macros.inc"
-.thumb
-.include "asm/nonmatchings/main_2/sub_080002BC.s"
-.include "asm/nonmatchings/main_2/sub_08000300.s"
-.include "asm/nonmatchings/main_2/sub_08000330.s"
-.include "asm/nonmatchings/main_2/sub_08000354.s"
-.include "asm/nonmatchings/main_2/sub_080003D4.s"
-.include "asm/nonmatchings/main_2/unk_0800042E.s"
-.include "asm/nonmatchings/main_2/sub_08000430.s"
-.include "asm/nonmatchings/main_2/sub_08000444.s"
-.include "asm/nonmatchings/main_2/sub_0800045C.s"
-.include "asm/nonmatchings/main_2/sub_08000488.s"
-.include "asm/nonmatchings/main_2/sub_080004DC.s"
-.include "asm/nonmatchings/main_2/sub_08000508.s"
-.include "asm/nonmatchings/main_2/sub_08000548.s"
-.include "asm/nonmatchings/main_2/sub_0800057C.s"
-.include "asm/nonmatchings/main_2/sub_080005A0.s"
