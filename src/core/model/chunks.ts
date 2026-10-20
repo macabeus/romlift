@@ -6,15 +6,20 @@
 // never glued to a neighbour. Chunks starting inside the startup region are `startup` chunks (asm/crt0.s); the
 // orphans are cut at its end. A data module is one `data` chunk, split where a symbol of the config starts.
 //
-// A padding-only orphan is folded into the function after it (the owner's answer to Q5 b of phase 3, D68 e): the
-// zeros `.align 2, 0` emits between two functions belong to the function whose start macro emits them
-// (`thumb_func_start`, `arm_func_start` and their `_local` forms, foundation/asm/dialect.ts), so they get no file
-// of their own and no byte changes. The function chunk then spans [pad start, its end); its entry and name stay,
-// and its first item is the padding item (items.ts), which the printers leave to the start macro
-// (core/emit/print/chunk.ts). Only a pad that macro emits is folded: 1 to 3 zero bytes up to a word-aligned entry
-// of a function chunk of the same code module, outside the startup region, with no listed entry or [symbols]
-// entry inside it. A pad of other bytes (0x46C0 nops), one before a module border or at a module's end, one in the
-// startup region or a data module, and one before an entry at 2 mod 4 stay orphans.
+// A padding-only orphan is folded into a neighbour (the owner's answer to Q5 b of phase 3, D68 e; D75 d), so it gets
+// no file and no INCLUDE_ASM stub of its own and no byte changes. A pad is 1 to 3 zero bytes up to a word-aligned
+// address of a code module, outside the startup region, with no listed entry or [symbols] entry inside it (each needs
+// a label there, which neither fold can hold):
+// - before a word-aligned function entry of the same module, it is the zeros that function's start macro emits
+//   (`thumb_func_start`, `arm_func_start` and their `_local` forms open with `.align 2, 0`, foundation/asm/dialect.ts):
+//   the function chunk spans [pad start, its end), its `entry` stays (Chunk.entry), and its first item is the
+//   padding item (items.ts), which the printers leave to the start macro (core/emit/print/chunk.ts);
+// - at its module's end (a module border, or the data start, follows), it is the alignment of the object's end, which
+//   the chunk before it in the module (a function or an orphan) takes as its last item, a padding item printed
+//   `.align 2, 0` (ChunkPlan.tailPad): a decompiled function there ends its C object, whose section ld aligns the
+//   same way.
+// A pad of other bytes (a 0x46C0 nop, which no start macro emits and agbcc's output for the function before it does
+// not hold), one in the startup region or a data module, and one before an entry at 2 mod 4 stay orphans.
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { lowerBound, pushAll } from '../../foundation/util/arrays.ts';
@@ -23,7 +28,7 @@ import type { FunctionConfig } from '../config/schema.ts';
 import { tileCode } from '../layout/borders.ts';
 import type { PlacedEntry } from '../layout/borders.ts';
 import { dataName, HEADER_NAME, orphanName } from './names.ts';
-import type { Chunk, ChunkKind, Model, ModelSymbol, Module } from './types.ts';
+import type { Chunk, ChunkKind, ModelSymbol, Module } from './types.ts';
 
 /** The word `.align 2, 0` aligns to: the start macros of a function at a word-aligned entry emit up to WORD - 1 zeros. */
 const WORD = 4;
@@ -38,6 +43,8 @@ export interface ChunkPlan {
   readonly module: number;
   /** The listed entry a function (or startup function) chunk starts at. */
   readonly entry?: Addr;
+  /** The start of the zero pad a code chunk took at its module's end (foldPads), its last item. */
+  readonly tailPad?: Addr;
 }
 
 export interface ChunkInputs {
@@ -69,29 +76,43 @@ function anyIn(sorted: readonly Addr[], start: Addr, end: Addr): boolean {
 }
 
 /**
- * Whether orphan `pad` is the padding the start macro of the function chunk `next` emits: `next` follows it in the
- * same module, its entry is word-aligned (so its macro is `thumb_func_start` or `arm_func_start`, each opening with
- * `.align 2, 0`, not `non_word_aligned_thumb_func_start`), the pad is shorter than a word and all zeros, and no
- * listed entry or [symbols] entry lies inside it (each needs a label there, which the macro's alignment cannot hold).
+ * Whether orphan `pad` is a pad (the module comment above): 1 to 3 zero bytes up to a word-aligned address, with no
+ * listed entry or [symbols] entry inside it; `named` holds those addresses, ascending.
  */
-function isFoldablePad(inputs: ChunkInputs, named: readonly Addr[], pad: ChunkPlan, next: ChunkPlan | undefined): boolean {
-  if (pad.kind !== 'orphan' || next === undefined || next.kind !== 'function' || next.module !== pad.module) return false;
+function isPad(inputs: ChunkInputs, named: readonly Addr[], pad: ChunkPlan): boolean {
+  if (pad.kind !== 'orphan') return false;
   const { start, end } = pad.span;
-  if (next.entry !== end || next.span.start !== end || end % WORD !== 0 || end - start >= WORD) return false;
+  if (end % WORD !== 0 || end - start >= WORD) return false;
   for (let a = start; a < end; a++) if (inputs.rom.bytes[a - inputs.rom.base] !== 0) return false;
   return !anyIn(named, start, end);
 }
 
-/** The chunks with every padding-only orphan folded into the function chunk after it (isFoldablePad); `named` as there. */
+/** Whether pad `pad` is the alignment the start macro of the function chunk `next` emits: `next` starts at its end, at a word-aligned entry of the same module. */
+function foldsForward(pad: ChunkPlan, next: ChunkPlan | undefined): next is ChunkPlan {
+  return next !== undefined && next.kind === 'function' && next.module === pad.module && next.entry === pad.span.end && next.span.start === pad.span.end;
+}
+
+/** Whether pad `pad` ends its module's code (nothing of its module follows) and `previous`, a function or orphan of that module, can take it. */
+function foldsBackward(pad: ChunkPlan, previous: ChunkPlan | undefined, next: ChunkPlan | undefined): previous is ChunkPlan {
+  if (next !== undefined && next.module === pad.module) return false;
+  return previous !== undefined && (previous.kind === 'function' || previous.kind === 'orphan') && previous.module === pad.module && previous.span.end === pad.span.start;
+}
+
+/** The chunks of one module's code with every pad folded into a neighbour (the module comment above); `named` as in isPad. */
 function foldPads(inputs: ChunkInputs, named: readonly Addr[], chunks: readonly ChunkPlan[]): ChunkPlan[] {
   const out: ChunkPlan[] = [];
   for (let i = 0; i < chunks.length; i++) {
     const c = chunks[i];
     if (c === undefined) continue;
     const next = chunks[i + 1];
-    if (next !== undefined && isFoldablePad(inputs, named, c, next)) {
+    const previous = out[out.length - 1];
+    if (!isPad(inputs, named, c)) {
+      out.push(c);
+    } else if (foldsForward(c, next)) {
       out.push({ ...next, span: { start: c.span.start, end: next.span.end } });
       i++;
+    } else if (foldsBackward(c, previous, next)) {
+      out[out.length - 1] = { ...previous, span: { start: previous.span.start, end: c.span.end }, tailPad: c.span.start };
     } else {
       out.push(c);
     }
@@ -125,18 +146,7 @@ export function planChunks(inputs: ChunkInputs): ChunkPlan[] {
   return out;
 }
 
-/**
- * The entry of chunk `chunk` of a model: for a function chunk, the entry of the listed function it is named after
- * that lies in its first word (past the pad a folded chunk opens with, foldPads); its start for any other chunk.
- * Its own label and start macro go there.
- */
-export function chunkEntry(model: Pick<Model, 'functions'>, chunk: Pick<Chunk, 'kind' | 'name' | 'span'>): Addr {
-  const { start } = chunk.span;
-  if (chunk.kind !== 'function' || start % WORD === 0) return start;
-  for (let i = lowerBound(model.functions, start, (f) => f.entry); i < model.functions.length; i++) {
-    const f = model.functions[i];
-    if (f === undefined || f.entry >= Math.min(chunk.span.end, start + WORD)) break;
-    if (f.name === chunk.name && f.entry % WORD === 0) return f.entry;
-  }
-  return start;
+/** Where chunk `chunk`'s label and start macro go: its entry (a function chunk that folded a pad), else its start. */
+export function chunkEntry(chunk: Pick<Chunk, 'entry' | 'span'>): Addr {
+  return chunk.entry ?? chunk.span.start;
 }

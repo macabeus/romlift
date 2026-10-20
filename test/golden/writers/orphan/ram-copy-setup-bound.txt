@@ -1,9 +1,3 @@
-==> asm/nonmatchings/main/unk_0800013A.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_0800013A
-unk_0800013A: @ 0800013A
-	.align 2, 0
 ==> asm/nonmatchings/asm_0800013C/unk_08000148.s (generated, orphan) <==
 .thumb
 @ bytes between functions: 4 bytes

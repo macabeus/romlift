@@ -3011,6 +3011,23 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   `modules.mk`, and an object whose record differs is removed with the ELF before make decides. The ROM is written by
   the link alone (correctness-8: `objcopy` ran twice per link); the ROM rule only restores a ROM removed since.
 
+- (d) **Padding-only orphans, all of them** (Q5 b, D68 e; review delivery-2, correctness-4, architecture-3). Phase 4
+  folded a zero pad only into the function after it in the same module, so the pads at a module's end stayed orphan
+  files (25 on the tuning ROMs, 11 in `c` modules, each with its own `INCLUDE_ASM` stub). Such a pad is now the last
+  item of the function or orphan chunk before it in its module (`ChunkPlan.tailPad`), a padding item printed `.align
+  2, 0`: it is the alignment of the object's end, which a decompiled last function reproduces because ld aligns the
+  next object the same way. `test/local/padding-orphans.test.ts` now requires no zero-pad orphan anywhere on the six
+  tuning ROMs. The fold changes no byte. The model's `Chunk` and `romlift/model-json@1`'s chunk line carry the entry a
+  folded chunk opens past (`entry`, present only when it is not the span's start), so `chunkEntry` reads it instead
+  of searching the functions by name, and the printer decides from the item table alone whether the pad is printed
+  before the start macro (items.ts makes it data when a label lies in it); the fold rule lives in chunks.ts only. A
+  0x46C0 nop pad stays an orphan: no start macro emits it (they open with `.align 2, 0`, zeros), and agbcc's output for
+  the function before it does not hold it, so folding it either way would put into a function's file a byte its C
+  cannot produce. On the tuning ROMs those are 21 (fe7j), 21 (klonoa), 15 (pokeemerald), 15 (sa2), 15 (sa3) and 0
+  (tmc), all in library code (klonoa's at 0x080518B6 and on lie in m4a, 0x0804F000 to 0x08051BD4), which sits in `c`
+  modules only until phase 6's signatures give the libraries `asm` modules (architecture §12, "Signatures arrive in
+  phase 6": unrecognised library code stays in game modules as `INCLUDE_ASM` stubs).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

@@ -55,7 +55,6 @@ INCLUDE_ASM("asm/nonmatchings/main", sub_080000F4);
 .thumb
 .include "asm/nonmatchings/asm_08000114/sub_08000114.s"
 .include "asm/nonmatchings/asm_08000114/sub_0800011A.s"
-.include "asm/nonmatchings/asm_08000114/unk_0800011E.s"
 ==> asm/nonmatchings/asm_08000114/sub_08000114.s (generated, function) <==
 .thumb
 	thumb_func_start sub_08000114
@@ -66,14 +65,8 @@ sub_08000114: @ 08000114
 .thumb
 	non_word_aligned_thumb_func_start sub_0800011A
 sub_0800011A: @ 0800011A
-	.2byte 0x1840, 0x4697
+	.2byte 0x1840, 0x4697, 0x0000
 	thumb_func_end sub_0800011A
-==> asm/nonmatchings/asm_08000114/unk_0800011E.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_0800011E
-unk_0800011E: @ 0800011E
-	.2byte 0x0000
 ==> asm/nonmatchings/main_2/sub_08000120.s (generated, function) <==
 .thumb
 	thumb_func_start sub_08000120

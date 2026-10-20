@@ -8,4 +8,3 @@
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/asm_08000148/sub_08000148.s"
-.include "asm/nonmatchings/asm_08000148/unk_08000162.s"

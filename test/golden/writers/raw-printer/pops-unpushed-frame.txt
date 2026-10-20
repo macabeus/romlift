@@ -171,7 +171,6 @@ INCLUDE_ASM("asm/nonmatchings/main", unk_0800010C);
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/asm_0800074C/sub_0800074C.s"
-.include "asm/nonmatchings/asm_0800074C/unk_08000DB6.s"
 ==> asm/nonmatchings/asm_0800074C/sub_0800074C.s (generated, function) <==
 .thumb
 	thumb_func_start sub_0800074C
@@ -279,14 +278,8 @@ sub_0800074C: @ 0800074C
 	.2byte 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF
 	.2byte 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF
 	.2byte 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF
-	.2byte 0xBCF0, 0xBC01, 0x4700
+	.2byte 0xBCF0, 0xBC01, 0x4700, 0x0000
 	thumb_func_end sub_0800074C
-==> asm/nonmatchings/asm_0800074C/unk_08000DB6.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000DB6
-unk_08000DB6: @ 08000DB6
-	.2byte 0x0000
 ==> asm/nonmatchings/main_2/sub_08000DB8.s (generated, function) <==
 .thumb
 	thumb_func_start sub_08000DB8

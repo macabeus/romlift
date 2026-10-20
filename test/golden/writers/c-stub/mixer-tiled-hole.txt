@@ -3,13 +3,11 @@
 
 INCLUDE_ASM("asm/nonmatchings/main", sub_080000F4);
 INCLUDE_ASM("asm/nonmatchings/main", sub_08000108);
-INCLUDE_ASM("asm/nonmatchings/main", unk_0800010E);
 ==> src/main_2.c (scaffold, c-stub) <==
 #include "include_asm.h"
 
 INCLUDE_ASM("asm/nonmatchings/main_2", sub_08000138);
 INCLUDE_ASM("asm/nonmatchings/main_2", sub_08000140);
-INCLUDE_ASM("asm/nonmatchings/main_2", unk_08000146);
 ==> src/main_3.c (scaffold, c-stub) <==
 #include "include_asm.h"
 

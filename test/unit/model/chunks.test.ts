@@ -173,8 +173,8 @@ test('a 2-byte zero pad before a word-aligned Thumb entry folds into that functi
   ]);
   const b = model.chunks.find((c) => c.name === 'B');
   assert.ok(b !== undefined);
-  assert.equal(chunkEntry(model, b), BASE + 0x10c, 'the entry stays');
-  assert.equal(chunkEntry(model, model.chunks.find((c) => c.name === 'A') ?? b), BASE + 0x100);
+  assert.equal(chunkEntry(b), BASE + 0x10c, 'the entry stays');
+  assert.equal(chunkEntry(model.chunks.find((c) => c.name === 'A') ?? b), BASE + 0x100);
   const first = b.items.first;
   assert.deepEqual([model.items.kind[first], model.items.start[first], model.items.length[first]], [ItemKind.padding, BASE + 0x10a, 2], 'its first item is the padding item');
   assert.equal(model.items.start[first + 1], BASE + 0x10c);
@@ -235,21 +235,25 @@ test('never folded: a non-zero pad (0x46C0), a 4-byte pad, a pad before an entry
   ]);
 });
 
-test('never folded: a pad before a module border, at a code module\'s end before data, or inside the startup region', () => {
+test('a pad before a module border, or at a code module\'s end before data, is the last item of the chunk before it (D75 d)', () => {
   const border = padModel({ modules: [['rom_header', BASE], ['main', HEADER_END], ['next', BASE + 0x10c], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }] });
   assert.deepEqual(border.diagnostics, []);
   assert.deepEqual(around(border), [
-    ['function', 'A', 0x100, 0x10a],
-    ['orphan', 'unk_0800010A', 0x10a, 0x10c],
+    ['function', 'A', 0x100, 0x10c],
     ['function', 'B', 0x10c, 0x110],
   ]);
-  assert.deepEqual(border.chunks.filter((c) => c.name === 'unk_0800010A' || c.name === 'B').map((c) => c.module), ['main', 'next']);
+  assert.deepEqual(border.chunks.filter((c) => c.name === 'A' || c.name === 'B').map((c) => [c.module, c.entry]), [['main', undefined], ['next', undefined]]);
+  const a = border.chunks.find((c) => c.name === 'A') ?? assert.fail('A');
+  const last = a.items.first + a.items.count - 1;
+  assert.deepEqual([border.items.kind[last], (border.items.start[last] ?? 0) - BASE, border.items.length[last]], [ItemKind.padding, 0x10a, 2], 'the pad is A\'s last item, a padding item');
   const atEnd = padModel({ facts: [{ entry: BASE + 0x100, end: BASE + 0x10a }], functions: [[BASE + 0x100, 'A']], modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x10c, kind: 'data', generated: true }] });
   assert.deepEqual(around(atEnd), [
-    ['function', 'A', 0x100, 0x10a],
-    ['orphan', 'unk_0800010A', 0x10a, 0x10c],
+    ['function', 'A', 0x100, 0x10c],
     ['data', 'gUnk_0800010C', 0x10c, 0x400],
   ]);
+});
+
+test('never folded: a pad inside the startup region', () => {
   const startup = padModel({ startupEnd: BASE + 0x10c, modules: [['rom_header', BASE], ['crt0', HEADER_END], ['main', BASE + 0x10c], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }] });
   assert.deepEqual(around(startup), [
     ['startup', 'A', 0x100, 0x10a],

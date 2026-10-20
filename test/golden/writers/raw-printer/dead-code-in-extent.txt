@@ -51,20 +51,13 @@ INCLUDE_ASM("asm/nonmatchings/main", sub_080000F4);
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/asm_08000104/sub_08000104.s"
-.include "asm/nonmatchings/asm_08000104/unk_08000116.s"
 ==> asm/nonmatchings/asm_08000104/sub_08000104.s (generated, function) <==
 .thumb
 	thumb_func_start sub_08000104
 sub_08000104: @ 08000104
 	.2byte 0x1C01, 0x2800, 0xD002, 0xE002, 0x2000, 0x4770, 0x3001, 0x1840
-	.2byte 0x4770
+	.2byte 0x4770, 0x0000
 	thumb_func_end sub_08000104
-==> asm/nonmatchings/asm_08000104/unk_08000116.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000116
-unk_08000116: @ 08000116
-	.2byte 0x0000
 ==> asm/nonmatchings/main_2/sub_08000118.s (generated, function) <==
 .thumb
 	thumb_func_start sub_08000118

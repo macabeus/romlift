@@ -137,6 +137,7 @@ _08000DB0:
 	pop {r4, r5, r6, r7}
 	pop {r0}
 	bx r0
+	.align 2, 0
 	thumb_func_end sub_0800074C
 ==> asm/nonmatchings/main_2/sub_08000DB8.s (generated, function) <==
 .thumb

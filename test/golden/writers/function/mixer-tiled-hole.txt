@@ -16,6 +16,7 @@ sub_08000108: @ 08000108
 	movs r0, #0
 	adds r0, #1
 	bx lr
+	.align 2, 0
 	thumb_func_end sub_08000108
 ==> asm/nonmatchings/asm_08000110/sub_08000110.s (generated, function) <==
 .thumb
@@ -57,6 +58,7 @@ sub_08000140: @ 08000140
 	lsls r0, r0, #1
 	adds r0, #3
 	bx lr
+	.align 2, 0
 	thumb_func_end sub_08000140
 ==> asm/nonmatchings/asm_08000148/sub_08000148.s (generated, function) <==
 .thumb
@@ -77,6 +79,7 @@ _0800015C:
 	movs r0, #2
 	adds r0, #1
 	bx lr
+	.align 2, 0
 	thumb_func_end sub_08000148
 ==> asm/nonmatchings/main_3/sub_08000164.s (generated, function) <==
 .thumb

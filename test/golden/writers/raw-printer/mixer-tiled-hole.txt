@@ -47,20 +47,13 @@ sub_080000F4: @ 080000F4
 .thumb
 	thumb_func_start_local sub_08000108
 sub_08000108: @ 08000108
-	.2byte 0x2000, 0x3001, 0x4770
+	.2byte 0x2000, 0x3001, 0x4770, 0x0000
 	thumb_func_end sub_08000108
-==> asm/nonmatchings/main/unk_0800010E.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_0800010E
-unk_0800010E: @ 0800010E
-	.2byte 0x0000
 ==> src/main.c (scaffold, c-stub) <==
 #include "include_asm.h"
 
 INCLUDE_ASM("asm/nonmatchings/main", sub_080000F4);
 INCLUDE_ASM("asm/nonmatchings/main", sub_08000108);
-INCLUDE_ASM("asm/nonmatchings/main", unk_0800010E);
 ==> asm/asm_08000110.s (generated, module) <==
 .syntax unified
 .include "include/macros.inc"
@@ -86,26 +79,18 @@ sub_08000138: @ 08000138
 .thumb
 	thumb_func_start_local sub_08000140
 sub_08000140: @ 08000140
-	.2byte 0x0040, 0x3003, 0x4770
+	.2byte 0x0040, 0x3003, 0x4770, 0x0000
 	thumb_func_end sub_08000140
-==> asm/nonmatchings/main_2/unk_08000146.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000146
-unk_08000146: @ 08000146
-	.2byte 0x0000
 ==> src/main_2.c (scaffold, c-stub) <==
 #include "include_asm.h"
 
 INCLUDE_ASM("asm/nonmatchings/main_2", sub_08000138);
 INCLUDE_ASM("asm/nonmatchings/main_2", sub_08000140);
-INCLUDE_ASM("asm/nonmatchings/main_2", unk_08000146);
 ==> asm/asm_08000148.s (generated, module) <==
 .syntax unified
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/asm_08000148/sub_08000148.s"
-.include "asm/nonmatchings/asm_08000148/unk_08000162.s"
 ==> asm/nonmatchings/asm_08000148/sub_08000148.s (generated, function) <==
 .thumb
 	thumb_func_start_local sub_08000148
@@ -113,14 +98,8 @@ sub_08000148: @ 08000148
 	.2byte 0x2800, 0xD007, 0xA100, 0x4708
 sub_08000150: @ 08000150
 	.2byte 0x2000, 0xE080, 0x2000, 0xE583, 0xFF1E, 0xE12F, 0x2002, 0x3001
-	.2byte 0x4770
+	.2byte 0x4770, 0x0000
 	thumb_func_end sub_08000148
-==> asm/nonmatchings/asm_08000148/unk_08000162.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000162
-unk_08000162: @ 08000162
-	.2byte 0x0000
 ==> asm/nonmatchings/main_3/sub_08000164.s (generated, function) <==
 .thumb
 	thumb_func_start sub_08000164

@@ -4,4 +4,3 @@
 .thumb
 .include "asm/nonmatchings/asm_08000100/unk_08000100.s"
 .include "asm/nonmatchings/asm_08000100/sub_0800010A.s"
-.include "asm/nonmatchings/asm_08000100/unk_08000116.s"

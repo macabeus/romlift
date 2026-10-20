@@ -29,6 +29,7 @@ sub_08000114: @ 08000114
 sub_0800011A: @ 0800011A
 	adds r0, r0, r1
 	mov pc, r2
+	.align 2, 0
 	thumb_func_end sub_0800011A
 ==> asm/nonmatchings/main_2/sub_08000120.s (generated, function) <==
 .thumb

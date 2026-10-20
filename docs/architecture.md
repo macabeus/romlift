@@ -642,7 +642,8 @@ export interface Chunk {
   readonly module: string; readonly items: { readonly first: number; readonly count: number };
   readonly innerLabels: readonly Label[];         // `label = true` entries and second entries
   readonly runAt?: Addr;
-}
+  readonly entry?: Addr;                          // where its label and start macro go, when not span.start:
+}                                                 // a function chunk whose span opens with a folded pad (§6.2, D75 d)
 export interface Module {
   readonly name: string; readonly span: Span; readonly kind: 'asm' | 'c' | 'data';
   readonly generated: boolean; readonly compiler: BuildCompilerId; readonly cflags: readonly string[];
@@ -683,7 +684,7 @@ export function wordValueOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>): numb
 // core/model/codec.ts: the public JSON contract for asmlift and Mizuchi
 export interface ModelJsonHeader { readonly schema: 'romlift/model-json@1'; /* rom, build, modules,
   functions, labels, symbols, unlisted, diagnostics */ }
-export interface ModelJsonChunk { /* chunk fields; items: [kind, start, length, specId | null, aux][] */ }
+export interface ModelJsonChunk { /* chunk fields, `entry` when set; items: [kind, start, length, specId | null, aux][] */ }
 export function encodeModel(model: Model, rom: Rom): Iterable<string>;   // NDJSON lines, header first
 
 // core/emit/tree.ts: plain data, no closures (D17)
@@ -1220,7 +1221,14 @@ earlier gates.
    `label = true` entry that only the cartridge entry's extent covers still starts a chunk, because the header
    chunk clips that extent (D64 a).
    Bytes between functions in a code module become an `orphan` chunk named `unk_XXXXXXXX`, with its own
-   file and stub line, never glued to a neighbour.
+   file and stub line, never glued to a neighbour, with one exception: a pad, 1 to 3 zero bytes up to a
+   word-aligned address with no listed entry or `[symbols]` entry inside (D68 e, D75 d). A pad before a
+   word-aligned entry of a function of its module belongs to that function's chunk, whose start macro's
+   `.align 2, 0` emits it: the chunk's span opens with the pad and `Chunk.entry` is the entry its label and macro
+   go at. A pad at its module's end (a border or the data start follows) is the last item of the function or
+   orphan chunk before it, printed `.align 2, 0`. A 0x46C0 nop pad stays an orphan: no start macro emits it, and
+   the function before it does not hold it once decompiled (on the tuning ROMs every one lies in library code,
+   which phase 6's library modules take out of the C modules).
 3. **Modules** (`modules.ts`): taken from the config. Each module carries its build compiler and flags
    (`compiler` defaults to `build.compiler`). A `start` that is not a legal border (below) is
    `E_MODULE_BORDER`, naming the nearest legal borders.

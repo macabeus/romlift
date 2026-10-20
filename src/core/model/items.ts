@@ -10,7 +10,9 @@
 // data, noted `dead` (claim.dead-code-in-extent), `mixer-hole` (a hole kept inside an extent) or `unreached`
 // (any other byte inside an extent); the header and data chunks carry no notes, and data items are split
 // only at labels, so a data module is a few large items. A function chunk that folded the zero pad before its
-// entry (chunks.ts) opens with that pad as one padding item, which its start macro's `.align 2, 0` emits.
+// entry (chunks.ts) opens with that pad as one padding item, which its start macro's `.align 2, 0` emits; a chunk
+// that took the pad at its module's end (ChunkPlan.tailPad) ends with it as one padding item, `.align 2, 0`. A label
+// inside either pad makes it data instead, which the printers place labels in.
 //
 // An instruction is an `insn` item when it prints as a mnemonic: its text, parsed and assembled at its run
 // address with the labels its module sees (an adr only those that link to its target itself, resolver.ts
@@ -281,18 +283,25 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
         else fillData(start, from, false);
       }
       let at = from;
+      // A pad taken at the module's end is the chunk's last item (chunks.ts foldPads).
+      const bodyEnd = c.tailPad !== undefined && c.tailPad > from && c.tailPad < end ? c.tailPad : end;
       segmentAt = firstEndingAbove(segments.concrete, segmentAt, from);
       for (let k = segmentAt; k < segments.concrete.length; k++) {
         const s = segments.concrete[k];
-        if (s === undefined || s.start >= end) break;
+        if (s === undefined || s.start >= bodyEnd) break;
         const a = Math.max(s.start, from);
         if (a > at && noted && alignsTo(at, a, s)) table.append({ kind: 'padding', start: at, length: a - at });
         else if (a > at) fillData(at, a, noted);
-        const b = Math.min(s.end, end);
+        const b = Math.min(s.end, bodyEnd);
         fillSegment(s, a, b, c, offset);
         at = b;
       }
-      if (at < end) fillData(at, end, noted);
+      if (at < bodyEnd) fillData(at, bodyEnd, noted);
+      if (bodyEnd < end) {
+        const label = labelStarts[lowerBound(labelStarts, bodyEnd, (x) => x)];
+        if (label === undefined || label >= end) table.append({ kind: 'padding', start: bodyEnd, length: end - bodyEnd });
+        else fillData(bodyEnd, end, false);
+      }
     }
     ranges.push({ first, count: table.count - first });
   });

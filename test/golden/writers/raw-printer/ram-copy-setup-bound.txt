@@ -51,20 +51,13 @@ sub_080000F4: @ 080000F4
 .thumb
 	thumb_func_start_local sub_0800012C
 sub_0800012C: @ 0800012C
-	.2byte 0x1882, 0x4290, 0xD202, 0xC808, 0xC108, 0xE7FA, 0x4770
+	.2byte 0x1882, 0x4290, 0xD202, 0xC808, 0xC108, 0xE7FA, 0x4770, 0x0000
 	thumb_func_end sub_0800012C
-==> asm/nonmatchings/main/unk_0800013A.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_0800013A
-unk_0800013A: @ 0800013A
-	.2byte 0x0000
 ==> src/main.c (scaffold, c-stub) <==
 #include "include_asm.h"
 
 INCLUDE_ASM("asm/nonmatchings/main", sub_080000F4);
 INCLUDE_ASM("asm/nonmatchings/main", sub_0800012C);
-INCLUDE_ASM("asm/nonmatchings/main", unk_0800013A);
 ==> asm/asm_0800013C.s (generated, module) <==
 .syntax unified
 .include "include/macros.inc"

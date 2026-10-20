@@ -165,6 +165,7 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
       items: built.ranges[i] ?? { first: 0, count: 0 },
       innerLabels: inner[i] ?? [],
       ...(relocatedChunk ? { runAt: c.span.start + offset } : {}),
+      ...(c.entry !== undefined && c.entry !== c.span.start ? { entry: c.entry } : {}),
     };
   });
   const finished = modules.map((m, i): Module => {

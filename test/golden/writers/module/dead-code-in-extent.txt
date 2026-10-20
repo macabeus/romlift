@@ -3,4 +3,3 @@
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/asm_08000104/sub_08000104.s"
-.include "asm/nonmatchings/asm_08000104/unk_08000116.s"

@@ -42,6 +42,7 @@ _08000138:
 	thumb_func_start_local sub_0800013C
 sub_0800013C: @ 0800013C
 	bx r3
+	.align 2, 0
 	thumb_func_end sub_0800013C
 ==> asm/nonmatchings/asm_08000140/sub_08000140.s (generated, function) <==
 .arm

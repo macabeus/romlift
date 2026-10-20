@@ -16,10 +16,11 @@
 // cannot be placed and is left out (the model never puts one there; the text-layout check would see it).
 // The raw printer keeps the same chunk openings and closings and prints the body with printRawRange.
 //
-// A function chunk that folded the zero pad before its entry (core/model/chunks.ts) opens with its padding item:
-// both printers leave it to the start macro, whose `.align 2, 0` emits it, and put the chunk's label and macro at
-// the entry. Should a label lie inside the pad (the model then holds it as data), the pad's items are printed
-// before the start macro instead, whose alignment then emits nothing.
+// A function chunk that folded the zero pad before its entry (core/model/chunks.ts, Chunk.entry) opens with the pad's
+// items. When they are one padding item, both printers leave it to the start macro, whose `.align 2, 0` emits it, and
+// put the chunk's label and macro at the entry; otherwise (items.ts made the pad data, because a label lies in it) they
+// are printed before the start macro, whose alignment then emits nothing. The item table decides, nothing else. A pad a
+// chunk took at its module's end is its last item, a padding item printed `.align 2, 0` like any other.
 import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { contains, u32, u8 } from '../../../foundation/rom/rom.ts';
@@ -363,7 +364,7 @@ export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer |
   const c = model.chunks[chunk];
   if (c === undefined) throw new RomliftInvariantError(`printChunk: no chunk ${chunk} of ${model.chunks.length}`);
   const runOffset = runOffsetOf(c);
-  const entry = chunkEntry(model, c);
+  const entry = chunkEntry(c);
   const all = chunkLabels(model, c, runOffset);
   const at = entry + runOffset;
   const head = headLabel(all, c, at);
@@ -377,7 +378,7 @@ export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer |
     pushAll(lines, opening(c, head, at, []));
     pushAll(lines, headerBody(cx));
   } else {
-    const pad = leadingPad(model, c, entry, labels, runOffset);
+    const pad = leadingPad(model, c, entry);
     const before = labels.filter((l) => l.addr < at);
     const after = labels.filter((l) => l.addr >= at);
     const last = c.items.first + c.items.count;
@@ -392,15 +393,14 @@ export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer |
 }
 
 /**
- * The items of a folded chunk's pad, before its entry: [first, end) of model.items. `printed` when they must be
- * printed before the start macro (a label lies in the pad, so the model holds it as data); otherwise they are the
- * one padding item the start macro's `.align 2, 0` emits, and print nothing. No pad: end is the chunk's first item.
+ * The items of a folded chunk's pad, before its entry: [first, end) of model.items. `printed` unless they are exactly
+ * one padding item, which the start macro's `.align 2, 0` emits (items.ts makes the pad data when a label lies in it).
+ * No pad: end is the chunk's first item.
  */
-function leadingPad(model: Model, chunk: Chunk, entry: Addr, labels: readonly Label[], runOffset: number): { readonly end: number; readonly printed: boolean } {
+function leadingPad(model: Model, chunk: Chunk, entry: Addr): { readonly end: number; readonly printed: boolean } {
   let end = chunk.items.first;
   while (end < chunk.items.first + chunk.items.count && (model.items.start[end] ?? entry) < entry) end++;
   if (end === chunk.items.first) return { end, printed: false };
   const one = end - chunk.items.first === 1 && model.items.kind[chunk.items.first] === ItemKind.padding;
-  const labelled = labels.some((l) => l.addr - runOffset >= chunk.span.start && l.addr - runOffset < entry);
-  return { end, printed: !one || labelled };
+  return { end, printed: !one };
 }
