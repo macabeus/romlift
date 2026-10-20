@@ -1329,7 +1329,10 @@ only `analyze --update --write`, `rename` and `import-legacy` patch the TOML.
   and old_agbcc when `tools/agbcc/bin/agbcc` is missing; (3) in a `git worktree` without the ROM, copy
   `baserom.gba` from the main worktree (the first entry of `git worktree list --porcelain`) and check it
   against `<name>.sha1`; (4) `npm ci`, or `npm install` when no lock exists yet; (5) `npx romlift
-  generate` when `asm/` is absent. The `Makefile` includes `modules.mk` and uses the per-compiler rule of
+  generate` when `asm/` is absent. `ROMLIFT_CLI`, when set, is the romlift command setup.sh runs instead of `npx
+  romlift`, and duty 4 is then skipped: the way to drive an unpublished romlift (a checkout's source CLI, an installed
+  tarball's bin). The gates set it; `g4.packed-e2e` runs one fixture without it, its package.json pointed at the
+  packed tarball, so duties 4 and 5 run as a user's (D75 o). The `Makefile` includes `modules.mk` and uses the per-compiler rule of
   `templates/compilers/<id>.mk`; an explicit rule the user adds for one object takes precedence over the
   pattern rule, which is how a legacy project keeps hand-written compile steps (D47).
 - **Frozen by D74.** `templates/MANIFEST.json` lists every scaffold file with its project path; templates and targets

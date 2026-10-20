@@ -3082,6 +3082,16 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   `checkEntries`, romlift's one public entry of the text-layout check; `checkEntry(rom, model, entry)`, which builds an
   index for one entry, stays in `core/verify/text-layout.ts` for tests and is not exported from `romlift`.
 
+- (o) **The installed tarball and setup.sh's npm duty, gated** (delivery-3, delivery-4). `g4.e2e-real` runs the six
+  tuning ROMs a second time from the packed and installed package (`npx romlift init` below the install, setup.sh's
+  `ROMLIFT_CLI` the installed bin), as roadmap "Phase 4 exit" asks ("from the source tree and from the installed
+  tarball"). `g4.packed-e2e` runs its first fixture without `ROMLIFT_CLI`: the project's package.json pins romlift as
+  `file:<tarball>` (the one stand-in for a published version) and asm/ is removed, so setup.sh's duty 4 runs `npm
+  install` and duty 5 `npx romlift generate` from that install, and `make` must still end at the SHA-1.
+  `ROMLIFT_CLI` itself is recorded in architecture §6.3. That a project made by an unpublished romlift needs
+  `ROMLIFT_CLI` (or a hand edit of package.json) until romlift is on the registry is a limitation the owner has not
+  authorised: phase-4.md owner question Q5.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per
