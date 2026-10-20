@@ -17,7 +17,15 @@
 //   --reveal appends {at, commit, reason} to a held-out dataset's `revealed` log, which makes it tuning
 //            data, and prints its rows to stdout; rows are never written to results.json (D25).
 //   --scaffold  builds and links both printers' trees in temporary directories and runs objdiff-cli at the
-//            pinned version (toolchain.ts objdiffTool) on every agreeing function (objdiff.ts).
+//            pinned version (toolchain.ts objdiffTool) on every agreeing function (objdiff.ts); from phase 4 it
+//            also builds every chosen ROM, tuning and sealed, as a user does (scaffold.ts initBuild): a fresh
+//            temporary directory holding only the ROM as baserom.gba, `romlift init` (the CLI from source under
+//            the bin's heap cap), `./setup.sh` with ROMLIFT_CLI set to it (tools/agbcc copied from the cache
+//            bench/.local/agbcc, built once from templates/agbcc.json's pin), and `make`. A tuning row records
+//            `scaffold.init = {initExit, setupExit, makeExit, sha1Match}` (NOT_RUN, -1, for a step an earlier
+//            failure skipped) beside the raw link's `scaffold.ok`; a sealed entry records the same four as `init`,
+//            and none of its output is printed or kept (D25). The wall time goes to bench/timings.json
+//            (`initBuildSeconds`), never to the artifact.
 //   --write-readability-floor  (the phase lead, once) adds the measured shares of every tuning ROM that has
 //            no floor to bench/baseline/readability.json; an existing floor is never changed (readability.ts).
 // A lead run (no --json) also runs the memory family, bench/src/large-rom.ts as a child process, into the
@@ -56,7 +64,7 @@ import { runProcess } from './process.ts';
 import { addFloors, readabilityMember, readReadabilityFloors, sharesOf, writeReadabilityFloors, type ReadabilityFloors, type ReadabilityMember, type Shares } from './readability.ts';
 import { readDump } from './rescore.ts';
 import type { PocSource, RomliftRow } from './row.ts';
-import { ROMLIFT_FAMILIES, type EmissionFamilies } from './scaffold.ts';
+import { initVerdict, NOT_RUN, ROMLIFT_FAMILIES, type EmissionFamilies, type InitBuild, type InitBuildVerdict } from './scaffold.ts';
 import { analysisFunctions, scoreAnalysis, staleExceptions } from './score.ts';
 import { appendReveal, assertCountsOnly, sealedCounts, sealedPasses } from './seal.ts';
 import { readSpeedBaseline } from './speed.ts';
@@ -175,8 +183,8 @@ export function pocReference(tc: TuningContext, d: Dataset, dumpRow: JsonRecord 
 export interface RomEmission {
   readonly readability: ReadabilityMember;
   readonly treeDigest: string;
-  /** romlift's raw link (--scaffold). */
-  readonly scaffold?: { readonly ok: boolean };
+  /** romlift's raw link, and the build through init, setup.sh and make (--scaffold). */
+  readonly scaffold?: { readonly ok: boolean; readonly init: InitBuildVerdict };
   /** The objdiff family over the readable build (--scaffold). */
   readonly objdiff?: ObjdiffSummary;
 }
@@ -211,6 +219,7 @@ export function romliftRow(inputs: RealInputs, analysis: DatasetAnalysis, tc: Tu
     baselineRows: comparison.baselineRows,
     parity: { digest: resultParityDigest(analysis.result), expected: tc.pocDigests?.roms[d.name] ?? '' },
     readability: emission.readability,
+    ...(emission.scaffold === undefined ? {} : { scaffold: emission.scaffold }),
     ...(emission.objdiff === undefined ? {} : { objdiff: emission.objdiff }),
     treeDigest: emission.treeDigest,
   };
@@ -262,8 +271,10 @@ async function emissionOf(cx: BenchContext, inputs: RealInputs, analysis: Datase
     ...(objects.linked === undefined ? {} : { linkedObjects: objects.linked }),
   });
   Object.assign(timings, built.timings, { scaffoldMs: Math.round(performance.now() - started) });
-  run.options.log?.(scaffoldText(d.name, built.raw, built.readable, built.objdiff));
-  return { emission: { readability, treeDigest: read.treeDigest, scaffold: { ok: built.raw.ok }, objdiff: built.objdiff }, objectsDigest: objects.digest, timings };
+  const init = await emission.initBuild({ cx, rom: inputs.rom, withhold: false });
+  timings['initBuildSeconds'] = init.seconds;
+  run.options.log?.(scaffoldText(d.name, built.raw, built.readable, built.objdiff, init));
+  return { emission: { readability, treeDigest: read.treeDigest, scaffold: { ok: built.raw.ok, init: initVerdict(init) }, objdiff: built.objdiff }, objectsDigest: objects.digest, timings };
 }
 
 /** What every tuning ROM of one run shares: the options, the readability floors, the objdiff-cli of --scaffold. */
@@ -318,6 +329,18 @@ function sealedEntry(inputs: RealInputs, options: RunOptions, tuning: RunTuning)
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
+/**
+ * A sealed ROM built through init, setup.sh and make with its output withheld; a failure of the build itself (the
+ * agbcc cache, a file) is withheld too and counts as nothing run.
+ */
+async function sealedInitBuild(cx: BenchContext, inputs: RealInputs, options: RunOptions): Promise<InitBuild> {
+  try {
+    return await (options.emission ?? ROMLIFT_FAMILIES).initBuild({ cx, rom: inputs.rom, withhold: true });
+  } catch {
+    return { initExit: NOT_RUN, setupExit: NOT_RUN, makeExit: NOT_RUN, sha1Match: false, seconds: 0, detail: 'the build failed (detail withheld: sealed)' };
+  }
+}
+
 export async function benchRun(cx: BenchContext, options: RunOptions): Promise<RunOutcome> {
   const log = options.log ?? (() => {});
   const tuning = options.tuning ?? DEFAULT_RUN_TUNING;
@@ -366,10 +389,14 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
     const started = performance.now();
     const read = await readRealInputs(cx, d);
     try {
-      const entry = sealedEntry(read, options, tuning);
+      const counted = sealedEntry(read, options, tuning);
+      const scoreMs = Math.round(performance.now() - started);
+      const build = options.scaffold === true ? await sealedInitBuild(cx, read, options) : undefined;
+      const entry: SealedEntry = build === undefined ? counted : { ...counted, init: initVerdict(build) };
+      assertCountsOnly(entry);
       sealed.push(entry);
       inputs[d.name] = { sha1: read.sha1, elfSha256: read.elfSha256 };
-      timings[d.name] = { scoreMs: Math.round(performance.now() - started) };
+      timings[d.name] = { scoreMs, ...(build === undefined ? {} : { initBuildSeconds: build.seconds }) };
       log(sealedText(entry));
     } catch {
       failed.push({ name: d.name, detail: 'the analysis failed (detail withheld: sealed)' });
@@ -522,18 +549,31 @@ export function summaryText(r: RomliftRow): string {
     `extents ${r.extents.agree}/${r.extents.sized} (${r.extents.lost.length} lost), code end ${r.codeEnd.delta >= 0 ? '+' : ''}${r.codeEnd.delta}, ` +
     `${r.deterministic ? 'deterministic' : 'NOT DETERMINISTIC'}, baseline diffs ${r.baselineRows.diffs.length} (${r.baselineRows.unaccepted.length} unaccepted, ${r.baselineRows.staleAccepted.length} stale), ` +
     `stale exceptions ${r.staleExceptions.length}, readability ${shareText(r.readability)}${r.readability.floor === null ? ' (no floor)' : ` (floor ${shareText(r.readability.floor)})`}` +
-    `${r.scaffold === undefined ? '' : `, scaffold ${r.scaffold.ok ? 'SHA-1' : 'FAILED'}`}`
+    `${r.scaffold === undefined ? '' : `, scaffold ${r.scaffold.ok ? 'SHA-1' : 'FAILED'}`}${r.scaffold?.init === undefined ? '' : `, init build ${initText(r.scaffold.init)}`}`
   );
 }
 
 const shareText = (s: Shares): string => `${pct(s.mnemonicShare)}/${pct(s.symbolicBranchShare)}/${pct(s.symbolicPoolShare)}`;
 
-/** One line per tuning ROM of --scaffold: both links and the objdiff family. */
-export function scaffoldText(name: string, raw: { readonly ok: boolean; readonly detail: string }, readable: { readonly ok: boolean; readonly detail: string }, objdiff: ObjdiffSummary): string {
+/** An init build's verdict in a line: the SHA-1 match or FAILED, and each step's exit code ('-' when it did not run). */
+export function initText(v: InitBuildVerdict): string {
+  const exit = (code: number): string => (code === NOT_RUN ? '-' : String(code));
+  return `${v.sha1Match ? 'SHA-1' : 'FAILED'} (init ${exit(v.initExit)}, setup.sh ${exit(v.setupExit)}, make ${exit(v.makeExit)})`;
+}
+
+/** One line per tuning ROM of --scaffold: both links, the objdiff family and the build through init, setup.sh and make. */
+export function scaffoldText(
+  name: string,
+  raw: { readonly ok: boolean; readonly detail: string },
+  readable: { readonly ok: boolean; readonly detail: string },
+  objdiff: ObjdiffSummary,
+  init?: InitBuild,
+): string {
   const link = (l: { readonly ok: boolean; readonly detail: string }): string => (l.ok ? 'SHA-1' : `FAILED (${l.detail})`);
   const kinds = Object.entries(objdiff.differences).map(([k, n]) => `${n} ${k}`);
   const judged = objdiff.linked ? `objdiff scored ${objdiff.scored}, differences: ${kinds.join(', ') || 'none'}` : 'objdiff not run (the readable build does not link)';
-  return `${name.padEnd(12)} raw link ${link(raw)}, readable link ${link(readable)}, ${judged}`;
+  const built = init === undefined ? '' : `, init build ${initText(init)}${init.sha1Match ? '' : `: ${init.detail}`}`;
+  return `${name.padEnd(12)} raw link ${link(raw)}, readable link ${link(readable)}, ${judged}${built}`;
 }
 
 /** One line per sealed ROM: counts and the verdict, never an address or a name. */
@@ -545,7 +585,8 @@ export function sealedText(s: SealedEntry): string {
   return (
     `${s.name.padEnd(12)} (sealed) ${s.pass ? 'pass' : 'FAIL'}: precision ${share(s.tp, s.entries)}, recall ${share(s.tp, s.elfFunctions)}, glued ${s.glued}${where}, ` +
     `label candidates ${s.labelCandidates}, extents ${s.extents.agree}/${s.extents.sized}, code end ${s.codeEnd.delta}, ` +
-    `false entries: startup ${f.startup}, veneer ${f.veneer}, adr-callback ${f.adrCallback}, inside-elf-function ${f.insideElfFunction}, other ${f.other ?? 'not counted'}`
+    `false entries: startup ${f.startup}, veneer ${f.veneer}, adr-callback ${f.adrCallback}, inside-elf-function ${f.insideElfFunction}, other ${f.other ?? 'not counted'}` +
+    `${s.init === undefined ? '' : `, init build ${initText(s.init)}`}`
   );
 }
 

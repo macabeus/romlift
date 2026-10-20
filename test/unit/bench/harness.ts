@@ -15,7 +15,7 @@ import { resultParityDigest } from '../../../bench/src/parity.ts';
 import type { BenchDeps } from '../../../bench/src/cli.ts';
 import type { ObjdiffSummary } from '../../../bench/src/objdiff.ts';
 import type { MemoryFamilyRun, RunOptions } from '../../../bench/src/run.ts';
-import type { EmissionFamilies, LinkOutcome, ScaffoldInput } from '../../../bench/src/scaffold.ts';
+import type { EmissionFamilies, InitBuild, InitBuildInput, LinkOutcome, ScaffoldInput } from '../../../bench/src/scaffold.ts';
 import type { BenchContext } from '../../../bench/src/context.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import type { ScoredRun } from '../../../bench/src/scored-run.ts';
@@ -79,7 +79,16 @@ export interface FakeEmissionOptions {
   readonly readableOk?: boolean;
   /** Receives every scaffold call. */
   readonly onScaffold?: (input: ScaffoldInput) => void;
+  /** The init build's result (default TINY_INIT_BUILD, a SHA-1 match). */
+  readonly initBuild?: InitBuild;
+  /** Receives every init build call. */
+  readonly onInitBuild?: (input: InitBuildInput) => void;
 }
+
+/** The fake init build: init, setup.sh and make exit 0 and the built ROM has the SHA-1. */
+export const TINY_INIT_BUILD: InitBuild = { initExit: 0, setupExit: 0, makeExit: 0, sha1Match: true, seconds: 1.5, detail: 'SHA-1 match' };
+/** Its verdict, as a row keeps it. */
+export const TINY_INIT_VERDICT = { initExit: 0, setupExit: 0, makeExit: 0, sha1Match: true } as const;
 
 const link = (ok: boolean): LinkOutcome => ({ ok, sha1: ok ? sha1Of(ROM_BYTES) : null, detail: ok ? 'linked' : 'ld exited with 1', treeDigest: TINY_TREE_DIGEST });
 
@@ -96,6 +105,10 @@ export function fakeEmission(options: FakeEmissionOptions = {}): EmissionFamilie
         objdiff: readable.ok ? TINY_OBJDIFF : { linked: false, scored: 0, differences: {}, examples: [] },
         timings: { rawLinkMs: 1, readableLinkMs: 2, objdiffMs: 3 },
       };
+    },
+    initBuild: async (input) => {
+      options.onInitBuild?.(input);
+      return options.initBuild ?? TINY_INIT_BUILD;
     },
   };
 }
@@ -143,8 +156,8 @@ export const EXPECTED_ROMLIFT_ROW = {
   treeDigest: TINY_TREE_DIGEST,
 } as const;
 
-/** The row of `bench run --scaffold`: romlift's raw link as the scaffold verdict, and the objdiff family. */
-export const EXPECTED_SCAFFOLD_ROW = { ...EXPECTED_ROMLIFT_ROW, scaffold: { ok: true }, objdiff: TINY_OBJDIFF } as const;
+/** The row of `bench run --scaffold`: romlift's raw link as the scaffold verdict with the init build, and the objdiff family. */
+export const EXPECTED_SCAFFOLD_ROW = { ...EXPECTED_ROMLIFT_ROW, scaffold: { ok: true, init: TINY_INIT_VERDICT }, objdiff: TINY_OBJDIFF } as const;
 
 const POC_ROW = { ...EXPECTED_ROW, seconds: 0.1, scaffold: { ok: true, seconds: 0.2, summary: 'built' }, signatures: { functions: 0, seconds: 0 }, datasetProblems: [] };
 
