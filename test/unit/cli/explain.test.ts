@@ -107,11 +107,12 @@ test('itemJson spells every item kind with hexAddr addresses', () => {
   });
 });
 
-test('a missing --rom is a usage error (exit 2)', async () => {
+test('without --rom outside a project: E_PROJECT_NOT_FOUND (exit 1), with a summary', async () => {
   const out = await run(['explain', '0x08000104', '--json']);
-  assert.equal(out.code, ExitCode.usage);
-  assert.equal(out.stdout, '');
-  assert.match(out.stderr, /explain: needs --rom <rom>/);
+  assert.equal(out.code, ExitCode.errors);
+  const parsed = out.stdout.trimEnd().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+  assert.equal(parsed[0]?.['code'], 'E_PROJECT_NOT_FOUND');
+  assert.deepEqual(parsed.at(-1), { type: 'summary', ok: false, exitCode: 1 });
 });
 
 test('an address that does not parse is a usage error (exit 2); a missing one too', async () => {
@@ -139,4 +140,24 @@ test('an unreadable ROM (exit 1) and an image that is not a cartridge (exit 1) a
   const text = await run(['explain', '0x08000000', '--rom', file]);
   assert.equal(text.code, ExitCode.errors);
   assert.match(text.stderr, /^E_ROM_NOT_GBA error/);
+});
+
+// Phase 4: the name and its source; explain inside a project (its ROM and romlift.toml), without --rom.
+
+test('explain names the function holding the address: analysis on a bare ROM, toml (with from) in a project', async () => {
+  const bare = await run(['explain', '0x08000104', '--rom', ROM, '--json']);
+  assert.deepEqual(lines(bare.stdout)[0]?.['name'], { value: 'sub_08000104', source: 'analysis' });
+  const dir = mkdtempSync(join(TMP, 'project-'));
+  writeFileSync(join(dir, 'baserom.gba'), readFileSync(ROM));
+  assert.equal(await main(['init', 'baserom.gba'], { ...capturingIo(), cwd: dir }), ExitCode.ok);
+  const file = join(dir, 'romlift.toml');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('0x08000104 = "sub_08000104"', '0x08000104 = { name = "FarJumpCaller", from = "legacy" }'));
+  const io = { ...capturingIo(), cwd: dir };
+  assert.equal(await main(['explain', '0x08000106', '--json'], io), ExitCode.ok, io.out.join(''));
+  const report = lines(io.out.join(''))[0];
+  assert.deepEqual(report?.['name'], { value: 'FarJumpCaller', source: 'toml', from: 'legacy' });
+  assert.deepEqual(report?.['chunk'], { name: 'FarJumpCaller', kind: 'function', module: 'main' });
+  const text = { ...capturingIo(), cwd: dir };
+  assert.equal(await main(['explain', '0x08000106'], text), ExitCode.ok);
+  assert.match(text.out.join(''), /^ {2}name: FarJumpCaller \(toml, from legacy\)$/m);
 });

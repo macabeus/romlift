@@ -5,6 +5,7 @@
     seed.call round 0 cites 0x080000FE
   chunk: sub_080001A8 (function) in module main
   item: insn 0x080001A8..0x080001AA: .inst.n 0x4902 @ ldr r1, 0x080001B4
+  name: sub_080001A8 (analysis)
   proposals (2):
     0x08000108 seed.call round 0 cites 0x080000FA: thumb
     0x080001A8 seed.call round 0 cites 0x080000FE: thumb

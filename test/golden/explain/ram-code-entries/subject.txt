@@ -5,6 +5,7 @@
     seed.ram-copy round 0 cites 0x08000134, 0x080000F4
   chunk: sub_08000158 (function) in module asm_08000130
   item: insn 0x08000158..0x0800015C: .inst 0xE0801000 @ add r1, r0, r0
+  name: sub_08000158 (analysis)
   proposals (6):
     0x08000120 seed.call round 0 cites 0x08000100: thumb
     0x08000130 seed.call round 0 cites 0x08000106: thumb

@@ -15,7 +15,7 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { findItem, itemAt } from '../../../src/core/model/item-table.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
-import { explain, explainOutcome, modelPart } from '../../../src/core/workflow/explain.ts';
+import { explain, explainOutcome, explainProject, modelPart, namePart } from '../../../src/core/workflow/explain.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
@@ -36,9 +36,11 @@ test('explain equals explainAnalysis over the filtered full-trail rerun of disco
   const events: TrailEvent[] = [];
   const result = discover(rom, { trail: 'full', trailFilter: filter }, { event: (e) => events.push(e) });
   const expected = explainAnalysis(result, events, addr, Object.values(RULES).map((r) => r.meta));
-  const { item, chunk, ...analysisPart } = explain(rom, addr);
+  const { item, chunk, name, ...analysisPart } = explain(rom, addr);
   assert.deepEqual(analysisPart, expected);
-  assert.deepEqual({ item, chunk }, modelPart(rom, buildModel(rom, result, configFromDiscover(rom, result)), addr));
+  const model = buildModel(rom, result, configFromDiscover(rom, result));
+  assert.deepEqual({ item, chunk }, modelPart(rom, model, addr));
+  assert.deepEqual({ name }, namePart(model, addr));
 });
 
 test('phase 3: the item and the chunk of the address in the model of the discover run', () => {
@@ -157,4 +159,40 @@ test('an extent that reaches past the window is explained by a second run filter
   assert.equal(report.owner?.entry, F);
   assert.ok(report.events.some((e) => e.kind === 'accept' && e.at === F), 'the acceptance at the entry, 68 KiB below the address, is kept');
   assert.deepEqual(report, explain(rom, addr));
+});
+
+// Phase 4: the name part, and explain inside a project (the confirm run over the project's config).
+
+test('phase 4: a bare ROM names the function holding the address by its default spelling (source default)', () => {
+  const rom = fixtureRom('far-jump');
+  const report = explain(rom, 0x0800_0104);
+  assert.deepEqual(report.name, { value: 'sub_08000104', source: { kind: 'default' } });
+  assert.equal(explain(rom, rom.end + 0x100).name, undefined, 'past the ROM no function holds the address');
+});
+
+test('phase 4: inside a project, the name and its source come from the TOML, and the analysis is the confirm run', () => {
+  const rom = fixtureRom('far-jump');
+  const found = discover(rom);
+  const config = configFromDiscover(rom, found);
+  const entry = config.functions.get(0x0800_0104);
+  assert.ok(entry !== undefined);
+  const functions = new Map(config.functions);
+  functions.set(0x0800_0104, { ...entry, name: 'FarJumpCaller', from: 'legacy' });
+  const project = explainProject({ rom, config: { ...config, functions } }, 0x0800_0106);
+  assert.ok(project.ok);
+  assert.deepEqual(project.report.name, { value: 'FarJumpCaller', source: { kind: 'toml', from: 'legacy' } });
+  assert.deepEqual(project.report.chunk, { name: 'FarJumpCaller', kind: 'function', module: 'main' });
+  // The claim and the owner equal the bare ROM's: confirm equals discover on the config init writes.
+  const bare = explain(rom, 0x0800_0106);
+  assert.equal(project.report.claim, bare.claim);
+  assert.equal(project.report.owner?.entry, bare.owner?.entry);
+  assert.ok(project.report.events.length > 0);
+});
+
+test('phase 4: inside a project, another ROM than [rom] sha1 records is E_ROM_SHA1_MISMATCH and nothing is explained', () => {
+  const rom = fixtureRom('far-jump');
+  const config = configFromDiscover(rom, discover(rom));
+  const refused = explainProject({ rom, config: { ...config, rom: { ...config.rom, sha1: '0'.repeat(40) } } }, 0x0800_0104);
+  assert.equal(refused.ok, false);
+  assert.deepEqual(refused.ok ? [] : refused.diagnostics.map((d) => d.code), ['E_ROM_SHA1_MISMATCH']);
 });

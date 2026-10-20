@@ -9,7 +9,7 @@ sa2, sa3, tmc; D60), and every phase-4 threshold applies to all six (D74 j); the
 run sealed and report counts only (D25).
 
 **Verdict.** Open. Wave 1 is in progress; the phase lands only when every command of the closing gate passes and the
-owner has answered Q1 to Q3 below. Nothing is merged or pushed.
+owner has answered Q1 to Q4 below. Nothing is merged or pushed.
 
 ## Components
 
@@ -157,6 +157,41 @@ Options.
 
 Default while unanswered: (a).
 
+### Q4. g4.toml-mutations: is deleting the last listed function a legal edit?
+
+Raised by `p4-workflows` (wave 3), the first branch on which `init` exists and the g4 gates run. `g4.toml-mutations`
+draws its "delete a listed function that starts no module" edit from every `[functions]` entry that starts no module.
+On 10 of the 51 committed fixtures the draw is the **last** listed function (adr-function-label 0x0800010C, c-data
+0x08000130, code-copied-to-ram 0x08000128, code-end-data-decodes 0x08000100, code-end-unsized-last 0x08000100,
+data-frame-not-function 0x08000164, pointer-table-before-leaf 0x08000144, pointer-word-in-gap 0x08000120,
+ram-code-entries 0x08000158, ram-copy-memcpy 0x08000164; checked by script: each is the highest key of its config).
+
+Facts. Without that entry the confirm run takes nothing past the previous function (W_UNLISTED_FUNCTION: discovery
+would accept it, but confirm mode claims nothing it does not list, architecture §4.2, D8), so the analysis' code end,
+and with it the data start of the layout (`core/layout/borders.ts` codeLayout), moves down to the deleted entry; the
+`data` module still starts at the old data start, which is no longer a legal border, and `generate` refuses the
+config with E_MODULE_BORDER (exit 1, nothing written), naming the new data start as the nearest legal border below.
+Example (adr-function-label): `module data starts at 0x08000118, which is not a legal border: the nearest legal borders
+are 0x0800010C below`. Every other legal edit of the gate (move-start, rename, add-override, split-module, and
+delete-function when the entry is not the last) passes `generate` and `verify --link` to the SHA-1 on all 51
+fixtures, and every illegal edit gives its code; the gate fails on these 10 only. `p4-e2e`'s pure property test
+(`test/unit/workflow/toml-mutations.prop.test.ts`, wave 3) excludes the last entry from its delete edit for this reason
+("and is not the last one, whose deletion moves the data start").
+
+Options.
+
+- (a) **The gate's delete edit skips the last listed function**, as the property test does: a gate change. A user who
+  deletes the last entry still gets E_MODULE_BORDER and must move the data module to the start it names.
+- (b) **The confirm run keeps what discovery accepts beyond the list inside the code region**: the code end covers
+  the extent of each W_UNLISTED_FUNCTION finding (an analysis change in `core/analysis/driver`, measured against g2's
+  gates; today an unlisted candidate is not read at all), so the bytes become an orphan chunk of the module before
+  and the data start does not move.
+- (c) **Any word-aligned address at or past the data start is a legal border for a `data` module**, so the data
+  module may start after the code end and the bytes in between are data at the end of the module before (a layout and
+  model change, `core/layout/borders.ts`, `core/model`).
+
+No default: the gate is not changed and fails until the owner answers; `p4-workflows` is committed, not merged.
+
 ## Known limitations
 
 - **Authorised by the owner** (D68 e, "Accept Q5a"): a ROM whose size the last unit's section alignment does not divide is
@@ -187,6 +222,38 @@ Default while unanswered: (a).
   "lacks", "not" or "missing": none says it. docs/benchmark-roms.md names tmc's ELF (`tmc/tmc.elf`) and map
   (`tmc/build/USA/tmc.map`) in both tables (lines 22 and 34) and states that all three held-out builds reproduce their
   SHA-1 (line 36); architecture §8.1's "each once its build reproduces its SHA-1" is a condition, met. Nothing changed.
+
+### Wave 3 (`p4-workflows`)
+
+Measured on branch `phase-4-workflows` (Node 24.15, macOS; the machine shared with the other wave-3 worktrees).
+
+- `npm run bench -- gates --require 4 --tier ci` at `1b30b5e`: pass g4.checks-fail, g4.cli-contract (8 commands, 12
+  --json runs), g4.e2e-fixtures (50 fixtures built to their SHA-1 from init, setup.sh and make; the composite's
+  illegal border is E_MODULE_BORDER), g4.generate-idempotent (every fixture keep only), g4.no-toml-write (153 runs),
+  g4.packed-e2e, g4.toml-canonical, g4.worktree (50 worktrees); fail g4.c-data-fails-loud, g4.multi-compiler (both
+  fixed at `5410c6f`, below), g4.toml-mutations (Q4); fail g1.provenance (the source digest, as on every branch that
+  changes `src/`) and g3.large-rom (E_MODULE_BORDER `main_176` at 0x0949B910 on the synthetic 32 MiB ROM; it fails
+  the same way at `776a15b`, the phase-4 base, before p4-workflows, through bench's own init: not caused by this
+  component).
+- g4.c-data-fails-loud and g4.multi-compiler: GNU make 3.81 (macOS `/usr/bin/make`) compares modification times to the
+  second. A C source copied over within the second of the previous build was not recompiled and the old ELF not
+  relinked (measured: `src/main.c` 16 ms newer than `build/src/main.o`, the same second), and a C object did not
+  depend on `modules.mk`, so a compiler change by `generate` never reached it. `templates/Makefile` (p4-scaffold's)
+  now records each C object's source and modules.mk SHA-1 in `build/src/<m>.sum` and removes a stale object and the
+  ELF before make decides (`5410c6f`), and writes the ROM in the link's own recipe, since a ROM objcopied in the same
+  second as a new ELF otherwise survived it (g4.multi-compiler then failed 1 run in 3: the control's ROM was the
+  first build's). After both, g4.multi-compiler passed 4 runs of 4 and g4.c-data-fails-loud 1 of 1 alone.
+- `init` and `generate` on pokeemerald under `node --max-old-space-size=1024` (`/usr/bin/time -l`): init 10.9 s
+  wall, peak RSS 714 MiB, 15,866 functions, 43 modules, 15,937 files written, only W_LOCKFILE_DEFERRED (romlift is
+  not on the npm registry: E404); generate right after it 8.0 s, 697 MiB, 15,924 keep, 0 writes, no diagnostic (no
+  W_LISTED_INVALID).
+- klonoa end to end: `init baserom.gba` 2.2 s, 334 MiB, 560 functions, 28 modules; `./setup.sh` with `ROMLIFT_CLI`
+  set to the source CLI 52 s (agbcc fetched at the pinned commit and built); `make` reaches
+  `a0a298d9dba1ba15d04a42fc2eb35893d1a9569b` (`akle.gba: OK`); `generate --dry-run` right after init: 606 keep.
+- The doubled pokeemerald ROM of Q7 (`fb17b88d…`): readable `verify --rom … --assemble --link --json` under the cap
+  exits 0, every check ok, linked SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`, 44.6 s, peak RSS 1,508 MiB. The
+  bin's `init` on it under the cap: exit 0, 29,084 functions, 521 modules, 29,550 files, 35.8 s, peak RSS 1,500 MiB;
+  `generate` right after: 29,537 keep, 17.8 s, 1,499 MiB (below D72 b's 1,536 MiB budget, with 2% to spare).
 
 ## The closing gate
 

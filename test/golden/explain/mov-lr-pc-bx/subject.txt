@@ -5,6 +5,7 @@
     seed.call round 0 cites 0x080000F6
   chunk: sub_08000128 (function) in module main_2
   item: insn 0x08000128..0x0800012A: .inst.n 0x2000 @ movs r0, #0
+  name: sub_08000128 (analysis)
   proposals (3):
     0x08000128 seed.call round 0 cites 0x080000F6: thumb
     0x08000100 gap.arm-scan round 2 cites 0x08000100: arm

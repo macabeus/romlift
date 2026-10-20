@@ -5,6 +5,7 @@
     seed.startup-pointer round 0 cites 0x080000F0, 0x08000000
   chunk: sub_08000130 (function) in module main
   item: insn 0x08000130..0x08000132: .inst.n 0xB510 @ push {r4, lr}
+  name: sub_08000130 (analysis)
   proposals (5):
     0x08000130 seed.startup-pointer round 0 cites 0x080000F0, 0x08000000: thumb
     0x080000F4 seed.call round 0 cites 0x08000132: thumb

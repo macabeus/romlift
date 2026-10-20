@@ -4,7 +4,7 @@
 // and a run with stdin closed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
@@ -63,10 +63,10 @@ test('model text: one row per module and the summary', async () => {
   assert.match(out.stdout, /\nmodel: ok \(exit 0\): chunks \d+, functions \d+, items \d+, modules 3\n$/);
 });
 
-test('usage errors exit 2; an unreadable ROM and an image that is not a cartridge exit 1 with a summary', async () => {
+test('usage errors exit 2; no project, an unreadable ROM and an image that is not a cartridge exit 1 with a summary', async () => {
   const missing = await run(['model', '--json']);
-  assert.equal(missing.code, ExitCode.usage);
-  assert.match(missing.stderr, /model: needs --rom <rom>/);
+  assert.equal(missing.code, ExitCode.errors);
+  assert.equal(lines(missing.stdout)[0]?.['code'], 'E_PROJECT_NOT_FOUND');
   assert.equal((await run(['model', 'x.gba', '--rom', FAR_JUMP.rom])).code, ExitCode.usage);
   assert.equal((await run(['model', '--rom', FAR_JUMP.rom, '--link'])).code, ExitCode.usage);
   const absent = await run(['model', '--rom', join(TMP, 'absent.gba'), '--json']);
@@ -92,4 +92,25 @@ test('a child process with stdin closed: every line JSON, the summary last with 
   const parsed = lines(result.stdout);
   assert.deepEqual(parsed.at(-1)?.['type'], 'summary');
   assert.equal(parsed.at(-1)?.['exitCode'], 0);
+});
+
+// Phase 4: model inside a project (its ROM and romlift.toml), without --rom.
+
+test('inside a project model --json is encodeModel of the confirm run over its romlift.toml, names included', async () => {
+  const dir = mkdtempSync(join(TMP, 'project-'));
+  writeFileSync(join(dir, 'baserom.gba'), readFileSync(FAR_JUMP.rom));
+  assert.equal(await main(['init', 'baserom.gba'], { ...capturingIo(), cwd: dir }), ExitCode.ok);
+  const file = join(dir, 'romlift.toml');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('"sub_08000104"', '"FarJumpCaller"'));
+  const io = { ...capturingIo(), cwd: dir };
+  assert.equal(await main(['model', '--json'], io), ExitCode.ok);
+  const parsed = lines(io.out.join(''));
+  const header = parsed[0] as { readonly functions?: readonly { readonly name?: string }[] };
+  assert.ok(header.functions?.some((f) => f.name === 'FarJumpCaller'));
+  assert.equal(parsed.at(-1)?.['type'], 'summary');
+  const rom = readFixtureRom(FAR_JUMP);
+  const plain = await run(['model', '--rom', FAR_JUMP.rom, '--json']);
+  assert.equal(lines(plain.stdout).length, parsed.length, 'the same chunks as the bare ROM');
+  assert.ok(!plain.stdout.includes('FarJumpCaller'));
+  assert.equal(rom.sha1.length, 40);
 });
