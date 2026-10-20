@@ -6,7 +6,7 @@ export type { InitDirListing } from '../core/workflow/init.ts';
 export { BUILD_NAME_SUFFIX, builtRomCollides, initBuildName } from '../core/workflow/init-config.ts';
 export { projectScaffold, scaffoldDrift } from '../core/workflow/scaffold-diff.ts';
 export type { ProjectScaffoldInputs, ScaffoldDrift } from '../core/workflow/scaffold-diff.ts';
-export { confirmProject, decompStateOf, generateProject, projectRomProblems, projectTreeEntries, reconciledTextsOf } from '../core/workflow/generate.ts';
+export { confirmProject, decompStateOf, generateProject, projectTreeEntries, reconciledTextsOf } from '../core/workflow/generate.ts';
 export type { ProjectGenerateOptions } from '../core/workflow/generate.ts';
 export { reconcileStubs } from '../core/workflow/c-stubs.ts';
 export type { ReconciledStub, StubReconciliation } from '../core/workflow/c-stubs.ts';

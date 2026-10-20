@@ -211,14 +211,9 @@ export function decompStateOf(cTexts: ReadonlyMap<string, string>): DecompState 
   return { defined: [...names].sort(compareCodeUnits) };
 }
 
-/** E_ROM_SHA1_MISMATCH when the project's ROM is not the one its config's `[rom] sha1` records; empty otherwise. */
-export function projectRomProblems(inputs: Pick<ProjectInputs, 'rom' | 'config'>): readonly Diagnostic[] {
-  return romSha1Problems(inputs.rom, inputs.config);
-}
-
 /** The confirm analysis and Model of a project's config, or the refusal of another ROM (`model` and `explain` in a project). */
 export function confirmProject(inputs: Pick<ProjectInputs, 'rom' | 'config' | 'profile'>): ({ readonly ok: true } & ConfirmedModel) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
-  const refused = projectRomProblems(inputs);
+  const refused = romSha1Problems(inputs.rom, inputs.config);
   if (refused.length > 0) return { ok: false, diagnostics: refused };
   return { ok: true, ...confirmModel(inputs) };
 }

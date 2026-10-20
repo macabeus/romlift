@@ -33,7 +33,8 @@ import type { RuleMeta } from '../provenance/rule-id.ts';
 import { trailKeeps } from '../provenance/trail.ts';
 import type { TrailEvent } from '../provenance/trail.ts';
 import { discover, profileOrDefault } from './discover.ts';
-import { confirmOptions, discoverModel, projectRomProblems } from './generate.ts';
+import { confirmOptions, discoverModel } from './generate.ts';
+import { romSha1Problems } from '../config/rom-sha1.ts';
 import type { DiscoverOptions } from './discover.ts';
 import type { ProjectInputs } from './types.ts';
 
@@ -151,7 +152,7 @@ export function explainOutcome(rom: Rom, addr: Addr, options: ExplainOptions = {
  * when the ROM is not the one the config records.
  */
 export function explainProject(inputs: Pick<ProjectInputs, 'rom' | 'config' | 'profile'>, addr: Addr): ({ readonly ok: true } & ExplainOutcome) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
-  const refused = projectRomProblems(inputs);
+  const refused = romSha1Problems(inputs.rom, inputs.config);
   if (refused.length > 0) return { ok: false, diagnostics: refused };
   const { rom, config } = inputs;
   const profile = profileOrDefault(inputs.profile);

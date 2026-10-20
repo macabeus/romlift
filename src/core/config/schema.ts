@@ -79,9 +79,14 @@ const mode = z.enum(['thumb', 'arm']);
 const symbolName = z.string().refine(isSymbolName, `not an assembler symbol name (${SYMBOL_NAME_RULE})`);
 /** A module name: it names files (asm/<name>.s), objects and linker sections. */
 const moduleName = z.string().refine(isModuleName, `not a module name (${MODULE_NAME_RULE})`);
-/** The message of a compiler the registry does not know, which parse.ts reports as E_UNKNOWN_COMPILER. */
-export const UNKNOWN_COMPILER = 'not a registered build compiler (core/config/compilers.ts)';
-const compilerId = z.string().refine(isBuildCompilerId, UNKNOWN_COMPILER);
+/** The message of a compiler the registry does not know. */
+const UNKNOWN_COMPILER = 'not a registered build compiler (core/config/compilers.ts)';
+/**
+ * The structured marker of that refinement, which validateConfig carries into the issue's `code` and parse.ts reports
+ * as E_UNKNOWN_COMPILER: the code follows the refinement, never its human-readable message (architecture-r1-5, D76 h).
+ */
+const UNKNOWN_COMPILER_PARAMS = { romliftCode: 'E_UNKNOWN_COMPILER' } as const;
+const compilerId = z.string().refine(isBuildCompilerId, { message: UNKNOWN_COMPILER, params: UNKNOWN_COMPILER_PARAMS });
 
 /** What a build name is (`<name>.gba`, `<name>.sha1`, a make target): what `init` accepts and writes (D75 i). */
 export const BUILD_NAME_RULE = "letters, digits, '.', '_' and '-', a letter or digit first, at most 100 characters";
@@ -172,6 +177,8 @@ void sameShape;
 export interface ConfigIssue {
   readonly path: string;
   readonly message: string;
+  /** Present when the issue has a code of its own: a compiler the registry does not know. */
+  readonly code?: 'E_UNKNOWN_COMPILER';
 }
 
 export type ConfigValidation =
@@ -182,9 +189,14 @@ function pathText(path: readonly PropertyKey[]): string {
   return path.map((key) => (typeof key === 'number' ? `[${key}]` : `.${String(key)}`)).join('').replace(/^\./, '');
 }
 
+/** The issue's own code, read from its refinement's structured marker. */
+function issueCode(issue: z.core.$ZodIssue): Pick<ConfigIssue, 'code'> {
+  return issue.code === 'custom' && issue.params?.['romliftCode'] === UNKNOWN_COMPILER_PARAMS.romliftCode ? { code: 'E_UNKNOWN_COMPILER' } : {};
+}
+
 /** Validates an in-memory config against schema 1; every issue at once, never a throw. */
 export function validateConfig(value: unknown): ConfigValidation {
   const parsed = ROMLIFT_CONFIG_SCHEMA.safeParse(value);
   if (parsed.success) return { ok: true, config: parsed.data };
-  return { ok: false, issues: parsed.error.issues.map((issue) => ({ path: pathText(issue.path), message: issue.message })) };
+  return { ok: false, issues: parsed.error.issues.map((issue) => ({ path: pathText(issue.path), message: issue.message, ...issueCode(issue) })) };
 }

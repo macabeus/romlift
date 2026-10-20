@@ -26,7 +26,8 @@ import { coveredEntries } from '../layout/borders.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { Proposal } from '../proposals/types.ts';
 import { discover, profileOrDefault } from './discover.ts';
-import { confirmOptions, projectRomProblems } from './generate.ts';
+import { confirmOptions } from './generate.ts';
+import { romSha1Problems } from '../config/rom-sha1.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { WorkflowCodes } from './codes.ts';
 import type { AnalyzeUpdateInputs, AnalyzeUpdatePlan } from './types.ts';
@@ -82,7 +83,7 @@ function listedReports(rom: Rom, config: RomliftConfig, found: ReadonlySet<Addr>
  */
 export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
   const { rom, config } = inputs;
-  const refused = projectRomProblems(inputs);
+  const refused = romSha1Problems(inputs.rom, inputs.config);
   if (refused.length > 0) return { ok: false, diagnostics: refused };
   const problems = checkRom(rom.bytes);
   if (problems.length > 0) return { ok: false, diagnostics: problems };

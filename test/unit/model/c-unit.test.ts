@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
-import { cDataAssertLine, cDataSectionLine } from '../../../src/foundation/asm/c-data-assert.ts';
+import { cDataAssertLine, cDataSectionLine } from '../../../src/core/model/c-data-assert.ts';
 import {
   includedChunkFile,
   moduleCompile,

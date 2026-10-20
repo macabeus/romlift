@@ -15,7 +15,7 @@ import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
 import { addressKey, addressKeyUses, checkAddressKeys, duplicateDefinitions, isAddressKey, outlineToml } from './keys.ts';
 import type { TomlOutline } from './keys.ts';
-import { UNKNOWN_COMPILER, validateConfig } from './schema.ts';
+import { validateConfig, type ConfigIssue } from './schema.ts';
 import type { RomliftConfig } from './schema.ts';
 
 export type ConfigParseResult =
@@ -75,13 +75,12 @@ interface Collector {
   readonly reported: Set<string>;
 }
 
-function schemaIssue(out: Collector, path: readonly Segment[], message: string): void {
+function schemaIssue(out: Collector, path: readonly Segment[], message: string, code?: ConfigIssue['code']): void {
   if (out.reported.has(pathText(path))) return;
   out.reported.add(pathText(path));
   const line = lineOfPath(out.outline, path);
   const where = path.length === 0 ? '' : `${pathText(path)}: `;
-  const code = message === UNKNOWN_COMPILER ? 'E_UNKNOWN_COMPILER' : 'E_TOML_SCHEMA';
-  out.diagnostics.push(diagnostic(ConfigCodes, code, `${line === undefined ? '' : `line ${line}: `}${where}${message}`));
+  out.diagnostics.push(diagnostic(ConfigCodes, code ?? 'E_TOML_SCHEMA', `${line === undefined ? '' : `line ${line}: `}${where}${message}`));
 }
 
 /** The members of `table` renamed to their in-memory keys; every other key is reported. */
@@ -207,7 +206,7 @@ export function parseConfig(text: string): ConfigParseResult {
   if (diagnostics.length > 0) return { ok: false, diagnostics };
   const out: Collector = { outline, diagnostics: [], reported: new Set() };
   const validated = validateConfig(candidateOf(root, out));
-  if (!validated.ok) for (const issue of validated.issues) schemaIssue(out, issueSegments(issue.path), issue.message);
+  if (!validated.ok) for (const issue of validated.issues) schemaIssue(out, issueSegments(issue.path), issue.message, issue.code);
   if (!validated.ok || out.diagnostics.length > 0) return { ok: false, diagnostics: out.diagnostics };
   return { ok: true, value: validated.config, diagnostics: [] };
 }

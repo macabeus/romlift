@@ -3,7 +3,7 @@
 // the text-layout check lays a C unit out without a compiler and `verify --assemble/--link` builds its object with
 // binutils alone; the chunk files a C module's stub includes; and the compiler and flags a C module builds with
 // (moduleCompile, modules.mk's). The banner each compiler prints is the build compiler's (core/config/compilers.ts);
-// the C-data ASSERT lines are foundation/asm/c-data-assert.ts's.
+// the C-data ASSERT lines are core/model/c-data-assert.ts's.
 //
 // Measured (phase 4, p4-c-modules) with pokeemerald's tools/agbcc/bin/agbcc and old_agbcc, both "gcc 2.9-arm-000512",
 // over `src/<m>.c` = C_STUB_HEADER and INCLUDE_ASM statements, preprocessed by the host `cc -E -x c -nostdinc -undef
