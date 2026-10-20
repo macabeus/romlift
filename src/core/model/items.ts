@@ -13,7 +13,8 @@
 // entry (chunks.ts) opens with that pad as one padding item, which its start macro's `.align 2, 0` emits.
 //
 // An instruction is an `insn` item when it prints as a mnemonic: its text, parsed and assembled at its run
-// address with the labels its module sees, gives back its bytes (foundation/isa roundtrip). Otherwise it is a
+// address with the labels its module sees (an adr only those that link to its target itself, resolver.ts
+// adrResolverFor), gives back its bytes (foundation/isa roundtrip). Otherwise it is a
 // `raw-insn` with the reason; a short Thumb branch into another module is raw with
 // 'cross-module-short-branch' and W_CROSS_MODULE_SHORT_BRANCH (D15; architecture §12 item 3's safe default). A
 // b or bl that would name a function label of the other state (a [functions] entry listed `arm` that Thumb code
@@ -35,7 +36,7 @@ import { ModelCodes } from './codes.ts';
 import { itemTableBuilder } from './item-table.ts';
 import { printingCache } from './printing-cache.ts';
 import { moduleIndexAt, relocatedModules } from './modules.ts';
-import { resolverFor } from './resolver.ts';
+import { adrResolverFor, resolverFor } from './resolver.ts';
 import type { DataNote, ItemRawReason, ItemTable, Label, Module } from './types.ts';
 import type { Segment, Segments } from './segments.ts';
 
@@ -89,6 +90,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   const cache = printingCache();
   const relocated = relocatedModules(inputs.modules);
   const resolvers = inputs.modules.map((m) => resolverFor({ labels: inputs.labels, modules: inputs.modules }, m.name));
+  // An adr names only a label that links to its target itself (resolver.ts adrResolverFor).
+  const adrResolvers = inputs.modules.map((m) => adrResolverFor({ labels: inputs.labels, modules: inputs.modules }, m.name));
   const functionLabels = new Map<Addr, Label[]>();
   for (const l of inputs.labels) {
     if (l.kind !== 'func') continue;
@@ -138,7 +141,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   /** The instructions of [a, b) in `mode`, in chunk `c`. */
   const fillCode = (a: Addr, b: Addr, mode: Mode, c: ChunkPlan, offset: number): void => {
     const resolver = resolvers[c.module];
-    if (resolver === undefined) throw new RomliftInvariantError(`model: chunk ${c.name} names module ${c.module} of ${inputs.modules.length}`);
+    const adrResolver = adrResolvers[c.module];
+    if (resolver === undefined || adrResolver === undefined) throw new RomliftInvariantError(`model: chunk ${c.name} names module ${c.module} of ${inputs.modules.length}`);
     let at = a;
     while (at < b) {
       const room = b - at;
@@ -159,7 +163,7 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       while (refAt < inputs.refs.length && (inputs.refs[refAt]?.site ?? Infinity) < at) refAt++;
       const ref = inputs.refs[refAt];
       if (ref !== undefined && ref.site === at && ref.run === run && ref.size <= room && specOf(ref.specId).raw === undefined) {
-        const reason = refReason(ref, mode, c, resolver);
+        const reason = refReason(ref, mode, c, ref.kind === 'adr' ? adrResolver : resolver);
         if (reason === null) table.append({ kind: 'insn', start: at, length: ref.size, specId: ref.specId });
         else table.append({ kind: 'raw-insn', start: at, length: ref.size, specId: ref.specId, reason });
         at += ref.size;
@@ -168,7 +172,7 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       let insn = decode(mode, mode === 'thumb' ? (room >= 4 ? peek32(rom, at) : word) : word, run);
       if (insn.size > room) insn = decode('thumb', word, run);
       const length = insn.size;
-      const reason = itemReason(insn, c, resolver);
+      const reason = itemReason(insn, c, insn.flow.kind === 'adr' ? adrResolver : resolver);
       if (reason === null) table.append({ kind: 'insn', start: at, length, specId: insn.specId });
       else table.append({ kind: 'raw-insn', start: at, length, specId: insn.specId, reason });
       at += length;

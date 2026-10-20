@@ -1,0 +1,9 @@
+==> asm/asm_080000F4.s (generated, module) <==
+.syntax unified
+.include "include/macros.inc"
+.thumb
+.include "asm/nonmatchings/asm_080000F4/sub_080000F4.s"
+.include "asm/nonmatchings/asm_080000F4/sub_08000104.s"
+.include "asm/nonmatchings/asm_080000F4/sub_08000108.s"
+.include "asm/nonmatchings/asm_080000F4/unk_0800010A.s"
+.include "asm/nonmatchings/asm_080000F4/sub_0800010C.s"

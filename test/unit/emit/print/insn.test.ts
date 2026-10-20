@@ -27,8 +27,8 @@ const resolver: SymbolResolver = {
   labelFor: (addr) => names.get(addr),
   addressOf: (name) => [...names.entries()].find(([, n]) => n === name)?.[0],
 };
-const cx: InsnContext = { resolver, poolOperand: (addr) => (addr === T + 8 ? 'gWord' : addr === P ? '0x03001234' : undefined) };
-const none: InsnContext = { resolver: { labelFor: () => undefined, addressOf: () => undefined }, poolOperand: () => undefined };
+const cx: InsnContext = { resolver, adrResolver: resolver, poolOperand: (addr) => (addr === T + 8 ? 'gWord' : addr === P ? '0x03001234' : undefined) };
+const none: InsnContext = { resolver: { labelFor: () => undefined, addressOf: () => undefined }, adrResolver: { labelFor: () => undefined, addressOf: () => undefined }, poolOperand: () => undefined };
 
 test('a PC-relative load prints its pool label and names the word in a comment', () => {
   assert.deepEqual(printInsn(insnAt(rom, T, 'thumb'), cx), { line: '\tldr r0, _08000208 @ =gWord', mode: 'thumb', branch: false, poolLoad: true });
@@ -62,4 +62,15 @@ test('an item the model kept no row for prints its bytes by state and length', (
   assert.deepEqual(printUndecodedInsn(rom, { start: T + 8, end: T + 10 }, 'thumb', 'undefined'), { line: '\t.inst.n 0x2001 @ (undefined)', mode: 'thumb', rawReason: 'undefined', branch: false, poolLoad: false });
   assert.match(printUndecodedInsn(rom, { start: T + 4, end: T + 8 }, 'thumb', 'undefined').line, /^\t\.inst\.w 0x[0-9A-F]{8} @ \(undefined\)$/);
   assert.match(printUndecodedInsn(rom, { start: T + 0x10, end: T + 0x14 }, 'arm', 'undefined').line, /^\t\.inst 0x[0-9A-F]{8} @ \(undefined\)$/);
+});
+
+test('an adr names its target through the adr resolver, which never names a Thumb function (D72 c); a branch keeps the function', () => {
+  const at = 0x0800_0300;
+  const r = romWith([{ at, bytes: thumbAt(at)`adr r6, _08000308; bl _08000308` }]);
+  const func: SymbolResolver = { labelFor: (a) => (a === at + 8 ? 'Func' : undefined), addressOf: (n) => (n === 'Func' ? at + 8 : undefined) };
+  const local: SymbolResolver = { labelFor: (a) => (a === at + 8 ? '_08000308' : undefined), addressOf: (n) => (n === '_08000308' ? at + 8 : undefined) };
+  const adr = { resolver: func, adrResolver: local, poolOperand: () => undefined };
+  assert.deepEqual(printInsn(insnAt(r, at, 'thumb'), adr), { line: '\tadr r6, _08000308', mode: 'thumb', branch: false, poolLoad: false });
+  assert.equal(printInsn(insnAt(r, at + 2, 'thumb'), adr).line, '\tbl Func');
+  assert.deepEqual(printInsn(insnAt(r, at, 'thumb'), { ...adr, adrResolver: none.adrResolver }).rawReason, 'no-roundtrip', 'no label for the adr: raw');
 });

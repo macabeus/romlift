@@ -161,3 +161,53 @@ test('no local label where no item can start: an adr naming a bl\'s second half 
     if (model.items.kind[i] === ItemKind.rawInsn) assert.equal(ITEM_RAW_REASONS[model.items.aux[i] ?? -1], 'no-roundtrip');
   }
 });
+
+test('an adr of a Thumb function gets a local label it names (D72 c); an adr of an ARM function names the function', () => {
+  // G (Thumb, 0x140) is called by F and named by an adr in F (Thumb) and in A (ARM); H (ARM, 0x148) by an adr in F.
+  // G's symbol links to 0x141, so neither adr may name G; H's symbol links to its address.
+  const f = thumbAt(BASE + 0x100)`
+    push {lr}
+    adr r0, _08000140
+    adr r1, _08000148
+    bl _08000140
+    pop {r1}
+    bx r1
+  `;
+  const a = armAt(BASE + 0x130)`
+    adr r0, _08000140
+    bx lr
+  `;
+  const rom = romWith(
+    [
+      { at: BASE + 0x100, bytes: f },
+      { at: BASE + 0x130, bytes: a },
+      { at: BASE + 0x140, bytes: thumbAt(BASE + 0x140)`bx lr` },
+      { at: BASE + 0x148, bytes: armAt(BASE + 0x148)`bx lr` },
+    ],
+    { size: 0x200 },
+  );
+  const analysis = analysisOf(rom, {
+    functions: [
+      fact({ entry: BASE + 0x100, end: BASE + 0x10e }),
+      fact({ entry: BASE + 0x130, end: BASE + 0x138, mode: 'arm' }),
+      fact({ entry: BASE + 0x140, end: BASE + 0x142 }),
+      fact({ entry: BASE + 0x148, end: BASE + 0x14c, mode: 'arm' }),
+    ],
+  });
+  const config = configOf({
+    modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x14c, kind: 'data', generated: true }],
+    functions: [[BASE + 0x100, 'F'], [BASE + 0x130, { name: 'A', mode: 'arm' }], [BASE + 0x140, 'G'], [BASE + 0x148, { name: 'H', mode: 'arm' }]],
+  });
+  const model = buildModel(rom, analysis, config);
+  assert.deepEqual(model.diagnostics, []);
+  assert.deepEqual(
+    model.labels.filter((l) => l.addr === BASE + 0x140 || l.addr === BASE + 0x148).map((l) => [l.name, l.kind, l.thumb, l.scope]),
+    [
+      ['G', 'func', true, 'module'],
+      ['_08000140', 'local', false, 'module'],
+      ['H', 'func', false, 'module'],
+    ],
+  );
+  const raw = rows(model.items).filter(([kind]) => kind === ItemKind.rawInsn);
+  assert.deepEqual(raw, [], 'every adr prints as a mnemonic');
+});

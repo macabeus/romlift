@@ -16,7 +16,7 @@ import { prngSequence, xorshift32 as productXorshift32 } from '../../helpers/prn
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 /** The SHA-1 of the default image over the committed fixtures; it changes only with them or with the layout. */
-const PINNED_SHA1 = 'b846b9453414ce93afc5e8fd559eaac582dc570e';
+const PINNED_SHA1 = 'aaef114923b62aa6bd17ec4052824c201cffcf02';
 
 test('the default image is 32 MiB, deterministic, pinned, and a cartridge romlift accepts', async () => {
   const fixtures = (await readFixtureRoms(REPO_ROOT)).map((f) => f.bytes);

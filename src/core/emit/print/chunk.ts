@@ -30,7 +30,7 @@ import { compareCodeUnits, compareNumbers, sortedEntries } from '../../../founda
 import { chunkEntry } from '../../model/chunks.ts';
 import { itemAt } from '../../model/item-table.ts';
 import { runOffsetOf } from '../../model/modules.ts';
-import { compareLabels, resolverFor } from '../../model/resolver.ts';
+import { adrResolverFor, compareLabels, resolverFor } from '../../model/resolver.ts';
 import { ItemKind } from '../../model/types.ts';
 import type { Chunk, Item, Label, Model } from '../../model/types.ts';
 import { DEFAULT_PRINTER, emptyPrintStats } from '../tree.ts';
@@ -236,6 +236,7 @@ function insnContext(cx: BodyContext): InsnContext {
   const { rom, model, chunk, runOffset } = cx;
   return {
     resolver: resolverFor(model, chunk.module),
+    adrResolver: adrResolverFor(model, chunk.module),
     poolOperand(addr: Addr): string | undefined {
       const load = addr - runOffset;
       return contains(rom, load, 4) && (load & 3) === 0 ? wordText(model, chunk.module, u32(rom, load)) : undefined;

@@ -40,7 +40,7 @@ function missing(rom: Rom, analysis: AnalysisResult, modules: readonly Module[])
 }
 
 test('every committed fixture is found', () => {
-  assert.equal(fixtures.length, 47);
+  assert.equal(fixtures.length, 48);
 });
 
 test('every PC-relative reference the model names inside a function is one borderRefs bounds the borders by, discover and confirm runs', () => {
