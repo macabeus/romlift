@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "a4c753e2f2ae07aeb7f6d31aaa7d0d450deac714",
-    "dirty": true,
-    "sourceDigest": "2c9c96ddb0290600d83b33e42182fc61db1bd708663953a213ee897547b88f13",
+    "commit": "34865f5d7e105f30aa3c151bf68a5ba0b1fee2d8",
+    "dirty": false,
+    "sourceDigest": "bf499ebe328a9596486e6b268de7a15aee6665ad005ff37769fe7e74a3aeb557",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -113,7 +113,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "6fc6c9540d6b5d3001f68f0673ae720c4f707eea042965ab64ade66e1b470885",
+    "inputsDigest": "655929730465fb893233ee466ad1746d05ad5325445bd053619ebf07023e08d4",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1897,16 +1897,16 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1252.47,
+        "maxRssMiB": 1156.5,
         "maxOldSpaceSizeMiB": 1024,
-        "treeDigest": "92610833b6888e397131d76443f58bfcfde6368c0470fbd55442de79254a0a74"
+        "treeDigest": "9c4bda7e718a3f4d5c8bfc6a4cceda2572c5d42ae15866188f120bb9e1d13ca8"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1152.7,
+        "maxRssMiB": 1173.11,
         "maxOldSpaceSizeMiB": 1024,
-        "treeDigest": "92610833b6888e397131d76443f58bfcfde6368c0470fbd55442de79254a0a74"
+        "treeDigest": "9c4bda7e718a3f4d5c8bfc6a4cceda2572c5d42ae15866188f120bb9e1d13ca8"
       }
     ]
   },
@@ -2018,7 +2018,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.947; CPU/limit: fe7j 1104/12515 ms, klonoa 236/302 ms, pokeemerald 1980/4160 ms, sa2 682/772 ms, sa3 970/1472 ms, tmc 1323/1759 ms"
+        "detail": "calibration ratio 0.975; CPU/limit: fe7j 1115/12887 ms, klonoa 242/311 ms, pokeemerald 2063/4284 ms, sa2 716/795 ms, sa3 1016/1515 ms, tmc 1387/1812 ms"
       },
       {
         "id": "g3.link",
@@ -2061,7 +2061,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.949; fe7j analysis 1143/2848 ms, klonoa analysis 243/2848 ms, pokeemerald analysis 1989/2848 ms, pokeemerald generate 7461/9494 ms, pokeemerald init 9788/14241 ms, sa2 analysis 710/2848 ms, sa3 analysis 964/2848 ms, tmc analysis 1312/2848 ms"
+        "detail": "calibration ratio 0.991; fe7j analysis 1129/2974 ms, klonoa analysis 232/2974 ms, pokeemerald analysis 2051/2974 ms, pokeemerald generate 7780/9914 ms, pokeemerald init 10092/14871 ms, sa2 analysis 706/2974 ms, sa3 analysis 1034/2974 ms, tmc analysis 1445/2974 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2077,7 +2077,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label tree f5f6c28ffdbb945ad4c2995a2991aec6cfe7f08960cda248c90ea2e264d5c1d4 (12 files); adr-handler-block tree 7a4aad8141af538d343b9598b9debddff77a829ff27a700e830c3d4a88e2f5c9 (10 files); adr-label-and-data tree 8a39757014f7cdea1c0a6f12991f502ab6c08b8534b2931725afb81e1c2c042f (16 files); arm-pools-in-front tree c70d8e26a9f6be7fafc483803943c2689f3cb7487c8618cb84e6173f31eea17a (12 files); bx-lr-stub-chain tree 62b049fa9ae9c358b91965db52216090973286a01022515f78937c6f87f441f2 (13 files); bx-pc-veneer tree 8497bc712375543b4295f57cd853c77dbfb7dd5370ec4c2a25b51939626866d9 (14 files); c-data tree df39589d83e290e60385bdfbecb2428582cb34603fc41eb89890c60887f53ece (12 files); code-copied-to-ram tree 43376e52619904d9f62bf4111a54c6001914042ed6c143c774cb0efd386e7488 (11 files); code-end-data-decodes tree e2574752e2a752ef577358c493628af1ca68829f8d337af6e3c470e327d83d8e (10 files); code-end-unsized-last tree a7a169e356fd84446641fd8e3193376040b085beb52838acdd1b24cc2c64f1e7 (9 files); composite tree 9f890fa9cbde74c34af7a08d521c58c8b134733ab6ace1a568b5613e716c38ca (39 files); computed-jump-callback tree af3ae6186c8780e2f2314141c448975369b3d2c94925665d055a71cc2bd40415 (10 files); data-frame-not-function tree 80f64763334240c1c173a3f23735f3f1ae9e9bc9349d93c13f8eaf225e467c8a (11 files); data-named-between-data tree 6e0b4a048f20cb33f4d592bc9b60fecf9d20cc6c91fe9d92a2eef6c07c2d4cdc (13 files); data-table-between-functions tree c04eb9705d06363a47b634c24629736092bd737305a7aab6e95e7905b36cf097 (16 files); data-thumb-push-pop tree 8b9f1d53be43844d06c88fd8b80e0a79821e7f0d9d989e86a1643a5640e6b0a5 (18 files); dead-code-in-extent tree d9fbf0ce41a77530309dc83a43ffdd33a136d693a602e0ce9cbee3ddf804a5f6 (13 files); entry-stub-table tree 471805cb2a81277974766297c937de650329de3ab2e789149acf270c6ae5fcd4 (12 files); false-stub-2byte tree 4548ac952d64cba96b715c8ba8bef25ea57baea6b2e69fb63eb2d4d96c9537fb (11 files); far-jump tree 949de19aec012bc3d338b708dfd1b9ad9af58ffdd1b488b9c3321c7b3e1d0d48 (9 files); gap-resume-2mod4 tree b6ea26a9d9fc893a97dc6cb36db2936d0f61f1dd4d1726fd3c6d4ac1693e2bdd (17 files); handwritten-2mod4 tree e22e77994f1f369c68216c3ca5b942544996f357a2c609fa17700d15a341eb79 (14 files); inline-arm-switch tree 131858628b5e2fdea2672211a2f15a5a414b8bd188e850dd9ba8cfc8db459a8c (13 files); large-data-referenced tree 7fea74c216dd542e6f14952aa4a59e757a8bee3b7e67029555cd6efcb81b94f2 (12 files); leaf-handler-pointer-table tree aff7cf25a994777876a3fbeaa83f1f0a6fb54f4964e2081010ec48e9d91d8410 (12 files); local-subroutine tree d3a565b0d3318a5e20f8072a73f84faa74bcad1834d7dfbb6af22f5d34e0c681 (9 files); mixer-tiled-hole tree a18e71d7627ecb070f262c6dd51faf630e25fd675a498b5df03fa0762cd78fe2 (21 files); mov-lr-pc-bx tree f3dda6db1200f5244b49399e77c617daf49bad7ef2766da629c8eca0e154c3dd (14 files); multi-compiler tree 046a373dfad16f5b7495cfe035cfd32bdd61a8a1b87845158af742d022ea4af5 (14 files); noreturn-call-then-next tree 57ec79d38b2306a51312bdf06c892fad01f15a3b501768d2e586185448a56258 (10 files); pointer-table-before-leaf tree 8f6f06de51ecb1821bd98b195965df2af8fb0c2ad820b062acacfc930502e594 (17 files); pointer-word-in-gap tree c973216a257e00cba35482291a3d4453a3a4513c721210cfcbe144498770eb5e (13 files); pool-padded-46c0 tree 35fe41b60a2fd1cd5a298e0d01af8d04c1f7561f56dd0967f4e40addab4cda04 (13 files); pool-word-push-lr tree 9ba68df13a4bd7964b95fa1a8e28e243117f65f433f433374af85a3159bea2f1 (12 files); pops-unpushed-frame tree 5ea198edf7259fe74cad4075683d1f7cdda4315d28bbdc6ec7ab03de3f2a5c11 (17 files); prologueless-thumb-over-arm tree 48fb5515b5cfb1c104698158ace2bbad43e5cdc741c4cead263bfc5a3f42f963 (13 files); push-lr-2mod4 tree 1d8f6f2022939fe64d5887e300f0d60b61bd6f909f63ccff7fca6380f2d69bdc (15 files); ram-code-entries tree 1d143df0331e69d6bf60b9929022703866c710704c027e347b22225fe0d0e68b (16 files); ram-copy-args-straight-line tree ea48afb8e5f07372cb7f9b52c4201fd9a205fd464c16c0292030aa3b9447b1fc (10 files); ram-copy-bios tree 9d9fd350e66416139a671ff80685d477dc4bf0cc1c23c10ae8fe89ec397f7838 (17 files); ram-copy-call-via tree b68dfe3a1f5e2746f74d13223e621d56ac1b2cbe84c68f99d46fbee7ecb025a9 (15 files); ram-copy-entry-boundaries tree 95d1a554e52cf48719aa29edaef5e7f5f5e6a2461040bc982a9b9215ee654d71 (19 files); ram-copy-memcpy tree 3e2bc37191ef6b8678510eac5dd549edff3150401bf8d374b6ccec9ac3ee0ff4 (15 files); ram-copy-setup-bound tree aab755c918eb4155dfba0336d01eeb29c7608f9ab07bc18c889603629493d0f1 (16 files); recursive-far-call tree 92dce383282e3866c53666e8d062b3cd02c8b4a238a3875f43dfcda7a6148520 (10 files); shared-tail tree 3b58844fd31ee01bc29e5a8628eed7b2987a49954145041c852314f673e7aa8a (11 files); swi-reset tree c41e4447e32cc7a813081827b2a30cc939c07a8654e4c5b34e9486f1899c3b43 (10 files); table-jump-hoisted tree 48a8177190c1111a3a5059ab94bd1007b25a9a65991ea385eae3edbca84d860f (10 files); thumb-pointer-run tree 5eec707836883554dc7601d31491771d87d579c8ce9983bd6d90cd1284457a10 (18 files); unreferenced-leaf tree 7793356d7c8a732db84febbd76c474751d976ff5508ada12ed3cf681adba7569 (11 files); veneer-array tree c31380b2a7c5b3dd342c13c024f0cfa939707c670dac7d629c179fc8070631dc (18 files); fe7j tree 1130fe4c56190f4e743392f21b6ea610b846aba3f00ab3ec44ac207deb5a4023 (7830 files); klonoa tree a7cdb1504b081bd3f0f80746064960f4c14a798a497f97d3f43e629f544864f9 (606 files); pokeemerald tree 94627a4c2865d3946b45d9ccad0c1df1e9b77696772f592562c6b426c5f85dea (15924 files); sa2 tree ebc0328f829f15d73d5cb7da38a49c31a7ecbde7c26c321fcbc98965621a523d (2934 files); sa3 tree ea3a2c85b31c1ec3c1741509a86d539712964b2e1f35a5da6d409faa4309675a (4737 files); tmc tree ae7317733e534967dcc3d8b80a051e121565082bde209c4dab4ae7aedacb37a8 (8684 files); 57 trees identical across cwd, project path, TZ and locale; no file names a project path"
+        "detail": "adr-function-label tree f5f6c28ffdbb945ad4c2995a2991aec6cfe7f08960cda248c90ea2e264d5c1d4 (12 files); adr-handler-block tree 7a4aad8141af538d343b9598b9debddff77a829ff27a700e830c3d4a88e2f5c9 (10 files); adr-label-and-data tree 8a39757014f7cdea1c0a6f12991f502ab6c08b8534b2931725afb81e1c2c042f (16 files); arm-pools-in-front tree c70d8e26a9f6be7fafc483803943c2689f3cb7487c8618cb84e6173f31eea17a (12 files); bx-lr-stub-chain tree 62b049fa9ae9c358b91965db52216090973286a01022515f78937c6f87f441f2 (13 files); bx-pc-veneer tree 8497bc712375543b4295f57cd853c77dbfb7dd5370ec4c2a25b51939626866d9 (14 files); c-data tree df39589d83e290e60385bdfbecb2428582cb34603fc41eb89890c60887f53ece (12 files); code-copied-to-ram tree 43376e52619904d9f62bf4111a54c6001914042ed6c143c774cb0efd386e7488 (11 files); code-end-data-decodes tree 087019459a39ef1c6a912841d16656aa177fa67a4a77b21fd07b766afe1cc268 (9 files); code-end-unsized-last tree a7a169e356fd84446641fd8e3193376040b085beb52838acdd1b24cc2c64f1e7 (9 files); composite tree 9f890fa9cbde74c34af7a08d521c58c8b134733ab6ace1a568b5613e716c38ca (39 files); computed-jump-callback tree af3ae6186c8780e2f2314141c448975369b3d2c94925665d055a71cc2bd40415 (10 files); data-frame-not-function tree 80f64763334240c1c173a3f23735f3f1ae9e9bc9349d93c13f8eaf225e467c8a (11 files); data-named-between-data tree 6e0b4a048f20cb33f4d592bc9b60fecf9d20cc6c91fe9d92a2eef6c07c2d4cdc (13 files); data-table-between-functions tree c04eb9705d06363a47b634c24629736092bd737305a7aab6e95e7905b36cf097 (16 files); data-thumb-push-pop tree 8b9f1d53be43844d06c88fd8b80e0a79821e7f0d9d989e86a1643a5640e6b0a5 (18 files); dead-code-in-extent tree 8697f82061f432955c205e65f660951cb27032550380d85c2c5f0742bd45b543 (12 files); entry-stub-table tree 471805cb2a81277974766297c937de650329de3ab2e789149acf270c6ae5fcd4 (12 files); false-stub-2byte tree 4548ac952d64cba96b715c8ba8bef25ea57baea6b2e69fb63eb2d4d96c9537fb (11 files); far-jump tree 949de19aec012bc3d338b708dfd1b9ad9af58ffdd1b488b9c3321c7b3e1d0d48 (9 files); gap-resume-2mod4 tree b6ea26a9d9fc893a97dc6cb36db2936d0f61f1dd4d1726fd3c6d4ac1693e2bdd (17 files); handwritten-2mod4 tree 00a141ca9fb4ae65c5b90a5e1dd9df9f5e7fdbd7ce19d24179194b2538ef6449 (13 files); inline-arm-switch tree d91ce41c126439440c0b58ebf9dd278bbd30ae31725bb85032acce10d5e26742 (12 files); large-data-referenced tree 7fea74c216dd542e6f14952aa4a59e757a8bee3b7e67029555cd6efcb81b94f2 (12 files); leaf-handler-pointer-table tree aff7cf25a994777876a3fbeaa83f1f0a6fb54f4964e2081010ec48e9d91d8410 (12 files); local-subroutine tree d3a565b0d3318a5e20f8072a73f84faa74bcad1834d7dfbb6af22f5d34e0c681 (9 files); mixer-tiled-hole tree 9b04c3df8b80ad97d45ded9f8ff137c0d4ed99c83f4b09e326ecce686c29d5cd (18 files); mov-lr-pc-bx tree e7705b1333288b4029f69a8802e97d8fc3c9d0c879a8e501c6a0b7454e695011 (13 files); multi-compiler tree 046a373dfad16f5b7495cfe035cfd32bdd61a8a1b87845158af742d022ea4af5 (14 files); noreturn-call-then-next tree 57ec79d38b2306a51312bdf06c892fad01f15a3b501768d2e586185448a56258 (10 files); pointer-table-before-leaf tree 8f6f06de51ecb1821bd98b195965df2af8fb0c2ad820b062acacfc930502e594 (17 files); pointer-word-in-gap tree c973216a257e00cba35482291a3d4453a3a4513c721210cfcbe144498770eb5e (13 files); pool-padded-46c0 tree bafce28ddc37eb537ee7df37fdda820ef35c0c38dcc60914e54867639ad3f0b5 (12 files); pool-word-push-lr tree 9ba68df13a4bd7964b95fa1a8e28e243117f65f433f433374af85a3159bea2f1 (12 files); pops-unpushed-frame tree bec21604ee5599044cbe55c0381beebe8d1195ef7dbe71db18e8f519797631f4 (16 files); prologueless-thumb-over-arm tree 8f14b4d119f7e9188014e6e2d4e5a31665a20eae4ed8ac069405e26bb2df7da2 (12 files); push-lr-2mod4 tree 9fbaeb58a68f2cea1ab26dad18748505921fea2663331be73e57d20ee28ca985 (14 files); ram-code-entries tree eeb22b16a278147fc8b41318d232031f9958d66fd45ad8918aa429bf19198ca0 (15 files); ram-copy-args-straight-line tree ea48afb8e5f07372cb7f9b52c4201fd9a205fd464c16c0292030aa3b9447b1fc (10 files); ram-copy-bios tree 9d9fd350e66416139a671ff80685d477dc4bf0cc1c23c10ae8fe89ec397f7838 (17 files); ram-copy-call-via tree 182b4a067721c0e2664ed6c8b2c4aafdd8c0ecccaaf9e4e55a0ce53567864420 (14 files); ram-copy-entry-boundaries tree 95d1a554e52cf48719aa29edaef5e7f5f5e6a2461040bc982a9b9215ee654d71 (19 files); ram-copy-memcpy tree 3e2bc37191ef6b8678510eac5dd549edff3150401bf8d374b6ccec9ac3ee0ff4 (15 files); ram-copy-setup-bound tree 04f75f3caeae5920433fd6baa6bf731aba2abf1256191e8461063d9f82b5bd33 (15 files); recursive-far-call tree 92dce383282e3866c53666e8d062b3cd02c8b4a238a3875f43dfcda7a6148520 (10 files); shared-tail tree 3b58844fd31ee01bc29e5a8628eed7b2987a49954145041c852314f673e7aa8a (11 files); swi-reset tree c41e4447e32cc7a813081827b2a30cc939c07a8654e4c5b34e9486f1899c3b43 (10 files); table-jump-hoisted tree 48a8177190c1111a3a5059ab94bd1007b25a9a65991ea385eae3edbca84d860f (10 files); thumb-pointer-run tree 5eec707836883554dc7601d31491771d87d579c8ce9983bd6d90cd1284457a10 (18 files); unreferenced-leaf tree 7793356d7c8a732db84febbd76c474751d976ff5508ada12ed3cf681adba7569 (11 files); veneer-array tree c31380b2a7c5b3dd342c13c024f0cfa939707c670dac7d629c179fc8070631dc (18 files); fe7j tree ce95e6f3a1913d9deb3b0af7f388dd254d7b4cf556d412269c9526d12d606498 (7817 files); klonoa tree 15bdf7dbedc6c198f933b838d0485ee21fb7d9d9a15a9263e6634c0e80e1c7ec (605 files); pokeemerald tree c38d289e3412e95e8d856dcdbd924f8b8d293e6164a140024cd35602c15aec63 (15918 files); sa2 tree ee2cf9cc8f5da270de152090c040b5f201fe51629e1407d6172c63e761771fe7 (2932 files); sa3 tree 7e06beb7ca2bdab3d8bf3dfd1487e9994edf405c21926c11e06064605bb189ca (4736 files); tmc tree 8ab99c05329b83707c8b51bbac74f1d9c5c7655f6a64b7be8c3f54d95fb28a16 (8682 files); 57 trees identical across cwd, project path, TZ and locale; no file names a project path"
       },
       {
         "id": "g4.e2e-real",
@@ -2086,7 +2086,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "fe7j reaches 037702b1febd5c9535262165bf030551d153de81; klonoa reaches a0a298d9dba1ba15d04a42fc2eb35893d1a9569b; pokeemerald reaches f3ae088181bf583e55daf962a92bb46f4f1d07b7; sa2 reaches 7bcd6a07af7c894746fa28073fe0c0e34408022d; sa3 reaches 685af3a2dc0f1b3f8922e73ec42c1dc92e210e39; tmc reaches b4bd50e4131b027c334547b4524e2dbbd4227130; sealed: 2 of 2 held-out ROMs reach their SHA-1 (counts only); all 6 tuning ROMs reach their SHA-1 from init, setup.sh and make"
+        "detail": "fe7j reaches 037702b1febd5c9535262165bf030551d153de81; klonoa reaches a0a298d9dba1ba15d04a42fc2eb35893d1a9569b; pokeemerald reaches f3ae088181bf583e55daf962a92bb46f4f1d07b7; sa2 reaches 7bcd6a07af7c894746fa28073fe0c0e34408022d; sa3 reaches 685af3a2dc0f1b3f8922e73ec42c1dc92e210e39; tmc reaches b4bd50e4131b027c334547b4524e2dbbd4227130; fe7j reaches 037702b1febd5c9535262165bf030551d153de81 from the installed tarball; klonoa reaches a0a298d9dba1ba15d04a42fc2eb35893d1a9569b from the installed tarball; pokeemerald reaches f3ae088181bf583e55daf962a92bb46f4f1d07b7 from the installed tarball; sa2 reaches 7bcd6a07af7c894746fa28073fe0c0e34408022d from the installed tarball; sa3 reaches 685af3a2dc0f1b3f8922e73ec42c1dc92e210e39 from the installed tarball; tmc reaches b4bd50e4131b027c334547b4524e2dbbd4227130 from the installed tarball; sealed: 2 of 2 held-out ROMs reach their SHA-1 (counts only); all 6 tuning ROMs reach their SHA-1 from init, setup.sh and make, from the source tree and from the installed tarball"
       },
       {
         "id": "g4.generate-idempotent",
@@ -2094,16 +2094,16 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label: 29 files, 12 ops all keep; adr-handler-block: 27 files, 10 ops all keep; adr-label-and-data: 33 files, 16 ops all keep; arm-pools-in-front: 29 files, 12 ops all keep; bx-lr-stub-chain: 30 files, 13 ops all keep; bx-pc-veneer: 31 files, 14 ops all keep; c-data: 29 files, 12 ops all keep; code-copied-to-ram: 28 files, 11 ops all keep; code-end-data-decodes: 27 files, 10 ops all keep; code-end-unsized-last: 26 files, 9 ops all keep; composite: 56 files, 39 ops all keep; computed-jump-callback: 27 files, 10 ops all keep; data-frame-not-function: 28 files, 11 ops all keep; data-named-between-data: 30 files, 13 ops all keep; data-table-between-functions: 33 files, 16 ops all keep; data-thumb-push-pop: 35 files, 18 ops all keep; dead-code-in-extent: 30 files, 13 ops all keep; entry-stub-table: 29 files, 12 ops all keep; false-stub-2byte: 28 files, 11 ops all keep; far-jump: 26 files, 9 ops all keep; gap-resume-2mod4: 34 files, 17 ops all keep; handwritten-2mod4: 31 files, 14 ops all keep; inline-arm-switch: 30 files, 13 ops all keep; large-data-referenced: 29 files, 12 ops all keep; leaf-handler-pointer-table: 29 files, 12 ops all keep; local-subroutine: 26 files, 9 ops all keep; mixer-tiled-hole: 38 files, 21 ops all keep; mov-lr-pc-bx: 31 files, 14 ops all keep; multi-compiler: 31 files, 14 ops all keep; noreturn-call-then-next: 27 files, 10 ops all keep; pointer-table-before-leaf: 34 files, 17 ops all keep; pointer-word-in-gap: 30 files, 13 ops all keep; pool-padded-46c0: 30 files, 13 ops all keep; pool-word-push-lr: 29 files, 12 ops all keep; pops-unpushed-frame: 34 files, 17 ops all keep; prologueless-thumb-over-arm: 30 files, 13 ops all keep; push-lr-2mod4: 32 files, 15 ops all keep; ram-code-entries: 33 files, 16 ops all keep; ram-copy-args-straight-line: 27 files, 10 ops all keep; ram-copy-bios: 34 files, 17 ops all keep; ram-copy-call-via: 32 files, 15 ops all keep; ram-copy-entry-boundaries: 36 files, 19 ops all keep; ram-copy-memcpy: 32 files, 15 ops all keep; ram-copy-setup-bound: 33 files, 16 ops all keep; recursive-far-call: 27 files, 10 ops all keep; shared-tail: 28 files, 11 ops all keep; swi-reset: 27 files, 10 ops all keep; table-jump-hoisted: 27 files, 10 ops all keep; thumb-pointer-run: 35 files, 18 ops all keep; unreferenced-leaf: 28 files, 11 ops all keep; veneer-array: 35 files, 18 ops all keep; fe7j: 7847 files, 7830 ops all keep; klonoa: 623 files, 606 ops all keep; pokeemerald: 15941 files, 15924 ops all keep; sa2: 2951 files, 2934 ops all keep; sa3: 4754 files, 4737 ops all keep; tmc: 8702 files, 8685 ops all keep; generate after init changes no file on 57 ROMs"
+        "detail": "adr-function-label: 29 files, 12 ops all keep; adr-handler-block: 27 files, 10 ops all keep; adr-label-and-data: 33 files, 16 ops all keep; arm-pools-in-front: 29 files, 12 ops all keep; bx-lr-stub-chain: 30 files, 13 ops all keep; bx-pc-veneer: 31 files, 14 ops all keep; c-data: 29 files, 12 ops all keep; code-copied-to-ram: 28 files, 11 ops all keep; code-end-data-decodes: 26 files, 9 ops all keep; code-end-unsized-last: 26 files, 9 ops all keep; composite: 56 files, 39 ops all keep; computed-jump-callback: 27 files, 10 ops all keep; data-frame-not-function: 28 files, 11 ops all keep; data-named-between-data: 30 files, 13 ops all keep; data-table-between-functions: 33 files, 16 ops all keep; data-thumb-push-pop: 35 files, 18 ops all keep; dead-code-in-extent: 29 files, 12 ops all keep; entry-stub-table: 29 files, 12 ops all keep; false-stub-2byte: 28 files, 11 ops all keep; far-jump: 26 files, 9 ops all keep; gap-resume-2mod4: 34 files, 17 ops all keep; handwritten-2mod4: 30 files, 13 ops all keep; inline-arm-switch: 29 files, 12 ops all keep; large-data-referenced: 29 files, 12 ops all keep; leaf-handler-pointer-table: 29 files, 12 ops all keep; local-subroutine: 26 files, 9 ops all keep; mixer-tiled-hole: 35 files, 18 ops all keep; mov-lr-pc-bx: 30 files, 13 ops all keep; multi-compiler: 31 files, 14 ops all keep; noreturn-call-then-next: 27 files, 10 ops all keep; pointer-table-before-leaf: 34 files, 17 ops all keep; pointer-word-in-gap: 30 files, 13 ops all keep; pool-padded-46c0: 29 files, 12 ops all keep; pool-word-push-lr: 29 files, 12 ops all keep; pops-unpushed-frame: 33 files, 16 ops all keep; prologueless-thumb-over-arm: 29 files, 12 ops all keep; push-lr-2mod4: 31 files, 14 ops all keep; ram-code-entries: 32 files, 15 ops all keep; ram-copy-args-straight-line: 27 files, 10 ops all keep; ram-copy-bios: 34 files, 17 ops all keep; ram-copy-call-via: 31 files, 14 ops all keep; ram-copy-entry-boundaries: 36 files, 19 ops all keep; ram-copy-memcpy: 32 files, 15 ops all keep; ram-copy-setup-bound: 32 files, 15 ops all keep; recursive-far-call: 27 files, 10 ops all keep; shared-tail: 28 files, 11 ops all keep; swi-reset: 27 files, 10 ops all keep; table-jump-hoisted: 27 files, 10 ops all keep; thumb-pointer-run: 35 files, 18 ops all keep; unreferenced-leaf: 28 files, 11 ops all keep; veneer-array: 35 files, 18 ops all keep; fe7j: 7834 files, 7817 ops all keep; klonoa: 622 files, 605 ops all keep; pokeemerald: 15935 files, 15918 ops all keep; sa2: 2949 files, 2932 ops all keep; sa3: 4753 files, 4736 ops all keep; tmc: 8700 files, 8683 ops all keep; generate after init changes no file on 57 ROMs"
       },
       {
         "id": "g4.toml-mutations",
-        "verdict": "fail",
+        "verdict": "pass",
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "TOML mutations: adr-function-label: delete 0x0800010C: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | c-data: delete 0x08000130: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | code-copied-to-ram: delete 0x08000128: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | code-end-data-decodes: delete 0x08000100: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | code-end-unsized-last: delete 0x08000100: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | data-frame-not-function: delete 0x08000164: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | pointer-table-before-leaf: delete 0x08000144: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | pointer-word-in-gap: delete 0x08000120: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | ram-code-entries: delete 0x08000158: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER] | ram-copy-memcpy: delete 0x08000164: generate exit 1, verify exit not run, linked nothing, codes [W_UNLISTED_FUNCTION, E_MODULE_BORDER]; adr-function-label: no place for move-start; adr-function-label: no place for split-module; arm-pools-in-front: no place for move-start; arm-pools-in-front: no place for split-module; dead-code-in-extent: no place for move-start; dead-code-in-extent: no place for delete-function; dead-code-in-extent: no place for split-module; entry-stub-table: no place for move-start; entry-stub-table: no place for split-module; handwritten-2mod4: no place for move-start; handwritten-2mod4: no place for split-module; inline-arm-switch: no place for move-start; inline-arm-switch: no place for split-module; local-subroutine: no place for move-start; local-subroutine: no place for split-module; mov-lr-pc-bx: no place for move-start; mov-lr-pc-bx: no place for split-module; pool-padded-46c0: no place for move-start; pool-padded-46c0: no place for delete-function; pool-padded-46c0: no place for split-module; prologueless-thumb-over-arm: no place for move-start; prologueless-thumb-over-arm: no place for delete-function; prologueless-thumb-over-arm: no place for split-module; push-lr-2mod4: no place for move-start; push-lr-2mod4: no place for split-module; shared-tail: no place for move-start; shared-tail: no place for split-module"
+        "detail": "adr-function-label: no place for move-start; adr-function-label: no place for split-module; arm-pools-in-front: no place for move-start; arm-pools-in-front: no place for split-module; dead-code-in-extent: no place for move-start; dead-code-in-extent: no place for delete-function; dead-code-in-extent: no place for split-module; entry-stub-table: no place for move-start; entry-stub-table: no place for split-module; handwritten-2mod4: no place for move-start; handwritten-2mod4: no place for split-module; inline-arm-switch: no place for move-start; inline-arm-switch: no place for split-module; local-subroutine: no place for move-start; local-subroutine: no place for split-module; mov-lr-pc-bx: no place for move-start; mov-lr-pc-bx: no place for split-module; pool-padded-46c0: no place for move-start; pool-padded-46c0: no place for delete-function; pool-padded-46c0: no place for split-module; prologueless-thumb-over-arm: no place for move-start; prologueless-thumb-over-arm: no place for delete-function; prologueless-thumb-over-arm: no place for split-module; push-lr-2mod4: no place for move-start; push-lr-2mod4: no place for split-module; shared-tail: no place for move-start; shared-tail: no place for split-module; 258 legal edits link to the SHA-1 and build with make to it, and 170 illegal edits give their codes, on 57 ROMs"
       },
       {
         "id": "g4.worktree",
@@ -2112,7 +2112,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "56 fresh worktrees copied the ROM and built to the SHA-1"
+        "detail": "56 fresh worktrees copied the ROM and built to the SHA-1; adr-function-label through the tools/agbcc submodule setup.sh registered in the main checkout"
       },
       {
         "id": "g5.expected-bytes",
@@ -2150,7 +2150,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "objdiff: fe7j: 11 instruction, 90 missing-relocation, 331 missing-symbol, 22 relocation, 4 resolved-call; PutUnkSprite instruction +0x232 replace: b 0x2a8 | .hword 0xe039 | TalkInterpret instruction +0x1052 delete: .hword 0x0 | (none) | TalkInterpret instruction +0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xcc0 arg-mismatch: .word 0x30000c8 | .word sTalkText; klonoa: 161 missing-relocation, 62 missing-symbol, 3 relocation, 127 tool; AthleticChallengeScrollUpdate missing-relocation +0x1640 R_ARM_ABS32: gBgInfo | a plain value | Clear64byte missing-relocation +0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearChain missing-relocation +0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearedAllVisionsScreenInit missing-relocation +0x25a0 R_ARM_ABS32: gBgInfo | a plain value | ClearedAllVisionsScreenInit missing-relocation +0x25a4 R_ARM_ABS32: gBgInfo | a plain value; pokeemerald: 191 instruction, 657 missing-relocation, 3572 missing-symbol, 571 relocation, 9145 resolved-call; AddBoxOptionsMenu instruction +0x8cba arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddItemQuantityWindow instruction +0x10dc arg-mismatch: bl 0x10e4 | bl sub_081ABC54-0x4 | AddWallpaperSetsMenu instruction +0x405a arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddWallpapersMenu instruction +0x4094 arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AnimTask_CurseStretchingBlackBg_Step1 instruction +0x1328 arg-mismatch: .word 0x0 | .word _pokemonStorage; sa2: 112 instruction, 40 missing-relocation, 545 missing-symbol, 49 relocation, 890 resolved-call; AnimateNewZonePath instruction +0x151a arg-mismatch: bl 0x1538 | bl sub_08035C00-0x4 | CreateEntity_IronBall instruction +0x160 arg-mismatch: bl 0x18c | bl sub_0807EFC4-0x4 | CreateEntity_IronBall instruction +0x166 arg-mismatch: bl 0x2a0 | bl sub_0807F0D8-0x4 | CreateMultiplayerLobbyScreen instruction +0x42 arg-mismatch: bl 0x78 | bl sub_08087478-0x4 | CreateRaceProgressIndicator instruction +0x5a arg-mismatch: bl 0x80 | bl sub_08086D68-0x4; sa3: 105 instruction, 82 missing-relocation, 946 missing-symbol, 35 relocation, 51 resolved-call; CgbSound instruction +0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0 | CreateApeProjectile instruction +0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4 | CreateCondorProjectile instruction +0x8e2 arg-mismatch: bl 0x5dc | bl sub_0805944C-0x4 | CreateEntity_Booster instruction +0xa4 arg-mismatch: bl 0x2ac | bl sub_08031428-0x4 | CreateEntity_BouncyBar instruction +0x94 arg-mismatch: bl 0x3e8 | bl sub_08034698-0x4; tmc: 155 missing-relocation, 2267 missing-symbol, 339 relocation, 258 resolved-call; CheckAreaDiscovery missing-relocation +0xddc R_ARM_ABS32: gSave | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b0 R_ARM_ABS32: gMapTop | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b4 R_ARM_ABS32: gMapBottom | a plain value | CheckFusionMapMarkerDisabled missing-relocation +0x1308 R_ARM_ABS32: gSave | a plain value | CheckKinstoneFused missing-relocation +0x12ec R_ARM_ABS32: gSave | a plain value"
+        "detail": "objdiff: fe7j: 11 instruction, 90 missing-relocation, 331 missing-symbol, 22 relocation, 4 resolved-call; PutUnkSprite instruction +0x232 replace: b 0x2a8 | .hword 0xe039 | TalkInterpret instruction +0x1052 delete: .hword 0x0 | (none) | TalkInterpret instruction +0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xcc0 arg-mismatch: .word 0x30000c8 | .word sTalkText; klonoa: 161 missing-relocation, 62 missing-symbol, 3 relocation, 127 tool; AthleticChallengeScrollUpdate missing-relocation +0x1640 R_ARM_ABS32: gBgInfo | a plain value | Clear64byte missing-relocation +0x4a0 R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearChain missing-relocation +0x48c R_ARM_ABS32: gMPlayJumpTable | a plain value | ClearedAllVisionsScreenInit missing-relocation +0x25a0 R_ARM_ABS32: gBgInfo | a plain value | ClearedAllVisionsScreenInit missing-relocation +0x25a4 R_ARM_ABS32: gBgInfo | a plain value; pokeemerald: 195 instruction, 657 missing-relocation, 3572 missing-symbol, 571 relocation, 9145 resolved-call; AddBoxOptionsMenu instruction +0x8cba arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddItemQuantityWindow instruction +0x10dc arg-mismatch: bl 0x10e4 | bl sub_081ABC54-0x4 | AddWallpaperSetsMenu instruction +0x405a arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AddWallpapersMenu instruction +0x4094 arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4 | AnimMilkBottle_Step1 instruction base only insert: (none) | .hword 0x0; sa2: 113 instruction, 40 missing-relocation, 545 missing-symbol, 49 relocation, 890 resolved-call; AnimateNewZonePath instruction +0x151a arg-mismatch: bl 0x1538 | bl sub_08035C00-0x4 | CreateEntity_IronBall instruction +0x160 arg-mismatch: bl 0x18c | bl sub_0807EFC4-0x4 | CreateEntity_IronBall instruction +0x166 arg-mismatch: bl 0x2a0 | bl sub_0807F0D8-0x4 | CreateMultiplayerLobbyScreen instruction +0x42 arg-mismatch: bl 0x78 | bl sub_08087478-0x4 | CreateRaceProgressIndicator instruction +0x5a arg-mismatch: bl 0x80 | bl sub_08086D68-0x4; sa3: 106 instruction, 82 missing-relocation, 946 missing-symbol, 35 relocation, 51 resolved-call; CgbSound instruction +0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0 | CreateApeProjectile instruction +0x8e0 arg-mismatch: bl 0x5f4 | bl sub_0805AAB0-0x4 | CreateCondorProjectile instruction +0x8e2 arg-mismatch: bl 0x5dc | bl sub_0805944C-0x4 | CreateEntity_Booster instruction +0xa4 arg-mismatch: bl 0x2ac | bl sub_08031428-0x4 | CreateEntity_BouncyBar instruction +0x94 arg-mismatch: bl 0x3e8 | bl sub_08034698-0x4; tmc: 1 instruction, 155 missing-relocation, 2267 missing-symbol, 339 relocation, 258 resolved-call; ChangeWindowSize instruction base only insert: (none) | .hword 0x0 | CheckAreaDiscovery missing-relocation +0xddc R_ARM_ABS32: gSave | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b0 R_ARM_ABS32: gMapTop | a plain value | CheckDirectPathUnblocked missing-relocation +0x6b4 R_ARM_ABS32: gMapBottom | a plain value | CheckFusionMapMarkerDisabled missing-relocation +0x1308 R_ARM_ABS32: gSave | a plain value"
       },
       {
         "id": "g6.ram-code-mapped",
@@ -2575,7 +2575,7 @@
           }
         ]
       },
-      "treeDigest": "1130fe4c56190f4e743392f21b6ea610b846aba3f00ab3ec44ac207deb5a4023"
+      "treeDigest": "ce95e6f3a1913d9deb3b0af7f388dd254d7b4cf556d412269c9526d12d606498"
     },
     {
       "name": "klonoa",
@@ -2776,7 +2776,7 @@
           }
         ]
       },
-      "treeDigest": "a7cdb1504b081bd3f0f80746064960f4c14a798a497f97d3f43e629f544864f9"
+      "treeDigest": "15bdf7dbedc6c198f933b838d0485ee21fb7d9d9a15a9263e6634c0e80e1c7ec"
     },
     {
       "name": "pokeemerald",
@@ -2919,7 +2919,7 @@
         "linked": true,
         "scored": 15850,
         "differences": {
-          "instruction": 191,
+          "instruction": 195,
           "missing-relocation": 657,
           "missing-symbol": 3572,
           "relocation": 571,
@@ -2948,9 +2948,9 @@
             "detail": "+0x4094 arg-mismatch: bl 0x9170 | bl sub_080CFEF0-0x4"
           },
           {
-            "function": "AnimTask_CurseStretchingBlackBg_Step1",
+            "function": "AnimMilkBottle_Step1",
             "kind": "instruction",
-            "detail": "+0x1328 arg-mismatch: .word 0x0 | .word _pokemonStorage"
+            "detail": "base only insert: (none) | .hword 0x0"
           },
           {
             "function": "AbilityBattleEffects",
@@ -3079,7 +3079,7 @@
           }
         ]
       },
-      "treeDigest": "94627a4c2865d3946b45d9ccad0c1df1e9b77696772f592562c6b426c5f85dea"
+      "treeDigest": "c38d289e3412e95e8d856dcdbd924f8b8d293e6164a140024cd35602c15aec63"
     },
     {
       "name": "sa2",
@@ -3216,7 +3216,7 @@
         "linked": true,
         "scored": 2887,
         "differences": {
-          "instruction": 112,
+          "instruction": 113,
           "missing-relocation": 40,
           "missing-symbol": 545,
           "relocation": 49,
@@ -3376,7 +3376,7 @@
           }
         ]
       },
-      "treeDigest": "ebc0328f829f15d73d5cb7da38a49c31a7ecbde7c26c321fcbc98965621a523d"
+      "treeDigest": "ee2cf9cc8f5da270de152090c040b5f201fe51629e1407d6172c63e761771fe7"
     },
     {
       "name": "sa3",
@@ -3513,7 +3513,7 @@
         "linked": true,
         "scored": 4305,
         "differences": {
-          "instruction": 105,
+          "instruction": 106,
           "missing-relocation": 82,
           "missing-symbol": 946,
           "relocation": 35,
@@ -3673,7 +3673,7 @@
           }
         ]
       },
-      "treeDigest": "ea3a2c85b31c1ec3c1741509a86d539712964b2e1f35a5da6d409faa4309675a"
+      "treeDigest": "7e06beb7ca2bdab3d8bf3dfd1487e9994edf405c21926c11e06064605bb189ca"
     },
     {
       "name": "tmc",
@@ -4139,6 +4139,7 @@
         "linked": true,
         "scored": 8388,
         "differences": {
+          "instruction": 1,
           "missing-relocation": 155,
           "missing-symbol": 2267,
           "relocation": 339,
@@ -4146,6 +4147,11 @@
           "unnamed-target": 264
         },
         "examples": [
+          {
+            "function": "ChangeWindowSize",
+            "kind": "instruction",
+            "detail": "base only insert: (none) | .hword 0x0"
+          },
           {
             "function": "CheckAreaDiscovery",
             "kind": "missing-relocation",
@@ -4273,7 +4279,7 @@
           }
         ]
       },
-      "treeDigest": "ae7317733e534967dcc3d8b80a051e121565082bde209c4dab4ae7aedacb37a8"
+      "treeDigest": "8ab99c05329b83707c8b51bbac74f1d9c5c7655f6a64b7be8c3f54d95fb28a16"
     }
   ],
   "sealed": [

@@ -49,14 +49,14 @@ ROM, the six tuning ROMs and the doubled ROM. The landing run after Q7's answer 
 whole closing list again unchanged with no gate change, and every command exited 0 at `landed` 3 (`0784b4e`), and the
 phase pull request's CI passed before the merge.
 
-Phase 4 (One shot) is built but has not landed ([docs/phase-4.md](docs/phase-4.md)): `romlift init <rom>` writes
-`romlift.toml`, `decomp.yaml`, the build scaffold (`Makefile`, `setup.sh`, …), `INCLUDE_ASM` C stubs and the generated
-tree, and `./setup.sh && make` then rebuilds the ROM to its SHA-1 with no file edited, on 50 committed fixtures (from
-the source tree, the packed tarball and fresh git worktrees) and all six tuning ROMs; `generate` regenerates the tree
-from the TOML without ever writing it, and `analyze --update` proposes TOML patches that keep comments. Every gate of
-phases 1 to 4 passes but `g4.toml-mutations`, which fails on deleting the last listed function of a project (owner
-question Q4), and the phase waits for the owner's answers to its four questions. The commands are `doctor`,
-`analyze`, `explain`, `model`, `verify`, `init`, `generate` and `scaffold`.
+Phase 4 (One shot) is built and passes its closing gate, but has not landed: it waits for the owner's answers to its
+open questions ([docs/phase-4.md](docs/phase-4.md)). `romlift init <rom>` writes `romlift.toml`, `decomp.yaml`, the build
+scaffold (`Makefile`, `setup.sh`, …), `INCLUDE_ASM` C stubs and the generated tree, and `./setup.sh && make` then
+rebuilds the ROM to its SHA-1 with no file edited, on 50 committed fixtures and all six tuning ROMs (from the source
+tree, the packed tarball and fresh git worktrees); `generate` regenerates the tree from the TOML without ever writing
+it and keeps the `INCLUDE_ASM` lines of `src/*.c` in line with it, so every seeded legal TOML edit still builds with
+`make`; `analyze --update` proposes TOML patches that keep comments. Every gate of phases 1 to 4 passes on both tiers.
+The commands are `doctor`, `analyze`, `explain`, `model`, `verify`, `init`, `generate` and `scaffold`.
 
 | Phase | Delivers |
 | --- | --- |

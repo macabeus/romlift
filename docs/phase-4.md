@@ -8,11 +8,11 @@ machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 sa2, sa3, tmc; D60), and every phase-4 threshold applies to all six (D74 j); the held-out ROMs (pokefirered, pokeruby)
 run sealed and report counts only (D25).
 
-**Verdict.** Not landed. Every component is merged on `phase-4` and the closing list ran at `a4c753e` (below, "The closing
-gate"): every command exits 0 but `gates --require 4 --tier ci` and `gates --require 4 --tier real`, which fail on
-`g4.toml-mutations` alone (owner question Q4, which has no default), and nothing else of phase 1 to 4 fails. The phase
-also waits for the owner's answers to Q1 to Q3, built with their defaults. `test/gates/phase.json` stays at
-`{ "landed": 3 }`; nothing is merged to `main` or pushed.
+**Verdict.** Not landed, waiting only for the owner. After fix round 1 (the review of `10ff9ed`, "Review" below) the whole
+closing list passes at `34865f5` (below, "The closing run of fix round 1"): every command exits 0, `gates --require 4`
+passes on both tiers, and no gate was changed or waived (`g4.toml-mutations` is stricter: it builds every legal edit
+with `make`). The phase does not land until the owner answers Q1, Q2, Q3, Q5, Q6 and Q7 (Q4 is withdrawn), each built
+with its default; `test/gates/phase.json` stays at `{ "landed": 3 }`, and nothing is merged to `main` or pushed.
 
 ## Components
 
@@ -341,8 +341,9 @@ Default while unanswered: (a).
   `setup.sh`'s duty 4 needs a published romlift, `ROMLIFT_CLI`, or package.json pointed at a tarball.
 - `setup.sh` builds agbcc from source at the pin (network, git and a host C compiler; about 50 s); a mirror is
   `AGBCC_URL`.
-- Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,213 to 1,526 MiB RSS (largest
-  live heap 923.3 MiB, the raw `verify`), about 100 MiB under the old space; a code-dense ROM larger than 32 MiB of
+- Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,133 to 1,568 MiB RSS across
+  the runs of this phase (largest live heap 924.8 MiB, the raw `verify`), and its readable `verify --link` went over
+  D72 b's 1,536 MiB budget in one run of six ("The closing gate", fix round 1); a code-dense ROM larger than 32 MiB of
   that density may exceed the cap (D72, unchanged). No gate measures the doubled ROM (D72 e).
 - Three phase-5 gates fail instead of reporting `pending` once their inputs exist (`g5.c-data-ranges`: no
   `expect-ranges.json`; `g5.expected-bytes`: no `expected/`; `g5.reconciler`: no reconcile goldens); `--require 4` does
@@ -406,6 +407,49 @@ Measured on branch `phase-4-workflows` (Node 24.15, macOS; the machine shared wi
   `generate` right after: 29,537 keep, 17.8 s, 1,499 MiB (below D72 b's 1,536 MiB budget, with 2% to spare).
 
 ## The closing gate
+
+### The closing run of fix round 1 (`fb20674`, then `34865f5`)
+
+The orchestrator's list, from the repository root of the main checkout, `test/gates/phase.json` at `{ "landed": 3 }`
+(as at `a4c753e`: the phase cannot land while owner questions are open), Node 24.15, binutils 2.45.1, macOS, on 20
+October 2026. Steps 1 to 9 and the doubled ROM's two steps ran at `fb20674`; the gates then found `g3.text-layout`
+`pending` (its `needs` named `checkEntry`, which D75 n stopped exporting), fixed at `34865f5` (only `test/gates`
+changed, which the source digest covers but no other command reads), after which the source-digest steps ran again at
+`34865f5`: npm ci, typecheck, lint, test, fixtures check, build and pack, `run --scaffold`, `regression`, both gate
+tiers and `provenance`. Two deviations: `npm run corpus` ran before `run --scaffold`, since the corpus inputs digest
+changed with fix round 1's foundation files and `run --scaffold` refuses a stale corpus summary (it is the input of the
+artifact's printer member, not in the orchestrator's list); and the first attempt's `gates --require 4 --tier ci` (at
+`fb20674`, after its real tier failed on the pending gate) still ran while the second attempt's steps 1 to 10 and the
+start of its real tier ran, so those shared the machine; every timing gate passed regardless. The artifact `bench run
+--scaffold` wrote at `34865f5` is committed (source digest `bf499ebe…`, with the real-tier gate record).
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (both runs) |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | the architecture checker and its mutation test pass |
+| `npm test` | 0 | 2,357 tests, 2,357 pass, 0 fail |
+| `npm run fixtures -- check` | 0 | 51 of 51 fixtures agree (binutils 2.45.1) |
+| `npm run build && npm pack --pack-destination "$(mktemp -d)"` | 0 | `romlift-0.0.0.tgz`, 674 files, 449.7 kB |
+| `npm run export-poc -- --mode raw` | 0 | 51 fixtures dumped (`fb20674`) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 95 tests, 95 pass, 0 skipped (778 s, `fb20674`); `listed-invalid` W_LISTED_INVALID 0 on all six (other diagnostics: sa3 four W_WALK_LIMIT, tmc W_UNLISTED_FUNCTION 0x080B1A28, Q6); `padding-orphans` no zero-pad orphan on the six (orphan files fe7j 1,558 → 28, klonoa 87 → 23, pokeemerald 3,222 → 18, sa2 464 → 15, sa3 882 → 15, tmc 2,321 → 32; nop pads left 21, 21, 15, 15, 15, 0, Q7); `large-rom-bin`, `emission-real`, `poc-raw-printer`, `c-stub-agbcc`, `config-mutations`, `objdiff` pass |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (objdiff-cli 3.7.2) (`fb20674`) |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1 and the init build (init 0, setup.sh 0, make 0, SHA-1 match) on all six tuning ROMs; both sealed ROMs pass, init build SHA-1; memory family `init` 1,156.5 MiB, `generate` 1,173.1 MiB peak RSS under the 1,024 MiB cap, tree `9c4bda7e…` (286 s) |
+| `npm run bench -- regression` | 0 | no regression against `e915c82` |
+| `node --max-old-space-size=1024 --conditions=source src/cli/main.ts verify --rom <emx2.gba> --assemble --link --json < /dev/null` | 0 | the doubled pokeemerald ROM (`fb17b88d…`): tiling, reencode, module-size, text-layout (29,404 files), paths, assemble (521 modules) and link all ok, linked SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`; 161 W_UNLISTED_FUNCTION (Q6) and 1 W_READING_BUDGET; 46.9 s, peak RSS 1,481.0 MiB (`fb20674`) |
+| `npm run bench -- large-rom --bin --rom <emx2.gba>` | 0 | all fourteen forms exit 0 with ok summaries or completed, 1,133.0 to 1,525.9 MiB peak RSS (`verify --assemble --json` the largest; `verify --assemble --link --json` 1,480.9, `init --json` 1,524.4, `generate --json` 1,522.4), live heap up to 924.8 MiB (the raw `verify`); both `--link` forms link `fb17b88d…` (408 s, `fb20674`) |
+| `npm run bench -- gates --require 4 --tier real` | 0 | 22 pass, 1 historical (g2.poc-parity), 2 fail (g5.expected-bytes, g5.objdiff: phase 5, not required), 8 pending (g5, g6). Among them: g2.speed (ratio 0.975; sa2 716 of 795 ms, 90.1%; klonoa 242 of 311, tmc 1,387 of 1,812, sa3 1,016 of 1,515, pokeemerald 2,063 of 4,284, fe7j 1,115 of 12,887), g3.speed-budget (pokeemerald `generate` 7,780 of 9,914 ms, `init` 10,092 of 14,871 ms), g3.link (51 fixtures, 6 of 6 tuning ROMs), g3.text-layout, g4.e2e-real (all six tuning ROMs from the source tree and from the installed tarball; sealed 2 of 2, counts only), g4.toml-mutations (258 legal edits build with `make` to the SHA-1 and 170 illegal edits give their codes, on 57 ROMs), g4.worktree (56; adr-function-label through the tools/agbcc submodule), g4.generate-idempotent (2,691 s) |
+| `npm run bench -- gates --require 4 --tier ci` | 0 | 37 pass, 3 fail (g5.c-data-ranges, g5.expected-bytes, g5.reconciler: phase 5, not required), 7 pending. Among them: g1.provenance (source digest `bf499ebe…`), g3.large-rom (`init` 1,283.6 MiB, `generate` 1,121.6 MiB, tree `9c4bda7e…`), g4.toml-mutations (228 legal edits with `make`, 152 illegal, 51 fixtures), g4.packed-e2e (674 files; adr-function-label through setup.sh's npm and npx duties without ROMLIFT_CLI; 50 fixtures), g4.e2e-fixtures (50; the composite's illegal border is E_MODULE_BORDER), g4.worktree (50), g4.cli-contract, g4.no-toml-write (153 runs), g4.checks-fail (1,465 s) |
+| `npm run bench -- provenance` | 0 | source digest `bf499ebe…` (Node 24) ok; gate record ok (19 real-tier gates of phase ≤ 3 pass or are historical); families live; 6 rows, no sealed row |
+
+The doubled ROM's peaks across the runs measured in this phase (correctness-3): its readable `verify --assemble --link
+--json` under the cap 1,508 MiB (wave 3), 1,498.8 MiB (`b318e60`), 1,525.8 MiB (`a4c753e`), 1,567.8 MiB (the review's
+run of `10ff9ed`), 1,481.0 MiB and 1,480.9 MiB (this run); `large-rom --bin`'s fourteen forms 1,213.2 to 1,508.4 MiB
+(`a4c753e`), 1,148.4 to 1,546.7 MiB (the review's), 1,133.0 to 1,525.9 MiB (this run). The spread is about 90 MiB, and
+the readable `verify --link` on the doubled ROM can go over D72 b's 1,536 MiB budget (one run of six did); no gate
+measures the doubled ROM (D72 e), and the phase-3 limitation stands (a code-dense ROM larger than this may exceed the
+cap).
+
 
 ### The closing run at `a4c753e`
 
