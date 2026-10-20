@@ -26,7 +26,7 @@ gate({
   id: 'g3.checks-fail',
   phase: 3,
   tier: 'ci',
-  needs: ['verifyModel', 'checkEntry', 'planWrites'],
+  needs: ['verifyModel', 'checkEntries', 'planWrites'],
   async run(cx) {
     const absent: string[] = [];
     for (const file of FILES) if (!(await isFile(path.join(cx.repoRoot, file)))) absent.push(file);

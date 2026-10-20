@@ -80,7 +80,7 @@ gate({
   phase: 3,
   tier: 'both',
   realInputs: ['roms'],
-  needs: ['buildModel', 'emitTree', 'checkEntry', 'checkPaths'],
+  needs: ['buildModel', 'emitTree', 'checkEntries', 'checkPaths'],
   async run(cx) {
     const problems: string[] = [];
     const list = await targets(cx);

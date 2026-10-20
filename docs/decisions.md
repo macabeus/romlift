@@ -3086,6 +3086,9 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   cloned handle threw. The handle, its registry and `textLayoutIndex` are gone: the index is built and dropped inside
   `checkEntries`, romlift's one public entry of the text-layout check; `checkEntry(rom, model, entry)`, which builds an
   index for one entry, stays in `core/verify/text-layout.ts` for tests and is not exported from `romlift`.
+  `g3.text-layout` and `g3.checks-fail`, which run the checks through `verify` and the mutation tests, name
+  `checkEntries` in their `needs` (the export whose absence makes a gate pending) instead of `checkEntry`; no
+  assertion changes.
 
 - (o) **The installed tarball and setup.sh's npm duty, gated** (delivery-3, delivery-4). `g4.e2e-real` runs the six
   tuning ROMs a second time from the packed and installed package (`npx romlift init` below the install, setup.sh's
