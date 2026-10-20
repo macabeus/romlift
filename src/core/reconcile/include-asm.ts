@@ -8,12 +8,16 @@
 //   `;` at depth 0 or the end of the text;
 // comments and preprocessor lines are kept apart (`directives`), never part of an item.
 //
-// planIncludeAsm (phase 4: add, and the empty file) inserts a stub, `includeAsmStatement(module, name)` on a line of
-// its own, for every wanted function that the file neither includes nor defines, at its ROM-order position: after
-// the nearest earlier wanted function the file holds, else before the nearest later one, else at the end. A
-// function the file defines counts as held (its stub was replaced by C). W_C_ORDER when the file holds the wanted
-// functions in another order than ROM order; the edits never reorder (moving and removing stubs is phase 5's, the
-// g5.reconciler gate's). Every edit is an insertion between tokens, so no comment, string or directive changes.
+// planIncludeAsm inserts a stub, `includeAsmStatement(module, name)` on a line of its own, for every wanted function
+// that the file neither includes nor defines, at its ROM-order position: after the nearest earlier wanted function the
+// file holds, else before the nearest later one, else at the end. A function the file defines counts as held (its
+// stub was replaced by C). It removes every stub of the module's own directory (`asm/nonmatchings/<module>`) whose
+// name is not wanted: a function the TOML renamed, deleted or moved to another module, whose file `generate` no longer
+// writes there (D75 b; a move is this removal plus the insertion in the other module's file). A removed stub alone on
+// its line takes the line with it; one that shares its line keeps the rest of it. A stub of another directory and a
+// definition are never removed. W_C_ORDER when the file holds the wanted functions in another order than ROM order;
+// the edits never reorder. Every edit is an insertion between tokens or the removal of a whole statement (and its
+// line's blanks), so no comment, string or directive changes.
 import { includeAsmStatement, NONMATCHINGS_ROOT } from '../../foundation/asm/dialect.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -189,7 +193,7 @@ export interface IncludeAsmWanted {
 }
 
 export interface IncludeAsmPlan {
-  /** Insertions, in text order; apply with applyTextEdits. */
+  /** Insertions and removals, in text order; apply with applyTextEdits. */
   readonly edits: readonly TextEdit[];
   /** W_C_ORDER, at most once. */
   readonly diagnostics: readonly Diagnostic<ReconcileCode>[];
@@ -282,12 +286,27 @@ function orderDiagnostics(wanted: IncludeAsmWanted, held: ReadonlyMap<string, He
 }
 
 /**
+ * The removal of statement `s`: its whole line (from the line's start through its newline) when nothing else is on
+ * it, else the statement alone.
+ */
+function removalOf(text: string, s: IncludeAsmStatement): TextEdit {
+  const lineStart = text.lastIndexOf('\n', s.start - 1) + 1;
+  let after = s.end;
+  while (text[after] === ' ' || text[after] === '\t') after++;
+  const lineEnd = text[after] === '\n' ? after + 1 : text[after] === '\r' && text[after + 1] === '\n' ? after + 2 : after === text.length ? after : -1;
+  if (lineEnd >= 0 && text.slice(lineStart, s.start).trim() === '') return { start: lineStart, end: lineEnd, text: '', reason: 'remove-stub' };
+  return { start: s.start, end: s.end, text: '', reason: 'remove-stub' };
+}
+
+/**
  * The edits that add every wanted function `text` neither includes (from `asm/nonmatchings/<module>`) nor defines,
- * each at its ROM-order position, and W_C_ORDER when the file's order of the held ones is not ROM order.
+ * each at its ROM-order position, and remove every stub of that directory whose function is not wanted; W_C_ORDER
+ * when the file's order of the held ones is not ROM order.
  */
 export function planIncludeAsm(text: string, wanted: IncludeAsmWanted): IncludeAsmPlan {
   const scan = scanC(text);
-  const held = heldByName(scan, includeAsmDir(wanted.module));
+  const dir = includeAsmDir(wanted.module);
+  const held = heldByName(scan, dir);
   const { previous, next } = neighbours(wanted.names, held);
   const comments = new Map(scan.directives.filter((t) => t.kind === 'comment').map((t) => [t.start, t] as const));
   const edits: TextEdit[] = [];
@@ -310,19 +329,22 @@ export function planIncludeAsm(text: string, wanted: IncludeAsmWanted): IncludeA
       edits.push({ start: text.length, end: text.length, text: `${needsNewline ? '\n' : ''}${stub}\n`, reason: 'add-stub' });
     }
   });
+  const names = new Set(wanted.names);
+  for (const statement of scan.statements) if (statement.dir === dir && !names.has(statement.name)) edits.push(removalOf(text, statement));
   return { edits: joinAtOffsets(edits), diagnostics: orderDiagnostics(wanted, held), unplaced };
 }
 
 /**
- * The insertions in text order, those at one offset joined into one edit in wanted order, so stubs that follow an
- * unterminated last line get one newline between them, not two (`\nA\n` then `\nB\n` become `\nA\nB\n`).
+ * The edits in text order (an insertion before a removal at its offset), the insertions at one offset joined into one
+ * edit in wanted order, so stubs that follow an unterminated last line get one newline between them, not two
+ * (`\nA\n` then `\nB\n` become `\nA\nB\n`).
  */
 function joinAtOffsets(edits: readonly TextEdit[]): readonly TextEdit[] {
-  const sorted = edits.map((edit, index) => ({ edit, index })).sort((a, b) => a.edit.start - b.edit.start || a.index - b.index);
+  const sorted = edits.map((edit, index) => ({ edit, index })).sort((a, b) => a.edit.start - b.edit.start || a.edit.end - b.edit.end || a.index - b.index);
   const out: TextEdit[] = [];
   for (const { edit } of sorted) {
     const last = out[out.length - 1];
-    if (last === undefined || last.start !== edit.start) {
+    if (last === undefined || last.start !== edit.start || last.end !== last.start || edit.end !== edit.start) {
       out.push(edit);
       continue;
     }

@@ -14,9 +14,10 @@
 // the config is the TOML's, DecompState comes from src/*.c through the reconciler's scanner (it changes no output in
 // phase 4: asm/matchings is phase 5's), and a config the model refuses (E_MODULE_BORDER and the other model errors)
 // is refused before the check pass. The stream holds the c-stub entries (scaffold: written only when absent) and
-// modules.mk; generate never edits an existing C file in phase 4 (phase 5's reconciler does) and never touches the
-// TOML (g4.no-toml-write). projectPlanInputs and planChangesNothing are the pure halves of the write the shell
-// makes (§6.4 steps 3 and 4).
+// modules.mk; an existing src/<module>.c is reconciled with the model (c-stubs.ts, D75 b: the stubs of functions the
+// TOML renamed, deleted or moved go, the missing ones come), as edits the write plan applies only to the text it read,
+// and the TOML is never touched (g4.no-toml-write). projectPlanInputs and planChangesNothing are the pure halves of
+// the write the shell makes (§6.4 steps 3 and 4).
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
@@ -42,6 +43,8 @@ import { verifyModel } from '../verify/tiling.ts';
 import type { Journal } from '../write-plan/journal.ts';
 import { encodeManifest } from '../write-plan/manifest.ts';
 import type { Manifest, WritePlan, WritePlanInputs } from '../write-plan/types.ts';
+import { NO_STUBS, projectEntries, reconcileStubs, resolvedEntries } from './c-stubs.ts';
+import type { StubReconciliation } from './c-stubs.ts';
 import { configFromDiscover } from './config-from-discover.ts';
 import { discover, DISCOVER_PROFILE } from './discover.ts';
 import type { GeneratePlan, ProjectInputs } from './types.ts';
@@ -71,6 +74,8 @@ export interface GenerateResult extends ConfirmedModel {
   readonly diagnostics: readonly Diagnostic[];
   /** The context the check pass emitted with; generatedEntries emits with it again (§6.4: the write pass re-runs it). */
   readonly cx: EmitContext;
+  /** The project's existing C files reconciled with the model (generateProject; none for a fresh tree, D75 b). */
+  readonly stubs?: StubReconciliation;
 }
 
 function defaultProfile(): CompilerProfile {
@@ -168,9 +173,26 @@ function checkPass(rom: Rom, confirmed: ConfirmedModel, cx: EmitContext): Genera
   return { analysis, model, report, paths, diagnostics: [...analysis.diagnostics, ...model.diagnostics], cx };
 }
 
-/** The emission stream of a generate result again, entry for entry what its check pass read. */
-export function generatedEntries(rom: Rom, result: Pick<GenerateResult, 'model' | 'cx'>): Iterable<FileEntry> {
-  return emitTree(rom, result.model, result.cx);
+/**
+ * The emission stream of a generate result again, as a directory other than the project receives it (a fresh tree,
+ * `verify`'s temporary directory, `generate --out`): entry for entry what its check pass read, but an existing C
+ * file's entry holds its reconciled text (c-stubs.ts resolvedEntries), the C `make` compiles.
+ */
+export function generatedEntries(rom: Rom, result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>): Iterable<FileEntry> {
+  return resolvedEntries(emitTree(rom, result.model, result.cx), result.stubs ?? NO_STUBS);
+}
+
+/**
+ * The emission stream of a generate result as the project receives it: an existing C file's entry is a `reconciled`
+ * edit of the text the shell read (c-stubs.ts projectEntries; `hash`, the shell's sha1, names its base).
+ */
+export function projectTreeEntries(rom: Rom, result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>, hash: (text: string) => string): Iterable<FileEntry> {
+  return projectEntries(emitTree(rom, result.model, result.cx), result.stubs ?? NO_STUBS, hash);
+}
+
+/** The base texts of the reconciled C files of a result, for WritePlanInputs.reconciledTexts. */
+export function reconciledTextsOf(result: Pick<GenerateResult, 'stubs'>): ReadonlyMap<string, string> {
+  return new Map([...(result.stubs ?? NO_STUBS).files].map(([path, stub]) => [path, stub.base] as const));
 }
 
 /** Whether a generate result may be written: its check pass is ok and nothing raised an error (§6.4 step 2). */
@@ -290,7 +312,9 @@ export function generateProject(inputs: ProjectInputs, options: ProjectGenerateO
   if (!confirmed.ok) return confirmed;
   const modelDiagnostics = [...confirmed.analysis.diagnostics, ...confirmed.model.diagnostics];
   if (modelDiagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: modelDiagnostics };
-  const result = checkPass(inputs.rom, confirmed, { decomp: decompStateOf(inputs.cTexts), printer: options.printer ?? 'readable' });
+  const checked = checkPass(inputs.rom, confirmed, { decomp: decompStateOf(inputs.cTexts), printer: options.printer ?? 'readable' });
+  const stubs = reconcileStubs(confirmed.model, inputs.cTexts);
+  const result: GenerateResult = { ...checked, stubs, diagnostics: [...checked.diagnostics, ...stubs.diagnostics] };
   return { ok: true, result, diagnostics: result.diagnostics };
 }
 

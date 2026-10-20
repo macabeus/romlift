@@ -1,5 +1,6 @@
 // `romlift generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]` (architecture §2.1, §6.4, D17, D49): the tree of
-// the project that holds the working directory, from its decomp.yaml, its romlift.toml, its ROM and its src/*.c. The
+// the project that holds the working directory, from its decomp.yaml, its romlift.toml, its ROM and its src/*.c, whose
+// INCLUDE_ASM lines it reconciles with the model (D75 b). The
 // shell reads the project (shell/project/read-inputs.ts), generateProject plans and checks the emission, then, holding
 // the project lock, the disk is snapshotted, planWrites decides every op and applyWrites applies them; a plan that
 // changes nothing is not applied at all, so every file keeps its modification time (g4.generate-idempotent). It never
@@ -56,7 +57,7 @@ async function printOutcome(io: CliIo, json: boolean, dryRun: boolean, ops: read
 
 export const generateCommand: CommandSpec = {
   name: 'generate',
-  summary: "Regenerates the project's tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk, missing src/*.c) from its ROM and romlift.toml; never writes the TOML",
+  summary: "Regenerates the project's tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk) from its ROM and romlift.toml, and the INCLUDE_ASM lines of src/*.c (missing files written); never writes the TOML",
   usage: 'generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]',
   positionals: [],
   options: [
@@ -95,7 +96,7 @@ export const generateCommand: CommandSpec = {
     }
     const out = args.options['out'];
     const dir = out === undefined ? project.dir : resolveFrom(io.cwd, out);
-    const written = await writeTree(dir, { result, rom: project.inputs.rom }, version.value, dryRun);
+    const written = await writeTree(dir, { result, rom: project.inputs.rom, inProject: dir === project.dir }, version.value, dryRun);
     const ops: readonly WriteOp[] = written.ok ? written.value.plan.ops : [];
     const diagnostics: readonly Diagnostic[] = [...checked, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
     const exitCode = writeExitCode(diagnostics);

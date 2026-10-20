@@ -296,6 +296,25 @@ test('inside a project with --link, the linked SHA-1 is the ROM\'s', { skip: noT
   assert.equal(parsed.at(-1)?.['sha1'], readFixtureRom(FAR_JUMP).sha1);
 });
 
+test('inside a project --link links the C files as generate reconciles them; a decompiled function refuses the link (exit 1)', { skip: noToolchain }, async () => {
+  const dir = await projectWith(FAR_JUMP.rom);
+  const main_c = join(dir, 'src', 'main.c');
+  const text = readFileSync(main_c, 'utf8');
+  const first = /^INCLUDE_ASM\("asm\/nonmatchings\/main", (\w+)\);\n/m.exec(text);
+  assert.ok(first !== null, text);
+  writeFileSync(main_c, text.replace(first[0], ''));
+  const io = { ...capturingIo(), cwd: dir, env: process.env };
+  const code = await main(['verify', '--link', '--json'], io);
+  assert.equal(code, ExitCode.ok, io.out.join(''));
+  assert.equal(assertContract(io.out.join(''), code).at(-1)?.['sha1'], readFixtureRom(FAR_JUMP).sha1);
+  writeFileSync(main_c, text.replace(first[0], `void ${first[1] ?? 'F'}(void) { }\n`));
+  const decompiled = { ...capturingIo(), cwd: dir, env: process.env };
+  const refused = await main(['verify', '--link', '--json'], decompiled);
+  assert.equal(refused, ExitCode.errors, decompiled.out.join(''));
+  const failure = lines(decompiled.out.join('')).find((l) => l['code'] === 'E_TOOLCHAIN_FAILED');
+  assert.match(String(failure?.['message']), /defines the function/);
+});
+
 test('inside a project another ROM is E_ROM_SHA1_MISMATCH (exit 1); --rom keeps the phase-3 behaviour', async () => {
   const dir = await projectWith(FAR_JUMP.rom);
   const other = FIXTURES.find((f) => f.name === 'composite') ?? assert.fail('composite');

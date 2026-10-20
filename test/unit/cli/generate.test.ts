@@ -2,7 +2,8 @@
 // `init`: right after init the dry run is keep only and the run changes no file or modification time; a deleted asm/
 // is written again; --out writes elsewhere and leaves the project alone; romlift.toml is never written; the refusals
 // (an illegal border, a misspelt key, another ROM, no project, a held lock) exit 1 and change nothing; --rom reads
-// another copy of the right ROM; generate works from a subdirectory.
+// another copy of the right ROM; generate works from a subdirectory; a TOML rename and a deleted function are
+// carried into the INCLUDE_ASM lines of src/<module>.c (D75 b).
 import assert from 'node:assert/strict';
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
@@ -97,6 +98,25 @@ test('--out writes the tree into another directory and leaves the project alone'
   assert.ok((await stat(path.join(out, 'ldscript.txt'))).isFile());
   assert.ok((await stat(path.join(out, 'src', 'main.c'))).isFile());
   assert.ok((await stat(path.join(out, '.romlift', 'manifest.json'))).isFile());
+});
+
+test('a renamed and a deleted function reach src/<module>.c: its INCLUDE_ASM lines follow the TOML', async () => {
+  const dir = await initProject();
+  const toml = path.join(dir, 'romlift.toml');
+  const text = await readFile(toml, 'utf8');
+  const main = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
+  const stubs = [...main.matchAll(/^INCLUDE_ASM\("asm\/nonmatchings\/main", (sub_[0-9A-F]{8})\);$/gm)].map((m) => m[1] ?? '');
+  const [renamed, deleted] = [stubs[1], stubs[2]];
+  assert.ok(renamed !== undefined && deleted !== undefined, main);
+  const edited = text.replace(`= { name = "${renamed}"`, '= { name = "Renamed"').replace(`"${renamed}"`, '"Renamed"').split('\n').filter((l) => !l.startsWith(`0x${deleted.slice(4)} = `)).join('\n');
+  assert.notEqual(edited, text);
+  await writeFile(toml, edited);
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  assert.equal(lines(out.stdout).at(-1)?.['counts'] !== undefined && (lines(out.stdout).at(-1)?.['counts'] as Record<string, number>)['edit'], 1);
+  const after = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
+  assert.match(after, /INCLUDE_ASM\("asm\/nonmatchings\/main", Renamed\);/);
+  assert.doesNotMatch(after, new RegExp(`, (${renamed}|${deleted})\\);`));
 });
 
 test("the composite's illegal border is E_MODULE_BORDER (exit 1), and no file changes", async () => {

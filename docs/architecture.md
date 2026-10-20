@@ -1494,7 +1494,9 @@ identifiers, punctuation); no regex ever runs over code. `include-asm.ts` finds
 (`ident ( … ) {` at brace depth 0) and returns `TextEdit[]`: add a missing stub at its ROM-order
 position, remove a stub whose function left the TOML, move a stub whose module changed; `W_C_ORDER` when
 C order differs from ROM order. The `c-stub` writer calls the same planner on an empty file plus the
-template header (the `core/emit` → `core/reconcile` edge). `rename-tokens.ts` renames identifier tokens
+template header (the `core/emit` → `core/reconcile` edge); `generate` runs it over every existing `src/<module>.c`
+and writes its edits as a `reconciled` entry (`core/workflow/c-stubs.ts`, from phase 4: add and remove, a move being
+both, D75 b), so a legal TOML edit of a `c` module leaves a project `make` builds. `rename-tokens.ts` renames identifier tokens
 only, never comments or strings.
 
 **Data defined in C fails loudly until phase 5** (D21). The phase-4 `ldscript` places only `.text` from

@@ -36,7 +36,9 @@ INCLUDE_ASM("asm/nonmatchings/<module>", FunctionName);
 `INCLUDE_ASM` (`include/include_asm.h`) assembles the function's generated file,
 `asm/nonmatchings/<module>/FunctionName.s`, in place. To decompile the function, replace that line with C that compiles
 to the same bytes, then run `make`; never edit the `.s` file. To rename a function or move a boundary, change its entry
-in `[functions]` of `romlift.toml` and run `npx romlift generate`.
+in `[functions]` of `romlift.toml` and run `npx romlift generate`: it rewrites the generated files and brings the
+`INCLUDE_ASM` lines of `src/*.c` in line with them (it adds the line of a function the module gained and removes the
+line of one it lost or renamed), and it never touches a line of C you wrote.
 
 Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler` in `romlift.toml`, default
 `[build] compiler`), with the flags `modules.mk` lists; `mk/<compiler>.mk` holds the recipe.

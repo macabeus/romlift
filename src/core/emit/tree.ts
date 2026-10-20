@@ -43,13 +43,9 @@ export const WRITER_IDS: readonly WriterId[] = [
   'objdiff',
 ];
 
-/** One edit of a reconciled file, in UTF-16 offsets of its base text. */
-export interface TextEdit {
-  readonly start: number;
-  readonly end: number;
-  readonly text: string;
-  readonly reason: 'add-stub' | 'remove-stub' | 'move-stub' | 'rename';
-}
+/** One edit of a reconciled file, in UTF-16 offsets of its base text: core/reconcile's (the one definition). */
+export type { TextEdit } from '../reconcile/text-edit.ts';
+import type { TextEdit } from '../reconcile/text-edit.ts';
 
 /** One file of the tree; `path` is relative to the project root, with '/' separators. */
 export type FileEntry =

@@ -2987,6 +2987,30 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   it conforms to R3 (the TOML states the border) and leaves the gate unchanged; option (b) would have changed the
   confirm analysis and the g2 gates' inputs for the same result. Q4 is withdrawn as an owner question.
 
+- (b) **`generate` reconciles the project's C files** (architecture §6.3 `c-stub` "scaffold at `init`, reconciled
+  after", §6.4 `reconciled`, §6.6). An existing `src/<module>.c` of a generated `c` module is no longer a scaffold
+  entry that `generate` keeps: `core/workflow/c-stubs.ts` runs `planIncludeAsm` over its text and the module's chunk
+  files, and the project's write stream carries a `reconciled` entry (the text's base sha1 and its edits), applied by
+  `planWrites` only while the file still has that sha1 (`E_STALE_EDIT` otherwise) and journalled like every edit.
+  `planIncludeAsm` adds a missing stub (phase 4's case) and now also removes a stub of the module's own directory whose
+  function is not wanted there (a rename, a deleted function, a function moved to another module by a moved or split
+  border; a move is that removal plus the insertion in the other module's file). Roadmap 5.A owns "the move and remove
+  cases"; they land in phase 4 because without them every legal TOML edit of a `c` module leaves a project `make`
+  cannot build (correctness-1), which R3 and `g4.toml-mutations` forbid. Phase 5 keeps the rest of 5.A (renames inside
+  C, the matchings split, `g5.reconciler`'s goldens). A stub of another directory, a definition, a comment and a string
+  are never removed. A tree written elsewhere (`verify`'s temporary directory, `generate --out`) gets the reconciled
+  text, so project-mode `verify --assemble/--link` links the C `make` compiles after `generate`, and refuses a unit that
+  holds decompiled C (no compiler there) instead of linking a fresh stub. The check pass still checks the stub the model
+  implies, so a C file with decompiled functions is not refused by `generate`.
+- (c) **The scaffold's Makefile rebuilds an object whose inputs changed within the second** (`templates/Makefile`).
+  The phase-4 Makefile recorded a source SHA-1 for C objects only; an asm unit rewritten by `generate` within the
+  second of the previous build kept its old object under GNU make 3.81 (macOS), which compares modification times to
+  the second, and the link then failed on a renamed symbol (measured on the composite fixture: `undefined reference to
+  Renamed` from `build/crt0.o`). Every object now records the SHA-1 of the files its dependency lists name (the
+  assembler's `.d`: its source and every chunk file it includes; a C unit's preprocessor `.c.d`), its source and
+  `modules.mk`, and an object whose record differs is removed with the ELF before make decides. The ROM is written by
+  the link alone (correctness-8: `objcopy` ran twice per link); the ROM rule only restores a ROM removed since.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

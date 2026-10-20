@@ -1,6 +1,7 @@
 // generate over a project (architecture §2.1, §6.4, D74 c), pure: right after init, the plan over the disk init's
-// write left is keep only and changes nothing (the manifest included), on every committed fixture; the stream holds
-// the c stubs as scaffold entries, so a C file the user changed is kept, never edited; another ROM than [rom] sha1 is
+// write left is keep only and changes nothing (the manifest included), on every committed fixture; an existing C file
+// is reconciled (D75 b): its INCLUDE_ASM lines follow the TOML (a renamed function's line replaced, the user's C kept),
+// as an edit of the text read, refused with E_STALE_EDIT when the file changed since; another ROM than [rom] sha1 is
 // E_ROM_SHA1_MISMATCH before any analysis; an illegal border is E_MODULE_BORDER and plans nothing; the illegal TOMLs
 // of g4.toml-mutations are refused by the parser with their codes, so no generate runs; DecompState comes from the
 // C texts through the reconciler's scanner.
@@ -9,7 +10,8 @@ import { test } from 'node:test';
 
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
-import { decompStateOf, generatedEntries, generateProject, planChangesNothing, projectPlanInputs } from '../../../src/core/workflow/generate.ts';
+import { decompStateOf, generatedEntries, generateProject, planChangesNothing, projectPlanInputs, projectTreeEntries, reconciledTextsOf } from '../../../src/core/workflow/generate.ts';
+import { C_STUB_HEADER, includeAsmStatement } from '../../../src/foundation/asm/dialect.ts';
 import type { ProjectWriteState } from '../../../src/core/workflow/generate.ts';
 import { init } from '../../../src/core/workflow/init.ts';
 import type { ProjectInputs } from '../../../src/core/workflow/types.ts';
@@ -58,18 +60,47 @@ test('right after init, generate over the project plans only keeps and changes n
   assert.ok(fixtures >= 3);
 });
 
-test('a C file the user changed is kept: the c stub is a scaffold entry, never an edit; a deleted generated file is written again', () => {
+test('a C file the user changed is reconciled: its C is kept and the missing INCLUDE_ASM lines are added as an edit', () => {
   const rom = readFixtureRom(listSyntheticFixtures().find((f) => f.name === 'far-jump') ?? assert.fail('far-jump'));
-  const { project, state } = afterInit(rom);
+  const { project, state, texts } = afterInit(rom);
+  const mine = 'void Mine(void) {}\n';
   const disk = new Map(state.disk);
-  disk.set('src/main.c', hash('void Mine(void) {}\n'));
+  disk.set('src/main.c', hash(mine));
   const firstAsm = [...disk.keys()].find((p) => p.startsWith('asm/')) ?? assert.fail('no asm path');
   disk.set(firstAsm, 'absent');
-  const plan = generateProject({ ...project, cTexts: new Map([['src/main.c', 'void Mine(void) {}\n']]) });
+  const plan = generateProject({ ...project, cTexts: new Map([['src/main.c', mine]]) });
   assert.ok(plan.ok);
-  const writes = planWrites(projectPlanInputs(plan.result.model, generatedEntries(rom, plan.result), { ...state, disk }, hash, VERSION));
-  assert.deepEqual(writes.ops.filter((op) => op.op !== 'keep').map((op) => `${op.op} ${op.path}`), [`write ${firstAsm}`]);
+  const writes = planWrites(projectPlanInputs(plan.result.model, projectTreeEntries(rom, plan.result, hash), { ...state, disk, reconciledTexts: reconciledTextsOf(plan.result) }, hash, VERSION));
+  assert.deepEqual(writes.ops.filter((op) => op.op !== 'keep').map((op) => `${op.op} ${op.path}`), [`write ${firstAsm}`, 'edit src/main.c']);
+  const edit = writes.ops.find((op) => op.op === 'edit');
+  const fresh = texts.get('src/main.c') ?? assert.fail('init wrote no src/main.c');
+  assert.equal(edit?.op === 'edit' ? edit.text : '', `${mine}${fresh.slice(C_STUB_HEADER.length)}`, 'the stubs follow the C, which is kept');
   assert.equal(planChangesNothing(writes, { ...state }), false);
+});
+
+test('a renamed function: generate replaces its INCLUDE_ASM line in src/<module>.c; a file changed since it was read is E_STALE_EDIT', () => {
+  const rom = readFixtureRom(listSyntheticFixtures().find((f) => f.name === 'far-jump') ?? assert.fail('far-jump'));
+  const { project, state, texts } = afterInit(rom);
+  const module = project.config.modules.find((m) => m.kind === 'c') ?? assert.fail('far-jump has no c module');
+  const path = `src/${module.name}.c`;
+  const base = texts.get(path) ?? assert.fail(`init wrote no ${path}`);
+  const [entry, fn] = [...project.config.functions].find(([a, f]) => base.includes(includeAsmStatement(module.name, f.name)) && a > module.start) ?? assert.fail('no stub to rename');
+  const functions = new Map(project.config.functions);
+  functions.set(entry, { ...fn, name: 'Renamed' });
+  const plan = generateProject({ ...project, config: { ...project.config, functions }, cTexts: new Map([[path, base]]) });
+  assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.code).join(', '));
+  const known = new Map(state.disk);
+  for (const p of plan.result.paths) if (!known.has(p)) known.set(p, 'absent');
+  const inputs = { ...state, disk: known, reconciledTexts: reconciledTextsOf(plan.result) };
+  const writes = planWrites(projectPlanInputs(plan.result.model, projectTreeEntries(rom, plan.result, hash), inputs, hash, VERSION));
+  const edit = writes.ops.find((op) => op.op === 'edit' && op.path === path);
+  assert.equal(edit?.op === 'edit' ? edit.text : '', base.replace(includeAsmStatement(module.name, fn.name), includeAsmStatement(module.name, 'Renamed')));
+  const resolved = [...generatedEntries(rom, plan.result)].find((e) => e.path === path);
+  assert.equal(resolved !== undefined && 'text' in resolved ? resolved.text : '', edit?.op === 'edit' ? edit.text : 'no edit', 'a fresh tree gets the reconciled text');
+  const disk = new Map(known);
+  disk.set(path, hash(`${base}// edited meanwhile\n`));
+  const stale = planWrites(projectPlanInputs(plan.result.model, projectTreeEntries(rom, plan.result, hash), { ...inputs, disk }, hash, VERSION));
+  assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.path]), [['E_STALE_EDIT', path]]);
 });
 
 test('another ROM than [rom] sha1 is E_ROM_SHA1_MISMATCH, before any analysis', () => {

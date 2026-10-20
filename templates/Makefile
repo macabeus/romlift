@@ -55,8 +55,9 @@ compare: $(ROM)
 
 rom: $(ROM)
 
+# The ELF's recipe writes the ROM (below); this rule only puts back a ROM removed since the last link.
 $(ROM): $(ELF)
-	$(OBJCOPY) -O binary $< $@
+	@[ -f $@ ] || $(OBJCOPY) -O binary $< $@
 
 # ldscript.txt places every object in link order and INCLUDEs symbols.ld when it defines a symbol. The ROM is written
 # with every link, not only when it looks older than the ELF: GNU make 3.81 (macOS) compares modification times to
@@ -65,31 +66,36 @@ $(ELF): $(OBJS) ldscript.txt symbols.ld
 	$(LD) -T ldscript.txt -Map $(MAP) -o $@ $(OBJS)
 	$(OBJCOPY) -O binary $@ $(ROM)
 
+# Every object records beside it (build/<unit>.sum) the SHA-1 of what it was built from: the files its dependency
+# lists name (the assembler's build/<unit>.d: the unit's source and every chunk file it includes; a C unit's
+# preprocessor list build/src/<module>.c.d), its source, and modules.mk (a C object's compiler and flags). An object
+# whose record differs from those files now is removed, with the ELF, before make decides what to rebuild. Make
+# compares modification times, GNU make 3.81 (macOS) only to the second, so a file `romlift generate` rewrote or a
+# source changed within the second of the last build would otherwise leave the old object in the ROM.
+OBJ_SUM = { sed -e 's/^[^:]*://' -e 's/\\$$//' $(1:.o=.d) $(1:.o=.c.d) 2>/dev/null | tr ' ' '\n' | grep -v '^$$' | sort -u | xargs cat; cat $(2) modules.mk; } 2>/dev/null | $(SHA1SUM) | cut -d ' ' -f 1
+OBJ_SOURCE = $(if $(filter $(C_OBJS),$(1)),$(1:build/%.o=%.c),$(if $(wildcard $(1:build/%.o=asm/%.s)),$(1:build/%.o=asm/%.s),$(1:build/%.o=data/%.s)))
+OBJ_STALE := $(strip $(foreach o,$(OBJS),$(if $(wildcard $(o)),$(if $(filter $(shell $(call OBJ_SUM,$(o),$(call OBJ_SOURCE,$(o)))),$(shell cat $(o:.o=.sum) 2>/dev/null)),,$(o)))))
+ifneq ($(OBJ_STALE),)
+OBJ_REMOVED := $(shell rm -f $(OBJ_STALE) $(ELF))
+endif
+
 # An asm unit (asm/<module>.s, or asm/rom_header.s and asm/crt0.s) and a data unit (data/<module>.s).
 build/%.o: asm/%.s
 	@mkdir -p $(@D)
 	$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $<
+	@$(call OBJ_SUM,$@,$<) > $(@:.o=.sum)
 
 build/%.o: data/%.s
 	@mkdir -p $(@D)
 	$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $<
+	@$(call OBJ_SUM,$@,$<) > $(@:.o=.sum)
 
-# A C unit: src/<module>.c through the recipe of its compiler's fragment. Each C object records beside it
-# (build/src/<module>.sum) the SHA-1 of its source and of modules.mk (its compiler and flags); an object whose
-# record differs from them now is removed, with the ELF, before make decides what to rebuild. Make compares
-# modification times, GNU make 3.81 (macOS) only to the second, so a source or a compiler changed within the second
-# of the last build, or a modules.mk that `romlift generate` rewrote, would otherwise leave the old object in the ROM.
-C_SUM = cat $(1) modules.mk 2>/dev/null | $(SHA1SUM) | cut -d ' ' -f 1
-C_STALE := $(strip $(foreach o,$(C_OBJS),$(if $(filter $(shell $(call C_SUM,$(o:build/%.o=%.c))),$(shell cat $(o:.o=.sum) 2>/dev/null)),,$(o))))
-ifneq ($(C_STALE),)
-C_REMOVED := $(shell rm -f $(C_STALE) $(ELF))
-endif
-
+# A C unit: src/<module>.c through the recipe of its compiler's fragment.
 build/src/%.o: src/%.c
 	@mkdir -p $(@D)
 	$(if $(value C_RECIPE_$(notdir $(CC1))),,$(error $@: no mk/$(notdir $(CC1)).mk defines C_RECIPE_$(notdir $(CC1)) (CC1 is '$(CC1)')))
 	$(C_RECIPE_$(notdir $(CC1)))
-	$(call C_SUM,$<) > $(@:.o=.sum)
+	@$(call OBJ_SUM,$@,$<) > $(@:.o=.sum)
 
 # A file an old dependency list names but `romlift generate` removed: nothing to remake, and the unit that
 # still includes it fails in the assembler. An intermediate .s of a C unit is rewritten by its unit's recipe.

@@ -1,7 +1,8 @@
 // scanC and planIncludeAsm (architecture §6.3 `c-stub`, §6.6, roadmap 4.C): file-scope INCLUDE_ASM statements,
 // function definitions and other code found through the tokenizer; the phase-4 planner adds each missing stub at its
-// ROM-order position (the empty-file case included), counts a defined function as held, never touches a comment,
-// string or directive, and raises W_C_ORDER when the file's order is not ROM order.
+// ROM-order position (the empty-file case included), removes a stub of the module's directory whose function is no
+// longer wanted (a rename, a deletion, a move to another module: D75 b), counts a defined function as held, never
+// touches a comment, string or directive, and raises W_C_ORDER when the file's order is not ROM order.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -111,4 +112,27 @@ test('a file that ends inside a comment gets no stub at its end: the names are u
 
 test('a stub that follows code on the same line goes on a line of its own', () => {
   assert.equal(planned(`${stub('A')} int x;`, { module: 'main', names: ['A', 'B'] }), `${stub('A')} \n${stub('B')}\nint x;`);
+});
+
+test('a stub whose function is no longer wanted is removed with its line; a rename is a removal and an insertion', () => {
+  const text = `${C_STUB_HEADER}${stub('A')}\n${stub('Old')}\n${stub('C')}\n${stub('Gone')}\n`;
+  const plan = planIncludeAsm(text, { module: 'main', names: ['A', 'New', 'C'] });
+  assert.deepEqual(plan.edits.map((e) => e.reason), ['add-stub', 'remove-stub', 'remove-stub']);
+  assert.equal(applyTextEdits(text, plan.edits), `${C_STUB_HEADER}${stub('A')}\n${stub('New')}\n${stub('C')}\n`);
+});
+
+test('a module split or moved: the stubs of the functions that left are removed, those of another directory kept', () => {
+  const text = `${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('X', 'other')}\n${stub('C')}\n${stub('D')}`;
+  assert.equal(planned(text, { module: 'main', names: ['A', 'B'] }), `${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('X', 'other')}\n`);
+  assert.equal(planned(`${C_STUB_HEADER}${stub('A')}\n`, { module: 'main', names: [] }), C_STUB_HEADER, 'every function gone');
+});
+
+test('a removed stub that shares its line keeps the rest of the line; comments and definitions are never removed', () => {
+  const text = `${stub('Old')} // was Old\nvoid Old(void) { }\n/* ${stub('Old')} */\n`;
+  assert.equal(planned(text, { module: 'main', names: ['A'] }), ` // was Old\nvoid Old(void) { }\n/* ${stub('Old')} */\n${stub('A')}\n`);
+});
+
+test('an insertion at the start of a removed line goes before the removal; the CRLF line ending goes with it', () => {
+  const text = `${stub('A')}\r\n${stub('Old')}\r\n${stub('C')}\r\n`;
+  assert.equal(planned(text, { module: 'main', names: ['A', 'B', 'C'] }), `${stub('A')}\r\n${stub('B')}\n${stub('C')}\r\n`);
 });

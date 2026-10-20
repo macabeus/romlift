@@ -1,8 +1,8 @@
 // Text edits of a reconciled C file (architecture §3.4, §6.3 `reconciled` ownership, §6.6): what the INCLUDE_ASM
 // planner (and phase 5's renames) return, and how they apply. An edit replaces [start, end) of the base text, in
 // UTF-16 offsets, so `generate` touches a C file only where a planner says (R9). The shape is architecture §3.4's
-// TextEdit, the one core/emit/tree.ts's FileEntry carries; core/reconcile may import only foundation, so it is
-// declared here as the same plain data (the two are one type to the compiler, test/unit/reconcile checks it).
+// TextEdit, declared here once (core/reconcile imports only foundation) and re-exported by core/emit/tree.ts for the
+// FileEntry that carries it.
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 
 /** One edit of a reconciled file, in UTF-16 offsets of its base text. */

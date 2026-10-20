@@ -13,7 +13,7 @@ import { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../core/config/decomp-
 import type { FileEntry } from '../../core/emit/tree.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { SCAFFOLD_ROM_FILE } from '../../core/scaffold/vars.ts';
-import { generatedEntries, planChangesNothing, projectPlanInputs } from '../../core/workflow/generate.ts';
+import { generatedEntries, planChangesNothing, projectPlanInputs, projectTreeEntries, reconciledTextsOf } from '../../core/workflow/generate.ts';
 import type { GenerateResult } from '../../core/workflow/generate.ts';
 import { isExecutableEntry } from '../../core/workflow/init.ts';
 import { planWrites } from '../../core/write-plan/plan-writes.ts';
@@ -41,13 +41,18 @@ export type WriteOutcome = { readonly ok: true; readonly value: TreeWrite } | { 
 /** What a tree write reads: a checked generate result's stream (plus any scaffold entries). */
 export interface TreeSource {
   readonly rom: Rom;
-  readonly result: Pick<GenerateResult, 'model' | 'cx' | 'paths'>;
+  readonly result: Pick<GenerateResult, 'model' | 'cx' | 'paths' | 'stubs'>;
   /** Entries written beside the stream (init's scaffold). */
   readonly extra?: readonly FileEntry[];
+  /**
+   * The directory is the project whose C files the result reconciled: they are edited in place (reconciled entries,
+   * D75 b). Otherwise (`generate --out`) the directory gets their reconciled texts as files written when absent.
+   */
+  readonly inProject?: boolean;
 }
 
 function* streamOf(source: TreeSource): Generator<FileEntry> {
-  yield* generatedEntries(source.rom, source.result);
+  yield* source.inProject === true ? projectTreeEntries(source.rom, source.result, (text) => sha1Of(text)) : generatedEntries(source.rom, source.result);
   yield* source.extra ?? [];
 }
 
@@ -66,7 +71,8 @@ export async function planAndApply(dir: string, source: TreeSource, romlift: str
     state = await readWriteState(dir, paths);
     if (!state.ok) return state;
   }
-  const plan = planWrites(projectPlanInputs(source.result.model, streamOf(source), state.value, (text) => sha1Of(text), romlift));
+  const reconciledTexts = source.inProject === true ? reconciledTextsOf(source.result) : state.value.reconciledTexts;
+  const plan = planWrites(projectPlanInputs(source.result.model, streamOf(source), { ...state.value, reconciledTexts }, (text) => sha1Of(text), romlift));
   const errors = plan.diagnostics.some((d) => d.severity === 'error');
   if (dryRun || errors || planChangesNothing(plan, state.value)) return { ok: true, value: { plan, applied: false, diagnostics: plan.diagnostics } };
   const applied = await applyWrites(dir, plan);
