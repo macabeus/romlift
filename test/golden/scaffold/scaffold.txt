@@ -1,0 +1,501 @@
+==> .github/workflows/build.yml (scaffold, scaffold) <==
+# .github/workflows/build.yml: builds klonoa-eod.gba and checks its SHA-1 against klonoa-eod.sha1 (written once by romlift init).
+#
+# The ROM is not in the repository and must never be committed. The build runs only where the ROM is available:
+# store a URL this workflow may download it from in the repository secret BASEROM_URL (a private location you
+# control). Without that secret the workflow passes with a notice and builds nothing.
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the ROM
+        id: rom
+        env:
+          BASEROM_URL: ${{ secrets.BASEROM_URL }}
+        run: |
+          if [ -z "$BASEROM_URL" ]; then
+            echo "::notice::No BASEROM_URL secret: the ROM is not in the repository, so nothing is built."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            curl -fsSL "$BASEROM_URL" -o baserom.gba
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install the toolchain
+        if: steps.rom.outputs.available == 'true'
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi build-essential
+
+      - uses: actions/setup-node@v4
+        if: steps.rom.outputs.available == 'true'
+        with:
+          node-version: 24
+
+      - name: Cache agbcc
+        if: steps.rom.outputs.available == 'true'
+        uses: actions/cache@v4
+        with:
+          path: tools/agbcc/bin
+          key: agbcc-${{ runner.os }}-da598c1d918402c42c0c0d7128ba14567f3175e9
+
+      - name: Set up
+        if: steps.rom.outputs.available == 'true'
+        run: ./setup.sh
+
+      - name: Build and compare
+        if: steps.rom.outputs.available == 'true'
+        run: make
+==> .gitignore (scaffold, scaffold) <==
+# .gitignore of klonoa-eod, written once by romlift init.
+
+# The ROM is never committed: put your own copy at baserom.gba (setup.sh copies it into a new git worktree).
+baserom.gba
+*.gba
+*.sav
+
+# What make builds.
+klonoa-eod.gba
+klonoa-eod.elf
+klonoa-eod.map
+build/
+*.o
+
+# romlift's own state: its manifest, its journal and its lock.
+.romlift/
+
+node_modules/
+
+# tools/agbcc is a submodule (.gitmodules); its build products live inside it and never in this repository.
+tools/agbcc/bin/
+tools/agbcc/lib/
+
+# Tool-owned and deliberately NOT ignored: asm/, data/, ldscript.txt, symbols.ld and modules.mk are written by
+# `romlift generate` from romlift.toml and the ROM. They are committed so a fresh clone or git worktree builds;
+# never edit them by hand (romlift overwrites them): change romlift.toml and run `npx romlift generate`.
+==> .gitmodules (scaffold, scaffold) <==
+# tools/agbcc: pret/agbcc, registered by setup.sh at da598c1d918402c42c0c0d7128ba14567f3175e9 (the commit romlift pins).
+[submodule "tools/agbcc"]
+	path = tools/agbcc
+	url = https://github.com/pret/agbcc
+	ignore = dirty
+==> AGENTS.md (scaffold, scaffold) <==
+# AGENTS.md
+
+Instructions for agents (and people) working in this repository: a matching decompilation of KLONOA. The goal is C
+source that `make` builds into a ROM identical, byte for byte, to the original (SHA-1 in `klonoa-eod.sha1`). The project
+was created by [romlift](https://github.com/macabeus/romlift) 0.4.0 (`package.json` pins it).
+
+## Build
+
+| Command | What it does |
+| --- | --- |
+| `./setup.sh` | once per clone or git worktree: checks the toolchain, builds agbcc into `tools/agbcc/bin`, copies `baserom.gba` from the main worktree, installs romlift, generates the tree when `asm/` is absent |
+| `make` | builds `klonoa-eod.gba` and compares its SHA-1 with `klonoa-eod.sha1`; exits 0 only on a match, the only verdict that counts |
+| `make rom` | builds `klonoa-eod.gba` without the comparison |
+| `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
+| `make clean` | removes `build/` and the built ROM |
+
+`baserom.gba` is the original ROM. It is never committed (`.gitignore`); bring your own copy.
+
+## What is generated and what is yours
+
+- **Tool-owned, never edit:** `asm/`, `data/`, `ldscript.txt`, `symbols.ld`, `modules.mk`. `romlift generate`
+  rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next run. They are committed so a
+  fresh worktree builds.
+- **Yours:** `romlift.toml` (modules, function names and boundaries, symbols; the one place to change what is
+  generated), `src/*.c`, `include/`, `Makefile`, `mk/*.mk`, `setup.sh` and this file. romlift wrote them once and does
+  not overwrite them; `npx romlift scaffold --diff` shows how they differ from the current templates.
+
+## Decompiling a function
+
+Every module of kind `c` has a `src/<module>.c` holding one line per function, in ROM order:
+
+```c
+INCLUDE_ASM("asm/nonmatchings/<module>", FunctionName);
+```
+
+`INCLUDE_ASM` (`include/include_asm.h`) assembles the function's generated file,
+`asm/nonmatchings/<module>/FunctionName.s`, in place. To decompile the function, replace that line with C that compiles
+to the same bytes, then run `make`; never edit the `.s` file. To rename a function or move a boundary, change its entry
+in `[functions]` of `romlift.toml` and run `npx romlift generate`.
+
+Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler` in `romlift.toml`, default
+`[build] compiler`), with the flags `modules.mk` lists; `mk/<compiler>.mk` holds the recipe.
+
+## Data defined in C fails the link until phase 5
+
+The linker script places only the code (`.text`) of a C object. A C file that defines data (a `const` array, a
+string table, an initialised or zero-initialised global) fails the link with:
+
+```
+src/<module>.c defines data; see AGENTS.md (data ranges arrive in phase 5)
+```
+
+That is deliberate: romlift cannot yet place a C object's data at its address in the ROM. Keep the data in the
+generated `data/` files and refer to it by its symbol (`extern`), until romlift's data ranges (phase 5) let a C array
+replace its slice of the ROM.
+==> Makefile (scaffold, scaffold) <==
+# Makefile: builds klonoa-eod.gba from this project's sources and checks it against klonoa-eod.sha1.
+#
+#   make            build klonoa-eod.gba and compare its SHA-1 with klonoa-eod.sha1 (exit 0 only on a match)
+#   make rom        build klonoa-eod.gba without the comparison
+#   make clean      remove everything the build wrote
+#
+# romlift init wrote this file once and never overwrites it; `npx romlift scaffold --diff` shows how it differs
+# from the template of the romlift version package.json pins. What it builds is generated by `romlift generate`:
+# modules.mk (the objects in link order and each C object's compiler and flags), ldscript.txt, symbols.ld,
+# asm/ and data/. Never edit those; change romlift.toml and run `npx romlift generate`.
+#
+# To build one object differently, give it an explicit rule (here or in a file you include): an explicit rule
+# for build/src/<module>.o or build/<module>.o wins over the pattern rules below.
+
+NAME     := klonoa-eod
+ROM      := klonoa-eod.gba
+ELF      := $(NAME).elf
+MAP      := $(NAME).map
+SHA1FILE := klonoa-eod.sha1
+BASEROM  := baserom.gba
+
+PREFIX   ?= arm-none-eabi-
+AS       := $(PREFIX)as
+LD       := $(PREFIX)ld
+OBJCOPY  := $(PREFIX)objcopy
+HOSTCC   ?= cc
+
+# The assembler arguments of every unit (romlift's dialect); `-I .` resolves the .include and .incbin paths.
+ASFLAGS  := -mcpu=arm7tdmi -I .
+# The host C preprocessor a C unit goes through before its compiler (mk/<compiler>.mk).
+CPPFLAGS := -E -x c -nostdinc -undef -I include
+
+# sha1sum on Linux (and recent macOS), shasum -a 1 elsewhere; both read klonoa-eod.sha1's `<sha1>  <file>` format.
+SHA1SUM  := $(shell command -v sha1sum >/dev/null 2>&1 && echo sha1sum || echo 'shasum -a 1')
+
+.DEFAULT_GOAL := compare
+.PHONY: all compare rom clean
+.SUFFIXES:
+
+all: compare
+
+# OBJS (every object in link order), C_OBJS (the C objects) and, per C object, CC1 and CFLAGS.
+ifneq ($(wildcard modules.mk),)
+include modules.mk
+else ifeq ($(filter clean,$(MAKECMDGOALS)),)
+$(error modules.mk is missing: run ./setup.sh, or npx romlift generate)
+endif
+
+# One fragment per C compiler: mk/<id>.mk defines C_RECIPE_<id>, the recipe of a C object whose CC1 is
+# tools/agbcc/bin/<id>.
+include $(sort $(wildcard mk/*.mk))
+
+compare: $(ROM)
+	$(SHA1SUM) -c $(SHA1FILE)
+
+rom: $(ROM)
+
+$(ROM): $(ELF)
+	$(OBJCOPY) -O binary $< $@
+
+# ldscript.txt places every object in link order and INCLUDEs symbols.ld when it defines a symbol.
+$(ELF): $(OBJS) ldscript.txt symbols.ld
+	$(LD) -T ldscript.txt -Map $(MAP) -o $@ $(OBJS)
+
+# An asm unit (asm/<module>.s, or asm/rom_header.s and asm/crt0.s) and a data unit (data/<module>.s).
+build/%.o: asm/%.s
+	@mkdir -p $(@D)
+	$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $<
+
+build/%.o: data/%.s
+	@mkdir -p $(@D)
+	$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $<
+
+# A C unit: src/<module>.c through the recipe of its compiler's fragment.
+build/src/%.o: src/%.c
+	@mkdir -p $(@D)
+	$(if $(value C_RECIPE_$(notdir $(CC1))),,$(error $@: no mk/$(notdir $(CC1)).mk defines C_RECIPE_$(notdir $(CC1)) (CC1 is '$(CC1)')))
+	$(C_RECIPE_$(notdir $(CC1)))
+
+# A file an old dependency list names but `romlift generate` removed: nothing to remake, and the unit that
+# still includes it fails in the assembler. An intermediate .s of a C unit is rewritten by its unit's recipe.
+asm/nonmatchings/%.s: ;
+build/src/%.s: ;
+
+-include $(OBJS:.o=.d) $(C_OBJS:.o=.c.d)
+
+clean:
+	rm -rf build $(ROM) $(ELF) $(MAP)
+==> README.md (scaffold, scaffold) <==
+# KLONOA
+
+A matching decompilation of KLONOA (Game Boy Advance): `make` rebuilds `klonoa-eod.gba`, identical byte for byte to
+the original ROM (SHA-1 `a0a298d9dba1ba15d04a42fc2eb35893d1a9569b`). The project was created by [romlift](https://github.com/macabeus/romlift)
+0.4.0.
+
+## Setup
+
+You need:
+
+- GNU binutils for ARM (`arm-none-eabi-as`, `-ld`, `-objcopy`): `brew install arm-none-eabi-binutils` on macOS,
+  `apt install binutils-arm-none-eabi` on Debian and Ubuntu;
+- `make`, `git` and a C compiler (agbcc is built from source, and C files go through its preprocessor);
+- Node.js 22.18 or later (npm runs romlift).
+
+Then:
+
+1. Put your own copy of the ROM at `baserom.gba`. It is not in this repository and never will be.
+2. Run `./setup.sh`. It checks the toolchain, fetches and builds agbcc into `tools/agbcc/bin`, installs romlift and
+   generates the disassembly when `asm/` is absent. In a new `git worktree` it copies `baserom.gba` from the main one.
+3. Run `make`. It builds `klonoa-eod.gba` and ends with `klonoa-eod.gba: OK` when the SHA-1 matches `klonoa-eod.sha1`.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `romlift.toml` | the project: modules, function names and boundaries, symbols |
+| `src/<module>.c` | the C of each `c` module: `INCLUDE_ASM` lines until a function is decompiled |
+| `asm/`, `data/` | the disassembly and the data, generated by `npx romlift generate` |
+| `ldscript.txt`, `symbols.ld`, `modules.mk` | the link order, the RAM symbols and each C module's compiler, generated |
+| `include/` | `include_asm.h` (the `INCLUDE_ASM` macro) and `macros.inc` (the assembler macros) |
+| `Makefile`, `mk/*.mk` | the build, and the recipe of each C compiler |
+| `tools/agbcc` | the compiler, a submodule of [pret/agbcc](https://github.com/pret/agbcc) |
+
+Never edit the generated files: change `romlift.toml` and run `npx romlift generate`. `AGENTS.md` has the details.
+==> include/include_asm.h (scaffold, scaffold) <==
+#ifndef GUARD_INCLUDE_ASM_H
+#define GUARD_INCLUDE_ASM_H
+
+#define INCLUDE_ASM(DIR, NAME) asm(".syntax unified\n.include \"" DIR "/" #NAME ".s\"\n.syntax divided\n")
+
+asm(".include \"include/macros.inc\"\n");
+
+#endif
+==> include/macros.inc (scaffold, scaffold) <==
+	.macro arm_func_start name
+	.align 2, 0
+	.global \name
+	.arm
+	.type \name, %function
+	.endm
+
+	.macro arm_func_start_local name
+	.align 2, 0
+	.arm
+	.type \name, %function
+	.endm
+
+	.macro arm_func_end name
+	.size \name, .-\name
+	.endm
+
+	.macro thumb_func_start name
+	.align 2, 0
+	.global \name
+	.thumb
+	.thumb_func
+	.type \name, %function
+	.endm
+
+	.macro thumb_func_start_local name
+	.align 2, 0
+	.thumb
+	.thumb_func
+	.type \name, %function
+	.endm
+
+	.macro non_word_aligned_thumb_func_start name
+	.global \name
+	.thumb
+	.thumb_func
+	.type \name, %function
+	.endm
+
+	.macro non_word_aligned_thumb_func_start_local name
+	.thumb
+	.thumb_func
+	.type \name, %function
+	.endm
+
+	.macro thumb_func_end name
+	.size \name, .-\name
+	.endm
+==> klonoa-eod.sha1 (scaffold, scaffold) <==
+a0a298d9dba1ba15d04a42fc2eb35893d1a9569b  klonoa-eod.gba
+==> mk/agbcc.mk (scaffold, scaffold) <==
+# mk/agbcc.mk: the recipe of a C unit built with agbcc (modules.mk: `build/src/<module>.o: CC1 := tools/agbcc/bin/agbcc`).
+# The host C preprocessor writes build/src/<module>.i (and its header dependencies), agbcc compiles it with the
+# object's CFLAGS (modules.mk) into build/src/<module>.s, and the assembler builds the object (and the dependencies
+# on the INCLUDE_ASM files). romlift init wrote this file once; edit it to change how every agbcc unit is built.
+define C_RECIPE_agbcc
+$(HOSTCC) $(CPPFLAGS) -MD -MP -MF $(@:.o=.c.d) -MT $@ -o $(@:.o=.i) $<
+$(CC1) $(CFLAGS) -o $(@:.o=.s) $(@:.o=.i)
+$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $(@:.o=.s)
+endef
+==> mk/old_agbcc.mk (scaffold, scaffold) <==
+# mk/old_agbcc.mk: the recipe of a C unit built with old_agbcc (modules.mk: `build/src/<module>.o: CC1 := tools/agbcc/bin/old_agbcc`).
+# The host C preprocessor writes build/src/<module>.i (and its header dependencies), old_agbcc compiles it with the
+# object's CFLAGS (modules.mk) into build/src/<module>.s, and the assembler builds the object (and the dependencies
+# on the INCLUDE_ASM files). romlift init wrote this file once; edit it to change how every old_agbcc unit is built.
+define C_RECIPE_old_agbcc
+$(HOSTCC) $(CPPFLAGS) -MD -MP -MF $(@:.o=.c.d) -MT $@ -o $(@:.o=.i) $<
+$(CC1) $(CFLAGS) -o $(@:.o=.s) $(@:.o=.i)
+$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $(@:.o=.s)
+endef
+==> package.json (scaffold, scaffold) <==
+{
+  "name": "klonoa-eod",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A matching decompilation of KLONOA, scaffolded by romlift",
+  "scripts": {
+    "generate": "romlift generate"
+  },
+  "devDependencies": {
+    "romlift": "0.4.0"
+  }
+}
+==> setup.sh (scaffold, scaffold, executable) <==
+#!/bin/sh
+# setup.sh: prepares this checkout of klonoa-eod to build klonoa-eod.gba (written once by romlift init; yours to edit).
+# Run it after cloning and in every new git worktree; it is safe to run again. Its five duties, in order:
+#   1. check_toolchain   the assembler, linker and objcopy for ARM, make, and a host C compiler
+#   2. setup_agbcc       when tools/agbcc/bin/agbcc is missing: fetch pret/agbcc into tools/agbcc and build it
+#   3. copy_baserom      in a git worktree without baserom.gba: copy it from the main worktree; check its SHA-1
+#   4. install_romlift   npm ci (npm install while there is no package-lock.json); skipped when ROMLIFT_CLI is set
+#   5. generate_tree     romlift generate, when asm/ is absent
+# It never writes romlift.toml. ROMLIFT_CLI names the romlift command to run instead of `npx romlift`, and
+# AGBCC_URL another place to fetch agbcc from (a mirror; the submodule still records the pinned URL).
+set -eu
+
+cd "$(dirname "$0")"
+
+ROM='baserom.gba'
+SHA1_FILE='klonoa-eod.sha1'
+AGBCC_DIR='tools/agbcc'
+AGBCC_PIN_URL='https://github.com/pret/agbcc'
+AGBCC_URL="${AGBCC_URL:-$AGBCC_PIN_URL}"
+AGBCC_COMMIT='da598c1d918402c42c0c0d7128ba14567f3175e9'
+
+say() {
+  printf 'setup.sh: %s\n' "$*"
+}
+
+die() {
+  printf 'setup.sh: error: %s\n' "$*" >&2
+  exit 1
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+in_git() {
+  have git && git rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+sha1_of() {
+  if have sha1sum; then sha1sum "$1"; else shasum -a 1 "$1"; fi | cut -d ' ' -f 1
+}
+
+# Duty 1: every program the build runs.
+check_toolchain() {
+  missing=''
+  for tool in arm-none-eabi-as arm-none-eabi-ld arm-none-eabi-objcopy make "${HOSTCC:-cc}"; do
+    have "$tool" || missing="$missing $tool"
+  done
+  if [ -n "$missing" ]; then
+    die "missing:$missing. Install GNU binutils for ARM (macOS: brew install arm-none-eabi-binutils; Debian and Ubuntu: apt install binutils-arm-none-eabi), make and a C compiler (Xcode's command line tools, or build-essential)"
+  fi
+}
+
+# Duty 2: agbcc and old_agbcc in tools/agbcc/bin, built by pret/agbcc's own build.sh and install.sh. In a git
+# repository tools/agbcc is a submodule (.gitmodules): checked out when it is registered, else fetched at the pinned
+# commit and registered (commit the result). Outside one it is fetched at the pinned commit.
+setup_agbcc() {
+  if [ -x "$AGBCC_DIR/bin/agbcc" ]; then
+    return 0
+  fi
+  have git || die "git is needed to fetch agbcc into $AGBCC_DIR"
+  if [ ! -f "$AGBCC_DIR/build.sh" ]; then
+    if in_git && git ls-files --stage -- "$AGBCC_DIR" | grep -q '^160000'; then
+      say "checking out the $AGBCC_DIR submodule"
+      git submodule update --init -- "$AGBCC_DIR"
+    else
+      say "fetching agbcc $AGBCC_COMMIT from $AGBCC_URL"
+      if [ -d "$AGBCC_DIR" ] && [ -n "$(ls -A "$AGBCC_DIR")" ]; then
+        die "$AGBCC_DIR exists but holds no agbcc checkout: move it away and run ./setup.sh again"
+      fi
+      mkdir -p "$AGBCC_DIR"
+      git -C "$AGBCC_DIR" init -q
+      git -C "$AGBCC_DIR" remote add origin "$AGBCC_URL"
+      git -C "$AGBCC_DIR" fetch -q --depth 1 origin "$AGBCC_COMMIT" 2>/dev/null || git -C "$AGBCC_DIR" fetch -q origin
+      git -C "$AGBCC_DIR" checkout -q "$AGBCC_COMMIT"
+      if in_git; then
+        say "registering $AGBCC_DIR as a submodule at $AGBCC_COMMIT (commit .gitmodules and $AGBCC_DIR)"
+        git submodule add -- "$AGBCC_PIN_URL" "$AGBCC_DIR" >/dev/null
+      fi
+    fi
+  fi
+  say "building agbcc and old_agbcc (a few minutes)"
+  (cd "$AGBCC_DIR" && ./build.sh && ./install.sh ../..)
+  [ -x "$AGBCC_DIR/bin/agbcc" ] && [ -x "$AGBCC_DIR/bin/old_agbcc" ] || die "agbcc did not build into $AGBCC_DIR/bin"
+}
+
+# Duty 3: the ROM. A new git worktree has none (it is never committed): copy it from the main worktree, the first
+# entry of `git worktree list --porcelain`, at the same path inside it. Then check it against the SHA-1 file.
+copy_baserom() {
+  if [ ! -f "$ROM" ] && in_git; then
+    main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+    here=$(git rev-parse --show-toplevel)
+    prefix=$(git rev-parse --show-prefix)
+    if [ -n "$main" ] && [ -f "$main/$prefix$ROM" ] && [ "$(cd "$main" && pwd -P)" != "$(cd "$here" && pwd -P)" ]; then
+      say "copying $ROM from the main worktree $main"
+      cp "$main/$prefix$ROM" "$ROM"
+    fi
+  fi
+  [ -f "$ROM" ] || die "$ROM is missing: put your own copy of the ROM there (it is never committed)"
+  expected=$(cut -d ' ' -f 1 "$SHA1_FILE")
+  actual=$(sha1_of "$ROM")
+  [ "$actual" = "$expected" ] || die "$ROM has SHA-1 $actual, but $SHA1_FILE expects $expected"
+}
+
+# Duty 4: romlift, at the exact version package.json pins.
+install_romlift() {
+  if [ -n "${ROMLIFT_CLI:-}" ]; then
+    say "ROMLIFT_CLI is set: not installing romlift with npm"
+    return 0
+  fi
+  have npm || die "npm is missing: install Node.js 22.18 or later"
+  if [ -f package-lock.json ]; then
+    npm ci
+  else
+    npm install
+  fi
+}
+
+# Duty 5: the generated tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk), when asm/ is absent.
+generate_tree() {
+  if [ -d asm ]; then
+    return 0
+  fi
+  say "asm/ is absent: running romlift generate"
+  # shellcheck disable=SC2086 # ROMLIFT_CLI may be a command with arguments
+  ${ROMLIFT_CLI:-npx romlift} generate
+}
+
+main() {
+  check_toolchain
+  setup_agbcc
+  copy_baserom
+  install_romlift
+  generate_tree
+  say "ready: run make"
+}
+
+main "$@"

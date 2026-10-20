@@ -1,0 +1,26 @@
+# .gitignore of @@name@@, written once by romlift init.
+
+# The ROM is never committed: put your own copy at @@romFile@@ (setup.sh copies it into a new git worktree).
+@@romFile@@
+*.gba
+*.sav
+
+# What make builds.
+@@builtRom@@
+@@name@@.elf
+@@name@@.map
+build/
+*.o
+
+# romlift's own state: its manifest, its journal and its lock.
+.romlift/
+
+node_modules/
+
+# tools/agbcc is a submodule (.gitmodules); its build products live inside it and never in this repository.
+tools/agbcc/bin/
+tools/agbcc/lib/
+
+# Tool-owned and deliberately NOT ignored: asm/, data/, ldscript.txt, symbols.ld and modules.mk are written by
+# `romlift generate` from romlift.toml and the ROM. They are committed so a fresh clone or git worktree builds;
+# never edit them by hand (romlift overwrites them): change romlift.toml and run `npx romlift generate`.
