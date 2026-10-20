@@ -1,0 +1,5 @@
+[
+  { "kind": "function", "addr": "0x08000100", "mode": "thumb", "source": { "kind": "analysis", "rule": "bl.target" } },
+  { "kind": "function", "addr": "0x08000118", "mode": "arm", "name": "IntrStub", "source": { "kind": "evidence", "id": "map" } },
+  { "kind": "symbol", "addr": "0x03000000", "name": "gMain", "size": 64, "source": { "kind": "legacy" } }
+]

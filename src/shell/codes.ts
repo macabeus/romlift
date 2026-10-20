@@ -8,6 +8,7 @@ export const ShellCodes = defineCodes({
   E_TOOLCHAIN_FAILED: { severity: 'error', meaning: 'arm-none-eabi-as, -ld or -objcopy exited with an error' },
   E_PROJECT_LOCKED: { severity: 'error', meaning: 'another romlift run holds the project lock (.romlift/lock)' },
   W_STALE_LOCK: { severity: 'warning', meaning: 'a lock left by a process that is gone on this host was taken over' },
+  E_PROJECT_NOT_FOUND: { severity: 'error', meaning: 'no decomp.yaml in the directory or any parent: not inside a romlift project' },
 });
 
 export type ShellCode = keyof typeof ShellCodes;
