@@ -171,13 +171,14 @@ function discovered(rom: Rom): RomliftConfig {
 }
 
 test('the toolchain checks write the tree into a fresh temporary directory, assemble every module and link to the SHA-1', { skip: noToolchain }, async () => {
-  const before = new Set(readdirSync(tmpdir()).filter((n) => n.startsWith(VERIFY_TEMP_PREFIX)));
+  // A prefix of this run's own, so a verify elsewhere on the machine cannot fail the test (delivery-10).
+  const prefix = `${VERIFY_TEMP_PREFIX}test-${process.pid}-${Date.now().toString(36)}-`;
   for (const fixture of FIXTURES.filter((f) => ['far-jump', 'code-copied-to-ram', 'arm-pools-in-front', 'adr-label-and-data'].includes(f.name))) {
     const rom = readFixtureRom(fixture);
     for (const printer of PRINTERS) {
       const result = generate({ rom, config: discovered(rom), decomp: { defined: [] }, printer });
       assert.ok(result.report.ok, `${fixture.name} ${printer}: ${result.report.checks.map((c) => c.detail).join('; ')}`);
-      const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: process.env });
+      const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: process.env }, prefix);
       assert.deepEqual(
         outcome.checks.map((c) => [c.id, c.ok, c.detail]),
         [
@@ -188,7 +189,7 @@ test('the toolchain checks write the tree into a fresh temporary directory, asse
       assert.equal(outcome.sha1, rom.sha1, `${fixture.name} ${printer}`);
     }
   }
-  const after = readdirSync(tmpdir()).filter((n) => n.startsWith(VERIFY_TEMP_PREFIX) && !before.has(n));
+  const after = readdirSync(tmpdir()).filter((n) => n.startsWith(prefix));
   assert.deepEqual(after, [], 'every temporary directory is removed');
 });
 

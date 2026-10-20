@@ -101,14 +101,18 @@ async function checkInDir(dir: string, rom: Rom, result: GenerateResult, flags: 
   return linked.sha1 === null ? { checks } : { checks, sha1: linked.sha1 };
 }
 
-/** The toolchain checks of a run, in a temporary directory; not run when the self-checks or the model failed. */
-export async function toolchainChecks(rom: Rom, result: GenerateResult, flags: ToolchainFlags, io: CliIo): Promise<ToolchainOutcome> {
+/**
+ * The toolchain checks of a run, in a temporary directory named `<tempPrefix>…` under the system temporary directory;
+ * not run when the self-checks or the model failed. A test passes its own prefix, so it can tell its directories from
+ * those of any other verify on the machine.
+ */
+export async function toolchainChecks(rom: Rom, result: GenerateResult, flags: ToolchainFlags, io: CliIo, tempPrefix: string = VERIFY_TEMP_PREFIX): Promise<ToolchainOutcome> {
   const ids = toolchainIds(flags);
   if (ids.length === 0) return { checks: [] };
   if (!writable(result)) {
     return { checks: ids.map((id) => notRun(id, 'not run: nothing is written while a self-check or the model fails')) };
   }
-  const ran = await withTempDir(VERIFY_TEMP_PREFIX, (dir) => checkInDir(dir, rom, result, flags, ids, io));
+  const ran = await withTempDir(tempPrefix, (dir) => checkInDir(dir, rom, result, flags, ids, io));
   return ran.ok ? ran.value : { checks: ids.map((id) => notRun(id, 'no temporary directory', [ran.diagnostic])) };
 }
 
