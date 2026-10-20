@@ -1,7 +1,7 @@
 // g4.toml-mutations (architecture §6.2, §6.5, §10 "Property", §13): seeded random legal edits of an
 // initialised project's romlift.toml keep the self-checks and the link green, and each illegal edit gives
-// its documented code and writes nothing. Per target (every committed fixture on the ci tier, plus the five
-// tuning ROMs on the real tier), from the TOML `init` wrote:
+// its documented code and writes nothing. Per target (every committed fixture on the ci tier, plus the six
+// tuning ROMs on the real tier, D60, D62 h, D74), from the TOML `init` wrote:
 //   legal:   move a `c` module's start to another legal border between its neighbours; rename a function that
 //            still has its default name; delete a listed function that starts no module; add a `code`
 //            override that covers one found function exactly; split a `c` module at a legal border inside it.
@@ -11,8 +11,8 @@
 //            (E_DUPLICATE_ADDRESS), a [functions] key without its leading zero (E_TOML_KEY_SPELLING); each
 //            makes `generate --json` exit 1 with that code and leaves every file but romlift.toml unchanged.
 //
-// Calls, for the phase-4 lead to align (architecture §3.3, §3.4, §6.2):
-//   parseConfig(text) -> {ok: true, value: RomliftConfig} | {ok: false, diagnostics}
+// Calls, frozen by D74 (architecture §3.3, §3.4, §6.2; parseConfig and serializeConfig are p4-config's):
+//   parseConfig(text) -> {ok: true, value: RomliftConfig, diagnostics} | {ok: false, diagnostics}
 //   serializeConfig(config) -> string (the canonical layout `init` writes)
 //   legalBorders(rom, analysis) -> sorted Addr[] (no profile: the borders rest on the ARM word, D63)
 //   romFromBytes, sha1Of, profileById('agbcc'), analyze(rom, profile, {mode: 'discover', seeds: [],

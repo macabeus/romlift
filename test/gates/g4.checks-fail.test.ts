@@ -3,7 +3,8 @@
 // is E_PROJECT_LOCKED, a lock whose pid is gone on the same host is taken over with W_STALE_LOCK), the
 // journal (a failure injected after the k-th op, for every k, converges on the next run to the same tree
 // and manifest; an edit whose file changed is E_STALE_EDIT), and the patch planner (a hand-restructured
-// table is E_TOML_PATCH_REFUSED and the file is left as it was).
+// table is E_TOML_PATCH_REFUSED and the file is left as it was). Owners (D74): lock and journal p4-safety-minors,
+// patch-planner p4-config.
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult } from './gate.ts';

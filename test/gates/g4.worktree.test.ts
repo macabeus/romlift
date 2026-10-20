@@ -1,9 +1,9 @@
 // g4.worktree (architecture §6.3 setup.sh duty 3, §13, R8): in a fresh `git worktree` of an initialised and
 // committed project, `./setup.sh` copies the ROM from the main checkout (checked against <name>.sha1) and
 // `make` ends at the SHA-1. The ROM itself is never committed: the scaffold's .gitignore must exclude it.
-// The ci tier runs every committed fixture except c-data; the real tier adds the five tuning ROMs.
+// The ci tier runs every committed fixture except c-data; the real tier adds the six tuning ROMs (D60, D62 h, D74).
 //
-// Expected interfaces, for the phase-4 lead to align (as in g4.e2e-fixtures):
+// Interfaces, frozen by D74 (as in g4.e2e-fixtures):
 //   romlift init baserom.gba --json      exit 0; NDJSON, last line {"type":"summary","exitCode":0}
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set and then skips its npm duty
 //   <name>.sha1 holds `<sha1>  <file>` (sha1sum format), <file> being the ROM `make` builds

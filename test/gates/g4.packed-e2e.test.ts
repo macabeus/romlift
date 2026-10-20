@@ -5,7 +5,7 @@
 // directory below the install that holds only the ROM, `./setup.sh` and `make`, which must end at the
 // fixture's SHA-1.
 //
-// Expected interfaces, for the phase-4 lead to align (as in g4.e2e-fixtures):
+// Interfaces, frozen by D74 (as in g4.e2e-fixtures):
 //   npm pack --json                                      a JSON array whose [0] has filename and files[].path
 //   romlift doctor --json, romlift init <rom> --json     NDJSON, last line {"type":"summary","exitCode":0}
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set and then skips its npm duty; the gate sets it
