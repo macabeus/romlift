@@ -670,7 +670,9 @@ The four minors of the review of phase 3's landing run (phase-3.md, "Review", th
 score 0", which is `g5.objdiff` since D68 a; text only), correctness-r0-1 (sa2's `g2.speed` sits at about 90 to 100%
 of its limit at `main` itself; the owner is asked before phase 4's landing run whether to re-baseline or take the
 median of more runs; answered on 20 October 2026, Q2 of phase-4.md, "Median of more runs", D76 b: `g2.speed` takes the
-median of nine serial runs per ROM instead of five, with the limits and `bench/baseline/speed.json` unchanged), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
+median of nine serial runs per ROM instead of five, with the limits and `bench/baseline/speed.json` unchanged; and,
+by fix round 2 of phase 4, D77 f, `g3.speed-budget`'s 3 s analysis budget reads `budgetAnalysisCpuMs`, the median of
+the first five of those nine runs, the measurement it made before D76 b), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
 requirement recorded as a known limitation); correctness-r0-3 was fixed in the record. The phase pull request's CI
 found one more (correctness-ci-1, phase-3.md, "The closing gate", the phase pull request's CI): `exitQuietlyOnEpipe`
 in `src/cli/main.ts` treats only EPIPE as a closed reader, and macOS can report ENOTCONN on a socket-pair stdout, which
@@ -821,9 +823,8 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
 - **correctness-r0-5's remainder** (from phase 3, carried again; phase-4.md, "The carried minors"): pool.ts calls
   `moduleAt` once per address with labels; thread the relocated-module list through `wordText`, `labelForWord` and
   their callers with the matchings split.
-- **The C-data ASSERT's text**: the ldscript's message and the scaffold's `AGENTS.md` say "data ranges arrive in phase
-  5"; they change with the data ranges that replace the ASSERT (the goldens and `g4.c-data-fails-loud`'s expected
-  message with them).
+- **The C-data ASSERT's text** (done in fix round 3, D78 c): the ldscript's message and the scaffold's `AGENTS.md`
+  name no phase ("romlift does not place C data yet"); phase 6's data ranges replace the ASSERT.
 - **architecture-r1-2**: delete the aliases of `BASEROM_FILE` (`BASEROM_PATH`, `SCAFFOLD_ROM_FILE`, `TARGET`, the
   decomp-yaml re-export) and import it and the file-name constants from `foundation/util/project-files.ts`; keep every
   default spelling and its parser in one module and remove one of `functionName` and `defaultFunctionName`.
@@ -846,8 +847,18 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   borders. Either it checks the patched config with `planModules` before it offers `--write`, or the limitation
   recorded in phase-4.md stays (a newer discover's unlisted function whose extent covers a `c` module start is added,
   and `generate` then refuses the patched TOML with `E_MODULE_BORDER`).
+- **architecture-r1-3, and the gate oracle** (architecture-a1-5): `g4.toml-mutations` and
+  `test/unit/workflow/toml-mutations.prop.test.ts` pick their legal moves and splits from `legalBorders(rom,
+  analysis)` over the discover run, while `generate` decides legality with `codeLayout` over the confirm run plus the
+  data-start clause of D75 a. With core/layout's single legal-start predicate, the gate and the property test use it
+  over the confirm run of init's config, and so also mutate a start in the data-start range D75 a made legal.
 - **The remaining "phase 5" comments**: code comments that name phase 5 for work phase 6 now does were pointed to
-  phase 6 in fix round 2 (D77 i); the C-data ASSERT text above is the only product text left.
+  phase 6 in fix round 2 (D77 i), and the product text in fix round 3 (D78 c). The `g5.*` gate files keep their ids,
+  `phase: 5` and headers until phase 6 renames, renumbers or drops them (D76 g; `g4.cli-contract`'s recipes for the
+  dropped `import-legacy` and `trace` were removed in fix round 3, D78 g).
+- **architecture-a1-4** was fixed in fix round 3 (D78 f): `includeAsmDir`, `includedChunkFile`, `stubName` and
+  `core/model/paths.ts`'s `nonmatchingDir` re-export are gone; `stubNameOf` and `INCLUDE_DIR` live in
+  `foundation/util/project-files.ts`. `NONMATCHINGS_ROOT` stays exported once, from `api/one-shot-types.ts`.
 - **architecture-r1-8's remainder**: remove `checkEntry` from `core/verify/text-layout.ts` (thirty text-layout tests
   call it; a one-entry `checkEntries` adds stream-level diagnostics, so the tests need a helper of their own).
 

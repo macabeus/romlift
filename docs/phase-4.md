@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D76). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D78). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -93,9 +93,10 @@ ROMs (`bench run --scaffold`, below); `generate` right after `init` changes no f
   `ASSERT` make C data fail the link loudly (`g4.c-data-fails-loud`); `agbcc` and `old_agbcc` per module
   (`g4.multi-compiler`).
 - The phase-3 work items the owner assigned (D68 e, D72 c): padding-only orphans folded into a neighbour, the next
-  function or, at a module's end, the chunk before (fix round 1, D75 d; orphan files on pokeemerald 3,222 → 18, tmc
-  2,321 → 32, fe7j 1,558 → 28, sa3 882 → 15, sa2 464 → 15, klonoa 87 → 23; no byte changes; the 0x46C0 nop pads stay
-  orphans, Q7; `test/local/padding-orphans.test.ts`); the confirm run validates only `[functions]` entries with `from`
+  function or, at a module's end, the chunk before when it stays assembly (fix round 1, D75 d; fix round 3, D78 b:
+  never a function of a `c` module, whose decompiled C object gas ends with a nop; orphan files on pokeemerald 3,222
+  → 23, tmc 2,321 → 33, fe7j 1,558 → 32, sa3 882 → 15, sa2 464 → 16, klonoa 87 → 23; no byte changes; the 0x46C0 nop
+  pads stay orphans, Q7; `test/local/padding-orphans.test.ts`); the confirm run validates only `[functions]` entries with `from`
   (W_LISTED_INVALID 0 on all six tuning ROMs, against fe7j 5, klonoa 4, pokeemerald 6, sa2 4, sa3 4, tmc 24 before;
   `test/local/listed-invalid.test.ts`); an `adr` names its target only by a label that links to the target itself
   (fixture `adr-function-label`, `test/unit/emit/adr-function-label.test.ts`), so the doubled pokeemerald ROM's
@@ -212,6 +213,14 @@ nine, and stated in `test/gates/g2.speed.test.ts`, roadmap.md and architecture �
 at the landing run, that is a new owner question, not a retry. Fix round 2 (D77 f, g): `g3.speed-budget`'s 3 s analysis
 budget, which at the landing read the same nine-run median, reads `budgetAnalysisCpuMs`, the median of the first five
 of the nine runs, as many as before; and the run counts are the samples measured, which `g2.speed` requires per ROM.
+Fix round 3 (gate-honesty-a1-1): the nine-run samples of sa2 measured so far put it at 87.4% (709 of 811 ms, ratio
+0.994, the run of 16:55 on 20 October), 89.8% (708 of 788 ms, ratio 0.967, fix round 2's closing run), 92.5% (731 of
+790 ms, ratio 0.969, the landing run) and 96.3% (738 of 766 ms, ratio 0.939, the review's re-run of fix round 2's list
+at `1c07b13`) of its limit, every one passing; the closing run of fix round 3 adds its own ("The closing gate"). sa2's
+CPU time moved about 4% (708 to 738 ms) and its limit about 6% (766 to 811 ms): most of the spread is the
+calibration ratio, which the owner kept the median of five runs, so nine runs have not clearly narrowed the spread of
+five (85.6% to 97.7% above). No gate changes: the owner's rule stands that a sa2 `g2.speed` failure in any later
+required run, the phase pull request's CI and provenance evidence included, is a new owner question, not a retry.
 
 Roadmap "Carried from phase 3" asks the owner, before phase 4's landing run, whether to re-baseline or to take the
 median of more runs: sa2's `g2.speed` sat at about 90 to 100% of its limit at `main` (phase-3.md, "Review",
@@ -374,10 +383,14 @@ count them.
 - **Authorised by the owner** (Q1, "Only entries with `from`", D76 a): a `[functions]` entry without `from` is taken
   without the valid.* rules, so one added by hand that fails validity no longer warns `W_LISTED_INVALID`, in every
   confirm run, `analyze --update`'s included since D77 e.
-- Until phase 6's rename command (D77 a): renaming or moving a function whose C you wrote needs the C renamed or moved
-  by hand; `generate` refuses the TOML edit alone (`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`) and writes nothing,
-  and a renamed `c` module leaves its old `src/<module>.c` unbuilt (`W_C_FILE_UNUSED`). The scaffold's `AGENTS.md`
-  says so.
+- Until phase 6's rename command (D77 a, D78 a): renaming, deleting or moving a function whose C you wrote needs the C
+  renamed, deleted or moved by hand, and an `INCLUDE_ASM` inside an `#if` region (the NONMATCHING pattern's `#else`)
+  renamed by hand too; `generate` refuses the TOML edit alone (`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`,
+  `E_C_CONDITIONAL_STUB`) and writes nothing, and a renamed `c` module leaves its old `src/<module>.c` unbuilt
+  (`W_C_FILE_UNUSED`). `E_C_STALE_DEFINITION` reads the previous tree from the chunk files on disk; a project with no
+  `asm/nonmatchings/` (deleted by hand) falls back to D77 a's rule, which can refuse a static helper that lies where a
+  renamed function's stub goes (write the stub by hand). A definition inside an `#if` region counts for no build. The
+  scaffold's `AGENTS.md` says so.
 - `analyze --update --write` does not check the patched config's module borders (architecture §6.2, D77 k): a newer
   discover's unlisted function whose extent covers a `c` module's start is added, and `generate` then refuses the TOML
   with `E_MODULE_BORDER` (not reproduced; carried to phase 6 with architecture-r1-3).
@@ -391,9 +404,7 @@ count them.
   (with the reconciler, D76 g).
 - By design until phase 6 (architecture §6.6, D21, D76 g): a C module that defines data fails the link on its
   `ASSERT`; the data ranges arrive in phase 6 (gated by `g5.c-data-ranges` until phase 6 renames it). The ASSERT's
-  message and the scaffold's `AGENTS.md` still say "data ranges arrive in phase 5": product text in every project's
-  ldscript and in the goldens, carried to phase 6, whose data ranges replace the ASSERT (roadmap.md, "Carried from
-  phase 4").
+  message and the scaffold's `AGENTS.md` name no phase since fix round 3 ("romlift does not place C data yet", D78 c).
 - **Authorised by the owner** (Q5, "Pre-release limitation", D76 d): `init` runs `npm install --package-lock-only` for
   the scaffold's `package.json`; romlift is not on the npm registry yet, so every `init` ends with
   `W_LOCKFILE_DEFERRED` (a warning, exit 0) and `setup.sh`'s duty 4 needs `ROMLIFT_CLI` (documented in the scaffold's
@@ -743,3 +754,39 @@ artifact) and this record's. The closing run is in "The closing gate", fix round
 | architecture-a0-8 | minor | **Fixed** (`b2f1d1c`, D77 j): `writeInitProject` reads the digests under the lock and refuses with `E_DIR_NOT_EMPTY` (a unit test changes romlift.toml between two writes); the shared CLI helpers are in `analysis-records.ts`. The digests are computed by the command, since core never hashes. |
 | architecture-a0-9 | minor | **Fixed** (this record): phase 6 enters after phase 4, 6.0 depends on phase 4, 6.C's gba-kit items are marked dropped by D76 g. |
 | architecture-a0-10 | minor | **Fixed** (this record): the `DECOMP_YAML_NAMES` re-export added to r1-2's carry; r1-7's carry no longer lists the c-stubs test, which landed. |
+
+### Fix round 3 (the review of fix round 2's closing run at `1c07b13`)
+
+Twenty-one findings: five majors and sixteen minors. Every major is fixed, each reproduced on klonoa with agbcc and
+`make` before and after (the NONMATCHING rename, a module split behind a decompiled function, a rename and a deletion
+with a border move, a helper beside a renamed asm-only function) and held by unit and CLI tests; every minor is fixed
+but one part rejected and two carried with a reason. No fix needs a gate change the owner has not authorised, so no
+owner question is raised. The decision is D78. Commits on `phase-4` after `1c07b13`: `ebd9f37` (the reconciliation,
+the module-end pads, the C-data text, the public names), `24aed24` (bench speed, the speed verdict, the CLI), the
+records commit and the closing run's commits ("The closing gate", fix round 3).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-a1-1 | major | **Fixed** (`ebd9f37`, D78 a). Nothing inside an `#if` region is edited: an unwanted stub there is `E_C_CONDITIONAL_STUB` (an error, nothing written) instead of a removal, and a definition there holds nothing for the default build. On klonoa: the NONMATCHING block of `sub_08028104` renamed `Nop` in the TOML refuses with `E_C_CONDITIONAL_STUB` and `E_C_STALE_DEFINITION`, with the C renamed alone with `E_C_CONDITIONAL_STUB`, and with the `#else` stub renamed too `generate` exits 0 and `make` prints `akle.gba: OK`. Tests: the planner's NONMATCHING and conditional-definition cases, `test/unit/cli/generate.test.ts` (each step, and the `#else` branch holding `Nop` once with `asm/nonmatchings/main/Nop.s` written). |
+| correctness-a1-2 | major | **Fixed** (`ebd9f37`, D78 a). `E_C_STALE_DEFINITION` keys on the previous tree, the chunk files on disk (`previousChunkFiles`, `chunkNamesOf`): a definition of a function of that tree no module has now is stale wherever it lies. On klonoa the reviewer's rename with main_3's start moved to 0x08028108 exits 1 with `E_C_STALE_DEFINITION` and writes nothing. Tests: `reconcileStubs` with previous chunk files, and a CLI test of a border move with the decompiled function moved (`E_C_DEFINITION_MOVED`), renamed or deleted (`E_C_STALE_DEFINITION`), each exit 1 with no file changed. |
+| correctness-a1-3 | major | **Fixed** (`ebd9f37`, D78 a): the same key; a static helper is no function of any tree. On klonoa the reviewer's `Helper` before a renamed asm-only `DmaThing` gives `generate` exit 0 and `make` OK. Tests: the planner (with and without the previous tree) and a CLI test. Without chunk files on disk D77 a's rule stays, recorded under "Known limitations". |
+| correctness-a1-4 | major | **Fixed** (`ebd9f37`, D78 b): a zero pad ending a `c` module after a function is its own orphan again; D75 d's claim is corrected in D75 d's revision, chunks.ts and architecture §6.2. On klonoa, `m3b` at 0x08028108 behind the decompiled `sub_08028104` now gives `unk_08028106`'s own `INCLUDE_ASM` and `make` OK. Orphan files: fe7j 32, klonoa 23, pokeemerald 23, sa2 16, sa3 15, tmc 33 (the 11 pads); `padding-orphans` requires every zero-pad orphan left to be one; nine fixtures' goldens change, no byte. `test/local/decompiled-c.test.ts` (new) builds it with agbcc and `make` on klonoa (and fails with the fold of D75 d put back), with the NONMATCHING rename of correctness-a1-1 before it; `test/unit/model/chunks.test.ts` holds the rule. |
+| architecture-a1-1 | major | **Fixed** (`ebd9f37`, D78 a): wanted chunks are `{name, stub}` pairs (`stubChunks`); definitions match by symbol, stubs by stub name, insertions use the stub name. Tests: the planner, the c-stub writer (VBlankCB/VblankCB), `reconcileStubs`, and a CLI test that decompiles `Foo` of a Foo/foo pair (exit 0, no edit). |
+| correctness-a1-5 | minor | **Fixed** (`ebd9f37`): for an `asm` or `data` destination the advice is to delete the C or make that module `c`; test in `c-stubs.test.ts`. |
+| correctness-a1-6 | minor | **Fixed** (`ebd9f37`, D78 c): "romlift does not place C data yet" in the ASSERT and the scaffold's `AGENTS.md`; goldens updated; `g4.c-data-fails-loud`'s match is unchanged. |
+| architecture-a1-12 | minor | **Fixed** with correctness-a1-5. |
+| gate-honesty-a1-1 | minor | **Fixed** (this record): Q2 records the nine-run sa2 shares, 87.4% to 96.3%, that the limit's spread comes from the five-run calibration, and the owner's rule for a later failure; the closing run below adds its share. |
+| gate-honesty-a1-2 | minor | **Fixed** (`24aed24`, D78 e): `runs.emission` is measured. |
+| gate-honesty-a1-3 | minor | **Fixed** (`24aed24`, D78 e): `analysisRow` with nine known samples (first-five median 30, all-nine median 50), and `speed-verdict.ts` rejecting a report or a ROM of five runs. |
+| gate-honesty-a1-4 | minor | **Fixed** (this record, `24aed24`): roadmap.md's carry from phase 3 states D77 f; the families test title points to phase 6. |
+| architecture-a1-2 | minor | **Fixed** (`24aed24`, D78 f): `writeInitProject` computes the digests from its files and the ROM (one `initTexts`); D77 j's reasoning corrected. |
+| architecture-a1-3 | minor | **Fixed** (`24aed24`, D78 f): `command-common.ts` holds `verifyExitCode`, listed in architecture §2; D77 j corrected. |
+| architecture-a1-4 | minor | **Fixed** (`ebd9f37`, D78 d): the aliases are deleted; `stubNameOf`, `INCLUDE_DIR` and `INCLUDE_ASM_HEADER_NAME` in `project-files.ts`, with a test that the Makefile passes `-I include`. |
+| architecture-a1-5 | minor | **Carried to phase 6** (roadmap.md, "Carried from phase 4", with r1-3): the gate and the property test pick borders with `legalBorders` over the discover run; one predicate over the confirm run comes with core/layout's single legal-start rule. No defect is behind it today: every legal edit the gate draws builds with `make`. |
+| architecture-a1-6 | minor | **Fixed** (`24aed24`, D78 f): `project` dropped; `InitWriteOutcome.refused`. |
+| architecture-a1-7 | minor | **Fixed** (`24aed24`, D78 f): `TreeSource.target`. |
+| architecture-a1-8 | minor | **Fixed** with gate-honesty-a1-2: `fewest` never gives Infinity. |
+| architecture-a1-9 | minor | **Fixed** (`ebd9f37`, `24aed24`): `command-common.test.ts` (refusedExitCode 1 against 3, verifyExitCode, opCounts), the CLI border-move test, the case-fold tests. |
+| architecture-a1-10 | minor | **Fixed in part** (`24aed24`, `ebd9f37`, D78 c, g): the families title, the shipped text, and `g4.cli-contract`'s two recipes of dropped commands (never run: no registry holds them). **Rejected**: renumbering the `g5.*` gates and their headers; D76 g leaves their ids, phases and fate to phase 6's plan, and `--require 4` does not count them. |
+| architecture-a1-11 | minor | **Fixed in the record** (D78 g): architecture §6.2 limits the one-path sentence to `init`, `verify --rom`, `model --rom`, `bench speed`'s emission and `scaffold.init`, and names `discoverModel`'s users; `explain --rom` keeps the discover model, since it explains the discover run it traced (D35). |
+| architecture-a1-13 | minor | **Fixed** (this record): the carry list gains a1-5's oracle; a1-4's aliases are gone rather than carried. |

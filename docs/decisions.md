@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77 and D78 what the phase-4 fix rounds changed, D76 the owner's answers to the phase-4 questions); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -3032,6 +3032,8 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   phase 6's signatures move into a library `asm` module (architecture §12, "Signatures arrive in phase 6"), and 6 each
   in a hand-written assembly object (fe7j's `arm-call.o`, klonoa's `thunk.o`), which stays in a `c` module. Keeping
   them as orphans is phase-4.md owner question Q7.
+  **Revision** (D78 b, correctness-a1-4): a module-end pad after a function of a `c` module is its own orphan again;
+  the claim that ld aligns the next object the same way was wrong (gas ends the decompiled C object with a nop).
 
 - (e) **The executable bit is part of the write plan** (review architecture-4). `FileEntry`'s scaffold member and the
   `write` op carry `executable?: true`; `applyWrites` sets the mode on the temporary file before the rename
@@ -3244,10 +3246,103 @@ gate's verdict rule beyond what the owner authorised: (f) restores what `g3.spee
 - (l) **`StubReconciliation.files` is a sorted array** (architecture-a0-5), so a GenerateResult survives a JSON round
   trip as D66 e requires; the views build a local map.
 
+**Revision** (D78, the review of fix round 2): (a)'s rule for `E_C_STALE_DEFINITION` ("lying where a missing stub
+goes") is kept only when no chunk files are on disk; otherwise a definition of a function of the previous tree is
+stale wherever it lies (D78 a, correctness-a1-2, a1-3). (b) now also never edits a conditional region: its unwanted
+stubs are `E_C_CONDITIONAL_STUB` (D78 a, correctness-a1-1). (g)'s `runs.emission` was still the configured count; it
+is measured since D78 e. (j)'s two reasons were wrong (`generate` imported `verify`'s `verifyExitCode`; the shell
+hashes): D78 f.
+
 **Consequences.** The known limitations of phase-4.md gain the `analyze --update` border case and the manual rename of
 decompiled C; `test/unit/workflow/c-stubs.test.ts` (architecture-r1-7's remainder, in part) and planner, CLI, analyze
 and write-project tests hold the fixes. The closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The
 closing gate", fix round 2).
+
+## D78. Fix round 3 of phase 4: the review of fix round 2
+
+**Context.** The review of fix round 2's closing run at `1c07b13` raised twenty-one findings: five majors
+(correctness-a1-1 to a1-4, architecture-a1-1) and sixteen minors. Four of the majors are cases D77 a's reconciliation
+still got wrong (a NONMATCHING block whose `#else` stub it removed, a rename or deletion together with a border move
+that it let through, a static helper it refused, a case-folded pair it could never let through), and one is D75 d's
+module-end pad fold, which is wrong once the function before the pad is decompiled. This round fixes every major and
+every minor but the parts it carries or rejects with a reason (phase-4.md, "Review", fix round 3), and re-runs the
+whole closing list. No gate's verdict rule changes: (e) moves `g2.speed`'s verdict into a tested helper unchanged, and
+(g) removes two `g4.cli-contract` recipes of commands no registry holds.
+
+**Decision.**
+
+- (a) **The reconciliation keys on the previous tree, never edits conditional code, and tells a symbol from a stub
+  name** (correctness-a1-1, a1-2, a1-3, a1-5, architecture-a1-1, a1-12). This replaces D77 a's rule for
+  `E_C_STALE_DEFINITION` and D77 b's treatment of a conditional region.
+  - A wanted chunk is a pair (`WantedChunk`, from `core/model/c-unit.ts` `stubChunks`): its symbol, which a C
+    definition of it is called, and its stub name, the chunk file's base name an `INCLUDE_ASM` names; they differ
+    for a member of a case-folded group (`<Name>_<ADDR>`). A definition holds its chunk by symbol, a stub by stub
+    name, and a missing stub is inserted by stub name. `IncludeAsmWanted.chunks` replaces `names`.
+  - Inside an `#if`/`#ifdef`/`#ifndef` region nothing is edited. A stub there holds its chunk (the `#else` branch of
+    the NONMATCHING pattern is the default build's); a definition there holds nothing, so a chunk whose only C is
+    conditional gets its stub outside the region. An unwanted stub there is `E_C_CONDITIONAL_STUB` (new, error,
+    `core/reconcile`) instead of a removal, which left the default build without the function's code.
+  - The previous tree is the chunk files on disk (`asm/` is committed, so a fresh clone has them):
+    `readProject` lists `asm/nonmatchings/*/*.s` (`ProjectInputs.previousChunkFiles`, a new optional member of the
+    frozen type), `core/model/paths.ts` `chunkNamesOf` reads the names back (each base name, and `<Name>` for each
+    member of a case-folded group, a directory holding two or more `<Name>_<ADDR>` files of different names that
+    fold to one text, so `sub_<ADDR>` is never read as a group `sub`), and `reconcileStubs` passes the planner the
+    previous names no module has now. A definition of one is `E_C_STALE_DEFINITION` wherever it lies, a border move
+    included; a static helper, no function of any tree, raises nothing. Without chunk files on disk the planner
+    keeps D77 a's rule (stale only where a missing stub goes). The message names the stub whose slot it holds, if
+    any.
+  - `E_C_DEFINITION_MOVED`'s advice depends on the destination module's kind: a `c` module's source, else delete the
+    C or make that module `c`.
+- (b) **A zero pad that ends a `c` module after a function stays its own orphan** (correctness-a1-4). D75 d folded it
+  into the function as its last item, `.align 2, 0`, on the claim that "a decompiled function there ends its C
+  object, whose section ld aligns the same way". That is wrong: gas pads the end of the C object's `.text` to the
+  section's alignment with a Thumb nop (0x46C0), so the object already ends aligned and ld has nothing to fill, and
+  the ROM's zeros became `C0 46` (measured on klonoa: `make` failed after a module split behind a decompiled
+  `bx lr`). The pad is an orphan with its own `INCLUDE_ASM` again, as before D75 d, when the chunk before it is a
+  function of a `c` module; it still folds after any chunk of an `asm` module and after an orphan. The owner's answer
+  to phase-3 Q5 b (a pad before a function folds into it) is untouched; only D75 d's extension to module ends is
+  narrowed. Orphan files on the tuning ROMs: fe7j 28 → 32, klonoa 23, pokeemerald 18 → 23, sa2 15 → 16, sa3 15,
+  tmc 32 → 33 (the 11 pads D75 d counted in `c` modules); `test/local/padding-orphans.test.ts` requires every
+  zero-pad orphan left to be exactly such a pad. Nine fixtures' model and writer goldens change; no byte changes.
+- (c) **The C-data text names no phase** (correctness-a1-6, architecture-a1-10): the ASSERT says "src/<m>.c defines
+  data; see AGENTS.md (romlift does not place C data yet)" and the scaffold's `AGENTS.md` heading "Data defined in C
+  fails the link", since the owner skipped phase 5. `g4.c-data-fails-loud` matches only "src/<m>.c defines data; see
+  AGENTS.md", so its verdict is unchanged; its comment, the ldscript goldens and the scaffold golden follow.
+- (d) **Public names** (architecture-a1-4): `includeAsmDir`, `includedChunkFile`, `stubName` and `core/model/paths.ts`'s
+  `nonmatchingDir` re-export are deleted; `romlift` exports `nonmatchingDir` once (from
+  `foundation/util/project-files.ts`), `stubChunks` and `StubChunk`. `project-files.ts` gains `stubNameOf`
+  (`chunkFileOf`'s inverse), `INCLUDE_DIR` and `INCLUDE_ASM_HEADER_NAME`; `C_STUB_HEADER` is built from the name, and a
+  unit test holds the Makefile's `-I include` to `INCLUDE_DIR`. This completes D77 h.
+- (e) **Speed** (gate-honesty-a1-2, a1-3, architecture-a1-8): `runs.emission` is the fewest samples behind any
+  `generateCpuMs` or `initCpuMs` (0 when none was measured: the synthetic tier is no cartridge), not the configured
+  count D77 g left it at; every count goes through `fewest`, never `Math.min()` of nothing. `analysisRow` builds a
+  ROM's row, and a unit test holds `budgetAnalysisCpuMs` to the median of the first five of nine known samples and
+  `analysisCpuMs` to the median of all nine. `g2.speed`'s verdict is `test/gates/speed-verdict.ts`'s, unchanged, with
+  a unit test that a report or a ROM of five runs is rejected. No gate reads `runs.emission`.
+- (f) **CLI and shell** (architecture-a1-2, a1-3, a1-6, a1-7): D77 j said the shared helpers moved "so no command
+  imports another's"; `generate` still imported `verify`'s `verifyExitCode`. The module is now
+  `cli/commands/command-common.ts`, holds `verifyExitCode`, and is listed in architecture §2. D77 j also said the
+  command computes init's digests "since core never hashes"; `writeInitProject` is in the shell, which hashes, and
+  the optional parameter let a caller skip the check. It now computes them from its own `files` and the ROM (one
+  spelling of init's file set, `initTexts`) and returns `refused: true` when that check refused, which the command
+  prints alone instead of matching diagnostic codes. `initDirVerdict` drops its unread `project`; `TreeSource` takes
+  one `target: 'project' | 'out' | 'fresh'` instead of two exclusive booleans.
+- (g) **Records and tests** (gate-honesty-a1-1, a1-4, architecture-a1-5, a1-9, a1-10, a1-11, a1-13): phase-4.md records
+  the spread of the nine-run sa2 shares and where it comes from; roadmap.md's carry from phase 3 states D77 f; the
+  families test title points to phase 6; `g4.cli-contract` drops its recipes for `import-legacy` and `trace`, which
+  the owner dropped and no registry holds (a recipe of an absent command is never run, so no verdict changes). The
+  `g5.*` gate files keep `phase: 5` and their headers: D76 g leaves their ids, phases and fate to phase 6, and
+  `--require 4` does not count them. Architecture §6.2's "one path" sentence (D75 f) is limited to `init`, `verify
+  --rom`, `model --rom`, `bench speed`'s emission timings and `run --scaffold`'s init build; `explain --rom` and the
+  bench's printer, readability and objdiff models use `discoverModel` (D35: explain explains the discover run it
+  traced). The legal-border gate oracle (architecture-a1-5) joins r1-3's carry to phase 6. New tests: the planner
+  (conditional stubs, the previous tree, a case-folded pair), `reconcileStubs`, five `generate` CLI cases (the
+  NONMATCHING rename, a border move with a move, rename or deletion, a helper, a case-folded pair), the module-end
+  pad, `chunkNamesOf`, `command-common.ts`, `speed-verdict.ts`, `analysisRow`.
+
+**Consequences.** The scaffold's `AGENTS.md` says what `generate` does with conditional code; phase-4.md's known
+limitations name `E_C_CONDITIONAL_STUB` beside the manual rename of decompiled C. The closing list is re-run in a fresh
+worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 3).
 
 ## Review findings index
 
