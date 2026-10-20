@@ -9,7 +9,8 @@
 // `.align 2, 0`; agbcc's `.align 2, 0` before a literal pool, which no walk reaches). Every other byte is
 // data, noted `dead` (claim.dead-code-in-extent), `mixer-hole` (a hole kept inside an extent) or `unreached`
 // (any other byte inside an extent); the header and data chunks carry no notes, and data items are split
-// only at labels, so a data module is a few large items.
+// only at labels, so a data module is a few large items. A function chunk that folded the zero pad before its
+// entry (chunks.ts) opens with that pad as one padding item, which its start macro's `.align 2, 0` emits.
 //
 // An instruction is an `insn` item when it prints as a mnemonic: its text, parsed and assembled at its run
 // address with the labels its module sees, gives back its bytes (foundation/isa roundtrip). Otherwise it is a
@@ -267,12 +268,20 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       fillData(start, end, false);
     } else {
       const noted = c.kind !== 'header';
-      let at = start;
-      segmentAt = firstEndingAbove(segments.concrete, segmentAt, start);
+      // A function chunk that folded the pad before its entry (chunks.ts) opens with it: one padding item, which
+      // its start macro emits, unless a label lies inside it, which only data the printer places can hold.
+      const from = c.entry !== undefined && c.entry > start ? c.entry : start;
+      if (from > start) {
+        const label = labelStarts[lowerBound(labelStarts, start, (x) => x)];
+        if (label === undefined || label >= from) table.append({ kind: 'padding', start, length: from - start });
+        else fillData(start, from, false);
+      }
+      let at = from;
+      segmentAt = firstEndingAbove(segments.concrete, segmentAt, from);
       for (let k = segmentAt; k < segments.concrete.length; k++) {
         const s = segments.concrete[k];
         if (s === undefined || s.start >= end) break;
-        const a = Math.max(s.start, start);
+        const a = Math.max(s.start, from);
         if (a > at && noted && alignsTo(at, a, s)) table.append({ kind: 'padding', start: at, length: a - at });
         else if (a > at) fillData(at, a, noted);
         const b = Math.min(s.end, end);

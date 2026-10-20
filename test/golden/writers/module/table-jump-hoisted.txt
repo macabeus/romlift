@@ -5,5 +5,4 @@
 .include "asm/nonmatchings/main/sub_080000F4.s"
 .include "asm/nonmatchings/main/unk_08000106.s"
 .include "asm/nonmatchings/main/sub_08000108.s"
-.include "asm/nonmatchings/main/unk_080001A6.s"
 .include "asm/nonmatchings/main/sub_080001A8.s"

@@ -1,11 +1,14 @@
 // The text-layout self-check (architecture §6.4, §6.7, D49): hand-written files of a consistent model lay
 // out to their ROM ranges (a `.4byte Func` with the Thumb bit, a pool after `.align 2, 0`, an ARM chunk
 // after `bx pc`, a module file of includes, the writers' data, ldscript and symbols files); every kind of
-// difference is E_SELF_CHECK_TEXT with the file, the line and the address.
+// difference is E_SELF_CHECK_TEXT with the file, the line and the address. A function chunk that folded the pad
+// before its entry lays out from the pad, which its start macro's `.align 2, 0` emits as the padding item.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { emitTree } from '../../../src/core/emit/emit-tree.ts';
 import { WRITERS } from '../../../src/core/emit/writers/index.ts';
+import { buildModel } from '../../../src/core/model/model.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import type { Model } from '../../../src/core/model/types.ts';
 import { checkEntries, checkEntry, MAX_PER_ENTRY, textLayoutIndex, textLayoutResult } from '../../../src/core/verify/text-layout.ts';
@@ -14,6 +17,7 @@ import type { Diagnostic } from '../../../src/foundation/diagnostics/diagnostic.
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { codeItems, dataItem, label, modelOf, romWith, words } from '../../helpers/model.ts';
 import { thumbAt } from '../../helpers/thumb.ts';
+import { analysisOf, BASE, configOf, fact, HEADER_END } from '../layout/hand-made.ts';
 import { entry, FILES, fixtureEntries, fixtureModel, fixtureRom } from './fixture.ts';
 
 const rom = fixtureRom();
@@ -302,4 +306,33 @@ test('two definable labels of one static name in two modules: each module resolv
   assert.ok(bText !== undefined && bText.ownership === 'generated');
   const swapped = bText.text.replace(/\.4byte sLocal\b/, '.4byte 0x08000108');
   assert.equal(checkEntry(r, m, index, entry('data/b.s', swapped, 'data'))[0]?.addr, 0x0800_0180);
+});
+
+test('a folded pad: the function file lays out from the pad, its start macro emitting the padding item; without that alignment it fails', () => {
+  const r = romWith(
+    [
+      { at: BASE + 0x100, bytes: thumbAt(BASE + 0x100)`push {lr}; movs r0, #0; bl _0800010C; pop {pc}` },
+      { at: BASE + 0x10c, bytes: thumbAt(BASE + 0x10c)`movs r0, #1; bx lr` },
+    ],
+    { size: 0x200 },
+  );
+  const analysis = analysisOf(r, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x10a }), fact({ entry: BASE + 0x10c, end: BASE + 0x110 })] });
+  const config = configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }], functions: [[BASE + 0x100, 'A'], [BASE + 0x10c, 'B']] });
+  const m = buildModel(r, analysis, config);
+  const entries = [...emitTree(r, m, CX)];
+  const file = entries.find((e) => e.path === 'asm/nonmatchings/main/B.s');
+  assert.ok(file !== undefined && file.ownership === 'generated');
+  assert.equal(entries.some((e) => e.path === 'asm/nonmatchings/main/unk_0800010A.s'), false, 'no orphan file');
+  assert.equal(file.text.includes('.align'), false);
+  assert.equal(checkEntries(r, m, entries).ok, true);
+  const index = textLayoutIndex(m);
+  assert.deepEqual(checkEntry(r, m, index, file), []);
+  const unaligned = checkEntry(r, m, index, entry(file.path, file.text.replace('thumb_func_start_local B', 'non_word_aligned_thumb_func_start_local B')));
+  assert.deepEqual(
+    unaligned.map((d) => [d.code, d.addr]),
+    [['E_SELF_CHECK_TEXT', BASE + 0x10a]],
+  );
+  // A pad the file emits again after the macro is a second copy of its bytes.
+  const twice = checkEntry(r, m, index, entry(file.path, file.text.replace('B: @ 0800010C', '\t.2byte 0\nB: @ 0800010C')));
+  assert.equal(twice[0]?.code, 'E_SELF_CHECK_TEXT');
 });

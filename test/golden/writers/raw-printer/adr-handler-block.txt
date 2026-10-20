@@ -41,7 +41,6 @@ sub_080000C0: @ 080000C0
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/main/sub_080000F4.s"
-.include "asm/nonmatchings/main/unk_08000102.s"
 .include "asm/nonmatchings/main/sub_08000104.s"
 .include "asm/nonmatchings/main/sub_0800011C.s"
 .include "asm/nonmatchings/main/unk_08000122.s"
@@ -65,12 +64,6 @@ sub_08000104: @ 08000104
 sub_0800011C: @ 0800011C
 	.2byte 0x2000, 0x3004, 0x4770
 	thumb_func_end sub_0800011C
-==> asm/nonmatchings/main/unk_08000102.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000102
-unk_08000102: @ 08000102
-	.2byte 0x0000
 ==> asm/nonmatchings/main/unk_08000122.s (generated, orphan) <==
 .thumb
 @ bytes between functions: 2 bytes

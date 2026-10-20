@@ -7,7 +7,6 @@
 .include "asm/nonmatchings/main/sub_0800011C.s"
 .include "asm/nonmatchings/main/unk_08000128.s"
 .include "asm/nonmatchings/main/sub_08000130.s"
-.include "asm/nonmatchings/main/unk_08000136.s"
 .include "asm/nonmatchings/main/sub_08000138.s"
 .include "asm/nonmatchings/main/unk_0800013E.s"
 .include "asm/nonmatchings/main/sub_08000148.s"

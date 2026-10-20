@@ -1,7 +1,8 @@
 // The `function` writer (architecture §6.3): asm/nonmatchings/<module>/<Name>.s, one file per function chunk,
 // at the path core/model/paths.ts chunkPaths gives it (the case-fold rule included). Scope: module. The text
 // is the chunk as printChunk prints it, without a preamble: the module's file includes it after its own, and
-// GNU as refuses macros.inc twice; the chunk opens with `.thumb`/`.arm`, so it needs no earlier state.
+// GNU as refuses macros.inc twice; the chunk opens with `.thumb`/`.arm`, so it needs no earlier state. A chunk that
+// folded the zero pad before its entry (core/model/chunks.ts) starts at the pad, which its start macro emits.
 import type { Writer } from '../tree.ts';
 import { chunkFiles } from '../unit-text.ts';
 

@@ -15,6 +15,11 @@
 // item with print/{insn,pool,table,data}.ts. A label inside a data item splits it; one inside any other item
 // cannot be placed and is left out (the model never puts one there; the text-layout check would see it).
 // The raw printer keeps the same chunk openings and closings and prints the body with printRawRange.
+//
+// A function chunk that folded the zero pad before its entry (core/model/chunks.ts) opens with its padding item:
+// both printers leave it to the start macro, whose `.align 2, 0` emits it, and put the chunk's label and macro at
+// the entry. Should a label lie inside the pad (the model then holds it as data), the pad's items are printed
+// before the start macro instead, whose alignment then emits nothing.
 import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { contains, u32, u8 } from '../../../foundation/rom/rom.ts';
@@ -22,6 +27,7 @@ import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
 import { lowerBound, pushAll } from '../../../foundation/util/arrays.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../../foundation/util/sorted.ts';
+import { chunkEntry } from '../../model/chunks.ts';
 import { itemAt } from '../../model/item-table.ts';
 import { runOffsetOf } from '../../model/modules.ts';
 import { compareLabels, resolverFor } from '../../model/resolver.ts';
@@ -108,9 +114,9 @@ function chunkLabels(model: Model, chunk: Chunk, runOffset: number): readonly La
   return out.sort(compareLabels);
 }
 
-/** The chunk's own label: the label named like the chunk at its start, if the model has one. */
-function headLabel(labels: readonly Label[], chunk: Chunk, runOffset: number): Label | undefined {
-  return labels.find((l) => l.addr === chunk.span.start + runOffset && l.name === chunk.name);
+/** The chunk's own label: the label named like the chunk at its entry (run address `at`), if the model has one. */
+function headLabel(labels: readonly Label[], chunk: Chunk, at: Addr): Label | undefined {
+  return labels.find((l) => l.addr === at && l.name === chunk.name);
 }
 
 /** The lines that define `label` at the current address in state `mode`. */
@@ -147,11 +153,14 @@ export function endMacro(mode: Mode): string {
   return mode === 'arm' ? 'arm_func_end' : 'thumb_func_end';
 }
 
-/** The lines before the body: the state, the macro or comment, and the chunk's own label. */
-function opening(chunk: Chunk, head: Label | undefined, runOffset: number): readonly string[] {
+/**
+ * The lines before the body: the state, the lines of a folded pad the start macro does not emit (`prelude`), the
+ * macro or comment, and the chunk's own label at run address `at` (its entry).
+ */
+function opening(chunk: Chunk, head: Label | undefined, at: Addr, prelude: readonly string[]): readonly string[] {
   const mode = modeOf(chunk);
-  const at = chunk.span.start + runOffset;
   const out: string[] = [`.${mode}`];
+  pushAll(out, prelude);
   switch (chunk.kind) {
     case 'function':
     case 'startup':
@@ -240,9 +249,9 @@ function printCode(rom: Rom, item: Item, mode: Mode, icx: InsnContext): PrintedI
   return undefined;
 }
 
-/** The readable body: labels at their addresses, state switches, and each item. */
-function readableBody(cx: BodyContext): readonly string[] {
-  const { rom, model, chunk, runOffset, labels, stats } = cx;
+/** The readable lines of items [first, end) of the chunk: `labels` (theirs, in address order) at their addresses, state switches, and each item. */
+function readableItems(cx: BodyContext, first: number, end: number, labels: readonly Label[]): readonly string[] {
+  const { rom, model, chunk, runOffset, stats } = cx;
   const out: string[] = [];
   const icx = insnContext(cx);
   let mode = modeOf(chunk);
@@ -254,7 +263,7 @@ function readableBody(cx: BodyContext): readonly string[] {
     }
     return at;
   };
-  for (let i = chunk.items.first; i < chunk.items.first + chunk.items.count; i++) {
+  for (let i = first; i < end; i++) {
     const item = itemAt(model.items, i, rom, runOffset);
     const printed = printCode(rom, item, mode, icx);
     if (printed !== undefined && printed.mode !== mode) {
@@ -294,13 +303,15 @@ function readableBody(cx: BodyContext): readonly string[] {
 }
 
 /**
- * The raw body: printRawRange over the chunk with the inner labels and the global labels placed (one per
- * address, an inner label first), each global one declared `.global` before the lines.
+ * The raw lines of items [first, end) of the chunk, over the load range `span` they cover: printRawRange with the
+ * inner labels and the global labels among `labels` placed (one per address, an inner label first), each global
+ * one declared `.global` before the lines. printRawRange leaves a label at the range's start to its caller; with
+ * `labelAtStart` it is printed here, as printRawRange prints the others.
  */
-function rawBody(cx: BodyContext): readonly string[] {
-  const { rom, model, chunk, runOffset, labels, stats } = cx;
+function rawItems(cx: BodyContext, first: number, end: number, span: Span, labels: readonly Label[], labelAtStart: boolean): readonly string[] {
+  const { rom, model, chunk, runOffset, stats } = cx;
   const words = new Set<Addr>();
-  for (let i = chunk.items.first; i < chunk.items.first + chunk.items.count; i++) {
+  for (let i = first; i < end; i++) {
     const kind = model.items.kind[i];
     const start = model.items.start[i] ?? 0;
     if (kind === ItemKind.pool || kind === ItemKind.tableEntry) {
@@ -327,7 +338,9 @@ function rawBody(cx: BodyContext): readonly string[] {
   const rawLabels = sortedEntries(placed).map(([, l]) => l);
   // printRawRange prints the PoC's lines; a global label is declared before them, which GNU as accepts.
   const out = globals.sort(compareCodeUnits).map((n) => `.global ${n}`);
-  pushAll(out, printRawRange(rom, (a) => words.has(a), chunk.span.start, chunk.span.end, rawLabels));
+  const head = labelAtStart ? placed.get(span.start) : undefined;
+  if (head !== undefined) out.push(`${head.name}: @ ${hex(span.start)}`);
+  pushAll(out, printRawRange(rom, (a) => words.has(a), span.start, span.end, rawLabels));
   return out;
 }
 
@@ -349,17 +362,44 @@ export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer |
   const c = model.chunks[chunk];
   if (c === undefined) throw new RomliftInvariantError(`printChunk: no chunk ${chunk} of ${model.chunks.length}`);
   const runOffset = runOffsetOf(c);
+  const entry = chunkEntry(model, c);
   const all = chunkLabels(model, c, runOffset);
-  const head = headLabel(all, c, runOffset);
-  const atStart = c.span.start + runOffset;
+  const at = entry + runOffset;
+  const head = headLabel(all, c, at);
   // The opening defines the chunk's own name; a label of that name elsewhere would be a second definition.
-  const labels = all.filter((l) => l !== head && !(l.name === c.name && l.addr === atStart));
+  const labels = all.filter((l) => l !== head && !(l.name === c.name && l.addr === at));
   const stats = counter();
   const cx: BodyContext = { rom, model, chunk: c, runOffset, labels, stats };
   const printer = printerOf(how);
-  const body = c.kind === 'header' ? headerBody(cx) : printer === 'raw' ? rawBody(cx) : readableBody(cx);
-  const lines = [...opening(c, head, runOffset)];
-  pushAll(lines, body);
+  const lines: string[] = [];
+  if (c.kind === 'header') {
+    pushAll(lines, opening(c, head, at, []));
+    pushAll(lines, headerBody(cx));
+  } else {
+    const pad = leadingPad(model, c, entry, labels, runOffset);
+    const before = labels.filter((l) => l.addr < at);
+    const after = labels.filter((l) => l.addr >= at);
+    const last = c.items.first + c.items.count;
+    const padSpan: Span = { start: c.span.start, end: entry };
+    const bodySpan: Span = { start: entry, end: c.span.end };
+    const prelude = pad.printed ? (printer === 'raw' ? rawItems(cx, c.items.first, pad.end, padSpan, before, true) : readableItems(cx, c.items.first, pad.end, before)) : [];
+    pushAll(lines, opening(c, head, at, prelude));
+    pushAll(lines, printer === 'raw' ? rawItems(cx, pad.end, last, bodySpan, after, false) : readableItems(cx, pad.end, last, after));
+  }
   pushAll(lines, closing(c));
   return { lines, stats: finish(stats) };
+}
+
+/**
+ * The items of a folded chunk's pad, before its entry: [first, end) of model.items. `printed` when they must be
+ * printed before the start macro (a label lies in the pad, so the model holds it as data); otherwise they are the
+ * one padding item the start macro's `.align 2, 0` emits, and print nothing. No pad: end is the chunk's first item.
+ */
+function leadingPad(model: Model, chunk: Chunk, entry: Addr, labels: readonly Label[], runOffset: number): { readonly end: number; readonly printed: boolean } {
+  let end = chunk.items.first;
+  while (end < chunk.items.first + chunk.items.count && (model.items.start[end] ?? entry) < entry) end++;
+  if (end === chunk.items.first) return { end, printed: false };
+  const one = end - chunk.items.first === 1 && model.items.kind[chunk.items.first] === ItemKind.padding;
+  const labelled = labels.some((l) => l.addr - runOffset >= chunk.span.start && l.addr - runOffset < entry);
+  return { end, printed: !one || labelled };
 }

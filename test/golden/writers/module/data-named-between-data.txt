@@ -3,7 +3,6 @@
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/main/sub_080000F4.s"
-.include "asm/nonmatchings/main/unk_08000102.s"
 .include "asm/nonmatchings/main/sub_08000104.s"
 .include "asm/nonmatchings/main/unk_08000108.s"
 .include "asm/nonmatchings/main/sub_08000118.s"

@@ -46,6 +46,7 @@ export {
   SYMBOLS_PATH,
 } from '../core/model/paths.ts';
 export { buildModel } from '../core/model/model.ts';
+export { chunkEntry } from '../core/model/chunks.ts';
 export { encodeModel, MODEL_JSON_SCHEMA } from '../core/model/codec.ts';
 export { ModelCodes } from '../core/model/codes.ts';
 export type { ModelCode } from '../core/model/codes.ts';
