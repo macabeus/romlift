@@ -1,5 +1,6 @@
-// Confirm mode: the listed entries are functions from round 0; a listed entry that fails validity is
-// kept and reported; a discovery beyond the list is reported and claims nothing; extents are cut.
+// Confirm mode: the listed entries are functions from round 0; a listed entry whose seed asks for validation
+// and fails validity is kept and reported, one that does not ask is taken unchecked; a discovery beyond the
+// list is reported and claims nothing; extents are cut.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -41,7 +42,7 @@ function run(seeds: readonly Seed[]) {
 const seed = (entry: number, extra: Partial<Seed> = {}): Seed => ({ entry, mode: 'thumb', rule: 'seed.listed', ...extra });
 
 test('listed entries are the functions; an unlisted callee is reported and claims nothing', () => {
-  const result = run([seed(A), seed(B)]);
+  const result = run([seed(A), seed(B, { validate: true })]);
   assert.equal(result.mode, 'confirm');
   if (result.mode !== 'confirm') return;
   assert.deepEqual(result.functions.map((f) => [f.entry, f.origin]), [
@@ -55,6 +56,27 @@ test('listed entries are the functions; an unlisted callee is reported and claim
     ['W_LISTED_INVALID', B],
     ['W_UNLISTED_FUNCTION', C],
   ]);
+});
+
+test('a listed entry without validate is taken unchecked: no W_LISTED_INVALID, no listedInvalid row, still listed', () => {
+  const unchecked = run([seed(A), seed(B)]);
+  const checked = run([seed(A), seed(B, { validate: true })]);
+  assert.equal(unchecked.mode, 'confirm');
+  assert.equal(checked.mode, 'confirm');
+  if (unchecked.mode !== 'confirm' || checked.mode !== 'confirm') return;
+  assert.deepEqual(unchecked.listedInvalid, []);
+  assert.deepEqual(unchecked.diagnostics.map((d) => [d.code, d.addr]), [['W_UNLISTED_FUNCTION', C]]);
+  assert.deepEqual(unchecked.functions.map((f) => [f.entry, f.origin]), [
+    [A, 'listed'],
+    [B, 'listed'],
+  ]);
+  // Only the check's own record differs: functions, claims, rejections and the unlisted finding are the same.
+  assert.deepEqual(unchecked.functions, checked.functions);
+  assert.deepEqual(unchecked.claims, checked.claims);
+  assert.deepEqual(unchecked.rejections, checked.rejections);
+  assert.deepEqual(unchecked.unlisted, checked.unlisted);
+  assert.deepEqual(checked.listedInvalid.map((l) => [l.entry, l.rejection.rule]), [[B, 'valid.dense']]);
+  assert.deepEqual(checked.diagnostics.map((d) => d.code).filter((c) => c === 'W_LISTED_INVALID'), ['W_LISTED_INVALID']);
 });
 
 test('an extent is the listed size, else the reading cut at the next listed entry that is not a label', () => {
@@ -90,7 +112,7 @@ test('a label is no walk boundary: the function around it reads through it, as d
   assert.deepEqual(ends([seed(A), seed(A + 2)]), [2, 4]);
 });
 
-test('compareSeeds is a total order: entry, Thumb first, rule, name, size, then label', () => {
+test('compareSeeds is a total order: entry, Thumb first, rule, name, size, label, then validate', () => {
   const base: Seed = { entry: A, mode: 'thumb', rule: 'seed.listed' };
   const ordered: readonly Seed[] = [
     base,
@@ -99,6 +121,7 @@ test('compareSeeds is a total order: entry, Thumb first, rule, name, size, then 
     { ...base, name: 'b', size: 4 },
     { ...base, name: 'b', size: 8 },
     { ...base, name: 'b', size: 8, label: true },
+    { ...base, name: 'b', size: 8, label: true, validate: true },
     { ...base, rule: 'seed.override' },
     { ...base, mode: 'arm' },
     { ...base, entry: B },

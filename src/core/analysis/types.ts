@@ -159,6 +159,13 @@ export interface Seed {
   readonly name?: string;
   readonly size?: number;
   readonly label?: boolean;
+  /**
+   * The confirm run checks this listed entry with the valid.* rules: a failure is recorded in `listedInvalid`
+   * and raises W_LISTED_INVALID (the entry is listed either way). Set for a `[functions]` entry another source
+   * proposed (one with `from`: legacy, evidence, signatures); absent for one the analysis or a person wrote
+   * (no `from`, architecture §6.5), which the run takes without the check (phase-3.md Q5 c, D74).
+   */
+  readonly validate?: true;
 }
 
 export interface OverrideFact {

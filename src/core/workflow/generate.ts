@@ -64,7 +64,10 @@ function defaultProfile(): CompilerProfile {
   return profile;
 }
 
-/** The seeds of a confirm run: every [functions] entry as `seed.listed`, with its name, size and label, by address. */
+/**
+ * The seeds of a confirm run: every [functions] entry as `seed.listed`, with its name, size and label, by address;
+ * an entry with `from` (another source's proposal, §6.5) is validated (`validate: true`), one without is not.
+ */
 export function listedSeedsOf(config: RomliftConfig): readonly Seed[] {
   return sortedEntries(config.functions).map(
     ([entry, f]): Seed => ({
@@ -74,6 +77,7 @@ export function listedSeedsOf(config: RomliftConfig): readonly Seed[] {
       name: f.name,
       ...(f.size === undefined ? {} : { size: f.size }),
       ...(f.label === true ? { label: true } : {}),
+      ...(f.from === undefined ? {} : { validate: true }),
     }),
   );
 }
