@@ -5,9 +5,11 @@
 // The command (architecture §8.5, the phase-3 extension of bench speed; aligned by the phase-3 lead, D62):
 //   npm run bench -- speed --json   exit 0; the last stdout line is
 //   {schema: 'romlift/bench-speed@1',
+//    runs: {calibration: 5, analysis: 9, emission: 5},
 //    calibration: {cpuMs, baselineCpuMs, ratio},
 //    roms: [{name, analysisCpuMs, wallMs, baselineCpuMs, generateCpuMs?, initCpuMs?}]}
-//   generateCpuMs and initCpuMs are required for pokeemerald.
+//   generateCpuMs and initCpuMs are required for pokeemerald. Since D76 b (g2.speed's answer) analysisCpuMs is the
+//   median of nine runs; generateCpuMs and initCpuMs stay the median of five, so this gate is unchanged.
 import { gate, type ExecResult } from './gate.ts';
 
 interface SpeedRom {

@@ -63,7 +63,7 @@ test('speed.json: parsed strictly, and raised with the measured ROMs replaced an
   const base = parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 100 }, roms: { sa3: { analysisCpuMs: 900 }, fe7j: { analysisCpuMs: 800 } } }, 'x');
   assert.throws(() => parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 0 }, roms: {} }, 'x'), /calibration\.cpuMs must be a positive number/);
   assert.throws(() => parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 1 }, roms: { a: {} } }, 'x'), /roms\.a\.analysisCpuMs/);
-  const report: SpeedReport = { schema: 'romlift/bench-speed@1', calibration: { cpuMs: 123.456, baselineCpuMs: 100, ratio: 1.23 }, roms: [{ name: 'fe7j', analysisCpuMs: 700.04, wallMs: 701, baselineCpuMs: 800 }] };
+  const report: SpeedReport = { schema: 'romlift/bench-speed@1', runs: { calibration: 5, analysis: 9, emission: 5 }, calibration: { cpuMs: 123.456, baselineCpuMs: 100, ratio: 1.23 }, roms: [{ name: 'fe7j', analysisCpuMs: 700.04, wallMs: 701, baselineCpuMs: 800 }] };
   const raised = raisedBaseline(base, report);
   assert.deepEqual(raised, { schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 123.46 }, roms: { fe7j: { analysisCpuMs: 700.04 }, sa3: { analysisCpuMs: 900 } } });
   assert.deepEqual(Object.keys(raised.roms), ['fe7j', 'sa3']);
@@ -83,8 +83,10 @@ test('bench speed --json prints the frozen shape, never writes speed.json, and t
     // Without a baseline the ratchet cannot hold: exit 1, baselines 0.
     assert.equal(await main(['speed', '--json'], cx, io, deps), 1);
     const first = JSON.parse(io.lines.at(-1) ?? '') as SpeedReport;
-    assert.deepEqual(Object.keys(first), ['schema', 'calibration', 'roms']);
+    assert.deepEqual(Object.keys(first), ['schema', 'runs', 'calibration', 'roms']);
     assert.equal(first.schema, 'romlift/bench-speed@1');
+    // The owner's answer to Q2 of phase-4.md (D76 b): each ROM's analysis is the median of nine runs.
+    assert.deepEqual(first.runs, { calibration: 5, analysis: 9, emission: 5 });
     assert.deepEqual(Object.keys(first.calibration), ['cpuMs', 'baselineCpuMs', 'ratio']);
     assert.deepEqual(first.calibration.baselineCpuMs, 0);
     assert.deepEqual(first.calibration.ratio, 0);

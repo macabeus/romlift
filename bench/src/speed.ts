@@ -1,7 +1,8 @@
 // `bench speed [--only <rom>] [--json] [--write-baseline]` (architecture §8.4 "Speed", §9.3, D41): one
-// ROM at a time, in this process, no workers. Per ROM a warm-up run, then the median CPU time of five
-// (process.cpuUsage), the wall time for information. A fixed calibration workload is measured the same
-// way, so the ratchet against bench/baseline/speed.json scales by the ratio of this machine to the one
+// ROM at a time, in this process, no workers. Per ROM a warm-up run, then the median CPU time of nine
+// (process.cpuUsage; nine since the owner's answer to Q2 of phase-4.md, "Median of more runs", D76 b; five
+// before), the wall time for information. A fixed calibration workload is measured the same way over five
+// runs, so the ratchet against bench/baseline/speed.json scales by the ratio of this machine to the one
 // that wrote it: a ROM passes when its CPU time is at most 1.5 x its baseline x the ratio. The command
 // never writes speed.json; only the phase lead raises it, with --write-baseline (D43).
 //
@@ -28,7 +29,13 @@ export const SPEED_SCHEMA = 'romlift/bench-speed@1';
 export const SPEED_BASELINE_SCHEMA = 'romlift-bench/speed@1';
 /** The ratchet of D41: the median CPU time may be at most this multiple of the baseline (calibrated). */
 export const SPEED_RATCHET = 1.5;
+/** The measured runs of the calibration and of each emission timing (g3.speed-budget). */
 export const SPEED_RUNS = 5;
+/**
+ * The measured runs of each ROM's analysis, whose median g2.speed holds to the ratchet: nine, by the owner's answer to
+ * Q2 of phase-4.md ("Median of more runs", D76 b), for sa2's headroom; the ratchet and speed.json are unchanged.
+ */
+export const ANALYSIS_SPEED_RUNS = 9;
 
 /** bench/baseline/speed.json: the calibration's CPU time and each ROM's median analysis CPU time on the machine that wrote it. */
 export interface SpeedBaseline {
@@ -52,6 +59,8 @@ export interface SpeedRom {
 /** The --json line (frozen by test/gates/g2.speed.test.ts). */
 export interface SpeedReport {
   readonly schema: typeof SPEED_SCHEMA;
+  /** The measured runs behind each median (D76 b): g2.speed requires `analysis` to be ANALYSIS_SPEED_RUNS. */
+  readonly runs: { readonly calibration: number; readonly analysis: number; readonly emission: number };
   /** ratio = cpuMs / baselineCpuMs; 0 without a baseline. */
   readonly calibration: { readonly cpuMs: number; readonly baselineCpuMs: number; readonly ratio: number };
   readonly roms: readonly SpeedRom[];
@@ -230,7 +239,7 @@ export async function benchSpeed(cx: BenchContext, options: SpeedOptions): Promi
     const inputs = await readRealInputs(cx, d);
     let times: MedianTimes;
     try {
-      times = medianTimes(() => options.runner.analyze(inputs.rom, profile, discoverOptions(), tuning));
+      times = medianTimes(() => options.runner.analyze(inputs.rom, profile, discoverOptions(), tuning), ANALYSIS_SPEED_RUNS);
     } catch (error) {
       throw new BenchError(`${d.name}: the analysis failed: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -245,7 +254,8 @@ export async function benchSpeed(cx: BenchContext, options: SpeedOptions): Promi
     }
     roms.push({ ...analysis, ...emission });
   }
-  const report: SpeedReport = { schema: SPEED_SCHEMA, calibration: { cpuMs: calibration.cpuMs, baselineCpuMs: baselineCalibration, ratio }, roms };
+  const runs = { calibration: SPEED_RUNS, analysis: ANALYSIS_SPEED_RUNS, emission: SPEED_RUNS };
+  const report: SpeedReport = { schema: SPEED_SCHEMA, runs, calibration: { cpuMs: calibration.cpuMs, baselineCpuMs: baselineCalibration, ratio }, roms };
   if (options.writeBaseline === true) {
     await writeText(speedBaselinePath(cx), prettyJson(raisedBaseline(baseline, report)));
     log('wrote bench/baseline/speed.json (the phase lead commits it)');
