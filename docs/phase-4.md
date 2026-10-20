@@ -169,7 +169,9 @@ day he took two scope decisions for the later phases ("The owner's scope decisio
 **Answered** (D76 a): **"Only entries with `from`"** (option a). The confirm run validates only `[functions]` entries
 that carry a `from` key; entries without `from` are taken without the valid.* rules. Consequence, recorded as a
 limitation ("Known limitations"): a hand-added entry without `from` that fails validity no longer warns
-`W_LISTED_INVALID`. Applied as `p4-confirm-listed` built it; no code changed. The facts below cite `g5.import-legacy`,
+`W_LISTED_INVALID`. Applied as `p4-confirm-listed` built it in `generate`, `model`, `verify` and `explain`; fix round 2
+applied it to `analyze --update`'s confirm run too, which had still validated every listed entry discover no longer
+found (D77 e, architecture-a0-1), so the consequence holds without exception. The facts below cite `g5.import-legacy`,
 which the owner's scope decisions drop; nothing in phase 4 depends on it.
 
 The owner's answer to phase-3 Q5 (D68 e) asks that the confirm run stop re-validating the functions discover listed, so
@@ -207,7 +209,9 @@ each ROM over 9 serial runs instead of 5 and takes the median; the limits (1.5 �
 `bench/baseline/speed.json` are unchanged. Applied in `bench/src/speed.ts` (`ANALYSIS_SPEED_RUNS`; the calibration and
 `g3.speed-budget`'s emission timings stay five), in `bench speed --json`'s `runs` member, which the gate requires to say
 nine, and stated in `test/gates/g2.speed.test.ts`, roadmap.md and architecture §8.4, §8.5 and §13. If sa2 still fails
-at the landing run, that is a new owner question, not a retry.
+at the landing run, that is a new owner question, not a retry. Fix round 2 (D77 f, g): `g3.speed-budget`'s 3 s analysis
+budget, which at the landing read the same nine-run median, reads `budgetAnalysisCpuMs`, the median of the first five
+of the nine runs, as many as before; and the run counts are the samples measured, which `g2.speed` requires per ROM.
 
 Roadmap "Carried from phase 3" asks the owner, before phase 4's landing run, whether to re-baseline or to take the
 median of more runs: sa2's `g2.speed` sat at about 90 to 100% of its limit at `main` (phase-3.md, "Review",
@@ -368,7 +372,15 @@ count them.
   accepts `-S` (BusyBox or Alpine, GNU coreutils before 8.30 cannot start it; `node dist/cli/main.js` runs uncapped);
   the unit test of the built launcher's first line holds the line.
 - **Authorised by the owner** (Q1, "Only entries with `from`", D76 a): a `[functions]` entry without `from` is taken
-  without the valid.* rules, so one added by hand that fails validity no longer warns `W_LISTED_INVALID`.
+  without the valid.* rules, so one added by hand that fails validity no longer warns `W_LISTED_INVALID`, in every
+  confirm run, `analyze --update`'s included since D77 e.
+- Until phase 6's rename command (D77 a): renaming or moving a function whose C you wrote needs the C renamed or moved
+  by hand; `generate` refuses the TOML edit alone (`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`) and writes nothing,
+  and a renamed `c` module leaves its old `src/<module>.c` unbuilt (`W_C_FILE_UNUSED`). The scaffold's `AGENTS.md`
+  says so.
+- `analyze --update --write` does not check the patched config's module borders (architecture §6.2, D77 k): a newer
+  discover's unlisted function whose extent covers a `c` module's start is added, and `generate` then refuses the TOML
+  with `E_MODULE_BORDER` (not reproduced; carried to phase 6 with architecture-r1-3).
 - **Authorised by the owner** (Q6, "Known limitation", D76 e): `generate` after `init` raises `W_UNLISTED_FUNCTION` on
   tmc (1) and the doubled pokeemerald ROM (161), the same root as tmc's accepted confirm/discover differences (D61 e).
 - **Authorised by the owner** (Q7, "Keep as orphans", D76 f): a 0x46C0 nop pad stays an orphan file with its own
@@ -661,3 +673,34 @@ from phase 4"), since each changes code with no defect behind it and phase 6 rew
 | architecture-r1-6 | minor | **Carried to phase 6**: one agbcc pin check (`agbccCacheCurrent`, or one function with a stated policy for an unstamped prebuilt) and one `readAgbccPin` for e2e.ts and the bench; D75's and this record's wording ("the agbcc pin check is the bench's") is corrected here: the e2e helper still re-implements it. |
 | architecture-r1-7 | minor | **Fixed in part**: `test/unit/util/line-diff.test.ts` and `test/unit/config/rom-sha1.test.ts` are new. Carried to phase 6: moving the `initDirVerdict`/`replacedProblems` and project-plan tests out of `read-inputs.test.ts`, and a `test/unit/workflow/c-stubs.test.ts`. |
 | architecture-r1-8 | minor | **Fixed in part**: `projectRomProblems` deleted (its callers and the public barrel use `romSha1Problems`). Carried to phase 6: removing `checkEntry`, which thirty text-layout tests call; a one-entry `checkEntries` adds the stream-level diagnostics those tests do not expect, so it needs a test helper of its own. |
+
+### Fix round 2 (the review of the landing run at `6e5ccd1`)
+
+The first review after the owner's answers (D76): twenty findings, three majors and seventeen minors. Every major is
+fixed, every minor is fixed or fixed with a carried remainder; no fix needs a gate change the owner has not
+authorised, so no owner question is raised. The decision is D77. Commits on `phase-4` after `6e5ccd1`: `b2f1d1c` (the
+product fixes), `c3a6a25` (bench speed and the speed gates), and this record's.
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-a0-1 | major | **Fixed** (`b2f1d1c`, D77 a). `E_C_STALE_DEFINITION` (a definition the module no longer has where a missing stub goes), `E_C_DEFINITION_MOVED` (a definition the TOML gives another module), both errors, so `generate` writes nothing instead of leaving `make` a function defined twice; `W_C_FILE_UNUSED` for a `src/*.c` of no module. The scaffold's `AGENTS.md` says decompiled C is renamed or moved by hand until phase 6's rename; recorded under "Known limitations". Tests: the planner's unit tests, `test/unit/workflow/c-stubs.test.ts`, and `test/unit/cli/generate.test.ts` (a decompiled function renamed in the TOML alone exits 1 and changes no file; with its C renamed too, generate passes and the file defines it once). |
+| correctness-a0-2 | major | **Fixed** (`b2f1d1c`, D77 b). The outermost conditional regions are tracked; a stub goes after the region's `#endif` or before its `#if`, never inside; an unclosed region leaves no place inside or after it (`E_C_STUB_UNPLACED`). Tests: the NONMATCHING pattern in the planner's tests and through `generate` in `test/unit/cli/generate.test.ts`. |
+| architecture-a0-1 | major | **Fixed** (`b2f1d1c`, D77 e). `analyze --update`'s confirm run seeds through `listedSeedsOf` (`updateSeeds` is gone), so every confirm run validates only entries with `from`, as the owner's answer to Q1 says; it applies the answer, so it is not put to the owner. D76 a and the limitation say so; architecture §4 names the rule and its one source. |
+| gate-honesty-a0-1 | minor | **Fixed** (`c3a6a25`, D77 f): the first option. `g3.speed-budget` reads `budgetAnalysisCpuMs`, the median of the first five of the nine runs, the measurement it made before D76 b; the gate comment, D76 b, architecture §8.4, §8.5 and §13 say so. No gate change beyond D76 b remains, so no owner question. |
+| gate-honesty-a0-2 | minor | **Fixed** (`c3a6a25`, D77 g): the counts are the samples measured (`analysisRuns` per ROM, `runs.analysis` the fewest), and `g2.speed` requires nine per ROM. |
+| gate-honesty-a0-3 | minor | **Fixed** (`b2f1d1c`, `c3a6a25`, this record): AGENTS.md's two rows, `bench/src/families.ts`'s summary (and its unit test) and `bench/src/objdiff.ts` point to phase 6 (D76 g). |
+| gate-honesty-a0-4 | minor | **Fixed** (this record): D76's consequences say Q5 changed the scaffold templates and golden. |
+| correctness-a0-3 | minor | **Fixed** (`b2f1d1c`, D77 c): the tokenizer skips a leading U+FEFF; no edit moves it. Unit test with a BOM file. |
+| correctness-a0-4 | minor | **Fixed** (`b2f1d1c`, D77 d): `generate --out` writes the C files as generated files of that tree (manifest-listed, rewritten by a later run); a unit test runs `--out` twice across a rename. |
+| correctness-a0-5 | minor | **Fixed** (`b2f1d1c`): the templates run the other commands as `node /path/to/romlift/dist/cli/main.js generate`; the scaffold golden is updated. |
+| correctness-a0-6 | minor | **Fixed** (this record, D77 e): architecture §4 says only an entry with `from` is validated and one without never warns. |
+| correctness-a0-7 | minor | **Fixed** (`b2f1d1c`, D77 a): every unplaced name is `E_C_STUB_UNPLACED` (an error, so nothing is written); the last stub of a shared line takes the blanks before it (the probe now gives `a);\nINCLUDE_ASM(…, c);\n`). |
+| architecture-a0-2 | minor | **Fixed** (`b2f1d1c`, D77 h): `NONMATCHINGS_ROOT`, `nonmatchingDir`, `chunkFileOf` and `INCLUDE_ASM_HEADER_PATH` moved to `foundation/util/project-files.ts`, the recorded exception; architecture §2 says so. |
+| architecture-a0-3 | minor | **Fixed** (`b2f1d1c`, D77 h): one `nonmatchingDir` (`includeAsmDir` is its alias), one chunk-file join, `ROMLIFT_RENDERED_TARGETS` from the constants. |
+| architecture-a0-4 | minor | **Fixed in the records** (this record, D77 k): architecture §6.2 says `legalBorders` has no caller and records the `analyze --update` border case as a limitation (not reproduced); the `borders.ts` docstring is corrected; r1-3's one owner of the rule stays carried to phase 6, with this added to the carry. |
+| architecture-a0-5 | minor | **Fixed** (`b2f1d1c`, D77 l): `files` is a readonly array sorted by path; the c-stubs test holds the JSON round trip. |
+| architecture-a0-6 | minor | **Fixed** (this record, D77 k): the seven modules in architecture §2, the dropped legacy and trace modules marked, §6.2 names `initConfigOf`; the private helper is `configBeforeSerialising`. |
+| architecture-a0-7 | minor | **Fixed** (`b2f1d1c`, D77 i): `core/verify/c-stub.ts`'s problem text ends "(build decompiled C with make)"; `text-layout.ts` and the listed comments point to phase 6; the ASSERT text stays carried. |
+| architecture-a0-8 | minor | **Fixed** (`b2f1d1c`, D77 j): `writeInitProject` reads the digests under the lock and refuses with `E_DIR_NOT_EMPTY` (a unit test changes romlift.toml between two writes); the shared CLI helpers are in `analysis-records.ts`. The digests are computed by the command, since core never hashes. |
+| architecture-a0-9 | minor | **Fixed** (this record): phase 6 enters after phase 4, 6.0 depends on phase 4, 6.C's gba-kit items are marked dropped by D76 g. |
+| architecture-a0-10 | minor | **Fixed** (this record): the `DECOMP_YAML_NAMES` re-export added to r1-2's carry; r1-7's carry no longer lists the c-stubs test, which landed. |

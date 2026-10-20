@@ -807,7 +807,7 @@ links (`g5.objdiff`, D34, D68 a); every earlier gate still passes.
 
 ## Phase 6: Evidence
 
-Entry: phase 5 landed. Branch `phase/6-evidence`. Six components: 6.0, then 6.A–6.D in parallel, then 6.I.
+Entry: phase 4 landed (phase 5 is skipped, D76 g). Branch `phase/6-evidence`. Six components: 6.0, then 6.A–6.D in parallel, then 6.I.
 Signature files stay local and gitignored unless the owner decides otherwise (D40). Since the owner skipped phase 5
 (D76 g), phase 6 takes rename and the reconciler, the `expected/` and `objdiff.json` writers, the C data ranges and the
 objdiff gate from phase 5, drops the gba-kit trace integration, records both decisions and rewrites this plan; its
@@ -836,8 +836,18 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
 - **architecture-r1-6**: `test/helpers/e2e.ts` calls one shared agbcc pin check (`agbccCacheCurrent`, or one function
   with a stated policy for an unstamped prebuilt) and reads the pin through one `readAgbccPin`.
 - **architecture-r1-7's remainder**: move `initDirVerdict`/`replacedProblems` tests to
-  `test/unit/workflow/init.test.ts` and the project-plan tests to `test/unit/write-plan/project-plan.test.ts`; add
-  `test/unit/workflow/c-stubs.test.ts`.
+  `test/unit/workflow/init.test.ts` and the project-plan tests to `test/unit/write-plan/project-plan.test.ts`
+  (`test/unit/workflow/c-stubs.test.ts` landed in fix round 2, D77).
+- **architecture-r1-2, also**: `src/shell/project/locate.ts` re-exports `DECOMP_YAML_NAMES`, and
+  `shell/project/write-project.ts` takes the three file names from three modules; one import from
+  `foundation/util/project-files.ts` each (architecture-a0-10).
+- **architecture-r1-3, also** (architecture-a0-4): `legalBorders` has no caller in `src`; the model uses `codeLayout`
+  with its own `isLegalStart` and data-start rule, and `analyze --update --write` never checks the patched config's
+  borders. Either it checks the patched config with `planModules` before it offers `--write`, or the limitation
+  recorded in phase-4.md stays (a newer discover's unlisted function whose extent covers a `c` module start is added,
+  and `generate` then refuses the patched TOML with `E_MODULE_BORDER`).
+- **The remaining "phase 5" comments**: code comments that name phase 5 for work phase 6 now does were pointed to
+  phase 6 in fix round 2 (D77 i); the C-data ASSERT text above is the only product text left.
 - **architecture-r1-8's remainder**: remove `checkEntry` from `core/verify/text-layout.ts` (thirty text-layout tests
   call it; a one-entry `checkEntries` adds stream-level diagnostics, so the tests need a helper of their own).
 
@@ -852,7 +862,7 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   `SignatureSpec`, `SignaturePlacement`; trace `EvidenceFact` kinds.
 - **Gated by:** typecheck.
 - **Ports from the PoC:** the schema-2 types of `signatures/build.ts`, as the starting point of schema 3.
-- **Depends on:** phase 5.
+- **Depends on:** phase 4 (phase 5 is skipped, D76 g).
 
 ### 6.A Signature builder and specs
 
@@ -879,6 +889,10 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
 - **Depends on:** 6.0; 6.A for built files.
 
 ### 6.C Trace and code run from RAM
+
+**Dropped in part by D76 g, pending phase 6's rewrite of this plan:** the owner dropped the gba-kit trace integration,
+so `src/shell/trace/gba-kit.ts`, `runTrace`, the CLI `trace` and the gba-kit pull request below are not built, and
+nothing in the plan waits on them; what reads a trace file and maps code run from RAM is phase 6's to re-plan.
 
 - **Owns:** `src/foundation/formats/trace-json.ts`, `src/shell/evidence/read-trace.ts`,
   `src/shell/trace/gba-kit.ts`, `src/cli/commands/trace.ts`, the non-identity `AddressMap` path in

@@ -113,7 +113,8 @@ romlift/
                                     parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59)
       corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
                                     as round-trip corpus, counts only (D54 c, D55)
-      asm/                          dialect.ts (preamble, macros.inc, C-stub texts), statements.ts (parser of the
+      asm/                          dialect.ts (preamble, macros.inc, C-stub texts; their paths are
+                                    util/project-files.ts's, D77 h), statements.ts (parser of the
                                     directive subset romlift emits), layout.ts (lays statements out to bytes)
       formats/                      elf.ts, gnu-map.ts, canonical-json.ts, luvdis-cfg.ts, ldscript-symbols.ts,
                                     thumb-aliases.ts, trace-json.ts
@@ -121,9 +122,11 @@ romlift/
       util/                         hex.ts, sorted.ts, interval-index.ts, csr.ts, min-heap.ts, arrays.ts (pushAll,
                                     lowerBound, spanIndexAt), fold.ts (foldPath), project-path.ts
                                     (isProjectPath: what every emitted, journalled and written path must be),
-                                    line-diff.ts, project-files.ts (the exception: a project's file names and the
-                                    default function name, which core/config, core/model, core/scaffold and the
-                                    shell share, D75 g, D76 h)
+                                    line-diff.ts, project-files.ts (the exception: a project's file names, the
+                                    default function name and the C stubs' project paths, NONMATCHINGS_ROOT,
+                                    nonmatchingDir, chunkFileOf and INCLUDE_ASM_HEADER_PATH, which asm/dialect.ts,
+                                    core/config, core/model, core/reconcile, core/scaffold and the shell share,
+                                    D75 g, D76 h, D77 h)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -139,11 +142,12 @@ romlift/
       layout/                       types.ts, borders.ts (core/model's one entry; it re-exports the rest), align.ts,
                                     asm-only.ts, entries.ts, refs.ts, tiling.ts, infer-modules.ts
       evidence/                     facts.ts, merge.ts, codes.ts
-      legacy/                       facts.ts (legacy files to evidence facts), renames-toml.ts
+      legacy/                       facts.ts (legacy files to evidence facts), renames-toml.ts (dropped by D76 g with
+                                    legacy import; phase 6 rewrites the plan)
       signatures/                   schema.ts, spec.ts, extract.ts, match.ts, resolve.ts, policy.ts, propose.ts, codes.ts
         rules/                      index.ts + one file per sig.* placement rule
       config/                       schema.ts, keys.ts, parse.ts, serialize.ts, patch.ts, compilers.ts,
-                                    decomp-yaml.ts, codes.ts
+                                    decomp-yaml.ts, rom-sha1.ts (romSha1Problems, E_ROM_SHA1_MISMATCH), codes.ts
       model/                        types.ts, item-table.ts (ItemTable builder, itemAt), resolver.ts (labels per
                                     module, wordValueOf), paths.ts (the paths writers and checks share), segments.ts,
                                     printing-cache.ts, items.ts, chunks.ts, modules.ts, labels.ts, names.ts,
@@ -157,26 +161,32 @@ romlift/
         writers/                    one file per WriterId (§6.3)
       verify/                       tiling.ts, reencode.ts, module-size.ts, text-layout.ts, link-scripts.ts (ldscript.txt
                                     and symbols.ld), text-error.ts, paths.ts, toolchain.ts (the assemble and link
-                                    verdicts on the toolchain's bytes), report.ts, codes.ts
-      write-plan/                   types.ts, plan-writes.ts, manifest.ts, journal.ts, codes.ts
+                                    verdicts on the toolchain's bytes), c-stub.ts (a C unit's INCLUDE_ASM statements,
+                                    read for the text-layout and link checks), report.ts, codes.ts
+      write-plan/                   types.ts, plan-writes.ts, manifest.ts, journal.ts, project-plan.ts (the write
+                                    state of a project or a fresh tree, D75 k), codes.ts
       scaffold/                     render.ts, vars.ts
       workflow/                     doctor.ts (phase 1: the doctor's checks, corpus threshold and verdict, D55),
-                                    types.ts, discover.ts, explain.ts, config-from-discover.ts (D62 c), generate.ts,
-                                    init.ts, analyze-update.ts, rename.ts, import-legacy.ts
+                                    types.ts, discover.ts, explain.ts, config-from-discover.ts (D62 c), init-config.ts
+                                    (initConfigOf, the one path to init's config, D75 f), generate.ts, c-stubs.ts (a
+                                    project's C files reconciled with the model, D75 b, D77 a), init.ts,
+                                    scaffold-diff.ts, analyze-update.ts, codes.ts, rename.ts (phase 6, D76 g),
+                                    import-legacy.ts (dropped by D76 g)
     shell/                          the only code that touches files, processes, hashing or the environment
       codes.ts                      the shell's diagnostic codes
       hash.ts                       sha1/sha256 via node:crypto, incremental
       fs.ts                         listDir (sorted by code unit), atomic write (temp and rename)
       rom.ts                        readRom: a ROM file read, hashed and wrapped (D59)
       project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts, disk-state.ts,
-                                    fresh-tree.ts (writeFreshTree), spelling.ts (case-only renames on a
-                                    case-insensitive file system)
+                                    fresh-tree.ts (writeFreshTree), write-project.ts (generate's and init's writes
+                                    under the project lock), spelling.ts (case-only renames on a case-insensitive file
+                                    system)
       config/                       load.ts, save.ts
-      evidence/                     read-elf.ts, read-map.ts, read-legacy.ts, read-trace.ts
+      evidence/                     read-elf.ts, read-map.ts, read-legacy.ts (dropped by D76 g), read-trace.ts
       toolchain/                    binutils.ts, doctor.ts, corpus.ts (runCorpus), corpus-inputs.ts (the corpus
                                     inputs digest), link-check.ts, npm.ts (D55)
       signatures/                   build-from-references.ts, locate.ts
-      trace/                        gba-kit.ts (optional peer dependency)
+      trace/                        gba-kit.ts (optional peer dependency; dropped by D76 g, pending phase 6's plan)
     cli/
       main.ts, args.ts, registry.ts, exit-codes.ts
       commands/                     index.ts, lists/<component>.ts (one command list per component), one file per command
@@ -887,8 +897,11 @@ which they are dropped (their verdicts stay memoised) and re-walked when asked f
   TOML's `[functions]` as `seed.listed`, and `isFunction(a)` is true for every listed entry from round
   0. A listed entry's extent is its TOML `size` when given; otherwise its reading under that fixed
   function set, cut at the next listed entry that is not `label = true` (`ModelFunction.source.extent`
-  says which). A listed entry that fails validity is honoured (`W_LISTED_INVALID`, recorded in
-  `listedInvalid`). Harvest and gap rules still run, but their acceptances become `UnlistedFinding`s and
+  says which). Only a listed entry with `from` (another source's proposal, §6.5) is validated
+  (`Seed.validate`, which `listedSeedsOf` sets exactly when the entry has `from`; D68 e, the owner's answer
+  "Only entries with `from`", D76 a); one that fails validity is honoured (`W_LISTED_INVALID`, recorded in
+  `listedInvalid`). An entry without `from` is taken without the valid.* rules and never warns. `generate`,
+  `model`, `verify`, `explain` and `analyze --update`'s confirm run all seed through `listedSeedsOf` (D77 e). Harvest and gap rules still run, but their acceptances become `UnlistedFinding`s and
   `W_UNLISTED_FUNCTION` diagnostics, and claim nothing. A `bl` to an unlisted target is decided by the
   same `bl.*` rules but never creates a function. So a tool upgrade cannot add or drop a split; it can
   only report.
@@ -1259,8 +1272,11 @@ moved past every word the code loads PC-relative beyond it (D63). At or past the
 address is a legal module start too, since no instruction lies there (D75 a): a `data` module the TOML starts above
 the confirm run's data start (after the last listed function is deleted) keeps its start, and the bytes between
 are an orphan chunk of the module before. `legalBorders(rom, analysis)` returns
-them sorted, from the ROM's bytes and no compiler profile (the model has none, D63); the model, `init`,
-`analyze --update` and the TOML patcher all use it.
+them sorted, from the ROM's bytes and no compiler profile (the model has none, D63); it is exported, but no module of
+`src` calls it yet: the model uses `codeLayout`'s borders with its own `isLegalStart` and data-start rule
+(core/model/modules.ts), `init` gets its borders from module inference, and `analyze --update` and the TOML patcher
+never check borders, so a patched config can be refused by `generate` (`E_MODULE_BORDER`; a recorded limitation,
+phase-4.md; one owner of the rule is phase 6's, roadmap.md "Carried from phase 4", D77 k).
 
 **Module inference** (`core/layout/infer-modules.ts`, D20) returns `Proposal`s of kind `module` and
 follows the plan's rule:
@@ -1284,7 +1300,10 @@ startup code inside the cartridge entry's included, so the confirm run reads eve
 D64 a). It
 lives in `core/workflow` because the edge table forbids `core/layout` to import `core/config` (D62 c). In
 phase 3 it is what `generate`, `model` and `verify` run on, and every code module it writes is `asm`; in
-phase 4 `init` serialises the same config, with the agbcc-shaped modules as `c`.
+phase 4 `core/workflow/init-config.ts` `initConfigOf` is the one path to init's config (D75 f): the build name, the
+discover run, configFromDiscover (with the agbcc-shaped modules as `c` and `--module-size`), the serialised TOML and
+that text parsed back, so `init`, `verify --rom`, `model --rom` and the bench all run on what the TOML on disk will
+say.
 
 **Shared by writers and checks** (`core/model/resolver.ts`, `paths.ts`, D62 b). A label lies in the module
 whose run range (a `runs_at` module first), else load span, contains its address; in a module it is visible
@@ -1514,7 +1533,14 @@ position, remove a stub whose function left the TOML, move a stub whose module c
 C order differs from ROM order. The `c-stub` writer calls the same planner on an empty file plus the
 template header (the `core/emit` → `core/reconcile` edge); `generate` runs it over every existing `src/<module>.c`
 and writes its edits as a `reconciled` entry (`core/workflow/c-stubs.ts`, from phase 4: add and remove, a move being
-both, D75 b), so a legal TOML edit of a `c` module leaves a project `make` builds. `rename-tokens.ts` renames identifier tokens
+both, D75 b), so a legal TOML edit of a `c` module leaves a project `make` builds. The planner never inserts a stub
+inside an `#if`/`#ifdef`/`#ifndef` … `#endif` region (it anchors on the region's outer edge), skips a leading byte
+order mark, and refuses what an edit cannot fix, so `generate` writes nothing (D77 a to c): `E_C_STUB_UNPLACED` (no
+safe place: the text ends inside a comment, a literal, a directive or an unclosed `#if`), `E_C_STALE_DEFINITION` (a
+definition the module no longer has where a missing stub goes: the C of a function the TOML renamed) and
+`E_C_DEFINITION_MOVED` (a definition of a function the TOML now gives another module); `W_C_FILE_UNUSED` warns of a
+`src/*.c` that is the source of no module. `generate --out <dir>` writes the C files as generated files of that tree,
+so a second run into it rewrites them (D77 d). `rename-tokens.ts` renames identifier tokens
 only, never comments or strings.
 
 **Data defined in C fails loudly until phase 5** (D21). The phase-4 `ldscript` places only `.text` from
@@ -1815,7 +1841,7 @@ message states the reason, as the working rule requires.
 | Code end | within 16 bytes of the ELF's code end (`bench/src/truth.ts` `elfCodeEnd`): the largest end of its functions, a sized function at addr + size and an unsized one (hand-written asm without `.size`) at the `$d` mapping symbol or typed symbol that closes its last code run before the next typed symbol (an inline pool followed by more of its code does not end it), one convention for every ROM, tuning and sealed, in every scorer, the rescoring of the PoC's own dumps included (the owner's answer to Q5, "Use $d for every ROM", D61 a). The PoC's pinned rows keep the PoC's own convention (`pocCodeEnd`, addr + size): `bench poc-check` compares the rescored row with them as the scorer measures them and checks separately that they carry the PoC's convention | 2 |
 | Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (both family conditions waived by the owner, the fresh-family one by the decision of D60 and the two-families one by the answer to Q4, "Waive both" (D61 b), for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else) | 2 |
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
-| Speed | median CPU time of the analysis, over nine serial runs, ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`; nine since the owner's answer to Q2 of phase 4, D76 b); ≤ 3 s CPU analysis per tuning ROM, `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
+| Speed | median CPU time of the analysis, over nine serial runs, ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`; nine since the owner's answer to Q2 of phase 4, D76 b); ≤ 3 s CPU analysis per tuning ROM (the median of the first five of those runs, the five it was measured over before D76 b, D77 f), `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
 | Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g5.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a; phase 3 records the classified counts) | 3, 5 |
 | Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=1024`, the owner's answer to Q7 of phase-3.md, D72, replacing Q6's 384) with peak RSS below 1,536 MiB, the budget set again from the recorded runs under that cap with a 25% margin (`g3.large-rom`, D68 b, D72 b); the six tuning ROMs and the code-dense doubled ROM are measured under the same cap and recorded; the bin's own commands complete on the synthetic ROM under the cap (`test/local/large-rom-bin.test.ts`, D70 b; not a gate) | 3 |
@@ -1881,7 +1907,7 @@ per-ROM thresholds and "at least two sealed ROMs pass" still decide.
 | Command | Does |
 | --- | --- |
 | `run [--only <rom>] [--scaffold] [--cpu-prof]` | scores each dataset, optionally scaffolds and builds in a temporary directory, writes `results.json` (lead only) and `timings.json`; `--cpu-prof` writes the top self-time functions per ROM |
-| `speed [--only <rom>]` | serial, one ROM at a time, no workers: a warm-up run, then the median of 9 CPU times of the analysis (`process.cpuUsage`; 9 since D76 b, 5 before; the calibration and the emission timings stay the median of 5), wall time for information; compares with `baseline/speed.json` and the calibration ratio; the `--json` line names its run counts (`runs`) |
+| `speed [--only <rom>]` | serial, one ROM at a time, no workers: a warm-up run, then the median of 9 CPU times of the analysis (`process.cpuUsage`; 9 since D76 b, 5 before; the calibration and the emission timings stay the median of 5), wall time for information; compares with `baseline/speed.json` and the calibration ratio; the `--json` line names its run counts (`runs`, the analysis count the fewest samples any ROM measured, `analysisRuns` per ROM, D77 g) and each ROM's `budgetAnalysisCpuMs`, the median of the first five analysis runs, which `g3.speed-budget` reads (D77 f) |
 | `regression [--base <ref\|file>] [--fresh <file>]` | compares two artifacts and their datasets; default base `git merge-base origin/main HEAD`, never HEAD; fails on fewer true positives, a new extent mismatch, a higher raw share, a lower readability share, or a `labels`/`untyped` row added without a `Bench-Exception: <rom> <addr> <reason>` commit trailer |
 | `diff --base <ref\|file>` | prints the rows that moved, newly missed and newly false first |
 | `stale-check` | fails when the source digest differs from the artifact's |
@@ -1943,8 +1969,8 @@ defined. The codes:
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
-| `W_C_ORDER` | `core/reconcile` |
-| `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG` | `core/workflow` (`init`'s verdict on its directory, D75 j; `analyze --update --write` over a changed config, D75 m) |
+| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION` | `core/reconcile` |
+| `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG`, `E_C_DEFINITION_MOVED`, `W_C_FILE_UNUSED` | `core/workflow` (`init`'s verdict on its directory, D75 j, checked under the project lock, D77 j; `analyze --update --write` over a changed config, D75 m; the reconciliation of a project's C files, D77 a) |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |
 | `W_EVIDENCE_CONFLICT` | `core/evidence` |
 | `W_SIGNATURE_CONSTANT` | `core/signatures` |
@@ -2206,7 +2232,7 @@ one is missing.
 | `g2.vocabulary-emitted` | ci | every miss reason and origin is emitted by some rule |
 | `g2.second-profile` | ci | the dummy profile of §4.3 typechecks and runs on every fixture |
 | `g2.held-out` | real (sealed) | the held-out family of §8.4 |
-| `g2.speed` | real | `bench speed` within 1.5 × `baseline/speed.json` (calibrated), each ROM's analysis the median of nine serial runs (D76 b) |
+| `g2.speed` | real | `bench speed` within 1.5 × `baseline/speed.json` (calibrated), each ROM's analysis the median of nine serial runs, nine samples measured per ROM (D76 b, D77 g) |
 | `g2.regression` | ci | `bench regression` against the merge-base passes on the committed artifacts and datasets |
 | `g2.checks-fail` | ci | mutation tests of the classifier, seal, stale-exception and regression reporters (the lockstep reporter was deleted with the oracle, D59) |
 | `g3.self-check` | ci and real | tiling, re-encode and module-size checks pass on every fixture and tuning ROM |
@@ -2216,7 +2242,7 @@ one is missing.
 | `g3.readability` | real | readability shares only increase, on every tuning ROM |
 | `g3.tree-determinism` | ci and real | two processes with a varied environment give one tree digest; no generated file contains the project path; Linux and macOS agree |
 | `g3.golden-writers` | ci | every writer's output on every fixture equals its golden |
-| `g3.speed-budget` | real | the budgets of §9.3 (calibrated) |
+| `g3.speed-budget` | real | the budgets of §9.3 (calibrated); the analysis budget reads the median of the first five of `g2.speed`'s nine runs, as many as before D76 b (D77 f) |
 | `g3.large-rom` | ci | §9.4: under the `romlift` bin's heap cap, 1,024 MiB (D68 b, D72) |
 | `g3.checks-fail` | ci | mutation tests of the four self-checks and of `planWrites` |
 | `g4.e2e-fixtures` | ci | in a directory holding only the fixture ROM, `npx romlift init <rom> && ./setup.sh && make` ends at the SHA-1; the composite fixture's illegal border fails with `E_MODULE_BORDER` |

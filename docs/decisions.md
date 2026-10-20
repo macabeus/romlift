@@ -3122,14 +3122,18 @@ phase 4's documents must follow.
   `W_LISTED_INVALID`. Nothing changes in the code: the default was the answer. Q1's facts cited `g5.import-legacy`'s
   expectation for a legacy entry; with (g) legacy import is dropped, so the `from` entries the confirm run validates
   are the proposals of the sources phase 6 keeps (`sig:<library>@<version>`, `evidence:<id>`) and an entry a user
-  writes with `from`. Nothing in phase 4 depends on `g5.import-legacy`.
+  writes with `from`. Nothing in phase 4 depends on `g5.import-legacy`. (At the landing, `analyze --update`'s confirm
+  run still validated every listed entry discover no longer found, with or without `from`; D77 e applies this answer
+  there too, so the consequence above now holds without exception.)
 - (b) **Q2, sa2's `g2.speed` headroom: "Median of more runs" (option c, a gate change the owner authorises).**
   `g2.speed` measures each tuning ROM's analysis over nine serial runs instead of five and takes the median
   (`ANALYSIS_SPEED_RUNS` in `bench/src/speed.ts`); the limit (1.5 × baseline × calibration ratio) and
   `bench/baseline/speed.json` are unchanged, and the calibration and the emission timings of `g3.speed-budget` stay the
   median of five (the answer names each ROM's runs, nothing else). `bench speed --json` names its run counts (`runs:
-  {calibration: 5, analysis: 9, emission: 5}`), and the gate requires `runs.analysis` to be nine, so a bench that
-  measured fewer cannot pass it. Stated in the gate's source, architecture §8.4, §8.5 and §13, and roadmap.md. If sa2
+  {calibration: 5, analysis: 9, emission: 5}`), and the gate requires `runs.analysis` to be nine. (Two corrections by
+  D77 f and g: at the landing `g3.speed-budget`'s 3 s analysis budget also read the nine-run median, since it shares
+  `analysisCpuMs`, and `runs.analysis` was a constant, not a count of what was measured; since D77 the budget reads
+  the median of the first five runs and the count is measured, so only then does a bench that measured fewer fail.) Stated in the gate's source, architecture §8.4, §8.5 and §13, and roadmap.md. If sa2
   still fails `g2.speed` at the landing run, that is a new owner question, not a retry.
 - (c) **Q3, the `env -S` launcher: "Known limitation" (option a).** The bin's need for an `env` that accepts `-S`
   (BusyBox or Alpine, GNU coreutils before 8.30 cannot start it; `node dist/cli/main.js` runs uncapped) is a release-1
@@ -3168,11 +3172,82 @@ phase 4's documents must follow.
   call; a one-entry `checkEntries` adds the stream-level diagnostics those tests do not expect). Each changes code
   without a defect behind it, and phase 6 reworks the same modules (the reconciler, the C-data ranges).
 
-**Consequences.** Q1, Q3, Q5, Q6 and Q7 change no code; Q2 changes `bench speed` and `g2.speed` (more runs, the same
-limit). The landing procedure followed: `test/gates/phase.json` raised to `{ "landed": 4 }` at `55899d1`, the whole
+**Consequences.** Q1, Q3, Q6 and Q7 change no code; Q5 changes the scaffold's `README.md` and `AGENTS.md` templates
+and the scaffold golden; Q2 changes `bench speed` and `g2.speed` (more runs, the same limit). (Reworded by D77 k; the
+first wording said Q5 changed no code.) The landing procedure followed: `test/gates/phase.json` raised to `{ "landed": 4 }` at `55899d1`, the whole
 closing list of phase-4.md in a fresh git worktree with no local caches, and every command exited 0, `g2.speed` among
 them (sa2 731 of 790 ms over nine runs; phase-4.md, "The closing gate", the owner's answers): phase 4 passes its closing
 gate, and its merge waits for the phase pull request's CI.
+
+## D77. Fix round 2 of phase 4: the review of the landing run after the owner's answers
+
+**Context.** The review of the landing run at `6e5ccd1` (the first after the owner's answers, D76) raised twenty
+findings: three majors (correctness-a0-1, correctness-a0-2, architecture-a0-1) and seventeen minors. This round fixes
+all three majors and every minor but parts that are carried, and re-runs the whole closing list. Nothing here changes a
+gate's verdict rule beyond what the owner authorised: (f) restores what `g3.speed-budget` measured before D76 b, and
+(g) makes `g2.speed` check the nine runs D76 b says it checks.
+
+**Decision.**
+
+- (a) **The reconciliation refuses what its edits cannot fix** (correctness-a0-1, a0-7). Renaming or moving a function
+  whose C the user wrote used to make `generate` exit 0 and `make` fail (the new name's `INCLUDE_ASM` beside the old
+  name's definition: the function twice). Now `planIncludeAsm` raises `E_C_STALE_DEFINITION` (error) for a definition
+  whose name the module does not want, lying where a missing stub goes, and `E_C_STUB_UNPLACED` (error) for a wanted
+  name with no safe place (it was silently dropped); `reconcileStubs` raises `E_C_DEFINITION_MOVED` (error) for a
+  definition of a function the TOML now gives another module, and `W_C_FILE_UNUSED` (warning) for a `src/*.c` that is
+  the source of no module (a renamed `c` module, whose old file `make` silently stopped building). An error makes
+  `generate` write nothing (`writable`). A definition no module wants and no missing stub lands next to (a static
+  helper) is the user's and raises nothing; a stub the user writes by hand holds its name, which is the way past a
+  false `E_C_STALE_DEFINITION`. Rename and move of decompiled C stay manual until phase 6's rename command; the
+  scaffold's `AGENTS.md` says so. The last stub of a shared line now goes with the blanks before it.
+- (b) **No stub inside a preprocessor conditional** (correctness-a0-2). `scanC` records the outermost `#if`/`#ifdef`/
+  `#ifndef` … `#endif` regions; an anchor inside one moves to its outer edge (after the `#endif` line, or before the
+  opening directive and the comments that lead into it); an unclosed region leaves no safe place inside or after it.
+- (c) **A leading byte order mark** (correctness-a0-3) is no token: `tokenizeC` starts after it, with the first line
+  still at its start, and no edit moves the mark off offset 0.
+- (d) **`generate --out <dir>` writes the C files as generated files of that tree** (correctness-a0-4,
+  `outTreeEntries`), recorded in its manifest, so a second run into the same directory rewrites (or deletes) them as it
+  does `asm/`. `init`, the project and the fresh trees of `verify` and the bench are unchanged.
+- (e) **`analyze --update` follows D76 a** (architecture-a0-1, correctness-a0-6). Its confirm run validated every
+  listed entry discover no longer found, a second rule written nowhere; it now seeds through `listedSeedsOf` as
+  `generate` does (`updateSeeds` is gone), so only an entry with `from` is validated in every confirm run. This applies
+  the owner's answer ("the confirm run validates only [functions] entries that carry a `from` key") rather than
+  qualifying it, so it is not put to him. Architecture §4 "Two modes, one driver" says which entries are validated.
+- (f) **`g3.speed-budget` measures what it measured before D76 b** (gate-honesty-a0-1). Its 3 s analysis budget had
+  read `analysisCpuMs`, the nine-run median after D76 b, a change the owner's answer did not name. Each ROM now also
+  reports `budgetAnalysisCpuMs`, the median of the first five of the nine runs (exactly the warm-up and five serial runs
+  of before), which the gate reads. `g2.speed` and the ratchet are D76 b's.
+- (g) **The run counts are measured** (gate-honesty-a0-2). `medianTimes` returns its samples; each ROM reports
+  `analysisRuns`, `runs.analysis` is the fewest any ROM measured and `runs.calibration` the calibration's, and
+  `g2.speed` requires both the report's count and each ROM's to be nine.
+- (h) **The C stubs' project paths live in `foundation/util/project-files.ts`** (architecture-a0-2, a0-3), the
+  recorded exception of D76 h: `NONMATCHINGS_ROOT`, `nonmatchingDir`, `chunkFileOf` and `INCLUDE_ASM_HEADER_PATH`.
+  `foundation/asm/dialect.ts` keeps the dialect texts (the macro file's path stays with the dialect, whose `.include`
+  line is its own text). `includeAsmDir` is an alias of the one `nonmatchingDir`; `includedChunkFile`, `chunkPaths`
+  and `stubName` build on it; `ROMLIFT_RENDERED_TARGETS` takes the two headers' paths from the constants the
+  renderers are keyed by.
+- (i) **Stale "phase 5" text** (architecture-a0-7, gate-honesty-a0-3): the project-mode `verify` problem text ends
+  "(build decompiled C with make)"; the text-layout comment, AGENTS.md (two rows), the readability family summary and
+  the code comments that named phase 5 for work phase 6 now does point to phase 6 (D76 g). The C-data ASSERT text and
+  the scaffold's matching section stay carried (product text with goldens).
+- (j) **`init` checks its own files under the project lock** (architecture-a0-8): the command passes the digests init
+  writes; `writeInitProject` reads the files' digests inside the lock and refuses with `replacedProblems`'
+  `E_DIR_NOT_EMPTY` before writing anything. `refusedExitCode`, `VERIFY_CODES` and `opCounts` moved to
+  `cli/commands/analysis-records.ts`, so no command imports another's.
+- (k) **Records** (gate-honesty-a0-4, architecture-a0-4, a0-6, a0-9, a0-10): D76's consequences say what Q5 changed;
+  architecture §6.2 says who uses `legalBorders` (nobody in `src` yet) and records the `analyze --update` border
+  limitation; architecture §2 lists the phase-4 modules (`init-config.ts`, `c-stubs.ts`, `scaffold-diff.ts`,
+  `rom-sha1.ts`, `core/verify/c-stub.ts`, `project-plan.ts`, `write-project.ts`) and marks what D76 g dropped; §6.2
+  names `initConfigOf`; the private `discoveredConfig` is `configBeforeSerialising`; roadmap.md's phase 6 enters
+  after phase 4 and 6.C's gba-kit items are marked dropped; "Carried from phase 4" gains the `DECOMP_YAML_NAMES`
+  re-export, the `legalBorders` callers and the remaining comments.
+- (l) **`StubReconciliation.files` is a sorted array** (architecture-a0-5), so a GenerateResult survives a JSON round
+  trip as D66 e requires; the views build a local map.
+
+**Consequences.** The known limitations of phase-4.md gain the `analyze --update` border case and the manual rename of
+decompiled C; `test/unit/workflow/c-stubs.test.ts` (architecture-r1-7's remainder, in part) and planner, CLI, analyze
+and write-project tests hold the fixes. The closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The
+closing gate", fix round 2).
 
 ## Review findings index
 
