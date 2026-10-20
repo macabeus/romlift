@@ -49,8 +49,8 @@ ROM, the six tuning ROMs and the doubled ROM. The landing run after Q7's answer 
 whole closing list again unchanged with no gate change, and every command exited 0 at `landed` 3 (`0784b4e`), and the
 phase pull request's CI passed before the merge.
 
-Phase 4 (One shot) passes its closing gate at `landed` 4 ([docs/phase-4.md](docs/phase-4.md)); its merge to `main` waits
-for the phase pull request's CI. The owner answered its questions (D76): `g2.speed` takes the median of nine runs per
+Phase 4 (One shot) passes its closing gate at `landed` 4 ([docs/phase-4.md](docs/phase-4.md)), last re-run after fix
+round 2 (D77) at `cf95b2f`; its merge to `main` waits for the phase pull request's CI. The owner answered its questions (D76): `g2.speed` takes the median of nine runs per
 ROM, and the `env -S` launcher, `ROMLIFT_CLI` until romlift is published, listed entries without `from` taken without
 validation, tmc's `W_UNLISTED_FUNCTION` after `init` and the 0x46C0 nop-pad orphans are recorded limitations. He also
 skipped phase 5: rename, the reconciler, `expected/`, `objdiff.json`, the C data ranges and the objdiff gate move into
