@@ -54,7 +54,7 @@ export type FileEntry =
   | { readonly ownership: 'reconciled'; readonly path: string; readonly baseSha1: string; readonly edits: readonly TextEdit[] };
 
 /**
- * Names defined in src/*.c, derived by the workflow with the reconciler's tokenizer (phase 5 decides matchings).
+ * Names defined in src/*.c, derived by the workflow with the reconciler's tokenizer (phase 6 decides matchings, D76 g).
  * Plain data (D19, architecture §3): a list in code-unit order, which a reader turns into a set where it needs one.
  */
 export interface DecompState {

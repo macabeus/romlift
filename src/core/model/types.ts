@@ -93,7 +93,7 @@ export interface Chunk {
   readonly entry?: Addr;
 }
 
-/** A link unit (§6.2, §6.3). Module.dataStart (the phase-5 C data range) lands with ModuleConfig's in phase 5 (D62). */
+/** A link unit (§6.2, §6.3). Module.dataStart (the C data range) lands with ModuleConfig's in phase 6 (D62, D76 g). */
 export interface Module {
   readonly name: string;
   /** Load addresses; modules tile the ROM in order. */

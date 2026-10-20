@@ -46,7 +46,7 @@ export function readStub(text: string): StubReading {
   }
   if (!header && scan.statements.length > 0) problems.push({ line: scan.statements[0]?.line ?? 1, message: `uses INCLUDE_ASM without \`${HEADER_INCLUDE}\` before it` });
   for (const d of scan.definitions) {
-    problems.push({ line: d.line, message: `defines the function ${d.name === '' ? '(unnamed)' : d.name}; only a stub-only unit is laid out and linked without a compiler (decompiled C is phase 5's)` });
+    problems.push({ line: d.line, message: `defines the function ${d.name === '' ? '(unnamed)' : d.name}; only a stub-only unit is laid out and linked without a compiler (build decompiled C with make)` });
   }
   for (const o of scan.others) problems.push({ line: o.line, message: `holds \`${o.first}…\` at file scope; a stub-only unit holds only INCLUDE_ASM statements` });
   problems.sort((a, b) => a.line - b.line);

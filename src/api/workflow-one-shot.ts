@@ -13,7 +13,7 @@ export type { ReconciledStub, StubReconciliation } from '../core/workflow/c-stub
 export { planChangesNothing, projectPlanInputs } from '../core/write-plan/project-plan.ts';
 export type { ProjectWriteState } from '../core/write-plan/project-plan.ts';
 export { retainedPrefixes } from '../core/model/paths.ts';
-export { analyzeUpdate, unlistedProposals, updateSeeds } from '../core/workflow/analyze-update.ts';
+export { analyzeUpdate, unlistedProposals } from '../core/workflow/analyze-update.ts';
 export { unifiedDiff } from '../foundation/util/line-diff.ts';
 export { explainProject, namePart } from '../core/workflow/explain.ts';
 export type { ExplainName } from '../core/workflow/explain.ts';

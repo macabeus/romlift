@@ -15,7 +15,8 @@ import type { FileEntry } from '../../core/emit/tree.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { SCAFFOLD_ROM_FILE } from '../../core/scaffold/vars.ts';
 import { retainedPrefixes } from '../../core/model/paths.ts';
-import { generatedEntries, projectTreeEntries, reconciledTextsOf } from '../../core/workflow/generate.ts';
+import { generatedEntries, outTreeEntriesOf, projectTreeEntries, reconciledTextsOf } from '../../core/workflow/generate.ts';
+import { replacedProblems } from '../../core/workflow/init.ts';
 import { planChangesNothing, projectPlanInputs } from '../../core/write-plan/project-plan.ts';
 import type { GenerateResult } from '../../core/workflow/generate.ts';
 import { planWrites } from '../../core/write-plan/plan-writes.ts';
@@ -27,7 +28,7 @@ import { sha1Of } from '../hash.ts';
 import { applyWrites } from './apply-writes.ts';
 import { readExecutables } from './disk-state.ts';
 import { withProjectLock } from './lock.ts';
-import { readWriteState } from './read-inputs.ts';
+import { readDigests, readWriteState } from './read-inputs.ts';
 import { restoreCaseRenames } from './spelling.ts';
 
 /** What writing a tree did: the plan (its ops and diagnostics) and whether it was applied. */
@@ -48,13 +49,18 @@ export interface TreeSource {
   readonly extra?: readonly FileEntry[];
   /**
    * The directory is the project whose C files the result reconciled: they are edited in place (reconciled entries,
-   * D75 b). Otherwise (`generate --out`) the directory gets their reconciled texts as files written when absent.
+   * D75 b). Otherwise (`generate --out`) the directory gets their reconciled texts as generated files, rewritten by
+   * a later run into it (D77 d).
    */
   readonly inProject?: boolean;
+  /** The directory is `generate --out`'s: every C file is a generated file there (outTreeEntriesOf, D77 d). */
+  readonly outTree?: boolean;
 }
 
 function* streamOf(source: TreeSource): Generator<FileEntry> {
-  yield* source.inProject === true ? projectTreeEntries(source.rom, source.result, (text) => sha1Of(text)) : generatedEntries(source.rom, source.result);
+  if (source.inProject === true) yield* projectTreeEntries(source.rom, source.result, (text) => sha1Of(text));
+  else if (source.outTree === true) yield* outTreeEntriesOf(source.rom, source.result);
+  else yield* generatedEntries(source.rom, source.result);
   yield* source.extra ?? [];
 }
 
@@ -121,8 +127,8 @@ export interface InitFiles {
 
 /**
  * Writes init's own files into `dir`, each only when it is absent (a project init runs in again holds them unchanged,
- * which the command checked first): the ROM as baserom.gba (copied, the original kept), romlift.toml and decomp.yaml
- * (saveConfig: a temporary file, flushed, renamed).
+ * which writeInitProject checked under the lock): the ROM as baserom.gba (copied, the original kept), romlift.toml and
+ * decomp.yaml (saveConfig: a temporary file, flushed, renamed).
  */
 async function writeInitFiles(dir: string, files: InitFiles): Promise<Diagnostic | undefined> {
   const rom = join(dir, SCAFFOLD_ROM_FILE);
@@ -142,16 +148,23 @@ async function writeInitFiles(dir: string, files: InitFiles): Promise<Diagnostic
 }
 
 /**
- * `init`'s write, under the project lock of `dir` (created when absent): its own files (writeInitFiles), then the
- * tree and the scaffold (planAndApply with `source.extra` the scaffold; setup.sh is written executable).
+ * `init`'s write, under the project lock of `dir` (created when absent): first the digests of init's own files on disk,
+ * which must be absent or what init writes (`wanted`: project path -> sha1; core/workflow/init.ts replacedProblems
+ * decides, E_DIR_NOT_EMPTY), read under the lock so a file changed since the command looked cannot be kept beside a
+ * tree made from another config (D77 j); then its own files (writeInitFiles), then the tree and the scaffold
+ * (planAndApply with `source.extra` the scaffold; setup.sh is written executable).
  */
-export async function writeInitProject(dir: string, files: InitFiles, source: TreeSource, romlift: string): Promise<WriteOutcome> {
+export async function writeInitProject(dir: string, files: InitFiles, source: TreeSource, romlift: string, wanted: ReadonlyMap<string, string> = new Map()): Promise<WriteOutcome> {
   try {
     await mkdir(dir, { recursive: true });
   } catch (error) {
     return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_WRITE', `cannot create ${dir}: ${errorReason(error)}`, { path: dir })] };
   }
   return underProjectLock(dir, async () => {
+    const current = await readDigests(dir, wanted.keys());
+    if (!current.ok) return current;
+    const replaced = replacedProblems(dir, wanted, current.value);
+    if (replaced.length > 0) return { ok: false, diagnostics: replaced };
     const failed = await writeInitFiles(dir, files);
     if (failed !== undefined) return { ok: false, diagnostics: [failed] };
     return planAndApply(dir, source, romlift, false);

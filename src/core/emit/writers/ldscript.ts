@@ -22,7 +22,7 @@
 // A section after a runs_at one names its load address because the location counter is then in run space.
 // Asm and data objects hold only .text. A C unit's object (build/src/<m>.o) has only its .text placed; every other
 // section it has goes into its NOLOAD check section, which the ASSERT requires to be empty, so a C file that defines
-// data fails the link with a message naming it until phase 5 gives modules data ranges (architecture §6.6, D21).
+// data fails the link with a message naming it until phase 6 gives modules data ranges (D76 g; the ASSERT's own text still says phase 5, carried) (architecture §6.6, D21).
 // The check sections hold nothing in a linking tree and NOLOAD loads nothing, so the image is the units' .text.
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { ROM_BASE } from '../../../foundation/rom/rom.ts';

@@ -1,6 +1,6 @@
 // The writers (architecture §6.1 rungs 1 and 2, §6.3, D62, D74): the registry emitTree runs. Module-scoped
 // writers run once per generated module, global ones once; tree.ts freezes the stream order. Phase 3's eight, then
-// phase 4's modules-mk and c-stub; phase 5 adds expected and objdiff.
+// phase 4's modules-mk and c-stub; phase 6 adds expected and objdiff (D76 g).
 import type { Writer } from '../tree.ts';
 import { cStubWriter } from './c-stub.ts';
 import { crt0Writer } from './crt0.ts';

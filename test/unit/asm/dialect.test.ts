@@ -5,14 +5,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { nonmatchingDir } from '../../../src/core/model/paths.ts';
-import {
-  C_STUB_HEADER,
-  DIALECT,
-  INCLUDE_ASM_HEADER,
-  INCLUDE_ASM_HEADER_PATH,
-  includeAsmStatement,
-  NONMATCHINGS_ROOT,
-} from '../../../src/foundation/asm/dialect.ts';
+import { C_STUB_HEADER, DIALECT, INCLUDE_ASM_HEADER, includeAsmStatement } from '../../../src/foundation/asm/dialect.ts';
+import { INCLUDE_ASM_HEADER_PATH, NONMATCHINGS_ROOT } from '../../../src/foundation/util/project-files.ts';
 
 test('includeAsmStatement spells the stub of a chunk file in its module directory', () => {
   assert.equal(includeAsmStatement('main', 'AgbMain'), 'INCLUDE_ASM("asm/nonmatchings/main", AgbMain);');

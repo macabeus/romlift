@@ -1,15 +1,14 @@
 // The analyze --update workflow (architecture §2.1, §6.5, D9, D23), pure: on init's config nothing is proposed and
 // the text is unchanged; an entry deleted by hand comes back as a function proposal (source analysis, no `from`) that
-// planPatch inserts in place, keeping the user's comments; an entry discover no longer finds is validated and, when
-// it fails, reported (W_LISTED_INVALID) and kept; another ROM is refused; a nested discovery is proposed as a label;
+// planPatch inserts in place, keeping the user's comments; a listed entry with `from` is validated and, when it fails,
+// reported (W_LISTED_INVALID) and kept, one without `from` is taken as it is (D76 a, D77 e); another ROM is refused; a nested discovery is proposed as a label;
 // and unifiedDiff renders a patch in `diff -u` form.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { Seed } from '../../../src/core/analysis/types.ts';
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import { serializeConfig } from '../../../src/core/config/serialize.ts';
-import { analyzeUpdate, staleConfigProblems, unlistedProposals, updateSeeds } from '../../../src/core/workflow/analyze-update.ts';
+import { analyzeUpdate, staleConfigProblems, unlistedProposals } from '../../../src/core/workflow/analyze-update.ts';
 import { unifiedDiff } from '../../../src/foundation/util/line-diff.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
@@ -67,30 +66,24 @@ test('another ROM than [rom] sha1 records is E_ROM_SHA1_MISMATCH', () => {
   assert.deepEqual(plan.ok ? [] : plan.diagnostics.map((d) => d.code), ['E_ROM_SHA1_MISMATCH']);
 });
 
-test('an entry the user listed that discover does not find is validated: a failing one is W_LISTED_INVALID and stays listed', () => {
+test('the confirm run validates only listed entries with `from` (D76 a, D77 e): one that fails is W_LISTED_INVALID and stays listed', () => {
   const rom = fixtureRom('far-jump');
   const { config } = project(rom);
-  // The cartridge header's middle is no Thumb function.
-  const functions = new Map(config.functions);
-  functions.set(0x0800_0020, { name: 'NotAFunction', mode: 'thumb', aliases: [] });
-  const withBad = { ...config, functions };
-  const text = serializeConfig(withBad);
-  const plan = analyzeUpdate({ rom, configText: text, config: withBad });
+  // The cartridge header's middle is no Thumb function, and discover does not find it.
+  const withEntry = (from?: string) => {
+    const functions = new Map(config.functions);
+    functions.set(0x0800_0020, { name: 'NotAFunction', mode: 'thumb', aliases: [], ...(from === undefined ? {} : { from }) });
+    return { ...config, functions };
+  };
+  const proposed = withEntry('evidence:trace');
+  const plan = analyzeUpdate({ rom, configText: serializeConfig(proposed), config: proposed });
   assert.ok(plan.ok);
   assert.equal(plan.changed, false);
   assert.ok(plan.diagnostics.some((d) => d.code === 'W_LISTED_INVALID' && d.addr === 0x0800_0020), plan.diagnostics.map((d) => d.code).join(', '));
-});
-
-test('updateSeeds validates exactly the listed entries discover did not find (never a label)', () => {
-  const seeds: Seed[] = [
-    { entry: 0x0800_0100, mode: 'thumb', rule: 'seed.listed' },
-    { entry: 0x0800_0200, mode: 'thumb', rule: 'seed.listed' },
-    { entry: 0x0800_0300, mode: 'thumb', rule: 'seed.listed', label: true },
-  ];
-  assert.deepEqual(
-    updateSeeds(seeds, new Set([0x0800_0100])).map((s) => s.validate === true),
-    [false, true, false],
-  );
+  const byHand = withEntry();
+  const quiet = analyzeUpdate({ rom, configText: serializeConfig(byHand), config: byHand });
+  assert.ok(quiet.ok);
+  assert.ok(!quiet.diagnostics.some((d) => d.code === 'W_LISTED_INVALID'), 'an entry without `from` is taken as it is, found or not');
 });
 
 test('unlistedProposals: found and not listed, with label = true for an entry inside another found extent', () => {

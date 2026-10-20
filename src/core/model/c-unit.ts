@@ -26,7 +26,8 @@
 // same rule as an asm module's file, whose preamble enters Thumb state too (text-layout's unit alignment, D65 a).
 // test/local/c-stub-agbcc.test.ts compiles every emitted stub of two fixtures and klonoa and compares both the text
 // and the object's `.text` with this encoding.
-import { DIALECT, NONMATCHINGS_ROOT } from '../../foundation/asm/dialect.ts';
+import { DIALECT } from '../../foundation/asm/dialect.ts';
+import { chunkFileOf, nonmatchingDir } from '../../foundation/util/project-files.ts';
 import type { Mode } from '../../foundation/rom/span.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import { BUILD_COMPILERS, buildCompilerOf, DEFAULT_BUILD_COMPILER } from '../config/compilers.ts';
@@ -66,7 +67,7 @@ export function stubAssemblyText(chunkFiles: readonly string[]): string {
 
 /** The chunk file `INCLUDE_ASM("<dir>", <name>);` includes. */
 export function includedChunkFile(dir: string, name: string): string {
-  return `${dir}/${name}.s`;
+  return chunkFileOf(dir, name);
 }
 
 /** The chunk files of a C module, in ROM order: what its generated stub includes (one INCLUDE_ASM each). */
@@ -82,7 +83,7 @@ export function stubChunkFiles(model: Pick<Model, 'chunks'>, module: Module): re
 
 /** The base name of a chunk file of `module`, as its INCLUDE_ASM statement names it (`asm/nonmatchings/<m>/<name>.s` → `<name>`). */
 export function stubName(module: string, chunkFile: string): string {
-  const dir = `${NONMATCHINGS_ROOT}/${module}/`;
+  const dir = `${nonmatchingDir(module)}/`;
   const base = chunkFile.startsWith(dir) ? chunkFile.slice(dir.length) : chunkFile;
   return base.endsWith('.s') ? base.slice(0, -2) : base;
 }

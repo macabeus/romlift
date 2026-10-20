@@ -20,7 +20,7 @@ import {
 } from '../../../src/core/scaffold/vars.ts';
 import type { ScaffoldVars } from '../../../src/core/scaffold/vars.ts';
 import { underGeneratedRoot } from '../../../src/core/write-plan/types.ts';
-import { INCLUDE_ASM_HEADER_PATH } from '../../../src/foundation/asm/dialect.ts';
+import { INCLUDE_ASM_HEADER_PATH } from '../../../src/foundation/util/project-files.ts';
 
 const MANIFEST = readFileSync(new URL('../../../templates/MANIFEST.json', import.meta.url), 'utf8');
 const PIN = { url: 'https://github.com/pret/agbcc', commit: 'da598c1d918402c42c0c0d7128ba14567f3175e9' } as const;

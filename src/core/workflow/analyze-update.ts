@@ -4,10 +4,11 @@
 //
 //   1. the discover run of the ROM: every function it finds that [functions] does not list is a function proposal
 //      (source `analysis`, its accepting rule; `label = true` when its entry lies inside another found function's
-//      extent, as configFromDiscover writes it). Only those proposals and the set of found entries outlive the run.
-//   2. the confirm run over the project's config, in which every listed entry discover no longer finds is validated
-//      (`Seed.validate`): one that fails the valid.* rules is reported (W_LISTED_INVALID) and stays listed, since
-//      the TOML decides (D9); an entry discover still finds is taken as it is, as in `generate`.
+//      extent, as configFromDiscover writes it). Only those proposals outlive the run.
+//   2. the confirm run over the project's config, with `generate`'s seeds (listedSeedsOf): under the owner's answer
+//      to Q1 ("Only entries with `from`", D76 a, applied here by D77 e) only a listed entry with `from` is validated
+//      (`Seed.validate`), one that fails the valid.* rules is reported (W_LISTED_INVALID) and stays listed, since the
+//      TOML decides (D9); an entry without `from` is taken as it is, whether discover still finds it or not.
 //
 // planPatch (core/config/patch.ts) turns the proposals into line edits of the TOML text, keeping every comment; a
 // patch it refuses (a table restructured by hand) is the plan's refusal. foundation/util/line-diff.ts renders the
@@ -16,10 +17,9 @@
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import type { Addr } from '../../foundation/rom/span.ts';
 import type { AnalysisCode } from '../analysis/codes.ts';
 import { analyze } from '../analysis/driver/run.ts';
-import type { AnalysisResult, Seed } from '../analysis/types.ts';
+import type { AnalysisResult } from '../analysis/types.ts';
 import { planPatch } from '../config/patch.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import { coveredEntries } from '../layout/borders.ts';
@@ -35,10 +35,9 @@ import type { AnalyzeUpdateInputs, AnalyzeUpdatePlan } from './types.ts';
 /** The report a listed entry that fails validity gets. */
 const LISTED_INVALID: AnalysisCode = 'W_LISTED_INVALID';
 
-/** What the discover run leaves for the update: the proposals and every entry it found. */
+/** What the discover run leaves for the update: the proposals and its diagnostics. */
 interface Discovered {
   readonly proposals: readonly Proposal[];
-  readonly found: ReadonlySet<Addr>;
   readonly diagnostics: readonly Diagnostic[];
 }
 
@@ -61,18 +60,12 @@ export function unlistedProposals(result: Pick<AnalysisResult, 'functions'>, con
 /** Step 1 of the header; the discover result does not outlive this call. */
 function discovered(rom: Rom, config: RomliftConfig, profile: CompilerProfile): Discovered {
   const result = discover(rom, { profile });
-  return { proposals: unlistedProposals(result, config), found: new Set(result.functions.map((f) => f.entry)), diagnostics: result.diagnostics };
-}
-
-/** The confirm seeds of step 2: the config's, validated where discover no longer finds the entry. */
-export function updateSeeds(seeds: readonly Seed[], found: ReadonlySet<Addr>): readonly Seed[] {
-  return seeds.map((seed): Seed => (found.has(seed.entry) || seed.label === true ? seed : { ...seed, validate: true }));
+  return { proposals: unlistedProposals(result, config), diagnostics: result.diagnostics };
 }
 
 /** The W_LISTED_INVALID reports of step 2 (its W_UNLISTED_FUNCTION ones are the proposals already). */
-function listedReports(rom: Rom, config: RomliftConfig, found: ReadonlySet<Addr>, profile: CompilerProfile): readonly Diagnostic[] {
-  const options = confirmOptions(config);
-  const result = analyze(rom, profile, { ...options, seeds: updateSeeds(options.seeds, found) });
+function listedReports(rom: Rom, config: RomliftConfig, profile: CompilerProfile): readonly Diagnostic[] {
+  const result = analyze(rom, profile, confirmOptions(config));
   return result.diagnostics.filter((d) => d.code === LISTED_INVALID || d.severity === 'error');
 }
 
@@ -90,7 +83,7 @@ export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
   const profile = profileOrDefault(inputs.profile);
   const found = discovered(rom, config, profile);
   if (found.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: found.diagnostics };
-  const reports = listedReports(rom, config, found.found, profile);
+  const reports = listedReports(rom, config, profile);
   const patch = planPatch(inputs.configText, config, found.proposals);
   if (!patch.ok) return { ok: false, diagnostics: [...reports, ...patch.diagnostics] };
   return { ok: true, proposals: found.proposals, text: patch.text, changed: patch.text !== inputs.configText, diagnostics: [...reports, ...patch.diagnostics] };

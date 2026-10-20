@@ -19,8 +19,9 @@ was created by [romlift](https://github.com/macabeus/romlift) @@romliftVersion@@
 **`ROMLIFT_CLI`, until romlift is published.** romlift is not on the npm registry yet (a pre-release limitation), so
 `package.json`'s pinned version does not resolve and `./setup.sh` cannot install it. Set `ROMLIFT_CLI` to a romlift
 command (for example `ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js" ./setup.sh`, from a built checkout of
-romlift): setup.sh then skips the npm install and runs that command instead of `npx romlift`. Run every romlift command
-of this file the same way (`$ROMLIFT_CLI generate` for `npx romlift generate`).
+romlift): setup.sh then skips the npm install and runs that command instead of `npx romlift`. Run every other romlift
+command of this file through node the same way (`node /path/to/romlift/dist/cli/main.js generate` for `npx romlift
+generate`).
 
 ## What is generated and what is yours
 
@@ -44,7 +45,12 @@ INCLUDE_ASM("asm/nonmatchings/<module>", FunctionName);
 to the same bytes, then run `make`; never edit the `.s` file. To rename a function or move a boundary, change its entry
 in `[functions]` of `romlift.toml` and run `npx romlift generate`: it rewrites the generated files and brings the
 `INCLUDE_ASM` lines of `src/*.c` in line with them (it adds the line of a function the module gained and removes the
-line of one it lost or renamed), and it never touches a line of C you wrote.
+line of one it lost or renamed), and it never touches a line of C you wrote. A function you have already decompiled
+is the exception: rename its C definition to the new name before (or together with) the `romlift.toml` edit, and move
+its C to the other module's file when the edit moves it. Otherwise `romlift generate` refuses and writes nothing
+(`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`), since the new `INCLUDE_ASM` line would define the function twice.
+`INCLUDE_ASM` lines inside `#if`/`#ifdef` blocks are yours too: `romlift generate` puts new ones outside them. A
+renamed `c` module leaves its old `src/<module>.c` unbuilt (`W_C_FILE_UNUSED`): move its C to the new file.
 
 Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler` in `romlift.toml`, default
 `[build] compiler`), with the flags `modules.mk` lists; `mk/<compiler>.mk` holds the recipe.

@@ -79,7 +79,7 @@ export function initConfigOf(rom: Rom, options: InitConfigOptions = {}): InitCon
   if (problems.length > 0) return { ok: false, diagnostics: problems };
   const named = initBuildName(rom, options.romFile ?? BASEROM_FILE, options);
   if (!named.ok) return { ok: false, diagnostics: [named.diagnostic] };
-  const found = discoveredConfig(rom, options);
+  const found = configBeforeSerialising(rom, options);
   if (!found.ok) return found;
   const tomlText = serializeConfig({ ...found.config, build: { ...found.config.build, name: named.name } });
   const parsed = parseConfig(tomlText);
@@ -88,7 +88,7 @@ export function initConfigOf(rom: Rom, options: InitConfigOptions = {}): InitCon
 }
 
 /** Step 2 of the header; the discover result does not outlive this call. */
-function discoveredConfig(rom: Rom, options: InitConfigOptions): { readonly ok: true; readonly config: RomliftConfig } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+function configBeforeSerialising(rom: Rom, options: InitConfigOptions): { readonly ok: true; readonly config: RomliftConfig } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const discovered = discover(rom, options.profile === undefined ? {} : { profile: options.profile });
   if (discovered.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: discovered.diagnostics };
   return { ok: true, config: configFromDiscover(rom, discovered, options.moduleSize === undefined ? {} : { moduleSize: options.moduleSize }) };

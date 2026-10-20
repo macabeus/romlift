@@ -13,7 +13,8 @@ import type { ScaffoldFileEntry } from '../../../src/core/scaffold/render.ts';
 import { decodeScaffoldManifest, ROMLIFT_RENDERED_TARGETS, scaffoldVars } from '../../../src/core/scaffold/vars.ts';
 import type { ScaffoldManifest, ScaffoldTemplates, ScaffoldVars } from '../../../src/core/scaffold/vars.ts';
 import { GENERATED_ROOTS, ROMLIFT_DIR } from '../../../src/core/write-plan/types.ts';
-import { DIALECT, INCLUDE_ASM_HEADER, INCLUDE_ASM_HEADER_PATH } from '../../../src/foundation/asm/dialect.ts';
+import { DIALECT, INCLUDE_ASM_HEADER } from '../../../src/foundation/asm/dialect.ts';
+import { INCLUDE_ASM_HEADER_PATH } from '../../../src/foundation/util/project-files.ts';
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 
 const TEMPLATES_URL = new URL('../../../templates/', import.meta.url);

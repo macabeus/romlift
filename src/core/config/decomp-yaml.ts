@@ -14,7 +14,7 @@ import { DecompYamlError, parseDecompYaml, toolBlock } from '@match-kit/decomp-y
 import type { LoadedConfig } from '@match-kit/decomp-yaml';
 import { z } from 'zod';
 
-import { NONMATCHINGS_ROOT } from '../../foundation/asm/dialect.ts';
+import { NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { isProjectPath } from '../../foundation/util/project-path.ts';

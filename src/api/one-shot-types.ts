@@ -19,10 +19,5 @@ export {
   SCAFFOLD_ROM_FILE,
   scaffoldVars,
 } from '../core/scaffold/vars.ts';
-export {
-  C_STUB_HEADER,
-  INCLUDE_ASM_HEADER,
-  INCLUDE_ASM_HEADER_PATH,
-  includeAsmStatement,
-  NONMATCHINGS_ROOT,
-} from '../foundation/asm/dialect.ts';
+export { C_STUB_HEADER, INCLUDE_ASM_HEADER, includeAsmStatement } from '../foundation/asm/dialect.ts';
+export { INCLUDE_ASM_HEADER_PATH, NONMATCHINGS_ROOT } from '../foundation/util/project-files.ts';

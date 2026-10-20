@@ -7,8 +7,8 @@
 // every member of a group of function or orphan chunks whose names fold to the same text inside one
 // directory is written `<Name>_<ADDR>.s` (ADDR: eight upper-case hex digits of its load address), never
 // only the second one. core/verify/paths.ts (E_PATH_CASE_COLLISION) guards the result.
-import { DIALECT, NONMATCHINGS_ROOT } from '../../foundation/asm/dialect.ts';
-import { BASEROM_FILE } from '../../foundation/util/project-files.ts';
+import { DIALECT } from '../../foundation/asm/dialect.ts';
+import { BASEROM_FILE, chunkFileOf, nonmatchingDir } from '../../foundation/util/project-files.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
 import type { Span } from '../../foundation/rom/span.ts';
@@ -25,10 +25,8 @@ export const BASEROM_PATH = BASEROM_FILE;
 /** The macro file every generated `.s` includes, as the dialect defines it (foundation/asm/dialect.ts DIALECT.macrosPath). */
 export const MACROS_PATH = DIALECT.macrosPath;
 
-/** The directory of a module's function and orphan files, without a trailing '/'. */
-export function nonmatchingDir(module: string): string {
-  return `${NONMATCHINGS_ROOT}/${module}`;
-}
+/** The directory of a module's function and orphan files, without a trailing '/' (one definition, foundation/util/project-files.ts). */
+export { nonmatchingDir };
 
 /** The object an asm or data module builds to (as from its `.s` source). */
 export function objectPath(module: string): string {
@@ -77,7 +75,7 @@ export function chunkPaths(model: Pick<Model, 'chunks'>): readonly (string | und
   return model.chunks.map((chunk) => {
     if (!isFileChunk(chunk)) return undefined;
     const name = (groupSize.get(keyOf(chunk)) ?? 0) > 1 ? `${chunk.name}_${hex(chunk.span.start)}` : chunk.name;
-    return `${nonmatchingDir(chunk.module)}/${name}.s`;
+    return chunkFileOf(nonmatchingDir(chunk.module), name);
   });
 }
 

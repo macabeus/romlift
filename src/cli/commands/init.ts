@@ -13,10 +13,10 @@
 import { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../api/config.ts';
 import { SCAFFOLD_ROM_FILE } from '../../api/one-shot-types.ts';
 import type { Diagnostic } from '../../api/rom.ts';
-import { init, initDirVerdict, replacedProblems, wantsLockStep } from '../../core/workflow/init.ts';
+import { init, initDirVerdict, wantsLockStep } from '../../core/workflow/init.ts';
 import type { InitOptions } from '../../core/workflow/types.ts';
 import { sha1Of } from '../../shell/hash.ts';
-import { readDigests, readInitDir, readScaffoldInputs, resolveFrom } from '../../shell/project/read-inputs.ts';
+import { readInitDir, readScaffoldInputs, resolveFrom } from '../../shell/project/read-inputs.ts';
 import { hasPackageLock, writeInitProject } from '../../shell/project/write-project.ts';
 import { readRom } from '../../shell/rom.ts';
 import { writePackageLock } from '../../shell/toolchain/npm.ts';
@@ -25,9 +25,7 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CliIo, CommandSpec } from '../registry.ts';
 import { diagnosticLine, summaryLine } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { printDiagnosticsOnly, usageError } from './analysis-records.ts';
-import { opCounts } from './generate.ts';
-import { refusedExitCode } from './verify.ts';
+import { opCounts, printDiagnosticsOnly, refusedExitCode, usageError } from './analysis-records.ts';
 
 /** `--module-size`: `0x` and hex digits, or decimal; a positive multiple of 4 (a legal border is word-aligned). */
 export function parseModuleSize(text: string): number | undefined {
@@ -80,16 +78,11 @@ export const initCommand: CommandSpec = {
     if (!scaffold.ok) return refuse(scaffold.diagnostics);
     const plan = init({ rom: rom.value, romFile: listing.value.romInside ?? romArg, options, templates: scaffold.value.templates, romliftVersion: scaffold.value.romliftVersion, agbcc: scaffold.value.agbcc });
     if (!plan.ok) return refuse(plan.diagnostics, refusedExitCode(plan.diagnostics));
-    if (verdict.project) {
-      const wanted = new Map([[ROMLIFT_CONFIG_FILE, sha1Of(plan.tomlText)], [DECOMP_YAML_FILE, sha1Of(plan.decompYamlText)], [SCAFFOLD_ROM_FILE, rom.value.sha1]]);
-      const current = await readDigests(dir, wanted.keys());
-      if (!current.ok) return refuse(current.diagnostics);
-      const replaced = replacedProblems(dir, wanted, current.value);
-      if (replaced.length > 0) return refuse(replaced);
-    }
-
+    // What init's own files must be on disk (absent or these digests); writeInitProject checks them under the lock.
+    const wanted = new Map([[ROMLIFT_CONFIG_FILE, sha1Of(plan.tomlText)], [DECOMP_YAML_FILE, sha1Of(plan.decompYamlText)], [SCAFFOLD_ROM_FILE, rom.value.sha1]]);
     const files = { romPath, tomlText: plan.tomlText, decompYamlText: plan.decompYamlText };
-    const written = await writeInitProject(dir, files, { result: plan.result, rom: rom.value, extra: plan.scaffold }, scaffold.value.romliftVersion);
+    const written = await writeInitProject(dir, files, { result: plan.result, rom: rom.value, extra: plan.scaffold }, scaffold.value.romliftVersion, wanted);
+    if (!written.ok && written.diagnostics.some((d) => d.code === 'E_DIR_NOT_EMPTY' || d.code === 'E_IO_READ')) return refuse(written.diagnostics);
     let diagnostics: readonly Diagnostic[] = [...plan.diagnostics, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
     if (wantsLockStep(diagnostics, await hasPackageLock(dir))) {
       const lock = await writePackageLock(dir, { env: io.env });

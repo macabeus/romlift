@@ -38,7 +38,7 @@
 //
 // Every failure is E_SELF_CHECK_TEXT with the file (`path`), the line (in the message) and the load
 // address (`addr`) of the first difference. Scaffold entries other than the c-stub writer's, reconciled entries
-// and entries of writers this check does not read (modules.mk, phase 5's) are not this check's.
+// and entries of writers this check does not read (modules.mk) are not this check's.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
 import { layoutMemo, layoutStatements } from '../../foundation/asm/layout.ts';
 import type { Layout, LayoutInput, LayoutMemo } from '../../foundation/asm/layout.ts';
@@ -433,7 +433,7 @@ interface EntryCheck {
 }
 
 function checkOne(rom: Rom, model: Model, index: IndexData, entry: FileEntry): EntryCheck {
-  // Of the scaffold, only the c-stub writer's src/<module>.c is a unit's source; reconciled files are phase 5's.
+  // Of the scaffold, only the c-stub writer's src/<module>.c is a unit's source; a reconciled file (D75 b) is the user's C, which make builds, not this check.
   if (entry.ownership === 'reconciled' || (entry.ownership === 'scaffold' && entry.writer !== 'c-stub')) return { diagnostics: [] };
   const target = index.targets.get(entry.path);
   if (target === undefined) {

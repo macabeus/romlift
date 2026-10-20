@@ -6,7 +6,8 @@
 // include/include_asm.h), so neither header can drift from the text the checks read. Pure: the shell reads
 // the templates (shell/project/templates.ts). A template that spells an unknown placeholder, a manifest source
 // without its text and a rendered target without a renderer are bugs of the package: RomliftInvariantError.
-import { DIALECT, INCLUDE_ASM_HEADER, INCLUDE_ASM_HEADER_PATH } from '../../foundation/asm/dialect.ts';
+import { DIALECT, INCLUDE_ASM_HEADER } from '../../foundation/asm/dialect.ts';
+import { INCLUDE_ASM_HEADER_PATH } from '../../foundation/util/project-files.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { placeholdersIn, placeholderText, placeholderValues, ROMLIFT_RENDERED_TARGETS, SCAFFOLD_PLACEHOLDERS } from './vars.ts';

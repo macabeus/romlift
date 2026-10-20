@@ -28,8 +28,9 @@ of romlift (`npm run build` there):
 ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js" ./setup.sh
 ```
 
-setup.sh then skips the npm install and runs that command to generate the tree; run the other romlift commands the
-same way (`$ROMLIFT_CLI generate` where this file says `npx romlift generate`).
+setup.sh then skips the npm install and runs that command to generate the tree; run the other romlift commands
+through node the same way (`node /path/to/romlift/dist/cli/main.js generate` where this file says `npx romlift
+generate`).
 
 ## Layout
 

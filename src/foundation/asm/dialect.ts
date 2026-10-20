@@ -4,6 +4,7 @@
 // tests the dialect the writers emit. The macro names are the proof of concept's (src/emit.ts).
 import type { Dialect } from '../isa/types.ts';
 import type { Mode } from '../rom/span.ts';
+import { INCLUDE_ASM_HEADER_PATH, nonmatchingDir } from '../util/project-files.ts';
 
 /** A function-start macro: word alignment (unless the entry is at 2 mod 4), visibility, mode and type. */
 function startMacro(name: string, mode: Mode, aligned: boolean, global: boolean): string {
@@ -86,20 +87,14 @@ export const DIALECT: Dialect = {
 // text-layout check and the scaffold's include/include_asm.h all take them from here, so the stub a writer
 // emits and the stub a check reads cannot differ.
 
-/** The directory an `INCLUDE_ASM` statement names for a module: `<NONMATCHINGS_ROOT>/<module>` (core/model/paths.ts nonmatchingDir). */
-export const NONMATCHINGS_ROOT = 'asm/nonmatchings';
-
 /**
  * The stub of one chunk file in a C module: `INCLUDE_ASM("asm/nonmatchings/<module>", <name>);`, where `name` is
  * the chunk file's base name without `.s` (core/model/paths.ts chunkPaths: the function's name, or
  * `<Name>_<ADDR>` for a member of a case-folded group), since the macro includes `<dir>/<name>.s`.
  */
 export function includeAsmStatement(module: string, name: string): string {
-  return `INCLUDE_ASM("${NONMATCHINGS_ROOT}/${module}", ${name});`;
+  return `INCLUDE_ASM("${nonmatchingDir(module)}", ${name});`;
 }
-
-/** The project path of the header that defines INCLUDE_ASM; `src/<module>.c` includes it through `-I include`. */
-export const INCLUDE_ASM_HEADER_PATH = 'include/include_asm.h';
 
 /** A C string literal's body for `text`: backslashes and double quotes escaped, a newline as `\n`. */
 function cStringBody(text: string): string {

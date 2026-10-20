@@ -14,11 +14,25 @@
 // stub was replaced by C). It removes every stub of the module's own directory (`asm/nonmatchings/<module>`) whose
 // name is not wanted: a function the TOML renamed, deleted or moved to another module, whose file `generate` no longer
 // writes there (D75 b; a move is this removal plus the insertion in the other module's file). A removed stub alone on
-// its line takes the line with it; one that shares its line keeps the rest of it. A stub of another directory and a
-// definition are never removed. W_C_ORDER when the file holds the wanted functions in another order than ROM order;
-// the edits never reorder. Every edit is an insertion between tokens or the removal of a whole statement (and its
-// line's blanks), so no comment, string or directive changes.
-import { includeAsmStatement, NONMATCHINGS_ROOT } from '../../foundation/asm/dialect.ts';
+// its line takes the line with it; one that shares its line keeps the rest of it (and, when it is the line's last
+// item, takes the blanks before it). A stub of another directory and a definition are never removed. W_C_ORDER when
+// the file holds the wanted functions in another order than ROM order; the edits never reorder. Every edit is an
+// insertion between tokens or the removal of a whole statement (and its line's blanks), so no comment, string or
+// directive changes.
+//
+// Preprocessor conditionals (fix round 2, correctness-a0-2): a stub never goes inside an `#if`/`#ifdef`/`#ifndef` …
+// `#endif` region, whose branches the default build may not compile (the decomp pattern `#ifdef NONMATCHING <C> #else
+// INCLUDE_ASM(…); #endif`). An anchor inside a region moves to the region's outer edge: after its `#endif` line, or
+// before its opening directive. A name with no safe place (the text ends inside a comment, a literal, a directive or
+// an unclosed conditional) is E_C_STUB_UNPLACED, an error, so `generate` writes nothing rather than leave a function
+// without its stub.
+//
+// A definition whose name the module does not want, lying where a missing stub goes (the C of a function the TOML
+// renamed, correctness-a0-1), is E_C_STALE_DEFINITION, an error: inserting the new name's stub there would define the
+// function twice and break `make`. The other unwanted definitions are returned (`undeclared`) for the caller, which
+// knows the other modules (core/workflow/c-stubs.ts: E_C_DEFINITION_MOVED).
+import { includeAsmStatement } from '../../foundation/asm/dialect.ts';
+import { nonmatchingDir } from '../../foundation/util/project-files.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { tokenizeC, isTrivia } from './c-tokens.ts';
@@ -72,6 +86,54 @@ export interface CFileScan {
   readonly unterminated: readonly CToken[];
   /** Every token, for callers that place text between them. */
   readonly tokens: readonly CToken[];
+  /** The outermost preprocessor conditionals, in text order. */
+  readonly conditionals: readonly CConditional[];
+}
+
+/**
+ * An outermost `#if`, `#ifdef` or `#ifndef` region: from its opening directive's first offset to the end of its
+ * matching `#endif` (`terminated`), or to the end of the text when it is never closed.
+ */
+export interface CConditional {
+  readonly start: number;
+  readonly end: number;
+  readonly terminated: boolean;
+}
+
+/** The directive name of a preprocessor line (`#  ifdef X` -> `ifdef`); '' for a null directive. */
+function directiveName(text: string): string {
+  let k = 1;
+  while (text[k] === ' ' || text[k] === '\t') k++;
+  let name = '';
+  for (; k < text.length; k++) {
+    const ch = text[k] ?? '';
+    if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_')) break;
+    name += ch;
+  }
+  return name;
+}
+
+/** The outermost conditional regions the preprocessor lines of `tokens` open and close; a stray `#endif` is ignored. */
+function conditionalsOf(tokens: readonly CToken[], length: number): readonly CConditional[] {
+  const out: CConditional[] = [];
+  let depth = 0;
+  let open: CToken | undefined;
+  for (const t of tokens) {
+    if (t.kind !== 'preprocessor') continue;
+    const name = directiveName(t.text);
+    if (name === 'if' || name === 'ifdef' || name === 'ifndef') {
+      if (depth === 0) open = t;
+      depth++;
+    } else if (name === 'endif' && depth > 0) {
+      depth--;
+      if (depth === 0 && open !== undefined) {
+        out.push({ start: open.start, end: t.end, terminated: true });
+        open = undefined;
+      }
+    }
+  }
+  if (open !== undefined) out.push({ start: open.start, end: length, terminated: false });
+  return out;
 }
 
 /** The value of a string literal token whose only escapes are `\\` and `\"`, or undefined. */
@@ -177,7 +239,8 @@ export function scanC(text: string): CFileScan {
   if (definition !== undefined) definitions.push({ name: definition.name, start: definition.first.start, end: text.length, line: definition.first.line });
   else closeOther(text.length);
   const last = tokens[tokens.length - 1];
-  return { statements, definitions, others, directives, unterminated: last !== undefined && !last.terminated ? [last] : [], tokens };
+  const unterminated = last !== undefined && !last.terminated ? [last] : [];
+  return { statements, definitions, others, directives, unterminated, tokens, conditionals: conditionalsOf(tokens, text.length) };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -195,10 +258,12 @@ export interface IncludeAsmWanted {
 export interface IncludeAsmPlan {
   /** Insertions and removals, in text order; apply with applyTextEdits. */
   readonly edits: readonly TextEdit[];
-  /** W_C_ORDER, at most once. */
+  /** W_C_ORDER (at most once), E_C_STUB_UNPLACED, E_C_STALE_DEFINITION. */
   readonly diagnostics: readonly Diagnostic<ReconcileCode>[];
-  /** Wanted names the planner found no safe place for: the text ends inside a comment, literal or directive. */
+  /** Wanted names the planner found no safe place for (each also an E_C_STUB_UNPLACED). */
   readonly unplaced: readonly string[];
+  /** Named definitions the module does not want and no E_C_STALE_DEFINITION reports, in text order. */
+  readonly undeclared: readonly CDefinition[];
 }
 
 /** Where a held function sits: offsets of its first token and of its end. */
@@ -207,10 +272,8 @@ interface Held {
   readonly end: number;
 }
 
-/** The directory an INCLUDE_ASM statement of `module` names. */
-export function includeAsmDir(module: string): string {
-  return `${NONMATCHINGS_ROOT}/${module}`;
-}
+/** The directory an INCLUDE_ASM statement of `module` names: foundation/util/project-files.ts nonmatchingDir, the one definition. */
+export const includeAsmDir: (module: string) => string = nonmatchingDir;
 
 /** The functions of `scan` that hold a stub of `dir` or a definition, by name, the first occurrence each. */
 function heldByName(scan: CFileScan, dir: string): ReadonlyMap<string, Held> {
@@ -220,14 +283,27 @@ function heldByName(scan: CFileScan, dir: string): ReadonlyMap<string, Held> {
   return held;
 }
 
-/** The offset just past the line `offset` is on: past the blanks and comments (by start) that follow it and its newline; whether there was one. */
-function afterLine(text: string, comments: ReadonlyMap<number, CToken>, offset: number): { readonly at: number; readonly newline: boolean } {
+/** The length of a leading byte order mark (U+FEFF), which no edit may move off the text's start. */
+function bomLength(text: string): number {
+  return text.charCodeAt(0) === 0xfeff ? 1 : 0;
+}
+
+/** The start of the line `offset` is on (never before a leading byte order mark). */
+function lineStartOf(text: string, offset: number): number {
+  return Math.max(text.lastIndexOf('\n', offset - 1) + 1, bomLength(text));
+}
+
+/**
+ * The offset just past the line `offset` is on: past the blanks, comments (by start) and removed statements (start to
+ * end) that follow it, and its newline; whether there was one.
+ */
+function afterLine(text: string, skips: ReadonlyMap<number, number>, offset: number): { readonly at: number; readonly newline: boolean } {
   let at = offset;
   for (;;) {
     while (text[at] === ' ' || text[at] === '\t') at++;
-    const comment = comments.get(at);
-    if (comment !== undefined && comment.terminated) {
-      at = comment.end;
+    const skip = skips.get(at);
+    if (skip !== undefined) {
+      at = skip;
       continue;
     }
     if (text[at] === '\n') return { at: at + 1, newline: true };
@@ -246,10 +322,15 @@ function beforeItem(text: string, scan: CFileScan, start: number): number {
     if (t === undefined || t.kind !== 'comment' || text.slice(t.end, at).trim() !== '') break;
     at = t.start;
   }
-  const lineStart = text.lastIndexOf('\n', at - 1) + 1;
+  const lineStart = lineStartOf(text, at);
   const prev = before.filter((t) => t.end <= at).pop();
   // A token ends on this line before the item (`foo(); INCLUDE_ASM(…)`): the stub goes right before the item.
   return prev !== undefined && prev.end > lineStart ? at : lineStart;
+}
+
+/** The outermost conditional region `offset` lies in, if any. */
+function regionAt(scan: CFileScan, offset: number): CConditional | undefined {
+  return scan.conditionals.find((c) => c.start <= offset && offset < c.end);
 }
 
 /** For each wanted name, the nearest held function before it (`previous`) and after it (`next`) in ROM order. */
@@ -269,6 +350,11 @@ function neighbours(names: readonly string[], held: ReadonlyMap<string, Held>): 
   return { previous, next };
 }
 
+/** Where the diagnostics of `wanted` say the file is. */
+function whereOf(wanted: IncludeAsmWanted): { readonly where: string; readonly extra: { readonly path?: string } } {
+  return { where: wanted.path ?? `the C file of module ${wanted.module}`, extra: wanted.path === undefined ? {} : { path: wanted.path } };
+}
+
 /** W_C_ORDER when the held wanted functions are not in ROM order in the text (the first pair out of order). */
 function orderDiagnostics(wanted: IncludeAsmWanted, held: ReadonlyMap<string, Held>): Diagnostic<ReconcileCode>[] {
   const order = wanted.names.flatMap((name) => {
@@ -279,59 +365,90 @@ function orderDiagnostics(wanted: IncludeAsmWanted, held: ReadonlyMap<string, He
     const prev = order[k - 1];
     const cur = order[k];
     if (prev === undefined || cur === undefined || cur.start > prev.start) continue;
-    const where = wanted.path ?? `the C file of module ${wanted.module}`;
-    return [diagnostic(ReconcileCodes, 'W_C_ORDER', `${where} holds ${cur.name} before ${prev.name}, which comes first in ROM order`, wanted.path === undefined ? {} : { path: wanted.path })];
+    const { where, extra } = whereOf(wanted);
+    return [diagnostic(ReconcileCodes, 'W_C_ORDER', `${where} holds ${cur.name} before ${prev.name}, which comes first in ROM order`, extra)];
   }
   return [];
 }
 
 /**
  * The removal of statement `s`: its whole line (from the line's start through its newline) when nothing else is on
- * it, else the statement alone.
+ * it; the statement and the blanks around it up to the newline when it is the last item of a shared line; else the
+ * statement alone.
  */
 function removalOf(text: string, s: IncludeAsmStatement): TextEdit {
-  const lineStart = text.lastIndexOf('\n', s.start - 1) + 1;
+  const lineStart = lineStartOf(text, s.start);
   let after = s.end;
   while (text[after] === ' ' || text[after] === '\t') after++;
   const lineEnd = text[after] === '\n' ? after + 1 : text[after] === '\r' && text[after + 1] === '\n' ? after + 2 : after === text.length ? after : -1;
   if (lineEnd >= 0 && text.slice(lineStart, s.start).trim() === '') return { start: lineStart, end: lineEnd, text: '', reason: 'remove-stub' };
+  if (lineEnd >= 0) {
+    let from = s.start;
+    while (from > lineStart && (text[from - 1] === ' ' || text[from - 1] === '\t')) from--;
+    return { start: from, end: after, text: '', reason: 'remove-stub' };
+  }
   return { start: s.start, end: s.end, text: '', reason: 'remove-stub' };
+}
+
+/** Where a missing stub goes: an insertion, or undefined when it has no safe place. */
+function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, number>, stub: string, before: Held | undefined, after: Held | undefined): TextEdit | undefined {
+  if (before !== undefined) {
+    const region = regionAt(scan, before.start);
+    if (region !== undefined && !region.terminated) return undefined;
+    const line = afterLine(text, skips, region?.end ?? before.end);
+    return { start: line.at, end: line.at, text: line.newline ? `${stub}\n` : `\n${stub}\n`, reason: 'add-stub' };
+  }
+  if (after !== undefined) {
+    const at = beforeItem(text, scan, regionAt(scan, after.start)?.start ?? after.start);
+    return { start: at, end: at, text: `${stub}\n`, reason: 'add-stub' };
+  }
+  if (scan.unterminated.length > 0 || scan.conditionals.some((c) => !c.terminated)) return undefined;
+  const needsNewline = text.length > bomLength(text) && !text.endsWith('\n');
+  return { start: text.length, end: text.length, text: `${needsNewline ? '\n' : ''}${stub}\n`, reason: 'add-stub' };
 }
 
 /**
  * The edits that add every wanted function `text` neither includes (from `asm/nonmatchings/<module>`) nor defines,
- * each at its ROM-order position, and remove every stub of that directory whose function is not wanted; W_C_ORDER
- * when the file's order of the held ones is not ROM order.
+ * each at its ROM-order position outside any preprocessor conditional, and remove every stub of that directory whose
+ * function is not wanted; W_C_ORDER when the file's order of the held ones is not ROM order; E_C_STUB_UNPLACED for a
+ * name with no safe place; E_C_STALE_DEFINITION for an unwanted definition where a missing stub goes.
  */
 export function planIncludeAsm(text: string, wanted: IncludeAsmWanted): IncludeAsmPlan {
   const scan = scanC(text);
   const dir = includeAsmDir(wanted.module);
   const held = heldByName(scan, dir);
   const { previous, next } = neighbours(wanted.names, held);
-  const comments = new Map(scan.directives.filter((t) => t.kind === 'comment').map((t) => [t.start, t] as const));
+  const names = new Set(wanted.names);
+  const removed = scan.statements.filter((s) => s.dir === dir && !names.has(s.name));
+  const skips = new Map<number, number>([
+    ...scan.directives.filter((t) => t.kind === 'comment' && t.terminated).map((t) => [t.start, t.end] as const),
+    ...removed.map((s) => [s.start, s.end] as const),
+  ]);
+  const strangers = scan.definitions.filter((d) => d.name !== '' && !names.has(d.name));
+  const stale = new Map<CDefinition, string>();
   const edits: TextEdit[] = [];
   const unplaced: string[] = [];
   wanted.names.forEach((name, k) => {
     if (held.has(name)) return;
-    const stub = includeAsmStatement(wanted.module, name);
     const before = previous[k];
     const after = next[k];
-    if (before !== undefined) {
-      const line = afterLine(text, comments, before.end);
-      edits.push({ start: line.at, end: line.at, text: line.newline ? `${stub}\n` : `\n${stub}\n`, reason: 'add-stub' });
-    } else if (after !== undefined) {
-      const at = beforeItem(text, scan, after.start);
-      edits.push({ start: at, end: at, text: `${stub}\n`, reason: 'add-stub' });
-    } else if (scan.unterminated.length > 0) {
-      unplaced.push(name);
-    } else {
-      const needsNewline = text.length > 0 && !text.endsWith('\n');
-      edits.push({ start: text.length, end: text.length, text: `${needsNewline ? '\n' : ''}${stub}\n`, reason: 'add-stub' });
-    }
+    const from = before?.end ?? 0;
+    const to = after?.start ?? text.length;
+    for (const d of strangers) if (d.start >= from && d.end <= to && !stale.has(d)) stale.set(d, name);
+    const edit = placement(text, scan, skips, includeAsmStatement(wanted.module, name), before, after);
+    if (edit === undefined) unplaced.push(name);
+    else edits.push(edit);
   });
-  const names = new Set(wanted.names);
-  for (const statement of scan.statements) if (statement.dir === dir && !names.has(statement.name)) edits.push(removalOf(text, statement));
-  return { edits: joinAtOffsets(edits), diagnostics: orderDiagnostics(wanted, held), unplaced };
+  for (const statement of removed) edits.push(removalOf(text, statement));
+  const { where, extra } = whereOf(wanted);
+  const diagnostics: Diagnostic<ReconcileCode>[] = [...orderDiagnostics(wanted, held)];
+  if (unplaced.length > 0) {
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} has no safe place for the INCLUDE_ASM of ${unplaced.join(', ')}: the text ends inside a comment, a literal, a directive or an unclosed #if; close it, or write the statements yourself`, extra));
+  }
+  for (const [d, name] of stale) {
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}), which module ${wanted.module} no longer has, where the INCLUDE_ASM of ${name} goes: if romlift.toml renamed it, rename the C function to ${name}; otherwise write INCLUDE_ASM("${dir}", ${name}); yourself`, extra));
+  }
+  return { edits: joinAtOffsets(edits), diagnostics, unplaced, undeclared: strangers.filter((d) => !stale.has(d)) };
 }
 
 /**

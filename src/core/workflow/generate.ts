@@ -11,7 +11,7 @@
 // Phase 4 (architecture §2.1, §6.3, §6.4, D74 c) adds generateProject, generate over a project as the shell read it
 // (ProjectInputs): the ROM must be the one `[rom] sha1` records (E_ROM_SHA1_MISMATCH, refused before any analysis),
 // the config is the TOML's, DecompState comes from src/*.c through the reconciler's scanner (it changes no output in
-// phase 4: asm/matchings is phase 5's), and a config the model refuses (E_MODULE_BORDER and the other model errors)
+// phase 4: asm/matchings is phase 6's, D76 g), and a config the model refuses (E_MODULE_BORDER and the other model errors)
 // is refused before the check pass. The stream holds the c-stub entries (scaffold: written only when absent) and
 // modules.mk; an existing src/<module>.c is reconciled with the model (c-stubs.ts, D75 b: the stubs of functions the
 // TOML renamed, deleted or moved go, the missing ones come), as edits the write plan applies only to the text it read,
@@ -35,7 +35,7 @@ import { combineReports } from '../verify/report.ts';
 import type { VerifyReport } from '../verify/report.ts';
 import { checkEntries } from '../verify/text-layout.ts';
 import { verifyModel } from '../verify/tiling.ts';
-import { NO_STUBS, projectEntries, reconcileStubs, resolvedEntries } from './c-stubs.ts';
+import { NO_STUBS, outTreeEntries, projectEntries, reconciledBases, reconcileStubs, resolvedEntries } from './c-stubs.ts';
 import type { StubReconciliation } from './c-stubs.ts';
 import { configFromDiscover } from './config-from-discover.ts';
 import { profileOrDefault } from './discover.ts';
@@ -178,7 +178,15 @@ export function projectTreeEntries(rom: Rom, result: Pick<GenerateResult, 'model
 
 /** The base texts of the reconciled C files of a result, for WritePlanInputs.reconciledTexts. */
 export function reconciledTextsOf(result: Pick<GenerateResult, 'stubs'>): ReadonlyMap<string, string> {
-  return new Map([...(result.stubs ?? NO_STUBS).files].map(([path, stub]) => [path, stub.base] as const));
+  return reconciledBases(result.stubs ?? NO_STUBS);
+}
+
+/**
+ * The emission stream `generate --out <dir>` writes: generatedEntries with every C file `generated`, so a later run
+ * into the same directory rewrites or deletes it as it does asm/ (c-stubs.ts outTreeEntries).
+ */
+export function outTreeEntriesOf(rom: Rom, result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>): Iterable<FileEntry> {
+  return outTreeEntries(generatedEntries(rom, result));
 }
 
 /** Whether a generate result may be written: its check pass is ok and nothing raised an error (§6.4 step 2). */
@@ -201,7 +209,7 @@ export interface ProjectGenerateOptions {
 
 /**
  * The DecompState of a project's C: every name a src/*.c defines at file scope (the reconciler's scanner, never a
- * regex), unique, in code-unit order. Phase 4 emits nothing differently for it (asm/matchings is phase 5's).
+ * regex), unique, in code-unit order. Phase 4 emits nothing differently for it (asm/matchings is phase 6's, D76 g).
  */
 export function decompStateOf(cTexts: ReadonlyMap<string, string>): DecompState {
   const names = new Set<string>();

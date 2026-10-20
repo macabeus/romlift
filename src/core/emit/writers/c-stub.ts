@@ -1,6 +1,6 @@
 // The `c-stub` writer (architecture §6.1 rung 2, §6.3, §6.6, D74 e): src/<module>.c of a C module. Scope: module;
-// ownership 'scaffold', so `init` writes it and a later run never overwrites what the user decompiled (phase 5's
-// reconciler edits it instead). The text is the reconciler's stub planner run on the template header: C_STUB_HEADER
+// ownership 'scaffold', so `init` writes it and a later run never overwrites what the user decompiled (`generate`'s
+// reconciliation edits it instead, D75 b). The text is the reconciler's stub planner run on the template header: C_STUB_HEADER
 // (`#include "include_asm.h"` and a blank line), then planIncludeAsm's insertions into it, which on a file holding no
 // stub are one `INCLUDE_ASM("asm/nonmatchings/<module>", <name>);` line per function and orphan chunk file of the
 // module, in ROM order (core/model/c-unit.ts stubChunkFiles; <name> is the chunk file's base name, the

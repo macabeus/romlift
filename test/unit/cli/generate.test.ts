@@ -190,3 +190,73 @@ test('generate takes no positional and no stdin; --help prints its usage', async
   assert.equal(help.code, ExitCode.ok);
   assert.match(help.stdout, /^Usage: romlift generate \[--rom <rom>\] \[--dry-run\] \[--json\] \[--out <dir>\]/);
 });
+
+/** The first two default-named stubs of src/main.c, and the TOML text and the C text. */
+async function firstStubs(dir: string): Promise<{ readonly names: readonly string[]; readonly toml: string; readonly main: string }> {
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  const main = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
+  const names = [...main.matchAll(/^INCLUDE_ASM\("asm\/nonmatchings\/main", (sub_[0-9A-F]{8})\);$/gm)].map((m) => m[1] ?? '');
+  return { names, toml, main };
+}
+
+/** romlift.toml with function `from` renamed `to`. */
+function renamed(toml: string, from: string, to: string): string {
+  return toml.replace(`= { name = "${from}"`, `= { name = "${to}"`).replace(`"${from}"`, `"${to}"`);
+}
+
+test('renaming a decompiled function in the TOML alone is E_C_STALE_DEFINITION (exit 1): nothing is written, src/main.c keeps one definition', async () => {
+  const dir = await initProject();
+  const { names, toml, main } = await firstStubs(dir);
+  const fn = names[1] ?? assert.fail(main);
+  const decompiled = main.replace(`INCLUDE_ASM("asm/nonmatchings/main", ${fn});`, `int ${fn}(int x) {\n  return x;\n}`);
+  await writeFile(path.join(dir, 'src', 'main.c'), decompiled);
+  await writeFile(path.join(dir, 'romlift.toml'), renamed(toml, fn, 'Checksum'));
+  const before = await snapshot(dir);
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.errors, out.stdout);
+  assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic' && l['severity'] === 'error').map((l) => l['code']), ['E_C_STALE_DEFINITION']);
+  assert.deepEqual(await snapshot(dir), before, 'nothing written');
+  // The C renamed too: generate goes through, and the file holds Checksum once.
+  await writeFile(path.join(dir, 'src', 'main.c'), decompiled.replace(`int ${fn}(`, 'int Checksum('));
+  const again = await run(dir, ['generate', '--json']);
+  assert.equal(again.code, ExitCode.ok, again.stdout);
+  const after = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
+  assert.equal(after.split('Checksum').length - 1, 1, after);
+});
+
+test('a rename next to a NONMATCHING block puts the new stub after its #endif, never inside it', async () => {
+  const dir = await initProject();
+  const { names, toml, main } = await firstStubs(dir);
+  const [held, next] = [names[0] ?? assert.fail(main), names[1] ?? assert.fail(main)];
+  const stubOf = (n: string): string => `INCLUDE_ASM("asm/nonmatchings/main", ${n});`;
+  const wrapped = main.replace(stubOf(held), `#ifdef NONMATCHING\nint ${held}(void) {\n  return 0;\n}\n#else\n${stubOf(held)}\n#endif`);
+  await writeFile(path.join(dir, 'src', 'main.c'), wrapped);
+  await writeFile(path.join(dir, 'romlift.toml'), renamed(toml, next, 'AgbMain'));
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  const after = await readFile(path.join(dir, 'src', 'main.c'), 'utf8');
+  assert.ok(after.includes(`#endif\n${stubOf('AgbMain')}\n`), after);
+  assert.ok(!after.includes(stubOf(next)), after);
+});
+
+test('a src/*.c of no module warns W_C_FILE_UNUSED; generate still writes', async () => {
+  const dir = await initProject();
+  await writeFile(path.join(dir, 'src', 'old.c'), 'int Kept(void) { return 1; }\n');
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => [l['code'], l['path']]), [['W_C_FILE_UNUSED', 'src/old.c']]);
+});
+
+test('--out twice into one directory: the second run rewrites src/main.c with the TOML change, as it rewrites asm/', async () => {
+  const dir = await initProject();
+  const out = path.join(TMP, `out-${fresh++}`);
+  assert.equal((await run(dir, ['generate', '--out', out, '--json'])).code, ExitCode.ok);
+  const { names, toml } = await firstStubs(dir);
+  const fn = names[0] ?? assert.fail('a stub');
+  await writeFile(path.join(dir, 'romlift.toml'), renamed(toml, fn, 'Poly'));
+  const again = await run(dir, ['generate', '--out', out, '--json']);
+  assert.equal(again.code, ExitCode.ok, again.stdout);
+  const main = await readFile(path.join(out, 'src', 'main.c'), 'utf8');
+  assert.match(main, /INCLUDE_ASM\("asm\/nonmatchings\/main", Poly\);/);
+  assert.doesNotMatch(main, new RegExp(`, ${fn}\\);`));
+});

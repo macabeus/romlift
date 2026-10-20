@@ -62,7 +62,7 @@ test('the text is the planner run on the template header, a stub-only unit whose
   const names = ['AgbMain', 'unk_08000120', 'VBlankCB_08000130', 'VblankCB_08000140'];
   assert.equal(text, applyTextEdits(C_STUB_HEADER, planIncludeAsm(C_STUB_HEADER, { module: 'main', names }).edits));
   assert.ok(text.startsWith(C_STUB_HEADER));
-  assert.deepEqual(planIncludeAsm(text, { module: 'main', names }), { edits: [], diagnostics: [], unplaced: [] }, 'the planner has nothing to add');
+  assert.deepEqual(planIncludeAsm(text, { module: 'main', names }), { edits: [], diagnostics: [], unplaced: [], undeclared: [] }, 'the planner has nothing to add');
   const assembly = stubAssemblyOf(text);
   assert.ok(assembly.ok);
   assert.equal(assembly.text, stubUnitAssembly(model, main));

@@ -4,7 +4,8 @@
 // reference (templates/agbcc.json). renderScaffold (core/scaffold/render.ts) renders them; the shell reads
 // the template files (shell/project/templates.ts). Pure: a text that is not a manifest or a pin decodes to an
 // error value, never a throw.
-import { BASEROM_FILE } from '../../foundation/util/project-files.ts';
+import { DIALECT } from '../../foundation/asm/dialect.ts';
+import { BASEROM_FILE, INCLUDE_ASM_HEADER_PATH } from '../../foundation/util/project-files.ts';
 import { isProjectPath } from '../../foundation/util/project-path.ts';
 
 /** The pinned agbcc a project builds with: templates/agbcc.json, the submodule `.gitmodules` and setup.sh name. */
@@ -123,13 +124,13 @@ export interface ScaffoldTemplates {
   readonly texts: ReadonlyMap<string, string>;
 }
 
-/** The targets romlift renders without a template file (`source: null`), and no others. */
+/** The targets romlift renders without a template file (`source: null`), and no others; the two headers' paths are the dialect's and project-files.ts's, the ones render.ts's renderers are keyed by. */
 export const ROMLIFT_RENDERED_TARGETS: readonly string[] = [
   placeholderText('sha1File'),
   'package.json',
   '.gitmodules',
-  'include/macros.inc',
-  'include/include_asm.h',
+  DIALECT.macrosPath,
+  INCLUDE_ASM_HEADER_PATH,
 ];
 
 export type Decoded<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string };

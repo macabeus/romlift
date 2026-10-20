@@ -19,7 +19,7 @@ import { readRom } from '../../api/files.ts';
 import type { Diagnostic, Rom } from '../../api/rom.ts';
 import { findBinutils } from '../../api/toolchain.ts';
 import type { Printer } from '../../api/emit.ts';
-import { combineReports, VerifyCodes } from '../../api/verify.ts';
+import { combineReports } from '../../api/verify.ts';
 import type { CheckId, CheckResult, VerifyReport } from '../../api/verify.ts';
 import { generatedEntries, generateProject, writable } from '../../core/workflow/generate.ts';
 import { generateFromRom } from '../../core/workflow/init-config.ts';
@@ -31,10 +31,9 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CliIo, CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, usageError } from './analysis-records.ts';
+import { exitCodeOf, printDiagnosticsOnly, refusedExitCode, usageError, VERIFY_CODES } from './analysis-records.ts';
 
 const PRINTERS: readonly Printer[] = ['readable', 'raw'];
-const VERIFY_CODES: ReadonlySet<string> = new Set(Object.keys(VerifyCodes));
 /** Where the tree of --assemble and --link is written: under os.tmpdir(), never the working directory. */
 export const VERIFY_TEMP_PREFIX = 'romlift-verify-';
 
@@ -69,14 +68,6 @@ function allDiagnostics(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>):
 export function verifyExitCode(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): ExitCode {
   if (allDiagnostics(outcome).some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))) return ExitCode.errors;
   return outcome.report.ok ? ExitCode.ok : ExitCode.verifyFailed;
-}
-
-/**
- * The exit code of a refusal that planned nothing: 1 when an error diagnostic is not a self-check's (the input or the
- * model is wrong), else 3 (a self-check failed; also when nothing says why, since only a check refuses silently).
- */
-export function refusedExitCode(diagnostics: readonly Diagnostic[]): ExitCode {
-  return diagnostics.some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code)) ? ExitCode.errors : ExitCode.verifyFailed;
 }
 
 /** The toolchain checks a run asks for, in CHECK_IDS order. */

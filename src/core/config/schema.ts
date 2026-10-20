@@ -1,7 +1,7 @@
 // The in-memory project config (architecture §3.4, §6.5, D9, D22, D47): what `romlift.toml` (schema 1)
 // means once parsed, and a zod schema that validates such a value in memory. Phase 3 builds the config
 // in memory (core/workflow/config-from-discover.ts); phase 4 parses and serialises the TOML into the same
-// shape (parse.ts, serialize.ts, with their codes). The phase-5 key `data_start` is not part of schema 1
+// shape (parse.ts, serialize.ts, with their codes). The key `data_start` (the C data ranges, phase 6's since D76 g) is not part of schema 1
 // yet (D62). Addresses are numbers here; the TOML spells them '0x' and eight upper-case hex digits.
 import { z } from 'zod';
 

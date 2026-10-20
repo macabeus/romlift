@@ -1,5 +1,5 @@
 // The C tokenizer (architecture §6.6): the one reader of C text in romlift. Every other reader of a C file (the
-// INCLUDE_ASM planner, the text-layout check of a C unit, phase 5's identifier renames) works on its tokens, so a
+// INCLUDE_ASM planner, the text-layout check of a C unit, phase 6's identifier renames (D76 g)) works on its tokens, so a
 // comment, a string or a preprocessor line is never mistaken for code: no regex ever runs over C.
 //
 // The tokens are those of translation phase 3 with the parts romlift needs: comments (`/* … */`, `// …`), string
@@ -8,7 +8,8 @@
 // pp-numbers and punctuators (longest match). Whitespace is not a token. Anything else (a stray `\`, `@`, a
 // non-ASCII character) is one `other` token per character. Every token carries its UTF-16 offsets and the 1-based
 // line it starts on. The text a comment, string, character literal or preprocessor line runs to the end of is a
-// token with `terminated: false`; the tokenizer never fails.
+// token with `terminated: false`; the tokenizer never fails. A byte order mark (U+FEFF) at offset 0 is no token, and
+// the first line still starts after it, as the host preprocessor reads such a file (fix round 2, correctness-a0-3).
 
 /** What a token is. */
 export type CTokenKind = 'comment' | 'string' | 'char' | 'preprocessor' | 'identifier' | 'number' | 'punctuator' | 'other';
@@ -207,7 +208,7 @@ function scanToken(c: Cursor): { readonly kind: CTokenKind; readonly terminated:
 /** The tokens of a C text, in order. Never throws: an unclosed comment, literal or directive is a token with `terminated: false`. */
 export function tokenizeC(text: string): readonly CToken[] {
   const tokens: CToken[] = [];
-  const c: Cursor = { text, at: 0, line: 1, lineStart: true };
+  const c: Cursor = { text, at: text.charCodeAt(0) === 0xfeff ? 1 : 0, line: 1, lineStart: true };
   while (c.at < text.length) {
     const ch = text[c.at] ?? '';
     if (ch === '\n') {

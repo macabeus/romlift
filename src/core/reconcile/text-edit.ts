@@ -1,5 +1,5 @@
 // Text edits of a reconciled C file (architecture §3.4, §6.3 `reconciled` ownership, §6.6): what the INCLUDE_ASM
-// planner (and phase 5's renames) return, and how they apply. An edit replaces [start, end) of the base text, in
+// planner (and phase 6's renames, D76 g) return, and how they apply. An edit replaces [start, end) of the base text, in
 // UTF-16 offsets, so `generate` touches a C file only where a planner says (R9). The shape is architecture §3.4's
 // TextEdit, declared here once (core/reconcile imports only foundation) and re-exported by core/emit/tree.ts for the
 // FileEntry that carries it.
