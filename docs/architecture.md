@@ -97,8 +97,9 @@ romlift/
   .gitignore                        *.gba *.elf *.map *.o (fixture builds re-included), dist/, bench/.local/,
                                     bench/timings.json, signatures/*.json (built files, D40)
   .github/workflows/                ci.yml, printer.yml, fixtures.yml, provenance.yml, packed.yml
-  templates/                        MANIFEST.json, Makefile, setup.sh, include/**, AGENTS.md, build.yml, gitignore,
-                                    README.md, compilers/<id>.mk, agbcc.json (the pinned agbcc URL and commit)
+  templates/                        MANIFEST.json (every scaffold file and its project path, D74 d), Makefile, setup.sh,
+                                    AGENTS.md, build.yml, gitignore, README.md, compilers/<id>.mk, agbcc.json (the pinned
+                                    agbcc URL and commit); include/** is rendered from the dialect, not a template
   signatures/
     specs/<library>.json            committed: references, object globs, reviewed names; no bytes
     <library>.json                  built locally by `romlift signatures build`; gitignored (D40)
@@ -111,7 +112,7 @@ romlift/
                                     parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59)
       corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
                                     as round-trip corpus, counts only (D54 c, D55)
-      asm/                          dialect.ts (file preamble, macros.inc text), statements.ts (parser of the
+      asm/                          dialect.ts (preamble, macros.inc, C-stub texts), statements.ts (parser of the
                                     directive subset romlift emits), layout.ts (lays statements out to bytes)
       formats/                      elf.ts, gnu-map.ts, canonical-json.ts, luvdis-cfg.ts, ldscript-symbols.ts,
                                     thumb-aliases.ts, trace-json.ts
@@ -231,7 +232,7 @@ It fails on any edge not allowed here:
 | `core/model` | `foundation`, `core/provenance`, `core/profile/types.ts`, `core/analysis/types.ts`, `core/config` (types and `compilers.ts`), `core/layout/borders.ts` |
 | `core/reconcile`, `core/scaffold` | `foundation` |
 | `core/emit` | `foundation`, `core/model`, `core/reconcile` (stub planning for the `c-stub` writer) |
-| `core/verify` | `foundation`, `core/model`, `core/emit/tree.ts` |
+| `core/verify` | `foundation`, `core/model`, `core/emit/tree.ts`, `core/reconcile` and `core/config/compilers.ts` (a C unit's stub, read with the one C tokenizer, and its compiler; D74 g) |
 | `core/write-plan` | `foundation`, `core/emit/tree.ts` |
 | `core/diagnostic-codes.ts` | the `codes.ts` file of every module, and `foundation/rom/codes.ts` |
 | `core/workflow` | every core module above; **nothing in core imports `core/workflow`** |
@@ -295,7 +296,7 @@ with stdin closed and parses `--json` output line by line.
 | `explain <addr> [--rom <rom>] [--json]` (2, extended in 3, 4 and 6) | a ROM, or a project via `decomp.yaml` | stdout only | phase 2: owner, claim, provenance, rejections, `bl` verdicts, rule meta; phase 3: item and chunk; phase 4: name and its source; phase 6: the signature placement read from the TOML's `from` key |
 | `model --json` (3) | ROM + TOML (in phase 3: ROM + in-memory config) | stdout, NDJSON | a header line, then one line per chunk (the public `ModelJson`, §3.4) |
 | `verify [--assemble] [--link] [--printer raw]` (3) | ROM + TOML (or `--rom` alone, with the config `configFromDiscover` builds) | a temporary directory only | the four self-checks; `--assemble`: per module, `as` output equals the ROM range; `--link`: a full link equals the SHA-1 |
-| `init <rom> [dir] [--name] [--no-signatures] [--module-size]` (4) | ROM, templates, signatures (6) | TOML, `decomp.yaml`, scaffold, `src/*.c`, generated tree | `dir` defaults to the working directory; accepted when empty, when it holds only the given ROM plus `.git` and dot-files, or when it is a romlift project; refused otherwise (`E_DIR_NOT_EMPTY`) |
+| `init <rom> [dir] [--name] [--module-size] [--json]` (4; `--no-signatures` in 6, D74 c) | ROM, templates, signatures (6) | TOML, `decomp.yaml`, scaffold, `src/*.c`, generated tree | `dir` defaults to the working directory; accepted when empty, when it holds only the given ROM plus `.git` and dot-files, or when it is a romlift project; refused otherwise (`E_DIR_NOT_EMPTY`) |
 | `generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]` (4) | `decomp.yaml` → TOML, ROM, `src/*.c` | generated tree; `INCLUDE_ASM` edits (5) | self-checks pass before any write; never writes the TOML; `--dry-run --json` prints the write plan |
 | `analyze --update [--write]` (4) | project | prints a TOML patch; `--write` applies it | the patch keeps comments and re-parses |
 | `scaffold --diff` (4) | project, templates | nothing | how scaffold files differ from the current templates |
@@ -1320,6 +1321,15 @@ only `analyze --update --write`, `rename` and `import-legacy` patch the TOML.
   generate` when `asm/` is absent. The `Makefile` includes `modules.mk` and uses the per-compiler rule of
   `templates/compilers/<id>.mk`; an explicit rule the user adds for one object takes precedence over the
   pattern rule, which is how a legacy project keeps hand-written compile steps (D47).
+- **Frozen by D74.** `templates/MANIFEST.json` lists every scaffold file with its project path; templates and targets
+  spell a `ScaffoldVars` value as `@@<placeholder>@@`; `<name>.sha1`, `package.json`, `.gitmodules`,
+  `include/macros.inc` and `include/include_asm.h` are rendered by romlift, not from a template; the compiler
+  fragments land at `mk/<id>.mk`. A C module `src/<m>.c` is preprocessed by the host C compiler (`-E -x c -nostdinc
+  -undef -I include`), compiled by `tools/agbcc/bin/<compiler>` with its flags and the module's `cflags` into
+  `build/src/<m>.s` and assembled to `build/src/<m>.o`; asm and data units build to `build/<m>.o`. `modules.mk` holds
+  `OBJS` (every unit object in link order), `C_OBJS`, and per C object `build/src/<m>.o: CC1 := …` and
+  `build/src/<m>.o: CFLAGS := …`. A generated `src/<m>.c` is `#include "include_asm.h"` and one
+  `INCLUDE_ASM("asm/nonmatchings/<m>", <Name>);` per chunk file in ROM order (`foundation/asm/dialect.ts`).
 
 ### 6.4 Writing safely
 
@@ -1489,9 +1499,11 @@ only, never comments or strings.
 it is empty:
 
 ```
-.c_data_<module> (NOLOAD) : { src/<module>.o(.rodata* .data* .bss* COMMON) }
+.c_data_<module> (NOLOAD) : { *src/<module>.o(.rodata* .data* .bss* COMMON) }
 ASSERT(SIZEOF(.c_data_<module>) == 0, "src/<module>.c defines data; see AGENTS.md (data ranges arrive in phase 5)")
 ```
+
+The leading `*` matches the object ld is given, `build/src/<module>.o` (D74 f).
 
 `g4.c-data-fails-loud` builds a fixture whose C file defines a `const` array and expects that message.
 Phase 5 replaces the assertion with a data range per module (`[[modules]] data_start`), so a C array can
