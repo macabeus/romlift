@@ -17,6 +17,8 @@ export const HEADER_PATH = 'asm/rom_header.s';
 export const CRT0_PATH = 'asm/crt0.s';
 export const LDSCRIPT_PATH = 'ldscript.txt';
 export const SYMBOLS_PATH = 'symbols.ld';
+/** The per-unit build variables the scaffold's Makefile includes (the modules-mk writer, D74 f). */
+export const MODULES_MK_PATH = 'modules.mk';
 /** The user's ROM at the project root: the config's rom.path, and the only file an `.incbin` reads. */
 export const BASEROM_PATH = 'baserom.gba';
 /** The macro file every generated `.s` includes, as the dialect defines it (foundation/asm/dialect.ts DIALECT.macrosPath). */
@@ -27,9 +29,28 @@ export function nonmatchingDir(module: string): string {
   return `asm/nonmatchings/${module}`;
 }
 
-/** The object a module builds to. */
+/** The object an asm or data module builds to (as from its `.s` source). */
 export function objectPath(module: string): string {
   return `build/${module}.o`;
+}
+
+/**
+ * The object a C module builds to (D74 f): `src/<module>.c` is preprocessed, compiled by agbcc into
+ * cAssemblyPath(module) and assembled to `build/src/<module>.o`, which the ldscript's C-data check names as
+ * `*src/<module>.o`.
+ */
+export function cObjectPath(module: string): string {
+  return `build/src/${module}.o`;
+}
+
+/** The assembly agbcc writes for C module `module`, which `as` assembles to cObjectPath(module). */
+export function cAssemblyPath(module: string): string {
+  return `build/src/${module}.s`;
+}
+
+/** Whether a build unit's source is a C file (moduleSource of a C module), which builds to cObjectPath. */
+export function isCSource(source: string): boolean {
+  return source.endsWith('.c');
 }
 
 function isFileChunk(chunk: Chunk): boolean {
@@ -98,16 +119,17 @@ export function moduleSource(model: Pick<Model, 'chunks'>, module: Module): stri
   }
 }
 
-/** One link unit: a module, the source it builds from, and its object. */
+/** One link unit: a module, the source it builds from (`src/<m>.c` for a C module), and its object. */
 export interface BuildUnit {
   readonly module: string;
   readonly source: string;
   readonly object: string;
 }
 
-/** The link unit of module `m`. */
+/** The link unit of module `m`: a C source builds to build/src/<m>.o, an assembly one to build/<m>.o. */
 function buildUnitOf(model: Pick<Model, 'chunks'>, m: Module): BuildUnit {
-  return { module: m.name, source: moduleSource(model, m), object: objectPath(m.name) };
+  const source = moduleSource(model, m);
+  return { module: m.name, source, object: isCSource(source) ? cObjectPath(m.name) : objectPath(m.name) };
 }
 
 /** One unit per module, in ROM (link) order. */

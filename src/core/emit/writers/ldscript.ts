@@ -13,16 +13,22 @@
 //       .text.<module> <load> : AT(<load>) {   the units after a runs_at module, from the first one's start
 //           ...
 //       }
+//       .c_data_<m> (NOLOAD) : { *src/<m>.o(.rodata* .data* .bss* COMMON) }     per C unit, in ROM order (D21, D74 f)
+//       ASSERT(SIZEOF(.c_data_<m>) == 0, "src/<m>.c defines data; see AGENTS.md (data ranges arrive in phase 5)")
 //   }
 //
 // Every byte of the ROM is in exactly one unit and the units follow each other without a gap, so
 // `objcopy -O binary` writes the ROM: from the lowest load address to the highest, nothing past the ROM end.
 // A section after a runs_at one names its load address because the location counter is then in run space.
-// The ROM-order units of phase 3 are asm and data objects, which hold only .text; C data is phase 4's (D21).
+// Asm and data objects hold only .text. A C unit's object (build/src/<m>.o) has only its .text placed; every other
+// section it has goes into its NOLOAD check section, which the ASSERT requires to be empty, so a C file that defines
+// data fails the link with a message naming it until phase 5 gives modules data ranges (architecture §6.6, D21).
+// The check sections hold nothing in a linking tree and NOLOAD loads nothing, so the image is the units' .text.
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
-import { buildUnits, LDSCRIPT_PATH, SYMBOLS_PATH } from '../../model/paths.ts';
+import { cDataAssertLine, cDataSectionLine } from '../../model/c-unit.ts';
+import { buildUnits, isCSource, LDSCRIPT_PATH, SYMBOLS_PATH } from '../../model/paths.ts';
 import { externalSymbols } from '../../model/symbols.ts';
 import type { Model, Module } from '../../model/types.ts';
 import type { FileEntry, Writer } from '../tree.ts';
@@ -58,6 +64,9 @@ export function ldscriptText(model: Pick<Model, 'modules' | 'chunks' | 'symbols'
     lines.push(`${INDENT}${INDENT}${object}(.text);`);
   });
   close();
+  model.modules.forEach((module, i) => {
+    if (isCSource(units[i]?.source ?? '')) lines.push(`${INDENT}${cDataSectionLine(module.name)}`, `${INDENT}${cDataAssertLine(module.name)}`);
+  });
   lines.push('}');
   return `${lines.join('\n')}\n`;
 }

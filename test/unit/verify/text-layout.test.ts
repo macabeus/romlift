@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { emitTree } from '../../../src/core/emit/emit-tree.ts';
+import { cStubWriter } from '../../../src/core/emit/writers/c-stub.ts';
 import { WRITERS } from '../../../src/core/emit/writers/index.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
@@ -269,14 +270,121 @@ test('a name the printers cannot place (a label inside an instruction) is an und
   );
 });
 
-test('a C module needs its source in the stream: without the c-stub writer (phase 4) the check fails (correctness-6)', () => {
+/** The fixture with module main a C unit: the c-stub writer's stub instead of asm/main.s. */
+function cFixture(): { readonly model: Model; readonly stub: FileEntry; readonly entries: readonly FileEntry[] } {
   const c: Model = { ...model, modules: model.modules.map((m) => (m.name === 'main' ? { ...m, kind: 'c' as const } : m)) };
-  const entries = [...fixtureEntries(), ...written(rom, c)].filter((e) => e.path !== 'asm/main.s');
+  const main = c.modules.findIndex((m) => m.name === 'main');
+  const [stub] = [...cStubWriter.emit(rom, c, CX, main)];
+  assert.ok(stub !== undefined);
+  return { model: c, stub, entries: [...fixtureEntries().filter((e) => e.path !== 'asm/main.s'), stub, ...written(rom, c)] };
+}
+
+/** checkEntry of a C stub text on the C fixture, as [code, addr, line, message] rows. */
+function checkStub(text: string): readonly (readonly [string, number | undefined, number, string])[] {
+  const { model: c, stub } = cFixture();
+  const found = checkEntry(rom, c, textLayoutIndex(c), { ...stub, text } as FileEntry);
+  return found.map((d) => [d.code, d.addr, Number(/ line (\d+):/.exec(d.message)?.[1] ?? -1), d.message] as const);
+}
+
+test('a C unit: the c-stub writer\'s stub lays out as agbcc compiles it, its chunk files as in an asm module', () => {
+  const { model: c, stub, entries } = cFixture();
+  assert.equal(stub.ownership, 'scaffold');
+  assert.equal(stub.path, 'src/main.c');
+  assert.equal(
+    'text' in stub ? stub.text : '',
+    '#include "include_asm.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", Func);\nINCLUDE_ASM("asm/nonmatchings/main", Veneer);\nINCLUDE_ASM("asm/nonmatchings/main", ArmFunc);\nINCLUDE_ASM("asm/nonmatchings/main", unk_08000114);\n',
+  );
+  assert.deepEqual(checkEntry(rom, c, textLayoutIndex(c), stub), []);
   const report = checkEntries(rom, c, entries);
+  assert.deepEqual(report.checks.map((r) => [r.id, r.ok]), [['text-layout', true], ['paths', true]]);
+});
+
+test('a C module needs its stub in the stream: without the c-stub writer\'s entry the check fails (correctness-6)', () => {
+  const { model: c, entries } = cFixture();
+  const report = checkEntries(rom, c, entries.filter((e) => e.path !== 'src/main.c'));
   assert.equal(report.ok, false);
   const failed = report.checks.find((r) => r.id === 'text-layout');
   assert.equal(failed?.ok, false);
   assert.match(failed?.detail ?? '', /^src\/main\.c line 1: the stream emits no such file, which the model needs \(at 0x08000100\)/);
+});
+
+test('a C stub must include exactly the module\'s chunk files in ROM order', () => {
+  const head = '#include "include_asm.h"\n\n';
+  const stmt = (name: string): string => `INCLUDE_ASM("asm/nonmatchings/main", ${name});\n`;
+  const all = ['Func', 'Veneer', 'ArmFunc', 'unk_08000114'];
+  const swapped = checkStub(head + ['Veneer', 'Func', 'ArmFunc', 'unk_08000114'].map(stmt).join(''));
+  assert.deepEqual(swapped.map((r) => r.slice(0, 3)), [['E_SELF_CHECK_TEXT', 0x0800_0100, 3]]);
+  assert.match(swapped[0]?.[3] ?? '', /includes "asm\/nonmatchings\/main\/Veneer\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/Func\.s"/);
+  const missing = checkStub(head + all.slice(0, 3).map(stmt).join(''));
+  assert.match(missing[0]?.[3] ?? '', /line 5: does not include "asm\/nonmatchings\/main\/unk_08000114\.s", the chunk file at 0x08000114/);
+  const extra = checkStub(head + [...all, 'Func'].map(stmt).join(''));
+  assert.match(extra[0]?.[3] ?? '', /line 7: includes "asm\/nonmatchings\/main\/Func\.s" after the module's last chunk file/);
+  const otherDir = checkStub(head + all.map(stmt).join('').replace('nonmatchings/main", Veneer', 'nonmatchings/other", Veneer'));
+  assert.match(otherDir[0]?.[3] ?? '', /includes "asm\/nonmatchings\/other\/Veneer\.s" where/);
+  // Comments and blank lines are not code: the same stub with them passes.
+  assert.deepEqual(checkStub(`/* main */\n${head}${all.map((n) => `// ${n}\n${stmt(n)}\n`).join('')}`), []);
+});
+
+test('a C stub holds nothing a compiler would turn into bytes: no definition, no declaration, no other directive, the header first', () => {
+  const body = ['Func', 'Veneer', 'ArmFunc', 'unk_08000114'].map((n) => `INCLUDE_ASM("asm/nonmatchings/main", ${n});\n`).join('');
+  const head = '#include "include_asm.h"\n\n';
+  const defined = checkStub(`${head}${body}void Extra(void) { }\n`);
+  assert.match(defined[0]?.[3] ?? '', /line 7: defines the function Extra; only a stub-only unit is laid out/);
+  const declared = checkStub(`${head}int gCounter;\n${body}`);
+  assert.match(declared[0]?.[3] ?? '', /line 3: holds `int…` at file scope/);
+  const directive = checkStub(`${head}#define X 1\n${body}`);
+  assert.match(directive[0]?.[3] ?? '', /line 3: holds the directive `#define X 1`/);
+  const headless = checkStub(body);
+  assert.match(headless[0]?.[3] ?? '', /line 1: uses INCLUDE_ASM without `#include "include_asm.h"` before it/);
+  const late = checkStub(`${body}${head}`);
+  assert.equal(late.length, 2, 'the header after the statements, and the statements without it');
+  const open = checkStub(`${head}${body}/* unterminated`);
+  assert.match(open[0]?.[3] ?? '', /the file ends inside a comment/);
+  for (const rows of [defined, declared, directive, headless, late, open]) for (const r of rows) assert.equal(r[0], 'E_SELF_CHECK_TEXT');
+});
+
+test('a C module holding a chunk without a file cannot be a stub: E_SELF_CHECK_TEXT at the chunk', () => {
+  const r = romWith([], { size: 0x200 });
+  const m = modelOf(r, {
+    modules: [
+      { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
+      { name: 'main', kind: 'c', chunks: [{ name: 'F', items: [dataItem(0x0800_00c0, 0x20)] }, { kind: 'data', name: 'gTable', items: [dataItem(0x0800_00e0, 0x120)] }] },
+    ],
+  });
+  const [stub] = [...cStubWriter.emit(r, m, CX, 1)];
+  assert.ok(stub !== undefined && 'text' in stub);
+  const found = checkEntry(r, m, textLayoutIndex(m), stub);
+  assert.deepEqual(found.map((d) => [d.code, d.addr]), [['E_SELF_CHECK_TEXT', 0x0800_00e0]]);
+  assert.match(found[0]?.message ?? '', /the data chunk gTable at 0x080000E0 has no file of its own/);
+});
+
+test('a C unit asks the alignment of Thumb state and of its chunk files, as an asm unit does (D65 a)', () => {
+  // main is one 6-byte Thumb function whose start macro asks 4: as pads the unit's .text to 8, past the module's end.
+  const at = 0x0800_00c0;
+  const r = romWith([{ at, bytes: thumbAt(at)`push {lr}; pop {pc}; bx lr` }], { size: 0x200 });
+  const unit = (end: number): Model =>
+    modelOf(r, {
+      modules: [
+        { name: 'rom_header', chunks: [{ kind: 'header', name: 'rom_header', items: [dataItem(0x0800_0000, 0xc0)] }] },
+        { name: 'main', kind: 'c', chunks: [{ name: 'F', items: [...codeItems(r, at, at + 6, 'thumb'), ...(end > at + 6 ? [dataItem(at + 6, end - at - 6)] : [])] }] },
+        { name: 'data', kind: 'data', chunks: [{ kind: 'data', name: 'data', items: [dataItem(end, 0x0800_0200 - end)] }] },
+      ],
+      labels: [label('F', at)],
+    });
+  const short = unit(at + 6);
+  const failed = checkEntries(r, short, [...emitTree(r, short, CX)]).checks.find((c) => c.id === 'text-layout');
+  assert.equal(failed?.ok, false);
+  assert.match(failed?.detail ?? '', /^src\/main\.c line 1: GNU as pads the object's section to a multiple of 4 bytes, 2 past the module's end 0x080000C6/);
+  const whole = unit(at + 8);
+  assert.equal(checkEntries(r, whole, [...emitTree(r, whole, CX)]).ok, true);
+});
+
+test('the index is an opaque handle: a handle textLayoutIndex did not make is an invariant error (architecture-r2-1)', () => {
+  const index = textLayoutIndex(model);
+  assert.deepEqual(Object.keys(index), ['kind']);
+  assert.ok(Object.isFrozen(index));
+  const forged = { kind: 'text-layout-index' as const };
+  assert.throws(() => checkEntry(rom, model, forged, entry('asm/main.s', textOf('asm/main.s'))), /an index handle textLayoutIndex did not make/);
 });
 
 test('two definable labels of one static name in two modules: each module resolves its own (architecture-r2-9)', () => {
@@ -289,10 +397,6 @@ test('two definable labels of one static name in two modules: each module resolv
   const labels = [label('sLocal', 0x0800_0108, { kind: 'data', thumb: false }), label('sLocal', 0x0800_0188, { kind: 'data', thumb: false })];
   const m = modelOf(r, { modules: [head, a, b], labels });
   const index = textLayoutIndex(m);
-  assert.deepEqual(
-    index.labelsByName.get('sLocal')?.map((l) => l.addr),
-    [0x0800_0108, 0x0800_0188],
-  );
   const files = written(r, m);
   for (const name of ['a', 'b']) {
     const file = files.find((e) => e.path === `data/${name}.s`);

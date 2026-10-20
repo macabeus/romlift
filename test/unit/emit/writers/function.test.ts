@@ -8,7 +8,6 @@ import { printChunk } from '../../../../src/core/emit/print/chunk.ts';
 import { functionWriter } from '../../../../src/core/emit/writers/function.ts';
 import { buildModel } from '../../../../src/core/model/model.ts';
 import { chunkPaths, chunkPathsOf } from '../../../../src/core/model/paths.ts';
-import { textLayoutIndex } from '../../../../src/core/verify/text-layout.ts';
 import { codeItems, label, modelOf, romWith } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
 import { analysisOf, BASE, configOf, fact, HEADER_END } from '../../layout/hand-made.ts';
@@ -49,7 +48,6 @@ test('names that differ only by case get the address suffix, from paths.ts', () 
   assert.deepEqual([...functionWriter.emit(r, m, cx, 0)].map((e) => e.path), ['asm/nonmatchings/main/VBlankCB_08000200.s', 'asm/nonmatchings/main/VblankCB_08000202.s']);
   assert.deepEqual(chunkPathsOf(m), chunkPaths(m));
   assert.equal(chunkPathsOf(m), chunkPathsOf(m), 'computed once per model');
-  assert.equal(textLayoutIndex(m).chunkPaths, chunkPathsOf(m), 'the text-layout check shares the writers\' paths');
 });
 
 /** buildModel over A (0x100..0x10A), a 2-byte zero pad and B (0x10C), which folds the pad (phase-3.md Q5 b). */

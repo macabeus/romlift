@@ -1,5 +1,5 @@
-// Writer goldens (architecture §5, §6.3, §13 g3.golden-writers; roadmap 3.B, 3.C): for every committed fixture
-// and each of the eight phase-3 writers, the files that writer yields on the fixture's discover-mode model
+// Writer goldens (architecture §5, §6.3, §13 g3.golden-writers; roadmap 3.B, 3.C, 4.C): for every committed fixture
+// and each of the ten writers (phase 3's eight, phase 4's modules-mk and c-stub), the files that writer yields on the fixture's discover-mode model
 // (the seedless discover run under profileById('agbcc'), configFromDiscover, buildModel), with the readable
 // printer and an empty DecompState, one test/golden/writers/<writer>/<fixture>.txt each. A module-scoped
 // writer runs per generated module in ROM order, a global one once, each module's files sorted by path: the
@@ -30,7 +30,7 @@ const DIR = fileURLToPath(new URL('./', import.meta.url));
 const UPDATE = process.env['UPDATE_GOLDEN'] === '1';
 const FIXTURES = listSyntheticFixtures();
 /** The writers g3.golden-writers requires a golden of, in the order of the writers table of §6.3. */
-const GATED: readonly WriterId[] = ['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols'];
+const GATED: readonly WriterId[] = ['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'modules-mk', 'c-stub'];
 const RAW_SET = 'raw-printer';
 
 const READABLE: EmitContext = { decomp: { defined: [] } };
@@ -40,7 +40,7 @@ const RAW: EmitContext = { decomp: { defined: [] }, printer: 'raw' };
 function goldenText(entries: Iterable<FileEntry>): string {
   const parts: string[] = [];
   for (const e of entries) {
-    if (e.ownership === 'reconciled') throw new Error(`${e.path}: a reconciled entry in a phase-3 stream`);
+    if (e.ownership === 'reconciled') throw new Error(`${e.path}: a reconciled entry in a discover-mode stream`);
     parts.push(`==> ${e.path} (${e.ownership}, ${e.writer}) <==\n${e.text}`);
   }
   return parts.length === 0 ? '(no files)\n' : parts.join('');

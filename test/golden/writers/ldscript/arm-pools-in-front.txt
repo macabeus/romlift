@@ -6,6 +6,8 @@ SECTIONS {
         build/rom_header.o(.text);
         build/crt0.o(.text);
         build/asm_080000F4.o(.text);
-        build/main.o(.text);
+        build/src/main.o(.text);
     }
+    .c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }
+    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (data ranges arrive in phase 5)")
 }

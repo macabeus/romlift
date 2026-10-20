@@ -1,10 +1,13 @@
 // Fault injection into the text-layout self-check (g3.checks-fail, architecture §6.4, §10, D49): on a
 // consistent stream, a flipped byte in a FileEntry's text, a wrong `.align` and a missing include each fail
-// with E_SELF_CHECK_TEXT naming the file, the line and the address, and the stream's report is not ok.
+// with E_SELF_CHECK_TEXT naming the file, the line and the address, and the stream's report is not ok; with the
+// fixture's main module a C unit (phase 4, D74 g), a stub that lists a chunk twice or out of ROM order fails too.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { cStubWriter } from '../../../src/core/emit/writers/c-stub.ts';
 import { WRITERS } from '../../../src/core/emit/writers/index.ts';
+import type { Model } from '../../../src/core/model/types.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { checkEntries, checkEntry, textLayoutIndex } from '../../../src/core/verify/text-layout.ts';
 import { fixtureEntries, fixtureModel, fixtureRom } from '../../unit/verify/fixture.ts';
@@ -84,4 +87,57 @@ test('a [symbols] entry inside the ROM that no file defines is an undefined symb
   const ramEntry = ram.find((e) => e.path === 'asm/nonmatchings/main/Func.s');
   assert.ok(ramEntry !== undefined);
   assert.match(checkEntry(rom, model, textLayoutIndex(model), ramEntry)[0]?.message ?? '', /lays out 0x00 where the ROM holds 0x01/);
+});
+
+/** The consistent stream with main a C unit: the c-stub writer's src/main.c instead of asm/main.s. */
+function cStream(): { readonly model: Model; readonly entries: FileEntry[]; readonly stub: FileEntry & { readonly text: string } } {
+  const c: Model = { ...model, modules: model.modules.map((m) => (m.name === 'main' ? { ...m, kind: 'c' as const } : m)) };
+  const [stub] = [...cStubWriter.emit(rom, c, CX, c.modules.findIndex((m) => m.name === 'main'))];
+  assert.ok(stub !== undefined && stub.ownership === 'scaffold');
+  const ldscript = WRITERS.filter((w) => w.id === 'ldscript').flatMap((w) => [...w.emit(rom, c, CX, null)]);
+  const entries = [...stream().filter((e) => e.path !== 'asm/main.s' && e.path !== 'ldscript.txt'), stub, ...ldscript];
+  return { model: c, entries, stub };
+}
+
+/** The C stream with the stub's text rewritten, checked: the first diagnostic of the stub and the stream's verdict. */
+function mutatedStub(edit: (text: string) => string): { readonly first: { readonly code?: string; readonly addr?: number; readonly message?: string } | undefined; readonly ok: boolean } {
+  const { model: c, entries, stub } = cStream();
+  const text = edit(stub.text);
+  assert.notEqual(text, stub.text, 'the mutation changed the stub');
+  const changed = { ...stub, text };
+  const first = checkEntry(rom, c, textLayoutIndex(c), changed)[0];
+  return { first, ok: checkEntries(rom, c, entries.map((e) => (e.path === stub.path ? changed : e))).ok };
+}
+
+test('the unmutated C stream passes', () => {
+  const { model: c, entries } = cStream();
+  assert.equal(checkEntries(rom, c, entries).ok, true);
+});
+
+test('a C stub that lists a chunk twice fails with E_SELF_CHECK_TEXT at the second listing', () => {
+  const twice = 'INCLUDE_ASM("asm/nonmatchings/main", Veneer);\n';
+  const { first, ok } = mutatedStub((t) => t.replace(twice, twice + twice));
+  assert.equal(ok, false);
+  assert.equal(first?.code, 'E_SELF_CHECK_TEXT');
+  assert.equal(first?.addr, 0x0800_010e);
+  assert.match(first?.message ?? '', /^src\/main\.c line 5: includes "asm\/nonmatchings\/main\/Veneer\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/ArmFunc\.s"/);
+});
+
+test('a C stub that lists its chunks out of ROM order fails with E_SELF_CHECK_TEXT at the first misplaced one', () => {
+  const func = 'INCLUDE_ASM("asm/nonmatchings/main", Func);\n';
+  const veneer = 'INCLUDE_ASM("asm/nonmatchings/main", Veneer);\n';
+  const { first, ok } = mutatedStub((t) => t.replace(func + veneer, veneer + func));
+  assert.equal(ok, false);
+  assert.equal(first?.code, 'E_SELF_CHECK_TEXT');
+  assert.equal(first?.addr, 0x0800_0100);
+  assert.match(first?.message ?? '', /^src\/main\.c line 3: includes "asm\/nonmatchings\/main\/Veneer\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/Func\.s"/);
+});
+
+test('a C stub that drops a chunk, or defines a function, fails with E_SELF_CHECK_TEXT', () => {
+  const dropped = mutatedStub((t) => t.replace('INCLUDE_ASM("asm/nonmatchings/main", ArmFunc);\n', ''));
+  assert.equal(dropped.ok, false);
+  assert.match(dropped.first?.message ?? '', /includes "asm\/nonmatchings\/main\/unk_08000114\.s" where the module's chunk file in ROM order is "asm\/nonmatchings\/main\/ArmFunc\.s"/);
+  const defined = mutatedStub((t) => `${t}int Extra(void) { return 0; }\n`);
+  assert.equal(defined.ok, false);
+  assert.match(defined.first?.message ?? '', /defines the function Extra/);
 });
