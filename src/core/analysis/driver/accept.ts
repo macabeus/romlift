@@ -9,7 +9,7 @@ import type { Origin } from '../../provenance/vocabulary.ts';
 import { makeReading, partsOf } from '../reading.ts';
 import { Claim } from '../types.ts';
 import type { Candidate, ClaimEdit, FunctionFact, Reading } from '../types.ts';
-import { checkListed, isUnlisted, recordUnlisted } from './confirm.ts';
+import { checkListed, isOtherModeOfListed, isUnlisted, recordUnlisted } from './confirm.ts';
 import { factOf, factOfBlock } from './facts.ts';
 import { touch } from './reuse.ts';
 import { analyzeArm, settle } from './settle.ts';
@@ -98,7 +98,7 @@ export function accept(s: DriverState, first: Candidate, note?: string): number 
       also(s, c);
       continue;
     }
-    if (!contains(s.rom, c.entry)) continue;
+    if (!contains(s.rom, c.entry) || isOtherModeOfListed(s, c)) continue;
     if (isUnlisted(s, c)) {
       recordUnlisted(s, c, originOf(s, c.proposedBy));
       continue;

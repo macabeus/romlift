@@ -47,6 +47,18 @@ export function listedSeeds(options: AnalysisOptions): ReadonlyMap<Addr, Seed> {
   return listed;
 }
 
+/**
+ * Whether `c` names a listed entry in the other mode (a veneer's ARM target at an entry listed as Thumb, say). The
+ * listed entry is a function from round 0 in its listed mode, so such a candidate meets an existing function, as in
+ * discover mode once the entry is taken: it is neither accepted nor reported. Taking it would replace the listed
+ * mode with the candidate's whenever the candidate is popped before the entry's own seed.
+ */
+export function isOtherModeOfListed(s: DriverState, c: Candidate): boolean {
+  if (s.options.mode !== 'confirm') return false;
+  const seed = s.listed.get(c.entry);
+  return seed !== undefined && seed.mode !== c.mode;
+}
+
 /** Whether accepting `c` would add a function the confirm run does not list. */
 export function isUnlisted(s: DriverState, c: Candidate): boolean {
   return s.options.mode === 'confirm' && !s.listed.has(c.entry);

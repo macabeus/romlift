@@ -194,3 +194,25 @@ test('a malformed seed is left out before round 0 with W_SEED_MALFORMED; the run
   assert.equal(fits.diagnostics.some((d) => d.code === 'W_SEED_MALFORMED'), false, 'a size that fits is kept');
   assert.equal(fits.functions.find((f) => f.entry === A)?.extent.end, A + 8);
 });
+
+test('a candidate in the other mode of a listed entry neither takes it nor is reported: the entry keeps its listed mode', () => {
+  // A listed function queues an ARM candidate at an entry listed as Thumb (on the 32 MiB synthetic ROM a `bx pc`
+  // at 0x0949B90C proposes 0x0949B910 as ARM; discover took it as Thumb first). Before the fix the ARM candidate,
+  // popped before the entry's own seed, was taken in its mode, so confirm's layout lost a legal border init wrote.
+  const rom = romWith([
+    { at: A, bytes: thumbAt(A)`bx lr` },
+    { at: C, bytes: thumbAt(C)`bx lr` },
+  ]);
+  const armAtC = fakeRule('seed.veneer', { kind: 'queue', queue: (f) => (f.entry === A ? [{ entry: C, mode: 'arm' as const, proposedBy: 'seed.veneer' as const, cites: [A] }] : []) }, 'veneer');
+  const profile = testProfile({ seed: ['seed.listed'], queue: ['seed.veneer'], claim: ['claim.adjacent-pools'], walk: walk.map((w) => w.meta.id) });
+  const reg = registry(listed, armAtC, extent, ...walk);
+  const result = runAnalysis(rom, profile, { mode: 'confirm', seeds: [seed(A), seed(C)], overrides: [], trail: 'off' }, tuningFor(profile, reg), reg);
+  assert.equal(result.mode, 'confirm');
+  if (result.mode !== 'confirm') return;
+  assert.deepEqual(result.functions.map((f) => [f.entry, f.mode, f.extent.end - f.entry]), [
+    [A, 'thumb', 2],
+    [C, 'thumb', 2],
+  ]);
+  assert.deepEqual(result.unlisted, []);
+  assert.deepEqual(result.diagnostics, []);
+});
