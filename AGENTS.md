@@ -131,9 +131,9 @@ cfg); **accept** names the acceptance rules (D6). Functions, modules, pools, tab
   passes and the CI workflows (`ci.yml`, `printer.yml`, `provenance.yml`) have run on the phase's pull
   request; the merge carries the raised marker. Only the phase lead regenerates `bench/results.json`
   and `bench/baseline/speed.json`.
-- Every commit message ends with exactly these two lines:
+- Every commit message ends with exactly this line (from phase 4 on; phases 1 to 3 also carried a `Claude-Session:`
+  line, D75 p):
 
   ```
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_01JNLnM6KmzWvJDFNNgMvvvX
   ```

@@ -3092,6 +3092,11 @@ change, so each is fixed in the product, and the gates stay as they are or get s
   `ROMLIFT_CLI` (or a hand edit of package.json) until romlift is on the registry is a limitation the owner has not
   authorised: phase-4.md owner question Q5.
 
+- (p) **One commit trailer** (delivery-9). From phase 4 the orchestrator asks that every commit end with the single
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` line, and every phase-4 commit does; AGENTS.md and
+  roadmap.md said two lines (with `Claude-Session:`, which phases 1 to 3 carry). Both now state the one line, so the
+  instruction and the history agree.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

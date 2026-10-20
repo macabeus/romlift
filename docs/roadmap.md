@@ -36,11 +36,11 @@ Every phase has the same shape (D43):
    `printer.yml` and `provenance.yml` run on it, records their results in the phase record, and merges;
    the merge carries the raised marker.
 
-**Every commit message** ends with:
+**Every commit message** ends with this line (from phase 4 on, by the orchestrator's instruction; phases 1 to 3 also
+carried a `Claude-Session:` line, D75 p):
 
 ```
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01JNLnM6KmzWvJDFNNgMvvvX
 ```
 
 **Common commands** used by every exit list below:
