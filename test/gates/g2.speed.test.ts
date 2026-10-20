@@ -5,7 +5,9 @@
 // The median is of nine serial runs per ROM (five until phase 4): the owner's answer to Q2 of phase-4.md,
 // "Median of more runs" (option c, a gate change the owner authorised on 20 October 2026, D76 b). The limit
 // (1.5 x baseline x calibration ratio) and bench/baseline/speed.json are unchanged, and the calibration stays the
-// median of five. The gate requires the report to say its analysis medians are of nine runs.
+// median of five. The gate requires each ROM's measured analysis samples (`analysisRuns`, the length of the sample
+// list behind its median, and `runs.analysis`, the fewest of them) to be nine, so a bench that measured fewer cannot
+// pass it (D77 g).
 //
 // Expected output, for the phase-2 lead to align (architecture §8.5):
 //   npm run bench -- speed --json   exit 0; serial, one ROM at a time, a warm-up then the median of 9
@@ -13,12 +15,13 @@
 //   {schema: 'romlift/bench-speed@1',
 //    runs: {calibration: 5, analysis: 9, emission: 5},
 //    calibration: {cpuMs, baselineCpuMs, ratio},       ratio = cpuMs / baselineCpuMs
-//    roms: [{name, analysisCpuMs, wallMs, baselineCpuMs}]}
+//    roms: [{name, analysisCpuMs, budgetAnalysisCpuMs, analysisRuns, wallMs, baselineCpuMs}]}
 import { gate, type ExecResult } from './gate.ts';
 
 interface SpeedRom {
   readonly name: string;
   readonly analysisCpuMs: number;
+  readonly analysisRuns?: number;
   readonly wallMs: number;
   readonly baselineCpuMs: number;
 }
@@ -60,6 +63,7 @@ gate({
         problems.push(`${dataset.name}: not measured`);
         continue;
       }
+      if (rom.analysisRuns !== ANALYSIS_RUNS) problems.push(`${rom.name}: its median is of ${String(rom.analysisRuns)} measured runs, not ${ANALYSIS_RUNS} (D76 b)`);
       const limit = RATCHET * rom.baselineCpuMs * ratio;
       if (!(rom.analysisCpuMs <= limit)) problems.push(`${rom.name}: ${Math.round(rom.analysisCpuMs)} ms CPU > ${Math.round(limit)} ms (1.5 x ${Math.round(rom.baselineCpuMs)} x ${ratio.toFixed(3)})`);
       notes.push(`${rom.name} ${Math.round(rom.analysisCpuMs)}/${Math.round(limit)} ms`);

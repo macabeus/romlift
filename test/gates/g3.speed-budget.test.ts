@@ -7,14 +7,16 @@
 //   {schema: 'romlift/bench-speed@1',
 //    runs: {calibration: 5, analysis: 9, emission: 5},
 //    calibration: {cpuMs, baselineCpuMs, ratio},
-//    roms: [{name, analysisCpuMs, wallMs, baselineCpuMs, generateCpuMs?, initCpuMs?}]}
+//    roms: [{name, analysisCpuMs, budgetAnalysisCpuMs, analysisRuns, wallMs, baselineCpuMs, generateCpuMs?, initCpuMs?}]}
 //   generateCpuMs and initCpuMs are required for pokeemerald. Since D76 b (g2.speed's answer) analysisCpuMs is the
-//   median of nine runs; generateCpuMs and initCpuMs stay the median of five, so this gate is unchanged.
+//   median of nine runs, g2.speed's; this gate reads budgetAnalysisCpuMs, the median of the first five of them, which
+//   is the warm-up and five serial runs it read before D76 b (D77 f), and generateCpuMs and initCpuMs stay the
+//   median of five, so what this gate measures is unchanged.
 import { gate, type ExecResult } from './gate.ts';
 
 interface SpeedRom {
   readonly name: string;
-  readonly analysisCpuMs: number;
+  readonly budgetAnalysisCpuMs?: number;
   readonly generateCpuMs?: number;
   readonly initCpuMs?: number;
 }
@@ -57,7 +59,7 @@ gate({
     };
     for (const dataset of cx.datasets) {
       const rom = speed.roms.find((r) => r.name === dataset.name);
-      within(`${dataset.name} analysis`, rom?.analysisCpuMs, ANALYSIS_MS);
+      within(`${dataset.name} analysis`, rom?.budgetAnalysisCpuMs, ANALYSIS_MS);
       if (dataset.name === EMERALD) {
         within(`${EMERALD} generate`, rom?.generateCpuMs, GENERATE_MS);
         within(`${EMERALD} init`, rom?.initCpuMs, INIT_MS);

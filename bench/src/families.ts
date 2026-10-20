@@ -21,7 +21,7 @@ export const FAMILIES = {
   'held-out': { liveFrom: 2, scope: 'sealed', summary: 'the sealed held-out gate' },
   determinism: { liveFrom: 2, scope: 'rom', summary: 'two processes with a varied environment give one digest' },
   speed: { liveFrom: 2, scope: 'rom', summary: 'CPU time within the ratchet and the budget' },
-  readability: { liveFrom: 3, scope: 'rom', summary: 'readability shares only increase (objdiff: g5.objdiff, phase 5, D68 a)' },
+  readability: { liveFrom: 3, scope: 'rom', summary: 'readability shares only increase (objdiff: g5.objdiff, phase 6 since D76 g)' },
   memory: { liveFrom: 3, scope: 'global', summary: 'each command\'s exit code, peak RSS and heap cap on the 32 MiB synthetic ROM, recorded; g3.large-rom judges them (exit 0 under the 1,024 MiB cap, below 1,536 MiB)' },
   signatures: { liveFrom: 6, scope: 'rom', summary: 'every placement at an ELF FUNC or a listed untyped address' },
 } as const satisfies Record<string, FamilySpec>;
