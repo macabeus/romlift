@@ -216,11 +216,22 @@ build/%.o: data/%.s
 	@mkdir -p $(@D)
 	$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $<
 
-# A C unit: src/<module>.c through the recipe of its compiler's fragment.
+# A C unit: src/<module>.c through the recipe of its compiler's fragment. Each C object records beside it
+# (build/src/<module>.sum) the SHA-1 of its source and of modules.mk (its compiler and flags); an object whose
+# record differs from them now is removed, with the ELF, before make decides what to rebuild. Make compares
+# modification times, GNU make 3.81 (macOS) only to the second, so a source or a compiler changed within the second
+# of the last build, or a modules.mk that `romlift generate` rewrote, would otherwise leave the old object in the ROM.
+C_SUM = cat $(1) modules.mk 2>/dev/null | $(SHA1SUM) | cut -d ' ' -f 1
+C_STALE := $(strip $(foreach o,$(C_OBJS),$(if $(filter $(shell $(call C_SUM,$(o:build/%.o=%.c))),$(shell cat $(o:.o=.sum) 2>/dev/null)),,$(o))))
+ifneq ($(C_STALE),)
+C_REMOVED := $(shell rm -f $(C_STALE) $(ELF))
+endif
+
 build/src/%.o: src/%.c
 	@mkdir -p $(@D)
 	$(if $(value C_RECIPE_$(notdir $(CC1))),,$(error $@: no mk/$(notdir $(CC1)).mk defines C_RECIPE_$(notdir $(CC1)) (CC1 is '$(CC1)')))
 	$(C_RECIPE_$(notdir $(CC1)))
+	$(call C_SUM,$<) > $(@:.o=.sum)
 
 # A file an old dependency list names but `romlift generate` removed: nothing to remake, and the unit that
 # still includes it fails in the assembler. An intermediate .s of a C unit is rewritten by its unit's recipe.
