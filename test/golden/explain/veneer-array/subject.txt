@@ -5,6 +5,7 @@
     seed.pool-pointer round 2 cites 0x08000140: accepted by accept.tiles-after-accepted
   chunk: sub_08000140 (function) in module main
   item: insn 0x08000140..0x08000142: .inst.n 0x2003 @ movs r0, #3
+  name: sub_08000140 (analysis)
   proposals (8):
     0x0800011C seed.call round 0 cites 0x080000F6: thumb
     0x08000120 seed.call round 0 cites 0x080000FA: thumb

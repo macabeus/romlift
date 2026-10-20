@@ -1,0 +1,156 @@
+// What the one-shot commands read (shell/project/read-inputs.ts), on temporary directories: init's directory rule
+// (empty, absent, the ROM with .git and dot-files, a project; anything else E_DIR_NOT_EMPTY), a project read from
+// any directory inside it (decomp.yaml, romlift.toml, the ROM, src/*.c; --rom; no project), the write state planWrites
+// needs, the package's scaffold inputs and version, and the check that init replaces no file of a project.
+import assert from 'node:assert/strict';
+import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { after, test } from 'node:test';
+
+import { renderDecompYaml } from '../../../../src/core/config/decomp-yaml.ts';
+import { serializeConfig } from '../../../../src/core/config/serialize.ts';
+import { configFromDiscover } from '../../../../src/core/workflow/config-from-discover.ts';
+import { discover } from '../../../../src/core/workflow/discover.ts';
+import { encodeManifest } from '../../../../src/core/write-plan/manifest.ts';
+import { sha1Of } from '../../../../src/shell/hash.ts';
+import {
+  checkReplaced,
+  packageRoot,
+  packageVersion,
+  readCTexts,
+  readInitDir,
+  readProject,
+  readProjectTexts,
+  readScaffoldInputs,
+  readWriteState,
+} from '../../../../src/shell/project/read-inputs.ts';
+import { listSyntheticFixtures, readFixtureRom } from '../../../helpers/fixtures.ts';
+
+const TMP = await mkdtemp(path.join(tmpdir(), 'romlift-read-inputs-'));
+after(() => rm(TMP, { recursive: true, force: true }));
+const FIXTURE = listSyntheticFixtures().find((f) => f.name === 'far-jump') ?? assert.fail('far-jump');
+let fresh = 0;
+
+async function dirWith(files: Readonly<Record<string, string>>): Promise<string> {
+  const dir = path.join(TMP, `d${fresh++}`);
+  await mkdir(dir, { recursive: true });
+  for (const [name, text] of Object.entries(files)) {
+    await mkdir(path.dirname(path.join(dir, name)), { recursive: true });
+    await writeFile(path.join(dir, name), text);
+  }
+  return dir;
+}
+
+/** A minimal project of the far-jump fixture: its ROM, romlift.toml, decomp.yaml and one C file. */
+async function project(): Promise<{ readonly dir: string; readonly toml: string }> {
+  const rom = readFixtureRom(FIXTURE);
+  const config = configFromDiscover(rom, discover(rom));
+  const toml = serializeConfig(config);
+  const dir = await dirWith({
+    'romlift.toml': toml,
+    'decomp.yaml': renderDecompYaml({ name: config.build.name, title: rom.header.title, gameCode: rom.header.gameCode, sha1: rom.sha1 }),
+    'src/main.c': '#include "include_asm.h"\n',
+    'src/notes.txt': 'not C',
+    'src/deep/other.c': 'not read',
+  });
+  await copyFile(FIXTURE.rom, path.join(dir, 'baserom.gba'));
+  return { dir, toml };
+}
+
+test("init's directory: absent, empty, or the ROM with .git and dot-files is accepted; another file is E_DIR_NOT_EMPTY", async () => {
+  const absent = await readInitDir(path.join(TMP, 'not-yet'), path.join(TMP, 'x.gba'));
+  assert.ok(absent.ok && !absent.value.project && absent.value.romInside === undefined);
+  const empty = await readInitDir(await dirWith({}), '/elsewhere/rom.gba');
+  assert.ok(empty.ok && !empty.value.project);
+  const romDir = await dirWith({ 'game.gba': 'x', '.DS_Store': '', '.git/HEAD': 'ref' });
+  const withRom = await readInitDir(romDir, path.join(romDir, 'game.gba'));
+  assert.ok(withRom.ok);
+  assert.equal(withRom.value.romInside, 'game.gba');
+  const crowded = await dirWith({ 'game.gba': 'x', 'another.gba': 'y' });
+  const refused = await readInitDir(crowded, path.join(crowded, 'game.gba'));
+  assert.ok(!refused.ok);
+  assert.deepEqual(refused.diagnostics.map((d) => d.code), ['E_DIR_NOT_EMPTY']);
+  assert.match(refused.diagnostics[0]?.message ?? '', /another\.gba/);
+  const file = await readInitDir(path.join(crowded, 'game.gba'), path.join(crowded, 'game.gba'));
+  assert.ok(!file.ok && file.diagnostics[0]?.code === 'E_DIR_NOT_EMPTY');
+});
+
+test("init's directory: a romlift project is accepted whatever else it holds", async () => {
+  const { dir } = await project();
+  const read = await readInitDir(dir, path.join(dir, 'baserom.gba'));
+  assert.ok(read.ok && read.value.project);
+  assert.equal(read.value.romInside, 'baserom.gba');
+});
+
+test('readProject from a subdirectory: the config, its text, the ROM and src/*.c (not deeper, not other files)', async () => {
+  const { dir, toml } = await project();
+  await mkdir(path.join(dir, 'asm', 'deep'), { recursive: true });
+  const read = await readProject(path.join(dir, 'asm', 'deep'));
+  assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+  assert.equal(await realpath(read.value.dir), await realpath(dir));
+  assert.equal(read.value.inputs.configText, toml);
+  assert.equal(read.value.inputs.rom.sha1, read.value.inputs.config.rom.sha1);
+  assert.deepEqual([...read.value.inputs.cTexts.keys()], ['src/main.c']);
+  const withoutC = await readProject(dir, { withoutC: true });
+  assert.ok(withoutC.ok && withoutC.value.inputs.cTexts.size === 0);
+});
+
+test('readProject: --rom reads another file; a missing ROM is E_IO_READ; outside a project E_PROJECT_NOT_FOUND', async () => {
+  const { dir } = await project();
+  await rm(path.join(dir, 'baserom.gba'));
+  const missing = await readProject(dir);
+  assert.ok(!missing.ok && missing.diagnostics[0]?.code === 'E_IO_READ');
+  const other = await readProject(dir, { rom: FIXTURE.rom });
+  assert.ok(other.ok && other.value.romPath === FIXTURE.rom);
+  const none = await readProject(await dirWith({}));
+  assert.ok(!none.ok && none.diagnostics[0]?.code === 'E_PROJECT_NOT_FOUND');
+});
+
+test('readCTexts: no src/ is no C; readProjectTexts reads the paths that exist', async () => {
+  const empty = await readCTexts(await dirWith({}));
+  assert.ok(empty.ok && empty.value.size === 0);
+  const dir = await dirWith({ 'Makefile': 'all:\n' });
+  const texts = await readProjectTexts(dir, ['Makefile', 'README.md']);
+  assert.ok(texts.ok);
+  assert.deepEqual([...texts.value], [['Makefile', 'all:\n']]);
+});
+
+test('readWriteState: the manifest, no journal, and the digest of the given paths, the manifest paths and the generated roots', async () => {
+  const dir = await dirWith({ 'asm/a.s': 'a\n', 'asm/stray.s': 's\n', 'Makefile': 'm\n' });
+  await mkdir(path.join(dir, '.romlift'));
+  const manifest = { schema: 1 as const, romlift: '0.0.0', files: { 'asm/a.s': { sha1: sha1Of('a\n'), writer: 'function' as const }, 'asm/gone.s': { sha1: sha1Of('g'), writer: 'function' as const } } };
+  await writeFile(path.join(dir, '.romlift', 'manifest.json'), [...encodeManifest(manifest)].join(''));
+  const state = await readWriteState(dir, ['Makefile', 'ldscript.txt']);
+  assert.ok(state.ok);
+  assert.deepEqual(state.value.manifest, manifest);
+  assert.equal(state.value.journal, null);
+  assert.deepEqual(Object.fromEntries(state.value.disk), {
+    Makefile: sha1Of('m\n'),
+    'asm/a.s': sha1Of('a\n'),
+    'asm/gone.s': 'absent',
+    'asm/stray.s': sha1Of('s\n'),
+    'ldscript.txt': 'absent',
+  });
+});
+
+test("the package's scaffold inputs: the manifest's templates, the agbcc pin and package.json's version", async () => {
+  const read = await readScaffoldInputs();
+  assert.ok(read.ok);
+  assert.ok(read.value.templates.manifest.files.some((f) => f.target === 'setup.sh' && f.executable));
+  assert.match(read.value.agbcc.commit, /^[0-9a-f]{40}$/);
+  const version = await packageVersion();
+  assert.ok(version.ok && version.value === read.value.romliftVersion);
+  assert.ok(path.isAbsolute(packageRoot()));
+  const nowhere = await readScaffoldInputs(await dirWith({}));
+  assert.ok(!nowhere.ok && nowhere.diagnostics[0]?.code === 'E_IO_READ');
+});
+
+test('checkReplaced: absent and equal files are fine; another romlift.toml or another ROM is E_DIR_NOT_EMPTY', async () => {
+  const dir = await dirWith({ 'romlift.toml': 'a = 1\n', 'baserom.gba': 'ROM' });
+  const same = await checkReplaced(dir, new Map<string, string | Uint8Array>([['romlift.toml', 'a = 1\n'], ['decomp.yaml', 'x'], ['baserom.gba', new TextEncoder().encode('ROM')]]));
+  assert.ok(same.ok);
+  const other = await checkReplaced(dir, new Map<string, string | Uint8Array>([['romlift.toml', 'a = 2\n'], ['baserom.gba', new TextEncoder().encode('MOR')]]));
+  assert.ok(!other.ok);
+  assert.deepEqual(other.diagnostics.map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'romlift.toml'], ['E_DIR_NOT_EMPTY', 'baserom.gba']]);
+});

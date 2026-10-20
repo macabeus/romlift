@@ -3,6 +3,7 @@
   owner: none (no function extent covers it)
   chunk: unk_0800011C (orphan) in module main
   item: data 0x08000120..0x08000124
+  name: none
   proposals (3):
     0x08000108 seed.call round 0 cites 0x080000F6: thumb
     0x08000110 seed.call round 0 cites 0x080000FA: thumb

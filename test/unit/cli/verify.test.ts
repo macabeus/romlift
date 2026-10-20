@@ -5,7 +5,7 @@
 // with stdin closed. In process through `main` with a capturing CliIo, except the one child process.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
@@ -78,11 +78,10 @@ function outcomeWith(checks: readonly CheckResult[], diagnostics: VerifyOutcome[
   return { report: { ok: checks.every((c) => c.ok), checks }, diagnostics, files: 3 };
 }
 
-test('verify without --rom, with an unknown printer, or an unknown option is a usage error (exit 2)', async () => {
+test('verify without --rom outside a project is E_PROJECT_NOT_FOUND (exit 1); an unknown printer or option is a usage error (exit 2)', async () => {
   const missing = await run(['verify', '--json']);
-  assert.equal(missing.code, ExitCode.usage);
-  assert.equal(missing.stdout, '');
-  assert.match(missing.stderr, /verify: needs --rom <rom>/);
+  assert.equal(missing.code, ExitCode.errors);
+  assert.equal(lines(missing.stdout)[0]?.['code'], 'E_PROJECT_NOT_FOUND');
   const printer = await run(['verify', '--rom', FAR_JUMP.rom, '--printer', 'pretty']);
   assert.equal(printer.code, ExitCode.usage);
   assert.match(printer.stderr, /--printer is 'readable' or 'raw', not 'pretty'/);
@@ -267,4 +266,44 @@ test('a [symbols] entry in RAM names every pool word equal to its address, which
     assert.deepEqual(outcome.checks.map((c) => [c.id, c.ok]), [['assemble', true], ['link', true]], printer);
     assert.equal(outcome.sha1, rom.sha1, printer);
   }
+});
+
+// Phase 4: verify inside a project (its ROM and romlift.toml), without --rom.
+
+async function projectWith(rom: string): Promise<string> {
+  const dir = mkdtempSync(join(TMP, 'project-'));
+  writeFileSync(join(dir, 'baserom.gba'), readFileSync(rom));
+  const init = await main(['init', 'baserom.gba'], { ...capturingIo(), cwd: dir });
+  assert.equal(init, ExitCode.ok);
+  return dir;
+}
+
+test('inside a project verify checks what generate emits for its ROM and romlift.toml (exit 0)', async () => {
+  const dir = await projectWith(FAR_JUMP.rom);
+  const io = { ...capturingIo(), cwd: dir };
+  const code = await main(['verify', '--json'], io);
+  const parsed = assertContract(io.out.join(''), code);
+  assert.equal(code, ExitCode.ok);
+  assert.deepEqual(parsed.filter((l) => l['type'] === 'check').map((l) => l['id']), SELF_CHECKS);
+});
+
+test('inside a project with --link, the linked SHA-1 is the ROM\'s', { skip: noToolchain }, async () => {
+  const dir = await projectWith(FAR_JUMP.rom);
+  const io = { ...capturingIo(), cwd: dir, env: process.env };
+  const code = await main(['verify', '--link', '--json'], io);
+  const parsed = assertContract(io.out.join(''), code);
+  assert.equal(code, ExitCode.ok, io.out.join(''));
+  assert.equal(parsed.at(-1)?.['sha1'], readFixtureRom(FAR_JUMP).sha1);
+});
+
+test('inside a project another ROM is E_ROM_SHA1_MISMATCH (exit 1); --rom keeps the phase-3 behaviour', async () => {
+  const dir = await projectWith(FAR_JUMP.rom);
+  const other = FIXTURES.find((f) => f.name === 'composite') ?? assert.fail('composite');
+  writeFileSync(join(dir, 'baserom.gba'), readFileSync(other.rom));
+  const io = { ...capturingIo(), cwd: dir };
+  const code = await main(['verify', '--json'], io);
+  assert.equal(code, ExitCode.errors);
+  assert.equal(lines(io.out.join(''))[0]?.['code'], 'E_ROM_SHA1_MISMATCH');
+  const bare = { ...capturingIo(), cwd: dir };
+  assert.equal(await main(['verify', '--rom', 'baserom.gba', '--json'], bare), ExitCode.ok);
 });

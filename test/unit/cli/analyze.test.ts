@@ -171,3 +171,64 @@ test('two processes with stdin closed print the same bytes across cwd, project p
   assert.equal(a, b);
   for (const dir of [first, second, realpathSync(first), realpathSync(second), 'far-jump.gba']) assert.ok(!a.includes(dir), `the output names ${dir}`);
 });
+
+// Phase 4: `analyze --update [--write]` inside a project made by `init`.
+
+async function inProject(argv: readonly string[], cwd: string): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
+  const io = { ...capturingIo(), cwd };
+  const code = await main(argv, io);
+  return { code, stdout: io.out.join(''), stderr: io.err.join('') };
+}
+
+function updateProject(): string {
+  const dir = join(TMP, `update-${Math.random().toString(16).slice(2)}`);
+  mkdirSync(dir, { recursive: true });
+  copyFileSync(ROM, join(dir, 'baserom.gba'));
+  return dir;
+}
+
+test('analyze --update right after init proposes nothing and leaves romlift.toml as it is', async () => {
+  const dir = updateProject();
+  assert.equal((await inProject(['init', 'baserom.gba'], dir)).code, ExitCode.ok);
+  const before = readFileSync(join(dir, 'romlift.toml'), 'utf8');
+  const out = await inProject(['analyze', '--update', '--json'], dir);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  const lines = parseLines(out.stdout);
+  assert.deepEqual(lines.find((l) => l.type === 'patch'), { type: 'patch', path: 'romlift.toml', changed: false, written: false, diff: '' });
+  assert.equal(lines.filter((l) => l.type === 'proposal').length, 0);
+  assert.equal(lines.at(-1)?.type, 'summary');
+  const write = await inProject(['analyze', '--update', '--write'], dir);
+  assert.equal(write.code, ExitCode.ok);
+  assert.match(write.stdout, /romlift\.toml is up to date/);
+  assert.equal(readFileSync(join(dir, 'romlift.toml'), 'utf8'), before);
+});
+
+test('analyze --update proposes an entry deleted by hand; --write puts it back and keeps the comments', async () => {
+  const dir = updateProject();
+  assert.equal((await inProject(['init', 'baserom.gba'], dir)).code, ExitCode.ok);
+  const file = join(dir, 'romlift.toml');
+  const original = readFileSync(file, 'utf8');
+  const entry = original.split('\n').filter((l) => /^0x0[0-9A-F]{7} = "sub_/.test(l)).at(-1) ?? assert.fail('no entry');
+  const edited = `# kept comment\n${original.replace(`${entry}\n`, '')}`;
+  writeFileSync(file, edited);
+  const dry = await inProject(['analyze', '--update'], dir);
+  assert.equal(dry.code, ExitCode.ok, dry.stderr);
+  assert.match(dry.stdout, new RegExp(`^function ${entry.slice(0, 10)} thumb`, 'm'));
+  assert.ok(dry.stdout.includes(`\n+${entry}\n`), dry.stdout);
+  assert.match(dry.stdout, /run `romlift analyze --update --write` to apply the patch/);
+  assert.equal(readFileSync(file, 'utf8'), edited, 'without --write nothing is written');
+  const write = await inProject(['analyze', '--update', '--write', '--json'], dir);
+  assert.equal(write.code, ExitCode.ok, write.stdout);
+  assert.equal(parseLines(write.stdout).find((l) => l.type === 'patch')?.['written'], true);
+  assert.equal(readFileSync(file, 'utf8'), `# kept comment\n${original}`);
+});
+
+test('analyze --update: --write alone, a ROM argument or --disable is a usage error; outside a project exit 1', async () => {
+  assert.equal((await run(['analyze', ROM, '--write'])).code, ExitCode.usage);
+  assert.equal((await run(['analyze', ROM, '--update'])).code, ExitCode.usage);
+  assert.equal((await run(['analyze', '--update', '--disable', 'seed.call'])).code, ExitCode.usage);
+  assert.equal((await run(['analyze'])).code, ExitCode.usage);
+  const out = await inProject(['analyze', '--update', '--json'], TMP);
+  assert.equal(out.code, ExitCode.errors);
+  assert.equal(parseLines(out.stdout)[0]?.['code'], 'E_PROJECT_NOT_FOUND');
+});
