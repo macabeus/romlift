@@ -20,7 +20,8 @@ const FIXTURES = listSyntheticFixtures();
 /**
  * The fixtures of architecture §8.1: the thirteen positive ones of the plan, the rule-specific ones that
  * make a rule load-bearing that no other fixture does (seven from the phase-2 brief, four added for
- * g2.rule-coverage), and the negative ones (six from the brief, the others added with the rules they bound).
+ * g2.rule-coverage, one for the readable printer's adr naming, D72 c), and the negative ones (six from the
+ * brief, the others added with the rules they bound).
  */
 const POSITIVE = [
   'arm-pools-in-front', 'bx-lr-stub-chain', 'bx-pc-veneer', 'code-copied-to-ram', 'data-table-between-functions',
@@ -32,6 +33,7 @@ const RULE_SPECIFIC = [
   'pops-unpushed-frame', 'prologueless-thumb-over-arm', 'computed-jump-callback', 'large-data-referenced',
   'inline-arm-switch', 'recursive-far-call', 'gap-resume-2mod4', 'veneer-array', 'push-lr-2mod4', 'pointer-word-in-gap',
   'entry-stub-table', 'ram-copy-memcpy', 'ram-copy-bios', 'ram-copy-setup-bound', 'ram-copy-call-via', 'ram-copy-entry-boundaries',
+  'adr-function-label',
 ];
 const NEGATIVE = [
   'code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pointer-table-before-leaf', 'pool-padded-46c0',
@@ -81,7 +83,7 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
-test('the 47 fixtures are committed, and common/ is not one', () => {
+test('the 48 fixtures are committed, and common/ is not one', () => {
   const names = FIXTURES.map((f) => f.name);
   assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE].sort(byCodeUnit));
   assert.ok(!names.includes('common'));

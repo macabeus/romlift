@@ -1,5 +1,6 @@
 // Instruction items (architecture §5 "Printing rule", D14, D15): an insn item prints its mnemonic through
-// foundation/isa `format` with its module's resolver (the model has proved it round-trips); a raw-insn item
+// foundation/isa `format` with its module's resolver, an adr with the one that names only labels linking to its
+// target itself (the model has proved it round-trips); a raw-insn item
 // prints `.inst.n 0xXXXX @ <decoding>` / `.inst.w` / `.inst 0xXXXXXXXX @ <decoding>` (formatRaw), its reason
 // in the comment, so a cross-module short branch shows its numeric target and why it is raw. A PC-relative
 // load also names what its pool word prints as (`@ =gFoo`). The result says what the readability family
@@ -27,6 +28,11 @@ export interface PrintedInsn {
 /** What the instruction printer needs besides the item: names for addresses and for pool words. */
 export interface InsnContext {
   readonly resolver: SymbolResolver;
+  /**
+   * The names of an adr's target (core/model/resolver.ts adrResolverFor): only labels that link to the target
+   * itself, never a Thumb function's, which links to the target plus one.
+   */
+  readonly adrResolver: SymbolResolver;
   /** What the word loaded from run address `addr` prints as, or undefined when it is not in the ROM. */
   poolOperand(addr: Addr): string | undefined;
 }
@@ -47,7 +53,7 @@ function rawText(insn: Insn, reason: ItemRawReason): string {
 
 /** An instruction item as a mnemonic; falls back to raw ('no-roundtrip') when the text cannot be formed. */
 export function printInsn(insn: Insn, cx: InsnContext): PrintedInsn {
-  const text = format(insn, cx.resolver);
+  const text = format(insn, insn.flow.kind === 'adr' ? cx.adrResolver : cx.resolver);
   if (text === undefined) return printRawInsn(insn, 'no-roundtrip');
   let line = `\t${text}`;
   if (insn.flow.kind === 'pool-load') {

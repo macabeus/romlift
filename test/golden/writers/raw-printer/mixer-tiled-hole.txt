@@ -41,7 +41,6 @@ sub_080000C0: @ 080000C0
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/main/sub_080000F4.s"
-.include "asm/nonmatchings/main/unk_08000106.s"
 .include "asm/nonmatchings/main/sub_08000108.s"
 .include "asm/nonmatchings/main/unk_0800010E.s"
 ==> asm/nonmatchings/main/sub_080000F4.s (generated, function) <==
@@ -57,12 +56,6 @@ sub_080000F4: @ 080000F4
 sub_08000108: @ 08000108
 	.2byte 0x2000, 0x3001, 0x4770
 	thumb_func_end sub_08000108
-==> asm/nonmatchings/main/unk_08000106.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000106
-unk_08000106: @ 08000106
-	.2byte 0x0000
 ==> asm/nonmatchings/main/unk_0800010E.s (generated, orphan) <==
 .thumb
 @ bytes between functions: 2 bytes
@@ -89,7 +82,6 @@ sub_08000120: @ 08000120
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/main_2/sub_08000138.s"
-.include "asm/nonmatchings/main_2/unk_0800013E.s"
 .include "asm/nonmatchings/main_2/sub_08000140.s"
 .include "asm/nonmatchings/main_2/unk_08000146.s"
 ==> asm/nonmatchings/main_2/sub_08000138.s (generated, function) <==
@@ -104,12 +96,6 @@ sub_08000138: @ 08000138
 sub_08000140: @ 08000140
 	.2byte 0x0040, 0x3003, 0x4770
 	thumb_func_end sub_08000140
-==> asm/nonmatchings/main_2/unk_0800013E.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_0800013E
-unk_0800013E: @ 0800013E
-	.2byte 0x0000
 ==> asm/nonmatchings/main_2/unk_08000146.s (generated, orphan) <==
 .thumb
 @ bytes between functions: 2 bytes

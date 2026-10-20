@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
-import { compareLabels, moduleAt, resolverFor, resolverOver, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { adrResolverFor, compareLabels, isExactLabel, moduleAt, resolverFor, resolverOver, wordValueOf } from '../../../src/core/model/resolver.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
 
@@ -88,4 +88,16 @@ test('wordValueOf: a Thumb function links to its address plus one, everything el
   assert.equal(wordValueOf(label('_08001000', A, { kind: 'local' })), A, 'a Thumb local label (a branch target) is not a function symbol');
   assert.equal(wordValueOf(label('gTable', A, { kind: 'table' })), A);
   assert.equal(wordValueOf({ addr: 0xffff_fffe, kind: 'func', thumb: true }), 0xffff_ffff);
+});
+
+test('adrResolverFor names only a label that links to the address itself: never a Thumb function (D72 c)', () => {
+  const m = model([label('Func', A + 0x10, { kind: 'func', thumb: true }), label('_08001010', A + 0x10, { kind: 'local' }), label('ArmFunc', A + 0x20, { kind: 'func', thumb: false }), label('OnlyThumb', A + 0x30, { kind: 'func', thumb: true })]);
+  const adr = adrResolverFor(m, 'alpha');
+  const all = resolverFor(m, 'alpha');
+  assert.equal(all.labelFor(A + 0x10, A), 'Func', 'a branch names the function');
+  assert.equal(adr.labelFor(A + 0x10, A), '_08001010');
+  assert.equal(adr.labelFor(A + 0x20, A), 'ArmFunc');
+  assert.equal(adr.labelFor(A + 0x30, A), undefined, 'no label links to the address itself');
+  assert.equal(adr.addressOf('Func'), A + 0x10);
+  assert.deepEqual([isExactLabel({ addr: A, kind: 'func', thumb: true }), isExactLabel({ addr: A, kind: 'func', thumb: false }), isExactLabel({ addr: A, kind: 'local', thumb: false })], [false, true, true]);
 });

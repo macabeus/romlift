@@ -45,7 +45,6 @@ sub_080000C0: @ 080000C0
 .include "asm/nonmatchings/main/sub_0800011C.s"
 .include "asm/nonmatchings/main/unk_08000128.s"
 .include "asm/nonmatchings/main/sub_08000130.s"
-.include "asm/nonmatchings/main/unk_08000136.s"
 .include "asm/nonmatchings/main/sub_08000138.s"
 .include "asm/nonmatchings/main/unk_0800013E.s"
 .include "asm/nonmatchings/main/sub_08000148.s"
@@ -102,12 +101,6 @@ unk_08000110: @ 08000110
 .global unk_08000128
 unk_08000128: @ 08000128
 	.2byte 0xFFFF, 0xFFFD, 0xFFFB, 0xFFF9
-==> asm/nonmatchings/main/unk_08000136.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000136
-unk_08000136: @ 08000136
-	.2byte 0x0000
 ==> asm/nonmatchings/main/unk_0800013E.s (generated, orphan) <==
 .thumb
 @ bytes between functions: 10 bytes

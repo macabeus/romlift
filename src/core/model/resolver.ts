@@ -6,6 +6,14 @@
 // Visibility: inside module M a label is visible when its scope is 'global' or it lies in M (the module
 // whose run range, else load span, contains its address). So two modules may each have a module-scoped
 // label of one name, as static functions do, and each resolves its own.
+//
+// An `adr` (Thumb `add rd, pc, #`, ARM `adr`) names its target through adrResolverFor, which only names a label
+// whose link value is the target itself (isExactLabel), never a Thumb function's, which links to its address plus
+// one (the owner's answer to Q7 of phase 3, D72 c). The text-layout check resolves an adr's operand to that link
+// value and refuses a Thumb adr of a Thumb function; GNU as encodes one at the even address under the dialect's
+// `-mcpu=arm7tdmi`, but with `-mthumb-interwork` it adds 1 to an ARM adr of a Thumb function defined before it.
+// A label whose value is the address itself assembles alike under every setting. labels.ts places a local label
+// at an adr target that has only Thumb function labels.
 import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
@@ -45,6 +53,11 @@ export function wordValueOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>): numb
   return label.kind === 'func' && label.thumb ? (label.addr | 1) >>> 0 : label.addr >>> 0;
 }
 
+/** Whether `label` links to its own address (wordValueOf): every label but a Thumb function's, which carries the Thumb bit. */
+export function isExactLabel(label: Pick<Label, 'addr' | 'kind' | 'thumb'>): boolean {
+  return wordValueOf(label) === label.addr >>> 0;
+}
+
 // ---------------------------------------------------------------------------------------------------
 // The label index, built once per (labels, modules) pair and shared by every module's resolver.
 
@@ -80,7 +93,8 @@ function indexOf(labels: readonly Label[], modules: readonly Module[]): LabelInd
   return index;
 }
 
-function resolverFromIndex(index: LabelIndex, module: string): SymbolResolver {
+/** The resolver of `module` over `index`; labelFor names only labels `names` accepts. */
+function resolverFromIndex(index: LabelIndex, module: string, names: (label: Label) => boolean = () => true): SymbolResolver {
   const visible = (i: number): boolean => index.labels[i]?.scope === 'global' || index.moduleOf[i] === module;
   return {
     // `from` does not matter in phase 3: every label visible in the module resolves the same anywhere in it.
@@ -88,7 +102,7 @@ function resolverFromIndex(index: LabelIndex, module: string): SymbolResolver {
       for (let i = lowerBound(index.labels, target, (l) => l.addr); i < index.labels.length; i++) {
         const label = index.labels[i];
         if (label === undefined || label.addr !== target) break;
-        if (visible(i)) return label.name;
+        if (visible(i) && names(label)) return label.name;
       }
       return undefined;
     },
@@ -109,6 +123,15 @@ function resolverFromIndex(index: LabelIndex, module: string): SymbolResolver {
  */
 export function resolverFor(model: Pick<Model, 'labels' | 'modules'>, module: string): SymbolResolver {
   return resolverFromIndex(indexOf(model.labels, model.modules), module);
+}
+
+/**
+ * The resolver of `module` for an `adr`: resolverFor, but labelFor(target) is the preferred visible label that links
+ * to `target` itself (isExactLabel), never a Thumb function's, which links to `target` + 1 (see the header); undefined
+ * when there is none, so the adr prints raw ('no-roundtrip').
+ */
+export function adrResolverFor(model: Pick<Model, 'labels' | 'modules'>, module: string): SymbolResolver {
+  return resolverFromIndex(indexOf(model.labels, model.modules), module, isExactLabel);
 }
 
 /**

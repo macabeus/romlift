@@ -1,6 +1,1 @@
-==> asm/nonmatchings/main/unk_08000126.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000126
-unk_08000126: @ 08000126
-	.align 2, 0
+(no files)

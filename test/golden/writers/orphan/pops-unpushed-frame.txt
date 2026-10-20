@@ -115,9 +115,3 @@ unk_0800010C: @ 0800010C
 .global unk_08000DB6
 unk_08000DB6: @ 08000DB6
 	.align 2, 0
-==> asm/nonmatchings/main_2/unk_08000DC2.s (generated, orphan) <==
-.thumb
-@ bytes between functions: 2 bytes
-.global unk_08000DC2
-unk_08000DC2: @ 08000DC2
-	.align 2, 0

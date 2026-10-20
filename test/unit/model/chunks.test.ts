@@ -1,15 +1,20 @@
 // The model's chunks (architecture §6.2; the PoC's tile()): the header chunk clipping the cartridge entry
 // (correctness-6), startup chunks over the startup region, one function chunk per listed entry that is not a
 // label, label entries as inner labels, orphan chunks unk_<ADDR> for the bytes between, never across a module
-// border, and data chunks split at symbols.
+// border, data chunks split at symbols, and a padding-only orphan folded into the function after it (the owner's
+// answer to Q5 b of phase 3), with each case that stays an orphan.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { placeEntries } from '../../../src/core/layout/entries.ts';
-import { planChunks } from '../../../src/core/model/chunks.ts';
+import { chunkEntry, planChunks } from '../../../src/core/model/chunks.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { planModules } from '../../../src/core/model/modules.ts';
-import { analysisOf, BASE, configOf, fact, HEADER_END, romWith } from '../layout/hand-made.ts';
+import { ItemKind } from '../../../src/core/model/types.ts';
+import type { Model } from '../../../src/core/model/types.ts';
+import type { Addr } from '../../../src/foundation/rom/span.ts';
+import type { ConfigSpec, FactSpec } from '../layout/hand-made.ts';
+import { analysisOf, armAt, BASE, configOf, fact, HEADER_END, romWith, thumbAt } from '../layout/hand-made.ts';
 
 const ROM = romWith([], { size: 0x400 });
 
@@ -119,4 +124,173 @@ test('without a startup region there are no startup chunks; a function with an e
       ['data', 'gUnk_08000110', 0x110, 0x400],
     ],
   );
+});
+
+// ---------------------------------------------------------------------------------------------------
+// Padding-only orphans folded into the next function (phase-3.md Q5 b, D68 e).
+
+/** A ROM of A (Thumb, 10 bytes at 0x100), a pad of `pad` (zeros by default) at 0x10A and B (Thumb) at 0x10C. */
+function padRom(pad: readonly number[] = [0, 0], b: Uint8Array = thumbAt(BASE + 0x10c)`movs r0, #1; bx lr`) {
+  return romWith(
+    [
+      { at: BASE + 0x100, bytes: thumbAt(BASE + 0x100)`push {lr}; bl _0800010C; movs r0, #0; pop {pc}` },
+      { at: BASE + 0x10a, bytes: Uint8Array.from(pad) },
+      { at: BASE + 0x10c, bytes: b },
+    ],
+    { size: 0x400 },
+  );
+}
+
+interface PadCase {
+  readonly rom?: ReturnType<typeof romWith>;
+  readonly facts?: readonly FactSpec[];
+  readonly modules?: ConfigSpec['modules'];
+  readonly functions?: ConfigSpec['functions'];
+  readonly symbols?: ConfigSpec['symbols'];
+  readonly startupEnd?: Addr;
+}
+
+/** The model of a pad case: A [0x100, 0x10A) and B [0x10C, 0x110) unless the case says otherwise. */
+function padModel(c: PadCase = {}): Model {
+  const rom = c.rom ?? padRom();
+  const facts = c.facts ?? [{ entry: BASE + 0x100, end: BASE + 0x10a }, { entry: BASE + 0x10c, end: BASE + 0x110 }];
+  const a = analysisOf(rom, { functions: facts.map(fact), ...(c.startupEnd === undefined ? {} : { startupEnd: c.startupEnd }) });
+  const modules = c.modules ?? [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }];
+  return buildModel(rom, a, configOf({ modules, functions: c.functions ?? [[BASE + 0x100, 'A'], [BASE + 0x10c, 'B']], ...(c.symbols === undefined ? {} : { symbols: c.symbols }) }));
+}
+
+/** [kind, name, start, end] of the chunks of [0x100, 0x110), offsets from BASE. */
+function around(model: Model): readonly (readonly [string, string, number, number])[] {
+  return model.chunks.filter((c) => c.span.end > BASE + 0x100 && c.span.start < BASE + 0x110).map((c) => [c.kind, c.name, c.span.start - BASE, c.span.end - BASE] as const);
+}
+
+test('a 2-byte zero pad before a word-aligned Thumb entry folds into that function: its span opens with the pad, entry and name unchanged', () => {
+  const model = padModel();
+  assert.deepEqual(model.diagnostics, []);
+  assert.deepEqual(around(model), [
+    ['function', 'A', 0x100, 0x10a],
+    ['function', 'B', 0x10a, 0x110],
+  ]);
+  const b = model.chunks.find((c) => c.name === 'B');
+  assert.ok(b !== undefined);
+  assert.equal(chunkEntry(model, b), BASE + 0x10c, 'the entry stays');
+  assert.equal(chunkEntry(model, model.chunks.find((c) => c.name === 'A') ?? b), BASE + 0x100);
+  const first = b.items.first;
+  assert.deepEqual([model.items.kind[first], model.items.start[first], model.items.length[first]], [ItemKind.padding, BASE + 0x10a, 2], 'its first item is the padding item');
+  assert.equal(model.items.start[first + 1], BASE + 0x10c);
+  assert.deepEqual(model.functions.find((f) => f.name === 'B')?.entry, BASE + 0x10c);
+  assert.equal(model.labels.some((l) => l.name === 'unk_0800010A'), false, 'no orphan label');
+  assert.deepEqual(model.labels.filter((l) => l.name === 'B').map((l) => l.addr), [BASE + 0x10c], 'the label stays at the entry');
+});
+
+test('a 1-byte and a 3-byte zero pad fold; an ARM function folds too (arm_func_start aligns)', () => {
+  const one = padModel({ facts: [{ entry: BASE + 0x100, end: BASE + 0x10b }, { entry: BASE + 0x10c, end: BASE + 0x110 }] });
+  assert.deepEqual(around(one), [
+    ['function', 'A', 0x100, 0x10b],
+    ['function', 'B', 0x10b, 0x110],
+  ]);
+  const short = romWith(
+    [
+      { at: BASE + 0x100, bytes: thumbAt(BASE + 0x100)`push {lr}; bl _0800010C; pop {pc}` },
+      { at: BASE + 0x108, bytes: Uint8Array.from([1]) },
+      { at: BASE + 0x10c, bytes: thumbAt(BASE + 0x10c)`movs r0, #1; bx lr` },
+    ],
+    { size: 0x400 },
+  );
+  const three = padModel({ rom: short, facts: [{ entry: BASE + 0x100, end: BASE + 0x109 }, { entry: BASE + 0x10c, end: BASE + 0x110 }] });
+  assert.deepEqual(around(three), [
+    ['function', 'A', 0x100, 0x109],
+    ['function', 'B', 0x109, 0x110],
+  ]);
+  const arm = padModel({
+    rom: padRom([0, 0], armAt(BASE + 0x10c)`bx lr`),
+    facts: [{ entry: BASE + 0x100, end: BASE + 0x10a }, { entry: BASE + 0x10c, end: BASE + 0x110, mode: 'arm' }],
+    functions: [[BASE + 0x100, 'A'], [BASE + 0x10c, { name: 'B', mode: 'arm' }]],
+  });
+  assert.deepEqual(around(arm), [
+    ['function', 'A', 0x100, 0x10a],
+    ['function', 'B', 0x10a, 0x110],
+  ]);
+});
+
+test('never folded: a non-zero pad (0x46C0), a 4-byte pad, a pad before an entry at 2 mod 4', () => {
+  assert.deepEqual(around(padModel({ rom: padRom([0xc0, 0x46]) })), [
+    ['function', 'A', 0x100, 0x10a],
+    ['orphan', 'unk_0800010A', 0x10a, 0x10c],
+    ['function', 'B', 0x10c, 0x110],
+  ]);
+  assert.deepEqual(around(padModel({ facts: [{ entry: BASE + 0x100, end: BASE + 0x108 }, { entry: BASE + 0x10c, end: BASE + 0x110 }] })), [
+    ['function', 'A', 0x100, 0x108],
+    ['orphan', 'unk_08000108', 0x108, 0x10c],
+    ['function', 'B', 0x10c, 0x110],
+  ]);
+  const unaligned = padModel({
+    facts: [{ entry: BASE + 0x100, end: BASE + 0x108 }, { entry: BASE + 0x10a, end: BASE + 0x110 }],
+    functions: [[BASE + 0x100, 'A'], [BASE + 0x10a, 'B']],
+  });
+  assert.deepEqual(around(unaligned), [
+    ['function', 'A', 0x100, 0x108],
+    ['orphan', 'unk_08000108', 0x108, 0x10a],
+    ['function', 'B', 0x10a, 0x110],
+  ]);
+});
+
+test('never folded: a pad before a module border, at a code module\'s end before data, or inside the startup region', () => {
+  const border = padModel({ modules: [['rom_header', BASE], ['main', HEADER_END], ['next', BASE + 0x10c], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }] });
+  assert.deepEqual(border.diagnostics, []);
+  assert.deepEqual(around(border), [
+    ['function', 'A', 0x100, 0x10a],
+    ['orphan', 'unk_0800010A', 0x10a, 0x10c],
+    ['function', 'B', 0x10c, 0x110],
+  ]);
+  assert.deepEqual(border.chunks.filter((c) => c.name === 'unk_0800010A' || c.name === 'B').map((c) => c.module), ['main', 'next']);
+  const atEnd = padModel({ facts: [{ entry: BASE + 0x100, end: BASE + 0x10a }], functions: [[BASE + 0x100, 'A']], modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x10c, kind: 'data', generated: true }] });
+  assert.deepEqual(around(atEnd), [
+    ['function', 'A', 0x100, 0x10a],
+    ['orphan', 'unk_0800010A', 0x10a, 0x10c],
+    ['data', 'gUnk_0800010C', 0x10c, 0x400],
+  ]);
+  const startup = padModel({ startupEnd: BASE + 0x10c, modules: [['rom_header', BASE], ['crt0', HEADER_END], ['main', BASE + 0x10c], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }] });
+  assert.deepEqual(around(startup), [
+    ['startup', 'A', 0x100, 0x10a],
+    ['startup', 'unk_0800010A', 0x10a, 0x10c],
+    ['function', 'B', 0x10c, 0x110],
+  ]);
+  const inStartup = padModel({ startupEnd: BASE + 0x110, modules: [['rom_header', BASE], ['crt0', HEADER_END], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }] });
+  assert.deepEqual(
+    around(inStartup).map((c) => c[0]),
+    ['startup', 'startup', 'startup'],
+    'a startup function after a pad keeps its own chunk',
+  );
+});
+
+test('never folded: a pad holding a listed label entry or a [symbols] entry, each of which needs a label there', () => {
+  const labelled = padModel({ functions: [[BASE + 0x100, 'A'], [BASE + 0x10a, { name: 'Mid', label: true }], [BASE + 0x10c, 'B']] });
+  assert.deepEqual(around(labelled).map((c) => c[1]), ['A', 'unk_0800010A', 'B']);
+  assert.deepEqual(labelled.chunks.find((c) => c.name === 'unk_0800010A')?.innerLabels.map((l) => l.name), ['Mid'], 'the label entry stays in the orphan');
+  const symbol = padModel({ symbols: [[BASE + 0x10a, { name: 'gPad', aliases: [] }]] });
+  assert.deepEqual(around(symbol), [
+    ['function', 'A', 0x100, 0x10a],
+    ['orphan', 'unk_0800010A', 0x10a, 0x10c],
+    ['function', 'B', 0x10c, 0x110],
+  ]);
+});
+
+test('a label inside a folded pad (a branch target no extent covers) turns the pad into data the printer places', () => {
+  const rom = romWith(
+    [
+      { at: BASE + 0x100, bytes: thumbAt(BASE + 0x100)`push {lr}; beq _0800010A; bl _0800010C; pop {pc}` },
+      { at: BASE + 0x10c, bytes: thumbAt(BASE + 0x10c)`movs r0, #1; bx lr` },
+    ],
+    { size: 0x400 },
+  );
+  const model = padModel({ rom });
+  assert.deepEqual(around(model), [
+    ['function', 'A', 0x100, 0x10a],
+    ['function', 'B', 0x10a, 0x110],
+  ]);
+  const b = model.chunks.find((c) => c.name === 'B');
+  assert.ok(b !== undefined);
+  assert.deepEqual([model.items.kind[b.items.first], model.items.length[b.items.first]], [ItemKind.data, 2]);
+  assert.ok(model.labels.some((l) => l.name === '_0800010A'));
 });
