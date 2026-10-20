@@ -85,6 +85,24 @@ test('confirmOptions lists every [functions] entry as seed.listed with name, siz
   assert.deepEqual(options.overrides, overrideFactsOf(c));
 });
 
+test('listedSeedsOf validates exactly the entries with `from` (another source\'s proposal), not those the analysis or a person wrote', () => {
+  const c = config({
+    functions: new Map([
+      [0x0800_0100, { name: 'Found', mode: 'thumb' as const, aliases: [] }],
+      [0x0800_0104, { name: 'Legacy', mode: 'thumb' as const, aliases: [], from: 'legacy' }],
+      [0x0800_0108, { name: 'SoundMain', mode: 'arm' as const, aliases: [], size: 0x10, from: 'sig:m4a@2001' }],
+      [0x0800_0118, { name: 'Inner', mode: 'thumb' as const, aliases: [], label: true, from: 'evidence:trace' }],
+    ]),
+  });
+  assert.deepEqual(listedSeedsOf(c), [
+    { entry: 0x0800_0100, mode: 'thumb', rule: 'seed.listed', name: 'Found' },
+    { entry: 0x0800_0104, mode: 'thumb', rule: 'seed.listed', name: 'Legacy', validate: true },
+    { entry: 0x0800_0108, mode: 'arm', rule: 'seed.listed', name: 'SoundMain', size: 0x10, validate: true },
+    { entry: 0x0800_0118, mode: 'thumb', rule: 'seed.listed', name: 'Inner', label: true, validate: true },
+  ]);
+  assert.equal(Object.hasOwn(listedSeedsOf(c)[0] ?? {}, 'validate'), false, 'no member at all without `from`');
+});
+
 const MODEL_CHECKS = ['tiling', 'reencode', 'module-size', 'text-layout'];
 const fixtures = listSyntheticFixtures();
 
