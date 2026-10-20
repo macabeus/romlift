@@ -33,7 +33,8 @@ was told of; the owner's answer to that question (Q6, "Yes, cover all 8") adds t
 limitation. With that answer every command of the closing list exits 0 at `landed` 2, and phase 2 has landed:
 its pull request (#2) is merged to `main`, tagged `phase-2`.
 
-Phase 3 (Emission) has passed its closing gate and waits for its pull request's CI before the merge ([docs/phase-3.md](docs/phase-3.md)): the model, both printers, the writers, the
+Phase 3 (Emission) has landed ([docs/phase-3.md](docs/phase-3.md)): its pull request (#3) is merged to `main`, tagged
+`phase-3`. The model, both printers, the writers, the
 write plan, `model --json` and `verify` turn every committed fixture and all six tuning ROMs into trees that pass the
 four self-checks and link to the ROM's SHA-1 with both the raw and the readable printer, with pokeemerald's `generate`
 within its speed budget. The owner answered the phase's eight questions (D68, D69, D72, D73): the objdiff gate moves to phase
@@ -45,8 +46,8 @@ among them the readable printer's `adr` naming a function label, which makes the
 exit 3 (its raw tree links to its SHA-1). Under the 1,024 MiB cap every command of the bin completes on the synthetic
 ROM, the six tuning ROMs and the doubled ROM. The landing run after Q7's answer failed one phase-2 timing gate,
 `g2.speed`, by 0.5 ms on sa2 with the analysis unchanged; the owner's answer to Q8, "Re-run the gate list", ran the
-whole closing list again unchanged with no gate change, and every command exited 0 at `landed` 3 (`0784b4e`). The
-merge waits for the phase pull request's CI.
+whole closing list again unchanged with no gate change, and every command exited 0 at `landed` 3 (`0784b4e`), and the
+phase pull request's CI passed before the merge.
 
 Phase 4 (One shot) is built but has not landed ([docs/phase-4.md](docs/phase-4.md)): `romlift init <rom>` writes
 `romlift.toml`, `decomp.yaml`, the build scaffold (`Makefile`, `setup.sh`, …), `INCLUDE_ASM` C stubs and the generated
