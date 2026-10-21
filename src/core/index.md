@@ -1,8 +1,8 @@
 # src/core
 
 The pure core. Every decision romlift makes lives here: provenance, compiler profiles, analysis and its
-rules (one file per rule), proposals, layout, evidence, legacy import, signatures, config, the model,
-reconciliation, emission, verification, the write plan, the scaffold and the workflows.
+rules (one file per rule), proposals, layout, evidence, signatures, config, the model, reconciliation, emission,
+verification, the write plan, the scaffold and the workflows. (Legacy import was dropped with phase 5, D76 g.)
 
 - Bytes and plain data in, plain data out. No files, processes, clocks, hashing or environment: the
   shell injects digests and reads inputs (D3, D44).
@@ -36,3 +36,14 @@ reconciliation, emission, verification, the write plan, the scaffold and the wor
 | `verify/` | the self-checks (tiling, re-encode, module size, text layout, paths) and their report (`report.ts`) |
 | `write-plan/` | the write policy (`plan-writes.ts`), its types and owned roots (`types.ts`), the manifest and journal codecs |
 | `workflow/config-from-discover.ts` | the in-memory config of a discover run (D62 c) |
+
+## Phase 4: one shot
+
+| Path | Responsibility |
+| --- | --- |
+| `config/` | adds the TOML parser and its key checks (`parse.ts`, `keys.ts`), the canonical serializer (`serialize.ts`), the comment-keeping patch planner (`patch.ts`), the decomp.yaml reader (`decomp-yaml.ts`), the project ROM check (`rom-sha1.ts`) and their codes |
+| `reconcile/` | the C tokenizer (`c-tokens.ts`), the file-scope scanner, `compiledDefinitions` and the INCLUDE_ASM planner (`include-asm.ts`), text edits (`text-edit.ts`) and their codes |
+| `model/` | adds the C units (`c-unit.ts`: stub chunks, compile settings, the stub assembly), the C-data ASSERT lines (`c-data-assert.ts`) and the chunk-file readers of a tree on disk (`paths.ts`: `chunkNamesOf`, `moduleChunkStubs`) |
+| `scaffold/` | the scaffold's variables and placeholders (`vars.ts`) and its rendering (`render.ts`) |
+| `workflow/` | `generateProject` (`generate.ts`), the C stubs reconciled with the model (`c-stubs.ts`), `init`'s plan and directory verdict (`init.ts`, `init-config.ts`), `analyze --update` (`analyze-update.ts`), `scaffold --diff` (`scaffold-diff.ts`), the project inputs (`types.ts`) |
+| `write-plan/` | adds `reconciled` edits and the one staleness rule of an edit (`staleEdit`, read by the shell at write time too), and the project's write plan (`project-plan.ts`) |

@@ -874,6 +874,15 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   `foundation/util/project-files.ts`. `NONMATCHINGS_ROOT` stays exported once, from `api/one-shot-types.ts`.
 - **architecture-r1-8's remainder**: remove `checkEntry` from `core/verify/text-layout.ts` (thirty text-layout tests
   call it; a one-entry `checkEntries` adds stream-level diagnostics, so the tests need a helper of their own).
+- **correctness-b0-3's remainder** (fix round 5, D81 c): `[[overrides]]` without `runs_at` are applied by no
+  analysis rule; phase 4 warns `W_OVERRIDE_IGNORED` for each one that changes nothing (a known limitation). Phase 6
+  makes a `data` override claim its span and suppress code there, and a `code` override seed `seed.override` at its
+  start (the rule exists; no seed of it is built), and, with the owner's leave since it changes a gate, makes
+  `g4.toml-mutations`' add-override edit one that changes the model (today it covers a found function exactly, a
+  no-op that now warns). Nothing here depends on `g5.import-legacy`.
+- **correctness-b0-4's gate case** (fix round 5, D81 c): `E_FUNCTION_MISALIGNED` is tested by unit and CLI tests;
+  adding an odd `[functions]` key to `g4.toml-mutations`' illegal edits changes a gate, which the owner has not
+  authorised in phase 4.
 
 ### 6.0 Signature and trace interfaces (lead)
 

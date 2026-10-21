@@ -3395,7 +3395,7 @@ gate beyond D79's answers.
 
 - (a) **The reconciliation refuses what it cannot place exactly** (correctness-a2-1, a2-2, a2-3, a2-6).
   - A wanted chunk whose stub file the previous tree held in this module's own directory
-    (`IncludeAsmWanted.priorStubs`, from `previousChunkFiles`) and which the file neither includes nor defines had its
+    (`IncludeAsmWanted.priorStubs`, from `previousChunkFiles`; `previousStubs` since D81 d) and which the file neither includes nor defines had its
     `INCLUDE_ASM` replaced by C; a definition of another name where its stub goes is `E_C_STALE_DEFINITION` ("where the
     INCLUDE_ASM of X was, and module M still has X"). A chunk whose stub name is new to that directory (a TOML rename,
     a border move) keeps D78 a's helper exemption. `IncludeAsmWanted.previous` is renamed `retired`.
@@ -3431,6 +3431,85 @@ a region, the named heads, `compiledDefinitions`), `reconcileStubs` (the module'
 module), three `generate` CLI cases (a C-only rename, an unbalanced conditional, a merged module), `decompStateOf`,
 `readChunkFiles` and `readProject`'s previous tree, and the stale edit at write. The closing list is re-run in a fresh
 worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 4).
+
+## D81. Fix round 5 of phase 4: the review of fix round 4
+
+**Context.** The review of fix round 4's closing run at `32390c3` (round b0) raised twelve findings: four on
+correctness (three majors, one minor) and eight on the architecture (minors). The majors were reproduced on klonoa: a
+file whose `#if` branches inside a function open braces differently (`#ifndef NONMATCHING do { #endif … } while (0);`,
+a common matching idiom) was refused whole by D80 a's `E_C_UNSCANNABLE` even when it needed no edit, so since asm/ is
+gitignored (D79 b) a committed project that builds could not be built from a clone (correctness-b0-1); a `c` module
+renamed with its source moved by hand kept the old directory's `INCLUDE_ASM` lines and `make` failed
+(correctness-b0-2); and an `[[overrides]]` entry without `runs_at` silently did nothing (correctness-b0-3). No fix
+changes what a gate requires; the two gate edits the review proposed are carried to phase 6 (below, c).
+
+**Decision.**
+
+- (a) **The scanner reads a conditional as the preprocessor would, and refuses only a file that needs an edit**
+  (correctness-b0-1, b0-2; architecture-b0-2).
+  - Each branch is scanned from the state its `#if` found (the current item, its depths and the open definition),
+    and the state the first branch reached stands after the `#endif`; the items every branch completes are kept (the
+    NONMATCHING pattern's `#else` stub still holds its chunk). Inside a body any branch shape scans (the do/while
+    idiom, tmc's per-version `if (…) {` branches, sa2's `screen_mask.c`); a branch that closes the body it opened in
+    is unscannable. At file scope the branches (the `#if`'s own state standing for an absent `#else`, unless an
+    `#elif` chain covers the builds) must end alike: the same depths, the same open definition, and both with or
+    without a parenthesis group in an unfinished head (`ASM_FUNC("…", void f(void))` with no `;` against a
+    definition is unscannable; a bare `END_NONMATCH` is not). Measured over the 1,739 `.c` files of sa2, sa3,
+    pokeemerald, fe7j, tmc, kleod and klonoa: 35 unscannable before, 2 after (both that `ASM_FUNC` shape in sa2).
+    Of the files scannable before, all but 10 scan to the same definitions and stubs: in 9 a definition now starts
+    at its own head rather than at a bare macro a conditional before it left unfinished (`#if COLLECT_RINGS_ROM
+    END_NONMATCH #endif`), which had put its start inside that conditional and so out of the compiled definitions
+    (such a leftover now ends with its region); the 10th is one of the 2 now unscannable.
+  - A definition whose head a region holds and whose body runs past the region's `#endif` (sa2's `light_bridge.c`:
+    a register pin in one head, the plain head in the other) is compiled in every build; the planner anchors after
+    its body.
+  - A file the scanner cannot split gets no edit. It needs one when a wanted chunk is neither named by a stub its
+    tokens spell at any depth nor defined as far as the scanner read, when a stub at any depth would go, or when an
+    unwanted stub lies in a region: `E_C_UNSCANNABLE`, as before. Otherwise `W_C_UNSCANNABLE` (new, warning,
+    `core/reconcile`), with the E_C_STALE_DEFINITION of a definition of a retired function, and the file builds as it
+    did; so `setup.sh`'s duty 5 in a clone no longer fails on a project whose C built.
+  - `compiledDefinitions` returns the scanner's verdict with the definitions (`{scannable, definitions,
+    unscannable?}`), so no caller can skip the precondition: the planner decides as above, a C file of no module is
+    checked over what was read and warns `W_C_UNSCANNABLE` (`unscannableWarning`, a reconcile code raised through
+    its helper), and `decompStateOf` states its policy (the definitions as read: phase 4 emits nothing differently
+    for the DecompState).
+  - A stub of another `asm/nonmatchings/<m>` directory whose file the new tree does not write (`IncludeAsmWanted.tree`:
+    the tree's chunk files, and the directories of the `generated = false` modules, whose stubs stay the user's) is
+    unwanted like one of the module's own: removed outside a region, `E_C_CONDITIONAL_STUB` inside one. A `c` module
+    renamed with `git mv src/<old>.c src/<new>.c` keeps no stub of the old directory; the scaffold's `AGENTS.md` says
+    how to rename a `c` module.
+- (b) **One staleness rule** (architecture-b0-1): `staleEdit(op, sha1Now, when)` in `core/write-plan/plan-writes.ts`
+  is the rule `planWrites` applies at plan time and the shell's `applyWrites` calls over the sha1 it reads right
+  before an edit's write; the shell raises no core code itself. Architecture §6.4 steps 3 and 4 and §9.1 say so.
+  This amends D80 b's "the edit checked at its write": the check is the shell's read and core's verdict.
+- (c) **Two config defects get a diagnostic; their gate cases wait for phase 6** (correctness-b0-3, b0-4).
+  `E_FUNCTION_MISALIGNED` (new, error, `core/model`): a `[functions]` key that is odd for Thumb or not word-aligned
+  for ARM is refused naming the key (the pointer-value hint for an odd Thumb key), so `generate` exits 1 before the
+  check pass instead of 3 with `E_SELF_CHECK_TEXT` on a generated file. `W_OVERRIDE_IGNORED` (new, warning,
+  `core/model`): an `[[overrides]]` entry without `runs_at` that changes nothing (a data override always; a code
+  override that gives no listed entry its extent), a known limitation recorded in phase-4.md, until phase 6 applies
+  overrides to the analysis (roadmap.md, "Carried from phase 4"). Making `g4.toml-mutations`' add-override edit one
+  that changes the model, and adding an odd key to its illegal edits, change a gate the owner has not authorised in
+  phase 4 (his answers authorise only Q2's and Q9's): both are carried to phase 6 with the override semantics. The
+  gate's legal edit stays what its header says (a code override over a found function, which now warns) and passes.
+- (d) **Smaller fixes** (architecture-b0-3 to b0-7): `g4.worktree` reads the product's rule
+  (`cx.need('underGeneratedRoot')`) instead of its own list of the generated roots, which is the same list, so the
+  gate's verdict is unchanged; the `romlift` reconcile barrel exports `compiledDefinitions`, `CompiledDefinitions`,
+  `CUnscannable`, `CConditional`, `WantedChunk` and `StubTree`, its ownership line names phase 6, and the phase-4
+  exports test covers it; `src/cli/index.md` lists the phase-4 commands and project mode, `src/core/index.md` and
+  `src/shell/index.md` list the phase-4 modules, and `analyze.ts` and `core/index.md` no longer name legacy import
+  as live; `isDirectory` and `readChunkFiles` have tests of a directory they cannot examine (mode 000, `E_IO_READ`);
+  `moduleChunkStubs` in `core/model/paths.ts` beside `chunkNamesOf` is the one reader of a module's chunk files on
+  disk, and `IncludeAsmWanted.priorStubs` is `previousStubs`. architecture-b0-8 needed nothing.
+
+**Consequences.** New tests: the planner (the do/while idiom, per-version branches, `screen_mask.c` and
+`light_bridge.c` shapes, a warning versus a refusal for an unscannable file, the stubs of a directory the tree no
+longer writes), `reconcileStubs` (an unscannable file of no module, a moved module), `decompStateOf`, `staleEdit`,
+the model (`E_FUNCTION_MISALIGNED`, `W_OVERRIDE_IGNORED`), five `generate` CLI cases (the idiom, then in a fresh
+clone; an unscannable file warned then refused; a moved module with and without decompiled C; an odd key with and
+without `from`; an ignored override), the shell's two mode-000 cases, and `test/local/decompiled-c.test.ts` on klonoa
+with agbcc (the idiom, a fresh clone through `./setup.sh`, a renamed module moved by hand, each to the SHA-1). The
+closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 5).
 
 ## Review findings index
 

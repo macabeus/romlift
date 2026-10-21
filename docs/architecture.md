@@ -1420,12 +1420,15 @@ A command that writes runs four steps; only the last touches files (D17, D49):
    - **scaffold**: `write` only when absent; `scaffold --diff` shows template drift. An executable entry
      (setup.sh) is written with its mode on the temporary file before the rename, and one whose file lacks the
      executable bits gets a `mode` op, journalled like the others (D75 e).
-   - **reconciled**: `edit` only if the file's sha1 still equals `baseSha1`, else `E_STALE_EDIT`.
-4. **Apply** (`shell/project/apply-writes.ts`), mechanically:
+   - **reconciled**: `edit` only if the file's sha1 still equals `baseSha1`, else `E_STALE_EDIT`. The rule is one
+     function, `staleEdit` (`core/write-plan/plan-writes.ts`), which step 4 asks again (D81 b).
+4. **Apply** (`shell/project/apply-writes.ts`), mechanically, deciding nothing itself:
    - take `.romlift/lock` with `O_EXCL` (it holds the pid and host); a second run fails with
      `E_PROJECT_LOCKED`; a lock whose pid is gone on the same host is taken over with `W_STALE_LOCK`;
    - write `.romlift/journal.json` (`core/write-plan/journal.ts` defines it: every op with its path,
      `baseSha1` and result sha1) before the first op;
+   - hash an `edit`'s file again right before its write and pass the sha1 to core's `staleEdit`: a save that landed
+     since the plan stops the run with `E_STALE_EDIT`, the journal left (D80 b, D81 b);
    - apply each op through a temporary file and a rename; the journal, the manifest, edits, scaffold files
      and C stubs are flushed (`fsync`) before their rename, generated files are not, and a generated file whose
      path does not exist yet is created in place with `O_EXCL`: the next run's snapshot rewrites any generated
@@ -1521,7 +1524,12 @@ from = "evidence:trace"
 ```
 
 - `core/config/keys.ts` rejects any address key that is not `0x` plus eight upper-case hex digits
-  (`E_TOML_KEY_SPELLING`) and any address listed twice (`E_DUPLICATE_ADDRESS`).
+  (`E_TOML_KEY_SPELLING`) and any address listed twice (`E_DUPLICATE_ADDRESS`). The model rejects a `[functions]`
+  key that is no instruction address of its mode, odd for Thumb or not word-aligned for ARM, such as a Thumb pointer
+  value pasted as the entry (`E_FUNCTION_MISALIGNED`, naming the key, D81 c).
+- `[[overrides]]` with `runs_at` place a RAM-run range (§6.7). Until phase 6 applies the others to the analysis, an
+  override without `runs_at` changes nothing but the extent of a listed entry the analysis did not find (a `code`
+  override holding it); every other one is `W_OVERRIDE_IGNORED`, a warning (a known limitation of phase 4, D81 c).
 - `from` records where a proposed entry came from, as a `sourceKey` (`sig:<library>@<version>`,
   `evidence:<id>`, `legacy`). It is data, not a comment: `explain` reads it, and `rename` removes it
   because the name is then the user's (D9). An entry without `from` was written by the analysis or by
@@ -1550,11 +1558,15 @@ symbol and its stub name (the chunk file's base name, `<Name>_<ADDR>` for a case
 holds its chunk by symbol, a stub by stub name (D78 a). The planner never edits anything inside an
 `#if`/`#ifdef`/`#ifndef` … `#endif` region and never inserts a stub there (it anchors on the region's outer edge); a
 stub inside one holds its chunk, a definition inside one does not. It skips a leading byte order mark, and refuses
-what an edit cannot fix, so `generate` writes nothing (D77 a to c, D78 a, D80 a): `E_C_UNSCANNABLE` (a file the
-scanner cannot split: a branch of a conditional that leaves other braces or parentheses open than the conditional
-found, a definition that never closes, a block at file scope after a head that names no function, such as a K&R
-definition; the definition's name is the identifier before its parameter list, past `(*` declarator groups and GCC
-attribute and asm groups), `E_C_STUB_UNPLACED` (no safe place: the text ends inside a comment, a literal, a directive
+what an edit cannot fix, so `generate` writes nothing (D77 a to c, D78 a, D80 a, D81 a): `E_C_UNSCANNABLE` (a file
+the scanner cannot split that needs an edit; the scanner reads a conditional as the preprocessor would, each branch
+from the state its `#if` found and the first branch's state after the `#endif`, so a branch inside a body may open a
+block the other does not, and a file is unscannable when the branches of a file-scope conditional end with other
+depths, another open definition or another unfinished head than each other, a branch inside a body closes it, a
+definition never closes, or a block at file scope follows a head that names no function, such as a K&R definition;
+the definition's name is the identifier before its parameter list, past `(*` declarator groups and GCC attribute and
+asm groups; such a file that needs no edit, by the stubs its tokens spell at any depth and the definitions read, is
+`W_C_UNSCANNABLE`, a warning, so a committed project that builds also builds from a clone, D81 a), `E_C_STUB_UNPLACED` (no safe place: the text ends inside a comment, a literal, a directive
 or an unclosed `#if`, the stub would go between two chunks one `#if` region holds, or the planned text, scanned again,
 would hold it out of ROM order), `E_C_CONDITIONAL_STUB` (an unwanted stub inside
 a conditional region, never removed), `E_C_STALE_DEFINITION` (a definition of a function of the tree romlift last
@@ -1566,10 +1578,13 @@ definition the module no longer has where a missing stub
 goes) and `E_C_DEFINITION_MOVED` (a definition of a function the TOML now gives another module, read in every
 `src/*.c`, a file of no module included, so a merged module's decompiled C never leaves the build unseen; for an
 `asm` or `data` module, the advice is to delete the C or make that module `c`); `W_C_FILE_UNUSED` warns of a
-`src/*.c` that is the source of no module. "What the C defines" is one predicate, `compiledDefinitions` (a named
-definition outside every conditional), which the planner and the project's `DecompState` both read (D80 b). An
-`edit` is written only while its file still has its planned sha1, checked again right before the write
-(`E_STALE_EDIT`, D80 b). `generate --out <dir>` writes the C files as generated files of that tree,
+`src/*.c` that is the source of no module. A stub of another `asm/nonmatchings/<m>` directory whose file the new
+tree does not write (outside a `generated = false` module's directory) is unwanted like one of the module's own: a
+renamed `c` module whose source the user moved keeps no stub of the old directory (D81 a). "What the C defines" is one
+predicate, `compiledDefinitions` (a named definition not wholly inside one conditional, with the scanner's verdict:
+`scannable: false` and why for a file it cannot split, whose definitions are then only what it read), which the
+planner, the C files of no module and the project's `DecompState` read (D80 b, D81 a). An `edit` is written only
+while its file still has its planned sha1, checked again right before the write (`E_STALE_EDIT`, D80 b, D81 b). `generate --out <dir>` writes the C files as generated files of that tree,
 so a second run into it rewrites them (D77 d). `rename-tokens.ts` renames identifier tokens
 only, never comments or strings.
 
@@ -2000,11 +2015,11 @@ defined. The codes:
 | --- | --- |
 | `E_ROM_NOT_GBA` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER`, `E_DECOMP_YAML_INVALID`, `E_ROM_SHA1_MISMATCH` | `core/config` |
-| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_SYMBOL_UNPLACED` | `core/model` |
+| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_FUNCTION_MISALIGNED`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED` | `core/model` |
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
-| `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
-| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_UNSCANNABLE` | `core/reconcile` |
+| `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` (`E_STALE_EDIT` through `staleEdit`, which the shell's `applyWrites` also calls at write time, D81 b) |
+| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_UNSCANNABLE`, `W_C_UNSCANNABLE` | `core/reconcile` (`W_C_UNSCANNABLE` also through `unscannableWarning`, which `core/workflow/c-stubs.ts` calls for a C file of no module, D81 a) |
 | `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG`, `E_C_DEFINITION_MOVED`, `W_C_FILE_UNUSED` | `core/workflow` (`init`'s verdict on its directory, D75 j, checked under the project lock, D77 j; `analyze --update --write` over a changed config, D75 m; the reconciliation of a project's C files, D77 a) |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |
 | `W_EVIDENCE_CONFLICT` | `core/evidence` |

@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D78). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D81). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -17,8 +17,9 @@ tiers, and sa2 passed `g2.speed` at 731 of 790 ms. Two fix rounds followed the r
 third, fix round 3, re-ran the whole closing list at `2efb732` in a fresh worktree, every command exit 0, sa2 at 727 of
 793 ms. The owner answered Q8 and Q9 on 21 October 2026 (D79), and fix round 4 (D80) applied them and fixed the review
 of fix round 3; the whole closing list at `7c0a452`, in a fresh worktree with `landed` 4, exited 0 at every command,
-sa2 at 731 of 782 ms ("The closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's CI
-(AGENTS.md).
+sa2 at 731 of 782 ms ("The closing gate"). Fix round 5 (D81) fixed the review of that run; its closing list is
+recorded under "The closing gate". Nothing is merged to `main` or pushed; the merge waits for the phase pull request's
+CI (AGENTS.md).
 
 ## Components
 
@@ -436,9 +437,18 @@ count them.
   (setup.sh's duty 5), like a project whose `asm/nonmatchings/` was deleted by hand, falls back to D77 a's rule, which
   can refuse a static helper that lies where a renamed function's stub goes (write the stub by hand). A decompiled
   function renamed in C only is `E_C_STALE_DEFINITION` (D80 a): rename it in `romlift.toml` too. A definition inside an
-  `#if` region counts for no build. A file whose `#if` branches leave other braces open than the `#if` found, or that
-  holds a K&R definition, is refused whole (`E_C_UNSCANNABLE`), and a split between two chunks one `#if` region holds
-  is `E_C_STUB_UNPLACED` (write the new `INCLUDE_ASM` in each branch yourself). The scaffold's `AGENTS.md` says so.
+  `#if` region counts for no build. Since fix round 5 (D81 a) the scanner reads a conditional as the preprocessor
+  would, so any branch shape inside a function scans; a file it still cannot split (the branches of a file-scope `#if`
+  ending differently, as an `ASM_FUNC("…", void f(void))` with no `;` against a definition: 2 of 1,739 real decomp
+  files; a K&R definition) is edited never: `W_C_UNSCANNABLE` while its `INCLUDE_ASM` lines already match, so a clone
+  builds, and `E_C_UNSCANNABLE` once a TOML edit needs them changed (change them yourself). A split between two chunks
+  one `#if` region holds is `E_C_STUB_UNPLACED` (write the new `INCLUDE_ASM` in each branch yourself). A `c` module
+  renamed with its source moved by hand (`git mv`) gets the new directory's stubs (D81 a). The scaffold's `AGENTS.md`
+  says so.
+- Until phase 6 (D81 c, roadmap.md "Carried from phase 4"): an `[[overrides]]` entry without `runs_at` is applied by no
+  analysis rule; a `data` override, and a `code` override that gives no listed entry its extent, change nothing and
+  warn `W_OVERRIDE_IGNORED`. `g4.toml-mutations`' add-override edit is such a no-op (it warns and builds); making it
+  change the model is a gate change the owner has not authorised in phase 4.
 - `analyze --update --write` does not check the patched config's module borders (architecture §6.2, D77 k): a newer
   discover's unlisted function whose extent covers a `c` module's start is added, and `generate` then refuses the TOML
   with `E_MODULE_BORDER` (not reproduced; carried to phase 6 with architecture-r1-3).
@@ -952,3 +962,31 @@ and this record's ("The closing gate", fix round 4's closing run: every command 
 | architecture-a2-6 | minor | **Carried to phase 6** (roadmap.md, "Carried from phase 4", D80 d): init's own file set to come from core's `InitPlan`; it changes a frozen type (D74 c) with no defect behind it, and phase 6's rename reworks init's plan. |
 | architecture-a2-7 | minor | **Fixed** (`8a15817`, D80 c): `allDiagnostics` exported by `command-common.ts`, called by `verifyExitCode` and `verify.ts`. |
 | architecture-a2-8 | minor | **Fixed** (this record): roadmap.md's r1-6 carry names the three `readAgbccPin` and the two pin-stamp checks. |
+
+### Fix round 5 (the review of fix round 4's closing run at `32390c3`)
+
+Twelve findings: three majors and nine minors. Every major is fixed, each reproduced first by a planner, CLI or
+`decompiled-c` test (D81). Of the minors, seven are fixed, one (architecture-b0-8) needed nothing, and one is fixed in
+part: correctness-b0-4's diagnostic lands, its gate case is carried. No gate changes what it requires: the review's two
+gate edits (correctness-b0-3's add-override edit, correctness-b0-4's illegal edit) change `g4.toml-mutations`, which
+the owner has not authorised in phase 4 (his answers authorise Q2's and Q9's only), so both are carried to phase 6
+with the override semantics (roadmap.md, "Carried from phase 4"); neither is needed by the fix, and the gate's header
+states its add-override edit exactly. `g4.worktree` now reads the product's `underGeneratedRoot` instead of its own
+copy of the same list, so its verdict is unchanged. Commits on `phase-4` after `32390c3`: `5fd0086` (the code and its
+tests) and the records commit, then the closing run's artifact and this record's results ("The closing gate", fix
+round 5).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-b0-1 | major | **Fixed** (`5fd0086`, D81 a). The scanner reads a conditional as the preprocessor would: each branch from the state its `#if` found, the first branch's state after the `#endif`, every branch's items kept; at file scope the branches must end alike. Over 1,739 real decomp `.c` files, 35 unscannable become 2 (sa2's `ASM_FUNC` with no `;` against a definition). A file still unscannable is `E_C_UNSCANNABLE` only when it needs an edit (a wanted chunk no stub at any depth names and no definition read holds, a stub at any depth that would go, an unwanted stub in a region), else `W_C_UNSCANNABLE` (new, warning) and no edit. Tests: the do/while idiom, tmc's per-version `if (…) {`, sa2's `screen_mask.c` and `light_bridge.c` shapes in the planner; a CLI case with the idiom then in a fresh clone (no generated file) and a TOML rename after it; an unscannable file warned, cloned, then refused once a rename needs an edit; `decompiled-c` on klonoa: the idiom in `Nop`, `make` to the SHA-1, then from a fresh clone's state through `./setup.sh` (duty 5) and `make` to the SHA-1. The known limitation now states the clone consequence. |
+| correctness-b0-2 | major | **Fixed** (`5fd0086`, D81 a). `IncludeAsmWanted.tree` (the chunk files the run writes, the directories of `generated = false` modules): a stub of another `asm/nonmatchings/<m>` directory naming no file of the tree is removed outside a region, `E_C_CONDITIONAL_STUB` inside one. Tests: the planner (a `git mv`'d file, decompiled C between stubs, a live module's, a user module's and a non-nonmatchings stub kept, a region), `reconcileStubs`, a CLI case renaming the composite's `main_3` to `boot` with `src/main_3.c` moved, with and without decompiled C (every remaining stub names a file on disk), and `decompiled-c` on klonoa (main_3 renamed `boot`, `make` to the SHA-1). The scaffold's `AGENTS.md` says how to rename a `c` module. |
+| correctness-b0-3 | major | **Fixed as a warning; the semantics carried to phase 6** (`5fd0086`, D81 c). `W_OVERRIDE_IGNORED` (new, `core/model`) for every override without `runs_at` that changes nothing (a data override; a code override that gives no listed entry its extent), recorded under "Known limitations" and in architecture §6.5. Applying overrides to the analysis (a data span claimed, a `seed.override` seed) changes the tree and the analysis, and making `g4.toml-mutations`' add-override edit one that changes the model changes a gate the owner has not authorised: both carried to phase 6 (roadmap.md). Tests: the model (data, unused code, a code override that gives an unfound entry its extent: no warning) and a CLI case. |
+| correctness-b0-4 | minor | **Fixed; the gate case carried** (`5fd0086`, D81 c). `E_FUNCTION_MISALIGNED` (new, error, `core/model`): a `[functions]` key odd for Thumb or not word-aligned for ARM is refused naming the key (with the pointer-value hint), `generate` exit 1 before the check pass. Tests: the model and a CLI case (with and without `from`, nothing written). Adding it to `g4.toml-mutations`' illegal edits is a gate change, carried to phase 6. |
+| architecture-b0-1 | minor | **Fixed** (`5fd0086`, D81 b). `staleEdit(op, sha1Now, when)` in `core/write-plan/plan-writes.ts` is the one rule; `planWrites` and the shell's `applyWrites` (`staleAtWrite`: read, hash, call) both use it; the shell raises no core code itself. architecture §6.4 steps 3 and 4 and the §9.1 table say so; `src/shell/index.md` lists it; D81 b amends D80 b. Test: `staleEdit` at plan and write time; the journal mutation test mutates the rule. |
+| architecture-b0-2 | minor | **Fixed** (`5fd0086`, D81 a). `compiledDefinitions` returns `{scannable, definitions, unscannable?}`; a file of no module that cannot be split warns `W_C_UNSCANNABLE` and is still checked over what was read (`E_C_DEFINITION_MOVED`); `decompStateOf` states its policy (the definitions as read). With the new scanner the review's `A`/`B` text scans, and `decompStateOf` returns `["A", "B"]`. Tests: `reconcileStubs` (an unscannable file of no module: `W_C_FILE_UNUSED`, `W_C_UNSCANNABLE`, `E_C_DEFINITION_MOVED`) and `decompStateOf` (the review's text, a K&R file). |
+| architecture-b0-3 | minor | **Fixed** (`5fd0086`). `g4.worktree` calls `cx.need('underGeneratedRoot')` (its `needs` lists it) and deletes its local list, which equalled `GENERATED_ROOTS`; the verdict is unchanged. |
+| architecture-b0-4 | minor | **Fixed** (`5fd0086`). `src/api/reconcile.ts` exports `compiledDefinitions`, `CompiledDefinitions`, `CUnscannable`, `CConditional`, `WantedChunk`, `StubTree`; its ownership line names phase 6 (D76 g); the phase-4 exports test checks the reconcile names and `staleEdit`. |
+| architecture-b0-5 | minor | **Fixed** (records commit). `src/cli/index.md` lists `init`, `generate`, `analyze --update`, `scaffold --diff` and project mode; `src/core/index.md` and `src/shell/index.md` gain their phase-4 tables; `analyze.ts` and `core/index.md` mark import-legacy dropped (D76 g). |
+| architecture-b0-6 | minor | **Fixed** (`5fd0086`). `fs.test.ts`: `isDirectory` under a mode-000 directory is `E_IO_READ` (ENOTDIR and absent stay false); `read-inputs.test.ts`: `readChunkFiles` with `asm/`, `asm/nonmatchings/` or a module directory at mode 000 is `E_IO_READ`; both skipped as root. |
+| architecture-b0-7 | minor | **Fixed** (`5fd0086`). `moduleChunkStubs(files, module)` in `core/model/paths.ts`, beside `chunkNamesOf` and with its `chunkFileOf` round trip, is what `c-stubs.ts` reads; `IncludeAsmWanted.priorStubs` is `previousStubs`, beside `retired`. |
+| architecture-b0-8 | minor | **Nothing to do**: the six open architecture-r1 minors stay carried to phase 6 as roadmap.md writes them; none depends on `g5.import-legacy`. |
