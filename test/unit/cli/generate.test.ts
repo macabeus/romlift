@@ -376,17 +376,81 @@ test('renaming a decompiled function in C only is E_C_STALE_DEFINITION (exit 1):
   assert.deepEqual(errorCodes(fresh.stdout), ['E_C_STALE_DEFINITION']);
 });
 
-test('a conditional whose branches open braces differently is E_C_UNSCANNABLE (exit 1): no stub is appended, nothing is written', async () => {
+/** The project as a fresh clone or worktree has it: none of the gitignored generated files, no .romlift state (D79 b). */
+async function asCloned(dir: string): Promise<void> {
+  for (const generated of ['asm', 'data', 'ldscript.txt', 'symbols.ld', 'modules.mk', '.romlift']) await rm(path.join(dir, generated), { recursive: true, force: true });
+}
+
+test('branches inside a body that open braces differently scan: generate exits 0, in a fresh clone too (fix round 5, correctness-b0-1)', async () => {
   const dir = await initProject();
   const { names, main } = await firstStubs(dir);
-  const fn = names[1] ?? assert.fail(main);
-  const body = `void ${fn}(void) {\n    volatile int x = 0;\n#ifdef NONMATCHING\n    if (x) {\n#else\n    if (!x) {\n#endif\n    }\n}`;
-  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), body));
-  const before = await snapshot(dir);
+  const [first, second] = [names[0] ?? assert.fail(main), names[1] ?? assert.fail(main)];
+  const perVersion = `void ${first}(void) {\n    volatile int x = 0;\n#ifdef NONMATCHING\n    if (x) {\n#else\n    if (!x) {\n#endif\n    }\n}`;
+  const doWhile = `void ${second}(char *d, const char *s) {\n#ifndef NONMATCHING\n    do {\n#endif\n    while ((*d++ = *s++)) ;\n#ifndef NONMATCHING\n    } while (0);\n#endif\n}`;
+  const text = main.replace(stubIn('main', first), perVersion).replace(stubIn('main', second), doWhile);
+  await writeFile(path.join(dir, 'src', 'main.c'), text);
   const out = await run(dir, ['generate', '--json']);
-  assert.equal(out.code, ExitCode.errors, out.stdout);
-  assert.deepEqual(errorCodes(out.stdout), ['E_C_UNSCANNABLE']);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic'), []);
+  assert.equal(await readFile(path.join(dir, 'src', 'main.c'), 'utf8'), text, 'nothing to edit');
+  // The clone's first generate (setup.sh's duty 5) writes the tree.
+  await asCloned(dir);
+  const cloned = await run(dir, ['generate', '--json']);
+  assert.equal(cloned.code, ExitCode.ok, cloned.stdout);
+  assert.ok((await stat(path.join(dir, 'modules.mk'))).isFile());
+  assert.equal(await readFile(path.join(dir, 'src', 'main.c'), 'utf8'), text);
+  // A TOML rename of a third function still reaches the file.
+  const third = names[2] ?? assert.fail(main);
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  await writeFile(path.join(dir, 'romlift.toml'), renamed(toml, third, 'Renamed'));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+  assert.ok((await readFile(path.join(dir, 'src', 'main.c'), 'utf8')).includes(stubIn('main', 'Renamed')));
+});
+
+test('a file the scanner cannot split: W_C_UNSCANNABLE (exit 0) while it needs no edit, in a fresh clone too; E_C_UNSCANNABLE (exit 1) once it needs one', async () => {
+  const dir = await initProject();
+  const { names, toml, main } = await firstStubs(dir);
+  const fn = names[1] ?? assert.fail(main);
+  // A file-scope #ifdef whose branches end differently: an ASM_FUNC-style macro with no `;` against a definition.
+  const ambiguous = `#ifdef VC\nASM_FUNC("asm/vc.s", void ${fn}(void))\n#else\nvoid ${fn}(void) {\n}\n#endif\n`;
+  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), `${ambiguous}${stubIn('main', fn)}`));
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => [l['code'], l['path']]), [['W_C_UNSCANNABLE', 'src/main.c']]);
+  await asCloned(dir);
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'setup.sh duty 5 in a clone');
+  const other = names[3] ?? assert.fail(main);
+  await writeFile(path.join(dir, 'romlift.toml'), renamed(toml, other, 'Renamed'));
+  const before = await snapshot(dir);
+  const refused = await run(dir, ['generate', '--json']);
+  assert.equal(refused.code, ExitCode.errors, refused.stdout);
+  assert.deepEqual(errorCodes(refused.stdout), ['E_C_UNSCANNABLE']);
   assert.deepEqual(await snapshot(dir), before);
+});
+
+test('a c module renamed and its source moved by hand: the old directory\'s stubs go, with and without decompiled C (fix round 5, correctness-b0-2)', async () => {
+  const dir = await initProject();
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  const main3 = await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8');
+  assert.ok(toml.includes('name = "main_3"') && main3.includes(stubIn('main_3', 'sub_08000508')), 'the composite as this test knows it');
+  const decompiled = main3.replace(stubIn('main_3', 'sub_08000508'), 'void sub_08000508(void) {\n}');
+  for (const text of [main3, decompiled]) {
+    await writeFile(path.join(dir, 'romlift.toml'), toml);
+    await rm(path.join(dir, 'src', 'boot.c'), { force: true });
+    await writeFile(path.join(dir, 'src', 'main_3.c'), text);
+    assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+    // `git mv src/main_3.c src/boot.c` and the TOML rename.
+    await writeFile(path.join(dir, 'romlift.toml'), toml.replace('name = "main_3"', 'name = "boot"'));
+    await writeFile(path.join(dir, 'src', 'boot.c'), text);
+    await rm(path.join(dir, 'src', 'main_3.c'));
+    const out = await run(dir, ['generate', '--json']);
+    assert.equal(out.code, ExitCode.ok, out.stdout);
+    const boot = await readFile(path.join(dir, 'src', 'boot.c'), 'utf8');
+    assert.ok(!boot.includes('asm/nonmatchings/main_3'), boot);
+    for (const [, stubDir, name] of boot.matchAll(/^INCLUDE_ASM\("([^"]+)", (\w+)\);$/gm)) assert.ok((await stat(path.join(dir, `${stubDir ?? ''}/${name ?? ''}.s`))).isFile(), `${stubDir}/${name}.s`);
+    assert.equal(boot.includes('void sub_08000508(void) {'), text === decompiled);
+    assert.equal(boot.includes(stubIn('boot', 'sub_08000508')), text !== decompiled);
+  }
 });
 
 test('a c module merged into the one before it: its file\'s decompiled C is E_C_DEFINITION_MOVED (exit 1), never replaced by a stub', async () => {
@@ -404,4 +468,39 @@ test('a c module merged into the one before it: its file\'s decompiled C is E_C_
   const diagnostics = lines(out.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => [l['code'], l['path']]);
   assert.deepEqual(diagnostics, [['W_C_FILE_UNUSED', 'src/main_3.c'], ['E_C_DEFINITION_MOVED', 'src/main_3.c']]);
   assert.deepEqual(await snapshot(dir), before);
+});
+
+// Fix round 5 (D81 c): an odd [functions] key is refused naming it; an override that changes nothing warns.
+
+test('an odd [functions] key, with or without `from`, is E_FUNCTION_MISALIGNED naming the key (exit 1), and no file changes', async () => {
+  const dir = await initProject(FAR_JUMP.rom, []);
+  const file = path.join(dir, 'romlift.toml');
+  const text = await readFile(file, 'utf8');
+  const line = text.split('\n').find((l) => /^0x0[0-9A-F]{7} = /.test(l)) ?? assert.fail('no entry');
+  const addr = Number.parseInt(line.slice(2, 10), 16);
+  const odd = `0x${(addr + 0x11).toString(16).toUpperCase().padStart(8, '0')}`;
+  for (const entry of [`${odd} = "Odd"`, `${odd} = { name = "Odd", from = "legacy" }`]) {
+    await writeFile(file, text.replace(line, `${line}\n${entry}`));
+    const before = await snapshot(dir);
+    const out = await run(dir, ['generate', '--json']);
+    assert.equal(out.code, ExitCode.errors, out.stdout);
+    const errors = lines(out.stdout).filter((l) => l['severity'] === 'error');
+    assert.deepEqual(errors.map((l) => l['code']), ['E_FUNCTION_MISALIGNED'], out.stdout);
+    assert.match(String(errors[0]?.['message']), new RegExp(`the \\[functions\\] key ${odd} \\(Odd\\)`));
+    assert.deepEqual(await snapshot(dir), before);
+  }
+});
+
+test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_IGNORED (exit 0)', async () => {
+  const dir = await initProject(FAR_JUMP.rom, []);
+  const file = path.join(dir, 'romlift.toml');
+  const text = await readFile(file, 'utf8');
+  const line = text.split('\n').find((l) => /^0x0[0-9A-F]{7} = /.test(l)) ?? assert.fail('no entry');
+  const start = line.slice(0, 10);
+  for (const kind of ['data', 'code']) {
+    await writeFile(file, `${text.trimEnd()}\n\n[[overrides]]\nstart = ${start}\nsize = 0x4\nkind = "${kind}"\n`);
+    const out = await run(dir, ['generate', '--json']);
+    assert.equal(out.code, ExitCode.ok, out.stdout);
+    assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => l['code']), ['W_OVERRIDE_IGNORED'], kind);
+  }
 });

@@ -101,6 +101,41 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
   return out;
 }
 
+/**
+ * E_FUNCTION_MISALIGNED for every [functions] key that is no instruction address of its mode (fix round 5,
+ * correctness-b0-4): odd for Thumb, not a multiple of 4 for ARM. Raised before the check pass would refuse the tree it
+ * gives (E_SELF_CHECK_TEXT on a generated file), naming the TOML key instead.
+ */
+function misalignedFunctions(config: RomliftConfig): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  for (const [entry, f] of sortedEntries(config.functions)) {
+    const align = f.mode === 'arm' ? 4 : 2;
+    if (entry % align === 0) continue;
+    const hint = f.mode === 'thumb' && entry % 2 === 1 ? `; a Thumb function's pointer value has bit 0 set, its entry is ${hexAddr(entry - 1)}` : '';
+    out.push(diagnostic(ModelCodes, 'E_FUNCTION_MISALIGNED', `the [functions] key ${hexAddr(entry)} (${f.name}) is not a ${f.mode === 'arm' ? 'word-aligned ARM' : 'halfword-aligned Thumb'} instruction address${hint}`, { addr: entry }));
+  }
+  return out;
+}
+
+/**
+ * W_OVERRIDE_IGNORED for every [[overrides]] entry without runs_at that changes nothing (fix round 5, correctness-b0-3,
+ * a known limitation until the analysis applies overrides): a data override always, a code override that holds no
+ * listed entry whose extent it gives (placeEntries' 'override' source).
+ */
+function ignoredOverrides(config: RomliftConfig, placed: readonly PlacedEntry[]): Diagnostic[] {
+  const extended = placed.filter((p) => p.source === 'override').map((p) => p.entry);
+  const out: Diagnostic[] = [];
+  for (const o of config.overrides) {
+    if (o.runsAt !== undefined) continue;
+    const end = o.start + o.size;
+    if (o.kind === 'code' && extended.some((e) => e >= o.start && e < end)) continue;
+    const span = { start: o.start, end };
+    const why = o.kind === 'data' ? 'romlift does not apply a data override yet: the analysis still decodes and claims the range as it finds it' : 'it gives the extent only of a listed function the analysis did not find, and none lies in it; add the function to [functions] (with size) instead';
+    out.push(diagnostic(ModelCodes, 'W_OVERRIDE_IGNORED', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`, { span, addr: o.start }));
+  }
+  return out;
+}
+
 /** W_SYMBOL_UNPLACED for each [symbols] entry inside the ROM that no file can define. */
 function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
   return symbols.map((s) =>
@@ -185,6 +220,6 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     labels: labelled.labels,
     symbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...moduleNameProblems(modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...moduleNameProblems(modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...misalignedFunctions(config), ...ignoredOverrides(config, placed), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
   };
 }

@@ -6,7 +6,12 @@
 //      with its `#else` INCLUDE_ASM renamed too, `generate` exits 0 and `make` ends at the SHA-1;
 //   2. the block replaced by the plain C and a `c` module split right after it (start 0x08028108): the zero pad that
 //      now ends main_3 after a decompiled function stays its own orphan (gas would end the C object with a nop), and
-//      `make` ends at the SHA-1.
+//      `make` ends at the SHA-1;
+//   3. (fix round 5, correctness-b0-1) the `#ifndef NONMATCHING do { … } while (0);` idiom inside Nop: `generate`
+//      exits 0 with no diagnostic and `make` ends at the SHA-1, then again from the state of a fresh clone (no
+//      generated file), through `./setup.sh`'s duty 5;
+//   4. (correctness-b0-2) main_3 renamed `boot` with src/main_3.c moved to src/boot.c: `generate` exits 0, no stub of
+//      the old directory is left, and `make` ends at the SHA-1.
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -79,7 +84,7 @@ function codesOf(ran: Ran): readonly string[] {
     .map((l) => l.code ?? '?');
 }
 
-test('klonoa: a renamed NONMATCHING block and a module split behind a decompiled function build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
+test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone and a moved module build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
   assert.equal(unavailable, undefined, unavailable);
   const bytes = readFileSync(ROM);
   assert.deepEqual([...bytes.subarray(0x28104, 0x28108)], [0x70, 0x47, 0, 0], 'sub_08028104 is `bx lr` and a zero pad');
@@ -135,5 +140,32 @@ test('klonoa: a renamed NONMATCHING block and a module split behind a decompiled
   assert.equal(moved.code, 0, moved.tail);
   const reconciled = await readFile(file('src/main_3.c'), 'utf8');
   assert.ok(reconciled.includes(`void Nop(void) {\n}\n${stub('main_3', 'unk_08028106')}`), 'the pad is its own orphan after the decompiled function');
+  await make();
+
+  // 3. The matching idiom of correctness-b0-1: `do {` and `} while (0);` each behind #ifndef NONMATCHING, which the
+  //    scanner reads as the compiler does; then the project as a fresh clone has it (no generated file, R4), whose
+  //    ./setup.sh runs `romlift generate` (duty 5) before make.
+  const idiom = 'void Nop(void) {\n#ifndef NONMATCHING\n    do {\n#endif\n#ifndef NONMATCHING\n    } while (0);\n#endif\n}';
+  await writeFile(file('src/main_3.c'), reconciled.replace('void Nop(void) {\n}', idiom));
+  const kept = await generate();
+  assert.equal(kept.code, 0, kept.tail);
+  assert.deepEqual(kept.codes, [], kept.tail);
+  await make();
+  for (const generated of ['asm', 'data', 'ldscript.txt', 'symbols.ld', 'modules.mk', '.romlift', 'build']) await rm(file(generated), { recursive: true, force: true });
+  const cloned = await run('./setup.sh', [], dir, env);
+  assert.equal(cloned.code, 0, tail(cloned));
+  assert.ok(existsSync(file('modules.mk')), 'setup.sh generated the tree');
+  await make();
+
+  // 4. A c module renamed with its source moved by hand (correctness-b0-2): the old directory's stubs go, the C stays.
+  const before = await readFile(file('src/main_3.c'), 'utf8');
+  await writeFile(file('romlift.toml'), split.replace('name = "main_3"', 'name = "boot"'));
+  await writeFile(file('src/boot.c'), before);
+  await rm(file('src/main_3.c'));
+  const renamedModule = await generate();
+  assert.equal(renamedModule.code, 0, renamedModule.tail);
+  const boot = await readFile(file('src/boot.c'), 'utf8');
+  assert.ok(!boot.includes('asm/nonmatchings/main_3'), 'no stub of the old directory is left');
+  assert.ok(boot.includes(idiom) && boot.includes(stub('boot', 'unk_08028106')), 'the C kept, the stubs in the new directory');
   await make();
 });

@@ -4,7 +4,7 @@
 // ROM, src/*.c; --rom; no project), the write state planWrites needs, the package's scaffold inputs and version, and
 // the digests replacedProblems compares so init replaces no file of a project.
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -206,4 +206,19 @@ test('readProject passes the chunk files on disk as previousChunkFiles, and none
   const withoutC = await readProject(dir, { withoutC: true });
   assert.ok(withoutC.ok);
   assert.equal(withoutC.value.inputs.previousChunkFiles, undefined);
+});
+
+// Fix round 5 (architecture-b0-6): a tree that cannot be read is an error, never "no previous tree".
+test('readChunkFiles: an asm/ or module directory it cannot examine or list is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  const dir = await dirWith({ 'asm/nonmatchings/main/sub_08000100.s': '' });
+  for (const locked of [path.join(dir, 'asm'), path.join(dir, 'asm', 'nonmatchings'), path.join(dir, 'asm', 'nonmatchings', 'main')]) {
+    await chmod(locked, 0o000);
+    try {
+      const read = await readChunkFiles(dir);
+      assert.equal(read.ok, false, locked);
+      assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ'), locked);
+    } finally {
+      await chmod(locked, 0o755);
+    }
+  }
 });

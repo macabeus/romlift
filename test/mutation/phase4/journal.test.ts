@@ -319,8 +319,8 @@ const MUTANTS: readonly Mutant[] = [
     mutations: [
       {
         file: 'src/core/write-plan/plan-writes.ts',
-        from: 'if (disk !== baseSha1 || text === undefined || this.inputs.hash(text) !== baseSha1) {',
-        to: 'if (text === undefined) {',
+        from: 'if (now === op.baseSha1) return undefined;',
+        to: "if (now !== '') return undefined;",
       },
     ],
     caughtBy: [STALE_EDIT],

@@ -144,7 +144,9 @@ test('decompStateOf: the names src/*.c defines at file scope, unique, in code-un
   assert.deepEqual(decompStateOf(cTexts), { defined: ['Alpha', 'Zeta'] });
   assert.deepEqual(decompStateOf(new Map([['src/main.c', '#include "include_asm.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", sub_0800);\n']])), { defined: [] });
   // A definition inside an #if region is not one the default build compiles (architecture-a2-3), as for the reconciler.
-  assert.deepEqual(decompStateOf(new Map([['src/main.c', '#ifdef NONMATCHING\nvoid Foo(void) {\n}\n#endif\nvoid Bar(void) {\n}\n']])), { defined: ['Bar'] });
+  assert.deepEqual(decompStateOf(new Map([['src/main.c', '#ifdef NONMATCHING\nvoid Foo(void) {\n}\n#endif\nvoid Bar(void) {\n}\n']])), { defined: ['Bar'] });  // A file the scanner cannot split: its definitions as far as it reads (its policy, architecture-b0-2); B is not swallowed.
+  assert.deepEqual(decompStateOf(new Map([['src/main.c', 'void A(void){\n#ifdef X\nif(1){\n#else\nif(0){\n#endif\n}\n}\nvoid B(void){}\n']])), { defined: ['A', 'B'] });
+  assert.deepEqual(decompStateOf(new Map([['src/main.c', 'int K(a) int a; {\n    return a;\n}\nvoid B(void){}\n']])), { defined: ['B'] });
 });
 
 test('planChangesNothing: false without a manifest, with a journal, with an active op or another manifest', () => {

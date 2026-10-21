@@ -121,3 +121,23 @@ test('a C-only rename where a chunk of the module\'s own previous directory was 
   const orphan = reconcileStubs(PAIR, new Map([['src/main.c', PAIR_STUB], ['src/gone.c', 'void Moved(void) {\n}\nint Kept(void) { return 1; }\n']]), previous);
   assert.deepEqual(orphan.diagnostics.map((d) => [d.code, d.path]), [['W_C_FILE_UNUSED', 'src/gone.c'], ['E_C_DEFINITION_MOVED', 'src/gone.c']]);
 });
+
+// Fix round 5 (D81): an unscannable file of no module, and the stubs of a renamed module's directory.
+
+test('a file of no module the scanner cannot split: W_C_UNSCANNABLE, and its definitions still checked as far as it reads (architecture-b0-2)', () => {
+  const previous = ['asm/nonmatchings/main/Foo_080000C0.s', 'asm/nonmatchings/main/foo_080000E0.s', 'asm/nonmatchings/main/Nop.s', 'asm/nonmatchings/tail/Moved.s'];
+  const unbalanced = 'void Moved(void) {\n}\n#ifdef X\nASM_FUNC("x.s", void Other(void))\n#else\nvoid Other(void) {\n}\n#endif\n';
+  const orphan = reconcileStubs(PAIR, new Map([['src/main.c', PAIR_STUB], ['src/gone.c', unbalanced]]), previous);
+  assert.deepEqual(orphan.diagnostics.map((d) => [d.code, d.severity, d.path]), [
+    ['W_C_FILE_UNUSED', 'warning', 'src/gone.c'],
+    ['W_C_UNSCANNABLE', 'warning', 'src/gone.c'],
+    ['E_C_DEFINITION_MOVED', 'error', 'src/gone.c'],
+  ]);
+});
+
+test('a module renamed with its source moved: the stubs of the old directory are removed, since the tree writes none there (correctness-b0-2)', () => {
+  const moved = PAIR_STUB.replaceAll('asm/nonmatchings/main', 'asm/nonmatchings/old');
+  const stubs = reconcileStubs(PAIR, new Map([['src/main.c', moved]]));
+  assert.deepEqual(stubs.diagnostics, []);
+  assert.equal(stubs.files[0]?.text, PAIR_STUB);
+});

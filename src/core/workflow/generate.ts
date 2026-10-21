@@ -211,12 +211,14 @@ export interface ProjectGenerateOptions {
  * The DecompState of a project's C: every name a src/*.c defines at file scope that the default build compiles (the
  * reconciler's scanner and its compiledDefinitions, never a regex: a definition inside an `#if` region, the
  * NONMATCHING pattern's, does not count, as for the reconciler, architecture-a2-3), unique, in code-unit order.
- * Phase 4 emits nothing differently for it (asm/matchings is phase 6's, D76 g).
+ * Policy for a file the scanner cannot split (fix round 5, architecture-b0-2): its definitions as far as the scanner
+ * read them, never a refusal, since phase 4 emits nothing differently for the DecompState (asm/matchings is phase
+ * 6's, D76 g) and the reconciliation raises the file's own E_C_UNSCANNABLE or W_C_UNSCANNABLE.
  */
 export function decompStateOf(cTexts: ReadonlyMap<string, string>): DecompState {
   const names = new Set<string>();
   for (const path of [...cTexts.keys()].sort(compareCodeUnits)) {
-    for (const d of compiledDefinitions(scanC(cTexts.get(path) ?? ''))) names.add(d.name);
+    for (const d of compiledDefinitions(scanC(cTexts.get(path) ?? '')).definitions) names.add(d.name);
   }
   return { defined: [...names].sort(compareCodeUnits) };
 }

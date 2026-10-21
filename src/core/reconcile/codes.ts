@@ -1,6 +1,7 @@
 // Diagnostic codes raised by core/reconcile (architecture §6.6, §9.1, D45): the C tokenizer and the INCLUDE_ASM
 // planner. Phase 4 adds W_C_ORDER with its raiser, planIncludeAsm (include-asm.ts), fix round 2 the planner's two
-// refusals (D77 a, b), fix round 3 the third (D78 a) and fix round 4 the fourth (D80 a); phase 6's renames add theirs.
+// refusals (D77 a, b), fix round 3 the third (D78 a), fix round 4 the fourth (D80 a) and fix round 5 W_C_UNSCANNABLE (D81 a); phase 6's
+// renames add theirs.
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
 export const ReconcileCodes = defineCodes({
@@ -22,7 +23,11 @@ export const ReconcileCodes = defineCodes({
   },
   E_C_UNSCANNABLE: {
     severity: 'error',
-    meaning: 'a C file the scanner cannot split into file-scope items: a branch of an #if that leaves other braces or parentheses open than the #if found, a definition that never closes, or a block at file scope after a head that names no function; nothing in it is edited (include-asm.ts)',
+    meaning: 'a C file the scanner cannot split into file-scope items (the branches of a file-scope #if that end with other braces, parentheses or an unfinished head open than each other, a branch inside a body that closes it, a definition that never closes, or a block at file scope after a head that names no function) needs an edit of its INCLUDE_ASM lines; nothing in it is edited (include-asm.ts)',
+  },
+  W_C_UNSCANNABLE: {
+    severity: 'warning',
+    meaning: 'a C file the scanner cannot split needs no edit as far as it reads (its INCLUDE_ASM lines match its module), or is the source of no module; nothing in it is edited, and a definition or stub in it may be missed (include-asm.ts, fix round 5)',
   },
 });
 

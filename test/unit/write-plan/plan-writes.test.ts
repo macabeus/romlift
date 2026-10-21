@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import type { FileEntry, TextEdit } from '../../../src/core/emit/tree.ts';
 import type { Journal } from '../../../src/core/write-plan/journal.ts';
-import { applyTextEdits, planHasErrors, planWrites, UNKNOWN_ROMLIFT_VERSION } from '../../../src/core/write-plan/plan-writes.ts';
+import { applyTextEdits, planHasErrors, planWrites, staleEdit, UNKNOWN_ROMLIFT_VERSION } from '../../../src/core/write-plan/plan-writes.ts';
 import type { Manifest, WritePlan, WritePlanInputs } from '../../../src/core/write-plan/types.ts';
 
 /** A deterministic 40-hex-digit stand-in for SHA-1: five FNV-1a lanes with different seeds. */
@@ -343,4 +343,14 @@ test('a case-only rename: the old spelling is deleted before every other op and 
   // The old spelling already gone (an interrupted run): only the write.
   const r = plan({ entries: [gen('asm/Main.s', 'M')], manifest: manifestOf({ 'asm/main.s': 'M' }), disk: diskOf({ 'asm/Main.s': null, 'asm/main.s': null }) });
   assert.deepEqual(r.ops.map((o) => [o.op, o.path]), [['write', 'asm/Main.s']]);
+});
+
+test('staleEdit: the one staleness rule, at plan time and at write time (fix round 5, architecture-b0-1)', () => {
+  const op = { path: 'src/main.c', baseSha1: 'a'.repeat(40) };
+  assert.equal(staleEdit(op, op.baseSha1, 'planned'), undefined);
+  assert.equal(staleEdit(op, op.baseSha1, 'written'), undefined);
+  const planned = staleEdit(op, 'absent', 'planned');
+  assert.deepEqual([planned?.code, planned?.severity, planned?.path], ['E_STALE_EDIT', 'error', 'src/main.c']);
+  assert.match(planned?.message ?? '', /changed since its edits were planned: it is absent/);
+  assert.match(staleEdit(op, 'b'.repeat(40), 'written')?.message ?? '', /changed while its edits were being written: it has sha1 b{40}/);
 });

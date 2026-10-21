@@ -26,3 +26,11 @@ test('romlift exports the frozen phase-4 values', () => {
   }
 });
 
+test('romlift exports the reconcile surface: the scanner, the one "defines" predicate and the planner (fix round 5, architecture-b0-4)', () => {
+  for (const name of ['scanC', 'compiledDefinitions', 'planIncludeAsm', 'INCLUDE_ASM_MACRO', 'ReconcileCodes', 'tokenizeC', 'applyTextEdits', 'staleEdit']) {
+    assert.ok(name in romlift, name);
+  }
+  const scan = romlift.scanC('void A(void) {\n}\n');
+  assert.deepEqual(romlift.compiledDefinitions(scan), { scannable: true, definitions: scan.definitions });
+  assert.ok('W_C_UNSCANNABLE' in romlift.ReconcileCodes);
+});

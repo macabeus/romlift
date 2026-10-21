@@ -175,9 +175,9 @@ class Planner {
       return;
     }
     const text = this.inputs.reconciledTexts.get(path);
-    if (disk !== baseSha1 || text === undefined || this.inputs.hash(text) !== baseSha1) {
-      const now = disk === 'absent' ? 'is absent' : `has sha1 ${disk}`;
-      this.raise('E_STALE_EDIT', path, `${path} changed since its edits were planned: it ${now}, the edits expect ${baseSha1}`);
+    const stale = staleEdit({ path, baseSha1 }, text === undefined || this.inputs.hash(text) !== baseSha1 ? 'unread' : disk, 'planned');
+    if (stale !== undefined || text === undefined) {
+      if (stale !== undefined) this.diagnostics.push(stale);
       return;
     }
     const result = applyTextEdits(text, edits);
@@ -233,6 +233,23 @@ class Planner {
  * RomliftInvariantError, for a broken caller contract: a tree path twice, a path that is not a project
  * path, a tree path missing from the disk snapshot, or overlapping text edits.
  */
+/**
+ * The one staleness rule of an edit (architecture §6.4, D80 b; fix round 5, architecture-b0-1): an edit is applied
+ * only to the text it was planned on, so a file whose sha1 now (`now`: 'absent', or 'unread' when the text the plan
+ * holds is not the one hashed) is not the edit's base sha1 is E_STALE_EDIT. planWrites asks it at plan time
+ * (`when` 'planned'), and the shell's applyWrites again right before the write, over the sha1 it has just read
+ * ('written'), so a save that landed since the plan is never overwritten.
+ */
+export function staleEdit(op: { readonly path: string; readonly baseSha1: string }, now: string, when: 'planned' | 'written'): Diagnostic<WritePlanCode> | undefined {
+  if (now === op.baseSha1) return undefined;
+  const state = now === 'absent' ? 'is absent' : now === 'unread' ? 'is not the text its edits were planned on' : `has sha1 ${now}`;
+  const message =
+    when === 'planned'
+      ? `${op.path} changed since its edits were planned: it ${state}, the edits expect ${op.baseSha1}`
+      : `${op.path} changed while its edits were being written: it ${state}, the edits expect ${op.baseSha1}; it is left as it is, and the next run plans again`;
+  return diagnostic(WritePlanCodes, 'E_STALE_EDIT', message, { path: op.path });
+}
+
 export function planWrites(inputs: WritePlanInputs): WritePlan {
   const planner = new Planner(inputs);
   for (const entry of inputs.entries) planner.entry(entry);

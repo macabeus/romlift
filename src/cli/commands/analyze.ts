@@ -12,7 +12,7 @@
 // {"type":"proposal","kind","addr","mode","label"?,"rule"} (--json), the reports (W_LISTED_INVALID), the patch as a
 // unified diff ({"type":"patch","path","changed","diff"} with --json), then the summary. The patch keeps every
 // comment and re-parses; --write saves it (shell/config/save.ts, under the project lock), and nothing else ever
-// writes the TOML but `init`, `rename` and `import-legacy`. Exit codes: 0 ok, 1 an error diagnostic (no project,
+// writes the TOML but `init` and phase 6's `rename` (`import-legacy` was dropped with phase 5, D76 g). Exit codes: 0 ok, 1 an error diagnostic (no project,
 // another ROM, E_TOML_PATCH_REFUSED, a write that failed), 2 usage (a ROM argument with --update, --write alone).
 import type { AnalysisResult, FunctionFact } from '../../api/analysis.ts';
 import { readRom } from '../../api/files.ts';

@@ -29,8 +29,6 @@ interface Target {
 }
 
 const ROM_FILE = 'baserom.gba';
-/** The generated roots plan.md's scaffold table marks "In Git: No" (R4). */
-const GENERATED: readonly string[] = ['asm/', 'data/', 'expected/', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json'];
 const NOT_BUILT: ReadonlySet<string> = new Set(['c-data']);
 const GIT = ['-c', 'user.name=romlift gate', '-c', 'user.email=gate@romlift.invalid', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null'];
 
@@ -95,7 +93,10 @@ async function inWorktree(cx: GateContext, cli: string, target: Target, base: st
   await run(cx, 'git commit', 'git', [...GIT, 'commit', '-q', '-m', 'romlift init'], main);
   const tracked = (await run(cx, 'git ls-files', 'git', ['ls-files'], main)).stdout.split('\n');
   if (tracked.includes(ROM_FILE)) return { failure: `${ROM_FILE} was committed: the scaffold's .gitignore must exclude it`, worktree, main };
-  const generated = tracked.filter((file) => GENERATED.some((root) => (root.endsWith('/') ? file.startsWith(root) : file === root)));
+  // The generated roots plan.md's scaffold table marks "In Git: No" (R4): the product's own rule (core/write-plan
+  // GENERATED_ROOTS through underGeneratedRoot), so a root a later phase adds is checked here too (architecture-b0-3).
+  const underGeneratedRoot = cx.need<(file: string) => boolean>('underGeneratedRoot');
+  const generated = tracked.filter((file) => underGeneratedRoot(file));
   if (generated.length > 0) return { failure: `the generated tree was committed (${generated.slice(0, 3).join(', ')}, …): the scaffold's .gitignore must exclude it (R4)`, worktree, main };
   if (viaSubmodule) {
     const stage = (await run(cx, 'git ls-files --stage', 'git', ['ls-files', '--stage', '--', 'tools/agbcc'], main)).stdout;
@@ -130,7 +131,7 @@ gate({
   tier: 'both',
   inputs: ['toolchain'],
   realInputs: ['roms'],
-  needs: ['init', 'generate'],
+  needs: ['init', 'generate', 'underGeneratedRoot'],
   async run(cx) {
     const targets: Target[] = cx.fixtures.filter((f) => !NOT_BUILT.has(f.name)).map((f) => ({ name: f.name, rom: f.rom }));
     if (targets.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');

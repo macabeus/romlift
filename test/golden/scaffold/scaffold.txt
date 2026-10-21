@@ -148,12 +148,22 @@ its C to the other module's file when the edit moves it. Otherwise `romlift gene
 `INCLUDE_ASM` lines inside `#if`/`#ifdef` blocks are yours too: `romlift generate` never edits them and puts new
 ones outside them, and when an edit leaves one naming a function its module no longer has it refuses
 (`E_C_CONDITIONAL_STUB`) until you rename or remove it. A definition inside such a block holds nothing for the default
-build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch or outside the block. A renamed `c`
-module leaves its old `src/<module>.c` unbuilt (`W_C_FILE_UNUSED`): move its C to the new file. To rename a decompiled
-function, change both its C name and `romlift.toml`; renamed in C alone, `romlift generate` refuses
-(`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again. Keep each branch of an `#if` block inside a
-function balanced (the same braces and parentheses open at its `#else` and `#endif` as at its `#if`): romlift cannot
-read a file whose branches open braces differently and refuses it whole (`E_C_UNSCANNABLE`).
+build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch or outside the block. To rename a
+decompiled function, change both its C name and `romlift.toml`; renamed in C alone, `romlift generate` refuses
+(`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again.
+
+To rename a `c` module, change its `name` in `[[modules]]` and move its source in the same step
+(`git mv src/<old>.c src/<new>.c`), then run `npx romlift generate`: it replaces the file's
+`INCLUDE_ASM("asm/nonmatchings/<old>", …)` lines with the new directory's and keeps your C. Renamed in
+`romlift.toml` alone, the old file is left unbuilt (`W_C_FILE_UNUSED`), and if it holds decompiled C `romlift
+generate` refuses (`E_C_DEFINITION_MOVED`) until you move it.
+
+romlift reads an `#if` block inside a function as the compiler would, one branch at a time, so a branch may open a
+brace the other does not (`#ifndef NONMATCHING` around a `do {` and its `} while (0);`). At file scope, the branches
+of a block must end alike: a head split across `#if`/`#else` is fine, but a macro call with no `;` in one branch
+(`ASM_FUNC("…", void f(void))`) against a definition in the other is not. romlift cannot read such a file exactly:
+while its `INCLUDE_ASM` lines already match `romlift.toml` it only warns (`W_C_UNSCANNABLE`) and edits nothing, and
+when they would have to change it refuses (`E_C_UNSCANNABLE`): change them yourself, or end the branches alike.
 
 Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler` in `romlift.toml`, default
 `[build] compiler`), with the flags `modules.mk` lists; `mk/<compiler>.mk` holds the recipe.

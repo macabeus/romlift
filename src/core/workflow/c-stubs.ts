@@ -16,7 +16,9 @@
 // decompiled C would leave the build unseen, correctness-a2-4); and W_C_FILE_UNUSED, a src/*.c that is the source of
 // no module (a renamed `c` module), which `make` no longer builds. The errors make `generate` write nothing
 // (writable), so `make` never sees a function defined twice. The previous tree is the chunk files on disk
-// (`previousChunkFiles`, which the shell lists). asm/ is gitignored (R4; the owner's answer to Q9, D79 b), so the
+// (`previousChunkFiles`, which the shell lists; moduleChunkStubs reads one module's). A stub of another nonmatchings
+// directory whose file this run does not write goes too (fix round 5, correctness-b0-2): a renamed `c` module whose
+// source the user moved (`git mv src/<old>.c src/<new>.c`) keeps no stub of the old directory. asm/ is gitignored (R4; the owner's answer to Q9, D79 b), so the
 // first `generate` of a fresh clone or worktree (setup.sh's duty 5) has none and uses the fallback rule, a definition
 // wherever a missing stub goes is stale; from the second `generate` on, the tree the first one wrote is on disk.
 //
@@ -35,10 +37,11 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { stubChunks } from '../model/c-unit.ts';
-import { nonmatchingDir, stubNameOf } from '../../foundation/util/project-files.ts';
-import { chunkNamesOf, isCSource, moduleSource } from '../model/paths.ts';
+import { nonmatchingDir } from '../../foundation/util/project-files.ts';
+import { chunkNamesOf, chunkPathsOf, isCSource, moduleChunkStubs, moduleSource } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
-import { compiledDefinitions, planIncludeAsm, scanC } from '../reconcile/include-asm.ts';
+import { compiledDefinitions, planIncludeAsm, scanC, unscannableWarning } from '../reconcile/include-asm.ts';
+import type { StubTree } from '../reconcile/include-asm.ts';
 import { applyTextEdits } from '../reconcile/text-edit.ts';
 import type { TextEdit } from '../reconcile/text-edit.ts';
 import type { FileEntry } from '../emit/tree.ts';
@@ -94,14 +97,16 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
   const modules = new Map(model.modules.map((m) => [m.name, m] as const));
   // A function of the previous tree that a module still has is wanted there (or E_C_DEFINITION_MOVED), never stale.
   const retired = previousChunkFiles !== undefined && previousChunkFiles.length > 0 ? chunkNamesOf(previousChunkFiles).filter((name) => !owners.has(name)) : undefined;
+  // The tree this run writes: a stub of a directory it no longer writes that file in goes (correctness-b0-2).
+  let tree: StubTree | undefined;
   for (const module of model.modules) {
     if (!module.generated || module.kind !== 'c') continue;
     const path = moduleSource(model, module);
     const base = cTexts.get(path);
     if (!isCSource(path) || base === undefined) continue;
-    const dir = `${nonmatchingDir(module.name)}/`;
-    const tree = retired === undefined ? {} : { retired, priorStubs: (previousChunkFiles ?? []).filter((file) => file.startsWith(dir) && !file.slice(dir.length).includes('/')).map(stubNameOf) };
-    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, ...tree });
+    tree ??= stubTree(model);
+    const previous = retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previousChunkFiles ?? [], module.name) };
+    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, ...previous });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
     for (const d of plan.undeclared) {
@@ -114,15 +119,23 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
     if (sources.has(path)) continue;
     diagnostics.push(diagnostic(WorkflowCodes, 'W_C_FILE_UNUSED', `${path} is the source of no module of romlift.toml, so make does not build it (was its c module renamed?); its C is left in place`, { path }));
     // Its decompiled C of a function some module has would drop out of the build while that module's stub stands in.
-    const scan = scanC(cTexts.get(path) ?? '');
-    if (scan.unscannable.length > 0) continue;
-    for (const d of compiledDefinitions(scan)) {
+    // A file the scanner cannot split is checked over what it read, and says so (architecture-b0-2).
+    const compiled = compiledDefinitions(scanC(cTexts.get(path) ?? ''));
+    if (!compiled.scannable) diagnostics.push(unscannableWarning(path, path, compiled.unscannable, 'its definitions were checked against the modules as far as it reads'));
+    for (const d of compiled.definitions) {
       const owner = owners.get(d.name);
       if (owner !== undefined) diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner));
     }
   }
   files.sort((a, b) => compareCodeUnits(a.path, b.path));
   return { files, diagnostics };
+}
+
+/** The chunk files `model` writes, and the nonmatchings directories of its modules romlift never writes. */
+function stubTree(model: Pick<Model, 'modules' | 'chunks'>): StubTree {
+  const files = new Set<string>();
+  for (const file of chunkPathsOf(model)) if (file !== undefined) files.add(file);
+  return { files, userDirs: new Set(model.modules.filter((m) => !m.generated).map((m) => nonmatchingDir(m.name))) };
 }
 
 /** The reconciled files of `stubs` by path, for the views below. */

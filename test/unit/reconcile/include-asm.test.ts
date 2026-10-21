@@ -265,29 +265,37 @@ test('a case-folded pair: a definition holds its chunk by symbol, a stub by stub
 test('a C-only rename of a decompiled function where its stub was is E_C_STALE_DEFINITION; a helper beside a new name is not', () => {
   // The previous tree held B's file in this module's directory; the file defines Nop where B's INCLUDE_ASM was.
   const text = `${C_STUB_HEADER}${stub('A')}\nvoid Nop(void) {\n}\n${stub('C')}\n${stub('D')}\n`;
-  const tree: IncludeAsmWanted = { ...WANTED, retired: [], priorStubs: ['A', 'B', 'C', 'D'] };
+  const tree: IncludeAsmWanted = { ...WANTED, retired: [], previousStubs: ['A', 'B', 'C', 'D'] };
   const plan = planIncludeAsm(text, tree);
   assert.deepEqual(plan.diagnostics.map((d) => [d.code, d.severity, d.path]), [['E_C_STALE_DEFINITION', 'error', 'src/main.c']]);
   assert.match(plan.diagnostics[0]?.message ?? '', /defines Nop \(line 4\) where the INCLUDE_ASM of B was, and module main still has B, which the file now neither includes nor defines/);
   assert.deepEqual(plan.undeclared, []);
   // B is new to the tree (a TOML rename of an asm-only function): Nop is a helper, B's stub goes beside it.
-  const helper = planIncludeAsm(text, { ...WANTED, retired: ['Old'], priorStubs: ['A', 'Old', 'C', 'D'] });
+  const helper = planIncludeAsm(text, { ...WANTED, retired: ['Old'], previousStubs: ['A', 'Old', 'C', 'D'] });
   assert.deepEqual(helper.diagnostics, []);
   assert.deepEqual(helper.undeclared.map((d) => d.name), ['Nop']);
   // The stub of a chunk of another module's directory (a border move) is not this file's to have held.
-  assert.deepEqual(planIncludeAsm(text, { ...WANTED, retired: [], priorStubs: ['A', 'C', 'D'] }).diagnostics, []);
+  assert.deepEqual(planIncludeAsm(text, { ...WANTED, retired: [], previousStubs: ['A', 'C', 'D'] }).diagnostics, []);
 });
 
-test('a conditional whose branches leave other braces open is E_C_UNSCANNABLE: nothing is edited, nothing appended', () => {
-  // The reviewer's shape: each branch opens one brace, closed once after #endif.
+test('a conditional inside a body is read as the preprocessor reads it: branches that open braces differently scan (fix round 5)', () => {
+  // The review's shape of fix round 4: each branch opens one brace, closed once after #endif.
   const body = 'void B(void) {\n    volatile int x = 0;\n#ifdef NONMATCHING\n    if (x) {\n#else\n    if (!x) {\n#endif\n    }\n}\n';
   const text = `${C_STUB_HEADER}${stub('A')}\n${body}${stub('C')}\n${stub('D')}\n`;
   const scan = scanC(text);
-  assert.deepEqual(scan.unscannable.map((u) => u.line), [4, 6], 'the definition never closes, and why');
-  assert.match(scan.unscannable[1]?.reason ?? '', /a branch of the conditional on line 6 ends \(line 8\)/);
-  const plan = planIncludeAsm(text, { ...WANTED, chunks: same(['A', 'B', 'C', 'D', 'E']) });
-  assert.deepEqual(plan.edits, [], 'no stub appended after a definition that swallowed the file');
-  assert.deepEqual(plan.diagnostics.map((d) => [d.code, d.severity, d.path]), [['E_C_UNSCANNABLE', 'error', 'src/main.c']]);
+  assert.deepEqual(scan.unscannable, []);
+  assert.deepEqual(scan.definitions.map((d) => d.name), ['B']);
+  assert.deepEqual(scan.statements.map((d) => d.name), ['A', 'C', 'D']);
+  assert.deepEqual(planIncludeAsm(text, WANTED), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
+  // The matching idiom of correctness-b0-1: `do {` and `} while (0);` each behind #ifndef NONMATCHING.
+  const doWhile = `${stub('A')}\nvoid B(char *d, const char *s) {\n#ifndef NONMATCHING\n    do {\n#endif\n    while ((*d++ = *s++)) ;\n#ifndef NONMATCHING\n    } while (0);\n#endif\n}\n${stub('C')}\n${stub('D')}\n`;
+  assert.deepEqual(scanC(doWhile).unscannable, []);
+  assert.deepEqual(planIncludeAsm(doWhile, WANTED).diagnostics, []);
+  assert.equal(planned(doWhile, { ...WANTED, chunks: same(['A', 'B', 'C', 'X', 'D']) }), doWhile.replace(`${stub('C')}\n`, `${stub('C')}\n${stub('X')}\n`), 'a new stub still goes in ROM order');
+  // tmc's per-version branches: each opens `if (…) {`, closed once.
+  const perVersion = `${stub('A')}\nvoid B(void) {\n#if defined(EU) || defined(JP)\n    if (gSave.a) {\n#elif defined(USA)\n    if (gSave.b) {\n#else\n    if (gSave.c) {\n#endif\n        f();\n    }\n}\n${stub('C')}\n${stub('D')}\n`;
+  assert.deepEqual(scanC(perVersion).unscannable, []);
+  assert.deepEqual(planIncludeAsm(perVersion, WANTED).diagnostics, []);
   // sa2's screen_mask.c shape: `if (…) { do {` in one branch, `for (…) {` in the other, closed the same way.
   const screenMask = [
     'void A(void) {',
@@ -306,12 +314,54 @@ test('a conditional whose branches leave other braces open is E_C_UNSCANNABLE: n
     '}',
     '',
   ].join('\n');
-  const refused = planIncludeAsm(`${screenMask}${stub('B')}\n`, WANTED);
-  assert.deepEqual(refused.diagnostics.map((d) => d.code), ['E_C_UNSCANNABLE']);
-  assert.deepEqual(refused.edits, []);
-  // Balanced branches (the decomp convention) scan as before.
-  const balanced = `${C_STUB_HEADER}void A(void) {\n#ifdef X\n    if (a) { b(); }\n#else\n    c();\n#endif\n}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`;
-  assert.deepEqual(planIncludeAsm(balanced, WANTED), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
+  assert.deepEqual(planIncludeAsm(`${screenMask}${stub('B')}\n${stub('C')}\n${stub('D')}\n`, WANTED).diagnostics, []);
+  // sa2's light_bridge.c shape: a head with a register pin in one branch, the plain head in the other.
+  const pinned = `${stub('A')}\n#ifndef NON_MATCHING\nstatic void B(int *in)\n{\n    register int *p asm("r5") = in;\n#else\nstatic void B(int *p)\n{\n#endif\n    *p = 0;\n}\n${stub('C')}\n${stub('D')}\n`;
+  assert.deepEqual(scanC(pinned).unscannable, []);
+  assert.deepEqual(compiledDefinitions(scanC(pinned)).definitions.map((d) => d.name), ['B'], 'compiled: its body runs past the #endif');
+  assert.deepEqual(planIncludeAsm(pinned, WANTED).diagnostics, []);
+  assert.equal(planned(pinned, { ...WANTED, chunks: same(['A', 'B', 'X', 'C', 'D']) }), pinned.replace(`}\n${stub('C')}`, `}\n${stub('X')}\n${stub('C')}`), 'the stub after it goes after its body, not after the #endif');
+});
+
+test('an unscannable file is E_C_UNSCANNABLE only when it needs an edit; otherwise W_C_UNSCANNABLE and no edit (fix round 5)', () => {
+  // A file-scope conditional whose branches end with different unfinished heads: an ASM_FUNC with no `;` against a definition.
+  const ambiguous = `#ifdef VC\nASM_FUNC("asm/b.s", void B(void))\n#else\nvoid B(void) {\n}\n#endif\n`;
+  const text = `${stub('A')}\n${ambiguous}${stub('C')}\n${stub('D')}\n`;
+  assert.match(scanC(text).unscannable[0]?.reason ?? '', /the branches of the conditional on line 2 end \(line 7\)/);
+  // A chunk the module gained needs a stub the planner cannot place in a file it cannot split.
+  const needs = planIncludeAsm(text, { ...WANTED, chunks: same(['A', 'B', 'C', 'D', 'E']) });
+  assert.deepEqual(needs.edits, []);
+  assert.deepEqual(needs.diagnostics.map((d) => [d.code, d.severity]), [['E_C_UNSCANNABLE', 'error']]);
+  // An unwanted stub swallowed by an unclosed definition is still seen: the file needs its removal.
+  const swallowed = `${stub('A')}\nvoid B(void) {\n${stub('Gone')}\n`;
+  assert.deepEqual(planIncludeAsm(swallowed, { ...WANTED, chunks: same(['A']) }).diagnostics.map((d) => d.code), ['E_C_UNSCANNABLE']);
+  // The same file whose stubs and definitions already match: a warning, nothing edited.
+  const kept = `${stub('A')}\n${ambiguous}\n${stub('C')}\n${stub('D')}\n`;
+  const plan = planIncludeAsm(kept, { ...WANTED, chunks: same(['A', 'C', 'D']) });
+  assert.deepEqual(plan.edits, []);
+  assert.deepEqual(plan.diagnostics.map((d) => [d.code, d.severity, d.path]), [['W_C_UNSCANNABLE', 'warning', 'src/main.c']]);
+});
+
+test('a stub of a directory the tree no longer writes is removed; a user module\'s and a live chunk\'s are kept (fix round 5)', () => {
+  const tree = { files: new Set(['asm/nonmatchings/boot/A.s', 'asm/nonmatchings/boot/B.s', 'asm/nonmatchings/other/X.s']), userDirs: new Set(['asm/nonmatchings/mine']) };
+  const wanted: IncludeAsmWanted = { module: 'boot', chunks: same(['A', 'B']), path: 'src/boot.c', tree };
+  // `git mv src/agbmain.c src/boot.c` after renaming module agbmain to boot.
+  const moved = `${C_STUB_HEADER}${stub('A', 'agbmain')}\n${stub('B', 'agbmain')}\n`;
+  assert.equal(planned(moved, wanted), `${C_STUB_HEADER}${stub('A', 'boot')}\n${stub('B', 'boot')}\n`);
+  // With decompiled C between them: the new stubs go around it in ROM order.
+  const decompiled = `${stub('A', 'agbmain')}\nvoid B(void) {\n}\n${stub('C', 'agbmain')}\n`;
+  const three: IncludeAsmWanted = { ...wanted, chunks: same(['A', 'B', 'C']), tree: { ...tree, files: new Set([...tree.files, 'asm/nonmatchings/boot/C.s']) } };
+  assert.equal(planned(decompiled, three), `${stub('A', 'boot')}\nvoid B(void) {\n}\n${stub('C', 'boot')}\n`);
+  // Kept: another live module's chunk, a user module's directory, a directory outside asm/nonmatchings.
+  const others = `${stub('A', 'boot')}\n${stub('B', 'boot')}\n${stub('X', 'other')}\n${stub('Y', 'mine')}\nINCLUDE_ASM("asm/custom", Z);\n`;
+  assert.deepEqual(planIncludeAsm(others, wanted).edits, []);
+  // Inside a region it is E_C_CONDITIONAL_STUB, never edited.
+  const region = `${stub('A', 'boot')}\n#ifdef NONMATCHING\n#else\n${stub('B', 'agbmain')}\n#endif\n`;
+  const refused = planIncludeAsm(region, wanted);
+  assert.deepEqual(refused.diagnostics.map((d) => d.code), ['E_C_CONDITIONAL_STUB']);
+  assert.match(refused.diagnostics[0]?.message ?? '', /no module of romlift\.toml has asm\/nonmatchings\/agbmain\/B\.s any more/);
+  // Without a tree (the planner alone), another directory's stubs are left alone, as before.
+  assert.deepEqual(planIncludeAsm(moved, { module: 'boot', chunks: same(['A', 'B']) }).edits.filter((e) => e.reason === 'remove-stub'), []);
 });
 
 test('a split of the first of two stubs one #if region holds is E_C_STUB_UNPLACED: the stub is never put behind the later one', () => {
@@ -342,5 +392,15 @@ test('scanC names a function returning a function pointer and one with an attrib
 test('compiledDefinitions: named definitions outside every conditional, the one rule for what the C defines', () => {
   const scan = scanC('#ifdef NONMATCHING\nvoid Foo(void) {\n}\n#endif\nvoid Bar(void) {\n}\n');
   assert.deepEqual(scan.definitions.map((d) => d.name), ['Foo', 'Bar']);
-  assert.deepEqual(compiledDefinitions(scan).map((d) => d.name), ['Bar']);
+  assert.deepEqual(compiledDefinitions(scan), { scannable: true, definitions: [scan.definitions[1]] });
+  // A bare macro a conditional leaves unfinished (sa2's `#if COLLECT_RINGS_ROM END_NONMATCH #endif`) is no part of the
+  // next head: that definition starts at its own head, outside the region, and is compiled (fix round 5).
+  const leftover = scanC('#if COLLECT_RINGS_ROM\nEND_NONMATCH\n#endif\n\nstatic void Task(void)\n{\n}\n');
+  assert.deepEqual(leftover.definitions.map((d) => [d.name, d.line]), [['Task', 5]]);
+  assert.deepEqual(compiledDefinitions(leftover).definitions.map((d) => d.name), ['Task']);
+  // An unscannable file: the definitions as far as the scanner read, and why (architecture-b0-2).
+  const knr = scanC('int K(a) int a; {\n    return a;\n}\nvoid L(void) {\n}\n');
+  const compiled = compiledDefinitions(knr);
+  assert.equal(compiled.scannable, false);
+  assert.ok(!compiled.scannable && compiled.unscannable.length === 1);
 });

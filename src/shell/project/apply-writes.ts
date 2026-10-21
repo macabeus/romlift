@@ -6,9 +6,10 @@
 // not, and one whose path does not exist yet is created in place (durableOp). A write of an executable entry gets its
 // mode on the temporary file, before the rename, so no crash leaves setup.sh without it; a `mode` op sets it on a file
 // that lacks it (planWrites).
-// Every decision is planWrites'; a plan with an error diagnostic is refused before anything is touched. An edit is
-// written only while its file still has the sha1 the plan read (architecture §6.4): the file is hashed again right
-// before its write, and a save that landed since the plan stops the run with E_STALE_EDIT, the journal left, so the
+// Every decision is core/write-plan's; a plan with an error diagnostic is refused before anything is touched. An edit
+// is written only while its file still has the sha1 the plan read (architecture §6.4): the file is hashed again right
+// before its write and core's staleEdit judges it (the rule planWrites applies at plan time, fix round 5,
+// architecture-b0-1); a save that landed since the plan stops the run with E_STALE_EDIT, the journal left, so the
 // user's text is never overwritten (fix round 4, correctness-a2-5).
 // The caller holds the project lock (withProjectLock, lock.ts) around the snapshot, the plan and this.
 //
@@ -27,8 +28,7 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { encodeJournal, journalOf } from '../../core/write-plan/journal.ts';
 import { encodeManifest, isProjectPath } from '../../core/write-plan/manifest.ts';
-import { WritePlanCodes } from '../../core/write-plan/codes.ts';
-import { planHasErrors } from '../../core/write-plan/plan-writes.ts';
+import { planHasErrors, staleEdit } from '../../core/write-plan/plan-writes.ts';
 import { JOURNAL_PATH, MANIFEST_PATH, ROMLIFT_DIR } from '../../core/write-plan/types.ts';
 import type { WriteOp, WritePlan } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
@@ -108,15 +108,12 @@ export function durableOp(op: Extract<WriteOp, { readonly op: 'write' | 'edit' }
 }
 
 /**
- * E_STALE_EDIT when edit `op`'s file no longer has the sha1 its edits were planned on (a save since the plan). A file
- * that cannot be read is left to the write, which reports its own failure (E_IO_WRITE).
+ * Edit `op`'s file hashed right before its write, judged by core's staleEdit (a save since the plan is E_STALE_EDIT).
+ * A file that cannot be read is left to the write, which reports its own failure (E_IO_WRITE).
  */
-async function staleEdit(file: string, op: Extract<WriteOp, { readonly op: 'edit' }>): Promise<Diagnostic | undefined> {
+async function staleAtWrite(file: string, op: Extract<WriteOp, { readonly op: 'edit' }>): Promise<Diagnostic | undefined> {
   const bytes = await readBytes(file);
-  if (!bytes.ok) return undefined;
-  const now = sha1Of(bytes.value);
-  if (now === op.baseSha1) return undefined;
-  return diagnostic(WritePlanCodes, 'E_STALE_EDIT', `${op.path} changed while its edits were being written: it has sha1 ${now}, the edits expect ${op.baseSha1}; it is left as it is, and the next run plans again`, { path: op.path });
+  return bytes.ok ? staleEdit(op, sha1Of(bytes.value), 'written') : undefined;
 }
 
 async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diagnostic | undefined> {
@@ -125,7 +122,7 @@ async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diag
     case 'write':
       return (await respell(dir, op.path, known.listings)) ?? writeText(file, op.text, durableOp(op), known, op.executable === true ? EXECUTABLE_MODE : undefined);
     case 'edit':
-      return (await respell(dir, op.path, known.listings)) ?? (await staleEdit(file, op)) ?? writeText(file, op.text, durableOp(op), known);
+      return (await respell(dir, op.path, known.listings)) ?? (await staleAtWrite(file, op)) ?? writeText(file, op.text, durableOp(op), known);
     case 'mode':
       try {
         await chmod(file, EXECUTABLE_MODE);

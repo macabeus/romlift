@@ -13,4 +13,4 @@ export type { DecodedJournal, Journal, JournalOp } from '../core/write-plan/jour
 export { decodeJournal, encodeJournal, journalOf } from '../core/write-plan/journal.ts';
 export { WritePlanCodes } from '../core/write-plan/codes.ts';
 export type { WritePlanCode } from '../core/write-plan/codes.ts';
-export { planHasErrors, planWrites, UNKNOWN_ROMLIFT_VERSION } from '../core/write-plan/plan-writes.ts';
+export { planHasErrors, planWrites, staleEdit, UNKNOWN_ROMLIFT_VERSION } from '../core/write-plan/plan-writes.ts';

@@ -110,6 +110,22 @@ export function chunkNamesOf(files: Iterable<string>): readonly string[] {
   return sortedKeys(names);
 }
 
+/**
+ * The stub names of the chunk files of `files` (a tree's project paths) that lie directly in module `module`'s
+ * nonmatchings directory, in the order given: each file's base name, a file whose path is chunkFileOf of its
+ * directory and base name (the same round trip as chunkNamesOf). The one reader of "the chunk files of one module"
+ * of a tree on disk (fix round 5, architecture-b0-7).
+ */
+export function moduleChunkStubs(files: Iterable<string>, module: string): readonly string[] {
+  const dir = nonmatchingDir(module);
+  const out: string[] = [];
+  for (const file of files) {
+    const base = stubNameOf(file);
+    if (chunkFileOf(dir, base) === file) out.push(base);
+  }
+  return out;
+}
+
 const CHUNK_PATHS = new WeakMap<readonly Chunk[], readonly (string | undefined)[]>();
 
 /**
