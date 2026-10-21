@@ -50,7 +50,7 @@ whole closing list again unchanged with no gate change, and every command exited
 phase pull request's CI passed before the merge.
 
 Phase 4 (One shot) passes its closing gate at `landed` 4 ([docs/phase-4.md](docs/phase-4.md)), last re-run after fix
-round 2 (D77) at `cf95b2f`; its merge to `main` waits for the phase pull request's CI. The owner answered its questions (D76): `g2.speed` takes the median of nine runs per
+round 3 (D78) at `2efb732`; its merge to `main` waits for the phase pull request's CI. The owner answered its questions (D76): `g2.speed` takes the median of nine runs per
 ROM, and the `env -S` launcher, `ROMLIFT_CLI` until romlift is published, listed entries without `from` taken without
 validation, tmc's `W_UNLISTED_FUNCTION` after `init` and the 0x46C0 nop-pad orphans are recorded limitations. He also
 skipped phase 5: rename, the reconciler, `expected/`, `objdiff.json`, the C data ranges and the objdiff gate move into
@@ -82,7 +82,7 @@ The commands are `doctor`, `analyze`, `explain`, `model`, `verify`, `init`, `gen
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
 | [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q8 with the owner's answers, the review fix rounds, and known limitations |
-| [docs/phase-4.md](docs/phase-4.md) | the record of phase 4: components in three waves, what the phase delivered (commands, scaffold, C stubs, formats), the closing round and the closing gate run, deviations, the owner questions Q1 to Q4, and known limitations |
+| [docs/phase-4.md](docs/phase-4.md) | the record of phase 4: components in three waves, what the phase delivered (commands, scaffold, C stubs, formats), the closing round and the closing gate run, deviations, the owner questions Q1 to Q7 with the owner's answers, the review fix rounds, and known limitations |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

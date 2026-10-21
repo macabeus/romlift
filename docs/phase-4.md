@@ -13,8 +13,10 @@ run sealed and report counts only (D25).
 the median of nine runs per ROM), the others are recorded limitations or as built. The landing procedure then raised
 `test/gates/phase.json` to `{ "landed": 4 }` (`55899d1`) and ran the whole closing list in a fresh git worktree with no
 local caches ("The closing gate", the owner's answers): every command exited 0, `gates --require 4` passed on both
-tiers, and sa2 passed `g2.speed` at 731 of 790 ms. Nothing is merged to `main` or pushed; the merge waits for the
-phase pull request's CI (AGENTS.md).
+tiers, and sa2 passed `g2.speed` at 731 of 790 ms. Two fix rounds followed the reviews of that run (D77, D78); the
+last, fix round 3, re-ran the whole closing list at `2efb732` in a fresh worktree, every command exit 0, sa2 at 727 of
+793 ms ("The closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's CI
+(AGENTS.md).
 
 ## Components
 
@@ -216,7 +218,7 @@ of the nine runs, as many as before; and the run counts are the samples measured
 Fix round 3 (gate-honesty-a1-1): the nine-run samples of sa2 measured so far put it at 87.4% (709 of 811 ms, ratio
 0.994, the run of 16:55 on 20 October), 89.8% (708 of 788 ms, ratio 0.967, fix round 2's closing run), 92.5% (731 of
 790 ms, ratio 0.969, the landing run) and 96.3% (738 of 766 ms, ratio 0.939, the review's re-run of fix round 2's list
-at `1c07b13`) of its limit, every one passing; the closing run of fix round 3 adds its own ("The closing gate"). sa2's
+at `1c07b13`) of its limit, every one passing; fix round 3's closing run adds 91.7% (727 of 793 ms, ratio 0.973). sa2's
 CPU time moved about 4% (708 to 738 ms) and its limit about 6% (766 to 811 ms): most of the spread is the
 calibration ratio, which the owner kept the median of five runs, so nine runs have not clearly narrowed the spread of
 five (85.6% to 97.7% above). No gate changes: the owner's rule stands that a sa2 `g2.speed` failure in any later
@@ -477,6 +479,43 @@ Measured on branch `phase-4-workflows` (Node 24.15, macOS; the machine shared wi
   `generate` right after: 29,537 keep, 17.8 s, 1,499 MiB (below D72 b's 1,536 MiB budget, with 2% to spare).
 
 ## The closing gate
+
+### Fix round 3's closing run (`2efb732`)
+
+After fix round 3 (D78; `ebd9f37`, `24aed24`, `2efb732`), with `test/gates/phase.json` still `{ "landed": 4 }`, the
+whole closing list again in a fresh worktree at `2efb732` (`git worktree add --detach` under the system temporary
+directory: no `node_modules`, no `bench/.local`), in the landing run's order and environment (the real tier before the
+ci tier, objdiff-cli 3.7.2 from the main checkout's build), from 23:12 on 20 October to 01:01 on 21 October 2026.
+Node 24.15, binutils 2.45.1, macOS; nothing else ran on the machine. The worktree was clean afterwards but for the
+`bench/results.json` the run wrote, committed as this run's artifact (`3cd738d`: `meta.commit` `2efb732`, not dirty,
+source digest `26c7ae17…`, Node 24, with the real-tier gate record). The doubled ROM is the same `fb17b88d…` image.
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (1 s) |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | the architecture checker and its mutation test pass |
+| `npm test` | 0 | 2,396 tests, 2,396 pass, 0 fail (31 s) |
+| `npm run fixtures -- check` | 0 | 51 of 51 fixtures agree (binutils 2.45.1) |
+| `npm run build && npm pack --pack-destination "$(mktemp -d)"` | 0 | `romlift-0.0.0.tgz`, 672 files, 460.4 kB |
+| `npm run export-poc -- --mode raw` | 0 | 51 fixtures dumped |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (265 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs (54 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 96 tests, 96 pass, 0 skipped (805 s); `decompiled-c` (new) builds klonoa to its SHA-1 after the NONMATCHING rename and the module split; `listed-invalid` W_LISTED_INVALID 0 on all six; `padding-orphans` orphan files fe7j 32, klonoa 23, pokeemerald 23, sa2 16, sa3 15, tmc 33, zero pads kept after a `c` module's last function 4, 0, 5, 1, 0, 1 (D78 b) |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (objdiff-cli 3.7.2) |
+| `npm run corpus` | 0 | 100% round trip (4.2 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1 and the init build (init 0, setup.sh 0, make 0, SHA-1 match) on all six tuning ROMs; both sealed ROMs pass; memory family `init` 1,135.9 MiB, `generate` 1,170.2 MiB peak RSS under the 1,024 MiB cap, tree `d60c5331…` (the new tree of the module-end pads, D78 b) (350 s, agbcc built at the pin included) |
+| `npm run bench -- regression` | 0 | no regression against `e915c82` |
+| `node --max-old-space-size=1024 --conditions=source src/cli/main.ts verify --rom <emx2.gba> --assemble --link --json < /dev/null` | 0 | the doubled ROM: 7 checks ok (29,463 files), linked SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`; 161 W_UNLISTED_FUNCTION (Q6) and 1 W_READING_BUDGET (45 s) |
+| `npm run bench -- large-rom --bin --rom <emx2.gba>` | 0 | all fourteen forms exit 0 with ok summaries or completed, 1,152.9 to 1,525.8 MiB peak RSS (`init --json` the largest; `verify --assemble --link --json` 1,509.9, `generate --json` 1,470.7), under D72 b's 1,536 MiB in every form of this run (414 s) |
+| `npm run bench -- gates --require 4 --tier real` | 0 | 22 pass, 1 historical (g2.poc-parity), 2 fail (g5.expected-bytes, g5.objdiff: not required, phase 6's since D76 g), 8 pending. Among them: **g2.speed** ("median of 9 runs"; ratio 0.973; sa2 727 of 793 ms, 91.7%; klonoa 233 of 311, tmc 1,409 of 1,808, sa3 1,098 of 1,512, pokeemerald 2,064 of 4,275, fe7j 1,132 of 12,862), **g3.speed-budget** (ratio 0.983; analysis on the first five runs: largest pokeemerald 2,090 of 2,948 ms; pokeemerald `generate` 8,022 of 9,825 ms, `init` 10,438 of 14,738 ms), g3.readability, g3.link (51 fixtures, 6 of 6 tuning ROMs), g4.e2e-real (six tuning ROMs; sealed 2 of 2), g4.toml-mutations (258 legal edits build with `make`, 170 illegal edits give their codes, 57 ROMs), g4.worktree (56), g4.generate-idempotent (2,881 s) |
+| `npm run bench -- gates --require 4 --tier ci` | 0 | 37 pass, 3 fail (g5.c-data-ranges, g5.expected-bytes, g5.reconciler: not required, phase 6's since D76 g), 7 pending. Among them: g1.provenance (source digest `26c7ae17…`; 23 real-tier gates of phase ≤ 4 pass or are historical), g3.large-rom (`init` 1,232.4 MiB, `generate` 1,223.8 MiB, tree `d60c5331…`), g4.toml-mutations, g4.packed-e2e (672 files), g4.e2e-fixtures (50), g4.worktree (50), g4.cli-contract (8 commands, 12 `--json` runs), g4.no-toml-write (153 runs), g4.checks-fail (3 files, 24 tests), g4.c-data-fails-loud (1,608 s) |
+| `npm run bench -- provenance` | 0 | source digest `26c7ae17…` (Node 24) ok; gate record ok (23); families live; 6 rows, no sealed row |
+
+Every command exits 0, so **phase 4 still passes its closing gate** at `landed` 4 after fix round 3. sa2 passes
+`g2.speed` at 91.7% of its limit, inside the spread recorded under Q2 (87.4% to 96.3%), so no new owner question
+arises. The merge to `main` waits for the phase pull request's CI; nothing is merged or pushed.
 
 ### Fix round 2's closing run (`cf95b2f`)
 
@@ -763,7 +802,8 @@ with a border move, a helper beside a renamed asm-only function) and held by uni
 but one part rejected and two carried with a reason. No fix needs a gate change the owner has not authorised, so no
 owner question is raised. The decision is D78. Commits on `phase-4` after `1c07b13`: `ebd9f37` (the reconciliation,
 the module-end pads, the C-data text, the public names), `24aed24` (bench speed, the speed verdict, the CLI), the
-records commit and the closing run's commits ("The closing gate", fix round 3).
+records commit `2efb732`, the closing run's artifact `3cd738d` and this record's ("The closing gate", fix round 3's
+closing run: every command exit 0).
 
 | Finding | Severity | Disposition |
 | --- | --- | --- |
