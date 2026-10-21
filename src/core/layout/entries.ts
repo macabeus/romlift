@@ -3,9 +3,9 @@
 // functions with their size and label), and the end of each extent (the TOML's size, the analysis' extent, a code
 // override, or the next chunk start). Part of the legal-border computation of borders.ts, which re-exports what
 // core/model uses.
-import type { Addr, Span } from '../../foundation/rom/span.ts';
+import type { Addr } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
-import type { AnalysisResult, FunctionFact } from '../analysis/types.ts';
+import type { AnalysisResult, FunctionFact, OverrideFact } from '../analysis/types.ts';
 
 /**
  * Where a chunk's end comes from: the analysis' extent, the TOML's size, a code override, or up to the next
@@ -28,10 +28,11 @@ export interface PlacedEntry {
   readonly end: Addr | undefined;
   readonly source: ExtentSource;
   /**
-   * The code override that gave the extent (source 'override'): placeEntries is where an override without runs_at is
-   * applied, so this is the report core/model's W_OVERRIDE_IGNORED reads (fix round 6, architecture-b1-2).
+   * The code override that gave the extent (source 'override'), the analysis options' own object: placeEntries is where
+   * an override without runs_at is applied, so this is the report core/model's W_OVERRIDE_IGNORED reads (fix round 6,
+   * architecture-b1-2), by identity, not by span (fix round 7, architecture-b2-6).
    */
-  readonly override?: Span;
+  readonly override?: OverrideFact;
 }
 
 /** The end of a function's extent with the header clipped off: the cartridge entry's extent covers the header (correctness-6). */
@@ -57,7 +58,7 @@ export function placeEntries(listed: readonly ListedEntry[], analysis: Pick<Anal
     const fact = facts.get(l.entry);
     if (fact !== undefined) return { entry: l.entry, label: l.label, end: fact.extent.end, source: 'analysis' };
     const override = codeOverrides.find((o) => l.entry >= o.span.start && l.entry < o.span.end);
-    if (override !== undefined) return { entry: l.entry, label: l.label, end: override.span.end, source: 'override', override: override.span };
+    if (override !== undefined) return { entry: l.entry, label: l.label, end: override.span.end, source: 'override', override };
     return { entry: l.entry, label: l.label, end: undefined, source: 'next-listed' };
   });
 }

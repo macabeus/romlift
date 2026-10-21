@@ -12,9 +12,10 @@ export function insnUnit(mode: Mode): 2 | 4 {
 }
 
 /**
- * Whether `addr` is an instruction address of `mode`: halfword-aligned for Thumb, word-aligned for ARM. The one
- * predicate (fix round 6, architecture-b1-1) the assembler layout, the config's E_FUNCTION_MISALIGNED and the
- * analysis read.
+ * Whether `addr` is an instruction address of `mode`: halfword-aligned for Thumb, word-aligned for ARM (fix round 6,
+ * architecture-b1-1). Its readers are the assembler layout and the config's E_FUNCTION_MISALIGNED; the analysis keeps
+ * its own bit tests on a pc or an entry (the walkers, the gap scan, valid.in-rom-unclaimed), and seed.ram-copy reads
+ * insnUnit (fix round 7, architecture-b2-8: routing those through this predicate is carried to phase 6).
  */
 export function insnAligned(mode: Mode, addr: Addr): boolean {
   return addr % insnUnit(mode) === 0;

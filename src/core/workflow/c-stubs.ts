@@ -21,6 +21,9 @@
 // source the user moved (`git mv src/<old>.c src/<new>.c`) keeps no stub of the old directory. asm/ is gitignored (R4; the owner's answer to Q9, D79 b), so the
 // first `generate` of a fresh clone or worktree (setup.sh's duty 5) has none and uses the fallback rule, a definition
 // wherever a missing stub goes is stale; from the second `generate` on, the tree the first one wrote is on disk.
+// A src/*.c that a module's source #includes is part of the module (fix round 6; its INCLUDE_ASM lines too since fix
+// round 7, correctness-b2-1): the planner reads it, never edits it, and refuses an edit it would need (E_C_FRAGMENT_STUB,
+// E_C_STUB_UNPLACED naming it), so no included stub is duplicated or left stale.
 //
 // Three views of one reconciliation:
 // - projectEntries: the stream written into the project; an existing C file's c-stub entry becomes a `reconciled`
@@ -37,11 +40,11 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { stubChunks } from '../model/c-unit.ts';
-import { nonmatchingDir } from '../../foundation/util/project-files.ts';
-import { chunkNamesOf, chunkPathsOf, isCSource, moduleChunkStubs, moduleSource } from '../model/paths.ts';
+import { isCSource, nonmatchingDir } from '../../foundation/util/project-files.ts';
+import { chunkNamesOf, chunkPathsOf, moduleChunkStubs, moduleSource } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
 import { compiledDefinitions, planIncludeAsm, scanC, unscannableWarning } from '../reconcile/include-asm.ts';
-import type { CDefinition, CompiledDefinitions, StubTree } from '../reconcile/include-asm.ts';
+import type { CDefinition, StubTree } from '../reconcile/include-asm.ts';
 import { applyTextEdits } from '../reconcile/text-edit.ts';
 import type { TextEdit } from '../reconcile/text-edit.ts';
 import type { FileEntry } from '../emit/tree.ts';
@@ -105,12 +108,13 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
     const module = modules.get(name);
     return module === undefined ? undefined : moduleSource(model, module);
   };
-  // Every src/*.c that is no module's source, read once: a fragment a module's file may #include (fix round 6,
-  // correctness-b1-3), else a file of no module.
-  const others = new Map<string, CompiledDefinitions>();
-  for (const path of [...cTexts.keys()].sort(compareCodeUnits)) if (!sources.has(path)) others.set(path, compiledDefinitions(scanC(cTexts.get(path) ?? '')));
-  const fragments = new Map([...others].map(([path, compiled]) => [path, compiled.definitions.map((d) => d.name)] as const));
-  /** The fragments some module's file includes; their definitions were checked there. */
+  // Every src/*.c that is no module's source: a fragment a module's file may #include (fix round 6, correctness-b1-3;
+  // the planner reads its definitions and INCLUDE_ASM statements, fix round 7, correctness-b2-1), else a file of no module.
+  const fragments = new Map<string, string>();
+  for (const path of [...cTexts.keys()].sort(compareCodeUnits)) if (!sources.has(path)) fragments.set(path, cTexts.get(path) ?? '');
+  /** Each module's source by path: an include of one is no fragment (architecture-b2-5). */
+  const sourceModules = new Map(model.modules.map((m) => [moduleSource(model, m), m.name] as const));
+  /** The fragments some module's file includes; what they hold was checked there. */
   const included = new Set<string>();
   // A function of the previous tree that a module still has is wanted there (or E_C_DEFINITION_MOVED), never stale.
   const retired = previousChunkFiles !== undefined && previousChunkFiles.length > 0 ? chunkNamesOf(previousChunkFiles).filter((name) => !owners.has(name)) : undefined;
@@ -123,7 +127,7 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
     if (!isCSource(path) || base === undefined) continue;
     tree ??= stubTree(model);
     const previous = retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previousChunkFiles ?? [], module.name) };
-    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, ...previous });
+    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, sources: sourceModules, ...previous });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
     for (const fragment of plan.included) included.add(fragment);
@@ -133,8 +137,9 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
       diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner, sourceOf(owner)));
     }
   }
-  for (const [path, compiled] of others) {
+  for (const [path, text] of fragments) {
     if (included.has(path)) continue;
+    const compiled = compiledDefinitions(scanC(text));
     diagnostics.push(diagnostic(WorkflowCodes, 'W_C_FILE_UNUSED', `${path} is the source of no module of romlift.toml and no module's source #includes it, so make does not build it (was its c module renamed?); its C is left in place`, { path }));
     // Its decompiled C of a function some module has would drop out of the build while that module's stub stands in.
     // A file the scanner cannot split is checked over what it read, and says so (architecture-b0-2).

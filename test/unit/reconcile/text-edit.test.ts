@@ -12,14 +12,14 @@ import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagn
 test('edits apply by offset in any given order; insertions at one offset keep their order', () => {
   const edits: TextEdit[] = [
     { start: 11, end: 11, text: '!', reason: 'add-stub' },
-    { start: 0, end: 5, text: 'HELLO', reason: 'rename' },
+    { start: 0, end: 5, text: 'HELLO', reason: 'add-stub' },
     { start: 6, end: 6, text: '2', reason: 'add-stub' },
     { start: 6, end: 6, text: '3', reason: 'add-stub' },
   ];
   assert.equal(applyTextEdits('hello world', edits), 'HELLO 23world!');
   assert.equal(applyTextEdits('abc', []), 'abc');
   assert.equal(applyTextEdits('', [{ start: 0, end: 0, text: 'x', reason: 'add-stub' }]), 'x');
-  assert.equal(applyTextEdits('a\u{1F600}b', [{ start: 3, end: 4, text: 'B', reason: 'rename' }]), 'a\u{1F600}B', 'UTF-16 offsets');
+  assert.equal(applyTextEdits('a\u{1F600}b', [{ start: 3, end: 4, text: 'B', reason: 'add-stub' }]), 'a\u{1F600}B', 'UTF-16 offsets');
 });
 
 test('an edit outside the text, reversed or overlapping another throws RomliftInvariantError', () => {
@@ -31,7 +31,7 @@ test('an edit outside the text, reversed or overlapping another throws RomliftIn
 });
 
 test('the reconciler\'s TextEdit and core/emit/tree.ts\'s are one shape', () => {
-  const edit: TextEdit = { start: 0, end: 0, text: 'x', reason: 'move-stub' };
+  const edit: TextEdit = { start: 0, end: 0, text: 'x', reason: 'add-header' };
   const carried: EmitTextEdit = edit;
   const back: TextEdit = carried;
   assert.deepEqual(back, edit);

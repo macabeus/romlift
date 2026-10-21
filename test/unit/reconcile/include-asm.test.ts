@@ -69,7 +69,10 @@ test('the empty file and the template header: one stub per wanted function, in R
   assert.equal(planned(C_STUB_HEADER), `#include "include_asm.h"\n\n${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`);
   assert.equal(planned('int x;'), `${C_STUB_HEADER}int x;\n${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`, 'a last line without its newline');
   assert.deepEqual(planIncludeAsm('', { module: 'main', chunks: same([]) }).edits, []);
-  assert.ok(planIncludeAsm('', WANTED).edits.every((e) => e.reason === 'add-stub' && e.start === e.end));
+  assert.ok(planIncludeAsm(C_STUB_HEADER, WANTED).edits.every((e) => e.reason === 'add-stub' && e.start === e.end));
+  // The header's insertion is 'add-header' (architecture-b2-10); at one offset with the stubs, the joined edit keeps the first reason.
+  assert.deepEqual(planIncludeAsm('', WANTED).edits.map((e) => [e.reason, e.start, e.end]), [['add-header', 0, 0]]);
+  assert.deepEqual(planIncludeAsm('int x;\n', WANTED).edits.map((e) => e.reason), ['add-header', 'add-stub']);
 });
 
 test('a missing stub goes after the nearest earlier held function, else before the nearest later one', () => {
@@ -457,16 +460,17 @@ test('a definition in every branch of a conditional with an #else holds its chun
 });
 
 test('a src/*.c fragment the file #includes defines its functions there; an unread fragment refuses every insertion (correctness-b1-3)', () => {
-  const fragments = new Map([['src/poly.inc.c', ['B']]]);
+  const def = (...names: string[]): string => names.map((n) => `void ${n}(void) {\n}\n`).join('');
+  const fragments = new Map([['src/poly.inc.c', def('B')]]);
   const wanted = { ...WANTED, fragments };
   const text = `${C_STUB_HEADER}${stub('A')}\n#include "poly.inc.c"\n${stub('C')}\n${stub('D')}\n`;
   const plan = planIncludeAsm(text, wanted);
   assert.deepEqual([plan.edits, plan.diagnostics, plan.included], [[], [], ['src/poly.inc.c']]);
   // A fragment's function the module does not want is returned for the caller (E_C_DEFINITION_MOVED there), named by its fragment.
-  const other = planIncludeAsm(text, { ...wanted, fragments: new Map([['src/poly.inc.c', ['B', 'Elsewhere']]]) });
+  const other = planIncludeAsm(text, { ...wanted, fragments: new Map([['src/poly.inc.c', def('B', 'Elsewhere')]]) });
   assert.deepEqual(other.undeclared.map((d) => [d.name, d.via, d.line]), [['Elsewhere', 'src/poly.inc.c', 4]]);
   // A renamed function whose C the fragment holds is stale, wherever the include lies.
-  const stale = planIncludeAsm(text, { ...wanted, fragments: new Map([['src/poly.inc.c', ['Old']]]), retired: ['Old'], previousStubs: [] });
+  const stale = planIncludeAsm(text, { ...wanted, fragments: new Map([['src/poly.inc.c', def('Old')]]), retired: ['Old'], previousStubs: [] });
   assert.deepEqual(stale.diagnostics.map((d) => d.code), ['E_C_STALE_DEFINITION']);
   assert.match(stale.diagnostics[0]?.message ?? '', /through its #include of src\/poly\.inc\.c, defines Old/);
   // A quoted include romlift does not read and that is no header: an insertion it might duplicate is refused.
@@ -483,4 +487,60 @@ test('a src/*.c fragment the file #includes defines its functions there; an unre
   assert.deepEqual(planIncludeAsm(unread.replace(stub('A'), `${stub('A')}\n${stub('B')}`), wanted).diagnostics, []);
   // Without the fragments (or the file's path) includes are not followed.
   assert.deepEqual(planIncludeAsm(text, WANTED).included, []);
+});
+
+// Fix round 7 (D83 a): a fragment's INCLUDE_ASM statements hold their chunks at the #include line; romlift never
+// edits a fragment, so a stub it would have to lose, or one whose place lies inside it, is refused naming it.
+
+test('the INCLUDE_ASM statements of an #included fragment hold their chunks: no second stub, no W_C_ORDER (correctness-b2-1)', () => {
+  const text = `${C_STUB_HEADER}${stub('A')}\n#include "part.c"\n${stub('D')}\n`;
+  const fragments = new Map([['src/part.c', `${stub('B')}\n${stub('C')}\n`]]);
+  const plan = planIncludeAsm(text, { ...WANTED, fragments });
+  assert.deepEqual(plan, { edits: [], diagnostics: [], unplaced: [], undeclared: [], included: ['src/part.c'] });
+  // Without reading them (fix round 6), B and C were inserted a second time beside the include.
+  assert.deepEqual(planIncludeAsm(text, { ...WANTED, fragments: new Map([['src/part.c', '']]) }).edits.length, 1);
+  // A fragment that includes another holds what that one holds.
+  const nested = planIncludeAsm(text, { ...WANTED, fragments: new Map([['src/part.c', `${stub('B')}\n#include "deep/c.c"\n`], ['src/deep/c.c', `${stub('C')}\n`]]) });
+  assert.deepEqual([nested.edits, nested.diagnostics, nested.included], [[], [], ['src/part.c', 'src/deep/c.c']]);
+});
+
+test('a fragment\'s stub the module no longer has is E_C_FRAGMENT_STUB naming the fragment; a stub whose place lies inside it is E_C_STUB_UNPLACED (correctness-b2-1)', () => {
+  const text = `${C_STUB_HEADER}${stub('A')}\n#include "part.c"\n${stub('D')}\n`;
+  const fragments = new Map([['src/part.c', `// part\n${stub('B')}\n${stub('C')}\n`]]);
+  // B renamed B2 in the TOML: the fragment's B stub would go, and romlift edits no fragment.
+  const renamed = planIncludeAsm(text, { ...WANTED, chunks: same(['A', 'B2', 'C', 'D']), fragments });
+  assert.deepEqual(renamed.diagnostics.map((d) => [d.code, d.path]), [['E_C_FRAGMENT_STUB', 'src/part.c']]);
+  assert.equal(renamed.diagnostics[0]?.message, `src/part.c, which src/main.c includes (line 4), holds INCLUDE_ASM("asm/nonmatchings/main", B); (line 2), and module main no longer has B: romlift never edits an included file, so rename or remove it there yourself (and the C beside it)`);
+  // A stub of a directory the tree no longer writes (a renamed module), and one inside an #if of the fragment, alike.
+  const tree = { files: new Set(['asm/nonmatchings/main/B.s', 'asm/nonmatchings/main/C.s']), userDirs: new Set<string>() };
+  const gone = planIncludeAsm(text, { ...WANTED, tree, fragments: new Map([['src/part.c', `${stub('B')}\n#ifdef X\n${stub('C')}\n#endif\n${stub('Old', 'old')}\n`]]) });
+  assert.deepEqual(gone.diagnostics.map((d) => d.code), ['E_C_FRAGMENT_STUB']);
+  assert.match(gone.diagnostics[0]?.message ?? '', /no module of romlift\.toml has asm\/nonmatchings\/old\/Old\.s any more/);
+  // A split between B and C: the new stub's place is inside the fragment.
+  const split = planIncludeAsm(text, { ...WANTED, chunks: same(['A', 'B', 'X', 'C', 'D']), fragments });
+  assert.deepEqual([split.edits, split.unplaced, split.diagnostics.map((d) => [d.code, d.path])], [[], ['X'], [['E_C_STUB_UNPLACED', 'src/part.c']]]);
+  assert.match(split.diagnostics[0]?.message ?? '', /whose place in ROM order, between B and C, lies inside src\/part\.c, which src\/main\.c includes \(line 4\): romlift never edits an included file/);
+  // Before the fragment's first chunk or after its last, the stub goes beside the include, in ROM order.
+  const outside = planIncludeAsm(text, { ...WANTED, chunks: same(['A', 'X', 'B', 'C', 'Y', 'D']), fragments });
+  assert.deepEqual(outside.diagnostics, []);
+  assert.equal(applyTextEdits(text, outside.edits), `${C_STUB_HEADER}${stub('A')}\n${stub('X')}\n#include "part.c"\n${stub('Y')}\n${stub('D')}\n`);
+  // Two decompiled functions in a fragment and a chunk split between them: refused the same way.
+  const defs = planIncludeAsm(text, { ...WANTED, chunks: same(['A', 'B', 'X', 'C', 'D']), fragments: new Map([['src/part.c', 'void B(void) {\n}\nvoid C(void) {\n}\n']]) });
+  assert.deepEqual(defs.diagnostics.map((d) => d.code), ['E_C_STUB_UNPLACED']);
+});
+
+test('a fragment the scanner cannot split: W_C_UNSCANNABLE naming it, E_C_UNSCANNABLE when the file needs an edit (architecture-b2-4)', () => {
+  const text = `${C_STUB_HEADER}${stub('A')}\n#include "part.c"\n${stub('C')}\n${stub('D')}\n`;
+  const fragments = new Map([['src/part.c', 'int K(a)\nint a;\n{ return a; }\nvoid B(void) {\n}\n']]);
+  const warned = planIncludeAsm(text, { ...WANTED, fragments });
+  assert.deepEqual([warned.edits, warned.diagnostics.map((d) => [d.code, d.path])], [[], [['W_C_UNSCANNABLE', 'src/part.c']]]);
+  const refused = planIncludeAsm(text, { ...WANTED, chunks: same(['A', 'B', 'C', 'D', 'E']), fragments });
+  assert.deepEqual([refused.edits, refused.diagnostics.map((d) => [d.code, d.path])], [[], [['E_C_UNSCANNABLE', 'src/part.c']]]);
+});
+
+test('an include of another module\'s source is no fragment: the refusal says so (architecture-b2-5)', () => {
+  const text = `${C_STUB_HEADER}${stub('A')}\n#include "main_2.c"\n${stub('C')}\n${stub('D')}\n`;
+  const plan = planIncludeAsm(text, { ...WANTED, fragments: new Map(), sources: new Map([['src/main.c', 'main'], ['src/main_2.c', 'main_2']]) });
+  assert.deepEqual(plan.diagnostics.map((d) => d.code), ['E_C_STUB_UNPLACED']);
+  assert.match(plan.diagnostics[0]?.message ?? '', /#includes "main_2\.c" \(line 4, the source of module main_2, which make compiles on its own\)/);
 });

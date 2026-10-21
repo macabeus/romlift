@@ -154,3 +154,14 @@ test('a src/*.c fragment a module\'s file #includes is part of that module: no W
   assert.deepEqual(elsewhere.diagnostics.map((d) => [d.code, d.path]), [['E_C_DEFINITION_MOVED', 'src/frag.inc.c']]);
   assert.match(elsewhere.diagnostics[0]?.message ?? '', new RegExp(`src/frag\\.inc\\.c, which src/main\\.c includes \\(line \\d+\\), defines ${moved}, which romlift\\.toml now puts in module main_2: move its C to src/main_2\\.c`));
 });
+
+test('a fragment that holds INCLUDE_ASM lines: its stubs hold their chunks, an unwanted one is E_C_FRAGMENT_STUB, a nested fragment is part of the module too (fix round 7, correctness-b2-1)', () => {
+  const [first, second] = namesOf('main');
+  if (first === undefined || second === undefined) assert.fail('main has two chunks');
+  const main = (TEXTS.get('src/main.c') ?? '').replace(`${includeAsmStatement('main', second)}\n`, '#include "frag.c"\n');
+  const held = reconcileStubs(MODEL, new Map([...TEXTS, ['src/main.c', main], ['src/frag.c', '#include "inner/deep.c"\n'], ['src/inner/deep.c', `${includeAsmStatement('main', second)}\n`]]));
+  assert.deepEqual(held.diagnostics, []);
+  assert.deepEqual(held.files.find((f) => f.path === 'src/main.c')?.edits, [], 'the nested fragment holds the chunk: no second stub');
+  const stale = reconcileStubs(MODEL, new Map([...TEXTS, ['src/main.c', main], ['src/frag.c', `${includeAsmStatement('main', second)}\n${includeAsmStatement('main', 'Gone')}\n`]]));
+  assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.path]), [['E_C_FRAGMENT_STUB', 'src/frag.c']]);
+});

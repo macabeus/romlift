@@ -7,7 +7,8 @@
 // case-folded `<Name>_<ADDR>` included). What agbcc makes of it is core/model/c-unit.ts's stubUnitAssembly.
 import { C_STUB_HEADER } from '../../../foundation/asm/dialect.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
-import { isCSource, moduleSource } from '../../model/paths.ts';
+import { isCSource } from '../../../foundation/util/project-files.ts';
+import { moduleSource } from '../../model/paths.ts';
 import { stubChunks } from '../../model/c-unit.ts';
 import type { Model, Module } from '../../model/types.ts';
 import { planIncludeAsm } from '../../reconcile/include-asm.ts';

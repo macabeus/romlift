@@ -3,6 +3,7 @@
 // is about: E_PROJECT_NOT_FOUND, E_IO_READ (a missing config, a file that is not UTF-8), E_DECOMP_YAML_INVALID and
 // the parser's codes (E_DUPLICATE_ADDRESS at its line).
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -54,24 +55,24 @@ test('loadConfig reads decomp.yaml, then the romlift.toml it names, and returns 
   assert.equal(loaded.value.decompYaml, join(dir, 'decomp.yaml'));
   assert.equal(loaded.value.configPath, join(dir, 'romlift.toml'));
   assert.equal(loaded.value.text, TOML);
+  assert.equal(loaded.value.sha1, createHash('sha1').update(TOML).digest('hex'), 'the SHA-1 of the bytes read, for modules.mk (architecture-b2-2)');
   assert.deepEqual(loaded.value.value, CONFIG);
   assert.deepEqual(loaded.value.project, { config: 'romlift.toml', version: 'us', target: 'baserom.gba', sha1: SHA1, buildName: 'akle' });
   assert.deepEqual(loaded.value.diagnostics, []);
 });
 
-test('decomp.yaml may name another config path; a relative project directory is resolved', async () => {
+test('decomp.yaml naming another config path is refused before the file is read (fix round 7, architecture-b2-1); a relative project directory is resolved', async () => {
   const yaml = YAML.replace('config: "romlift.toml"', 'config: "config/project.toml"');
-  const dir = await project({ 'decomp.yaml': yaml, 'config/project.toml': TOML });
-  const loaded = await loadConfig(dir);
-  assert.ok(loaded.ok);
-  assert.equal(loaded.value.configPath, join(dir, 'config/project.toml'));
-  assert.equal(loaded.value.project.config, 'config/project.toml');
+  const other = await loadConfig(await project({ 'decomp.yaml': yaml, 'config/project.toml': TOML }));
+  assert.deepEqual(other.ok ? [] : other.diagnostics.map((d) => [d.code, d.path]), [['E_DECOMP_YAML_INVALID', 'decomp.yaml']]);
+  const dir = await project({ 'decomp.yaml': YAML, 'romlift.toml': TOML });
   const cwd = process.cwd();
   process.chdir(dirname(dir));
   try {
     const relative = await loadConfig(dir.slice(dirname(dir).length + 1));
     assert.ok(relative.ok);
     assert.equal(relative.value.dir, dir);
+    assert.equal(relative.value.configPath, join(dir, 'romlift.toml'));
   } finally {
     process.chdir(cwd);
   }

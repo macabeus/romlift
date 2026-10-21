@@ -4,7 +4,8 @@
 // the C object but .text, and an ASSERT that it is empty, with the message `g4.c-data-fails-loud` expects (it names no
 // phase since fix round 3, correctness-a1-6: the owner skipped phase 5, and every project's ldscript holds it). The
 // ldscript writer prints these lines and the ldscript check (core/verify/link-scripts.ts) requires them, so both take
-// them from here.
+// them from here. The source's path is cSourceOf's (fix round 7, architecture-b2-7).
+import { cSourceOf } from '../../foundation/util/project-files.ts';
 
 /** The NOLOAD section that collects every section of C module `module`'s object but .text (D74 f). */
 export function cDataSectionLine(module: string): string {
@@ -13,5 +14,5 @@ export function cDataSectionLine(module: string): string {
 
 /** The assertion that C module `module` defines no data. */
 export function cDataAssertLine(module: string): string {
-  return `ASSERT(SIZEOF(.c_data_${module}) == 0, "src/${module}.c defines data; see AGENTS.md (romlift does not place C data yet)")`;
+  return `ASSERT(SIZEOF(.c_data_${module}) == 0, "${cSourceOf(`${module}.c`)} defines data; see AGENTS.md (romlift does not place C data yet)")`;
 }

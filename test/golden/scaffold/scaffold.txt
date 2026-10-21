@@ -127,7 +127,8 @@ generate`).
   (`.gitignore`): `./setup.sh` generates them in a fresh clone or worktree, where `asm/` is absent. **After a `git
   pull` or a checkout that changes `romlift.toml`, run `npx romlift generate` (or `./setup.sh`) before `make`:**
   `modules.mk` records the SHA-1 of the `romlift.toml` it was generated from, and `make` stops with a message while
-  they differ, rather than build a stale tree.
+  they differ, rather than build a stale tree. After one that changes the romlift version `package.json` pins, run
+  `./setup.sh` and then `npx romlift generate` yourself: neither `make` nor `./setup.sh` notices a new romlift.
 - **Yours:** `romlift.toml` (modules, function names and boundaries, symbols; the one place to change what is
   generated), `src/*.c`, `include/`, `Makefile`, `mk/*.mk`, `setup.sh` and this file. romlift wrote them once and does
   not overwrite them; `npx romlift scaffold --diff` shows how they differ from the current templates.
@@ -160,8 +161,12 @@ decompiled function, change both its C name and `romlift.toml`; renamed in C alo
 (`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again.
 
 Write decompiled C in `src/<module>.c` itself, or in a `src/*.c` file it `#include`s at file scope (romlift reads
-that file as part of the module). romlift reads no other file: when `src/<module>.c` includes one of another name
-(`#include "part.inc"`, any quoted include but a `.h`), `romlift generate` refuses to add an `INCLUDE_ASM` line to it
+that file, and the `src/*.c` files it includes, as part of the module: their C and their `INCLUDE_ASM` lines). romlift
+never edits an included file: when a `romlift.toml` edit means an `INCLUDE_ASM` line in it must go or be renamed, it
+refuses (`E_C_FRAGMENT_STUB`, naming the file), and when a new line's place in ROM order lies inside it, it refuses
+too (`E_C_STUB_UNPLACED`); change the included file yourself, then run `npx romlift generate` again. romlift reads no
+other file: when `src/<module>.c` includes one of another name (`#include "part.inc"`, any quoted include but a
+`.h`) or another module's source, `romlift generate` refuses to add an `INCLUDE_ASM` line to it
 (`E_C_STUB_UNPLACED`), since that file may define the function.
 
 To rename a `c` module, change its `name` in `[[modules]]` and move its source in the same step
@@ -336,7 +341,9 @@ Then:
 3. Run `make`. It builds `klonoa-eod.gba` and ends with `klonoa-eod.gba: OK` when the SHA-1 matches `klonoa-eod.sha1`.
 
 The generated files are not in Git, so after a `git pull` or a checkout that changes `romlift.toml`, run `npx romlift
-generate` (or `./setup.sh`) before `make`; until you do, `make` stops and says so.
+generate` (or `./setup.sh`) before `make`; until you do, `make` stops and says so. After one that changes the romlift
+version `package.json` pins, run `./setup.sh` (it installs that version) and then `npx romlift generate` yourself:
+`make` checks only `romlift.toml`, not which romlift generated the tree.
 
 Until romlift is published to the npm registry (a pre-release limitation), the version `package.json` pins does not
 resolve, so step 2 cannot install it. Set `ROMLIFT_CLI` to a romlift command you have, for example a built checkout

@@ -161,14 +161,7 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
     if (!chunks.ok) return chunks;
     previousChunkFiles = chunks.value;
   }
-  // romlift.toml's bytes hashed for modules.mk (D82), so the Makefile's comparison of the file's SHA-1 holds byte for byte.
-  let configBytes: Uint8Array;
-  try {
-    configBytes = await readFile(loaded.value.configPath);
-  } catch (error) {
-    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${loaded.value.configPath}: ${errorReason(error)}`, { path: loaded.value.configPath })] };
-  }
-  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: sha1Of(configBytes), cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }) };
+  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: loaded.value.sha1, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }) };
   return { ok: true, value: { dir, config: loaded.value, romPath, inputs } };
 }
 

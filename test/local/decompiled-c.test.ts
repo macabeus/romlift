@@ -18,7 +18,13 @@
 //   6. (correctness-b1-1) the project committed to Git and cloned: the clone's ./setup.sh generates the tree and
 //      `make` ends at the SHA-1; an upstream rename pulled into the clone stops `make` with the message naming
 //      `romlift generate`, and ./setup.sh (duty 5) then regenerates and `make` ends at the SHA-1; a second pulled
-//      rename and `romlift generate`, as the scaffold's AGENTS.md says, end at the SHA-1 too.
+//      rename and `romlift generate`, as the scaffold's AGENTS.md says, end at the SHA-1 too;
+//   7. (fix round 7, correctness-b2-1) three INCLUDE_ASM lines moved into a src/*.c fragment src/boot.c #includes:
+//      `generate` adds none again and `make` ends at the SHA-1; a TOML rename of the middle one is E_C_FRAGMENT_STUB
+//      (the old stub) and E_C_STUB_UNPLACED (the new one's place lies inside the fragment), nothing written, `make`
+//      stopping on the stale tree; the stub renamed in the fragment, `generate` and `make` to the SHA-1;
+//   8. (architecture-b2-1) decomp.yaml naming cfg/romlift.toml: `generate` refuses (E_DECOMP_YAML_INVALID), writes
+//      nothing, and `make` still ends at the SHA-1.
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -91,7 +97,7 @@ function codesOf(ran: Ran): readonly string[] {
     .map((l) => l.code ?? '?');
 }
 
-test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone, a moved module, a split at a decompiled function and a pulled TOML edit build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
+test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone, a moved module, a split at a decompiled function, a pulled TOML edit, stubs in a fragment and a relocated config build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
   assert.equal(unavailable, undefined, unavailable);
   const bytes = readFileSync(ROM);
   assert.deepEqual([...bytes.subarray(0x28104, 0x28108)], [0x70, 0x47, 0, 0], 'sub_08028104 is `bx lr` and a zero pad');
@@ -239,4 +245,54 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
   const regenerated = await generate(clone);
   assert.equal(regenerated.code, 0, regenerated.tail);
   await make(clone);
+
+  // 7. (fix round 7, correctness-b2-1) Three INCLUDE_ASM lines moved into a src/*.c fragment boot.c #includes: they
+  //    hold their chunks, so generate adds none again (the review's F0 broke make with `invalid offset`); a TOML rename
+  //    of the middle one is refused naming the fragment and writes nothing (F1 left it stale), and make stops on the
+  //    stale tree instead of failing in the assembler; renamed in the fragment by hand, generate and make end at the SHA-1.
+  const bootNow = await readFile(file('src/boot.c'), 'utf8');
+  const tomlNow = await readFile(file('romlift.toml'), 'utf8');
+  const three = new RegExp(`^(${stub('boot', 'sub_[0-9A-F]{8}').replace(/[()]/g, '\\$&')}\n){3}`, 'm').exec(bootNow)?.[0] ?? assert.fail('three asm-only stubs in a row in src/boot.c');
+  const middle = /sub_[0-9A-F]{8}/g;
+  const names = three.match(middle) ?? [];
+  const target = names[1] ?? assert.fail('a middle stub');
+  assert.ok(tomlNow.includes(`= "${target}"`), target);
+  await writeFile(file('src/part.c'), three);
+  await writeFile(file('src/boot.c'), bootNow.replace(three, '#include "part.c"\n'));
+  await make();
+  const fragmentKept = await generate();
+  assert.equal(fragmentKept.code, 0, fragmentKept.tail);
+  assert.deepEqual(fragmentKept.codes, [], fragmentKept.tail);
+  assert.equal(await readFile(file('src/boot.c'), 'utf8'), bootNow.replace(three, '#include "part.c"\n'), 'no stub added again');
+  await make();
+  await writeFile(file('romlift.toml'), tomlNow.replace(`= "${target}"`, '= "FragFn"'));
+  const fragmentRenamed = await generate();
+  assert.equal(fragmentRenamed.code, 1, fragmentRenamed.tail);
+  // The old stub is the fragment's to rename, and the new one's place lies inside it, between its two neighbours.
+  assert.deepEqual([...fragmentRenamed.codes].sort(), ['E_C_FRAGMENT_STUB', 'E_C_STUB_UNPLACED'], fragmentRenamed.tail);
+  assert.ok(fragmentRenamed.tail.includes('src/part.c, which src/boot.c includes'), fragmentRenamed.tail);
+  const staleFragment = await run('make', [], dir, env);
+  assert.notEqual(staleFragment.code, 0, 'make refuses the tree the refusal left');
+  assert.ok(staleFragment.out.includes('romlift.toml changed since romlift generate last ran'), tail(staleFragment));
+  await writeFile(file('src/part.c'), three.replace(target, 'FragFn'));
+  const fragmentFixed = await generate();
+  assert.equal(fragmentFixed.code, 0, fragmentFixed.tail);
+  assert.deepEqual(fragmentFixed.codes, [], fragmentFixed.tail);
+  await make();
+
+  // 8. (architecture-b2-1) decomp.yaml naming a config other than romlift.toml: every command refuses it and writes
+  //    nothing, so the tree stays the one modules.mk records and make still ends at the SHA-1.
+  const yaml = await readFile(file('decomp.yaml'), 'utf8');
+  await mkdir(file('cfg'));
+  await copyFile(file('romlift.toml'), file('cfg/romlift.toml'));
+  await writeFile(file('decomp.yaml'), yaml.replace('config: "romlift.toml"', 'config: "cfg/romlift.toml"'));
+  const relocated = await generate();
+  assert.equal(relocated.code, 1, relocated.tail);
+  assert.deepEqual(relocated.codes, ['E_DECOMP_YAML_INVALID'], relocated.tail);
+  await make();
+  await writeFile(file('decomp.yaml'), yaml);
+  await rm(file('cfg'), { recursive: true });
+  const restored = await generate();
+  assert.equal(restored.code, 0, restored.tail);
+  await make();
 });

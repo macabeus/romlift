@@ -17,7 +17,6 @@ import { z } from 'zod';
 import { NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { isProjectPath } from '../../foundation/util/project-path.ts';
 import { BASEROM_FILE, DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
@@ -32,7 +31,7 @@ const TARGET = BASEROM_FILE;
 
 /** `tools.romlift`: a key it does not name is an error, so a typo is refused. */
 const ROMLIFT_BLOCK = z.strictObject({
-  /** romlift.toml, relative to decomp.yaml. */
+  /** romlift.toml, relative to decomp.yaml: always that name (readDecompYaml, D83 b). */
   config: z.string().min(1),
 });
 
@@ -52,7 +51,7 @@ export interface DecompYamlVars {
 
 /** What romlift reads from a project's decomp.yaml. */
 export interface DecompYamlProject {
-  /** `tools.romlift.config`: the project path of romlift.toml. */
+  /** `tools.romlift.config`: the project path of romlift.toml, always ROMLIFT_CONFIG_FILE (D83 b). */
   readonly config: string;
   /** `versions[0].name`. */
   readonly version: string;
@@ -117,7 +116,9 @@ export function readDecompYaml(text: string, path: string = DECOMP_YAML_FILE): D
     return invalid(path, [error instanceof Error ? error.message : String(error)]);
   }
   if (block === undefined) return invalid(path, [`has no tools.${ROMLIFT_TOOL} block (add one with \`config: ${ROMLIFT_CONFIG_FILE}\`)`]);
-  if (!isProjectPath(block.config)) return invalid(path, [`tools.${ROMLIFT_TOOL}.config: ${q(block.config)} is not a path inside the project`]);
+  // Always romlift.toml at the project root (fix round 7, architecture-b2-1, D83 b), as the ROM is always baserom.gba
+  // (D74 c): the scaffold's Makefile and setup.sh hash romlift.toml by that name against modules.mk's stamp (D82 a).
+  if (block.config !== ROMLIFT_CONFIG_FILE) return invalid(path, [`tools.${ROMLIFT_TOOL}.config: ${q(block.config)} is not ${q(ROMLIFT_CONFIG_FILE)}: a project's config is always ${ROMLIFT_CONFIG_FILE} beside decomp.yaml, the file the Makefile and setup.sh check against modules.mk (D83 b); move it back and name it ${ROMLIFT_CONFIG_FILE}`]);
   const version = loaded.config.versions[0];
   if (version === undefined) return invalid(path, ['versions: lists no version']);
   const compiled = baseName(version.paths.compiled_target);

@@ -14,6 +14,7 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ShellCodes } from '../codes.ts';
 import { readBytes } from '../fs.ts';
+import { sha1Of } from '../hash.ts';
 import { decompYamlIn } from '../project/locate.ts';
 
 /** A project's config as loadConfig read it. */
@@ -28,6 +29,11 @@ export interface ProjectConfig {
   readonly configPath: string;
   /** romlift.toml as it is on disk. */
   readonly text: string;
+  /**
+   * The SHA-1 of the exact bytes `text` was decoded from (fix round 7, architecture-b2-2): what modules.mk records
+   * (D82 a), so the stamp is of the TOML the tree was generated from, with no second read in between.
+   */
+  readonly sha1: string;
   /** The text parsed. */
   readonly value: RomliftConfig;
   /** The parser's warnings (none in schema 1). */
@@ -39,11 +45,11 @@ export type LoadConfigResult = { readonly ok: true; readonly value: ProjectConfi
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
 
 /** The text of `path`, or the diagnostic of reading it (`label` names it in messages). */
-async function readText(path: string, label: string): Promise<{ readonly ok: true; readonly text: string } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] }> {
+async function readText(path: string, label: string): Promise<{ readonly ok: true; readonly text: string; readonly bytes: Uint8Array } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] }> {
   const read = await readBytes(path);
   if (!read.ok) return { ok: false, diagnostics: [{ ...read.diagnostic, path: label }] };
   try {
-    return { ok: true, text: UTF8.decode(read.value) };
+    return { ok: true, text: UTF8.decode(read.value), bytes: read.value };
   } catch {
     return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${label}: it is not UTF-8 text`, { path: label })] };
   }
@@ -79,6 +85,7 @@ export async function loadConfig(projectDir: string): Promise<LoadConfigResult> 
       project: project.value,
       configPath,
       text: toml.text,
+      sha1: sha1Of(toml.bytes),
       value: parsed.value,
       diagnostics: withPath(parsed.diagnostics, project.value.config),
     },

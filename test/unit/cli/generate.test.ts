@@ -534,6 +534,55 @@ test('decompiled C in a src/*.c fragment the module\'s file #includes: generate 
   assert.deepEqual(await snapshot(dir), unread);
 });
 
+test('INCLUDE_ASM lines moved into an #included src/*.c fragment hold their chunks; a TOML rename of one is refused naming the fragment, and nothing is written (fix round 7, correctness-b2-1)', async () => {
+  const dir = await initProject();
+  const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  assert.ok(main2.includes(stubIn('main_2', 'sub_08000488')) && toml.includes('0x08000488 = "sub_08000488"'), 'the composite as this test knows it');
+  await writeFile(path.join(dir, 'src', 'part.c'), `${stubIn('main_2', 'sub_08000488')}\n`);
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(stubIn('main_2', 'sub_08000488'), '#include "part.c"'));
+  const before = await snapshot(dir);
+  // The reviewer's F0: with no TOML change, the stub was inserted a second time into main_2.c.
+  const kept = await run(dir, ['generate', '--json']);
+  assert.equal(kept.code, ExitCode.ok, kept.stdout);
+  assert.deepEqual(lines(kept.stdout).filter((l) => l['type'] === 'diagnostic'), [], kept.stdout);
+  assert.deepEqual(await snapshot(dir), before, 'nothing to write');
+  // F1: a TOML rename of the function whose stub the fragment holds left that stub naming a file no longer written.
+  await writeFile(path.join(dir, 'romlift.toml'), toml.replace('0x08000488 = "sub_08000488"', '0x08000488 = "FragFn"'));
+  const renamed = await snapshot(dir);
+  const refused = await run(dir, ['generate', '--json']);
+  assert.equal(refused.code, ExitCode.errors, refused.stdout);
+  const diagnostics = lines(refused.stdout).filter((l) => l['type'] === 'diagnostic');
+  assert.deepEqual(diagnostics.map((l) => [l['code'], l['path']]), [['E_C_FRAGMENT_STUB', 'src/part.c']], refused.stdout);
+  assert.deepEqual(await snapshot(dir), renamed, 'the refusal wrote nothing');
+  // As the message says: the stub renamed in the fragment by hand; generate then writes the renamed tree and edits no C.
+  await writeFile(path.join(dir, 'src', 'part.c'), `${stubIn('main_2', 'FragFn')}\n`);
+  const fixed = await run(dir, ['generate', '--json']);
+  assert.equal(fixed.code, ExitCode.ok, fixed.stdout);
+  assert.deepEqual(lines(fixed.stdout).filter((l) => l['type'] === 'diagnostic'), [], fixed.stdout);
+  assert.equal(await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8'), main2.replace(stubIn('main_2', 'sub_08000488'), '#include "part.c"'));
+  assert.ok((await stat(path.join(dir, 'asm', 'nonmatchings', 'main_2', 'FragFn.s'))).isFile());
+});
+
+test('decomp.yaml naming a config other than romlift.toml is refused, nothing written: the Makefile and setup.sh hash romlift.toml (fix round 7, architecture-b2-1)', async () => {
+  const dir = await initProject();
+  const yaml = await readFile(path.join(dir, 'decomp.yaml'), 'utf8');
+  assert.ok(yaml.includes('config: "romlift.toml"'), 'the decomp.yaml init writes');
+  // The reviewer's case: the config moved to cfg/ and decomp.yaml pointed at it.
+  await mkdir(path.join(dir, 'cfg'));
+  await copyFile(path.join(dir, 'romlift.toml'), path.join(dir, 'cfg', 'romlift.toml'));
+  await writeFile(path.join(dir, 'decomp.yaml'), yaml.replace('config: "romlift.toml"', 'config: "cfg/romlift.toml"'));
+  const before = await snapshot(dir);
+  for (const command of [['generate', '--json'], ['analyze', '--update', '--json'], ['model', '--json']]) {
+    const out = await run(dir, command);
+    assert.equal(out.code, ExitCode.errors, `${command.join(' ')}: ${out.stdout}`);
+    const diagnostics = lines(out.stdout).filter((l) => l['type'] === 'diagnostic');
+    assert.deepEqual(diagnostics.map((l) => [l['code'], l['path']]), [['E_DECOMP_YAML_INVALID', 'decomp.yaml']], out.stdout);
+    assert.match(String(diagnostics[0]?.['message']), /tools\.romlift\.config: "cfg\/romlift\.toml" is not "romlift\.toml"/);
+  }
+  assert.deepEqual(await snapshot(dir), before, 'nothing written');
+});
+
 // Fix round 5 (D81 c): an odd [functions] key is refused naming it; an override that changes nothing warns.
 
 test('a misaligned [functions] key, with or without `from`, is E_FUNCTION_MISALIGNED alone, naming the key, in generate and analyze --update (exit 1), and no file changes', async () => {

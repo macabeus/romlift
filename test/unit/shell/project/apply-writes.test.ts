@@ -47,7 +47,7 @@ async function sameDirUnderOtherCase(dir: string, a: string, b: string): Promise
 }
 
 const BASE_C = '#include "global.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", Old);\n';
-const RENAME: TextEdit = { start: BASE_C.indexOf('Old'), end: BASE_C.indexOf('Old') + 3, text: 'New', reason: 'rename' };
+const RENAME: TextEdit = { start: BASE_C.indexOf('Old'), end: BASE_C.indexOf('Old') + 3, text: 'New', reason: 'add-stub' };
 
 /** The project before the run: an old manifest, a file it no longer generates, a user Makefile and C file. */
 const INITIAL: Readonly<Record<string, string>> = {

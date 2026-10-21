@@ -12,6 +12,7 @@ import { test } from 'node:test';
 
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
+import { CONFIG_SHA1_VARIABLE, modulesMkText } from '../../../src/core/emit/writers/modules-mk.ts';
 import { gitmodulesText, npmPackageName, packageJsonText, renderScaffold, sha1FileText } from '../../../src/core/scaffold/render.ts';
 import type { ScaffoldFileEntry } from '../../../src/core/scaffold/render.ts';
 import { decodeScaffoldManifest, ROMLIFT_RENDERED_TARGETS, scaffoldVars } from '../../../src/core/scaffold/vars.ts';
@@ -175,13 +176,17 @@ const HAS_MAKE = spawnSync('make', ['--version'], { encoding: 'utf8' }).status =
 
 test('make stops while romlift.toml is not the one modules.mk records; setup.sh\'s duty 5 then runs generate (fix round 6, correctness-b1-1)', { skip: HAS_MAKE ? false : 'no make on PATH' }, () => {
   const makefile = textOf(SCAFFOLD, 'Makefile');
-  assert.match(makefile, /^ifneq \(\$\(ROMLIFT_TOML_SHA1\),\$\(shell \$\(SHA1SUM\) romlift\.toml/m);
+  // The variable's spelling is the writer's (architecture-b2-3): the templates must read the name modulesMkText writes.
+  assert.match(makefile, new RegExp(`^ifneq \\(\\$\\(${CONFIG_SHA1_VARIABLE}\\),\\$\\(shell \\$\\(SHA1SUM\\) romlift\\.toml`, 'm'));
+  assert.ok(makefile.includes(`grep -v '^${CONFIG_SHA1_VARIABLE}' modules.mk`), 'OBJ_SUM leaves the stamp out');
+  assert.ok(textOf(SCAFFOLD, 'setup.sh').includes(`sed -n 's/^${CONFIG_SHA1_VARIABLE} := //p' modules.mk`), 'duty 5 reads the writer\'s `NAME := value` line');
   const dir = mkdtempSync(join(tmpdir(), 'romlift-makefile-'));
   try {
     const toml = 'schema = 1\n';
     const sha1 = createHash('sha1').update(toml).digest('hex');
     for (const [file, text] of [['Makefile', makefile], ['romlift.toml', toml], ['ldscript.txt', ''], ['symbols.ld', '']] as const) writeFileSync(join(dir, file), text);
-    const modulesMk = (recorded: string | undefined): void => writeFileSync(join(dir, 'modules.mk'), `OBJS :=\nC_OBJS :=\n${recorded === undefined ? '' : `ROMLIFT_TOML_SHA1 := ${recorded}\n`}`);
+    // modules.mk as the writer spells it, with no unit, with and without the stamp.
+    const modulesMk = (recorded: string | undefined): void => writeFileSync(join(dir, 'modules.mk'), modulesMkText({ modules: [], chunks: [] }, recorded));
     const make = (goal: string): { readonly status: number | null; readonly stderr: string } => spawnSync('make', ['-n', goal], { cwd: dir, encoding: 'utf8' });
     for (const recorded of ['0'.repeat(40), undefined]) {
       modulesMk(recorded);

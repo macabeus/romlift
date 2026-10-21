@@ -39,8 +39,12 @@ async function readOptionalText(dir: string, path: string): Promise<IoResult<str
   }
 }
 
-/** The sha1 of a project file's bytes, or 'absent' when nothing is there. A directory is an E_IO_READ. */
-async function digestOf(dir: string, path: string): Promise<IoResult<string>> {
+/**
+ * The sha1 of a project file's bytes, or 'absent' when nothing is there (ENOENT, or ENOTDIR: a file where a directory
+ * of its path should be). A directory is an E_IO_READ. The one read-and-hash rule of the disk snapshot and of
+ * apply-writes' check right before an edit (fix round 7, architecture-b2-11).
+ */
+export async function digestOf(dir: string, path: string): Promise<IoResult<string>> {
   const file = onDisk(dir, path);
   try {
     return { ok: true, value: sha1Of(await readFile(file)) };

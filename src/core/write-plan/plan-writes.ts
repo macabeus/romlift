@@ -36,6 +36,9 @@ import { isProjectPath } from './manifest.ts';
 import type { Manifest, WriteOp, WritePlan, WritePlanInputs } from './types.ts';
 import { underGeneratedRoot } from './types.ts';
 
+/** The writer of the staleness stamp (modules.mk's ROMLIFT_TOML_SHA1, D82 a), whose write is the plan's last op. */
+const STAMP_WRITER: WriterId = 'modules-mk';
+
 type ManifestFile = Manifest['files'][string];
 
 /** The version stamped on a manifest when neither the inputs nor the old manifest name one. */
@@ -211,9 +214,12 @@ class Planner {
   }
 
   plan(): WritePlan {
-    // The deletes of case-renamed paths first, then every op by path.
-    const first = (op: WriteOp): number => (op.op === 'delete' && this.caseRenamed.has(op.path) ? 0 : 1);
-    const ops = [...this.ops].sort((a, b) => compareNumbers(first(a), first(b)) || compareCodeUnits(a.path, b.path));
+    // The deletes of case-renamed paths first, then every op by path, and the write of modules.mk last (fix round 7,
+    // correctness-b2-2): it records romlift.toml's SHA-1, the stamp the scaffold's Makefile and setup.sh trust as "the
+    // tree is current", so a run that stops part-way (E_IO_WRITE, the write-time E_STALE_EDIT, a kill) leaves the old
+    // stamp and make still asks for `romlift generate`.
+    const rank = (op: WriteOp): number => (op.op === 'delete' && this.caseRenamed.has(op.path) ? 0 : op.op === 'write' && op.writer === STAMP_WRITER ? 2 : 1);
+    const ops = [...this.ops].sort((a, b) => compareNumbers(rank(a), rank(b)) || compareCodeUnits(a.path, b.path));
     const files: Record<string, ManifestFile> = {};
     for (const path of sortedKeys(this.files)) {
       const file = this.files.get(path);

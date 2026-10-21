@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { assembleUnits, buildUnits, cAssemblyPath, chunkNamesOf, chunkPaths, cObjectPath, CRT0_PATH, HEADER_PATH, isCSource, MODULES_MK_PATH, modulePathPrefixes, moduleSource, objectPath } from '../../../src/core/model/paths.ts';
+import { assembleUnits, buildUnits, cAssemblyPath, chunkNamesOf, chunkPaths, cObjectPath, CRT0_PATH, HEADER_PATH, MODULES_MK_PATH, modulePathPrefixes, moduleSource, objectPath } from '../../../src/core/model/paths.ts';
+import { isCSource } from '../../../src/foundation/util/project-files.ts';
 import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 
 function model() {

@@ -14,7 +14,8 @@
 // `$(CFLAGS)` of the object it builds; an explicit rule the user adds for one object still wins (D47).
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { moduleCompile } from '../../model/c-unit.ts';
-import { buildUnits, isCSource, MODULES_MK_PATH } from '../../model/paths.ts';
+import { isCSource } from '../../../foundation/util/project-files.ts';
+import { buildUnits, MODULES_MK_PATH } from '../../model/paths.ts';
 import type { Model } from '../../model/types.ts';
 import type { EmitContext, FileEntry, Writer } from '../tree.ts';
 

@@ -45,9 +45,6 @@ export function cAssemblyPath(module: string): string {
   return `build/src/${module}.s`;
 }
 
-/** Whether a build unit's source is a C file (moduleSource of a C module), which builds to cObjectPath. */
-export { isCSource };
-
 function isFileChunk(chunk: Chunk): boolean {
   return chunk.kind === 'function' || chunk.kind === 'orphan';
 }

@@ -109,13 +109,21 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
  * W_OVERRIDE_OUTSIDE_ROM's alone.
  */
 function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly PlacedEntry[]): Diagnostic[] {
-  const applied = placed.flatMap((p) => (p.override === undefined ? [] : [p.override]));
+  // Each override placeEntries applied (its own object, however many entries it gave an extent) answers for one
+  // [[overrides]] entry of its kind, span and mode (fix round 7, architecture-b2-6): a data override, or a second
+  // code override, on the span of an applied one is still ignored.
+  const unmatched: NonNullable<PlacedEntry['override']>[] = [];
+  for (const p of placed) if (p.override !== undefined && !unmatched.includes(p.override)) unmatched.push(p.override);
   const out: Diagnostic[] = [];
   for (const o of config.overrides) {
     if (o.runsAt !== undefined) continue;
     const span = { start: o.start, end: o.start + o.size };
     if (span.end <= rom.base || span.start >= rom.end) continue;
-    if (applied.some((a) => a.start === span.start && a.end === span.end)) continue;
+    const at = unmatched.findIndex((a) => a.kind === o.kind && a.mode === o.mode && a.span.start === span.start && a.span.end === span.end);
+    if (at >= 0) {
+      unmatched.splice(at, 1);
+      continue;
+    }
     const why = o.kind === 'data' ? 'romlift does not apply a data override yet: the analysis still decodes and claims the range as it finds it' : 'it gives the extent only of a listed function the analysis did not find, and none lies in it; add the function to [functions] (with size) instead';
     out.push(diagnostic(ModelCodes, 'W_OVERRIDE_IGNORED', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`, { span, addr: o.start }));
   }

@@ -43,7 +43,7 @@ after(async () => {
 });
 
 const BASE_C = '#include "global.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", Old);\n';
-const RENAME: TextEdit = { start: BASE_C.indexOf('Old'), end: BASE_C.indexOf('Old') + 3, text: 'New', reason: 'rename' };
+const RENAME: TextEdit = { start: BASE_C.indexOf('Old'), end: BASE_C.indexOf('Old') + 3, text: 'New', reason: 'add-stub' };
 const EDITED_C = BASE_C.replace('Old', 'New');
 /** A generated file outside the generated roots that the old manifest does not list: only the journal makes it romlift's. */
 const OUTSIDE = 'tools/generated.s';

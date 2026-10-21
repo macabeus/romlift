@@ -186,6 +186,16 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   const read = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], overrides: [{ span: { start: override.start, end: override.start + override.size }, kind: 'code', mode: 'thumb' }] });
   const used = buildModel(ROM, read, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x120, 'Unfound']], overrides: [override] }));
   assert.deepEqual(used.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED'), []);
+  // The applied override answers for one entry of its kind and span (fix round 7, architecture-b2-6): a data override
+  // on the same span, or a second identical code override (placeEntries applies the first), is still ignored.
+  const sameSpan = (overrides: readonly (typeof override | { readonly start: number; readonly size: number; readonly kind: 'data' })[]): readonly (string | undefined)[] => {
+    const facts = overrides.map((o) => ({ span: { start: o.start, end: o.start + o.size }, kind: o.kind, ...('mode' in o ? { mode: o.mode } : {}) }));
+    const run = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], overrides: facts });
+    return buildModel(ROM, run, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x120, 'Unfound']], overrides })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => /kind = "(\w+)"/.exec(d.message)?.[1]);
+  };
+  assert.deepEqual(sameSpan([override, { start: override.start, size: override.size, kind: 'data' }]), ['data']);
+  assert.deepEqual(sameSpan([{ start: override.start, size: override.size, kind: 'data' }, override]), ['data']);
+  assert.deepEqual(sameSpan([override, override]), ['code']);
   // A range wholly outside the ROM is W_OVERRIDE_OUTSIDE_ROM's alone (fix round 6, architecture-b1-2).
   const outside = buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [{ start: 0x0900_0000, size: 4, kind: 'code', mode: 'thumb' }] }));
   assert.deepEqual(outside.diagnostics.map((d) => d.code), ['W_OVERRIDE_OUTSIDE_ROM']);

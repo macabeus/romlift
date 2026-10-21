@@ -10,7 +10,11 @@ export interface TextEdit {
   readonly start: number;
   readonly end: number;
   readonly text: string;
-  readonly reason: 'add-stub' | 'remove-stub' | 'move-stub' | 'rename';
+  /**
+   * Why: a stub added or removed, or the `#include "include_asm.h"` a file gains with its first stub ('add-header', fix
+   * round 7, architecture-b2-10); phase 6's renames add their own reasons with their raiser.
+   */
+  readonly reason: 'add-stub' | 'remove-stub' | 'add-header';
 }
 
 /**

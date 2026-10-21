@@ -21,7 +21,9 @@ Then:
 3. Run `make`. It builds `@@builtRom@@` and ends with `@@builtRom@@: OK` when the SHA-1 matches `@@sha1File@@`.
 
 The generated files are not in Git, so after a `git pull` or a checkout that changes `romlift.toml`, run `npx romlift
-generate` (or `./setup.sh`) before `make`; until you do, `make` stops and says so.
+generate` (or `./setup.sh`) before `make`; until you do, `make` stops and says so. After one that changes the romlift
+version `package.json` pins, run `./setup.sh` (it installs that version) and then `npx romlift generate` yourself:
+`make` checks only `romlift.toml`, not which romlift generated the tree.
 
 Until romlift is published to the npm registry (a pre-release limitation), the version `package.json` pins does not
 resolve, so step 2 cannot install it. Set `ROMLIFT_CLI` to a romlift command you have, for example a built checkout
