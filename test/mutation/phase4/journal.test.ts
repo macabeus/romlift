@@ -319,8 +319,8 @@ const MUTANTS: readonly Mutant[] = [
     mutations: [
       {
         file: 'src/core/write-plan/plan-writes.ts',
-        from: 'if (now === op.baseSha1) return undefined;',
-        to: "if (now !== '') return undefined;",
+        from: "if (now.kind === 'sha1' && now.sha1 === op.baseSha1) return undefined;",
+        to: 'if (now.kind !== undefined) return undefined;',
       },
     ],
     caughtBy: [STALE_EDIT],

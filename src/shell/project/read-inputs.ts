@@ -10,7 +10,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { isChunkFile, NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
+import { chunkFileOf, C_SOURCE_DIR, cSourceOf, isChunkFile, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
@@ -100,7 +100,7 @@ export interface ReadProjectOptions {
 
 /** Every `src/<name>.c` directly under the project's src/, keyed by project path, in code-unit order. */
 export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<string, string>>> {
-  const src = join(dir, 'src');
+  const src = join(dir, C_SOURCE_DIR);
   try {
     if (!(await stat(src)).isDirectory()) return { ok: true, value: new Map() };
   } catch (error) {
@@ -109,7 +109,7 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
   }
   const names = await listDir(src);
   if (!names.ok) return fromIo(names);
-  const paths = names.value.filter((name) => name.endsWith('.c')).map((name) => `src/${name}`);
+  const paths = names.value.filter(isCSource).map(cSourceOf);
   return fromIo(await readReconciledTexts(dir, paths));
 }
 
@@ -132,7 +132,7 @@ export async function readChunkFiles(dir: string): Promise<ReadResult<readonly s
     if (!isModule.value) continue;
     const names = await listDir(join(root, module));
     if (!names.ok) return fromIo(names);
-    for (const name of names.value) if (isChunkFile(name)) out.push(`${NONMATCHINGS_ROOT}/${module}/${name}`);
+    for (const name of names.value) if (isChunkFile(name)) out.push(chunkFileOf(nonmatchingDir(module), stubNameOf(name)));
   }
   return { ok: true, value: out };
 }
@@ -161,7 +161,14 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
     if (!chunks.ok) return chunks;
     previousChunkFiles = chunks.value;
   }
-  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }) };
+  // romlift.toml's bytes hashed for modules.mk (D82), so the Makefile's comparison of the file's SHA-1 holds byte for byte.
+  let configBytes: Uint8Array;
+  try {
+    configBytes = await readFile(loaded.value.configPath);
+  } catch (error) {
+    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${loaded.value.configPath}: ${errorReason(error)}`, { path: loaded.value.configPath })] };
+  }
+  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: sha1Of(configBytes), cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }) };
   return { ok: true, value: { dir, config: loaded.value, romPath, inputs } };
 }
 

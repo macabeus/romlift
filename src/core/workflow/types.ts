@@ -58,6 +58,11 @@ export interface ProjectInputs {
   readonly configText: string;
   /** configText parsed (parseConfig). */
   readonly config: RomliftConfig;
+  /**
+   * The SHA-1 of romlift.toml's bytes, which the shell hashed (fix round 6, D82): modules.mk records it, so `make` and
+   * setup.sh know a tree older than the TOML. Absent: modules.mk records none (a tree written outside a project).
+   */
+  readonly configSha1?: string;
   /** Every `src/<module>.c` path -> its text: the C the DecompState and the stub check read. */
   readonly cTexts: ReadonlyMap<string, string>;
   /**

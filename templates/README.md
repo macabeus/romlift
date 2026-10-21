@@ -20,6 +20,9 @@ Then:
    generates the disassembly when `asm/` is absent. In a new `git worktree` it copies `@@romFile@@` from the main one.
 3. Run `make`. It builds `@@builtRom@@` and ends with `@@builtRom@@: OK` when the SHA-1 matches `@@sha1File@@`.
 
+The generated files are not in Git, so after a `git pull` or a checkout that changes `romlift.toml`, run `npx romlift
+generate` (or `./setup.sh`) before `make`; until you do, `make` stops and says so.
+
 Until romlift is published to the npm registry (a pre-release limitation), the version `package.json` pins does not
 resolve, so step 2 cannot install it. Set `ROMLIFT_CLI` to a romlift command you have, for example a built checkout
 of romlift (`npm run build` there):
@@ -44,4 +47,5 @@ generate`).
 | `Makefile`, `mk/*.mk` | the build, and the recipe of each C compiler |
 | `tools/agbcc` | the compiler, a submodule of [pret/agbcc](@@agbccUrl@@) |
 
-Never edit the generated files: change `romlift.toml` and run `npx romlift generate`. `AGENTS.md` has the details.
+Never edit the generated files: change `romlift.toml` and run `npx romlift generate`. Decompiled C goes in
+`src/<module>.c` (or a `src/*.c` file it `#include`s). `AGENTS.md` has the details.

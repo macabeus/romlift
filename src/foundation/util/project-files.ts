@@ -52,6 +52,22 @@ export function stubNameOf(file: string): string {
   return base.endsWith(CHUNK_FILE_EXTENSION) ? base.slice(0, -CHUNK_FILE_EXTENSION.length) : base;
 }
 
+/** The directory of a project's C sources: `src/<module>.c`, the only C files romlift reads (directly under it). */
+export const C_SOURCE_DIR = 'src';
+
+/** The extension of a C source. */
+const C_SOURCE_EXTENSION = '.c';
+
+/** Whether a file name (or path) is a C source's: what a reader of `src/` lists, and a C module's build unit. */
+export function isCSource(name: string): boolean {
+  return name.endsWith(C_SOURCE_EXTENSION);
+}
+
+/** The project path of the C source called `name` (a file name directly under C_SOURCE_DIR, extension included). */
+export function cSourceOf(name: string): string {
+  return `${C_SOURCE_DIR}/${name}`;
+}
+
 /** The include directory of a project: the Makefile's `-I include`, through which `src/<module>.c` finds its header. */
 export const INCLUDE_DIR = 'include';
 

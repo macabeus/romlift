@@ -8,7 +8,7 @@ was created by [romlift](https://github.com/macabeus/romlift) @@romliftVersion@@
 
 | Command | What it does |
 | --- | --- |
-| `./setup.sh` | once per clone or git worktree: checks the toolchain, builds agbcc into `tools/agbcc/bin`, copies `@@romFile@@` from the main worktree, installs romlift, generates the tree when `asm/` is absent |
+| `./setup.sh` | once per clone or git worktree, and again after a pull: checks the toolchain, builds agbcc into `tools/agbcc/bin`, copies `@@romFile@@` from the main worktree, installs romlift, generates the tree when `asm/` is absent or `romlift.toml` changed since the last `romlift generate` |
 | `make` | builds `@@builtRom@@` and compares its SHA-1 with `@@sha1File@@`; exits 0 only on a match, the only verdict that counts |
 | `make rom` | builds `@@builtRom@@` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
@@ -27,7 +27,10 @@ generate`).
 
 - **Tool-owned, never edit:** `asm/`, `data/`, `ldscript.txt`, `symbols.ld`, `modules.mk`. `romlift generate`
   rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next run. They are not committed
-  (`.gitignore`): `./setup.sh` generates them in a fresh clone or worktree, where `asm/` is absent.
+  (`.gitignore`): `./setup.sh` generates them in a fresh clone or worktree, where `asm/` is absent. **After a `git
+  pull` or a checkout that changes `romlift.toml`, run `npx romlift generate` (or `./setup.sh`) before `make`:**
+  `modules.mk` records the SHA-1 of the `romlift.toml` it was generated from, and `make` stops with a message while
+  they differ, rather than build a stale tree.
 - **Yours:** `romlift.toml` (modules, function names and boundaries, symbols; the one place to change what is
   generated), `src/*.c`, `include/`, `Makefile`, `mk/*.mk`, `setup.sh` and this file. romlift wrote them once and does
   not overwrite them; `npx romlift scaffold --diff` shows how they differ from the current templates.
@@ -49,12 +52,20 @@ line of one it lost or renamed), and it never touches a line of C you wrote. A f
 is the exception: rename its C definition to the new name before (or together with) the `romlift.toml` edit, and move
 its C to the other module's file when the edit moves it. Otherwise `romlift generate` refuses and writes nothing
 (`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`), since the new `INCLUDE_ASM` line would define the function twice.
+When the other module's file does not exist yet (a new module), create it with only the C: `romlift generate` adds
+its `#include "include_asm.h"` and the module's other `INCLUDE_ASM` lines around it.
 `INCLUDE_ASM` lines inside `#if`/`#ifdef` blocks are yours too: `romlift generate` never edits them and puts new
 ones outside them, and when an edit leaves one naming a function its module no longer has it refuses
 (`E_C_CONDITIONAL_STUB`) until you rename or remove it. A definition inside such a block holds nothing for the default
-build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch or outside the block. To rename a
+build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch or outside the block, unless every
+branch of a block with an `#else` defines it (`#ifdef NONMATCHING` C `#else` a `NAKED` definition `#endif`). To rename a
 decompiled function, change both its C name and `romlift.toml`; renamed in C alone, `romlift generate` refuses
 (`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again.
+
+Write decompiled C in `src/<module>.c` itself, or in a `src/*.c` file it `#include`s at file scope (romlift reads
+that file as part of the module). romlift reads no other file: when `src/<module>.c` includes one of another name
+(`#include "part.inc"`, any quoted include but a `.h`), `romlift generate` refuses to add an `INCLUDE_ASM` line to it
+(`E_C_STUB_UNPLACED`), since that file may define the function.
 
 To rename a `c` module, change its `name` in `[[modules]]` and move its source in the same step
 (`git mv src/<old>.c src/<new>.c`), then run `npx romlift generate`: it replaces the file's

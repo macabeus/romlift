@@ -3,7 +3,11 @@
 // romlift renders itself; and the committed templates' agreements with the definitions they must not drift from
 // (the dialect's assembler arguments, the build compilers, the generated roots, the C-data ASSERT's message).
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
@@ -156,4 +160,60 @@ test('AGENTS.md cites the C-data ASSERT\'s message, and setup.sh runs its five d
   assert.match(setup, /^AGBCC_COMMIT='da598c1d918402c42c0c0d7128ba14567f3175e9'$/m);
   assert.doesNotMatch(setup, /romlift\.toml[^\n]*>/, 'it never writes romlift.toml');
   assert.match(textOf(SCAFFOLD, '.github/workflows/build.yml'), /\$\{\{ secrets\.BASEROM_URL \}\}/, 'GitHub expressions survive the @@ spelling');
+});
+
+/** The function `name` of a shell script, from `name() {` to its `}` line. */
+function shellFunction(script: string, name: string): string {
+  const lines = script.split('\n');
+  const start = lines.indexOf(`${name}() {`);
+  const end = lines.indexOf('}', start);
+  assert.ok(start >= 0 && end > start, name);
+  return lines.slice(start, end + 1).join('\n');
+}
+
+const HAS_MAKE = spawnSync('make', ['--version'], { encoding: 'utf8' }).status === 0;
+
+test('make stops while romlift.toml is not the one modules.mk records; setup.sh\'s duty 5 then runs generate (fix round 6, correctness-b1-1)', { skip: HAS_MAKE ? false : 'no make on PATH' }, () => {
+  const makefile = textOf(SCAFFOLD, 'Makefile');
+  assert.match(makefile, /^ifneq \(\$\(ROMLIFT_TOML_SHA1\),\$\(shell \$\(SHA1SUM\) romlift\.toml/m);
+  const dir = mkdtempSync(join(tmpdir(), 'romlift-makefile-'));
+  try {
+    const toml = 'schema = 1\n';
+    const sha1 = createHash('sha1').update(toml).digest('hex');
+    for (const [file, text] of [['Makefile', makefile], ['romlift.toml', toml], ['ldscript.txt', ''], ['symbols.ld', '']] as const) writeFileSync(join(dir, file), text);
+    const modulesMk = (recorded: string | undefined): void => writeFileSync(join(dir, 'modules.mk'), `OBJS :=\nC_OBJS :=\n${recorded === undefined ? '' : `ROMLIFT_TOML_SHA1 := ${recorded}\n`}`);
+    const make = (goal: string): { readonly status: number | null; readonly stderr: string } => spawnSync('make', ['-n', goal], { cwd: dir, encoding: 'utf8' });
+    for (const recorded of ['0'.repeat(40), undefined]) {
+      modulesMk(recorded);
+      const stale = make('rom');
+      assert.notEqual(stale.status, 0, String(recorded));
+      assert.match(stale.stderr, /romlift\.toml changed since romlift generate last ran \(a pull, a checkout or an edit\): run npx romlift generate \(or \.\/setup\.sh\), then make/);
+      assert.equal(make('clean').status, 0, 'make clean needs no current tree');
+    }
+    modulesMk(sha1);
+    assert.equal(make('rom').status, 0, make('rom').stderr);
+    // setup.sh's duty 5: nothing while modules.mk records the TOML's SHA-1; generate when it does not, or when asm/ is absent.
+    const setup = textOf(SCAFFOLD, 'setup.sh');
+    const script = ['set -eu', shellFunction(setup, 'have'), shellFunction(setup, 'say'), shellFunction(setup, 'sha1_of'), shellFunction(setup, 'generate_tree'), 'generate_tree'].join('\n');
+    writeFileSync(join(dir, 'fake-romlift'), '#!/bin/sh\necho "$@" >> generated.log\n', { mode: 0o755 });
+    const duty5 = (): string => {
+      rmSync(join(dir, 'generated.log'), { force: true });
+      const ran = spawnSync('sh', ['-c', script], { cwd: dir, encoding: 'utf8', env: { ...process.env, ROMLIFT_CLI: join(dir, 'fake-romlift') } });
+      assert.equal(ran.status, 0, ran.stderr);
+      try {
+        return readFileSync(join(dir, 'generated.log'), 'utf8');
+      } catch {
+        return '';
+      }
+    };
+    assert.equal(duty5(), 'generate\n', 'asm/ absent');
+    spawnSync('mkdir', ['asm'], { cwd: dir });
+    assert.equal(duty5(), '', 'asm/ present and modules.mk current');
+    modulesMk('0'.repeat(40));
+    assert.equal(duty5(), 'generate\n', 'romlift.toml changed since');
+    modulesMk(undefined);
+    assert.equal(duty5(), 'generate\n', 'a modules.mk that records no SHA-1');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -49,6 +49,8 @@ export interface GenerateInputs {
   readonly printer: Printer;
   /** The compiler profile of the analysis; default the discover profile (agbcc). */
   readonly profile?: CompilerProfile;
+  /** The SHA-1 of the project's romlift.toml (EmitContext.configSha1), recorded in modules.mk; absent outside a project. */
+  readonly configSha1?: string;
 }
 
 /** The confirm analysis of a config and the Model built from it: what `model --json` prints. */
@@ -148,7 +150,7 @@ function* recordingPaths(entries: Iterable<FileEntry>, paths: string[]): Generat
  * pass.
  */
 export function generate(inputs: GenerateInputs): GenerateResult {
-  return checkPass(inputs.rom, confirmModel(inputs), { decomp: inputs.decomp, printer: inputs.printer });
+  return checkPass(inputs.rom, confirmModel(inputs), { decomp: inputs.decomp, printer: inputs.printer, ...(inputs.configSha1 === undefined ? {} : { configSha1: inputs.configSha1 }) });
 }
 
 /** The check pass over a confirmed model (§6.4 step 2): verifyModel, then one streaming pass of checkEntries. */
@@ -241,7 +243,7 @@ export function generateProject(inputs: ProjectInputs, options: ProjectGenerateO
   if (!confirmed.ok) return confirmed;
   const modelDiagnostics = [...confirmed.analysis.diagnostics, ...confirmed.model.diagnostics];
   if (modelDiagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: modelDiagnostics };
-  const checked = checkPass(inputs.rom, confirmed, { decomp: decompStateOf(inputs.cTexts), printer: options.printer ?? 'readable' });
+  const checked = checkPass(inputs.rom, confirmed, { decomp: decompStateOf(inputs.cTexts), printer: options.printer ?? 'readable', ...(inputs.configSha1 === undefined ? {} : { configSha1: inputs.configSha1 }) });
   const stubs = reconcileStubs(confirmed.model, inputs.cTexts, inputs.previousChunkFiles);
   const result: GenerateResult = { ...checked, stubs, diagnostics: [...checked.diagnostics, ...stubs.diagnostics] };
   return { ok: true, result, diagnostics: result.diagnostics };

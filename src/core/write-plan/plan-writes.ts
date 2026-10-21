@@ -175,7 +175,9 @@ class Planner {
       return;
     }
     const text = this.inputs.reconciledTexts.get(path);
-    const stale = staleEdit({ path, baseSha1 }, text === undefined || this.inputs.hash(text) !== baseSha1 ? 'unread' : disk, 'planned');
+    // The disk first: an absent file is absent whether or not its text was read.
+    const now: EditedFileState = disk === 'absent' ? { kind: 'absent' } : text === undefined || this.inputs.hash(text) !== baseSha1 ? { kind: 'unread' } : { kind: 'sha1', sha1: disk };
+    const stale = staleEdit({ path, baseSha1 }, now, 'planned');
     if (stale !== undefined || text === undefined) {
       if (stale !== undefined) this.diagnostics.push(stale);
       return;
@@ -226,23 +228,20 @@ class Planner {
 }
 
 /**
- * The write plan of one run (architecture §6.4 step 3): the ops sorted by path (the deletes of case-only renames
- * first), the manifest to write after
- * them (sorted by path), and the diagnostics. Reads `inputs.entries` once, as a stream. An error diagnostic
- * (E_PATH_NOT_OWNED, E_STALE_EDIT) means the plan must not be applied (`planHasErrors`). Throws only
- * RomliftInvariantError, for a broken caller contract: a tree path twice, a path that is not a project
- * path, a tree path missing from the disk snapshot, or overlapping text edits.
+ * What an edited file is now, as the staleness rule reads it: its sha1, absent, or unread (the text the plan holds
+ * is not the one the edits were planned on).
  */
+export type EditedFileState = { readonly kind: 'sha1'; readonly sha1: string } | { readonly kind: 'absent' } | { readonly kind: 'unread' };
+
 /**
  * The one staleness rule of an edit (architecture §6.4, D80 b; fix round 5, architecture-b0-1): an edit is applied
- * only to the text it was planned on, so a file whose sha1 now (`now`: 'absent', or 'unread' when the text the plan
- * holds is not the one hashed) is not the edit's base sha1 is E_STALE_EDIT. planWrites asks it at plan time
- * (`when` 'planned'), and the shell's applyWrites again right before the write, over the sha1 it has just read
- * ('written'), so a save that landed since the plan is never overwritten.
+ * only to the text it was planned on, so a file whose state `now` is not the edit's base sha1 is E_STALE_EDIT.
+ * planWrites asks it at plan time (`when` 'planned'), and the shell's applyWrites again right before the write, over
+ * the sha1 it has just read ('written'), so a save that landed since the plan is never overwritten.
  */
-export function staleEdit(op: { readonly path: string; readonly baseSha1: string }, now: string, when: 'planned' | 'written'): Diagnostic<WritePlanCode> | undefined {
-  if (now === op.baseSha1) return undefined;
-  const state = now === 'absent' ? 'is absent' : now === 'unread' ? 'is not the text its edits were planned on' : `has sha1 ${now}`;
+export function staleEdit(op: { readonly path: string; readonly baseSha1: string }, now: EditedFileState, when: 'planned' | 'written'): Diagnostic<WritePlanCode> | undefined {
+  if (now.kind === 'sha1' && now.sha1 === op.baseSha1) return undefined;
+  const state = now.kind === 'absent' ? 'is absent' : now.kind === 'unread' ? 'is not the text its edits were planned on' : `has sha1 ${now.sha1}`;
   const message =
     when === 'planned'
       ? `${op.path} changed since its edits were planned: it ${state}, the edits expect ${op.baseSha1}`
@@ -250,6 +249,13 @@ export function staleEdit(op: { readonly path: string; readonly baseSha1: string
   return diagnostic(WritePlanCodes, 'E_STALE_EDIT', message, { path: op.path });
 }
 
+/**
+ * The write plan of one run (architecture §6.4 step 3): the ops sorted by path (the deletes of case-only renames
+ * first), the manifest to write after them (sorted by path), and the diagnostics. Reads `inputs.entries` once, as a stream. An error diagnostic
+ * (E_PATH_NOT_OWNED, E_STALE_EDIT) means the plan must not be applied (`planHasErrors`). Throws only
+ * RomliftInvariantError, for a broken caller contract: a tree path twice, a path that is not a project
+ * path, a tree path missing from the disk snapshot, or overlapping text edits.
+ */
 export function planWrites(inputs: WritePlanInputs): WritePlan {
   const planner = new Planner(inputs);
   for (const entry of inputs.entries) planner.entry(entry);

@@ -17,6 +17,7 @@ import type { InitOptions } from '../../core/workflow/types.ts';
 import { readInitDir, readScaffoldInputs, resolveFrom } from '../../shell/project/read-inputs.ts';
 import { hasPackageLock, writeInitProject } from '../../shell/project/write-project.ts';
 import { readRom } from '../../shell/rom.ts';
+import { sha1Of } from '../../shell/hash.ts';
 import { writePackageLock } from '../../shell/toolchain/npm.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
@@ -74,7 +75,7 @@ export const initCommand: CommandSpec = {
     if (!rom.ok) return refuse([rom.diagnostic]);
     const scaffold = await readScaffoldInputs();
     if (!scaffold.ok) return refuse(scaffold.diagnostics);
-    const plan = init({ rom: rom.value, romFile: listing.value.romInside ?? romArg, options, templates: scaffold.value.templates, romliftVersion: scaffold.value.romliftVersion, agbcc: scaffold.value.agbcc });
+    const plan = init({ rom: rom.value, romFile: listing.value.romInside ?? romArg, options, templates: scaffold.value.templates, romliftVersion: scaffold.value.romliftVersion, agbcc: scaffold.value.agbcc }, (text) => sha1Of(text));
     if (!plan.ok) return refuse(plan.diagnostics, refusedExitCode(plan.diagnostics));
     // writeInitProject checks init's own files under the lock (absent or what init writes); a refusal wrote nothing.
     const files = { romPath, tomlText: plan.tomlText, decompYamlText: plan.decompYamlText };

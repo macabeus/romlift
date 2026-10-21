@@ -3,7 +3,7 @@
 // functions with their size and label), and the end of each extent (the TOML's size, the analysis' extent, a code
 // override, or the next chunk start). Part of the legal-border computation of borders.ts, which re-exports what
 // core/model uses.
-import type { Addr } from '../../foundation/rom/span.ts';
+import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import type { AnalysisResult, FunctionFact } from '../analysis/types.ts';
 
@@ -27,6 +27,11 @@ export interface PlacedEntry {
   readonly label: boolean;
   readonly end: Addr | undefined;
   readonly source: ExtentSource;
+  /**
+   * The code override that gave the extent (source 'override'): placeEntries is where an override without runs_at is
+   * applied, so this is the report core/model's W_OVERRIDE_IGNORED reads (fix round 6, architecture-b1-2).
+   */
+  readonly override?: Span;
 }
 
 /** The end of a function's extent with the header clipped off: the cartridge entry's extent covers the header (correctness-6). */
@@ -41,7 +46,8 @@ export function factsByEntry(analysis: Pick<AnalysisResult, 'functions'>): Reado
 
 /**
  * Where each listed entry's extent ends: the size the config gives, else the analysis' extent, else a code
- * override containing it, else the next chunk start ('next-listed'). `listed` is sorted by entry.
+ * override containing it (the override recorded on the entry: the one use of an override without runs_at), else the
+ * next chunk start ('next-listed'). `listed` is sorted by entry.
  */
 export function placeEntries(listed: readonly ListedEntry[], analysis: Pick<AnalysisResult, 'functions' | 'options'>): PlacedEntry[] {
   const facts = factsByEntry(analysis);
@@ -51,7 +57,7 @@ export function placeEntries(listed: readonly ListedEntry[], analysis: Pick<Anal
     const fact = facts.get(l.entry);
     if (fact !== undefined) return { entry: l.entry, label: l.label, end: fact.extent.end, source: 'analysis' };
     const override = codeOverrides.find((o) => l.entry >= o.span.start && l.entry < o.span.end);
-    if (override !== undefined) return { entry: l.entry, label: l.label, end: override.span.end, source: 'override' };
+    if (override !== undefined) return { entry: l.entry, label: l.label, end: override.span.end, source: 'override', override: override.span };
     return { entry: l.entry, label: l.label, end: undefined, source: 'next-listed' };
   });
 }

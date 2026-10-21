@@ -21,7 +21,7 @@
 // entry left under a case rename's temporary name back under its old name (spelling.ts restoreCaseRenames), and its
 // ops rename it again. A command calls restoreCaseRenames itself before it snapshots the disk, so the plan sees the
 // tree as the interrupted op found it; the call here makes sure no temporary name outlives a run either way.
-import { chmod, mkdir, rmdir, unlink } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rmdir, unlink } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -32,7 +32,7 @@ import { planHasErrors, staleEdit } from '../../core/write-plan/plan-writes.ts';
 import { JOURNAL_PATH, MANIFEST_PATH, ROMLIFT_DIR } from '../../core/write-plan/types.ts';
 import type { WriteOp, WritePlan } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
-import { atomicWrite, errnoOf, errorReason, readBytes } from '../fs.ts';
+import { atomicWrite, errnoOf, errorReason } from '../fs.ts';
 import { sha1Of } from '../hash.ts';
 import { onDisk, readJournal } from './disk-state.ts';
 import { respell, restoreCaseRenames } from './spelling.ts';
@@ -108,12 +108,16 @@ export function durableOp(op: Extract<WriteOp, { readonly op: 'write' | 'edit' }
 }
 
 /**
- * Edit `op`'s file hashed right before its write, judged by core's staleEdit (a save since the plan is E_STALE_EDIT).
- * A file that cannot be read is left to the write, which reports its own failure (E_IO_WRITE).
+ * Edit `op`'s file hashed right before its write, judged by core's staleEdit (a save since the plan is E_STALE_EDIT,
+ * a file removed since is E_STALE_EDIT too). A file that exists but cannot be read is left to the write, which reports
+ * its own failure (E_IO_WRITE).
  */
 async function staleAtWrite(file: string, op: Extract<WriteOp, { readonly op: 'edit' }>): Promise<Diagnostic | undefined> {
-  const bytes = await readBytes(file);
-  return bytes.ok ? staleEdit(op, sha1Of(bytes.value), 'written') : undefined;
+  try {
+    return staleEdit(op, { kind: 'sha1', sha1: sha1Of(await readFile(file)) }, 'written');
+  } catch (error) {
+    return errnoOf(error) === 'ENOENT' ? staleEdit(op, { kind: 'absent' }, 'written') : undefined;
+  }
 }
 
 async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diagnostic | undefined> {

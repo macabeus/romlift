@@ -175,15 +175,6 @@ test('an [[overrides]] range reaching outside the ROM is W_OVERRIDE_OUTSIDE_ROM,
   assert.match(model.diagnostics.find((d) => d.code === 'W_OVERRIDE_OUTSIDE_ROM')?.message ?? '', /the \[\[overrides\]\] range 0x080003F0\.\.0x08000410 reaches outside the ROM/);
 });
 
-test('a [functions] key no instruction of its mode starts at is E_FUNCTION_MISALIGNED, naming the key (fix round 5, correctness-b0-4)', () => {
-  const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })] });
-  const model = buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x105, 'Odd'], [BASE + 0x10a, { name: 'Arm', mode: 'arm' }]] }));
-  const misaligned = model.diagnostics.filter((d) => d.code === 'E_FUNCTION_MISALIGNED');
-  assert.deepEqual(misaligned.map((d) => [d.severity, d.addr]), [['error', BASE + 0x105], ['error', BASE + 0x10a]]);
-  assert.match(misaligned[0]?.message ?? '', /the \[functions\] key 0x08000105 \(Odd\) is not a halfword-aligned Thumb instruction address; a Thumb function's pointer value has bit 0 set, its entry is 0x08000104/);
-  assert.match(misaligned[1]?.message ?? '', /0x0800010A \(Arm\) is not a word-aligned ARM instruction address/);
-});
-
 test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_IGNORED; a code override that gives a listed extent is not (fix round 5, correctness-b0-3)', () => {
   const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })] });
   const ignored = (overrides: NonNullable<Parameters<typeof configOf>[0]['overrides']>, functions: NonNullable<Parameters<typeof configOf>[0]['functions']> = [[BASE + 0x100, 'A']]): readonly string[] =>
@@ -195,6 +186,9 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   const read = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], overrides: [{ span: { start: override.start, end: override.start + override.size }, kind: 'code', mode: 'thumb' }] });
   const used = buildModel(ROM, read, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x120, 'Unfound']], overrides: [override] }));
   assert.deepEqual(used.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED'), []);
+  // A range wholly outside the ROM is W_OVERRIDE_OUTSIDE_ROM's alone (fix round 6, architecture-b1-2).
+  const outside = buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [{ start: 0x0900_0000, size: 4, kind: 'code', mode: 'thumb' }] }));
+  assert.deepEqual(outside.diagnostics.map((d) => d.code), ['W_OVERRIDE_OUTSIDE_ROM']);
 });
 
 test('never a throw for content: no module, a function outside the ROM, a symbol in RAM', () => {

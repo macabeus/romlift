@@ -79,7 +79,8 @@ tools/agbcc/lib/
 
 # Tool-owned and regenerated, never committed: `romlift generate` writes them from romlift.toml and the ROM on
 # every run. A fresh clone or git worktree gets them from ./setup.sh, which runs `romlift generate` when asm/ is
-# absent. Never edit them by hand: change romlift.toml and run `npx romlift generate`.
+# absent; after a pull or a checkout that changes romlift.toml, run `npx romlift generate` (or ./setup.sh) again
+# (make stops until you do). Never edit them by hand: change romlift.toml and run `npx romlift generate`.
 /asm/
 /data/
 /expected/
@@ -104,7 +105,7 @@ was created by [romlift](https://github.com/macabeus/romlift) 0.4.0 (`package.js
 
 | Command | What it does |
 | --- | --- |
-| `./setup.sh` | once per clone or git worktree: checks the toolchain, builds agbcc into `tools/agbcc/bin`, copies `baserom.gba` from the main worktree, installs romlift, generates the tree when `asm/` is absent |
+| `./setup.sh` | once per clone or git worktree, and again after a pull: checks the toolchain, builds agbcc into `tools/agbcc/bin`, copies `baserom.gba` from the main worktree, installs romlift, generates the tree when `asm/` is absent or `romlift.toml` changed since the last `romlift generate` |
 | `make` | builds `klonoa-eod.gba` and compares its SHA-1 with `klonoa-eod.sha1`; exits 0 only on a match, the only verdict that counts |
 | `make rom` | builds `klonoa-eod.gba` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
@@ -123,7 +124,10 @@ generate`).
 
 - **Tool-owned, never edit:** `asm/`, `data/`, `ldscript.txt`, `symbols.ld`, `modules.mk`. `romlift generate`
   rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next run. They are not committed
-  (`.gitignore`): `./setup.sh` generates them in a fresh clone or worktree, where `asm/` is absent.
+  (`.gitignore`): `./setup.sh` generates them in a fresh clone or worktree, where `asm/` is absent. **After a `git
+  pull` or a checkout that changes `romlift.toml`, run `npx romlift generate` (or `./setup.sh`) before `make`:**
+  `modules.mk` records the SHA-1 of the `romlift.toml` it was generated from, and `make` stops with a message while
+  they differ, rather than build a stale tree.
 - **Yours:** `romlift.toml` (modules, function names and boundaries, symbols; the one place to change what is
   generated), `src/*.c`, `include/`, `Makefile`, `mk/*.mk`, `setup.sh` and this file. romlift wrote them once and does
   not overwrite them; `npx romlift scaffold --diff` shows how they differ from the current templates.
@@ -145,12 +149,20 @@ line of one it lost or renamed), and it never touches a line of C you wrote. A f
 is the exception: rename its C definition to the new name before (or together with) the `romlift.toml` edit, and move
 its C to the other module's file when the edit moves it. Otherwise `romlift generate` refuses and writes nothing
 (`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`), since the new `INCLUDE_ASM` line would define the function twice.
+When the other module's file does not exist yet (a new module), create it with only the C: `romlift generate` adds
+its `#include "include_asm.h"` and the module's other `INCLUDE_ASM` lines around it.
 `INCLUDE_ASM` lines inside `#if`/`#ifdef` blocks are yours too: `romlift generate` never edits them and puts new
 ones outside them, and when an edit leaves one naming a function its module no longer has it refuses
 (`E_C_CONDITIONAL_STUB`) until you rename or remove it. A definition inside such a block holds nothing for the default
-build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch or outside the block. To rename a
+build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch or outside the block, unless every
+branch of a block with an `#else` defines it (`#ifdef NONMATCHING` C `#else` a `NAKED` definition `#endif`). To rename a
 decompiled function, change both its C name and `romlift.toml`; renamed in C alone, `romlift generate` refuses
 (`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again.
+
+Write decompiled C in `src/<module>.c` itself, or in a `src/*.c` file it `#include`s at file scope (romlift reads
+that file as part of the module). romlift reads no other file: when `src/<module>.c` includes one of another name
+(`#include "part.inc"`, any quoted include but a `.h`), `romlift generate` refuses to add an `INCLUDE_ASM` line to it
+(`E_C_STUB_UNPLACED`), since that file may define the function.
 
 To rename a `c` module, change its `name` in `[[modules]]` and move its source in the same step
 (`git mv src/<old>.c src/<new>.c`), then run `npx romlift generate`: it replaces the file's
@@ -190,7 +202,9 @@ array replace its slice of the ROM.
 # romlift init wrote this file once and never overwrites it; `npx romlift scaffold --diff` shows how it differs
 # from the template of the romlift version package.json pins. What it builds is generated by `romlift generate`:
 # modules.mk (the objects in link order and each C object's compiler and flags), ldscript.txt, symbols.ld,
-# asm/ and data/. Never edit those; change romlift.toml and run `npx romlift generate`.
+# asm/ and data/. Never edit those; change romlift.toml and run `npx romlift generate`. They are not in Git: after a
+# pull or a checkout that changes romlift.toml, run `npx romlift generate` (or ./setup.sh) again; make stops until
+# you do.
 #
 # To build one object differently, give it an explicit rule (here or in a file you include): an explicit rule
 # for build/src/<module>.o or build/<module>.o wins over the pattern rules below.
@@ -229,6 +243,14 @@ else ifeq ($(filter clean,$(MAKECMDGOALS)),)
 $(error modules.mk is missing: run ./setup.sh, or npx romlift generate)
 endif
 
+# modules.mk records the SHA-1 of the romlift.toml it was generated from (ROMLIFT_TOML_SHA1). A pull, a checkout or an
+# edit that changed romlift.toml since leaves the generated tree stale, so make stops before building from it.
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+ifneq ($(ROMLIFT_TOML_SHA1),$(shell $(SHA1SUM) romlift.toml 2>/dev/null | cut -d ' ' -f 1))
+$(error romlift.toml changed since romlift generate last ran (a pull, a checkout or an edit): run npx romlift generate (or ./setup.sh), then make)
+endif
+endif
+
 # One fragment per C compiler: mk/<id>.mk defines C_RECIPE_<id>, the recipe of a C object whose CC1 is
 # tools/agbcc/bin/<id>.
 include $(sort $(wildcard mk/*.mk))
@@ -251,11 +273,12 @@ $(ELF): $(OBJS) ldscript.txt symbols.ld
 
 # Every object records beside it (build/<unit>.sum) the SHA-1 of what it was built from: the files its dependency
 # lists name (the assembler's build/<unit>.d: the unit's source and every chunk file it includes; a C unit's
-# preprocessor list build/src/<module>.c.d), its source, and modules.mk (a C object's compiler and flags). An object
+# preprocessor list build/src/<module>.c.d), its source, and modules.mk (a C object's compiler and flags; not its
+# ROMLIFT_TOML_SHA1 line, which every TOML edit changes). An object
 # whose record differs from those files now is removed, with the ELF, before make decides what to rebuild. Make
 # compares modification times, GNU make 3.81 (macOS) only to the second, so a file `romlift generate` rewrote or a
 # source changed within the second of the last build would otherwise leave the old object in the ROM.
-OBJ_SUM = { sed -e 's/^[^:]*://' -e 's/\\$$//' $(1:.o=.d) $(1:.o=.c.d) 2>/dev/null | tr ' ' '\n' | grep -v '^$$' | sort -u | xargs cat; cat $(2) modules.mk; } 2>/dev/null | $(SHA1SUM) | cut -d ' ' -f 1
+OBJ_SUM = { sed -e 's/^[^:]*://' -e 's/\\$$//' $(1:.o=.d) $(1:.o=.c.d) 2>/dev/null | tr ' ' '\n' | grep -v '^$$' | sort -u | xargs cat; cat $(2); grep -v '^ROMLIFT_TOML_SHA1' modules.mk; } 2>/dev/null | $(SHA1SUM) | cut -d ' ' -f 1
 OBJ_SOURCE = $(if $(filter $(C_OBJS),$(1)),$(1:build/%.o=%.c),$(if $(wildcard $(1:build/%.o=asm/%.s)),$(1:build/%.o=asm/%.s),$(1:build/%.o=data/%.s)))
 OBJ_STALE := $(strip $(foreach o,$(OBJS),$(if $(wildcard $(o)),$(if $(filter $(shell $(call OBJ_SUM,$(o),$(call OBJ_SOURCE,$(o)))),$(shell cat $(o:.o=.sum) 2>/dev/null)),,$(o)))))
 ifneq ($(OBJ_STALE),)
@@ -312,6 +335,9 @@ Then:
    generates the disassembly when `asm/` is absent. In a new `git worktree` it copies `baserom.gba` from the main one.
 3. Run `make`. It builds `klonoa-eod.gba` and ends with `klonoa-eod.gba: OK` when the SHA-1 matches `klonoa-eod.sha1`.
 
+The generated files are not in Git, so after a `git pull` or a checkout that changes `romlift.toml`, run `npx romlift
+generate` (or `./setup.sh`) before `make`; until you do, `make` stops and says so.
+
 Until romlift is published to the npm registry (a pre-release limitation), the version `package.json` pins does not
 resolve, so step 2 cannot install it. Set `ROMLIFT_CLI` to a romlift command you have, for example a built checkout
 of romlift (`npm run build` there):
@@ -336,7 +362,8 @@ generate`).
 | `Makefile`, `mk/*.mk` | the build, and the recipe of each C compiler |
 | `tools/agbcc` | the compiler, a submodule of [pret/agbcc](https://github.com/pret/agbcc) |
 
-Never edit the generated files: change `romlift.toml` and run `npx romlift generate`. `AGENTS.md` has the details.
+Never edit the generated files: change `romlift.toml` and run `npx romlift generate`. Decompiled C goes in
+`src/<module>.c` (or a `src/*.c` file it `#include`s). `AGENTS.md` has the details.
 ==> include/include_asm.h (scaffold, scaffold) <==
 #ifndef GUARD_INCLUDE_ASM_H
 #define GUARD_INCLUDE_ASM_H
@@ -438,7 +465,7 @@ endef
 #   2. setup_agbcc       when tools/agbcc/bin/agbcc is missing: fetch pret/agbcc into tools/agbcc and build it
 #   3. copy_baserom      in a git worktree without baserom.gba: copy it from the main worktree; check its SHA-1
 #   4. install_romlift   npm ci (npm install while there is no package-lock.json); skipped when ROMLIFT_CLI is set
-#   5. generate_tree     romlift generate, when asm/ is absent
+#   5. generate_tree     romlift generate, when asm/ is absent or romlift.toml changed since it last ran
 # It never writes romlift.toml. ROMLIFT_CLI names the romlift command to run instead of `npx romlift`, and
 # AGBCC_URL another place to fetch agbcc from (a mirror; the submodule still records the pinned URL).
 set -eu
@@ -549,12 +576,19 @@ install_romlift() {
   fi
 }
 
-# Duty 5: the generated tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk), when asm/ is absent.
+# Duty 5: the generated tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk), none of it in Git: when asm/ is
+# absent (a fresh clone or worktree), or when romlift.toml is not the one modules.mk records (ROMLIFT_TOML_SHA1: a
+# pull or a checkout changed it since the last generate).
 generate_tree() {
   if [ -d asm ]; then
-    return 0
+    recorded=$(sed -n 's/^ROMLIFT_TOML_SHA1 := //p' modules.mk 2>/dev/null || true)
+    if [ -n "$recorded" ] && [ "$recorded" = "$(sha1_of romlift.toml)" ]; then
+      return 0
+    fi
+    say "romlift.toml changed since the last romlift generate: running it"
+  else
+    say "asm/ is absent: running romlift generate"
   fi
-  say "asm/ is absent: running romlift generate"
   # shellcheck disable=SC2086 # ROMLIFT_CLI may be a command with arguments
   ${ROMLIFT_CLI:-npx romlift} generate
 }

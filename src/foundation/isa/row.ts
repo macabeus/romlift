@@ -3,6 +3,7 @@
 // the operand values its syntax names, and its compiled syntax forms (the printed one first, then
 // parse-only aliases). The tables (thumb-table.ts, arm-*.ts) are lists of rows built here.
 import type { Addr, Mode } from '../rom/span.ts';
+import { insnUnit } from '../rom/span.ts';
 import { compileForm } from './template.ts';
 import type { CompiledForm } from './template.ts';
 import type { Field, FieldKind, Fields, FlowKind, InsnSpec, RawReason, RegisterSpec, SpecId } from './types.ts';
@@ -72,7 +73,7 @@ export function row(id: SpecId, mode: Mode, options: RowOptions): Row {
   const spec: InsnSpec = {
     id,
     mode,
-    size: options.size ?? (mode === 'arm' ? 4 : 2),
+    size: options.size ?? insnUnit(mode),
     mask: options.mask >>> 0,
     match: options.match >>> 0,
     fields,

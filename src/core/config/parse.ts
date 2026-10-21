@@ -13,7 +13,7 @@ import type { Addr } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
-import { addressKey, addressKeyUses, checkAddressKeys, duplicateDefinitions, isAddressKey, outlineToml } from './keys.ts';
+import { addressKey, addressKeyUses, checkAddressKeys, duplicateDefinitions, isAddressKey, misalignedFunctionKeys, outlineToml } from './keys.ts';
 import type { TomlOutline } from './keys.ts';
 import { validateConfig, type ConfigIssue } from './schema.ts';
 import type { RomliftConfig } from './schema.ts';
@@ -208,5 +208,7 @@ export function parseConfig(text: string): ConfigParseResult {
   const validated = validateConfig(candidateOf(root, out));
   if (!validated.ok) for (const issue of validated.issues) schemaIssue(out, issueSegments(issue.path), issue.message, issue.code);
   if (!validated.ok || out.diagnostics.length > 0) return { ok: false, diagnostics: out.diagnostics };
+  const misaligned = misalignedFunctionKeys(validated.config, outline);
+  if (misaligned.length > 0) return { ok: false, diagnostics: misaligned };
   return { ok: true, value: validated.config, diagnostics: [] };
 }

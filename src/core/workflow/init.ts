@@ -23,14 +23,17 @@ import type { InitInputs, InitPlan } from './types.ts';
  * `init`'s plan (architecture §2.1): the config and its TOML, decomp.yaml, the checked generate over the config the
  * TOML parses to, and the scaffold. Refused (`ok: false`, nothing to write) when the image is not a cartridge, the
  * build name is invalid, discover raises an error, the model raises one or a self-check fails; the diagnostics say
- * which (a failed self-check's are core/verify's codes, which the CLI maps to exit 3).
+ * which (a failed self-check's are core/verify's codes, which the CLI maps to exit 3). `hash` (the shell's sha1 of a
+ * text) gives modules.mk the TOML's SHA-1 (EmitContext.configSha1); without it modules.mk records none.
  */
-export function init(inputs: InitInputs): InitPlan {
+export function init(inputs: InitInputs, hash?: (text: string) => string): InitPlan {
   const { rom } = inputs;
   const made = initConfigOf(rom, { ...inputs.options, romFile: inputs.romFile, ...(inputs.profile === undefined ? {} : { profile: inputs.profile }) });
   if (!made.ok) return made;
   const { config, tomlText } = made;
-  const result = generate({ rom, config, decomp: { defined: [] }, printer: 'readable', ...(inputs.profile === undefined ? {} : { profile: inputs.profile }) });
+  // modules.mk records the SHA-1 of the TOML init writes (`hash`, the shell's), as generate records the one it reads.
+  const configSha1 = hash === undefined ? {} : { configSha1: hash(tomlText) };
+  const result = generate({ rom, config, decomp: { defined: [] }, printer: 'readable', ...(inputs.profile === undefined ? {} : { profile: inputs.profile }), ...configSha1 });
   if (!writable(result)) {
     return { ok: false, diagnostics: [...result.diagnostics, ...result.report.checks.flatMap((c) => c.diagnostics)] };
   }

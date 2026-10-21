@@ -29,6 +29,15 @@ interface Target {
 }
 
 const ROM_FILE = 'baserom.gba';
+/**
+ * The generated roots plan.md's scaffold table and R4 mark "In Git: No" (a directory ends with `/`), written here and
+ * not read from the product, which is what the gate tests.
+ */
+const R4_GENERATED: readonly string[] = ['asm/', 'data/', 'expected/', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json'];
+
+function underR4Root(file: string): boolean {
+  return R4_GENERATED.some((root) => (root.endsWith('/') ? file.startsWith(root) : file === root));
+}
 const NOT_BUILT: ReadonlySet<string> = new Set(['c-data']);
 const GIT = ['-c', 'user.name=romlift gate', '-c', 'user.email=gate@romlift.invalid', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null'];
 
@@ -93,10 +102,12 @@ async function inWorktree(cx: GateContext, cli: string, target: Target, base: st
   await run(cx, 'git commit', 'git', [...GIT, 'commit', '-q', '-m', 'romlift init'], main);
   const tracked = (await run(cx, 'git ls-files', 'git', ['ls-files'], main)).stdout.split('\n');
   if (tracked.includes(ROM_FILE)) return { failure: `${ROM_FILE} was committed: the scaffold's .gitignore must exclude it`, worktree, main };
-  // The generated roots plan.md's scaffold table marks "In Git: No" (R4): the product's own rule (core/write-plan
-  // GENERATED_ROOTS through underGeneratedRoot), so a root a later phase adds is checked here too (architecture-b0-3).
+  // The generated roots plan.md's scaffold table marks "In Git: No" (R4, the owner's answer to Q9): the gate's own list
+  // (R4_GENERATED), so a product that lost a root from GENERATED_ROOTS and its .gitignore still fails here; and,
+  // united with it, the product's rule (underGeneratedRoot), so a root a later phase adds is checked too
+  // (architecture-b0-3, fix round 6 gate-honesty-b1-1).
   const underGeneratedRoot = cx.need<(file: string) => boolean>('underGeneratedRoot');
-  const generated = tracked.filter((file) => underGeneratedRoot(file));
+  const generated = tracked.filter((file) => underR4Root(file) || underGeneratedRoot(file));
   if (generated.length > 0) return { failure: `the generated tree was committed (${generated.slice(0, 3).join(', ')}, …): the scaffold's .gitignore must exclude it (R4)`, worktree, main };
   if (viaSubmodule) {
     const stage = (await run(cx, 'git ls-files --stage', 'git', ['ls-files', '--stage', '--', 'tools/agbcc'], main)).stdout;

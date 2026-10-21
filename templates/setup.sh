@@ -5,7 +5,7 @@
 #   2. setup_agbcc       when tools/agbcc/bin/agbcc is missing: fetch pret/agbcc into tools/agbcc and build it
 #   3. copy_baserom      in a git worktree without @@romFile@@: copy it from the main worktree; check its SHA-1
 #   4. install_romlift   npm ci (npm install while there is no package-lock.json); skipped when ROMLIFT_CLI is set
-#   5. generate_tree     romlift generate, when asm/ is absent
+#   5. generate_tree     romlift generate, when asm/ is absent or romlift.toml changed since it last ran
 # It never writes romlift.toml. ROMLIFT_CLI names the romlift command to run instead of `npx romlift`, and
 # AGBCC_URL another place to fetch agbcc from (a mirror; the submodule still records the pinned URL).
 set -eu
@@ -116,12 +116,19 @@ install_romlift() {
   fi
 }
 
-# Duty 5: the generated tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk), when asm/ is absent.
+# Duty 5: the generated tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk), none of it in Git: when asm/ is
+# absent (a fresh clone or worktree), or when romlift.toml is not the one modules.mk records (ROMLIFT_TOML_SHA1: a
+# pull or a checkout changed it since the last generate).
 generate_tree() {
   if [ -d asm ]; then
-    return 0
+    recorded=$(sed -n 's/^ROMLIFT_TOML_SHA1 := //p' modules.mk 2>/dev/null || true)
+    if [ -n "$recorded" ] && [ "$recorded" = "$(sha1_of romlift.toml)" ]; then
+      return 0
+    fi
+    say "romlift.toml changed since the last romlift generate: running it"
+  else
+    say "asm/ is absent: running romlift generate"
   fi
-  say "asm/ is absent: running romlift generate"
   # shellcheck disable=SC2086 # ROMLIFT_CLI may be a command with arguments
   ${ROMLIFT_CLI:-npx romlift} generate
 }

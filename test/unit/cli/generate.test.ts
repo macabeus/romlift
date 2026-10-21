@@ -5,6 +5,7 @@
 // another copy of the right ROM; generate works from a subdirectory; a TOML rename and a deleted function are
 // carried into the INCLUDE_ASM lines of src/<module>.c (D75 b).
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
@@ -69,6 +70,18 @@ test('right after init: the dry run is keep only, and generate changes no file, 
   assert.equal(real.code, ExitCode.ok, real.stdout);
   assert.deepEqual(lines(real.stdout).map((l) => l['type']), ['summary']);
   assert.deepEqual(await snapshot(dir), before);
+});
+
+test('modules.mk records the SHA-1 of romlift.toml\'s bytes, from init on; a TOML edit changes it with the next generate (fix round 6, correctness-b1-1)', async () => {
+  const dir = await initProject();
+  const recorded = async (): Promise<string | undefined> => /^ROMLIFT_TOML_SHA1 := ([0-9a-f]{40})$/m.exec(await readFile(path.join(dir, 'modules.mk'), 'utf8'))?.[1];
+  const sha1 = async (): Promise<string> => createHash('sha1').update(await readFile(path.join(dir, 'romlift.toml'))).digest('hex');
+  assert.equal(await recorded(), await sha1(), 'init');
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  await writeFile(path.join(dir, 'romlift.toml'), `# a comment changes the bytes\n${toml}`);
+  assert.notEqual(await recorded(), await sha1());
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+  assert.equal(await recorded(), await sha1(), 'generate');
 });
 
 test('a deleted asm/ is written again, the TOML untouched; from a subdirectory too; text mode lists the writes', async () => {
@@ -470,24 +483,82 @@ test('a c module merged into the one before it: its file\'s decompiled C is E_C_
   assert.deepEqual(await snapshot(dir), before);
 });
 
+// Fix round 6 (D82): the C a split moves goes to a file that may not exist yet; decompiled C in an #included fragment.
+
+test('a split behind decompiled C: E_C_DEFINITION_MOVED names the new source; the C pasted there alone gains the header and its stubs (correctness-b1-2)', async () => {
+  const dir = await initProject();
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');
+  const c = 'int sub_08000488(void) {\n  return 0;\n}\n';
+  assert.ok(toml.includes('[[modules]]\nname = "main_3"') && main2.includes(stubIn('main_2', 'sub_08000488')), 'the composite as this test knows it');
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(`${stubIn('main_2', 'sub_08000488')}\n`, c));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+  await writeFile(path.join(dir, 'romlift.toml'), toml.replace('[[modules]]\nname = "main_3"', '[[modules]]\nname = "math"\nstart = 0x08000444\nkind = "c"\n\n[[modules]]\nname = "main_3"'));
+  const refused = await run(dir, ['generate', '--json']);
+  assert.equal(refused.code, ExitCode.errors, refused.stdout);
+  const moved = lines(refused.stdout).filter((l) => l['type'] === 'diagnostic');
+  assert.deepEqual(moved.map((l) => l['code']), ['E_C_DEFINITION_MOVED'], refused.stdout);
+  assert.match(String(moved[0]?.['message']), /move its C to src\/math\.c \(create the file if it does not exist/);
+  // As the message says: the C cut from main_2.c and pasted alone into src/math.c.
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(`${stubIn('main_2', 'sub_08000488')}\n`, ''));
+  await writeFile(path.join(dir, 'src', 'math.c'), c);
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic'), [], out.stdout);
+  const math = await readFile(path.join(dir, 'src', 'math.c'), 'utf8');
+  assert.equal(math, `#include "include_asm.h"\n\n${stubIn('math', 'sub_08000444')}\n${stubIn('math', 'sub_0800045C')}\n${c}`);
+  for (const [, stubDir, name] of math.matchAll(/^INCLUDE_ASM\("([^"]+)", (\w+)\);$/gm)) assert.ok((await stat(path.join(dir, `${stubDir ?? ''}/${name ?? ''}.s`))).isFile(), `${stubDir}/${name}.s`);
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'idempotent');
+  assert.equal(await readFile(path.join(dir, 'src', 'math.c'), 'utf8'), math);
+});
+
+test('decompiled C in a src/*.c fragment the module\'s file #includes: generate keeps it (exit 0, no warning); in a fragment romlift does not read, an insertion is refused (correctness-b1-3)', async () => {
+  const dir = await initProject();
+  const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');
+  assert.ok(main2.includes(stubIn('main_2', 'sub_08000488')), 'the composite as this test knows it');
+  await writeFile(path.join(dir, 'src', 'poly.inc.c'), 'int sub_08000488(void) {\n  return 0;\n}\n');
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(stubIn('main_2', 'sub_08000488'), '#include "poly.inc.c"'));
+  const before = await snapshot(dir);
+  const kept = await run(dir, ['generate', '--json']);
+  assert.equal(kept.code, ExitCode.ok, kept.stdout);
+  assert.deepEqual(lines(kept.stdout).filter((l) => l['type'] === 'diagnostic'), [], kept.stdout);
+  assert.deepEqual(await snapshot(dir), before, 'nothing to write');
+  // The same fragment under a name romlift does not read: the stub it would insert might define the function twice.
+  await rm(path.join(dir, 'src', 'poly.inc.c'));
+  await writeFile(path.join(dir, 'src', 'poly.inc'), 'int sub_08000488(void) {\n  return 0;\n}\n');
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(stubIn('main_2', 'sub_08000488'), '#include "poly.inc"'));
+  const unread = await snapshot(dir);
+  const refused = await run(dir, ['generate', '--json']);
+  assert.equal(refused.code, ExitCode.errors, refused.stdout);
+  assert.deepEqual(lines(refused.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => l['code']), ['E_C_STUB_UNPLACED'], refused.stdout);
+  assert.deepEqual(await snapshot(dir), unread);
+});
+
 // Fix round 5 (D81 c): an odd [functions] key is refused naming it; an override that changes nothing warns.
 
-test('an odd [functions] key, with or without `from`, is E_FUNCTION_MISALIGNED naming the key (exit 1), and no file changes', async () => {
+test('a misaligned [functions] key, with or without `from`, is E_FUNCTION_MISALIGNED alone, naming the key, in generate and analyze --update (exit 1), and no file changes', async () => {
   const dir = await initProject(FAR_JUMP.rom, []);
   const file = path.join(dir, 'romlift.toml');
   const text = await readFile(file, 'utf8');
   const line = text.split('\n').find((l) => /^0x0[0-9A-F]{7} = /.test(l)) ?? assert.fail('no entry');
   const addr = Number.parseInt(line.slice(2, 10), 16);
-  const odd = `0x${(addr + 0x11).toString(16).toUpperCase().padStart(8, '0')}`;
-  for (const entry of [`${odd} = "Odd"`, `${odd} = { name = "Odd", from = "legacy" }`]) {
+  const key = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
+  const odd = key(addr + 0x11);
+  // An ARM key on a halfword that is no word, listed nowhere else.
+  const half = [0x12, 0x16, 0x1a, 0x1e].map((d) => addr + d).find((a) => a % 4 === 2 && !text.includes(key(a))) ?? assert.fail('no free halfword');
+  const entries = [`${odd} = "Odd"`, `${odd} = { name = "Odd", from = "legacy" }`, `${key(half)} = { name = "Odd", mode = "arm", from = "legacy" }`];
+  for (const entry of entries) {
     await writeFile(file, text.replace(line, `${line}\n${entry}`));
     const before = await snapshot(dir);
-    const out = await run(dir, ['generate', '--json']);
-    assert.equal(out.code, ExitCode.errors, out.stdout);
-    const errors = lines(out.stdout).filter((l) => l['severity'] === 'error');
-    assert.deepEqual(errors.map((l) => l['code']), ['E_FUNCTION_MISALIGNED'], out.stdout);
-    assert.match(String(errors[0]?.['message']), new RegExp(`the \\[functions\\] key ${odd} \\(Odd\\)`));
-    assert.deepEqual(await snapshot(dir), before);
+    for (const command of [['generate', '--json'], ['analyze', '--update', '--json']]) {
+      const out = await run(dir, command);
+      assert.equal(out.code, ExitCode.errors, out.stdout);
+      // The config refuses it before any analysis: no W_LISTED_INVALID beside it (architecture-b1-1).
+      const diagnostics = lines(out.stdout).filter((l) => l['type'] === 'diagnostic');
+      assert.deepEqual(diagnostics.map((l) => l['code']), ['E_FUNCTION_MISALIGNED'], `${command.join(' ')}: ${out.stdout}`);
+      assert.match(String(diagnostics[0]?.['message']), new RegExp(`the \\[functions\\] key ${entry.slice(0, 10)} \\(Odd\\)`));
+      assert.deepEqual(await snapshot(dir), before);
+    }
   }
 });
 

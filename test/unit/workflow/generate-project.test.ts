@@ -76,7 +76,8 @@ test('a C file the user changed is reconciled: its C is kept and the missing INC
   assert.deepEqual(writes.ops.filter((op) => op.op !== 'keep').map((op) => `${op.op} ${op.path}`), [`write ${firstAsm}`, 'edit src/main.c']);
   const edit = writes.ops.find((op) => op.op === 'edit');
   const fresh = texts.get('src/main.c') ?? assert.fail('init wrote no src/main.c');
-  assert.equal(edit?.op === 'edit' ? edit.text : '', `${mine}${fresh.slice(C_STUB_HEADER.length)}`, 'the stubs follow the C, which is kept');
+  // The file had neither a stub nor the include, so it gains the include with its stubs (fix round 6, correctness-b1-2).
+  assert.equal(edit?.op === 'edit' ? edit.text : '', `${C_STUB_HEADER}${mine}${fresh.slice(C_STUB_HEADER.length)}`, 'the stubs follow the C, which is kept');
   assert.equal(planChangesNothing(writes, { ...state }), false);
 });
 

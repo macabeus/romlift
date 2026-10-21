@@ -8,7 +8,7 @@
 // directory is written `<Name>_<ADDR>.s` (ADDR: eight upper-case hex digits of its load address), never
 // only the second one. core/verify/paths.ts (E_PATH_CASE_COLLISION) guards the result.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
-import { BASEROM_FILE, chunkFileOf, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
+import { BASEROM_FILE, chunkFileOf, cSourceOf, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
 import { sortedKeys } from '../../foundation/util/sorted.ts';
@@ -46,9 +46,7 @@ export function cAssemblyPath(module: string): string {
 }
 
 /** Whether a build unit's source is a C file (moduleSource of a C module), which builds to cObjectPath. */
-export function isCSource(source: string): boolean {
-  return source.endsWith('.c');
-}
+export { isCSource };
 
 function isFileChunk(chunk: Chunk): boolean {
   return chunk.kind === 'function' || chunk.kind === 'orphan';
@@ -161,7 +159,7 @@ export function moduleSource(model: Pick<Model, 'chunks'>, module: Module): stri
     case 'data':
       return `data/${module.name}.s`;
     case 'c':
-      return `src/${module.name}.c`;
+      return cSourceOf(`${module.name}.c`);
   }
 }
 

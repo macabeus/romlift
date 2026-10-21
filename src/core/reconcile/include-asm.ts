@@ -45,8 +45,18 @@
 // build without the function's code. A name with no safe place (the text ends inside a comment, a literal, a
 // directive or an unclosed conditional; fix round 4, correctness-a2-3: between two chunks one region holds, whose
 // split would put the new stub after the region's later chunk) is E_C_STUB_UNPLACED, an error, so `generate` writes
-// nothing rather than leave a function without its stub. The ROM order is checked again over the planned text: an
-// insertion that would sit out of ROM order is E_C_STUB_UNPLACED too, never a W_C_ORDER the next run would print.
+// nothing rather than leave a function without its stub. (Fix round 4 also scanned the planned text again for an
+// insertion out of ROM order; no layout reaches it, since every insertion lands between the held chunks it was placed
+// between, and fix round 6 removed it, architecture-b1-4.) A definition in every branch of a conditional with an
+// `#else` (pret's `#ifdef NONMATCHING <C> #else NAKED <asm> #endif`) is compiled in every build and holds its chunk
+// (fix round 6, correctness-b1-4).
+//
+// Fix round 6 (correctness-b1-2, b1-3, b1-5): a file that gains a stub and has neither an INCLUDE_ASM statement nor
+// `#include "include_asm.h"` gains that include too (C_STUB_HEADER), above its first line of code: the file a user
+// writes with only the C E_C_DEFINITION_MOVED sent there. A src/*.c fragment the file `#include`s at file scope
+// (IncludeAsmWanted.fragments) defines its functions there, at the `#include` line; a quoted include of a file romlift
+// does not read that is no `.h` refuses every insertion (E_C_STUB_UNPLACED), since the fragment may define the
+// function. An insertion takes the file's line terminator (`\r\n` in a CRLF file).
 //
 // A definition whose name the module does not want is E_C_STALE_DEFINITION, an error, when its name is a function
 // of the tree romlift last generated that no module has now (`wanted.retired`, the chunk files on disk; fix round 3,
@@ -58,15 +68,14 @@
 // tree is not known (the first `generate` of a clone, whose asm/ is gitignored, D79 b), a definition is stale
 // wherever a missing stub goes (correctness-a0-1). The other unwanted definitions are returned (`undeclared`) for
 // the caller, which knows the other modules (core/workflow/c-stubs.ts: E_C_DEFINITION_MOVED).
-import { includeAsmStatement } from '../../foundation/asm/dialect.ts';
-import { chunkFileOf, nonmatchingDir, NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
+import { C_STUB_HEADER, includeAsmStatement } from '../../foundation/asm/dialect.ts';
+import { chunkFileOf, INCLUDE_ASM_HEADER_NAME, nonmatchingDir, NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { tokenizeC, isTrivia } from './c-tokens.ts';
 import type { CToken } from './c-tokens.ts';
 import { ReconcileCodes } from './codes.ts';
 import type { ReconcileCode } from './codes.ts';
-import { applyTextEdits } from './text-edit.ts';
 import type { TextEdit } from './text-edit.ts';
 
 /** The macro every stub calls (include/include_asm.h, foundation/asm/dialect.ts INCLUDE_ASM_HEADER). */
@@ -92,6 +101,11 @@ export interface CDefinition {
   readonly start: number;
   readonly end: number;
   readonly line: number;
+  /**
+   * The project path of the src/*.c fragment that defines it, when the file only #includes it (fix round 6,
+   * correctness-b1-3): its offsets and line are then those of the `#include` line.
+   */
+  readonly via?: string;
 }
 
 /** Code at file scope that is neither a stub nor a definition: a declaration, a prototype, stray tokens. */
@@ -134,6 +148,21 @@ export interface CConditional {
   readonly start: number;
   readonly end: number;
   readonly terminated: boolean;
+  /**
+   * Its branches in text order (fix round 6, correctness-b1-4): each from the end of the directive that opens it to the
+   * start of the next `#elif`, `#else` or `#endif` of the region's own depth.
+   */
+  readonly branches: readonly COffsets[];
+  /** Whether it has an `#else`, so that one of its branches is compiled in every build. */
+  readonly hasElse: boolean;
+  /** The conditionals nested inside it, at any depth: from each one's opening directive to its `#endif`. */
+  readonly nested: readonly COffsets[];
+}
+
+/** A range of offsets of a C text. */
+export interface COffsets {
+  readonly start: number;
+  readonly end: number;
 }
 
 /** The directive name of a preprocessor line (`#  ifdef X` -> `ifdef`); '' for a null directive. */
@@ -149,27 +178,53 @@ function directiveName(text: string): string {
   return name;
 }
 
-/** The outermost conditional regions the preprocessor lines of `tokens` open and close; a stray `#endif` is ignored. */
+/**
+ * The outermost conditional regions the preprocessor lines of `tokens` open and close, with their branches and the
+ * conditionals nested in them; a stray `#endif` is ignored.
+ */
 function conditionalsOf(tokens: readonly CToken[], length: number): readonly CConditional[] {
   const out: CConditional[] = [];
   let depth = 0;
-  let open: CToken | undefined;
+  let open: { readonly start: number; branchStart: number; readonly branches: COffsets[]; hasElse: boolean; readonly nested: COffsets[] } | undefined;
+  /** The opening offsets of the nested conditionals open now, innermost last. */
+  const inner: number[] = [];
   for (const t of tokens) {
     if (t.kind !== 'preprocessor') continue;
     const name = directiveName(t.text);
     if (name === 'if' || name === 'ifdef' || name === 'ifndef') {
-      if (depth === 0) open = t;
+      if (depth === 0) open = { start: t.start, branchStart: t.end, branches: [], hasElse: false, nested: [] };
+      else inner.push(t.start);
       depth++;
+    } else if ((name === 'elif' || name === 'else') && depth === 1 && open !== undefined) {
+      open.branches.push({ start: open.branchStart, end: t.start });
+      open.branchStart = t.end;
+      if (name === 'else') open.hasElse = true;
     } else if (name === 'endif' && depth > 0) {
       depth--;
-      if (depth === 0 && open !== undefined) {
-        out.push({ start: open.start, end: t.end, terminated: true });
+      if (depth > 0) {
+        const start = inner.pop();
+        if (start !== undefined) open?.nested.push({ start, end: t.end });
+      } else if (open !== undefined) {
+        open.branches.push({ start: open.branchStart, end: t.start });
+        out.push({ start: open.start, end: t.end, terminated: true, branches: open.branches, hasElse: open.hasElse, nested: open.nested });
         open = undefined;
       }
     }
   }
-  if (open !== undefined) out.push({ start: open.start, end: length, terminated: false });
+  if (open !== undefined) {
+    open.branches.push({ start: open.branchStart, end: length });
+    out.push({ start: open.start, end: length, terminated: false, branches: open.branches, hasElse: open.hasElse, nested: open.nested });
+  }
   return out;
+}
+
+/** The quoted path of an `#include "…"` line, or undefined for any other line (an `<…>` include among them). */
+function quotedInclude(text: string): string | undefined {
+  if (directiveName(text) !== 'include') return undefined;
+  const open = text.indexOf('"');
+  const close = open < 0 ? -1 : text.indexOf('"', open + 1);
+  const before = open < 0 ? '' : text.slice(text.indexOf('include') + 'include'.length, open);
+  return close < 0 || before.trim() !== '' ? undefined : text.slice(open + 1, close);
 }
 
 /** The value of a string literal token whose only escapes are `\\` and `\"`, or undefined. */
@@ -388,23 +443,40 @@ export function scanC(text: string): CFileScan {
 }
 
 /**
- * Whether definition `d` lies wholly inside one preprocessor conditional, a branch the default build may not compile
- * (the NONMATCHING pattern's `#ifdef`). One whose head a conditional holds but whose body runs past its `#endif`
+ * Whether item `d` lies wholly inside one preprocessor conditional, a branch the default build may not compile (the
+ * NONMATCHING pattern's `#ifdef`). A definition whose head a conditional holds but whose body runs past its `#endif`
  * (`#ifndef NON_MATCHING <head> { <register pin> #else <head> { #endif <body> }`) is compiled in every build.
  */
-function conditionalOnly(scan: CFileScan, d: Pick<CDefinition, 'start' | 'end'>): boolean {
+function insideRegion(scan: CFileScan, d: COffsets): boolean {
   const region = regionAt(scan, d.start);
   return region !== undefined && d.end <= region.end;
 }
 
-/** The named definitions of `scan` the default build compiles (conditionalOnly's complement). */
+/**
+ * Whether definition `d`, wholly inside `region`, is compiled in every build all the same (fix round 6,
+ * correctness-b1-4): the region has an `#else` and every branch defines d's name outside the conditionals nested in
+ * it, as pret's `#ifdef NONMATCHING <C> #else NAKED <asm> #endif` does. Only the first branch's definition counts,
+ * so a name has one compiled definition.
+ */
+function inEveryBranch(scan: CFileScan, region: CConditional, d: CDefinition): boolean {
+  if (!region.terminated || !region.hasElse) return false;
+  const holds = (branch: COffsets, e: CDefinition): boolean => e.start >= branch.start && e.end <= branch.end && !region.nested.some((n) => e.start >= n.start && e.start < n.end);
+  const [first, ...others] = region.branches;
+  return first !== undefined && holds(first, d) && others.every((branch) => scan.definitions.some((e) => e.name === d.name && holds(branch, e)));
+}
+
+/** The named definitions of `scan` the default build compiles: outside every region (insideRegion), or in every branch of one (inEveryBranch). */
 function compiledOf(scan: CFileScan): readonly CDefinition[] {
-  return scan.definitions.filter((d) => d.name !== '' && !conditionalOnly(scan, d));
+  return scan.definitions.filter((d) => {
+    if (d.name === '') return false;
+    const region = regionAt(scan, d.start);
+    return region === undefined || d.end > region.end || inEveryBranch(scan, region, d);
+  });
 }
 
 /**
  * What a C file defines for the default build: its named definitions outside every conditional that holds them whole
- * (conditionalOnly). `scannable: false` when the scanner cannot split the file (`unscannable` says why); the
+ * (insideRegion), or in every branch of one that has an `#else` (inEveryBranch). `scannable: false` when the scanner cannot split the file (`unscannable` says why); the
  * definitions are then only what it read, which may miss or misname some, and each caller states what it does with
  * them (fix round 5, architecture-b0-2).
  */
@@ -414,7 +486,8 @@ export type CompiledDefinitions =
 
 /**
  * The one rule for "the C defines it" (architecture-a2-3, fix round 5 architecture-b0-2), the scanner's precondition
- * included: read by the planner (a definition holds its chunk), by the C files of no module (c-stubs.ts) and by the
+ * included: read by the planner (a definition holds its chunk: heldOf, and unscannablePlan for a file the scanner
+ * cannot split), by the C files of no module and the fragments a module's file includes (c-stubs.ts), and by the
  * DecompState of a project (core/workflow/generate.ts).
  */
 export function compiledDefinitions(scan: CFileScan): CompiledDefinitions {
@@ -478,6 +551,14 @@ export interface IncludeAsmWanted {
    * are left alone.
    */
   readonly tree?: StubTree;
+  /**
+   * The compiled definitions (names, in text order) of each src/*.c that is no module's source, by project path (fix
+   * round 6, correctness-b1-3): a file this one `#include`s at file scope (`#include "poly.inc.c"`, resolved from
+   * `path`'s directory) defines them here, at its `#include` line. A quoted include of no file listed here whose path
+   * does not end in `.h` is a fragment romlift does not read: a stub this file would gain is then E_C_STUB_UNPLACED,
+   * since the fragment may define it. Undefined (or `path` undefined): includes are not followed.
+   */
+  readonly fragments?: ReadonlyMap<string, readonly string[]>;
 }
 
 /** The chunk files a run writes, and the directories it leaves to the user (IncludeAsmWanted.tree). */
@@ -495,6 +576,8 @@ export interface IncludeAsmPlan {
   readonly unplaced: readonly string[];
   /** Named definitions the module does not want and no E_C_STALE_DEFINITION reports, in text order. */
   readonly undeclared: readonly CDefinition[];
+  /** The project paths of the fragments (IncludeAsmWanted.fragments) the file includes at file scope, in text order. */
+  readonly included: readonly string[];
 }
 
 /** Where a held chunk sits: offsets of its first token and of its end. */
@@ -506,15 +589,21 @@ interface Held {
 /**
  * For each wanted chunk, where the file holds it, or undefined: the first stub of `dir` that names its stub name
  * (inside a conditional too: the `#else` branch of the NONMATCHING pattern is the default build's), else the first
- * of its compiled definitions (compiledOf). A definition inside a conditional does not hold its chunk, since the default build may
- * not compile it (correctness-a1-1).
+ * of its compiled definitions (compiledDefinitions: a definition inside a conditional does not hold its chunk, since
+ * the default build may not compile it, correctness-a1-1, unless every branch of one with an `#else` defines it).
  */
 function heldOf(scan: CFileScan, dir: string, chunks: readonly WantedChunk[]): readonly (Held | undefined)[] {
   const stubs = new Map<string, Held>();
   for (const s of scan.statements) if (s.dir === dir && !stubs.has(s.name)) stubs.set(s.name, { start: s.start, end: s.end });
   const defined = new Map<string, Held>();
-  for (const d of compiledOf(scan)) if (!defined.has(d.name)) defined.set(d.name, { start: d.start, end: d.end });
+  for (const d of compiledDefinitions(scan).definitions) if (!defined.has(d.name)) defined.set(d.name, { start: d.start, end: d.end });
   return chunks.map((c) => stubs.get(c.stub) ?? defined.get(c.name));
+}
+
+/** The line terminator of `text`: `\r\n` when its first newline follows a carriage return, else `\n` (correctness-b1-5). */
+function eolOf(text: string): string {
+  const newline = text.indexOf('\n');
+  return newline > 0 && text[newline - 1] === '\r' ? '\r\n' : '\n';
 }
 
 /** The length of a leading byte order mark (U+FEFF), which no edit may move off the text's start. */
@@ -584,14 +673,6 @@ function neighbours(held: readonly (Held | undefined)[]): { readonly earlier: re
   return { earlier, later };
 }
 
-/** One planned insertion: the wanted chunk's index, its edit, and the indices of the held chunks it was placed between. */
-interface Insertion {
-  readonly chunk: number;
-  readonly edit: TextEdit;
-  readonly earlier: number | undefined;
-  readonly later: number | undefined;
-}
-
 /** Where the diagnostics of `wanted` say the file is. */
 function whereOf(wanted: IncludeAsmWanted): { readonly where: string; readonly extra: { readonly path?: string } } {
   return { where: wanted.path ?? `the C file of module ${wanted.module}`, extra: wanted.path === undefined ? {} : { path: wanted.path } };
@@ -638,20 +719,45 @@ function removalOf(text: string, s: IncludeAsmStatement): TextEdit {
  * region too (a split of the region's first chunk: the stub would land behind the later one, correctness-a2-3).
  */
 function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, number>, stub: string, before: Held | undefined, after: Held | undefined): TextEdit | undefined {
+  const eol = eolOf(text);
   if (before !== undefined) {
-    // A definition whose body runs past the region that holds its head ends outside it (conditionalOnly).
-    const region = conditionalOnly(scan, before) ? regionAt(scan, before.start) : undefined;
+    // A definition whose body runs past the region that holds its head ends outside it (insideRegion).
+    const region = insideRegion(scan, before) ? regionAt(scan, before.start) : undefined;
     if (region !== undefined && (!region.terminated || (after !== undefined && after.start < region.end))) return undefined;
     const line = afterLine(text, skips, region?.end ?? before.end);
-    return { start: line.at, end: line.at, text: line.newline ? `${stub}\n` : `\n${stub}\n`, reason: 'add-stub' };
+    return { start: line.at, end: line.at, text: line.newline ? `${stub}${eol}` : `${eol}${stub}${eol}`, reason: 'add-stub' };
   }
   if (after !== undefined) {
     const at = beforeItem(text, scan, regionAt(scan, after.start)?.start ?? after.start);
-    return { start: at, end: at, text: `${stub}\n`, reason: 'add-stub' };
+    return { start: at, end: at, text: `${stub}${eol}`, reason: 'add-stub' };
   }
   if (scan.unterminated.length > 0 || scan.conditionals.some((c) => !c.terminated)) return undefined;
   const needsNewline = text.length > bomLength(text) && !text.endsWith('\n');
-  return { start: text.length, end: text.length, text: `${needsNewline ? '\n' : ''}${stub}\n`, reason: 'add-stub' };
+  return { start: text.length, end: text.length, text: `${needsNewline ? eol : ''}${stub}${eol}`, reason: 'add-stub' };
+}
+
+/**
+ * The insertion of the header that defines INCLUDE_ASM (C_STUB_HEADER, in the text's line terminator), or undefined
+ * when the file needs none (fix round 6, correctness-b1-2): a file that gains a stub needs it unless it already
+ * includes the header or holds an INCLUDE_ASM statement anywhere (whose macro its build then defines some other way,
+ * a `global.h` that includes it). It goes above the first line that is not a comment, after a leading byte order mark
+ * and the comments that open the file (a licence, a file comment): a file the user wrote with only the C of a
+ * function E_C_DEFINITION_MOVED sent there.
+ */
+function headerInsertion(text: string, scan: CFileScan): TextEdit | undefined {
+  if (anyDepthStatements(scan).length > 0) return undefined;
+  if (scan.directives.some((t) => t.kind === 'preprocessor' && quotedInclude(t.text) === INCLUDE_ASM_HEADER_NAME)) return undefined;
+  const eol = eolOf(text);
+  const header = C_STUB_HEADER.split('\n').join(eol);
+  const first = scan.tokens.find((t) => t.kind !== 'comment');
+  if (first === undefined) {
+    const needsNewline = text.length > bomLength(text) && !text.endsWith('\n');
+    return { start: text.length, end: text.length, text: `${needsNewline ? eol : ''}${header}`, reason: 'add-stub' };
+  }
+  // A comment that ends on the first code line (`/* … */ int x;`, or a block comment opened above it) keeps it whole.
+  const lineStart = lineStartOf(text, first.start);
+  const at = scan.tokens.some((t) => t.kind === 'comment' && t.start < first.start && t.end > lineStart) ? first.start : lineStart;
+  return { start: at, end: at, text: at === lineStart ? header : `${eol}${header}`, reason: 'add-stub' };
 }
 
 /**
@@ -660,7 +766,9 @@ function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, num
  * directory whose stub d took the place of.
  */
 function staleDiagnostic(wanted: IncludeAsmWanted, d: CDefinition, slot: WantedChunk | undefined, replaced: WantedChunk | undefined): Diagnostic<ReconcileCode> {
-  const { where, extra } = whereOf(wanted);
+  const { where: file, extra } = whereOf(wanted);
+  // A definition of an included fragment: the file the user edits is the fragment (correctness-b1-3).
+  const where = d.via === undefined ? file : `${file}, through its #include of ${d.via},`;
   const dir = nonmatchingDir(wanted.module);
   if (replaced !== undefined) {
     return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}) where the INCLUDE_ASM of ${replaced.stub} was, and module ${wanted.module} still has ${replaced.name}, which the file now neither includes nor defines: if you renamed ${replaced.name} in C, rename it in romlift.toml too (or the C back to ${replaced.name}); otherwise restore INCLUDE_ASM("${dir}", ${replaced.stub}); else make builds its bytes twice`, extra);
@@ -676,7 +784,7 @@ function staleDiagnostic(wanted: IncludeAsmWanted, d: CDefinition, slot: WantedC
 
 /**
  * The edits that add the stub of every wanted chunk `text` neither includes (from `asm/nonmatchings/<module>`) nor
- * defines outside a conditional, each at its ROM-order position outside any preprocessor conditional, and remove every
+ * defines for the default build, each at its ROM-order position outside any preprocessor conditional, and remove every
  * stub of that directory whose chunk is not wanted and that lies outside every conditional; W_C_ORDER when the file's
  * order of the held ones is not ROM order; E_C_STUB_UNPLACED for a chunk with no safe place; E_C_CONDITIONAL_STUB for an
  * unwanted stub inside a conditional, which is never edited; E_C_STALE_DEFINITION for an unwanted definition of a
@@ -685,12 +793,60 @@ function staleDiagnostic(wanted: IncludeAsmWanted, d: CDefinition, slot: WantedC
  * of another nonmatchings directory that names no file of `wanted.tree` is unwanted too (a renamed or deleted module's,
  * after its source was moved: fix round 5, correctness-b0-2). A file the scanner cannot split gets no edit: when what
  * it read of it needs one, or names a stub at any depth that would go, E_C_UNSCANNABLE (an error); otherwise
- * W_C_UNSCANNABLE, a warning, since the build it had still holds (fix round 5, correctness-b0-1).
+ * W_C_UNSCANNABLE, a warning, since the build it had still holds (fix round 5, correctness-b0-1). Fix round 6: the
+ * definitions of a src/*.c fragment the file includes count as its own, at the `#include` line (`wanted.fragments`,
+ * correctness-b1-3); a file that gains a stub gains the header that defines INCLUDE_ASM when it has none
+ * (correctness-b1-2); an insertion takes the file's line terminator (correctness-b1-5).
  */
 export function planIncludeAsm(text: string, wanted: IncludeAsmWanted): IncludeAsmPlan {
-  const scan = scanC(text);
-  const plan = planScanned(text, scan, wanted);
-  return scan.unscannable.length === 0 ? plan : unscannablePlan(scan, wanted, plan);
+  const own = scanC(text);
+  const { scan, included, unread } = withFragments(own, wanted);
+  const plan = planScanned(text, scan, wanted, unread);
+  return { ...(own.unscannable.length === 0 ? plan : unscannablePlan(scan, wanted, plan)), included };
+}
+
+/** An `#include "…"` at file scope of a file romlift does not read (a fragment that may define functions). */
+interface UnreadInclude {
+  readonly spelled: string;
+  readonly line: number;
+}
+
+/** `path` of an `#include "<spelled>"` in the file at project path `from`, resolved from its directory; undefined above the root. */
+function resolveInclude(from: string, spelled: string): string | undefined {
+  const parts = from.split('/').slice(0, -1);
+  for (const segment of spelled.split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment !== '..') parts.push(segment);
+    else if (parts.pop() === undefined) return undefined;
+  }
+  return parts.join('/');
+}
+
+/**
+ * `scan` with the definitions of the fragments the file includes at file scope (outside every item: an include inside
+ * an initializer or a body defines no function of its own) added at their `#include` lines (`via` names the fragment),
+ * the fragments included, and the quoted includes of files romlift does not read that are no header (`.h`).
+ */
+function withFragments(scan: CFileScan, wanted: IncludeAsmWanted): { readonly scan: CFileScan; readonly included: readonly string[]; readonly unread: readonly UnreadInclude[] } {
+  const { fragments, path } = wanted;
+  if (fragments === undefined || path === undefined) return { scan, included: [], unread: [] };
+  const items: readonly COffsets[] = [...scan.statements, ...scan.definitions, ...scan.others];
+  const added: CDefinition[] = [];
+  const included: string[] = [];
+  const unread: UnreadInclude[] = [];
+  for (const t of scan.directives) {
+    const spelled = t.kind === 'preprocessor' ? quotedInclude(t.text) : undefined;
+    if (spelled === undefined || items.some((i) => t.start >= i.start && t.start < i.end)) continue;
+    const resolved = resolveInclude(path, spelled);
+    const names = resolved === undefined ? undefined : fragments.get(resolved);
+    if (resolved !== undefined && names !== undefined) {
+      if (!included.includes(resolved)) included.push(resolved);
+      for (const name of names) added.push({ name, start: t.start, end: t.end, line: t.line, via: resolved });
+    } else if (!spelled.endsWith('.h')) unread.push({ spelled, line: t.line });
+  }
+  if (added.length === 0) return { scan, included, unread };
+  const definitions = [...scan.definitions, ...added].sort((a, b) => a.start - b.start);
+  return { scan: { ...scan, definitions }, included, unread };
 }
 
 /** Whether stub `s` is one the module's file must lose: of its own directory and unwanted, or of a directory the tree no longer writes it in. */
@@ -700,8 +856,8 @@ function unwantedStub(s: IncludeAsmStatement, dir: string, stubs: ReadonlySet<st
   return !tree.files.has(chunkFileOf(s.dir, s.name));
 }
 
-/** planIncludeAsm over a scan, as if it could split the text. */
-function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted): IncludeAsmPlan {
+/** planIncludeAsm over a scan, as if it could split the text; `unread`: the fragments it includes that romlift does not read. */
+function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted, unread: readonly UnreadInclude[]): Omit<IncludeAsmPlan, 'included'> {
   const dir = nonmatchingDir(wanted.module);
   const held = heldOf(scan, dir, wanted.chunks);
   const { earlier, later } = neighbours(held);
@@ -719,10 +875,9 @@ function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted): I
   const previousStubs = new Set(wanted.previousStubs ?? []);
   /** Each stranger's slots: the missing chunks whose stubs go where it lies, in ROM order. */
   const slots = new Map<CDefinition, WantedChunk[]>();
-  const insertions: Insertion[] = [];
-  /** The stubs with no safe place, by why: the text's end or a region (placement), or ROM order (the planned text). */
+  const insertions: TextEdit[] = [];
+  /** The stubs with no safe place: the text's end or a region (placement), or a fragment romlift does not read. */
   const unplaced: string[] = [];
-  const misordered: string[] = [];
   wanted.chunks.forEach((chunk, k) => {
     if (held[k] !== undefined) return;
     const e = earlier[k];
@@ -732,27 +887,23 @@ function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted): I
     const from = before?.end ?? 0;
     const to = after?.start ?? text.length;
     for (const d of strangers) if (d.start >= from && d.end <= to) slots.set(d, [...(slots.get(d) ?? []), chunk]);
-    const edit = placement(text, scan, skips, includeAsmStatement(wanted.module, chunk.stub), before, after);
+    const edit = unread.length > 0 ? undefined : placement(text, scan, skips, includeAsmStatement(wanted.module, chunk.stub), before, after);
     if (edit === undefined) unplaced.push(chunk.stub);
-    else insertions.push({ chunk: k, edit, earlier: e, later: l });
+    else insertions.push(edit);
   });
-  // The planned text in ROM order: an insertion that lands out of it has no safe place either (correctness-a2-3).
-  for (const k of misplacedInsertions(text, dir, wanted.chunks, held, insertions, removed.map((s) => removalOf(text, s)))) {
-    const chunk = wanted.chunks[k];
-    if (chunk !== undefined) misordered.push(chunk.stub);
-  }
-  const edits: TextEdit[] = insertions.filter((i) => !misordered.includes(wanted.chunks[i.chunk]?.stub ?? '')).map((i) => i.edit);
+  const header = insertions.length > 0 ? headerInsertion(text, scan) : undefined;
+  const edits: TextEdit[] = [...(header === undefined ? [] : [header]), ...insertions];
   for (const statement of removed) edits.push(removalOf(text, statement));
   /** The chunk of the previous tree's own directory a stranger took the place of (correctness-a2-1). */
   const replacedOf = (d: CDefinition): WantedChunk | undefined => (retired === undefined || retired.has(d.name) ? undefined : slots.get(d)?.find((c) => previousStubs.has(c.stub)));
   const stale = strangers.filter((d) => (retired === undefined ? slots.has(d) : retired.has(d.name) || replacedOf(d) !== undefined));
   const { where, extra } = whereOf(wanted);
   const diagnostics: Diagnostic<ReconcileCode>[] = [...orderDiagnostics(wanted, held)];
-  if (unplaced.length > 0) {
+  if (unplaced.length > 0 && unread.length > 0) {
+    const files = unread.map((u) => `"${u.spelled}" (line ${u.line})`).join(', ');
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} gains the INCLUDE_ASM of ${unplaced.join(', ')}, but it #includes ${files}, which romlift does not read (it reads only src/*.c), so it cannot tell whether that file defines them: move the C into ${where}, or name the included file src/<name>.c, or write the statements yourself`, extra));
+  } else if (unplaced.length > 0) {
     diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} has no safe place for the INCLUDE_ASM of ${unplaced.join(', ')}: the text ends inside a comment, a literal, a directive or an unclosed #if, or the stub would go between two chunks one #if region holds; close it, or write the statements yourself (in each branch of the region)`, extra));
-  }
-  if (misordered.length > 0) {
-    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} has no safe place for the INCLUDE_ASM of ${misordered.join(', ')}: inserted where the file's other chunks allow, it would be out of ROM order (the make would place its bytes elsewhere); write the statements yourself, in ROM order`, extra));
   }
   for (const s of conditional) {
     const gone = s.dir === dir ? `module ${wanted.module} no longer has ${s.name}` : `no module of romlift.toml has ${chunkFileOf(s.dir, s.name)} any more`;
@@ -760,23 +911,23 @@ function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted): I
   }
   for (const d of stale) diagnostics.push(staleDiagnostic(wanted, d, slots.get(d)?.[0], replacedOf(d)));
   const isStale = new Set(stale);
-  return { edits: joinAtOffsets(edits), diagnostics, unplaced: [...unplaced, ...misordered], undeclared: strangers.filter((d) => !isStale.has(d)) };
+  return { edits: joinAtOffsets(edits, eolOf(text)), diagnostics, unplaced, undeclared: strangers.filter((d) => !isStale.has(d)) };
 }
 
 /**
  * The plan of a file the scanner cannot split: no edit. Whether the file needs one is read from what the scanner can
  * still trust (fix round 5, correctness-b0-1): the stubs its tokens spell at any depth (anyDepthStatements, since a
- * swallowed stub is no statement of the scan) and the definitions it read. A wanted chunk neither names, a stub that
- * would go, or one inside a region that would (planScanned's E_C_CONDITIONAL_STUB): the file needs an edit romlift
- * cannot place, E_C_UNSCANNABLE. Otherwise W_C_UNSCANNABLE, with planScanned's warnings, the E_C_STALE_DEFINITION of
- * a definition of a function of the previous tree, and its undeclared definitions for the caller.
+ * swallowed stub is no statement of the scan) and the definitions it read (compiledDefinitions). A wanted chunk
+ * neither names, a stub that would go, or one inside a region that would (planScanned's E_C_CONDITIONAL_STUB): the file
+ * needs an edit romlift cannot place, E_C_UNSCANNABLE. Otherwise W_C_UNSCANNABLE, with planScanned's warnings, the
+ * E_C_STALE_DEFINITION of a definition of a function of the previous tree, and its undeclared definitions for the caller.
  */
-function unscannablePlan(scan: CFileScan, wanted: IncludeAsmWanted, plan: IncludeAsmPlan): IncludeAsmPlan {
+function unscannablePlan(scan: CFileScan, wanted: IncludeAsmWanted, plan: Omit<IncludeAsmPlan, 'included'>): Omit<IncludeAsmPlan, 'included'> {
   const dir = nonmatchingDir(wanted.module);
   const stubs = new Set(wanted.chunks.map((c) => c.stub));
   const statements = anyDepthStatements(scan);
   const included = new Set(statements.filter((s) => s.dir === dir).map((s) => s.name));
-  const defined = new Set(compiledOf(scan).map((d) => d.name));
+  const defined = new Set(compiledDefinitions(scan).definitions.map((d) => d.name));
   const missing = wanted.chunks.some((c) => !included.has(c.stub) && !defined.has(c.name));
   const needsEdit = missing || statements.some((s) => unwantedStub(s, dir, stubs, wanted.tree)) || plan.diagnostics.some((d) => d.code === 'E_C_CONDITIONAL_STUB');
   const { where, extra } = whereOf(wanted);
@@ -805,34 +956,11 @@ export function unscannableWarning(where: string, path: string | undefined, why:
 }
 
 /**
- * The wanted chunks (indices) whose insertion puts them out of ROM order in the planned text (the text with every
- * insertion and removal applied, scanned again): one that lands before the held chunk it was placed after, or after
- * the one it was placed before, when the file held those two in ROM order (an order the file already breaks is
- * W_C_ORDER's, and the edits never reorder).
- */
-function misplacedInsertions(text: string, dir: string, chunks: readonly WantedChunk[], held: readonly (Held | undefined)[], insertions: readonly Insertion[], removals: readonly TextEdit[]): readonly number[] {
-  if (insertions.length === 0) return [];
-  const planned = heldOf(scanC(applyTextEdits(text, joinAtOffsets([...insertions.map((i) => i.edit), ...removals]))), dir, chunks);
-  const at = (k: number | undefined): number | undefined => (k === undefined ? undefined : planned[k]?.start);
-  const out: number[] = [];
-  for (const i of insertions) {
-    const e = i.earlier === undefined ? undefined : held[i.earlier];
-    const l = i.later === undefined ? undefined : held[i.later];
-    if (e !== undefined && l !== undefined && e.start > l.start) continue;
-    const self = at(i.chunk);
-    const before = at(i.earlier);
-    const after = at(i.later);
-    if (self === undefined || (before !== undefined && self < before) || (after !== undefined && self > after)) out.push(i.chunk);
-  }
-  return out;
-}
-
-/**
  * The edits in text order (an insertion before a removal at its offset), the insertions at one offset joined into one
- * edit in wanted order, so stubs that follow an unterminated last line get one newline between them, not two
- * (`\nA\n` then `\nB\n` become `\nA\nB\n`).
+ * edit in wanted order, so stubs that follow an unterminated last line get one line terminator (`eol`) between them,
+ * not two (`\nA\n` then `\nB\n` become `\nA\nB\n`).
  */
-function joinAtOffsets(edits: readonly TextEdit[]): readonly TextEdit[] {
+function joinAtOffsets(edits: readonly TextEdit[], eol: string): readonly TextEdit[] {
   const sorted = edits.map((edit, index) => ({ edit, index })).sort((a, b) => a.edit.start - b.edit.start || a.edit.end - b.edit.end || a.index - b.index);
   const out: TextEdit[] = [];
   for (const { edit } of sorted) {
@@ -841,7 +969,7 @@ function joinAtOffsets(edits: readonly TextEdit[]): readonly TextEdit[] {
       out.push(edit);
       continue;
     }
-    const text = last.text.endsWith('\n') && edit.text.startsWith('\n') ? last.text + edit.text.slice(1) : last.text + edit.text;
+    const text = last.text.endsWith(eol) && edit.text.startsWith(eol) ? last.text + edit.text.slice(eol.length) : last.text + edit.text;
     out[out.length - 1] = { ...last, text };
   }
   return out;

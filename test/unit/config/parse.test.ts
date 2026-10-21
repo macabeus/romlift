@@ -266,6 +266,16 @@ test('the address checks come first and are not doubled by smol-toml', () => {
   );
 });
 
+test('a [functions] key no instruction of its mode starts at is E_FUNCTION_MISALIGNED, with its line (fix round 6, architecture-b1-1)', () => {
+  const text = `${MINIMAL}\n[functions]\n0x08000100 = "A"\n0x08000105 = "Odd"\n0x0800010A = { name = "Arm", mode = "arm" }\n0x08000111 = { name = "Legacy", from = "legacy" }\n0x08000114 = { name = "ArmOk", mode = "arm" }\n`;
+  assert.deepEqual(messages(text), [
+    "E_FUNCTION_MISALIGNED line 16: the [functions] key 0x08000105 (Odd) is not a halfword-aligned Thumb instruction address; a Thumb function's pointer value has bit 0 set, its entry is 0x08000104",
+    'E_FUNCTION_MISALIGNED line 17: the [functions] key 0x0800010A (Arm) is not a word-aligned ARM instruction address',
+    "E_FUNCTION_MISALIGNED line 18: the [functions] key 0x08000111 (Legacy) is not a halfword-aligned Thumb instruction address; a Thumb function's pointer value has bit 0 set, its entry is 0x08000110",
+  ]);
+  assert.ok(parseConfig(`${MINIMAL}\n[functions]\n0x08000100 = "A"\n0x08000114 = { name = "ArmOk", mode = "arm" }\n`).ok);
+});
+
 test("on every committed fixture's config: the illegal edits of g4.toml-mutations give their codes", () => {
   const fixtures = fixtureTexts();
   assert.ok(fixtures.length >= 47, `${fixtures.length} fixtures`);

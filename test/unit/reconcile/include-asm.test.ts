@@ -64,9 +64,10 @@ test('scanC: a definition with an initializer-like body is not one; an unclosed 
 });
 
 test('the empty file and the template header: one stub per wanted function, in ROM order, each on its own line', () => {
-  assert.equal(planned(''), `${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`);
+  // A file with no stub and no include of the header gains it with its first stub (fix round 6, correctness-b1-2).
+  assert.equal(planned(''), `${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`);
   assert.equal(planned(C_STUB_HEADER), `#include "include_asm.h"\n\n${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`);
-  assert.equal(planned('int x;'), `int x;\n${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`, 'a last line without its newline');
+  assert.equal(planned('int x;'), `${C_STUB_HEADER}int x;\n${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`, 'a last line without its newline');
   assert.deepEqual(planIncludeAsm('', { module: 'main', chunks: same([]) }).edits, []);
   assert.ok(planIncludeAsm('', WANTED).edits.every((e) => e.reason === 'add-stub' && e.start === e.end));
 });
@@ -148,7 +149,19 @@ test('a removed stub that shares its line keeps the rest of the line; comments a
 
 test('an insertion at the start of a removed line goes before the removal; the CRLF line ending goes with it', () => {
   const text = `${stub('A')}\r\n${stub('Old')}\r\n${stub('C')}\r\n`;
-  assert.equal(planned(text, { module: 'main', chunks: same(['A', 'B', 'C']) }), `${stub('A')}\r\n${stub('B')}\n${stub('C')}\r\n`);
+  assert.equal(planned(text, { module: 'main', chunks: same(['A', 'B', 'C']) }), `${stub('A')}\r\n${stub('B')}\r\n${stub('C')}\r\n`);
+});
+
+test('in a CRLF file every insertion ends its lines with CRLF: between stubs, at the end, after a last line without one, and the header (fix round 6, correctness-b1-5)', () => {
+  const crlf = (t: string): string => t.split('\n').join('\r\n');
+  const text = crlf(`${C_STUB_HEADER}${stub('A')}\n${stub('C')}\n`);
+  assert.equal(planned(text, { module: 'main', chunks: same(['A', 'B', 'C', 'D']) }), crlf(`${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`));
+  const unterminated = `${crlf(C_STUB_HEADER)}${stub('A')}`;
+  assert.equal(planned(unterminated, { module: 'main', chunks: same(['A', 'B', 'C']) }), crlf(`${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('C')}\n`));
+  assert.equal(planned('void A(void) {\r\n}\r\n', { module: 'main', chunks: same(['A', 'B']) }), crlf(`${C_STUB_HEADER}void A(void) {\n}\n${stub('B')}\n`));
+  for (const result of [planned(text, { module: 'main', chunks: same(['A', 'B', 'C', 'D']) }), planned(unterminated, { module: 'main', chunks: same(['A', 'B', 'C']) })]) {
+    assert.ok(!/[^\r]\n/.test(result), 'no bare LF');
+  }
 });
 
 const NONMATCHING = (inner: string): string => `#ifdef NONMATCHING\nint A(int x) {\n  return x;\n}\n#else\n${stub(inner)}\n#endif\n`;
@@ -223,7 +236,7 @@ test('the NONMATCHING pattern after a rename: the #else stub is never removed (E
   assert.deepEqual(refused.edits.map((e) => [e.reason, e.text]), [['add-stub', `${stub('Nop')}\n`]], 'no removal; Nop, defined only inside the region, gets a stub outside it');
   // Both renamed: the #else stub holds Nop, nothing to do.
   const done = `${C_STUB_HEADER}${stub('A')}\n${block('Nop', 'Nop')}${stub('C')}\n`;
-  assert.deepEqual(planIncludeAsm(done, wanted), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
+  assert.deepEqual(planIncludeAsm(done, wanted), { edits: [], diagnostics: [], unplaced: [], undeclared: [], included: [] });
   // Neither renamed: the stale C and the conditional stub are both refused.
   const before = `${C_STUB_HEADER}${stub('A')}\n${block('sub_08000100', 'sub_08000100')}${stub('C')}\n`;
   assert.deepEqual(planIncludeAsm(before, wanted).diagnostics.map((d) => d.code), ['E_C_CONDITIONAL_STUB', 'E_C_STALE_DEFINITION']);
@@ -254,7 +267,7 @@ test('with the previous tree known, a helper where a renamed asm-only function g
 test('a case-folded pair: a definition holds its chunk by symbol, a stub by stub name, and the stub is inserted by stub name', () => {
   const chunks = [{ name: 'Foo', stub: 'Foo_080000F6' }, { name: 'foo', stub: 'foo_08000100' }];
   const decompiled = `${C_STUB_HEADER}void Foo(void) {\n}\n${stub('foo_08000100')}\n`;
-  assert.deepEqual(planIncludeAsm(decompiled, { module: 'main', chunks, path: 'src/main.c' }), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
+  assert.deepEqual(planIncludeAsm(decompiled, { module: 'main', chunks, path: 'src/main.c' }), { edits: [], diagnostics: [], unplaced: [], undeclared: [], included: [] });
   assert.equal(planned(C_STUB_HEADER, { module: 'main', chunks }), `${C_STUB_HEADER}${stub('Foo_080000F6')}\n${stub('foo_08000100')}\n`);
   assert.equal(planned(`${C_STUB_HEADER}${stub('Foo')}\n`, { module: 'main', chunks }), `${C_STUB_HEADER}${stub('Foo_080000F6')}\n${stub('foo_08000100')}\n`, 'a stub of the symbol is not the chunk file\'s');
 });
@@ -286,7 +299,7 @@ test('a conditional inside a body is read as the preprocessor reads it: branches
   assert.deepEqual(scan.unscannable, []);
   assert.deepEqual(scan.definitions.map((d) => d.name), ['B']);
   assert.deepEqual(scan.statements.map((d) => d.name), ['A', 'C', 'D']);
-  assert.deepEqual(planIncludeAsm(text, WANTED), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
+  assert.deepEqual(planIncludeAsm(text, WANTED), { edits: [], diagnostics: [], unplaced: [], undeclared: [], included: [] });
   // The matching idiom of correctness-b0-1: `do {` and `} while (0);` each behind #ifndef NONMATCHING.
   const doWhile = `${stub('A')}\nvoid B(char *d, const char *s) {\n#ifndef NONMATCHING\n    do {\n#endif\n    while ((*d++ = *s++)) ;\n#ifndef NONMATCHING\n    } while (0);\n#endif\n}\n${stub('C')}\n${stub('D')}\n`;
   assert.deepEqual(scanC(doWhile).unscannable, []);
@@ -403,4 +416,71 @@ test('compiledDefinitions: named definitions outside every conditional, the one 
   const compiled = compiledDefinitions(knr);
   assert.equal(compiled.scannable, false);
   assert.ok(!compiled.scannable && compiled.unscannable.length === 1);
+});
+
+// Fix round 6 (D82): the header a file gains with its first stub, a definition in every branch, and the fragments a
+// module's file includes.
+
+test('a file of decompiled C alone gains the header with its first stub, below its leading comments; one with a stub or the include does not (correctness-b1-2)', () => {
+  const two = { module: 'main', chunks: same(['A', 'B']), path: 'src/main.c' };
+  assert.equal(planned('/* licence */\n// file\nvoid A(void) {\n}\n', two), `/* licence */\n// file\n${C_STUB_HEADER}void A(void) {\n}\n${stub('B')}\n`);
+  assert.equal(planned('/* licence */ void A(void) {\n}\n', two), `/* licence */ \n${C_STUB_HEADER}void A(void) {\n}\n${stub('B')}\n`, 'a comment on the first code line stays whole');
+  assert.equal(planned('#include "global.h"\nvoid A(void) {\n}\n', two), `${C_STUB_HEADER}#include "global.h"\nvoid A(void) {\n}\n${stub('B')}\n`);
+  // The include or a stub anywhere (a global.h that includes the header): no second include.
+  assert.equal(planned('#include "include_asm.h"\nvoid A(void) {\n}\n', two), `#include "include_asm.h"\nvoid A(void) {\n}\n${stub('B')}\n`);
+  assert.equal(planned(`#include "global.h"\n#ifdef NONMATCHING\nvoid A(void) {\n}\n#else\n${stub('A')}\n#endif\n`, two), `#include "global.h"\n#ifdef NONMATCHING\nvoid A(void) {\n}\n#else\n${stub('A')}\n#endif\n${stub('B')}\n`);
+  // Only an insertion brings it: a file that needs none, or only a removal, is left without it.
+  assert.deepEqual(planIncludeAsm('void A(void) {\n}\nvoid B(void) {\n}\n', two).edits, []);
+});
+
+test('a definition in every branch of a conditional with an #else holds its chunk: no second stub (correctness-b1-4)', () => {
+  const abc = { module: 'm', chunks: same(['A', 'B', 'C']), path: 'src/m.c' };
+  const m = (name: string): string => stub(name, 'm');
+  const naked = `${C_STUB_HEADER}${m('A')}\n#ifdef NONMATCHING\nint B(int x) {\n  return x;\n}\n#else\nNAKED int B(int x) {\n  asm(".include \\"b.s\\"");\n}\n#endif\n${m('C')}\n`;
+  assert.deepEqual(planIncludeAsm(naked, abc), { edits: [], diagnostics: [], unplaced: [], undeclared: [], included: [] });
+  assert.deepEqual(compiledDefinitions(scanC(naked)).definitions.map((d) => [d.name, d.line]), [['B', 5]], 'one compiled definition, the first branch\'s');
+  // Without the #else, or with B in only one branch, or in a conditional nested in the #else: no build is sure to
+  // compile it, so its stub goes in, after A (outside the region).
+  const variants = [
+    naked.replace('#else\n', '#elif defined(OTHER)\n'),
+    naked.replace('NAKED int B(int x) {\n  asm(".include \\"b.s\\"");\n}\n', 'int B(int x);\n'),
+    naked.replace('#else\nNAKED int B(int x) {\n  asm(".include \\"b.s\\"");\n}\n', '#else\n#ifdef FOO\nNAKED int B(int x) {\n  asm(".include \\"b.s\\"");\n}\n#endif\n'),
+  ];
+  for (const text of variants) {
+    const plan = planIncludeAsm(text, abc);
+    assert.deepEqual(plan.diagnostics.filter((d) => d.severity === 'error'), [], text);
+    assert.equal(applyTextEdits(text, plan.edits), text.replace(`${m('A')}\n`, `${m('A')}\n${m('B')}\n`), text);
+  }
+  // A missing chunk after one held in every branch goes after the region's #endif, never inside it.
+  const split = planIncludeAsm(naked, { module: 'm', chunks: same(['A', 'B', 'X', 'C']), path: 'src/m.c' });
+  assert.equal(applyTextEdits(naked, split.edits), naked.replace(`#endif\n${m('C')}`, `#endif\n${m('X')}\n${m('C')}`));
+});
+
+test('a src/*.c fragment the file #includes defines its functions there; an unread fragment refuses every insertion (correctness-b1-3)', () => {
+  const fragments = new Map([['src/poly.inc.c', ['B']]]);
+  const wanted = { ...WANTED, fragments };
+  const text = `${C_STUB_HEADER}${stub('A')}\n#include "poly.inc.c"\n${stub('C')}\n${stub('D')}\n`;
+  const plan = planIncludeAsm(text, wanted);
+  assert.deepEqual([plan.edits, plan.diagnostics, plan.included], [[], [], ['src/poly.inc.c']]);
+  // A fragment's function the module does not want is returned for the caller (E_C_DEFINITION_MOVED there), named by its fragment.
+  const other = planIncludeAsm(text, { ...wanted, fragments: new Map([['src/poly.inc.c', ['B', 'Elsewhere']]]) });
+  assert.deepEqual(other.undeclared.map((d) => [d.name, d.via, d.line]), [['Elsewhere', 'src/poly.inc.c', 4]]);
+  // A renamed function whose C the fragment holds is stale, wherever the include lies.
+  const stale = planIncludeAsm(text, { ...wanted, fragments: new Map([['src/poly.inc.c', ['Old']]]), retired: ['Old'], previousStubs: [] });
+  assert.deepEqual(stale.diagnostics.map((d) => d.code), ['E_C_STALE_DEFINITION']);
+  assert.match(stale.diagnostics[0]?.message ?? '', /through its #include of src\/poly\.inc\.c, defines Old/);
+  // A quoted include romlift does not read and that is no header: an insertion it might duplicate is refused.
+  const unread = text.replace('#include "poly.inc.c"', '#include "poly.inc"');
+  const refused = planIncludeAsm(unread, wanted);
+  assert.deepEqual([refused.edits, refused.unplaced, refused.diagnostics.map((d) => d.code)], [[], ['B'], ['E_C_STUB_UNPLACED']]);
+  assert.match(refused.diagnostics[0]?.message ?? '', /#includes "poly\.inc" \(line 4\), which romlift does not read/);
+  // A header, an include inside an initializer, and a fragment that needs no insertion are no refusal.
+  for (const harmless of [text.replace('#include "poly.inc.c"', '#include "poly.h"'), text.replace('#include "poly.inc.c"', 'const int t[] = {\n#include "table.inc"\n};')]) {
+    const p = planIncludeAsm(harmless, wanted);
+    assert.deepEqual(p.diagnostics, [], harmless);
+    assert.equal(applyTextEdits(harmless, p.edits).includes(stub('B')), true, harmless);
+  }
+  assert.deepEqual(planIncludeAsm(unread.replace(stub('A'), `${stub('A')}\n${stub('B')}`), wanted).diagnostics, []);
+  // Without the fragments (or the file's path) includes are not followed.
+  assert.deepEqual(planIncludeAsm(text, WANTED).included, []);
 });

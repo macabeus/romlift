@@ -11,7 +11,9 @@
 //            only when `<name>.gba` has the SHA-1 `<name>.sha1` records (D75 b).
 //   illegal: a module start moved by 2 bytes (E_MODULE_BORDER), a [functions] line repeated
 //            (E_DUPLICATE_ADDRESS), a [functions] key without its leading zero (E_TOML_KEY_SPELLING); each
-//            makes `generate --json` exit 1 with that code and leaves every file but romlift.toml unchanged.
+//            makes `generate --json` exit 1 with that code and leaves every file but romlift.toml unchanged (the
+//            snapshot leaves out only .git and tools/agbcc, the compiler checkout setup.sh's duty 2 built, which
+//            romlift never writes and which is too large to hash per edit; fix round 6, gate-honesty-b1-2).
 //
 // Calls, frozen by D74 (architecture §3.3, §3.4, §6.2; parseConfig and serializeConfig are p4-config's):
 //   parseConfig(text) -> {ok: true, value: RomliftConfig, diagnostics} | {ok: false, diagnostics}
@@ -238,7 +240,7 @@ async function snapshot(dir: string, prefix = ''): Promise<Map<string, string>> 
   const out = new Map<string, string>();
   for (const entry of await readdir(path.join(dir, prefix), { withFileTypes: true })) {
     const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
-    if (relative === '.git' || relative === 'tools' || relative === 'romlift.toml') continue;
+    if (relative === '.git' || relative === 'tools/agbcc' || relative === 'romlift.toml') continue;
     if (entry.isDirectory()) for (const [key, value] of await snapshot(dir, relative)) out.set(key, value);
     else if (entry.isFile()) out.set(relative, createHash('sha1').update(await readFile(path.join(dir, relative))).digest('hex'));
   }
@@ -273,6 +275,8 @@ gate({
     const env = { ROMLIFT_CLI: cli };
     const problems: string[] = [];
     let legal = 0;
+    /** The legal edits that built, by kind: the add-override one changes nothing until phase 6 (D81 c), which the note says. */
+    const byKind = new Map<LegalKind, number>(LEGAL_KINDS.map((k) => [k, 0]));
     let illegal = 0;
     let agbcc: string | undefined;
     for (const target of targets) {
@@ -312,6 +316,7 @@ gate({
           problems.push(`${target.name}: ${edit.what}: generate exit ${generate.run.code}, verify exit ${verify?.run.code ?? 'not run'}, linked ${linked ?? 'nothing'}, make exit ${built}, codes [${codes.join(', ')}]`);
         } else {
           legal++;
+          byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
         }
       }
 
@@ -327,6 +332,7 @@ gate({
       await writeFile(tomlPath, text);
     }
     if (problems.length > 0) throw new Error(`TOML mutations: ${problems.join(' | ')}`);
-    cx.note(`${legal} legal edits link to the SHA-1 and build with make to it, and ${illegal} illegal edits give their codes, on ${targets.length} ROMs`);
+    const kinds = LEGAL_KINDS.map((k) => `${k} ${byKind.get(k) ?? 0}${k === 'add-override' ? ' (each a no-op that warns W_OVERRIDE_IGNORED, D81 c)' : ''}`).join(', ');
+    cx.note(`${legal} legal edits link to the SHA-1 and build with make to it (${kinds}), and ${illegal} illegal edits give their codes, on ${targets.length} ROMs`);
   },
 });

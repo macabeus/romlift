@@ -11,7 +11,14 @@
 //      exits 0 with no diagnostic and `make` ends at the SHA-1, then again from the state of a fresh clone (no
 //      generated file), through `./setup.sh`'s duty 5;
 //   4. (correctness-b0-2) main_3 renamed `boot` with src/main_3.c moved to src/boot.c: `generate` exits 0, no stub of
-//      the old directory is left, and `make` ends at the SHA-1.
+//      the old directory is left, and `make` ends at the SHA-1;
+//   5. (fix round 6, correctness-b1-2) a `c` module split right at Nop: `generate` refuses with E_C_DEFINITION_MOVED,
+//      naming src/m3a.c; Nop's C cut from src/boot.c and pasted alone into a new src/m3a.c, `generate` adds its
+//      `#include "include_asm.h"` and the pad's stub, and `make` ends at the SHA-1;
+//   6. (correctness-b1-1) the project committed to Git and cloned: the clone's ./setup.sh generates the tree and
+//      `make` ends at the SHA-1; an upstream rename pulled into the clone stops `make` with the message naming
+//      `romlift generate`, and ./setup.sh (duty 5) then regenerates and `make` ends at the SHA-1; a second pulled
+//      rename and `romlift generate`, as the scaffold's AGENTS.md says, end at the SHA-1 too.
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -84,7 +91,7 @@ function codesOf(ran: Ran): readonly string[] {
     .map((l) => l.code ?? '?');
 }
 
-test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone and a moved module build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
+test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone, a moved module, a split at a decompiled function and a pulled TOML edit build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
   assert.equal(unavailable, undefined, unavailable);
   const bytes = readFileSync(ROM);
   assert.deepEqual([...bytes.subarray(0x28104, 0x28108)], [0x70, 0x47, 0, 0], 'sub_08028104 is `bx lr` and a zero pad');
@@ -102,14 +109,14 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
   for (const part of ['bin', 'include', 'lib']) if (prebuilt !== undefined && existsSync(path.join(prebuilt, part))) await cp(path.join(prebuilt, part), path.join(dir, 'tools', 'agbcc', part), { recursive: true });
   const setup = await run('./setup.sh', [], dir, env);
   assert.equal(setup.code, 0, tail(setup));
-  const make = async (): Promise<void> => {
-    const built = await run('make', [], dir, env);
+  const make = async (at: string = dir): Promise<void> => {
+    const built = await run('make', [], at, env);
     assert.equal(built.code, 0, tail(built));
-    const rom = builtRom(dir);
-    assert.equal(createHash('sha1').update(readFileSync(path.join(dir, rom))).digest('hex'), dataset.sha1, `${rom} is not klonoa's ROM`);
+    const rom = builtRom(at);
+    assert.equal(createHash('sha1').update(readFileSync(path.join(at, rom))).digest('hex'), dataset.sha1, `${rom} is not klonoa's ROM`);
   };
-  const generate = async (): Promise<{ readonly code: number; readonly codes: readonly string[]; readonly tail: string }> => {
-    const ran = await run(cli, ['generate', '--json'], dir, env);
+  const generate = async (at: string = dir): Promise<{ readonly code: number; readonly codes: readonly string[]; readonly tail: string }> => {
+    const ran = await run(cli, ['generate', '--json'], at, env);
     return { code: ran.code, codes: codesOf(ran), tail: tail(ran) };
   };
   await make();
@@ -168,4 +175,68 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
   assert.ok(!boot.includes('asm/nonmatchings/main_3'), 'no stub of the old directory is left');
   assert.ok(boot.includes(idiom) && boot.includes(stub('boot', 'unk_08028106')), 'the C kept, the stubs in the new directory');
   await make();
+
+  // 5. A c module split right at the decompiled Nop (correctness-b1-2): the refusal names the new source, and the C
+  //    pasted alone into it gets the include and the stubs it needs.
+  const moduleToml = split.replace('name = "main_3"', 'name = "boot"');
+  const atNop = moduleToml.replace('[[modules]]\nname = "m3b"', '[[modules]]\nname = "m3a"\nstart = 0x08028104\nkind = "c"\n\n[[modules]]\nname = "m3b"');
+  assert.notEqual(atNop, moduleToml, 'm3b follows boot');
+  await writeFile(file('romlift.toml'), atNop);
+  const movedC = await generate();
+  assert.equal(movedC.code, 1, movedC.tail);
+  assert.deepEqual(movedC.codes, ['E_C_DEFINITION_MOVED'], movedC.tail);
+  assert.ok(movedC.tail.includes('move its C to src/m3a.c'), movedC.tail);
+  assert.ok(!existsSync(file('src/m3a.c')), 'the refusal wrote nothing');
+  await writeFile(file('src/boot.c'), boot.replace(`${idiom}\n`, ''));
+  await writeFile(file('src/m3a.c'), `${idiom}\n`);
+  const pasted = await generate();
+  assert.equal(pasted.code, 0, pasted.tail);
+  const m3a = await readFile(file('src/m3a.c'), 'utf8');
+  assert.equal(m3a, `#include "include_asm.h"\n\n${idiom}\n${stub('m3a', 'unk_08028106')}\n`);
+  await make();
+
+  // 6. A pull that changes romlift.toml (correctness-b1-1): the generated tree is not in Git, so the clone's is stale
+  //    until `romlift generate` (or ./setup.sh's duty 5) runs; make says so instead of failing in the assembler.
+  const git = async (at: string, ...args: string[]): Promise<void> => {
+    const ran = await run('git', ['-c', 'user.name=romlift-test', '-c', 'user.email=test@romlift.invalid', '-c', 'init.defaultBranch=main', ...args], at);
+    assert.equal(ran.code, 0, `git ${args.join(' ')}: ${tail(ran)}`);
+  };
+  await git(dir, 'init', '-q');
+  await writeFile(path.join(dir, '.git', 'info', 'exclude'), 'tools/\n');
+  await git(dir, 'add', '-A');
+  await git(dir, 'commit', '-q', '-m', 'klonoa');
+  const clone = path.join(TMP, 'clone');
+  await git(TMP, 'clone', '-q', dir, clone);
+  assert.ok(!existsSync(path.join(clone, 'asm')) && !existsSync(path.join(clone, 'modules.mk')), 'nothing generated is committed');
+  await copyFile(path.join(dir, 'baserom.gba'), path.join(clone, 'baserom.gba'));
+  for (const part of ['bin', 'include', 'lib']) if (existsSync(path.join(dir, 'tools', 'agbcc', part))) await cp(path.join(dir, 'tools', 'agbcc', part), path.join(clone, 'tools', 'agbcc', part), { recursive: true });
+  const cloneSetup = await run('./setup.sh', [], clone, env);
+  assert.equal(cloneSetup.code, 0, tail(cloneSetup));
+  await make(clone);
+  // Upstream: an asm-only function renamed in the TOML, generated, built and committed.
+  const renameUpstream = async (from: string, to: string): Promise<void> => {
+    const text = await readFile(file('romlift.toml'), 'utf8');
+    assert.ok(text.includes(`= "${from}"`), from);
+    await writeFile(file('romlift.toml'), text.replace(`= "${from}"`, `= "${to}"`));
+    const upstream = await generate();
+    assert.equal(upstream.code, 0, upstream.tail);
+    await make();
+    await git(dir, 'commit', '-q', '-am', `rename ${from}`);
+  };
+  const [, first, second] = /^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$[\s\S]*^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$/m.exec(atNop) ?? assert.fail('two asm-only functions');
+  if (first === undefined || second === undefined) assert.fail('two asm-only functions');
+  await renameUpstream(first, 'PulledOne');
+  await git(clone, 'pull', '-q', '--no-rebase');
+  const stale = await run('make', [], clone, env);
+  assert.notEqual(stale.code, 0, 'make refuses the stale tree');
+  assert.ok(stale.out.includes('romlift.toml changed since romlift generate last ran'), tail(stale));
+  const resetup = await run('./setup.sh', [], clone, env);
+  assert.equal(resetup.code, 0, tail(resetup));
+  assert.ok(resetup.out.includes('romlift.toml changed since the last romlift generate'), tail(resetup));
+  await make(clone);
+  await renameUpstream(second, 'PulledTwo');
+  await git(clone, 'pull', '-q', '--no-rebase');
+  const regenerated = await generate(clone);
+  assert.equal(regenerated.code, 0, regenerated.tail);
+  await make(clone);
 });

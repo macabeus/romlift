@@ -41,7 +41,7 @@ import { nonmatchingDir } from '../../foundation/util/project-files.ts';
 import { chunkNamesOf, chunkPathsOf, isCSource, moduleChunkStubs, moduleSource } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
 import { compiledDefinitions, planIncludeAsm, scanC, unscannableWarning } from '../reconcile/include-asm.ts';
-import type { StubTree } from '../reconcile/include-asm.ts';
+import type { CDefinition, CompiledDefinitions, StubTree } from '../reconcile/include-asm.ts';
 import { applyTextEdits } from '../reconcile/text-edit.ts';
 import type { TextEdit } from '../reconcile/text-edit.ts';
 import type { FileEntry } from '../emit/tree.ts';
@@ -74,13 +74,19 @@ function functionModules(model: Pick<Model, 'chunks'>): ReadonlyMap<string, stri
   return out;
 }
 
-/** E_C_DEFINITION_MOVED for definition `d` of `path`, whose function romlift.toml now puts in module `owner`. */
-function movedDiagnostic(path: string, d: { readonly name: string; readonly line: number }, owner: Model['modules'][number] | undefined, ownerName: string): Diagnostic {
+/**
+ * E_C_DEFINITION_MOVED for definition `d` of `path` (or of the fragment `d.via` that `path` includes), whose function
+ * romlift.toml now puts in module `owner`, whose source is `ownerSource`.
+ */
+function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'via'>, owner: Model['modules'][number] | undefined, ownerName: string, ownerSource: string | undefined): Diagnostic {
+  // Named by its path (fix round 6, correctness-b1-2): the file may not exist yet, and the next generate writes the
+  // module's INCLUDE_ASM lines and the include of include_asm.h around the C pasted into it.
   const advice =
     owner?.kind === 'c'
-      ? `move its C to ${ownerName}'s source, or the function is defined twice`
+      ? `move its C to ${ownerSource ?? `${ownerName}'s source`} (create the file if it does not exist: the next generate adds the module's INCLUDE_ASM lines around it), or the function is defined twice`
       : `${ownerName} is ${owner?.kind === 'data' ? 'a data' : 'an asm'} module, which builds no C: delete the C definition, or make ${ownerName} a c module in romlift.toml, or the function is defined twice`;
-  return diagnostic(WorkflowCodes, 'E_C_DEFINITION_MOVED', `${path} defines ${d.name} (line ${d.line}), which romlift.toml now puts in module ${ownerName}: ${advice}`, { path });
+  const where = d.via === undefined ? `${path} defines ${d.name} (line ${d.line})` : `${d.via}, which ${path} includes (line ${d.line}), defines ${d.name}`;
+  return diagnostic(WorkflowCodes, 'E_C_DEFINITION_MOVED', `${where}, which romlift.toml now puts in module ${ownerName}: ${advice}`, { path: d.via ?? path });
 }
 
 /**
@@ -95,6 +101,17 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
   const sources = new Set(model.modules.map((m) => moduleSource(model, m)));
   const owners = functionModules(model);
   const modules = new Map(model.modules.map((m) => [m.name, m] as const));
+  const sourceOf = (name: string): string | undefined => {
+    const module = modules.get(name);
+    return module === undefined ? undefined : moduleSource(model, module);
+  };
+  // Every src/*.c that is no module's source, read once: a fragment a module's file may #include (fix round 6,
+  // correctness-b1-3), else a file of no module.
+  const others = new Map<string, CompiledDefinitions>();
+  for (const path of [...cTexts.keys()].sort(compareCodeUnits)) if (!sources.has(path)) others.set(path, compiledDefinitions(scanC(cTexts.get(path) ?? '')));
+  const fragments = new Map([...others].map(([path, compiled]) => [path, compiled.definitions.map((d) => d.name)] as const));
+  /** The fragments some module's file includes; their definitions were checked there. */
+  const included = new Set<string>();
   // A function of the previous tree that a module still has is wanted there (or E_C_DEFINITION_MOVED), never stale.
   const retired = previousChunkFiles !== undefined && previousChunkFiles.length > 0 ? chunkNamesOf(previousChunkFiles).filter((name) => !owners.has(name)) : undefined;
   // The tree this run writes: a stub of a directory it no longer writes that file in goes (correctness-b0-2).
@@ -106,25 +123,25 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
     if (!isCSource(path) || base === undefined) continue;
     tree ??= stubTree(model);
     const previous = retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previousChunkFiles ?? [], module.name) };
-    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, ...previous });
+    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, ...previous });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
+    for (const fragment of plan.included) included.add(fragment);
     for (const d of plan.undeclared) {
       const owner = owners.get(d.name);
       if (owner === undefined || owner === module.name) continue;
-      diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner));
+      diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner, sourceOf(owner)));
     }
   }
-  for (const path of [...cTexts.keys()].sort(compareCodeUnits)) {
-    if (sources.has(path)) continue;
-    diagnostics.push(diagnostic(WorkflowCodes, 'W_C_FILE_UNUSED', `${path} is the source of no module of romlift.toml, so make does not build it (was its c module renamed?); its C is left in place`, { path }));
+  for (const [path, compiled] of others) {
+    if (included.has(path)) continue;
+    diagnostics.push(diagnostic(WorkflowCodes, 'W_C_FILE_UNUSED', `${path} is the source of no module of romlift.toml and no module's source #includes it, so make does not build it (was its c module renamed?); its C is left in place`, { path }));
     // Its decompiled C of a function some module has would drop out of the build while that module's stub stands in.
     // A file the scanner cannot split is checked over what it read, and says so (architecture-b0-2).
-    const compiled = compiledDefinitions(scanC(cTexts.get(path) ?? ''));
     if (!compiled.scannable) diagnostics.push(unscannableWarning(path, path, compiled.unscannable, 'its definitions were checked against the modules as far as it reads'));
     for (const d of compiled.definitions) {
       const owner = owners.get(d.name);
-      if (owner !== undefined) diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner));
+      if (owner !== undefined) diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner, sourceOf(owner)));
     }
   }
   files.sort((a, b) => compareCodeUnits(a.path, b.path));

@@ -10,11 +10,13 @@
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { insnAligned } from '../../foundation/rom/span.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
-import { compareNumbers } from '../../foundation/util/sorted.ts';
+import { compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
+import type { RomliftConfig } from './schema.ts';
 
 /** A table header: `[a.b]` or `[[a]]`. */
 export interface TomlHeader {
@@ -452,4 +454,24 @@ export function checkAddressKeys(outline: TomlOutline): Diagnostic<ConfigCode>[]
     });
   }
   return out.sort((a, b) => compareNumbers(a.line, b.line) || (a.d.code < b.d.code ? -1 : a.d.code > b.d.code ? 1 : 0)).map((o) => o.d);
+}
+
+/**
+ * E_FUNCTION_MISALIGNED for every [functions] key of `config` that is no instruction address of its entry's mode
+ * (foundation insnAligned: odd for Thumb, not a multiple of 4 for ARM), with the line the outline gives it (fix round
+ * 5, correctness-b0-4; raised here since fix round 6, architecture-b1-1, so every command that loads romlift.toml
+ * refuses it before any analysis, as it refuses a misspelt key). The pointer-value hint for an odd Thumb key.
+ */
+export function misalignedFunctionKeys(config: Pick<RomliftConfig, 'functions'>, outline: TomlOutline): Diagnostic<ConfigCode>[] {
+  const lines = new Map<Addr, number>();
+  for (const use of addressKeyUses(outline)) if (use.table === 'functions' && use.addr !== undefined && !lines.has(use.addr)) lines.set(use.addr, use.line);
+  const out: Diagnostic<ConfigCode>[] = [];
+  for (const [entry, f] of sortedEntries(config.functions)) {
+    if (insnAligned(f.mode, entry)) continue;
+    const line = lines.get(entry);
+    const hint = f.mode === 'thumb' ? `; a Thumb function's pointer value has bit 0 set, its entry is ${addressKey(entry - 1)}` : '';
+    const what = f.mode === 'arm' ? 'word-aligned ARM' : 'halfword-aligned Thumb';
+    out.push(diagnostic(ConfigCodes, 'E_FUNCTION_MISALIGNED', `${line === undefined ? '' : `line ${line}: `}the [functions] key ${addressKey(entry)} (${f.name}) is not a ${what} instruction address${hint}`, { addr: entry }));
+  }
+  return out;
 }

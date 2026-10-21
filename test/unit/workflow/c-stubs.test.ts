@@ -141,3 +141,16 @@ test('a module renamed with its source moved: the stubs of the old directory are
   assert.deepEqual(stubs.diagnostics, []);
   assert.equal(stubs.files[0]?.text, PAIR_STUB);
 });
+
+test('a src/*.c fragment a module\'s file #includes is part of that module: no W_C_FILE_UNUSED, its function held, one of another module E_C_DEFINITION_MOVED naming it (fix round 6, correctness-b1-3)', () => {
+  const [first, second] = namesOf('main');
+  if (first === undefined || second === undefined) assert.fail('main has two chunks');
+  const main = (TEXTS.get('src/main.c') ?? '').replace(`${includeAsmStatement('main', second)}\n`, '#include "frag.inc.c"\n');
+  const held = reconcileStubs(MODEL, new Map([...TEXTS, ['src/main.c', main], ['src/frag.inc.c', `void ${second}(void) {\n}\n`]]));
+  assert.deepEqual(held.diagnostics, []);
+  assert.deepEqual(held.files.find((f) => f.path === 'src/main.c')?.edits, [], 'the fragment holds the chunk: no second stub');
+  const moved = namesOf('main_2').find((n) => n.startsWith('sub_')) ?? assert.fail('main_2 has a function');
+  const elsewhere = reconcileStubs(MODEL, new Map([...TEXTS, ['src/main.c', main], ['src/frag.inc.c', `void ${second}(void) {\n}\nint ${moved}(void) {\n  return 0;\n}\n`]]));
+  assert.deepEqual(elsewhere.diagnostics.map((d) => [d.code, d.path]), [['E_C_DEFINITION_MOVED', 'src/frag.inc.c']]);
+  assert.match(elsewhere.diagnostics[0]?.message ?? '', new RegExp(`src/frag\\.inc\\.c, which src/main\\.c includes \\(line \\d+\\), defines ${moved}, which romlift\\.toml now puts in module main_2: move its C to src/main_2\\.c`));
+});

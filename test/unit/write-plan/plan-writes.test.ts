@@ -203,10 +203,13 @@ test('reconciled: E_STALE_EDIT when the file changed, is absent, or its text is 
   assert.deepEqual(changed.ops, []);
   assert.deepEqual(codes(changed), ['E_STALE_EDIT src/main.c']);
   assert.equal(planHasErrors(changed), true);
+  // Absent and unread: the message says absent, the disk state first (fix round 6, architecture-b1-3).
   const absent = plan({ entries: [reconciled('src/main.c', BASE, [edit])], disk: diskOf({ 'src/main.c': null }) });
   assert.deepEqual(codes(absent), ['E_STALE_EDIT src/main.c']);
+  assert.match(absent.diagnostics[0]?.message ?? '', /it is absent/);
   const noText = plan({ entries: [reconciled('src/main.c', BASE, [edit])], disk: diskOf({ 'src/main.c': BASE }) });
   assert.deepEqual(codes(noText), ['E_STALE_EDIT src/main.c']);
+  assert.match(noText.diagnostics[0]?.message ?? '', /it is not the text its edits were planned on/);
   const wrongText = plan({
     entries: [reconciled('src/main.c', BASE, [edit])],
     disk: diskOf({ 'src/main.c': BASE }),
@@ -347,10 +350,12 @@ test('a case-only rename: the old spelling is deleted before every other op and 
 
 test('staleEdit: the one staleness rule, at plan time and at write time (fix round 5, architecture-b0-1)', () => {
   const op = { path: 'src/main.c', baseSha1: 'a'.repeat(40) };
-  assert.equal(staleEdit(op, op.baseSha1, 'planned'), undefined);
-  assert.equal(staleEdit(op, op.baseSha1, 'written'), undefined);
-  const planned = staleEdit(op, 'absent', 'planned');
+  assert.equal(staleEdit(op, { kind: 'sha1', sha1: op.baseSha1 }, 'planned'), undefined);
+  assert.equal(staleEdit(op, { kind: 'sha1', sha1: op.baseSha1 }, 'written'), undefined);
+  const planned = staleEdit(op, { kind: 'absent' }, 'planned');
   assert.deepEqual([planned?.code, planned?.severity, planned?.path], ['E_STALE_EDIT', 'error', 'src/main.c']);
   assert.match(planned?.message ?? '', /changed since its edits were planned: it is absent/);
-  assert.match(staleEdit(op, 'b'.repeat(40), 'written')?.message ?? '', /changed while its edits were being written: it has sha1 b{40}/);
+  assert.match(staleEdit(op, { kind: 'unread' }, 'planned')?.message ?? '', /changed since its edits were planned: it is not the text its edits were planned on, the edits expect a{40}/);
+  assert.match(staleEdit(op, { kind: 'sha1', sha1: 'b'.repeat(40) }, 'written')?.message ?? '', /changed while its edits were being written: it has sha1 b{40}/);
+  assert.match(staleEdit(op, { kind: 'absent' }, 'written')?.message ?? '', /changed while its edits were being written: it is absent/);
 });

@@ -23,7 +23,8 @@ tools/agbcc/lib/
 
 # Tool-owned and regenerated, never committed: `romlift generate` writes them from romlift.toml and the ROM on
 # every run. A fresh clone or git worktree gets them from ./setup.sh, which runs `romlift generate` when asm/ is
-# absent. Never edit them by hand: change romlift.toml and run `npx romlift generate`.
+# absent; after a pull or a checkout that changes romlift.toml, run `npx romlift generate` (or ./setup.sh) again
+# (make stops until you do). Never edit them by hand: change romlift.toml and run `npx romlift generate`.
 /asm/
 /data/
 /expected/
