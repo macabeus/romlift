@@ -143,6 +143,8 @@ test('decompStateOf: the names src/*.c defines at file scope, unique, in code-un
   ]);
   assert.deepEqual(decompStateOf(cTexts), { defined: ['Alpha', 'Zeta'] });
   assert.deepEqual(decompStateOf(new Map([['src/main.c', '#include "include_asm.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", sub_0800);\n']])), { defined: [] });
+  // A definition inside an #if region is not one the default build compiles (architecture-a2-3), as for the reconciler.
+  assert.deepEqual(decompStateOf(new Map([['src/main.c', '#ifdef NONMATCHING\nvoid Foo(void) {\n}\n#endif\nvoid Bar(void) {\n}\n']])), { defined: ['Bar'] });
 });
 
 test('planChangesNothing: false without a manifest, with a journal, with an active op or another manifest', () => {

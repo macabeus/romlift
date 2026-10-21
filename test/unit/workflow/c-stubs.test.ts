@@ -105,3 +105,19 @@ test('the previous tree: the C of a renamed or deleted function is stale anywher
   assert.deepEqual(refused.map((d) => d.code), ['E_C_DEFINITION_MOVED']);
   assert.match(refused[0]?.message ?? '', /now puts in module tail: tail is an asm module, which builds no C: delete the C definition, or make tail a c module in romlift.toml/);
 });
+
+// Fix round 4 (D80 a): the module's own chunk files of the previous tree, and a file of no module that holds decompiled C.
+
+test('a C-only rename where a chunk of the module\'s own previous directory was is stale; a file of no module is still read (correctness-a2-1, a2-4)', () => {
+  const previous = ['asm/nonmatchings/main/Foo_080000C0.s', 'asm/nonmatchings/main/foo_080000E0.s', 'asm/nonmatchings/main/Nop.s', 'asm/nonmatchings/tail/Moved.s'];
+  const renamedInC = PAIR_STUB.replace(`${includeAsmStatement('main', 'Nop')}\n`, 'void Pause(void) {\n}\n');
+  const stale = reconcileStubs(PAIR, new Map([['src/main.c', renamedInC]]), previous);
+  assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.severity]), [['E_C_STALE_DEFINITION', 'error']]);
+  assert.match(stale.diagnostics[0]?.message ?? '', /defines Pause \(line \d+\) where the INCLUDE_ASM of Nop was, and module main still has Nop/);
+  // Nop's file was in another module's directory (a border move brought it here): Pause is a helper beside its stub.
+  const moved = previous.map((p) => p.replace('main/Nop.s', 'tail/Nop.s'));
+  assert.deepEqual(reconcileStubs(PAIR, new Map([['src/main.c', renamedInC]]), moved).diagnostics, []);
+  // A src/*.c of no module that defines a function a module has: its C would leave the build unseen.
+  const orphan = reconcileStubs(PAIR, new Map([['src/main.c', PAIR_STUB], ['src/gone.c', 'void Moved(void) {\n}\nint Kept(void) { return 1; }\n']]), previous);
+  assert.deepEqual(orphan.diagnostics.map((d) => [d.code, d.path]), [['W_C_FILE_UNUSED', 'src/gone.c'], ['E_C_DEFINITION_MOVED', 'src/gone.c']]);
+});

@@ -27,14 +27,18 @@ export function refusedExitCode(diagnostics: readonly Diagnostic[]): ExitCode {
   return diagnostics.some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code)) ? ExitCode.errors : ExitCode.verifyFailed;
 }
 
+/** Every diagnostic of a checked run: the analysis and model ones, then each check's, in report order. */
+export function allDiagnostics(outcome: { readonly report: VerifyReport; readonly diagnostics: readonly Diagnostic[] }): readonly Diagnostic[] {
+  return [...outcome.diagnostics, ...outcome.report.checks.flatMap((c) => c.diagnostics)];
+}
+
 /**
  * The exit code of a checked run (`verify`, and `generate`'s check pass): 1 when an error diagnostic is not a
  * self-check's (the input, the model or the toolchain is wrong), else 3 when a check failed, else 0 (architecture
- * §2.1, D33). The diagnostics are the run's and each check's.
+ * §2.1, D33). The diagnostics are allDiagnostics'.
  */
 export function verifyExitCode(outcome: { readonly report: VerifyReport; readonly diagnostics: readonly Diagnostic[] }): ExitCode {
-  const all = [...outcome.diagnostics, ...outcome.report.checks.flatMap((c) => c.diagnostics)];
-  if (all.some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))) return ExitCode.errors;
+  if (allDiagnostics(outcome).some((d) => d.severity === 'error' && !VERIFY_CODES.has(d.code))) return ExitCode.errors;
   return outcome.report.ok ? ExitCode.ok : ExitCode.verifyFailed;
 }
 

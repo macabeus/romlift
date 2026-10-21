@@ -20,6 +20,7 @@ import type { InitDirListing } from '../../../../src/core/workflow/init.ts';
 import {
   packageRoot,
   packageVersion,
+  readChunkFiles,
   readCTexts,
   readDigests,
   readInitDir,
@@ -167,4 +168,42 @@ test('readDigests and replacedProblems: absent and equal files are fine; another
   assert.deepEqual(replacedProblems(dir, same, current.value), []);
   const other = new Map([['romlift.toml', sha1Of('a = 2\n')], ['baserom.gba', sha1Of('MOR')]]);
   assert.deepEqual(replacedProblems(dir, other, current.value).map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'romlift.toml'], ['E_DIR_NOT_EMPTY', 'baserom.gba']]);
+});
+
+// Fix round 4 (architecture-a2-4): the reader of the previous tree, which the C reconciliation keys on (D78 a, D80 a).
+
+test('readChunkFiles: no asm/nonmatchings is no tree; only the .s files of each module directory are listed', async () => {
+  const none = await readChunkFiles(await dirWith({}));
+  assert.ok(none.ok);
+  assert.deepEqual(none.value, []);
+  const dir = await dirWith({
+    'asm/nonmatchings/main/sub_08000100.s': '',
+    'asm/nonmatchings/main/Foo.s': '',
+    'asm/nonmatchings/main/notes.txt': 'not a chunk',
+    'asm/nonmatchings/main/deeper/sub_08000200.s': 'one level only',
+    'asm/nonmatchings/stray.s': 'not in a module directory',
+    'asm/nonmatchings/main_2/sub_08000300.s': '',
+  });
+  const read = await readChunkFiles(dir);
+  assert.ok(read.ok);
+  assert.deepEqual(read.value, ['asm/nonmatchings/main/Foo.s', 'asm/nonmatchings/main/sub_08000100.s', 'asm/nonmatchings/main_2/sub_08000300.s']);
+  const file = await dirWith({ 'asm/nonmatchings': 'a file, not a directory' });
+  const notDir = await readChunkFiles(file);
+  assert.ok(notDir.ok);
+  assert.deepEqual(notDir.value, []);
+});
+
+test('readProject passes the chunk files on disk as previousChunkFiles, and none with withoutC', async () => {
+  const { dir } = await project();
+  const before = await readProject(dir);
+  assert.ok(before.ok);
+  assert.deepEqual(before.value.inputs.previousChunkFiles, [], 'no asm/ yet: the first generate of a clone');
+  await mkdir(path.join(dir, 'asm', 'nonmatchings', 'main'), { recursive: true });
+  await writeFile(path.join(dir, 'asm', 'nonmatchings', 'main', 'sub_08000100.s'), '');
+  const read = await readProject(dir);
+  assert.ok(read.ok);
+  assert.deepEqual(read.value.inputs.previousChunkFiles, ['asm/nonmatchings/main/sub_08000100.s']);
+  const withoutC = await readProject(dir, { withoutC: true });
+  assert.ok(withoutC.ok);
+  assert.equal(withoutC.value.inputs.previousChunkFiles, undefined);
 });

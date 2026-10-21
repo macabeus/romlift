@@ -79,7 +79,9 @@ export function stubChunkFiles(model: Pick<Model, 'chunks'>, module: Module): re
 /**
  * One chunk of a C module as its stub holds it: `name`, the chunk's (and a C definition's) symbol, and `stub`, the
  * base name of its chunk file, which its INCLUDE_ASM statement names; the two differ for a member of a case-folded
- * group (`<Name>_<ADDR>`, core/model/paths.ts chunkPaths).
+ * group (`<Name>_<ADDR>`, core/model/paths.ts chunkPaths). It mirrors core/reconcile/include-asm.ts WantedChunk,
+ * field for field: core/reconcile imports only foundation (architecture §2), so the shape is declared on both sides
+ * of that edge.
  */
 export interface StubChunk {
   readonly name: string;

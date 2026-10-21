@@ -3,10 +3,18 @@
 //
 // scanC splits the file's tokens (c-tokens.ts) at brace and parenthesis depth 0 into top-level items:
 // - an INCLUDE_ASM statement: exactly `INCLUDE_ASM ( "<dir>" , <name> ) ;` (comments may sit between the tokens);
-// - a function definition: `… ident ( … ) {` at depth 0, through its matching `}` (no `=` before the `(`);
+// - a function definition: `… ident ( … ) {` at depth 0, through its matching `}` (no `=` before the `(`); its name
+//   is the identifier before the first `(` that opens a parameter list rather than a declarator group `(*` (so `B` in
+//   `void (*B(void))(void)`), GCC's `__attribute__((…))` and `asm(…)` groups left out (fix round 4, correctness-a2-6);
 // - anything else that is code (a declaration, a prototype, a typedef, stray tokens): an `other` item, up to its
 //   `;` at depth 0 or the end of the text;
 // comments and preprocessor lines are kept apart (`directives`), never part of an item.
+// A file the scanner cannot split is unscannable (fix round 4, correctness-a2-2, a2-6), and planIncludeAsm refuses it
+// whole with E_C_UNSCANNABLE, an error, so `generate` writes nothing: a branch of an `#if`/`#ifdef`/`#ifndef` that
+// leaves the brace or parenthesis depth other than the conditional found it (the scanner counts every branch, so the
+// depth after it would be wrong, and a definition could swallow the rest of the file), a definition whose `{` never
+// closes, and a `{` at file scope after a head that names no function (a K&R definition, a head the scanner cannot
+// read).
 //
 // planIncludeAsm inserts a stub, `includeAsmStatement(module, stub)` on a line of its own, for every wanted chunk
 // that the file neither includes nor defines, at its ROM-order position: after the nearest earlier wanted chunk the
@@ -30,16 +38,21 @@
 // whose only C is conditional gets its stub after the region. An unwanted stub inside a region is
 // E_C_CONDITIONAL_STUB, an error, instead of a removal: removing it from the `#else` branch would leave the default
 // build without the function's code. A name with no safe place (the text ends inside a comment, a literal, a
-// directive or an unclosed conditional) is E_C_STUB_UNPLACED, an error, so `generate` writes nothing rather than
-// leave a function without its stub.
+// directive or an unclosed conditional; fix round 4, correctness-a2-3: between two chunks one region holds, whose
+// split would put the new stub after the region's later chunk) is E_C_STUB_UNPLACED, an error, so `generate` writes
+// nothing rather than leave a function without its stub. The ROM order is checked again over the planned text: an
+// insertion that would sit out of ROM order is E_C_STUB_UNPLACED too, never a W_C_ORDER the next run would print.
 //
 // A definition whose name the module does not want is E_C_STALE_DEFINITION, an error, when its name is a function
-// of the tree romlift last generated that no module has now (`wanted.previous`, the chunk files on disk; fix round 3,
-// correctness-a1-2, a1-3): the C of a function the TOML renamed or deleted, wherever it lies, while a static helper
-// (no function of any tree) raises nothing. When that tree is not known, a definition is stale only where a missing
-// stub goes (correctness-a0-1), since inserting the new name's stub there would define the function twice. The other
-// unwanted definitions are returned (`undeclared`) for the caller, which knows the other modules
-// (core/workflow/c-stubs.ts: E_C_DEFINITION_MOVED).
+// of the tree romlift last generated that no module has now (`wanted.retired`, the chunk files on disk; fix round 3,
+// correctness-a1-2, a1-3): the C of a function the TOML renamed or deleted, wherever it lies; or when it lies where
+// the stub of a chunk goes whose file that tree already held in this module's directory (`wanted.priorStubs`; fix
+// round 4, correctness-a2-1): the file neither includes nor defines a chunk it held before, so its INCLUDE_ASM was
+// replaced by C under another name (a function renamed in C only), and inserting the stub again would build its
+// bytes twice. A static helper (no function of any tree, beside no chunk the file held) raises nothing. When that
+// tree is not known (the first `generate` of a clone, whose asm/ is gitignored, D79 b), a definition is stale
+// wherever a missing stub goes (correctness-a0-1). The other unwanted definitions are returned (`undeclared`) for
+// the caller, which knows the other modules (core/workflow/c-stubs.ts: E_C_DEFINITION_MOVED).
 import { includeAsmStatement } from '../../foundation/asm/dialect.ts';
 import { nonmatchingDir } from '../../foundation/util/project-files.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -48,6 +61,7 @@ import { tokenizeC, isTrivia } from './c-tokens.ts';
 import type { CToken } from './c-tokens.ts';
 import { ReconcileCodes } from './codes.ts';
 import type { ReconcileCode } from './codes.ts';
+import { applyTextEdits } from './text-edit.ts';
 import type { TextEdit } from './text-edit.ts';
 
 /** The macro every stub calls (include/include_asm.h, foundation/asm/dialect.ts INCLUDE_ASM_HEADER). */
@@ -97,6 +111,14 @@ export interface CFileScan {
   readonly tokens: readonly CToken[];
   /** The outermost preprocessor conditionals, in text order. */
   readonly conditionals: readonly CConditional[];
+  /** Why the scanner cannot split the file (an unbalanced conditional, an unclosed or unnamed definition); empty when it can. */
+  readonly unscannable: readonly CUnscannable[];
+}
+
+/** One place the scanner cannot split: its line, and why. */
+export interface CUnscannable {
+  readonly line: number;
+  readonly reason: string;
 }
 
 /**
@@ -178,26 +200,57 @@ function statementOf(code: readonly CToken[]): IncludeAsmStatement | undefined {
   return { dir: value, name: name.text, start: macro.start, end: semi.end, line: macro.line };
 }
 
-/**
- * Whether the code tokens before a `{` at depth 0 are a function's head: they end with the `)` that closes a
- * parameter list whose `(` follows an identifier, and hold no `=` at depth 0 (an initializer's braces).
- */
-function definitionName(head: readonly CToken[]): string | undefined {
-  if (!isPunct(head[head.length - 1], ')')) return undefined;
-  let depth = 0;
-  let name: string | undefined;
+/** The identifiers that open a GCC attribute or asm group, `name ( … )`, which a function's head may carry. */
+const GROUP_KEYWORDS: ReadonlySet<string> = new Set(['__attribute__', '__attribute', '__asm__', '__asm', 'asm']);
+
+/** `head` without its attribute and asm groups (`__attribute__((section(".iwram")))`, `asm("name")`). */
+function withoutGroups(head: readonly CToken[]): readonly CToken[] {
+  const out: CToken[] = [];
   for (let i = 0; i < head.length; i++) {
     const t = head[i];
-    if (isPunct(t, '(') || isPunct(t, '[')) {
-      if (depth === 0 && name === undefined) {
-        const before = head[i - 1];
-        name = before?.kind === 'identifier' ? before.text : '';
-      }
-      depth++;
-    } else if (isPunct(t, ')') || isPunct(t, ']')) depth--;
+    if (t === undefined) continue;
+    if (t.kind !== 'identifier' || !GROUP_KEYWORDS.has(t.text) || !isPunct(head[i + 1], '(')) {
+      out.push(t);
+      continue;
+    }
+    let depth = 0;
+    for (i++; i < head.length; i++) {
+      if (isPunct(head[i], '(')) depth++;
+      else if (isPunct(head[i], ')') && --depth === 0) break;
+    }
+  }
+  return out;
+}
+
+/**
+ * The name of the function whose head the code tokens before a `{` at depth 0 are; '' when they are a function's head
+ * whose name the scanner cannot read; undefined when they are no function's head. A head ends, once its attribute and
+ * asm groups are left out, with the `)` that closes a parameter list, and holds no `=` at depth 0 (an initializer's
+ * braces). Its name is the identifier before the first `(` that opens a parameter list rather than a declarator group
+ * (`(*`): `f` in `int f(int a)`, `B` in `void (*B(void))(void)`, a function returning a function pointer.
+ */
+function definitionName(tokens: readonly CToken[]): string | undefined {
+  const head = withoutGroups(tokens);
+  if (!isPunct(head[head.length - 1], ')')) return undefined;
+  let depth = 0;
+  for (const t of head) {
+    if (isPunct(t, '(') || isPunct(t, '[')) depth++;
+    else if (isPunct(t, ')') || isPunct(t, ']')) depth--;
     else if (depth === 0 && isPunct(t, '=')) return undefined;
   }
-  return name;
+  for (let i = 1; i < head.length; i++) {
+    const before = head[i - 1];
+    if (isPunct(head[i], '(') && before?.kind === 'identifier' && !isPunct(head[i + 1], '*')) return before.text;
+  }
+  return '';
+}
+
+/** An open preprocessor conditional while scanning: the depths it found, its line, and whether a branch broke them. */
+interface OpenConditional {
+  readonly braces: number;
+  readonly parens: number;
+  readonly line: number;
+  broken: boolean;
 }
 
 /** What a C text holds at file scope (the module comment above says how it splits). */
@@ -207,7 +260,9 @@ export function scanC(text: string): CFileScan {
   const definitions: CDefinition[] = [];
   const others: COther[] = [];
   const directives = tokens.filter(isTrivia);
-  const code = tokens.filter((t) => !isTrivia(t));
+  const unscannable: CUnscannable[] = [];
+  /** The conditionals open at the current token, innermost last. */
+  const open: OpenConditional[] = [];
   let item: CToken[] = [];
   /** Parentheses and brackets, then braces, inside the current item. */
   let parens = 0;
@@ -218,7 +273,22 @@ export function scanC(text: string): CFileScan {
     if (first !== undefined) others.push({ start: first.start, end, line: first.line, first: first.text });
     item = [];
   };
-  for (const t of code) {
+  for (const t of tokens) {
+    if (t.kind === 'comment') continue;
+    if (t.kind === 'preprocessor') {
+      // Every branch must leave the depths as its conditional found them: the scanner counts every branch.
+      const name = directiveName(t.text);
+      if (name === 'if' || name === 'ifdef' || name === 'ifndef') open.push({ braces, parens, line: t.line, broken: false });
+      else if (name === 'elif' || name === 'else' || name === 'endif') {
+        const at = open[open.length - 1];
+        if (at !== undefined && !at.broken && (at.braces !== braces || at.parens !== parens)) {
+          at.broken = true;
+          unscannable.push({ line: at.line, reason: `a branch of the conditional on line ${at.line} ends (line ${t.line}) with other braces or parentheses open than the conditional found` });
+        }
+        if (name === 'endif') open.pop();
+      }
+      continue;
+    }
     if (item.length === 0 && definition === undefined) parens = braces = 0;
     item.push(t);
     if (isPunct(t, '(') || isPunct(t, '[')) parens++;
@@ -228,6 +298,8 @@ export function scanC(text: string): CFileScan {
         const name = definitionName(item.slice(0, -1));
         const first = item[0];
         if (name !== undefined && first !== undefined) definition = { name, first };
+        if (item.length === 1) unscannable.push({ line: t.line, reason: `a block at file scope (line ${t.line}) follows no head, as in a K&R definition` });
+        else if (name === '') unscannable.push({ line: first?.line ?? t.line, reason: `the function defined on line ${first?.line ?? t.line} has a head whose name the scanner cannot read` });
       }
       braces++;
     } else if (isPunct(t, '}')) {
@@ -245,11 +317,24 @@ export function scanC(text: string): CFileScan {
       } else closeOther(t.end);
     }
   }
-  if (definition !== undefined) definitions.push({ name: definition.name, start: definition.first.start, end: text.length, line: definition.first.line });
-  else closeOther(text.length);
+  if (definition !== undefined) {
+    definitions.push({ name: definition.name, start: definition.first.start, end: text.length, line: definition.first.line });
+    unscannable.push({ line: definition.first.line, reason: `the definition${definition.name === '' ? '' : ` of ${definition.name}`} on line ${definition.first.line} never closes its body` });
+  } else closeOther(text.length);
   const last = tokens[tokens.length - 1];
   const unterminated = last !== undefined && !last.terminated ? [last] : [];
-  return { statements, definitions, others, directives, unterminated, tokens, conditionals: conditionalsOf(tokens, text.length) };
+  unscannable.sort((a, b) => a.line - b.line);
+  return { statements, definitions, others, directives, unterminated, tokens, conditionals: conditionalsOf(tokens, text.length), unscannable };
+}
+
+/**
+ * The definitions the default build compiles: those with a name, outside every preprocessor conditional (a branch
+ * the default build may not compile, the NONMATCHING pattern's `#ifdef`). The one rule for "the C defines it", read
+ * by the planner (a definition holds its chunk) and by the DecompState of a project (core/workflow/generate.ts,
+ * architecture-a2-3).
+ */
+export function compiledDefinitions(scan: CFileScan): readonly CDefinition[] {
+  return scan.definitions.filter((d) => d.name !== '' && regionAt(scan, d.start) === undefined);
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -257,8 +342,9 @@ export function scanC(text: string): CFileScan {
 
 /**
  * One chunk a C file must hold: `name`, its symbol (what a C definition of it is called), and `stub`, its chunk file's
- * base name, which its INCLUDE_ASM statement names (core/model/c-unit.ts StubChunk; they differ for a member of a
- * case-folded group, `<Name>_<ADDR>`).
+ * base name, which its INCLUDE_ASM statement names (they differ for a member of a case-folded group, `<Name>_<ADDR>`).
+ * It mirrors core/model/c-unit.ts StubChunk, field for field: core/reconcile imports only foundation (architecture
+ * §2), so the shape is declared on both sides of that edge, and c-stubs.ts passes one as the other.
  */
 export interface WantedChunk {
   readonly name: string;
@@ -275,15 +361,21 @@ export interface IncludeAsmWanted {
   /**
    * The names of the functions of the tree romlift last generated that no module has now (core/workflow/c-stubs.ts,
    * from the chunk files on disk): a definition of one is stale wherever it lies. Undefined when that tree is not
-   * known; a definition is then stale only where a missing stub goes.
+   * known; a definition is then stale wherever a missing stub goes.
    */
-  readonly previous?: readonly string[];
+  readonly retired?: readonly string[];
+  /**
+   * The stub names of the chunk files that tree held in this module's own directory (`asm/nonmatchings/<module>`):
+   * a wanted chunk among them that the file neither includes nor defines had its INCLUDE_ASM replaced, so a definition
+   * where its stub goes is stale (correctness-a2-1). Read only when `retired` is given.
+   */
+  readonly priorStubs?: readonly string[];
 }
 
 export interface IncludeAsmPlan {
   /** Insertions and removals, in text order; apply with applyTextEdits. */
   readonly edits: readonly TextEdit[];
-  /** W_C_ORDER (at most once), E_C_STUB_UNPLACED, E_C_STALE_DEFINITION, E_C_CONDITIONAL_STUB. */
+  /** W_C_ORDER (at most once), E_C_STUB_UNPLACED, E_C_STALE_DEFINITION, E_C_CONDITIONAL_STUB, E_C_UNSCANNABLE. */
   readonly diagnostics: readonly Diagnostic<ReconcileCode>[];
   /** Wanted stub names the planner found no safe place for (each also an E_C_STUB_UNPLACED). */
   readonly unplaced: readonly string[];
@@ -300,14 +392,14 @@ interface Held {
 /**
  * For each wanted chunk, where the file holds it, or undefined: the first stub of `dir` that names its stub name
  * (inside a conditional too: the `#else` branch of the NONMATCHING pattern is the default build's), else the first
- * definition of its symbol outside every conditional. A definition inside a conditional does not hold its chunk,
- * since the default build may not compile it (correctness-a1-1).
+ * of its compiledDefinitions. A definition inside a conditional does not hold its chunk, since the default build may
+ * not compile it (correctness-a1-1).
  */
 function heldOf(scan: CFileScan, dir: string, chunks: readonly WantedChunk[]): readonly (Held | undefined)[] {
   const stubs = new Map<string, Held>();
   for (const s of scan.statements) if (s.dir === dir && !stubs.has(s.name)) stubs.set(s.name, { start: s.start, end: s.end });
   const defined = new Map<string, Held>();
-  for (const d of scan.definitions) if (!defined.has(d.name) && regionAt(scan, d.start) === undefined) defined.set(d.name, { start: d.start, end: d.end });
+  for (const d of compiledDefinitions(scan)) if (!defined.has(d.name)) defined.set(d.name, { start: d.start, end: d.end });
   return chunks.map((c) => stubs.get(c.stub) ?? defined.get(c.name));
 }
 
@@ -361,21 +453,29 @@ function regionAt(scan: CFileScan, offset: number): CConditional | undefined {
   return scan.conditionals.find((c) => c.start <= offset && offset < c.end);
 }
 
-/** For each wanted chunk, the nearest held chunk before it (`previous`) and after it (`next`) in ROM order. */
-function neighbours(held: readonly (Held | undefined)[]): { readonly previous: readonly (Held | undefined)[]; readonly next: readonly (Held | undefined)[] } {
-  const previous: (Held | undefined)[] = [];
-  const next: (Held | undefined)[] = new Array<Held | undefined>(held.length).fill(undefined);
-  let last: Held | undefined;
-  for (const h of held) {
-    previous.push(last);
-    last = h ?? last;
-  }
-  let following: Held | undefined;
+/** For each wanted chunk, the index of the nearest held chunk before it (`earlier`) and after it (`later`) in ROM order. */
+function neighbours(held: readonly (Held | undefined)[]): { readonly earlier: readonly (number | undefined)[]; readonly later: readonly (number | undefined)[] } {
+  const earlier: (number | undefined)[] = [];
+  const later: (number | undefined)[] = new Array<number | undefined>(held.length).fill(undefined);
+  let last: number | undefined;
+  held.forEach((h, k) => {
+    earlier.push(last);
+    if (h !== undefined) last = k;
+  });
+  let following: number | undefined;
   for (let k = held.length - 1; k >= 0; k--) {
-    next[k] = following;
-    following = held[k] ?? following;
+    later[k] = following;
+    if (held[k] !== undefined) following = k;
   }
-  return { previous, next };
+  return { earlier, later };
+}
+
+/** One planned insertion: the wanted chunk's index, its edit, and the indices of the held chunks it was placed between. */
+interface Insertion {
+  readonly chunk: number;
+  readonly edit: TextEdit;
+  readonly earlier: number | undefined;
+  readonly later: number | undefined;
 }
 
 /** Where the diagnostics of `wanted` say the file is. */
@@ -418,11 +518,15 @@ function removalOf(text: string, s: IncludeAsmStatement): TextEdit {
   return { start: s.start, end: s.end, text: '', reason: 'remove-stub' };
 }
 
-/** Where a missing stub goes: an insertion, or undefined when it has no safe place. */
+/**
+ * Where a missing stub goes: an insertion, or undefined when it has no safe place. After a held chunk inside a
+ * region, the place is after the region's `#endif`, which is no place when the chunk held after it lies in that
+ * region too (a split of the region's first chunk: the stub would land behind the later one, correctness-a2-3).
+ */
 function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, number>, stub: string, before: Held | undefined, after: Held | undefined): TextEdit | undefined {
   if (before !== undefined) {
     const region = regionAt(scan, before.start);
-    if (region !== undefined && !region.terminated) return undefined;
+    if (region !== undefined && (!region.terminated || (after !== undefined && after.start < region.end))) return undefined;
     const line = afterLine(text, skips, region?.end ?? before.end);
     return { start: line.at, end: line.at, text: line.newline ? `${stub}\n` : `\n${stub}\n`, reason: 'add-stub' };
   }
@@ -435,11 +539,18 @@ function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, num
   return { start: text.length, end: text.length, text: `${needsNewline ? '\n' : ''}${stub}\n`, reason: 'add-stub' };
 }
 
-/** The E_C_STALE_DEFINITION of definition `d`; `slot`: the missing chunk whose stub goes where it lies, if any. */
-function staleDiagnostic(wanted: IncludeAsmWanted, d: CDefinition, slot: WantedChunk | undefined): Diagnostic<ReconcileCode> {
+/**
+ * The E_C_STALE_DEFINITION of definition `d`; `slot`: the missing chunk whose stub goes where it lies, if any;
+ * `replaced`: when the previous tree is known and d is not one of its functions, the chunk of that tree's own
+ * directory whose stub d took the place of.
+ */
+function staleDiagnostic(wanted: IncludeAsmWanted, d: CDefinition, slot: WantedChunk | undefined, replaced: WantedChunk | undefined): Diagnostic<ReconcileCode> {
   const { where, extra } = whereOf(wanted);
   const dir = nonmatchingDir(wanted.module);
-  if (wanted.previous === undefined) {
+  if (replaced !== undefined) {
+    return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}) where the INCLUDE_ASM of ${replaced.stub} was, and module ${wanted.module} still has ${replaced.name}, which the file now neither includes nor defines: if you renamed ${replaced.name} in C, rename it in romlift.toml too (or the C back to ${replaced.name}); otherwise restore INCLUDE_ASM("${dir}", ${replaced.stub}); else make builds its bytes twice`, extra);
+  }
+  if (wanted.retired === undefined) {
     // The tree romlift last generated is not known, so d may be the user's helper.
     const stub = slot?.stub ?? '';
     return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}), which module ${wanted.module} no longer has, where the INCLUDE_ASM of ${stub} goes: if romlift.toml renamed it, rename the C function to ${slot?.name ?? ''}; otherwise write INCLUDE_ASM("${dir}", ${stub}); yourself`, extra);
@@ -454,13 +565,16 @@ function staleDiagnostic(wanted: IncludeAsmWanted, d: CDefinition, slot: WantedC
  * stub of that directory whose chunk is not wanted and that lies outside every conditional; W_C_ORDER when the file's
  * order of the held ones is not ROM order; E_C_STUB_UNPLACED for a chunk with no safe place; E_C_CONDITIONAL_STUB for an
  * unwanted stub inside a conditional, which is never edited; E_C_STALE_DEFINITION for an unwanted definition of a
- * function of the previous tree (`wanted.previous`; when it is not known, one where a missing stub goes).
+ * function of the previous tree (`wanted.retired`), or one where the stub goes of a chunk whose file that tree held in
+ * the module's directory (`wanted.priorStubs`); when that tree is not known, one where a missing stub goes;
+ * E_C_UNSCANNABLE, and no edit, for a file the scanner cannot split.
  */
 export function planIncludeAsm(text: string, wanted: IncludeAsmWanted): IncludeAsmPlan {
   const scan = scanC(text);
+  if (scan.unscannable.length > 0) return unscannablePlan(wanted, scan.unscannable);
   const dir = nonmatchingDir(wanted.module);
   const held = heldOf(scan, dir, wanted.chunks);
-  const { previous, next } = neighbours(held);
+  const { earlier, later } = neighbours(held);
   const stubs = new Set(wanted.chunks.map((c) => c.stub));
   const symbols = new Set(wanted.chunks.map((c) => c.name));
   const unwanted = scan.statements.filter((s) => s.dir === dir && !stubs.has(s.name));
@@ -471,35 +585,81 @@ export function planIncludeAsm(text: string, wanted: IncludeAsmWanted): IncludeA
     ...removed.map((s) => [s.start, s.end] as const),
   ]);
   const strangers = scan.definitions.filter((d) => d.name !== '' && !symbols.has(d.name));
-  const previousNames = wanted.previous === undefined ? undefined : new Set(wanted.previous);
-  /** Each stranger's slot: the first missing chunk whose stub goes where it lies. */
-  const slots = new Map<CDefinition, WantedChunk>();
-  const edits: TextEdit[] = [];
+  const retired = wanted.retired === undefined ? undefined : new Set(wanted.retired);
+  const priorStubs = new Set(wanted.priorStubs ?? []);
+  /** Each stranger's slots: the missing chunks whose stubs go where it lies, in ROM order. */
+  const slots = new Map<CDefinition, WantedChunk[]>();
+  const insertions: Insertion[] = [];
+  /** The stubs with no safe place, by why: the text's end or a region (placement), or ROM order (the planned text). */
   const unplaced: string[] = [];
+  const misordered: string[] = [];
   wanted.chunks.forEach((chunk, k) => {
     if (held[k] !== undefined) return;
-    const before = previous[k];
-    const after = next[k];
+    const e = earlier[k];
+    const l = later[k];
+    const before = e === undefined ? undefined : held[e];
+    const after = l === undefined ? undefined : held[l];
     const from = before?.end ?? 0;
     const to = after?.start ?? text.length;
-    for (const d of strangers) if (d.start >= from && d.end <= to && !slots.has(d)) slots.set(d, chunk);
+    for (const d of strangers) if (d.start >= from && d.end <= to) slots.set(d, [...(slots.get(d) ?? []), chunk]);
     const edit = placement(text, scan, skips, includeAsmStatement(wanted.module, chunk.stub), before, after);
     if (edit === undefined) unplaced.push(chunk.stub);
-    else edits.push(edit);
+    else insertions.push({ chunk: k, edit, earlier: e, later: l });
   });
+  // The planned text in ROM order: an insertion that lands out of it has no safe place either (correctness-a2-3).
+  for (const k of misplacedInsertions(text, dir, wanted.chunks, held, insertions, removed.map((s) => removalOf(text, s)))) {
+    const chunk = wanted.chunks[k];
+    if (chunk !== undefined) misordered.push(chunk.stub);
+  }
+  const edits: TextEdit[] = insertions.filter((i) => !misordered.includes(wanted.chunks[i.chunk]?.stub ?? '')).map((i) => i.edit);
   for (const statement of removed) edits.push(removalOf(text, statement));
-  const stale = strangers.filter((d) => (previousNames === undefined ? slots.has(d) : previousNames.has(d.name)));
+  /** The chunk of the previous tree's own directory a stranger took the place of (correctness-a2-1). */
+  const replacedOf = (d: CDefinition): WantedChunk | undefined => (retired === undefined || retired.has(d.name) ? undefined : slots.get(d)?.find((c) => priorStubs.has(c.stub)));
+  const stale = strangers.filter((d) => (retired === undefined ? slots.has(d) : retired.has(d.name) || replacedOf(d) !== undefined));
   const { where, extra } = whereOf(wanted);
   const diagnostics: Diagnostic<ReconcileCode>[] = [...orderDiagnostics(wanted, held)];
   if (unplaced.length > 0) {
-    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} has no safe place for the INCLUDE_ASM of ${unplaced.join(', ')}: the text ends inside a comment, a literal, a directive or an unclosed #if; close it, or write the statements yourself`, extra));
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} has no safe place for the INCLUDE_ASM of ${unplaced.join(', ')}: the text ends inside a comment, a literal, a directive or an unclosed #if, or the stub would go between two chunks one #if region holds; close it, or write the statements yourself (in each branch of the region)`, extra));
+  }
+  if (misordered.length > 0) {
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} has no safe place for the INCLUDE_ASM of ${misordered.join(', ')}: inserted where the file's other chunks allow, it would be out of ROM order (the make would place its bytes elsewhere); write the statements yourself, in ROM order`, extra));
   }
   for (const s of conditional) {
     diagnostics.push(diagnostic(ReconcileCodes, 'E_C_CONDITIONAL_STUB', `${where} holds INCLUDE_ASM("${s.dir}", ${s.name}); (line ${s.line}) inside an #if region, and module ${wanted.module} no longer has ${s.name}: romlift never edits conditional code, so rename or remove it there yourself (and the C beside it)`, extra));
   }
-  for (const d of stale) diagnostics.push(staleDiagnostic(wanted, d, slots.get(d)));
+  for (const d of stale) diagnostics.push(staleDiagnostic(wanted, d, slots.get(d)?.[0], replacedOf(d)));
   const isStale = new Set(stale);
-  return { edits: joinAtOffsets(edits), diagnostics, unplaced, undeclared: strangers.filter((d) => !isStale.has(d)) };
+  return { edits: joinAtOffsets(edits), diagnostics, unplaced: [...unplaced, ...misordered], undeclared: strangers.filter((d) => !isStale.has(d)) };
+}
+
+/** The refusal of a file the scanner cannot split: E_C_UNSCANNABLE, and no edit. */
+function unscannablePlan(wanted: IncludeAsmWanted, why: readonly CUnscannable[]): IncludeAsmPlan {
+  const { where, extra } = whereOf(wanted);
+  const message = `${where} cannot be scanned for its INCLUDE_ASM lines: ${why.map((u) => u.reason).join('; ')}; romlift edits nothing in it: balance each branch of the conditional (or move it inside the function), or close the definition`;
+  return { edits: [], diagnostics: [diagnostic(ReconcileCodes, 'E_C_UNSCANNABLE', message, extra)], unplaced: [], undeclared: [] };
+}
+
+/**
+ * The wanted chunks (indices) whose insertion puts them out of ROM order in the planned text (the text with every
+ * insertion and removal applied, scanned again): one that lands before the held chunk it was placed after, or after
+ * the one it was placed before, when the file held those two in ROM order (an order the file already breaks is
+ * W_C_ORDER's, and the edits never reorder).
+ */
+function misplacedInsertions(text: string, dir: string, chunks: readonly WantedChunk[], held: readonly (Held | undefined)[], insertions: readonly Insertion[], removals: readonly TextEdit[]): readonly number[] {
+  if (insertions.length === 0) return [];
+  const planned = heldOf(scanC(applyTextEdits(text, joinAtOffsets([...insertions.map((i) => i.edit), ...removals]))), dir, chunks);
+  const at = (k: number | undefined): number | undefined => (k === undefined ? undefined : planned[k]?.start);
+  const out: number[] = [];
+  for (const i of insertions) {
+    const e = i.earlier === undefined ? undefined : held[i.earlier];
+    const l = i.later === undefined ? undefined : held[i.later];
+    if (e !== undefined && l !== undefined && e.start > l.start) continue;
+    const self = at(i.chunk);
+    const before = at(i.earlier);
+    const after = at(i.later);
+    if (self === undefined || (before !== undefined && self < before) || (after !== undefined && self > after)) out.push(i.chunk);
+  }
+  return out;
 }
 
 /**

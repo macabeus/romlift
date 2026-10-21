@@ -2,7 +2,7 @@
 // readdir in the shell, architecture §2), reading bytes, and writing a file atomically. Failures are
 // returned as E_IO_READ or E_IO_WRITE diagnostics, never thrown.
 import { randomBytes } from 'node:crypto';
-import { open, readdir, readFile, rename, rm } from 'node:fs/promises';
+import { open, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { closeSync, openSync, rmSync, writeSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -43,6 +43,20 @@ export async function listDir(path: string): Promise<IoResult<readonly string[]>
     return { ok: true, value: names.sort(compareCodeUnits) };
   } catch (error) {
     return failure('E_IO_READ', path, 'cannot list', error);
+  }
+}
+
+/**
+ * Whether `path` is a directory: false when it is absent or a path component is no directory (ENOENT, ENOTDIR) or it
+ * is another kind of file; any other failure (a permission, an I/O error) is E_IO_READ, never read as absent.
+ */
+export async function isDirectory(path: string): Promise<IoResult<boolean>> {
+  try {
+    return { ok: true, value: (await stat(path)).isDirectory() };
+  } catch (error) {
+    const code = errnoOf(error);
+    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, value: false };
+    return failure('E_IO_READ', path, 'cannot examine', error);
   }
 }
 

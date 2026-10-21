@@ -31,7 +31,7 @@ import type { RunSummary } from '../exit-codes.ts';
 import type { CliIo, CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
-import { exitCodeOf, printDiagnosticsOnly, refusedExitCode, usageError, verifyExitCode } from './command-common.ts';
+import { allDiagnostics, exitCodeOf, printDiagnosticsOnly, refusedExitCode, usageError, verifyExitCode } from './command-common.ts';
 
 const PRINTERS: readonly Printer[] = ['readable', 'raw'];
 /** Where the tree of --assemble and --link is written: under os.tmpdir(), never the working directory. */
@@ -54,11 +54,6 @@ export interface VerifyOutcome {
 
 function notRun(id: CheckId, detail: string, diagnostics: readonly Diagnostic[] = []): CheckResult {
   return { id, ok: false, detail, diagnostics };
-}
-
-/** Every diagnostic of an outcome: the analysis and model ones, then each check's, in report order. */
-function allDiagnostics(outcome: Pick<VerifyOutcome, 'report' | 'diagnostics'>): readonly Diagnostic[] {
-  return [...outcome.diagnostics, ...outcome.report.checks.flatMap((c) => c.diagnostics)];
 }
 
 /** The toolchain checks a run asks for, in CHECK_IDS order. */

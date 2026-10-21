@@ -38,6 +38,11 @@ export function chunkFileOf(dir: string, name: string): string {
   return `${dir}/${name}${CHUNK_FILE_EXTENSION}`;
 }
 
+/** Whether a file name (or path) has a chunk file's extension: what a reader of the tree on disk lists. */
+export function isChunkFile(name: string): boolean {
+  return name.endsWith(CHUNK_FILE_EXTENSION);
+}
+
 /**
  * chunkFileOf's inverse: the base name an INCLUDE_ASM statement names for chunk file `file` (`<dir>/<name>.s` ->
  * `<name>`): the file's last path segment without its extension.

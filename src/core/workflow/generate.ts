@@ -30,7 +30,7 @@ import type { DecompState, EmitContext, FileEntry, Printer } from '../emit/tree.
 import { buildModel } from '../model/model.ts';
 import type { Model } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
-import { scanC } from '../reconcile/include-asm.ts';
+import { compiledDefinitions, scanC } from '../reconcile/include-asm.ts';
 import { combineReports } from '../verify/report.ts';
 import type { VerifyReport } from '../verify/report.ts';
 import { checkEntries } from '../verify/text-layout.ts';
@@ -208,13 +208,15 @@ export interface ProjectGenerateOptions {
 }
 
 /**
- * The DecompState of a project's C: every name a src/*.c defines at file scope (the reconciler's scanner, never a
- * regex), unique, in code-unit order. Phase 4 emits nothing differently for it (asm/matchings is phase 6's, D76 g).
+ * The DecompState of a project's C: every name a src/*.c defines at file scope that the default build compiles (the
+ * reconciler's scanner and its compiledDefinitions, never a regex: a definition inside an `#if` region, the
+ * NONMATCHING pattern's, does not count, as for the reconciler, architecture-a2-3), unique, in code-unit order.
+ * Phase 4 emits nothing differently for it (asm/matchings is phase 6's, D76 g).
  */
 export function decompStateOf(cTexts: ReadonlyMap<string, string>): DecompState {
   const names = new Set<string>();
   for (const path of [...cTexts.keys()].sort(compareCodeUnits)) {
-    for (const d of scanC(cTexts.get(path) ?? '').definitions) if (d.name !== '') names.add(d.name);
+    for (const d of compiledDefinitions(scanC(cTexts.get(path) ?? ''))) names.add(d.name);
   }
   return { defined: [...names].sort(compareCodeUnits) };
 }

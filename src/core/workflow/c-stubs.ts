@@ -6,15 +6,19 @@
 // That is what keeps `make` building after a legal TOML edit: a rename, a deleted function, a moved or split module
 // change which chunk files `generate` writes, and the C files must include exactly those.
 //
-// What the edits cannot fix is refused or reported (fix round 2, correctness-a0-1; fix round 3, D78 a): planIncludeAsm's
-// E_C_STALE_DEFINITION (the C of a function of the tree romlift last generated that no module has now: one the TOML
-// renamed or deleted, wherever it lies, a border move included), E_C_CONDITIONAL_STUB and E_C_STUB_UNPLACED; here
-// E_C_DEFINITION_MOVED, a C definition of a function the TOML now gives another module (a move or split of decompiled
-// code), whose stub there would define it twice; and W_C_FILE_UNUSED, a src/*.c that is the source of no module (a
-// renamed `c` module), which `make` no longer builds. The errors make `generate` write nothing (writable), so `make`
-// never sees a function defined twice. The previous tree is the chunk files on disk (`previousChunkFiles`, which the
-// shell lists: asm/ is committed, so a fresh clone has them too); without them only a definition where a missing
-// stub goes is stale.
+// What the edits cannot fix is refused or reported (fix round 2, correctness-a0-1; fix round 3, D78 a; fix round 4,
+// D80 a): planIncludeAsm's E_C_STALE_DEFINITION (the C of a function of the tree romlift last generated that no module
+// has now: one the TOML renamed or deleted, wherever it lies, a border move included; or a definition where the stub
+// goes of a chunk that tree held in the module's directory and the file no longer includes or defines: a rename in C
+// only), E_C_CONDITIONAL_STUB, E_C_STUB_UNPLACED and E_C_UNSCANNABLE; here E_C_DEFINITION_MOVED, a C definition of a
+// function the TOML now gives another module (a move or split of decompiled code), whose stub there would define it
+// twice, read in every src/*.c, a file of no module included (its module merged into another, or made `asm`: its
+// decompiled C would leave the build unseen, correctness-a2-4); and W_C_FILE_UNUSED, a src/*.c that is the source of
+// no module (a renamed `c` module), which `make` no longer builds. The errors make `generate` write nothing
+// (writable), so `make` never sees a function defined twice. The previous tree is the chunk files on disk
+// (`previousChunkFiles`, which the shell lists). asm/ is gitignored (R4; the owner's answer to Q9, D79 b), so the
+// first `generate` of a fresh clone or worktree (setup.sh's duty 5) has none and uses the fallback rule, a definition
+// wherever a missing stub goes is stale; from the second `generate` on, the tree the first one wrote is on disk.
 //
 // Three views of one reconciliation:
 // - projectEntries: the stream written into the project; an existing C file's c-stub entry becomes a `reconciled`
@@ -31,9 +35,10 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { stubChunks } from '../model/c-unit.ts';
+import { nonmatchingDir, stubNameOf } from '../../foundation/util/project-files.ts';
 import { chunkNamesOf, isCSource, moduleSource } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
-import { planIncludeAsm } from '../reconcile/include-asm.ts';
+import { compiledDefinitions, planIncludeAsm, scanC } from '../reconcile/include-asm.ts';
 import { applyTextEdits } from '../reconcile/text-edit.ts';
 import type { TextEdit } from '../reconcile/text-edit.ts';
 import type { FileEntry } from '../emit/tree.ts';
@@ -78,7 +83,7 @@ function movedDiagnostic(path: string, d: { readonly name: string; readonly line
 /**
  * The reconciliation of every C file of `cTexts` (project path -> text) that is the source of a generated C module of
  * `model`; a C file of no such module is not romlift's to edit and is left out (W_C_FILE_UNUSED when it is the source
- * of no module at all). `previousChunkFiles`: the project paths of the chunk files of the tree on disk (the one
+ * of no module at all, with E_C_DEFINITION_MOVED for each function it defines that a module has). `previousChunkFiles`: the project paths of the chunk files of the tree on disk (the one
  * romlift last generated), or undefined (or empty) when there is none.
  */
 export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>, previousChunkFiles?: readonly string[]): StubReconciliation {
@@ -88,13 +93,15 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
   const owners = functionModules(model);
   const modules = new Map(model.modules.map((m) => [m.name, m] as const));
   // A function of the previous tree that a module still has is wanted there (or E_C_DEFINITION_MOVED), never stale.
-  const previous = previousChunkFiles === undefined || previousChunkFiles.length === 0 ? undefined : chunkNamesOf(previousChunkFiles).filter((name) => !owners.has(name));
+  const retired = previousChunkFiles !== undefined && previousChunkFiles.length > 0 ? chunkNamesOf(previousChunkFiles).filter((name) => !owners.has(name)) : undefined;
   for (const module of model.modules) {
     if (!module.generated || module.kind !== 'c') continue;
     const path = moduleSource(model, module);
     const base = cTexts.get(path);
     if (!isCSource(path) || base === undefined) continue;
-    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, ...(previous === undefined ? {} : { previous }) });
+    const dir = `${nonmatchingDir(module.name)}/`;
+    const tree = retired === undefined ? {} : { retired, priorStubs: (previousChunkFiles ?? []).filter((file) => file.startsWith(dir) && !file.slice(dir.length).includes('/')).map(stubNameOf) };
+    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, ...tree });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
     for (const d of plan.undeclared) {
@@ -106,6 +113,13 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
   for (const path of [...cTexts.keys()].sort(compareCodeUnits)) {
     if (sources.has(path)) continue;
     diagnostics.push(diagnostic(WorkflowCodes, 'W_C_FILE_UNUSED', `${path} is the source of no module of romlift.toml, so make does not build it (was its c module renamed?); its C is left in place`, { path }));
+    // Its decompiled C of a function some module has would drop out of the build while that module's stub stands in.
+    const scan = scanC(cTexts.get(path) ?? '');
+    if (scan.unscannable.length > 0) continue;
+    for (const d of compiledDefinitions(scan)) {
+      const owner = owners.get(d.name);
+      if (owner !== undefined) diagnostics.push(movedDiagnostic(path, d, modules.get(owner), owner));
+    }
   }
   files.sort((a, b) => compareCodeUnits(a.path, b.path));
   return { files, diagnostics };

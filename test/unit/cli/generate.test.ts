@@ -350,3 +350,58 @@ test('a case-folded pair (Foo and foo in one module): decompiling Foo needs no e
   assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic'), []);
   assert.equal(await readFile(path.join(dir, 'src', 'main.c'), 'utf8'), decompiled);
 });
+
+// Fix round 4 (D80 a): a decompiled function renamed in C only, a conditional that opens braces differently per branch,
+// and a merged c module whose file held decompiled C.
+
+const errorCodes = (stdout: string): unknown[] => lines(stdout).filter((l) => l['severity'] === 'error').map((l) => l['code']);
+
+test('renaming a decompiled function in C only is E_C_STALE_DEFINITION (exit 1): its INCLUDE_ASM is not inserted again, nothing is written', async () => {
+  const dir = await initProject();
+  const { names, main } = await firstStubs(dir);
+  const fn = names[1] ?? assert.fail(main);
+  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), `void ${fn}(void) {\n}`));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'the decompiled function, under its name');
+  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), 'void Nop(void) {\n}'));
+  const before = await snapshot(dir);
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.errors, out.stdout);
+  assert.deepEqual(errorCodes(out.stdout), ['E_C_STALE_DEFINITION']);
+  assert.match(out.stdout, new RegExp(`defines Nop \\(line \\d+\\) where the INCLUDE_ASM of ${fn} was`));
+  assert.deepEqual(await snapshot(dir), before, 'nothing written: src/main.c gets no second copy of the bytes');
+  // A fresh clone's first generate (no asm/ on disk, R4) refuses it by the fallback rule.
+  await rm(path.join(dir, 'asm'), { recursive: true });
+  const fresh = await run(dir, ['generate', '--dry-run', '--json']);
+  assert.equal(fresh.code, ExitCode.errors, fresh.stdout);
+  assert.deepEqual(errorCodes(fresh.stdout), ['E_C_STALE_DEFINITION']);
+});
+
+test('a conditional whose branches open braces differently is E_C_UNSCANNABLE (exit 1): no stub is appended, nothing is written', async () => {
+  const dir = await initProject();
+  const { names, main } = await firstStubs(dir);
+  const fn = names[1] ?? assert.fail(main);
+  const body = `void ${fn}(void) {\n    volatile int x = 0;\n#ifdef NONMATCHING\n    if (x) {\n#else\n    if (!x) {\n#endif\n    }\n}`;
+  await writeFile(path.join(dir, 'src', 'main.c'), main.replace(stubIn('main', fn), body));
+  const before = await snapshot(dir);
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.errors, out.stdout);
+  assert.deepEqual(errorCodes(out.stdout), ['E_C_UNSCANNABLE']);
+  assert.deepEqual(await snapshot(dir), before);
+});
+
+test('a c module merged into the one before it: its file\'s decompiled C is E_C_DEFINITION_MOVED (exit 1), never replaced by a stub', async () => {
+  const dir = await initProject();
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  const main3 = await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8');
+  const block = '[[modules]]\nname = "main_3"\nstart = 0x080004DC\nkind = "c"\n\n';
+  assert.ok(toml.includes(block) && main3.includes(stubIn('main_3', 'sub_08000508')), 'the composite as this test knows it');
+  await writeFile(path.join(dir, 'src', 'main_3.c'), main3.replace(stubIn('main_3', 'sub_08000508'), 'void sub_08000508(void) {\n}'));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+  await writeFile(path.join(dir, 'romlift.toml'), toml.replace(block, ''));
+  const before = await snapshot(dir);
+  const out = await run(dir, ['generate', '--json']);
+  assert.equal(out.code, ExitCode.errors, out.stdout);
+  const diagnostics = lines(out.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => [l['code'], l['path']]);
+  assert.deepEqual(diagnostics, [['W_C_FILE_UNUSED', 'src/main_3.c'], ['E_C_DEFINITION_MOVED', 'src/main_3.c']]);
+  assert.deepEqual(await snapshot(dir), before);
+});

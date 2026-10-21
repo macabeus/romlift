@@ -188,6 +188,20 @@ test('a plan with an error diagnostic is refused and nothing is touched', async 
   assert.deepEqual(await filesOf(dir), before);
 });
 
+test('a save between the plan and the write is E_STALE_EDIT: the edit is not written, the save is kept, the journal stays (correctness-a2-5)', async () => {
+  const dir = await tempDir();
+  await seed(dir);
+  const plan = await planFor(dir, tree());
+  assert.deepEqual(plan.diagnostics, []);
+  const saved = `${BASE_C}/* USER EDIT */\n`;
+  await writeFile(join(dir, 'src/main.c'), saved);
+  const applied = await applyWrites(dir, plan);
+  assert.equal(applied.ok, false);
+  assert.deepEqual(applied.diagnostics.map((d) => [d.code, d.path]), [['E_STALE_EDIT', 'src/main.c']]);
+  assert.equal(await readFile(join(dir, 'src/main.c'), 'utf8'), saved);
+  assert.equal(await exists(join(dir, JOURNAL_PATH)), true, 'the journal is left for the next run');
+});
+
 /** Replaces `path` by a directory, so writing or removing it fails; returns the undo. */
 async function obstruct(dir: string, path: string): Promise<() => Promise<void>> {
   const file = join(dir, path);

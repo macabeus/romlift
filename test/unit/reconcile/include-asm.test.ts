@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { planIncludeAsm, scanC } from '../../../src/core/reconcile/include-asm.ts';
+import { compiledDefinitions, planIncludeAsm, scanC } from '../../../src/core/reconcile/include-asm.ts';
 import type { IncludeAsmWanted } from '../../../src/core/reconcile/include-asm.ts';
 import { applyTextEdits } from '../../../src/core/reconcile/text-edit.ts';
 import { C_STUB_HEADER, includeAsmStatement } from '../../../src/foundation/asm/dialect.ts';
@@ -54,11 +54,13 @@ test('scanC: statements, definitions, other code, directives, with offsets and l
   assert.deepEqual(scan.unterminated, []);
 });
 
-test('scanC: a definition with an initializer-like body is not one; an unclosed definition runs to the end', () => {
+test('scanC: a definition with an initializer-like body is not one; an unclosed definition runs to the end and is unscannable', () => {
   const scan = scanC('int (*fp)(void) = { 0 };\nint main(void) {\n  return 0;\n');
   assert.deepEqual(scan.others.map((o) => o.first), ['int']);
   assert.deepEqual(scan.definitions.map((d) => [d.name, d.end]), [['main', 'int (*fp)(void) = { 0 };\nint main(void) {\n  return 0;\n'.length]]);
+  assert.deepEqual(scan.unscannable.map((u) => u.line), [2]);
   assert.deepEqual(scanC('/* open').unterminated.map((t) => t.kind), ['comment']);
+  assert.deepEqual(scanC('/* open').unscannable, []);
 });
 
 test('the empty file and the template header: one stub per wanted function, in ROM order, each on its own line', () => {
@@ -212,7 +214,7 @@ test('the last stub of a shared line goes with the blanks before it; the stub th
 
 test('the NONMATCHING pattern after a rename: the #else stub is never removed (E_C_CONDITIONAL_STUB) until renamed by hand', () => {
   const block = (def: string, inner: string): string => `#ifdef NONMATCHING\nvoid ${def}(void) {\n}\n#else\n${stub(inner)}\n#endif\n`;
-  const wanted: IncludeAsmWanted = { module: 'main', chunks: same(['A', 'Nop', 'C']), path: 'src/main.c', previous: ['sub_08000100'] };
+  const wanted: IncludeAsmWanted = { module: 'main', chunks: same(['A', 'Nop', 'C']), path: 'src/main.c', retired: ['sub_08000100'] };
   // The C function renamed as E_C_STALE_DEFINITION advised, the #else stub not: nothing in the block is edited.
   const half = `${C_STUB_HEADER}${stub('A')}\n${block('Nop', 'sub_08000100')}${stub('C')}\n`;
   const refused = planIncludeAsm(half, wanted);
@@ -234,7 +236,7 @@ test('a definition inside a conditional does not hold its chunk: its stub goes o
 
 test('with the previous tree known, a helper where a renamed asm-only function goes raises nothing; the C of a previous function is stale anywhere', () => {
   const helper = `${C_STUB_HEADER}${stub('A')}\nstatic inline int Helper(int a) {\n    return a + 1;\n}\n${stub('Old')}\n${stub('C')}\n${stub('D')}\n`;
-  const renamed: IncludeAsmWanted = { module: 'main', chunks: same(['A', 'B', 'C', 'D']), path: 'src/main.c', previous: ['Old'] };
+  const renamed: IncludeAsmWanted = { module: 'main', chunks: same(['A', 'B', 'C', 'D']), path: 'src/main.c', retired: ['Old'] };
   const plan = planIncludeAsm(helper, renamed);
   assert.deepEqual(plan.diagnostics, [], 'Helper was no function of the previous tree');
   assert.equal(applyTextEdits(helper, plan.edits), helper.replace(`${stub('Old')}\n`, '').replace(`${stub('A')}\n`, `${stub('A')}\n${stub('B')}\n`));
@@ -246,7 +248,7 @@ test('with the previous tree known, a helper where a renamed asm-only function g
   const stale = planIncludeAsm(moved, renamed);
   assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.severity]), [['E_C_STALE_DEFINITION', 'error']]);
   assert.match(stale.diagnostics[0]?.message ?? '', /defines Old \(line 7\), a function of the tree romlift last generated that romlift.toml no longer has; a function it renamed/);
-  assert.deepEqual(planIncludeAsm(moved, { ...renamed, previous: [] }).diagnostics, [], 'Old is no previous function');
+  assert.deepEqual(planIncludeAsm(moved, { ...renamed, retired: [] }).diagnostics, [], 'Old is no previous function');
 });
 
 test('a case-folded pair: a definition holds its chunk by symbol, a stub by stub name, and the stub is inserted by stub name', () => {
@@ -255,4 +257,90 @@ test('a case-folded pair: a definition holds its chunk by symbol, a stub by stub
   assert.deepEqual(planIncludeAsm(decompiled, { module: 'main', chunks, path: 'src/main.c' }), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
   assert.equal(planned(C_STUB_HEADER, { module: 'main', chunks }), `${C_STUB_HEADER}${stub('Foo_080000F6')}\n${stub('foo_08000100')}\n`);
   assert.equal(planned(`${C_STUB_HEADER}${stub('Foo')}\n`, { module: 'main', chunks }), `${C_STUB_HEADER}${stub('Foo_080000F6')}\n${stub('foo_08000100')}\n`, 'a stub of the symbol is not the chunk file\'s');
+});
+
+// Fix round 4 (D80 a): a rename in C only, a conditional whose branches open braces differently, a split inside an #if
+// region, and the heads the scanner names or refuses.
+
+test('a C-only rename of a decompiled function where its stub was is E_C_STALE_DEFINITION; a helper beside a new name is not', () => {
+  // The previous tree held B's file in this module's directory; the file defines Nop where B's INCLUDE_ASM was.
+  const text = `${C_STUB_HEADER}${stub('A')}\nvoid Nop(void) {\n}\n${stub('C')}\n${stub('D')}\n`;
+  const tree: IncludeAsmWanted = { ...WANTED, retired: [], priorStubs: ['A', 'B', 'C', 'D'] };
+  const plan = planIncludeAsm(text, tree);
+  assert.deepEqual(plan.diagnostics.map((d) => [d.code, d.severity, d.path]), [['E_C_STALE_DEFINITION', 'error', 'src/main.c']]);
+  assert.match(plan.diagnostics[0]?.message ?? '', /defines Nop \(line 4\) where the INCLUDE_ASM of B was, and module main still has B, which the file now neither includes nor defines/);
+  assert.deepEqual(plan.undeclared, []);
+  // B is new to the tree (a TOML rename of an asm-only function): Nop is a helper, B's stub goes beside it.
+  const helper = planIncludeAsm(text, { ...WANTED, retired: ['Old'], priorStubs: ['A', 'Old', 'C', 'D'] });
+  assert.deepEqual(helper.diagnostics, []);
+  assert.deepEqual(helper.undeclared.map((d) => d.name), ['Nop']);
+  // The stub of a chunk of another module's directory (a border move) is not this file's to have held.
+  assert.deepEqual(planIncludeAsm(text, { ...WANTED, retired: [], priorStubs: ['A', 'C', 'D'] }).diagnostics, []);
+});
+
+test('a conditional whose branches leave other braces open is E_C_UNSCANNABLE: nothing is edited, nothing appended', () => {
+  // The reviewer's shape: each branch opens one brace, closed once after #endif.
+  const body = 'void B(void) {\n    volatile int x = 0;\n#ifdef NONMATCHING\n    if (x) {\n#else\n    if (!x) {\n#endif\n    }\n}\n';
+  const text = `${C_STUB_HEADER}${stub('A')}\n${body}${stub('C')}\n${stub('D')}\n`;
+  const scan = scanC(text);
+  assert.deepEqual(scan.unscannable.map((u) => u.line), [4, 6], 'the definition never closes, and why');
+  assert.match(scan.unscannable[1]?.reason ?? '', /a branch of the conditional on line 6 ends \(line 8\)/);
+  const plan = planIncludeAsm(text, { ...WANTED, chunks: same(['A', 'B', 'C', 'D', 'E']) });
+  assert.deepEqual(plan.edits, [], 'no stub appended after a definition that swallowed the file');
+  assert.deepEqual(plan.diagnostics.map((d) => [d.code, d.severity, d.path]), [['E_C_UNSCANNABLE', 'error', 'src/main.c']]);
+  // sa2's screen_mask.c shape: `if (…) { do {` in one branch, `for (…) {` in the other, closed the same way.
+  const screenMask = [
+    'void A(void) {',
+    '    int i;',
+    '#ifdef BUG_FIX',
+    '    if (i < 160) { do {',
+    '#else',
+    '    for (i = 0; i < 160; i++) {',
+    '#endif',
+    '        i++;',
+    '#ifdef BUG_FIX',
+    '    } while (++i < 160); }',
+    '#else',
+    '    }',
+    '#endif',
+    '}',
+    '',
+  ].join('\n');
+  const refused = planIncludeAsm(`${screenMask}${stub('B')}\n`, WANTED);
+  assert.deepEqual(refused.diagnostics.map((d) => d.code), ['E_C_UNSCANNABLE']);
+  assert.deepEqual(refused.edits, []);
+  // Balanced branches (the decomp convention) scan as before.
+  const balanced = `${C_STUB_HEADER}void A(void) {\n#ifdef X\n    if (a) { b(); }\n#else\n    c();\n#endif\n}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n`;
+  assert.deepEqual(planIncludeAsm(balanced, WANTED), { edits: [], diagnostics: [], unplaced: [], undeclared: [] });
+});
+
+test('a split of the first of two stubs one #if region holds is E_C_STUB_UNPLACED: the stub is never put behind the later one', () => {
+  const text = `${stub('A')}\n#ifdef NONMATCHING\n#else\n${stub('B')}\n${stub('D')}\n#endif\n${stub('E')}\n`;
+  const plan = planIncludeAsm(text, { module: 'main', chunks: same(['A', 'B', 'C', 'D', 'E']), path: 'src/main.c' });
+  assert.deepEqual(plan.unplaced, ['C']);
+  assert.deepEqual(plan.edits, []);
+  assert.deepEqual(plan.diagnostics.map((d) => [d.code, d.severity]), [['E_C_STUB_UNPLACED', 'error']]);
+  assert.match(plan.diagnostics[0]?.message ?? '', /between two chunks one #if region holds/);
+  // A chunk after the region's last one still goes after its #endif.
+  const tail = planIncludeAsm(text, { module: 'main', chunks: same(['A', 'B', 'D', 'X', 'E']) });
+  assert.deepEqual(tail.diagnostics, []);
+  assert.equal(applyTextEdits(text, tail.edits), text.replace('#endif\n', `#endif\n${stub('X')}\n`));
+});
+
+test('scanC names a function returning a function pointer and one with an attribute; a K&R definition is unscannable', () => {
+  const names = (text: string): string[] => scanC(text).definitions.map((d) => d.name);
+  assert.deepEqual(names('static void (*GetGfxFunc(void))(void) {\n    return 0;\n}\n'), ['GetGfxFunc']);
+  assert.deepEqual(names('__attribute__((section(".iwram"))) void B(void) {}\n'), ['B']);
+  assert.deepEqual(names('void C(int a) __attribute__((noinline));\nint D(void (*cb)(void)) { return 0; }\n'), ['D']);
+  const fnPointer = `${stub('A')}\nvoid (*B(void))(void) {\n    return 0;\n}\n${stub('C')}\n${stub('D')}\n`;
+  assert.deepEqual(planIncludeAsm(fnPointer, WANTED).edits, [], 'B is held: no stub inserted beside it');
+  const knr = `${stub('A')}\nint B(a) int a; {\n    return a;\n}\n${stub('C')}\n${stub('D')}\n`;
+  assert.deepEqual(planIncludeAsm(knr, WANTED).diagnostics.map((d) => d.code), ['E_C_UNSCANNABLE']);
+  assert.deepEqual(planIncludeAsm(knr, WANTED).edits, []);
+});
+
+test('compiledDefinitions: named definitions outside every conditional, the one rule for what the C defines', () => {
+  const scan = scanC('#ifdef NONMATCHING\nvoid Foo(void) {\n}\n#endif\nvoid Bar(void) {\n}\n');
+  assert.deepEqual(scan.definitions.map((d) => d.name), ['Foo', 'Bar']);
+  assert.deepEqual(compiledDefinitions(scan).map((d) => d.name), ['Bar']);
 });

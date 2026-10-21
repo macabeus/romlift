@@ -10,7 +10,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
+import { isChunkFile, NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
@@ -19,7 +19,7 @@ import type { InitDirListing } from '../../core/workflow/init.ts';
 import { ShellCodes } from '../codes.ts';
 import { loadConfig } from '../config/load.ts';
 import type { ProjectConfig } from '../config/load.ts';
-import { errnoOf, errorReason, listDir } from '../fs.ts';
+import { errnoOf, errorReason, isDirectory, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { readRom } from '../rom.ts';
 import { readDiskState, readJournal, readManifest, readReconciledTexts } from './disk-state.ts';
@@ -113,15 +113,6 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
   return fromIo(await readReconciledTexts(dir, paths));
 }
 
-/** Whether `path` is a directory; false when it is absent or not one. */
-async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 /**
  * The project paths of the chunk files under the project's asm/nonmatchings/ (`asm/nonmatchings/<module>/<name>.s`,
  * one level of module directories), in code-unit order: the tree romlift last generated, which the C
@@ -129,15 +120,19 @@ async function isDirectory(path: string): Promise<boolean> {
  */
 export async function readChunkFiles(dir: string): Promise<ReadResult<readonly string[]>> {
   const root = join(dir, ...NONMATCHINGS_ROOT.split('/'));
-  if (!(await isDirectory(root))) return { ok: true, value: [] };
+  const present = await isDirectory(root);
+  if (!present.ok) return fromIo(present);
+  if (!present.value) return { ok: true, value: [] };
   const modules = await listDir(root);
   if (!modules.ok) return fromIo(modules);
   const out: string[] = [];
   for (const module of modules.value) {
-    if (!(await isDirectory(join(root, module)))) continue;
+    const isModule = await isDirectory(join(root, module));
+    if (!isModule.ok) return fromIo(isModule);
+    if (!isModule.value) continue;
     const names = await listDir(join(root, module));
     if (!names.ok) return fromIo(names);
-    for (const name of names.value) if (name.endsWith('.s')) out.push(`${NONMATCHINGS_ROOT}/${module}/${name}`);
+    for (const name of names.value) if (isChunkFile(name)) out.push(`${NONMATCHINGS_ROOT}/${module}/${name}`);
   }
   return { ok: true, value: out };
 }
