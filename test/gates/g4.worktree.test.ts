@@ -1,6 +1,8 @@
 // g4.worktree (architecture §6.3 setup.sh duty 3, §13, R8): in a fresh `git worktree` of an initialised and
 // committed project, `./setup.sh` copies the ROM from the main checkout (checked against <name>.sha1) and
-// `make` ends at the SHA-1. The ROM itself is never committed: the scaffold's .gitignore must exclude it.
+// `make` ends at the SHA-1. The ROM itself is never committed: the scaffold's .gitignore must exclude it. Nor is the
+// generated tree (plan.md R4 and its scaffold table, "In Git: No"; the owner's answer to phase-4 Q9, D79 b): the
+// worktree has no asm/, and its `./setup.sh` writes the tree with `romlift generate` (duty 5) before `make`.
 // The ci tier runs every committed fixture except c-data; the real tier adds the six tuning ROMs (D60, D62 h, D74).
 //
 // Interfaces, frozen by D74 (as in g4.e2e-fixtures):
@@ -27,6 +29,8 @@ interface Target {
 }
 
 const ROM_FILE = 'baserom.gba';
+/** The generated roots plan.md's scaffold table marks "In Git: No" (R4). */
+const GENERATED: readonly string[] = ['asm/', 'data/', 'expected/', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json'];
 const NOT_BUILT: ReadonlySet<string> = new Set(['c-data']);
 const GIT = ['-c', 'user.name=romlift gate', '-c', 'user.email=gate@romlift.invalid', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null'];
 
@@ -91,6 +95,8 @@ async function inWorktree(cx: GateContext, cli: string, target: Target, base: st
   await run(cx, 'git commit', 'git', [...GIT, 'commit', '-q', '-m', 'romlift init'], main);
   const tracked = (await run(cx, 'git ls-files', 'git', ['ls-files'], main)).stdout.split('\n');
   if (tracked.includes(ROM_FILE)) return { failure: `${ROM_FILE} was committed: the scaffold's .gitignore must exclude it`, worktree, main };
+  const generated = tracked.filter((file) => GENERATED.some((root) => (root.endsWith('/') ? file.startsWith(root) : file === root)));
+  if (generated.length > 0) return { failure: `the generated tree was committed (${generated.slice(0, 3).join(', ')}, …): the scaffold's .gitignore must exclude it (R4)`, worktree, main };
   if (viaSubmodule) {
     const stage = (await run(cx, 'git ls-files --stage', 'git', ['ls-files', '--stage', '--', 'tools/agbcc'], main)).stdout;
     if (!/^160000 /m.test(stage)) return { failure: `setup.sh in the main checkout did not register tools/agbcc as a submodule (git ls-files --stage: ${JSON.stringify(stage.trim())})`, worktree, main };
@@ -100,6 +106,9 @@ async function inWorktree(cx: GateContext, cli: string, target: Target, base: st
   if (agbcc !== undefined && !viaSubmodule) await cp(agbcc, path.join(worktree, 'tools', 'agbcc'), { recursive: true });
   const setup = await cx.exec('./setup.sh', [], { cwd: worktree, env });
   if (setup.code !== 0) return { failure: `./setup.sh in the worktree exited ${setup.code}:\n${tail(setup)}`, worktree, main };
+  if (!/asm\/ is absent: running romlift generate/.test(`${setup.stdout}${setup.stderr}`)) {
+    return { failure: `setup.sh in the worktree did not generate the tree (duty 5):\n${tail(setup)}`, worktree, main };
+  }
   if (viaSubmodule && !/checking out the tools\/agbcc submodule/.test(`${setup.stdout}${setup.stderr}`)) {
     return { failure: `setup.sh in the worktree did not check the tools/agbcc submodule out:\n${tail(setup)}`, worktree, main };
   }

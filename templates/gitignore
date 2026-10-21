@@ -21,6 +21,13 @@ node_modules/
 tools/agbcc/bin/
 tools/agbcc/lib/
 
-# Tool-owned and deliberately NOT ignored: asm/, data/, ldscript.txt, symbols.ld and modules.mk are written by
-# `romlift generate` from romlift.toml and the ROM. They are committed so a fresh clone or git worktree builds;
-# never edit them by hand (romlift overwrites them): change romlift.toml and run `npx romlift generate`.
+# Tool-owned and regenerated, never committed: `romlift generate` writes them from romlift.toml and the ROM on
+# every run. A fresh clone or git worktree gets them from ./setup.sh, which runs `romlift generate` when asm/ is
+# absent. Never edit them by hand: change romlift.toml and run `npx romlift generate`.
+/asm/
+/data/
+/expected/
+/ldscript.txt
+/symbols.ld
+/modules.mk
+/objdiff.json

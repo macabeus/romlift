@@ -138,13 +138,13 @@ test('each build compiler has its fragment at mk/<id>.mk, defining the recipe it
   }
 });
 
-test('.gitignore ignores the ROMs, the build and romlift\'s state, and never a generated root', () => {
+test('.gitignore ignores the ROMs, the build, romlift\'s state and every generated root (R4, the owner\'s answer to Q9)', () => {
   const lines = textOf(SCAFFOLD, '.gitignore')
     .split('\n')
     .filter((line) => line !== '' && !line.startsWith('#'));
   for (const ignored of ['baserom.gba', 'klonoa-eod.gba', 'build/', `${ROMLIFT_DIR}/`, 'node_modules/', '*.o']) assert.ok(lines.includes(ignored), ignored);
-  for (const root of GENERATED_ROOTS) assert.ok(!lines.some((line) => line === root || `${line}/` === root || line === `/${root}`), `${root} must not be ignored`);
-  assert.match(textOf(SCAFFOLD, '.gitignore'), /asm\/, data\/, ldscript\.txt, symbols\.ld and modules\.mk/, 'the generated roots are declared tool-owned');
+  for (const root of GENERATED_ROOTS) assert.ok(lines.includes(`/${root}`), `${root} must be ignored, anchored at the project root`);
+  assert.ok(!lines.some((line) => line.startsWith('/src') || line.startsWith('src') || line === 'romlift.toml'), 'the user\'s files are never ignored');
 });
 
 test('AGENTS.md cites the C-data ASSERT\'s message, and setup.sh runs its five duties in order', () => {

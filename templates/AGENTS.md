@@ -26,8 +26,8 @@ generate`).
 ## What is generated and what is yours
 
 - **Tool-owned, never edit:** `asm/`, `data/`, `ldscript.txt`, `symbols.ld`, `modules.mk`. `romlift generate`
-  rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next run. They are committed so a
-  fresh worktree builds.
+  rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next run. They are not committed
+  (`.gitignore`): `./setup.sh` generates them in a fresh clone or worktree, where `asm/` is absent.
 - **Yours:** `romlift.toml` (modules, function names and boundaries, symbols; the one place to change what is
   generated), `src/*.c`, `include/`, `Makefile`, `mk/*.mk`, `setup.sh` and this file. romlift wrote them once and does
   not overwrite them; `npx romlift scaffold --diff` shows how they differ from the current templates.
@@ -53,7 +53,11 @@ its C to the other module's file when the edit moves it. Otherwise `romlift gene
 ones outside them, and when an edit leaves one naming a function its module no longer has it refuses
 (`E_C_CONDITIONAL_STUB`) until you rename or remove it. A definition inside such a block holds nothing for the default
 build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch or outside the block. A renamed `c`
-module leaves its old `src/<module>.c` unbuilt (`W_C_FILE_UNUSED`): move its C to the new file.
+module leaves its old `src/<module>.c` unbuilt (`W_C_FILE_UNUSED`): move its C to the new file. To rename a decompiled
+function, change both its C name and `romlift.toml`; renamed in C alone, `romlift generate` refuses
+(`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again. Keep each branch of an `#if` block inside a
+function balanced (the same braces and parentheses open at its `#else` and `#endif` as at its `#if`): romlift cannot
+read a file whose branches open braces differently and refuses it whole (`E_C_UNSCANNABLE`).
 
 Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler` in `romlift.toml`, default
 `[build] compiler`), with the flags `modules.mk` lists; `mk/<compiler>.mk` holds the recipe.
