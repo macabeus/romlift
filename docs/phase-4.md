@@ -87,7 +87,8 @@ ROMs (`bench run --scaffold`, below); `generate` right after `init` changes no f
 - The scaffold (`templates/MANIFEST.json`, D74 d): `Makefile` (modules.mk's `OBJS`, asm and data units by pattern rule,
   C units through `mk/<compiler>.mk`, `sha1sum -c <name>.sha1`; a C object rebuilt by the SHA-1 of its source and of
   modules.mk), `setup.sh` (five duties: toolchain check, agbcc at the pin of `templates/agbcc.json`, `baserom.gba` into a
-  worktree, `npm ci`, `romlift generate` when `asm/` is absent), `.gitignore`, `AGENTS.md`, `README.md`, the build
+  worktree, `npm ci`, `romlift generate` when `asm/` is absent), `.gitignore` (since the owner's answer to Q9 every generated root too, so a
+  clone gets the tree from duty 5, D79 b), `AGENTS.md`, `README.md`, the build
   workflow, `.gitmodules`, `package.json` (the exact romlift version), `include/macros.inc` and `include/include_asm.h`.
 - C modules (D74 e, f): `src/<module>.c` is `#include "include_asm.h"` and one `INCLUDE_ASM("asm/nonmatchings/<module>",
   <name>);` per chunk in ROM order (`planIncludeAsm` over the C tokenizer, never a regex over code; `W_C_ORDER`);
@@ -164,8 +165,9 @@ fresh worktree with the marker raised; its own deviations are under "The closing
 ## Owner questions
 
 Bruno Macabeus answered Q1, Q2, Q3, Q5, Q6 and Q7 on 20 October 2026 (Q4 was withdrawn by fix round 1); each chosen
-option is quoted below as he gave it, and is recorded in D76. These are the only gate changes he authorised. The same
-day he took two scope decisions for the later phases ("The owner's scope decisions", below).
+option is quoted below as he gave it, and is recorded in D76. The same day he took two scope decisions for the later
+phases ("The owner's scope decisions", below). The review of fix round 3 raised two more, Q8 and Q9, which he answered
+on 21 October 2026 (D79). These are the only gate changes he authorised.
 
 ### Q1. The scope of Q5 c: which listed functions the confirm run still validates
 
@@ -347,8 +349,9 @@ Default while unanswered: (a).
 
 **Answered** (D76 f): **"Keep as orphans"** (option a).
 
-Q5 b's fold now covers every zero pad (before a function and at a module's end, D75 d; `padding-orphans` finds none on
-the six tuning ROMs). A pad of one Thumb nop (0x46C0) up to a word boundary stays its own orphan file and, in a `c`
+Q5 b's fold covers every zero pad before a function, and at a module's end after any chunk but a function of a `c`
+module (D75 d, narrowed by D78 b: after such a function the pad stays its own orphan, 11 on the tuning ROMs, Q8). A pad
+of one Thumb nop (0x46C0) up to a word boundary stays its own orphan file and, in a `c`
 module, its own `INCLUDE_ASM` stub: fe7j 21, klonoa 21, pokeemerald 15, sa2 15, sa3 15, tmc 0, all in `c` modules. By
 the ELF maps, 15 on each ROM but tmc lie in libgcc's `_call_via_rX.o` (phase 6's signatures put libgcc in a library
 `asm` module, architecture §12) and 6 each in a hand-written assembly object (fe7j's `arm-call.o`, klonoa's `thunk.o`).
@@ -364,6 +367,42 @@ Options.
   with 0x46C0): no stub of its own, but decompiling that function makes agbcc emit zeros there.
 
 Default while unanswered: (a).
+
+### Q8. The zero pads that end a `c` module after a function (review gate-honesty-a2-1)
+
+**Answered** (D79 a, 21 October 2026): **"Keep as orphans"**. Byte-exact, one stub line each, recorded as a known
+limitation authorised by the owner, like Q7; `test/local/padding-orphans.test.ts` asserts exactly that rule (every
+zero-pad orphan is such a pad, and their number per ROM is fe7j 4, klonoa 0, pokeemerald 5, sa2 1, sa3 0, tmc 1).
+
+Asked after the review of fix round 3 (gate-honesty-a2-1): D78 b keeps 11 zero pads that end a `c` module right after a
+function as their own orphan files (fe7j 4, pokeemerald 5, sa2 1, tmc 1), because folding one into the function before
+it breaks the build once that function is decompiled (gas ends its C object with a 0x46C0 nop where the ROM has zeros;
+reproduced on klonoa with a module split behind a decompiled `bx lr`). That loosened the padding-orphans assertion that
+held the owner's answer to phase-3 Q5 b, with no owner question; Q7 is the precedent for a pad that cannot fold
+byte-exactly.
+
+Options: keep them as orphans; or fold them some other way that survives decompilation (none is known: the nop and the
+zeros differ in the ROM).
+
+### Q9. The scaffold commits the generated tree, against R4 (review architecture-a2-1)
+
+**Answered** (D79 b, 21 October 2026): **"Gitignore, as R4 says"**. The scaffold's `.gitignore` ignores the generated
+roots (`/asm/`, `/data/`, `/expected/`, `/ldscript.txt`, `/symbols.ld`, `/modules.mk`, `/objdiff.json`: what R4 and
+plan.md's scaffold table mark "In Git: No"); a fresh clone builds through setup.sh's duty 5 (`romlift generate` when
+`asm/` is absent). The reconciler's rule that uses the previous tree on disk (D78 a) holds from the second `generate`
+of a clone; the first uses the fallback rule (a definition its module no longer has where a missing stub goes is
+`E_C_STALE_DEFINITION`). D78 a, `src/core/workflow/c-stubs.ts` and the docs say so; `g4.worktree` now requires that no
+generated root is committed and that the worktree's `setup.sh` ran duty 5, and the scaffold render test requires each
+root to be ignored.
+
+Asked after the review of fix round 3 (architecture-a2-1): `templates/gitignore` (since `e7374f3`, D74 d) said the
+generated roots were "deliberately NOT ignored" so a fresh clone builds, against plan.md's R4 ("`.s` files are
+regenerated on every run and gitignored") and its scaffold table, with no decision replacing R4; D78 a then rested
+`E_C_STALE_DEFINITION`'s previous-tree rule on a committed `asm/`. setup.sh's duty 5 already builds a clone without
+it. A plan requirement changes only by the owner.
+
+Options: gitignore the generated roots as R4 says (and reword D78 a to "from the second `generate` of a clone"); or
+keep committing them and record the departure from R4.
 
 ### The owner's scope decisions (20 October 2026)
 
@@ -389,10 +428,15 @@ count them.
   renamed, deleted or moved by hand, and an `INCLUDE_ASM` inside an `#if` region (the NONMATCHING pattern's `#else`)
   renamed by hand too; `generate` refuses the TOML edit alone (`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`,
   `E_C_CONDITIONAL_STUB`) and writes nothing, and a renamed `c` module leaves its old `src/<module>.c` unbuilt
-  (`W_C_FILE_UNUSED`). `E_C_STALE_DEFINITION` reads the previous tree from the chunk files on disk; a project with no
-  `asm/nonmatchings/` (deleted by hand) falls back to D77 a's rule, which can refuse a static helper that lies where a
-  renamed function's stub goes (write the stub by hand). A definition inside an `#if` region counts for no build. The
-  scaffold's `AGENTS.md` says so.
+  (`W_C_FILE_UNUSED`; its decompiled C of a function some module has is `E_C_DEFINITION_MOVED` since fix round 4, so a
+  merged module or one made `asm` refuses rather than drop it, D80 b). `E_C_STALE_DEFINITION` reads the previous tree
+  from the chunk files on disk; `asm/` is gitignored (Q9, D79 b), so the first `generate` of a fresh clone or worktree
+  (setup.sh's duty 5), like a project whose `asm/nonmatchings/` was deleted by hand, falls back to D77 a's rule, which
+  can refuse a static helper that lies where a renamed function's stub goes (write the stub by hand). A decompiled
+  function renamed in C only is `E_C_STALE_DEFINITION` (D80 a): rename it in `romlift.toml` too. A definition inside an
+  `#if` region counts for no build. A file whose `#if` branches leave other braces open than the `#if` found, or that
+  holds a K&R definition, is refused whole (`E_C_UNSCANNABLE`), and a split between two chunks one `#if` region holds
+  is `E_C_STUB_UNPLACED` (write the new `INCLUDE_ASM` in each branch yourself). The scaffold's `AGENTS.md` says so.
 - `analyze --update --write` does not check the patched config's module borders (architecture §6.2, D77 k): a newer
   discover's unlisted function whose extent covers a `c` module's start is added, and `generate` then refuses the TOML
   with `E_MODULE_BORDER` (not reproduced; carried to phase 6 with architecture-r1-3).
@@ -400,6 +444,9 @@ count them.
   tmc (1) and the doubled pokeemerald ROM (161), the same root as tmc's accepted confirm/discover differences (D61 e).
 - **Authorised by the owner** (Q7, "Keep as orphans", D76 f): a 0x46C0 nop pad stays an orphan file with its own
   `INCLUDE_ASM` stub (fe7j 21, klonoa 21, pokeemerald 15, sa2 15, sa3 15).
+- **Authorised by the owner** (Q8, "Keep as orphans", D79 a): a zero pad that ends a `c` module right after a function
+  stays an orphan file with its own `INCLUDE_ASM` stub (fe7j 4, pokeemerald 5, sa2 1, tmc 1; klonoa and sa3 none),
+  since that function's C object, once decompiled, ends with a nop where the ROM has zeros (D78 b).
 - By design (architecture §6.4, D74 g, D75 b): project-mode `verify --assemble/--link` builds a C unit from its
   `INCLUDE_ASM` statements without a compiler, so a `src/<module>.c` that holds decompiled C makes it exit 1
   (`E_TOOLCHAIN_FAILED`, "defines the function …"); `make` is the verdict there, and the matchings split is phase 6's
@@ -414,9 +461,12 @@ count them.
 - `setup.sh` builds agbcc from source at the pin (network, git and a host C compiler; about 50 s); a mirror is
   `AGBCC_URL`.
 - Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,133 to 1,568 MiB RSS across
-  the runs of this phase (largest live heap 924.8 MiB, the raw `verify`), and its readable `verify --link` went over
-  D72 b's 1,536 MiB budget in one run of six ("The closing gate", fix round 1); a code-dense ROM larger than 32 MiB of
-  that density may exceed the cap (D72, unchanged). No gate measures the doubled ROM (D72 e).
+  the runs of this phase (largest live heap 924.8 MiB, the raw `verify`), and three forms have gone over D72 b's
+  1,536 MiB budget in some run: the readable `verify --link` once in six ("The closing gate", fix round 1), and, in the
+  review's re-run of fix round 3's list at `2314ffe` (gate-honesty-a2-3), `init --json` at 1,562.8 MiB and the readable
+  `verify --assemble` at 1,551.3 MiB; `init`, the phase-4 one-shot command, is not held under the budget on it. A
+  code-dense ROM larger than 32 MiB of that density may exceed the cap (D72, unchanged). No gate measures the doubled
+  ROM (D72 e), and `bench large-rom --bin` records the peaks without judging them.
 - Three `g5.*` gates fail instead of reporting `pending` once their inputs exist (`g5.c-data-ranges`: no
   `expect-ranges.json`; `g5.expected-bytes`: no `expected/`; `g5.reconciler`: no reconcile goldens); `--require 4` does
   not require them, and phase 6 builds what they read (D76 g).
@@ -830,3 +880,34 @@ closing run: every command exit 0).
 | architecture-a1-10 | minor | **Fixed in part** (`24aed24`, `ebd9f37`, D78 c, g): the families title, the shipped text, and `g4.cli-contract`'s two recipes of dropped commands (never run: no registry holds them). **Rejected**: renumbering the `g5.*` gates and their headers; D76 g leaves their ids, phases and fate to phase 6's plan, and `--require 4` does not count them. |
 | architecture-a1-11 | minor | **Fixed in the record** (D78 g): architecture §6.2 limits the one-path sentence to `init`, `verify --rom`, `model --rom`, `bench speed`'s emission and `scaffold.init`, and names `discoverModel`'s users; `explain --rom` keeps the discover model, since it explains the discover run it traced (D35). |
 | architecture-a1-13 | minor | **Fixed** (this record): the carry list gains a1-5's oracle; a1-4's aliases are gone rather than carried. |
+
+### Fix round 4 (the review of fix round 3's closing run at `2314ffe`)
+
+Eighteen findings: five majors and thirteen minors. Two majors were owner questions, Q8 and Q9, answered on 21 October
+2026 and applied exactly (D79). The three others are fixed with a planner or CLI test that reproduces each (D80 a);
+every minor is fixed but one, carried to phase 6 with a reason. No gate changes beyond the owner's answers: Q9's
+`g4.worktree` checks (nothing generated committed, duty 5 run in the worktree). Commits on `phase-4` after `2314ffe`:
+`8a15817` (the reconciliation, the stale edit at write, the shell reader), `e60a855` (Q8 and Q9: the scaffold's
+`.gitignore`, `g4.worktree`, `padding-orphans`), the records commit, and the closing run's ("The closing gate", fix
+round 4).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-a2-1 | major | **Fixed** (`8a15817`, D80 a). A definition where the stub goes of a chunk whose file the previous tree held in the module's own directory, and which the file neither includes nor defines, is `E_C_STALE_DEFINITION` ("where the INCLUDE_ASM of X was, and module M still has X"); a stub name new to that directory keeps D78 a's helper exemption. Tests: the planner, `reconcileStubs`, and the CLI (C-only rename exits 1, nothing written; with `asm/` removed, the fallback rule refuses it too). |
+| correctness-a2-2 | major | **Fixed** (`8a15817`, D80 a). Each `#if` branch must leave the brace and parenthesis depth the conditional found; an unbalanced branch or an unclosed definition makes the file unscannable, `E_C_UNSCANNABLE` (new, error), no edit. Tests: the reviewer's shape and sa2's `screen_mask.c` shape in the planner, the reviewer's shape through `generate` (exit 1, nothing written), balanced branches unchanged. |
+| correctness-a2-3 | major | **Fixed** (`8a15817`, D80 a). A missing stub between two chunks one region holds is `E_C_STUB_UNPLACED`; the planned text is scanned again and an insertion out of ROM order is `E_C_STUB_UNPLACED`, not a later `W_C_ORDER`. Test: a two-stub `#else` region and a split of the first, in the planner. |
+| gate-honesty-a2-1 | major | **Owner question Q8**, answered "Keep as orphans" (D79 a): a known limitation authorised by the owner; `padding-orphans` asserts exactly that rule and pins the counts (fe7j 4, klonoa 0, pokeemerald 5, sa2 1, sa3 0, tmc 1). |
+| architecture-a2-1 | major | **Owner question Q9**, answered "Gitignore, as R4 says" (D79 b): the scaffold's `.gitignore` ignores the generated roots; D78 a, `c-stubs.ts`, `include-asm.ts`, architecture §1, §6.3 and §6.6, the scaffold's `AGENTS.md` and `README.md` say that the previous-tree rule holds from a clone's second `generate`; `g4.worktree` and the render test follow (`e60a855`). |
+| gate-honesty-a2-2 | minor | **Fixed** (this record): Q7's text and plan.md's "No orphan bytes" state D78 b's module-end rule and Q8. |
+| gate-honesty-a2-3 | minor | **Fixed** (this record): the memory limitation names `init --json` 1,562.8 MiB and the readable `verify --assemble` 1,551.3 MiB beside `verify --link`, and says `init` is not held under the budget on the doubled ROM. |
+| correctness-a2-4 | minor | **Fixed** (`8a15817`, D80 b): a `src/*.c` of no module is read, and a function a module has defined there is `E_C_DEFINITION_MOVED`. Tests: `reconcileStubs` and a CLI test deleting `main_3`'s `[[modules]]` block of the composite. |
+| correctness-a2-5 | minor | **Fixed** (`8a15817`, D80 b): `applyWrites` hashes an edit's file right before its write; a save since the plan is `E_STALE_EDIT`, the save kept, the journal left. Test in `apply-writes.test.ts`. |
+| correctness-a2-6 | minor | **Fixed** (`8a15817`, D80 a): the name skips `(*` declarator groups and `__attribute__`/`asm` groups (`void (*B(void))(void)`, `__attribute__((section(".iwram"))) void B(void)`); a K&R definition or an unnamed head is `E_C_UNSCANNABLE`. Planner tests. |
+| correctness-a2-7 | minor | **Fixed by Q9** (D79 b): a clone has no `asm/`, so its first `generate` writes the whole tree under a new manifest and later renames delete the old files. |
+| architecture-a2-2 | minor | **Fixed** (this record): architecture.md's surviving phase-5 items point to phase 6 (§1's non-goal, §2.1's `generate` and `rename` rows, the `dataStart` comments, §6.1's matchings, §6.3's `asm/matchings`, §6.6's data ranges, the C-data fixture, the evidence facts, the objdiff rows); the phase 5 and 6 rows of §1, §2.1's `import-legacy` and `trace` rows, the §6.6 heading's import-legacy and §6.8 are marked dropped or skipped by D76 g; plan.md cites D78 b. |
+| architecture-a2-3 | minor | **Fixed** (`8a15817`, D80 b): `compiledDefinitions` in `core/reconcile/include-asm.ts`, read by `heldOf` and `decompStateOf`; a unit test holds a conditional-only definition out of the DecompState. |
+| architecture-a2-4 | minor | **Fixed** (`8a15817`, D80 c): `isChunkFile` in `project-files.ts`; `isDirectory` in `shell/fs.ts`, absent only on ENOENT or ENOTDIR; `readChunkFiles` and `readProject`'s `previousChunkFiles` have unit tests. |
+| architecture-a2-5 | minor | **Fixed** (`8a15817`, D80 c): `earlier`/`later` for the neighbours, `retired` for the previous tree's names (`IncludeAsmWanted.previous` renamed); the two chunk types say they mirror each other across the `core/reconcile` edge. |
+| architecture-a2-6 | minor | **Carried to phase 6** (roadmap.md, "Carried from phase 4", D80 d): init's own file set to come from core's `InitPlan`; it changes a frozen type (D74 c) with no defect behind it, and phase 6's rename reworks init's plan. |
+| architecture-a2-7 | minor | **Fixed** (`8a15817`, D80 c): `allDiagnostics` exported by `command-common.ts`, called by `verifyExitCode` and `verify.ts`. |
+| architecture-a2-8 | minor | **Fixed** (this record): roadmap.md's r1-6 carry names the three `readAgbccPin` and the two pin-stamp checks. |

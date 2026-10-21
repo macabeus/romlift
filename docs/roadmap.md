@@ -700,6 +700,11 @@ installed tarball; `generate` right after `init` changes no file; the same holds
 every seeded legal TOML edit still links; the composite fixture's illegal border fails with
 `E_MODULE_BORDER`; every earlier gate still passes.
 
+The owner's answers of 21 October 2026 (phase-4.md Q8 and Q9, D79): the 11 zero pads that end a `c` module right
+after a function stay orphans ("Keep as orphans", a known limitation; `padding-orphans` pins the counts), and the
+scaffold's `.gitignore` ignores the generated roots ("Gitignore, as R4 says"): a fresh clone or worktree builds
+through setup.sh's duty 5, and `g4.worktree` requires that nothing generated is committed.
+
 ---
 
 ## Phase 5: Migration
@@ -834,8 +839,16 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
 - **architecture-r1-4**: pass the module's compiler into `stubUnitAssembly`/`stubAssemblyText` and use
   `buildCompilerOf(module.compiler).banner`, an invariant error when unknown, as `moduleCompile` does; or drop the
   field and keep one documented constant without the `?? ''`.
-- **architecture-r1-6**: `test/helpers/e2e.ts` calls one shared agbcc pin check (`agbccCacheCurrent`, or one function
-  with a stated policy for an unstamped prebuilt) and reads the pin through one `readAgbccPin`.
+- **architecture-r1-6** (widened by architecture-a2-8): there are three `readAgbccPin`, the shell's public one
+  (`src/shell/project/templates.ts`, exported through `src/api/scaffold-files.ts`), `bench/src/scaffold.ts`'s and
+  `test/helpers/e2e.ts`'s; the bench and the e2e helper both call the shell's, and one pin-stamp check replaces
+  `agbccCacheCurrent` (bench) and e2e's `stalePrebuilt` (or one function with a stated policy for an unstamped
+  prebuilt).
+- **architecture-a2-6** (fix round 4, D80 d): which files `init` owns (romlift.toml, decomp.yaml, the ROM) is spelled
+  in the shell (`initTexts`, `initDigests` in `shell/project/write-project.ts`), not in core's plan as D75 j's split
+  says; `core/workflow/init.ts` should return them as `[path, text]` pairs in `InitPlan` and the shell only write and
+  hash them. It changes the frozen `InitPlan` (D74 c) with no defect behind it, and phase 6's rename reworks init's
+  plan.
 - **architecture-r1-7's remainder**: move `initDirVerdict`/`replacedProblems` tests to
   `test/unit/workflow/init.test.ts` and the project-plan tests to `test/unit/write-plan/project-plan.test.ts`
   (`test/unit/workflow/c-stubs.test.ts` landed in fix round 2, D77).

@@ -37,7 +37,7 @@ extent and code-end gates of §8. Requirements R1–R9 of the plan apply unchang
 | R1 | One shot, split into functions | `init` (§2.1); gates `g4.e2e-fixtures`, `g4.e2e-real` (every tuning ROM: six since D60, tmc included), `g4.packed-e2e` (the published tarball) |
 | R2 | Node and TypeScript only | Node ≥ 22.18 type stripping, three runtime dependencies (D2, D38); `g1.runtime-deps` |
 | R3 | One TOML; `generate` never writes it | `generate` runs in confirm mode and takes every name, extent and border from the TOML (D8, D9); `g4.no-toml-write` |
-| R4 | Generated `.s` regenerated and gitignored; two runs identical | one emission stream, one write plan, a manifest (§6.3, §6.4); `g3.tree-determinism` on Linux and macOS with a varied environment (D30) |
+| R4 | Generated `.s` regenerated and gitignored; two runs identical | one emission stream, one write plan, a manifest (§6.3, §6.4); `g3.tree-determinism` on Linux and macOS with a varied environment (D30); the scaffold's `.gitignore` ignores every generated root and a fresh clone or worktree gets the tree from `setup.sh`'s duty 5 (the owner's answer to phase-4 Q9, D79 b; `g4.worktree`) |
 | R5 | Byte-exact, self-checked, proven by the build | four self-checks before any write, including the text-layout check that re-reads every emitted file (§6.4, D49); `verify --link`; the SHA-1 after `make` |
 | R6 | No ROM-specific constant in code | every analysis constant is a named `CompilerProfile` field and the rule order is profile data (D12); per-ROM facts live in the TOML; `g2.second-profile` |
 | R7 | Pure core, small modules, typed boundaries | four layers, one file per rule, `test/architecture.test.ts` (D3, D5, D7); `g1.architecture` |
@@ -56,12 +56,12 @@ that make each gate pass are in [roadmap.md](roadmap.md).
 | 2 Analysis | Rules, the driver ported from the PoC's control flow, the profile, `analyze`, `explain` (analysis part), fixtures, held-out runs | `g2.poc-parity`, `g2.baseline-rows`, `g2.entries`, `g2.extents`, `g2.code-end`, `g2.no-unreviewed`, `g2.confirm-equals-discover`, `g2.determinism`, `g2.synthetic-analysis`, `g2.rule-registry`, `g2.rule-coverage`, `g2.vocabulary-emitted`, `g2.second-profile`, `g2.held-out`, `g2.speed`, `g2.regression`, `g2.checks-fail` |
 | 3 Emission | Model, module inference without libraries, printer-driven writers, write plan, `verify`, `model --json` | `g3.self-check`, `g3.text-layout`, `g3.raw-link`, `g3.link`, `g3.readability`, `g3.tree-determinism`, `g3.golden-writers`, `g3.speed-budget`, `g3.large-rom`, `g3.checks-fail` |
 | 4 One shot | Config on disk, scaffold, C stubs, per-module compilers, `init`, `generate`, `analyze --update` | `g4.e2e-fixtures`, `g4.e2e-real`, `g4.packed-e2e`, `g4.generate-idempotent`, `g4.toml-mutations`, `g4.no-toml-write`, `g4.worktree`, `g4.toml-canonical`, `g4.c-data-fails-loud`, `g4.multi-compiler`, `g4.cli-contract`, `g4.checks-fail` |
-| 5 Migration | Evidence facts and merge, `import-legacy`, reconciler, `rename`, `expected/`, `objdiff.json`, matchings, C data ranges, the Klonoa switch-over pull request | `g5.evidence-merge`, `g5.reconciler`, `g5.rename`, `g5.import-legacy`, `g5.expected-bytes`, `g5.objdiff`, `g5.c-data-ranges`, `g5.klonoa-rehearsal`, `g5.klonoa-switch` |
-| 6 Evidence | Signatures (build, match, propose), serial and BIOS-stub signatures, `trace`, code run from RAM, full `explain` | `g6.signatures-judged`, `g6.signatures-rebuild`, `g6.signatures-heldout`, `g6.signatures-loo`, `g6.no-heldout-references`, `g6.ram-code-mapped`, `g6.evidence-conflict`, `g6.explain-coverage` |
+| 5 Migration (skipped by the owner, D76 g: its surviving items move to phase 6, legacy import and the Klonoa switch-over are dropped) | Evidence facts and merge, `import-legacy`, reconciler, `rename`, `expected/`, `objdiff.json`, matchings, C data ranges, the Klonoa switch-over pull request | `g5.evidence-merge`, `g5.reconciler`, `g5.rename`, `g5.import-legacy`, `g5.expected-bytes`, `g5.objdiff`, `g5.c-data-ranges`, `g5.klonoa-rehearsal`, `g5.klonoa-switch` |
+| 6 Evidence | Signatures (build, match, propose), serial and BIOS-stub signatures, `trace` (dropped by D76 g), code run from RAM, full `explain`; from D76 g also rename and the reconciler, `expected/`, `objdiff.json`, C data ranges and the objdiff gate (phase 6 rewrites its plan) | `g6.signatures-judged`, `g6.signatures-rebuild`, `g6.signatures-heldout`, `g6.signatures-loo`, `g6.no-heldout-references`, `g6.ram-code-mapped`, `g6.evidence-conflict`, `g6.explain-coverage` |
 
 **Non-goals for release 1** (plan): C decompilation, typed assets, analysis profiles other than agbcc
 (the profile registry exists and a dummy second profile is tested; only `agbcc` ships), shiftable
-builds, other consoles, a GUI, and C-defined `.rodata`/`.data`/`.bss` before phase 5 (§6.6). Build
+builds, other consoles, a GUI, and C-defined `.rodata`/`.data`/`.bss` before phase 6's data ranges (§6.6, D76 g). Build
 compilers are a separate matter: `agbcc` and `old_agbcc` ship as per-module build compilers (D47).
 Also out of scope by decision: a stage cache in user projects, replay of stages from dumped
 artifacts, and a structural `diff` command (D18).
@@ -315,13 +315,13 @@ with stdin closed and parses `--json` output line by line.
 | `model --json` (3) | ROM + TOML (in phase 3: ROM + in-memory config) | stdout, NDJSON | a header line, then one line per chunk (the public `ModelJson`, §3.4) |
 | `verify [--assemble] [--link] [--printer raw]` (3) | ROM + TOML (or `--rom` alone, with the config `configFromDiscover` builds) | a temporary directory only | the four self-checks; `--assemble`: per module, `as` output equals the ROM range; `--link`: a full link equals the SHA-1 |
 | `init <rom> [dir] [--name] [--module-size] [--json]` (4; `--no-signatures` in 6, D74 c) | ROM, templates, signatures (6) | TOML, `decomp.yaml`, scaffold, `src/*.c`, generated tree | `dir` defaults to the working directory; accepted when empty, when it holds only the given ROM plus `.git` and dot-files, or when it is a romlift project; refused otherwise (`E_DIR_NOT_EMPTY`) |
-| `generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]` (4) | `decomp.yaml` → TOML, ROM, `src/*.c` | generated tree; `INCLUDE_ASM` edits (5) | self-checks pass before any write; never writes the TOML; `--dry-run --json` prints the write plan |
+| `generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]` (4) | `decomp.yaml` → TOML, ROM, `src/*.c` | generated tree; `INCLUDE_ASM` edits (4: add and remove, D75 b) | self-checks pass before any write; never writes the TOML; `--dry-run --json` prints the write plan |
 | `analyze --update [--write]` (4) | project | prints a TOML patch; `--write` applies it | the patch keeps comments and re-parses |
 | `scaffold --diff` (4) | project, templates | nothing | how scaffold files differ from the current templates |
-| `rename <old> <new>` (5) | TOML, `src/`, `include/` | a one-line TOML patch; identifier tokens | refuses when `new` exists or `old` is unknown |
-| `import-legacy [--cfg] [--toml] [--ldscript] [--aliases] [--adopt-boundaries]` (5) | legacy files, ROM | `romlift.toml` | keeps every legacy entry by default; reports entries inside found functions, entries failing validation and unlisted discoveries (§6.6, D51) |
+| `rename <old> <new>` (6, D76 g) | TOML, `src/`, `include/` | a one-line TOML patch; identifier tokens | refuses when `new` exists or `old` is unknown |
+| `import-legacy [--cfg] [--toml] [--ldscript] [--aliases] [--adopt-boundaries]` (dropped by D76 g) | legacy files, ROM | `romlift.toml` | keeps every legacy entry by default; reports entries inside found functions, entries failing validation and unlisted discoveries (§6.6, D51) |
 | `signatures build <spec>` / `signatures <rom>` (6) | reference checkouts / ROM | `signatures/<library>.json` (local, gitignored) / stdout | placements with their `sig.*` rule ids |
-| `trace [--input <script>] [--state <save>]` (6) | ROM, gba-kit | `evidence/trace.json` | positive facts only |
+| `trace [--input <script>] [--state <save>]` (dropped by D76 g) | ROM, gba-kit | `evidence/trace.json` | positive facts only |
 
 `init`, `generate`, `analyze --update`, `rename`, `import-legacy` and `explain` are each one function in
 `core/workflow/` that takes in-memory inputs and returns a plan (an emission stream with its checks, a
@@ -601,7 +601,7 @@ export interface ModuleConfig {
   readonly generated: boolean; readonly library?: string; readonly version?: string;
   readonly compiler?: BuildCompilerId;           // default: build.compiler (D47)
   readonly cflags?: readonly string[];           // appended to the compiler's default flags
-  // phase 5 adds `dataStart?: Addr`, the module's C data range (§6.6); not in the phase-3 schema (D62 d)
+  // phase 6 adds `dataStart?: Addr`, the module's C data range (§6.6, D76 g); not in the phase-3 schema (D62 d)
 }
 export interface FunctionConfig { readonly name: string; readonly mode: Mode; readonly size?: number;
   readonly label?: boolean;                      // a typed global label inside the containing function, not a chunk start
@@ -666,7 +666,7 @@ export interface Module {
   readonly name: string; readonly span: Span; readonly kind: 'asm' | 'c' | 'data';
   readonly generated: boolean; readonly compiler: BuildCompilerId; readonly cflags: readonly string[];
   readonly library?: { readonly name: string; readonly version: string };
-  readonly runAt?: Addr;                          // phase 5 adds dataStart (D62 d)
+  readonly runAt?: Addr;                          // phase 6 adds dataStart (D62 d, D76 g)
   readonly chunks: { readonly first: number; readonly count: number };
 }
 export type LabelKind = 'func' | 'local' | 'pool' | 'table' | 'data';
@@ -1225,7 +1225,7 @@ earlier gates.
    `configFromDiscover` (§6.2), so no TOML on disk is needed yet.
 2. **C stubs** (phase 4): game modules become `kind = "c"`; writers `c-stub` (scaffold ownership) and
    `modules-mk`. The first build is all `INCLUDE_ASM`.
-3. **objdiff targets and matchings** (phase 5): writers `expected` and `objdiff`, the
+3. **objdiff targets and matchings** (phase 6, D76 g): writers `expected` and `objdiff`, the
    `matchings/`/`nonmatchings/` split from `DecompState`, and the reconciler.
 4. **Code run from RAM** (phase 6): `runs_at` ranges link at their run address (§6.7).
 
@@ -1335,7 +1335,7 @@ module by module in ROM order, so no whole tree is ever held in memory (§9.4).
 | --- | --- | --- | --- |
 | `header` | `asm/rom_header.s` | generated | 3 |
 | `crt0` | `asm/crt0.s` (the startup region, one file) | generated | 3 |
-| `function` | `asm/nonmatchings/<module>/<Name>.s`; `asm/matchings/…` when `src/<module>.c` defines `Name` (5) | generated | 3 |
+| `function` | `asm/nonmatchings/<module>/<Name>.s`; `asm/matchings/…` when `src/<module>.c` defines `Name` outside every conditional (`compiledDefinitions`, D80 b) (6, D76 g) | generated | 3 |
 | `orphan` | `asm/nonmatchings/<module>/unk_XXXXXXXX.s` | generated | 3 |
 | `module` | `asm/<module>.s` (for `asm` modules: the includes in ROM order) | generated | 3 |
 | `data` | `data/<module>.s` (labels, `.incbin` slices, pointer tables as `.4byte Name`) | generated | 3 |
@@ -1365,7 +1365,10 @@ only `analyze --update --write`, `rename` and `import-legacy` patch the TOML.
   generate` when `asm/` is absent. `ROMLIFT_CLI`, when set, is the romlift command setup.sh runs instead of `npx
   romlift`, and duty 4 is then skipped: the way to drive an unpublished romlift (a checkout's source CLI, an installed
   tarball's bin). The gates set it; `g4.packed-e2e` runs one fixture without it, its package.json pointed at the
-  packed tarball, so duties 4 and 5 run as a user's (D75 o). The `Makefile` includes `modules.mk` and uses the per-compiler rule of
+  packed tarball, so duties 4 and 5 run as a user's (D75 o). The scaffold's `.gitignore` ignores the generated roots
+  (`/asm/`, `/data/`, `/expected/`, `/ldscript.txt`, `/symbols.ld`, `/modules.mk`, `/objdiff.json`; R4, the owner's
+  answer to phase-4 Q9, D79 b), so a fresh clone or worktree has no `asm/` and duty 5 writes the tree; `g4.worktree`
+  requires that none of them is committed and that the worktree's `setup.sh` ran duty 5. The `Makefile` includes `modules.mk` and uses the per-compiler rule of
   `templates/compilers/<id>.mk`; an explicit rule the user adds for one object takes precedence over the
   pattern rule, which is how a legacy project keeps hand-written compile steps (D47).
 - **Frozen by D74.** `templates/MANIFEST.json` lists every scaffold file with its project path; templates and targets
@@ -1532,7 +1535,7 @@ from = "evidence:trace"
   rendered by `core/config/decomp-yaml.ts` and validated through `@match-kit/decomp-yaml` before `init`
   writes it; `shell/project/locate.ts` finds it from any directory, a worktree included.
 
-### 6.6 C stubs, reconciler, data in C, import-legacy
+### 6.6 C stubs, reconciler, data in C, import-legacy (dropped by D76 g)
 
 `core/reconcile/c-tokens.ts` tokenizes C (comments, strings, character literals, preprocessor lines,
 identifiers, punctuation); no regex ever runs over code. `include-asm.ts` finds
@@ -1547,14 +1550,26 @@ symbol and its stub name (the chunk file's base name, `<Name>_<ADDR>` for a case
 holds its chunk by symbol, a stub by stub name (D78 a). The planner never edits anything inside an
 `#if`/`#ifdef`/`#ifndef` … `#endif` region and never inserts a stub there (it anchors on the region's outer edge); a
 stub inside one holds its chunk, a definition inside one does not. It skips a leading byte order mark, and refuses
-what an edit cannot fix, so `generate` writes nothing (D77 a to c, D78 a): `E_C_STUB_UNPLACED` (no safe place: the text
-ends inside a comment, a literal, a directive or an unclosed `#if`), `E_C_CONDITIONAL_STUB` (an unwanted stub inside
+what an edit cannot fix, so `generate` writes nothing (D77 a to c, D78 a, D80 a): `E_C_UNSCANNABLE` (a file the
+scanner cannot split: a branch of a conditional that leaves other braces or parentheses open than the conditional
+found, a definition that never closes, a block at file scope after a head that names no function, such as a K&R
+definition; the definition's name is the identifier before its parameter list, past `(*` declarator groups and GCC
+attribute and asm groups), `E_C_STUB_UNPLACED` (no safe place: the text ends inside a comment, a literal, a directive
+or an unclosed `#if`, the stub would go between two chunks one `#if` region holds, or the planned text, scanned again,
+would hold it out of ROM order), `E_C_CONDITIONAL_STUB` (an unwanted stub inside
 a conditional region, never removed), `E_C_STALE_DEFINITION` (a definition of a function of the tree romlift last
 generated, read from the chunk files on disk, that no module has now: the C of a function the TOML renamed or
-deleted, wherever it lies; without chunk files on disk, a definition the module no longer has where a missing stub
-goes) and `E_C_DEFINITION_MOVED` (a definition of a function the TOML now gives another module; for an `asm` or
-`data` module, the advice is to delete the C or make that module `c`); `W_C_FILE_UNUSED` warns of a `src/*.c` that is
-the source of no module. `generate --out <dir>` writes the C files as generated files of that tree,
+deleted, wherever it lies; or a definition where the stub goes of a chunk whose file that tree held in the module's
+own directory and that the file neither includes nor defines any more: a function renamed in C only, D80 a; without
+chunk files on disk, the first `generate` of a fresh clone or worktree since `asm/` is gitignored (D79 b), a
+definition the module no longer has where a missing stub
+goes) and `E_C_DEFINITION_MOVED` (a definition of a function the TOML now gives another module, read in every
+`src/*.c`, a file of no module included, so a merged module's decompiled C never leaves the build unseen; for an
+`asm` or `data` module, the advice is to delete the C or make that module `c`); `W_C_FILE_UNUSED` warns of a
+`src/*.c` that is the source of no module. "What the C defines" is one predicate, `compiledDefinitions` (a named
+definition outside every conditional), which the planner and the project's `DecompState` both read (D80 b). An
+`edit` is written only while its file still has its planned sha1, checked again right before the write
+(`E_STALE_EDIT`, D80 b). `generate --out <dir>` writes the C files as generated files of that tree,
 so a second run into it rewrites them (D77 d). `rename-tokens.ts` renames identifier tokens
 only, never comments or strings.
 
@@ -1570,10 +1585,10 @@ ASSERT(SIZEOF(.c_data_<module>) == 0, "src/<module>.c defines data; see AGENTS.m
 The leading `*` matches the object ld is given, `build/src/<module>.o` (D74 f).
 
 `g4.c-data-fails-loud` builds a fixture whose C file defines a `const` array and expects that message.
-Phase 5 replaces the assertion with a data range per module (`[[modules]] data_start`), so a C array can
-replace its slice of the ROM.
+Phase 6 replaces the assertion with a data range per module (`[[modules]] data_start`), so a C array can
+replace its slice of the ROM (D76 g).
 
-**import-legacy** (D51). The pure parsers of the legacy files live in `foundation/formats/`
+**import-legacy** (D51; dropped by D76 g, kept here as the design phase 5 had). The pure parsers of the legacy files live in `foundation/formats/`
 (`luvdis-cfg.ts`, `ldscript-symbols.ts`, `thumb-aliases.ts`); the legacy renames TOML is read by
 `core/legacy/renames-toml.ts` (it needs `smol-toml`). `core/legacy/facts.ts` turns what they say into an
 `EvidenceSource` with id `legacy` (`entry` facts with name and mode, `symbol` facts), and
@@ -1604,7 +1619,10 @@ check lays the module out at its load address with run-space symbols. The types 
 phase 2 and the model and writers handle `runAt` from phase 3, so phase 6 only fills them;
 `g6.ram-code-mapped` proves it on Klonoa (`0x0804F318 → 0x03000388`) and on the RAM-copy fixture.
 
-### 6.8 Migrating a legacy repository (phase 5)
+### 6.8 Migrating a legacy repository (phase 5; dropped by D76 g)
+
+The owner skipped phase 5 and dropped legacy import, the Klonoa migration tooling and the switch-over (D76 g); this
+section records the design that phase had and is not built.
 
 The plan's phase-5 gate is that the Klonoa repository itself builds without `generate_asm.py`,
 `generate_expected.py`, `generate_ldscript.py` and the Luvdis submodule (D52). Two pins make it
@@ -1716,7 +1734,8 @@ anything. `--no-signatures` on `init` skips the layer.
 
 ### 7.4 Evidence
 
-`core/evidence/facts.ts` (phase 5 for `entry` and `symbol` facts, phase 6 for trace facts):
+`core/evidence/facts.ts` (phase 5 for `entry` and `symbol` facts, which phase 6's plan places since the owner skipped
+phase 5; phase 6 for trace facts, which D76 g dropped):
 
 ```ts
 export type EvidenceFact =
@@ -1776,7 +1795,7 @@ it was built with.
 - **Multi-compiler** (phase 4): two C modules, one built with `agbcc` and one with `old_agbcc` and extra
   flags (`g4.multi-compiler`).
 - **C data** (phase 4): a C file that defines a `const` array (`g4.c-data-fails-loud`), then a data range
-  (phase 5, `g5.c-data-ranges`).
+  (phase 6, D76 g; gated by `g5.c-data-ranges` until phase 6 renames it).
 - **Library** (phase 6): a small self-authored library linked into two fixture ROMs in different orders,
   the source of the `sig.*` explain goldens and of the signature builder's CI test.
 
@@ -1858,7 +1877,7 @@ message states the reason, as the working rule requires.
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis, over nine serial runs, ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`; nine since the owner's answer to Q2 of phase 4, D76 b); ≤ 3 s CPU analysis per tuning ROM (the median of the first five of those runs, the five it was measured over before D76 b, D77 f), `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
-| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g5.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a; phase 3 records the classified counts) | 3, 5 |
+| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g5.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a, and into phase 6 by D76 g; phase 3 records the classified counts) | 3, 6 |
 | Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=1024`, the owner's answer to Q7 of phase-3.md, D72, replacing Q6's 384) with peak RSS below 1,536 MiB, the budget set again from the recorded runs under that cap with a 25% margin (`g3.large-rom`, D68 b, D72 b); the six tuning ROMs and the code-dense doubled ROM are measured under the same cap and recorded; the bin's own commands complete on the synthetic ROM under the cap (`test/local/large-rom-bin.test.ts`, D70 b; not a gate) | 3 |
 | Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance); on a reference ROM every name equals that reference's own symbol; leave-one-reference-out adds or moves no placement; sealed held-out counts | 6 |
 
@@ -1867,7 +1886,8 @@ signatures afterwards, so library knowledge never flatters the library-agnostic 
 dataset, tuning and held-out alike, counts entries and ELF functions from the end of the startup
 region, as the PoC does, because each project types its startup labels by its own convention.
 
-**objdiff** (`g5.objdiff`, D34; `g3.objdiff` until the owner's answer to Q1 of phase-3.md moved it to phase 5,
+**objdiff** (`g5.objdiff`, D34; `g3.objdiff` until the owner's answer to Q1 of phase-3.md moved it to phase 5, and
+into phase 6 when he skipped phase 5, D76 g;
 where the `expected/` objects and objdiff targets are built, D68 a: it applies there as D34 writes it unless the
 owner amends it then, and phase 3 records the counts the committed classifier, `bench/src/objdiff-classes.ts`,
 sorts the differences into). The oracle is objdiff-cli at the version pinned in
@@ -1984,7 +2004,7 @@ defined. The codes:
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` |
-| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB` | `core/reconcile` |
+| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_UNSCANNABLE` | `core/reconcile` |
 | `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG`, `E_C_DEFINITION_MOVED`, `W_C_FILE_UNUSED` | `core/workflow` (`init`'s verdict on its directory, D75 j, checked under the project lock, D77 j; `analyze --update --write` over a changed config, D75 m; the reconciliation of a project's C files, D77 a) |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |
 | `W_EVIDENCE_CONFLICT` | `core/evidence` |

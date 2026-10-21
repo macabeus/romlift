@@ -3282,7 +3282,10 @@ whole closing list. No gate's verdict rule changes: (e) moves `g2.speed`'s verdi
     the NONMATCHING pattern is the default build's); a definition there holds nothing, so a chunk whose only C is
     conditional gets its stub outside the region. An unwanted stub there is `E_C_CONDITIONAL_STUB` (new, error,
     `core/reconcile`) instead of a removal, which left the default build without the function's code.
-  - The previous tree is the chunk files on disk (`asm/` is committed, so a fresh clone has them):
+  - The previous tree is the chunk files on disk (the reason first given here, "`asm/` is committed, so a fresh
+    clone has them", was the scaffold's unrecorded departure from R4; the owner's answer to Q9, D79 b, gitignores
+    `asm/`, so this rule holds from the second `generate` of a clone, and the first, setup.sh's duty 5, has no tree on
+    disk and uses the fallback rule below):
     `readProject` lists `asm/nonmatchings/*/*.s` (`ProjectInputs.previousChunkFiles`, a new optional member of the
     frozen type), `core/model/paths.ts` `chunkNamesOf` reads the names back (each base name, and `<Name>` for each
     member of a case-folded group, a directory holding two or more `<Name>_<ADDR>` files of different names that
@@ -3343,6 +3346,91 @@ whole closing list. No gate's verdict rule changes: (e) moves `g2.speed`'s verdi
 **Consequences.** The scaffold's `AGENTS.md` says what `generate` does with conditional code; phase-4.md's known
 limitations name `E_C_CONDITIONAL_STUB` beside the manual rename of decompiled C. The closing list is re-run in a fresh
 worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 3).
+
+## D79. The owner's answers of 21 October 2026 to phase-4 Q8 and Q9
+
+**Context.** The review of fix round 3's closing run (round a2, at `2314ffe`) raised two findings that only the owner
+could settle, and phase-4.md put them to him as Q8 (gate-honesty-a2-1: D78 b keeps 11 zero pads as orphans, which
+loosened the padding-orphans assertion that held phase-3 Q5 b's fold, with no owner question) and Q9
+(architecture-a2-1: the scaffold commits the generated `asm/` and `data/`, against the plan's R4 and its scaffold
+table, with no decision recording it, and D78 a rested a rule on it). Bruno Macabeus answered both on 21 October 2026;
+each chosen option is quoted as he gave it. With D76's they are the only gate changes he authorised.
+
+**Decision.**
+
+- (a) **Q8, the zero pads that end a `c` module right after a function: "Keep as orphans".** The 11 pads D78 b keeps
+  as their own orphan files (fe7j 4, pokeemerald 5, sa2 1, tmc 1; klonoa and sa3 none), because folding one into the
+  function before it breaks the build once that function is decompiled (gas ends its C object with a 0x46C0 nop), stay
+  orphans: byte-exact, one stub line each. A known limitation authorised by the owner, like Q7's nop pads (D76 f).
+  `test/local/padding-orphans.test.ts` asserts exactly that rule: every zero-pad orphan left is such a pad, and their
+  number per ROM is the 11 above.
+- (b) **Q9, the generated tree in Git: "Gitignore, as R4 says".** The scaffold's `.gitignore` ignores the generated
+  roots, every path R4 and plan.md's scaffold table mark "In Git: No": `/asm/`, `/data/`, `/expected/`,
+  `/ldscript.txt`, `/symbols.ld`, `/modules.mk` and `/objdiff.json` (`GENERATED_ROOTS`, anchored at the project root).
+  A fresh clone or `git worktree` builds through setup.sh's duty 5, which runs `romlift generate` when `asm/` is
+  absent. The C reconciliation's rule that reads the previous tree on disk (D78 a) holds from the second `generate`
+  of a clone; the first has no chunk files on disk and uses the fallback rule (a definition the module no longer has
+  where a missing stub goes is `E_C_STALE_DEFINITION`). D78 a, `src/core/workflow/c-stubs.ts`, `include-asm.ts`,
+  architecture §1 (R4), §6.3 and §6.6 and the scaffold's `AGENTS.md` and `README.md` say so. `g4.worktree` assumed
+  nothing of a committed tree (its worktree ran setup.sh either way); it now requires that no generated root is
+  committed and that the worktree's `setup.sh` ran duty 5. The scaffold's render test, which required the roots not
+  to be ignored, requires each to be.
+
+**Consequences.** Q8 changes no product code; the padding-orphans test pins the counts. Q9 changes the `.gitignore`
+template, the scaffold golden, `g4.worktree` and the render test. correctness-a2-7 of the same review (a rename in a
+fresh clone left the old chunk file, unowned, forever, since a committed `asm/` came without the gitignored manifest)
+no longer arises: a clone has no `asm/`, and its first `generate` writes the whole tree under a new manifest.
+
+## D80. Fix round 4 of phase 4: the review of fix round 3
+
+**Context.** The review of fix round 3's closing run at `2314ffe` (round a2) raised eighteen findings: five majors and
+thirteen minors. Two majors were owner questions, answered as Q8 and Q9 (D79). The three others are cases the C
+reconciliation got wrong, each reproduced on klonoa by the review: a decompiled function renamed in C only had its
+`INCLUDE_ASM` inserted again (correctness-a2-1, a regression of D78 a), a conditional whose branches open braces
+differently made a definition swallow the file (correctness-a2-2), and a split inside an `#if` region put the new stub
+after the region, out of ROM order (correctness-a2-3); each left `generate` exit 0 and `make` failing. No fix changes a
+gate beyond D79's answers.
+
+**Decision.**
+
+- (a) **The reconciliation refuses what it cannot place exactly** (correctness-a2-1, a2-2, a2-3, a2-6).
+  - A wanted chunk whose stub file the previous tree held in this module's own directory
+    (`IncludeAsmWanted.priorStubs`, from `previousChunkFiles`) and which the file neither includes nor defines had its
+    `INCLUDE_ASM` replaced by C; a definition of another name where its stub goes is `E_C_STALE_DEFINITION` ("where the
+    INCLUDE_ASM of X was, and module M still has X"). A chunk whose stub name is new to that directory (a TOML rename,
+    a border move) keeps D78 a's helper exemption. `IncludeAsmWanted.previous` is renamed `retired`.
+  - The scanner tracks every `#if`/`#ifdef`/`#ifndef` and requires each branch (at `#elif`, `#else` and `#endif`) to
+    leave the brace and parenthesis depth the conditional found; a definition that never closes, and a `{` at file
+    scope after a head that names no function (a K&R definition, an unreadable head), are unscannable too.
+    `planIncludeAsm` refuses such a file whole with `E_C_UNSCANNABLE` (new, error, `core/reconcile`), no edit, so
+    `generate` writes nothing. A definition's name skips `(*` declarator groups and GCC `__attribute__`/`asm` groups
+    (`void (*B(void))(void)`, `__attribute__((section(".iwram"))) void B(void)`), so neither reinserts its stub.
+  - A missing stub after a chunk held inside a region whose next held chunk lies in the same region has no safe place
+    (`E_C_STUB_UNPLACED`). The ROM order is checked again over the planned text: an insertion that lands before the
+    held chunk it was placed after, or after the one it was placed before, while the file held those two in order, is
+    `E_C_STUB_UNPLACED` and is not written; an order the file already broke stays `W_C_ORDER`.
+- (b) **One predicate, every C file read, and the edit checked at its write** (architecture-a2-3, correctness-a2-4,
+  a2-5). `compiledDefinitions` (`core/reconcile/include-asm.ts`, a named definition outside every conditional) is what
+  the planner counts as held and what `decompStateOf` lists. `reconcileStubs` reads the `src/*.c` of no module too:
+  a function a module has, defined there, is `E_C_DEFINITION_MOVED` beside `W_C_FILE_UNUSED` (a `c` module merged into
+  another, or made `asm`, no longer drops its decompiled C silently). `applyWrites` hashes an edit's file right before
+  its write and stops with `E_STALE_EDIT` (the journal left) when a save landed since the plan.
+- (c) **Smaller fixes** (architecture-a2-4, a2-5, a2-7): `isChunkFile` in `foundation/util/project-files.ts` and
+  `isDirectory` in `shell/fs.ts` (absent only on ENOENT or ENOTDIR, any other failure `E_IO_READ`) for
+  `readChunkFiles`, with its unit tests; the planner's neighbours are `earlier`/`later`; `WantedChunk` and `StubChunk`
+  say that they mirror each other across the `core/reconcile` edge; `allDiagnostics` is `command-common.ts`'s, used by
+  `verifyExitCode` and `verify`.
+- (d) **Records** (gate-honesty-a2-2, a2-3, architecture-a2-2, a2-8): phase-4.md's Q7 and plan.md state D78 b's
+  module-end rule and Q8; the memory limitation names every form and peak measured over the budget; architecture.md
+  points the surviving phase-5 items to phase 6 and marks the dropped ones (D76 g); roadmap.md's r1-6 carry names
+  the three `readAgbccPin`. Carried to phase 6: architecture-a2-6 (init's own file set, spelled in the shell's
+  `initTexts`, to come from core's plan: it changes the frozen `InitPlan`, and no defect is behind it).
+
+**Consequences.** New tests: the planner (a C-only rename, the reviewer's and sa2's conditional shapes, a split inside
+a region, the named heads, `compiledDefinitions`), `reconcileStubs` (the module's own previous directory, a file of no
+module), three `generate` CLI cases (a C-only rename, an unbalanced conditional, a merged module), `decompStateOf`,
+`readChunkFiles` and `readProject`'s previous tree, and the stale edit at write. The closing list is re-run in a fresh
+worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 4).
 
 ## Review findings index
 
