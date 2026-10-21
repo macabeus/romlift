@@ -125,9 +125,12 @@ romlift/
                                     (isProjectPath: what every emitted, journalled and written path must be),
                                     line-diff.ts, project-files.ts (the exception: a project's file names, the
                                     default function name and the C stubs' project paths, NONMATCHINGS_ROOT,
-                                    nonmatchingDir, chunkFileOf and INCLUDE_ASM_HEADER_PATH, which asm/dialect.ts,
-                                    core/config, core/model, core/reconcile, core/scaffold and the shell share,
-                                    D75 g, D76 h, D77 h)
+                                    nonmatchingDir, chunkFileOf, isChunkFile, stubNameOf, INCLUDE_DIR,
+                                    INCLUDE_ASM_HEADER_NAME and INCLUDE_ASM_HEADER_PATH, and the C sources'
+                                    spelling, C_SOURCE_DIR, isCSource and cSourceOf (fix round 6; their one
+                                    owner since fix round 7, no re-export elsewhere, architecture-b2-7), which
+                                    asm/dialect.ts, core/config, core/model, core/reconcile, core/emit,
+                                    core/verify, core/scaffold and the shell share, D75 g, D76 h, D77 h, D83 c)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -717,7 +720,7 @@ export type FileEntry =
   | { readonly ownership: 'reconciled'; readonly path: string; readonly baseSha1: string;
       readonly edits: readonly TextEdit[] };
 export interface TextEdit { readonly start: number; readonly end: number; readonly text: string;
-  readonly reason: 'add-stub' | 'remove-stub' | 'move-stub' | 'rename' }
+  readonly reason: 'add-stub' | 'remove-stub' | 'add-header' }   // phase 6's renames add theirs (fix round 7)
 export interface DecompState { readonly defined: ReadonlySet<string> }    // names defined in src/*.c
 export type Printer = 'readable' | 'raw';
 export interface EmitContext { readonly decomp: DecompState; readonly printer?: Printer }   // default 'readable' (D62 d)
@@ -1437,12 +1440,16 @@ A command that writes runs four steps; only the last touches files (D17, D49):
    - write `.romlift/journal.json` (`core/write-plan/journal.ts` defines it: every op with its path,
      `baseSha1` and result sha1) before the first op;
    - hash an `edit`'s file again right before its write and pass its state to core's `staleEdit` (its sha1, or
-     absent: a closed union, D82 d): a save or a removal that landed since the plan stops the run with
-     `E_STALE_EDIT`, the journal left (D80 b, D81 b);
+     absent: a closed union, D82 d; read through the disk snapshot's own `digestOf`, so ENOENT and ENOTDIR are
+     absent in both, D83 d): a save or a removal that landed since the plan stops the run with `E_STALE_EDIT`, the
+     journal left (D80 b, D81 b);
    - apply each op through a temporary file and a rename; the journal, the manifest, edits, scaffold files
      and C stubs are flushed (`fsync`) before their rename, generated files are not, and a generated file whose
      path does not exist yet is created in place with `O_EXCL`: the next run's snapshot rewrites any generated
      file a crash left short (D64 d, accepted by the owner's answer to Q3 of phase-3.md, D68 c);
+   - apply the write of `modules.mk` after every other op (the plan orders it last, D83 d): it records
+     `romlift.toml`'s SHA-1, the stamp the scaffold's `Makefile` and `setup.sh` take for "the tree is current", so a
+     run that stops part-way leaves the old stamp and `make` still asks for `romlift generate`;
    - write the new manifest last, through a temporary file and a rename, then delete the journal.
 
    A run that finds a journal first finishes the interrupted one: generated paths listed in the journal
@@ -1538,12 +1545,15 @@ from = "evidence:trace"
   entry its mode, a `[functions]` key that is no instruction address of its mode, odd for Thumb or not word-aligned
   for ARM, such as a Thumb pointer value pasted as the entry (`E_FUNCTION_MISALIGNED`, naming the key and its line;
   D81 c, raised by the config since D82 d, so every command that loads `romlift.toml` refuses it before any analysis,
-  through the one predicate `insnAligned` of `foundation/rom/span.ts`).
+  through the predicate `insnAligned` of `foundation/rom/span.ts`, which the assembler layout reads too; the
+  analysis keeps its own bit tests, D83 e).
 - `[[overrides]]` with `runs_at` place a RAM-run range (§6.7). Until phase 6 applies the others to the analysis, an
   override without `runs_at` changes nothing but the extent of a listed entry the analysis did not find (a `code`
   override holding it, which `placeEntries` records on that entry); every other one is `W_OVERRIDE_IGNORED`, a
-  warning derived from what `placeEntries` reports it used, not from the override's kind, and not raised for a range
-  wholly outside the ROM, which is `W_OVERRIDE_OUTSIDE_ROM`'s (a known limitation of phase 4; D81 c, D82 d).
+  warning derived from what `placeEntries` reports it used (the applied override itself, matched to one entry of its
+  kind, span and mode, so a data override or a second code override on the same span is still ignored, D83 e), not
+  from the override's kind, and not raised for a range wholly outside the ROM, which is `W_OVERRIDE_OUTSIDE_ROM`'s (a
+  known limitation of phase 4; D81 c, D82 d).
 - `from` records where a proposed entry came from, as a `sourceKey` (`sig:<library>@<version>`,
   `evidence:<id>`, `legacy`). It is data, not a comment: `explain` reads it, and `rename` removes it
   because the name is then the user's (D9). An entry without `from` was written by the analysis or by
@@ -1555,7 +1565,11 @@ from = "evidence:trace"
 - There is no `[analysis]` table: rules cannot be disabled per project (D22).
 - `decomp.yaml` carries `tools.romlift: { config: romlift.toml }` (a strict object) and `tools.asmlift`,
   rendered by `core/config/decomp-yaml.ts` and validated through `@match-kit/decomp-yaml` before `init`
-  writes it; `shell/project/locate.ts` finds it from any directory, a worktree included.
+  writes it; `shell/project/locate.ts` finds it from any directory, a worktree included. `config` is always
+  `romlift.toml` (`readDecompYaml` refuses any other value with `E_DECOMP_YAML_INVALID`, D83 b), as the ROM is always
+  `baserom.gba` (D74 c): the scaffold's `Makefile` and `setup.sh` hash the file by that name against `modules.mk`'s
+  stamp (D82 a). `loadConfig` returns the SHA-1 of the exact bytes it decoded (`ProjectConfig.sha1`), which
+  `modules.mk` records (D83 d).
 
 ### 6.6 C stubs, reconciler, data in C, import-legacy (dropped by D76 g)
 
@@ -1607,7 +1621,14 @@ another module in it is `E_C_DEFINITION_MOVED` naming it, and it is no `W_C_FILE
 stub and holds neither an `INCLUDE_ASM` statement nor `#include "include_asm.h"` gains that include
 (`C_STUB_HEADER`) above its first line of code, so the file a user creates with only the C that `E_C_DEFINITION_MOVED`
 (which names the module's source path) sent there builds (D82 b). Every insertion takes the file's line terminator
-(D82 b). Fix round 4's rescan of the planned text for an insertion out of ROM order is gone: no layout reached it
+(D82 b). Since fix round 7 the fragment's `INCLUDE_ASM` statements, and what the `src/*.c` files it includes in turn
+hold, count too, at the module file's `#include` line (`IncludeAsmStatement.via`), so `generate` never inserts a stub
+a fragment already holds; romlift never edits a fragment, so a stub in one that would go (unwanted, or naming a file
+the tree no longer writes) is `E_C_FRAGMENT_STUB` naming it, an insertion whose ROM-order place lies between two
+chunks one `#include` holds is `E_C_STUB_UNPLACED` naming the fragment, and a fragment the scanner cannot split is
+`W_C_UNSCANNABLE` naming it, `E_C_UNSCANNABLE` when the module's file needs an edit (D83 a). An include of another
+module's source is no fragment (make compiles it on its own): it refuses every insertion, as an unread file does, and
+says so (D83 a). Fix round 4's rescan of the planned text for an insertion out of ROM order is gone: no layout reached it
 (D82 c). An `edit` is written only
 while its file still has its planned sha1, checked again right before the write (`E_STALE_EDIT`, D80 b, D81 b). `generate --out <dir>` writes the C files as generated files of that tree,
 so a second run into it rewrites them (D77 d). `rename-tokens.ts` renames identifier tokens
@@ -2044,7 +2065,7 @@ defined. The codes:
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` (`E_STALE_EDIT` through `staleEdit`, which the shell's `applyWrites` also calls at write time, D81 b) |
-| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_UNSCANNABLE`, `W_C_UNSCANNABLE` | `core/reconcile` (`W_C_UNSCANNABLE` also through `unscannableWarning`, which `core/workflow/c-stubs.ts` calls for a C file of no module, D81 a) |
+| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_FRAGMENT_STUB`, `E_C_UNSCANNABLE`, `W_C_UNSCANNABLE` | `core/reconcile` (`W_C_UNSCANNABLE` also through `unscannableWarning`, which `core/workflow/c-stubs.ts` calls for a C file of no module, D81 a; `E_C_FRAGMENT_STUB` since fix round 7, D83 a) |
 | `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG`, `E_C_DEFINITION_MOVED`, `W_C_FILE_UNUSED` | `core/workflow` (`init`'s verdict on its directory, D75 j, checked under the project lock, D77 j; `analyze --update --write` over a changed config, D75 m; the reconciliation of a project's C files, D77 a) |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |
 | `W_EVIDENCE_CONFLICT` | `core/evidence` |

@@ -891,6 +891,29 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   import is dropped; `shell/evidence/read-trace.ts` and `foundation/formats/trace-json.ts` serve only the trace.
   Phase 6's plan rewrite keeps each (a new producer) or deletes it with its tests, codec spelling and architecture
   entries; `seed.override` is carried above with the override semantics.
+- **architecture-b2-9** (fix round 7, D83 f): `core/reconcile/include-asm.ts` (about 1,050 lines) holds the C scanner,
+  the "C defines it" rule, include resolution and fragments, the header insertion and the planner. Split the scanner
+  and the definition rule (`scanC`, `conditionalsOf`, `compiledDefinitions`, `CFileScan`, `CDefinition`) into
+  `core/reconcile/c-scan.ts` beside `c-tokens.ts`, and update architecture §2's `core/reconcile` list. Carried: a pure
+  move of about 500 lines with every importer and test, no defect behind it, and phase 6's `rename-tokens.ts` adds the
+  next reader of the scanner, so the split lands with it.
+- **architecture-b2-8's remainder** (fix round 7, D83 e): the analysis keeps its own alignment bit tests
+  (`rules/valid/in-rom-unclaimed.ts`, `walk/thumb.ts`, `walk/arm.ts`, `rules/gap/arm-scan.ts`, `rules/seed/ram-copy.ts`,
+  `core/model/labels.ts`); route them through `insnAligned` (in-rom-unclaimed taking the entry's mode). Carried: it
+  changes analysis rules, whose goldens and `bench regression` must be re-measured, with no defect behind it; the
+  docstring now names only the two readers it has (D83 e amends D82 d).
+- **architecture-b2-11's remainder** (fix round 7, D83 d): the disk snapshot (`WritePlanInputs.disk`,
+  `ProjectWriteState`) is still typed `string | 'absent'`, which TypeScript widens to `string`; type it with a closed
+  union, as `EditedFileState` is. The absence rule itself is one since fix round 7 (`digestOf`, ENOENT and ENOTDIR,
+  read by the snapshot and by `applyWrites`' check). Carried: a type change across the write plan with no defect behind it.
+- **correctness-b2-3's remainder** (fix round 7, D83 d): `modules.mk` records only `romlift.toml`'s SHA-1, so a pull that
+  changes the romlift version `package.json` pins leaves a tree the old version generated, which neither `make` nor
+  `setup.sh` notices; the scaffold's `AGENTS.md` and `README.md` say to run `./setup.sh` and then `npx romlift
+  generate` (a known limitation, phase-4.md). With romlift published (Q5), record the version in `modules.mk`
+  (`ROMLIFT_VERSION`) and have duty 5 regenerate when it differs from the installed one.
+- **architecture-r1-2, also** (architecture-b2-7, b2-12): fix round 7 removed `core/model/paths.ts`'s `isCSource`
+  re-export; `C_SOURCE_DIR`, `isCSource` and `cSourceOf` are imported from `foundation/util/project-files.ts` only. The
+  other aliases of r1-2 stay carried as written above.
 
 ### 6.0 Signature and trace interfaces (lead)
 

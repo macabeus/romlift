@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D81). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D83). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -451,12 +451,21 @@ count them.
   a definition in every branch of a conditional with an `#else` counts for every build; decompiled C belongs in
   `src/<module>.c` or a `src/*.c` it `#include`s (read as part of the module), and a quoted include of any other file
   but a `.h` refuses every stub that file would gain (`E_C_STUB_UNPLACED`: romlift cannot tell what it defines); a
-  module's source created by hand with only C gains `#include "include_asm.h"` with its first stub. The scaffold's
-  `AGENTS.md` says so.
+  module's source created by hand with only C gains `#include "include_asm.h"` with its first stub. Since fix round 7
+  (D83 a) a `src/*.c` fragment's `INCLUDE_ASM` lines, and those of the files it includes, count as the module's too;
+  romlift never edits a fragment, so a TOML edit that would remove or rename a stub in one (`E_C_FRAGMENT_STUB`), or
+  put a new one between two chunks one fragment holds (`E_C_STUB_UNPLACED`), is refused naming the fragment and
+  writes nothing: edit the fragment yourself. The scaffold's `AGENTS.md` says so.
 - Since the generated tree is not in Git (Q9), a project whose `Makefile` predates fix round 6 (written once by an
   earlier `init`) has no staleness guard: after a pull that changes `romlift.toml` its user must run `romlift generate`
   (D82 a; `scaffold --diff` shows the new template). A project `init` makes from fix round 6 on stops `make` with the
   command to run.
+- `decomp.yaml`'s `tools.romlift.config` is always `romlift.toml` (D83 b): any other value is
+  `E_DECOMP_YAML_INVALID`, since the scaffold's `Makefile` and `setup.sh` hash that file by name.
+- The staleness stamp covers `romlift.toml` only (D83 d, correctness-b2-3): after a pull that changes the romlift
+  version `package.json` pins, `./setup.sh` installs it but neither it nor `make` regenerates; run `npx romlift
+  generate` (the scaffold's `AGENTS.md` and `README.md` say so). Recording the version in `modules.mk` is carried to
+  phase 6 with publication (Q5).
 - Until phase 6 (D81 c, roadmap.md "Carried from phase 4"): an `[[overrides]]` entry without `runs_at` is applied by no
   analysis rule; a `data` override, and a `code` override that gives no listed entry its extent, change nothing and
   warn `W_OVERRIDE_IGNORED`. `g4.toml-mutations`' add-override edit is such a no-op (it warns and builds); making it
@@ -484,17 +493,17 @@ count them.
   `AGENTS.md` and `README.md` as the way until romlift is published) or package.json pointed at a tarball.
 - `setup.sh` builds agbcc from source at the pin (network, git and a host C compiler; about 50 s); a mirror is
   `AGBCC_URL`.
-- Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,133 to 1,581 MiB RSS across
-  the runs of this phase (largest live heap 924.8 MiB, the raw `verify`), and three forms have gone over D72 b's
-  1,536 MiB budget in some run: the readable `verify --link` once in six ("The closing gate", fix round 1), and, in the
-  review's re-run of fix round 3's list at `2314ffe` (gate-honesty-a2-3), `init --json` at 1,562.8 MiB and the readable
-  `verify --assemble` at 1,551.3 MiB, in fix round 4's closing run `verify --assemble --link --json` at 1,540.6 MiB, and
-  in fix round 5's `init --json` at 1,581.4 MiB, and in fix round 6's `verify --assemble --link --json` at 1,569.9 MiB;
-  `init`, the phase-4 one-shot command, is not held under the budget on it,
-  and `generate --json`, the other, has come within a MiB of it (1,535.2 MiB in the review's re-run of fix round 5's
-  list, 0.8 MiB under), so both one-shot commands sit at the doubled ROM's budget edge. A
-  code-dense ROM larger than 32 MiB of that density may exceed the cap (D72, unchanged). No gate measures the doubled
-  ROM (D72 e), and `bench large-rom --bin` records the peaks without judging them.
+- Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,125.9 to 1,581.4 MiB RSS
+  across every measured run of this phase, the review's re-runs included (largest live heap 925.4 MiB, the raw
+  `verify`, in the review's re-run of fix round 6's list), and four forms have gone over D72 b's 1,536 MiB budget in
+  some run: the readable `verify --link` once in six ("The closing gate", fix round 1); `init --json` (1,562.8 MiB in
+  the review's re-run of fix round 3's list at `2314ffe`, gate-honesty-a2-3, and 1,581.4 MiB in fix round 5's closing
+  run); the readable `verify --assemble` (1,551.3 MiB in that re-run of fix round 3's); `verify --assemble --link
+  --json` (1,540.6 MiB in fix round 4's closing run, 1,569.9 MiB in fix round 6's); and `generate --json` (1,541.8 MiB
+  in the review's re-run of fix round 6's list at `d615ceb`, gate-honesty-b2-1). Neither phase-4 one-shot command,
+  `init` nor `generate`, is held under the budget on the doubled ROM. A code-dense ROM larger than 32 MiB of that
+  density may exceed the cap (D72, unchanged). No gate measures the doubled ROM (D72 e), and `bench large-rom --bin`
+  records the peaks without judging them.
 - Three `g5.*` gates fail instead of reporting `pending` once their inputs exist (`g5.c-data-ranges`: no
   `expect-ranges.json`; `g5.expected-bytes`: no `expected/`; `g5.reconciler`: no reconcile goldens); `--require 4` does
   not require them, and phase 6 builds what they read (D76 g).
@@ -1113,3 +1122,31 @@ this record's results ("The closing gate", fix round 6's closing run: every comm
 | gate-honesty-b1-2 | minor | **Fixed** (D82 e). The snapshot leaves out `.git` and `tools/agbcc` only; the header says so. |
 | gate-honesty-b1-3 | minor | **Fixed** (D82 e). Fix round 5's closing rows state the add-override share (57 of 258, 51 of 228); the gate's note now reports the legal edits by kind; README says one kind is a no-op until phase 6. |
 | gate-honesty-b1-4 | minor | **Fixed** (records). The memory limitation's range reads 1,133 to 1,581 MiB and records `generate --json` at 1,535.2 MiB, 0.8 MiB under the budget. |
+
+### Fix round 7 (the review of fix round 6's closing run at `d615ceb`)
+
+Sixteen findings: two majors and fourteen minors. Both majors are fixed with the simplest rule that cannot break a
+user's build, each reproduced first by a CLI test and then on klonoa with agbcc through `make` in
+`test/local/decompiled-c.test.ts` (D83). Of the minors, nine are fixed, three are fixed in part with the rest carried to
+phase 6, one is carried whole and one needed nothing new (roadmap.md, "Carried from phase 4"). No gate changes what it
+requires. Commits on `phase-4` after `d615ceb`: `fc401a3` (the code, templates and tests), the records commit, the
+closing run's artifact and this record's results ("The closing gate", fix round 7's closing run).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-b2-1 | major | **Fixed** (`fc401a3`, D83 a). A fragment's `INCLUDE_ASM` statements (and those of the `src/*.c` it includes in turn) hold their chunks at the module file's `#include` line, so no stub is inserted again; romlift never edits a fragment: a stub in one that would go is `E_C_FRAGMENT_STUB` (new), an insertion whose place lies inside one `E_C_STUB_UNPLACED`, each naming the fragment, nothing written. Tests: the planner, `reconcileStubs`, a CLI case (the reviewer's F0 keep-only, F1 refused, fixed by hand), and `decompiled-c` on klonoa (three stubs in `src/part.c`: `generate`, `make` to the SHA-1; the middle one renamed: refused, `make` stops on the stale tree; fixed in the fragment: `generate`, `make` to the SHA-1). |
+| architecture-b2-1 | major | **Fixed** (`fc401a3`, D83 b). `readDecompYaml` refuses a `tools.romlift.config` other than `romlift.toml` (`E_DECOMP_YAML_INVALID`), as the schema refuses another ROM path. Tests: `readDecompYaml`, `loadConfig`, a CLI case (the reviewer's `cfg/romlift.toml`: `generate`, `analyze --update` and `model` refuse, nothing written), and `decompiled-c` on klonoa (refused, then `make` to the SHA-1). |
+| gate-honesty-b2-1 | minor | **Fixed** (records). The memory limitation is rewritten from every measured run, the review's re-run included: 1,125.9 to 1,581.4 MiB, live heap up to 925.4 MiB, `generate --json` at 1,541.8 MiB over the budget, so neither one-shot command is held under it; this run's numbers are under "The closing gate". |
+| correctness-b2-2 | minor | **Fixed** (`fc401a3`, D83 d). The write of `modules.mk` is the plan's last op. Test: the write plan orders it after every src edit, `ldscript.txt` and `symbols.ld`. |
+| correctness-b2-3 | minor | **Fixed in part** (D83 d). The scaffold's `AGENTS.md` and `README.md` say to run `./setup.sh` and then `npx romlift generate` after a pull that changes the pinned romlift version (a known limitation); recording the version in `modules.mk` is carried to phase 6 with publication. |
+| architecture-b2-2 | minor | **Fixed** (`fc401a3`, D83 d). `loadConfig` returns the SHA-1 of the bytes it decoded; the second read and its absolute-path diagnostic are gone. Test: `loadConfig`. |
+| architecture-b2-3 | minor | **Fixed** (`fc401a3`, D83 d). The render test builds the Makefile's and setup.sh's spelling from `CONFIG_SHA1_VARIABLE` and writes `modules.mk` with `modulesMkText`. |
+| architecture-b2-4 | minor | **Fixed** (`fc401a3`, D83 a). An included fragment the scanner cannot split is `W_C_UNSCANNABLE` naming it, `E_C_UNSCANNABLE` when the module's file needs an edit. Test: the planner. |
+| architecture-b2-5 | minor | **Fixed** (`fc401a3`, D83 a). An include of another module's source is no fragment, and the refusal names that module. Test: the planner. |
+| architecture-b2-6 | minor | **Fixed** (`fc401a3`, D83 e). `PlacedEntry.override` is the applied override object, matched to one entry of its kind, span and mode. Tests: the model (data and code on one span, both orders; two identical code overrides). |
+| architecture-b2-7 | minor | **Fixed** (`fc401a3`, D83 c). The C-source spellings are imported from `foundation/util/project-files.ts` only; architecture §2 and `src/foundation/index.md` list the exception's contents; `c-data-assert.ts` uses `cSourceOf`. |
+| architecture-b2-8 | minor | **Fixed in part** (`fc401a3`, D83 e). The docstring names the two readers; `test/unit/rom/span.test.ts` tests `insnUnit` and `insnAligned`; routing the analysis' bit tests through it is carried (it changes analysis rules). |
+| architecture-b2-9 | minor | **Carried** to phase 6 (D83 f): the split of `include-asm.ts` into `c-scan.ts` lands with `rename-tokens.ts`. |
+| architecture-b2-10 | minor | **Fixed** (`fc401a3`, D83 f). `TextEdit.reason` is `add-stub`, `remove-stub` or `add-header`; architecture §6.6 says so. |
+| architecture-b2-11 | minor | **Fixed in part** (`fc401a3`, D83 d). The write-time check reads through `digestOf`, the snapshot's rule (ENOENT and ENOTDIR); typing the snapshot as a closed union is carried. |
+| architecture-b2-12 | minor | **Nothing new**: the six architecture-r1 remainders stay carried; the `isCSource` re-export b2-7 named is removed (roadmap.md notes it under r1-2). |

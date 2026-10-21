@@ -3594,6 +3594,82 @@ decompiled function with its C pasted alone into the new file, and a Git clone t
 `make` stopping until `./setup.sh` or `romlift generate`, each to the SHA-1) and `test/local/c-scan-corpus.test.ts`.
 The closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 6).
 
+## D83. Fix round 7 of phase 4: the review of fix round 6
+
+**Context.** The review of fix round 6's closing run at `d615ceb` (round b2) raised sixteen findings: two majors
+(correctness-b2-1, architecture-b2-1) and fourteen minors. correctness-b2-1 was reproduced on klonoa: with an
+`INCLUDE_ASM` line moved from `src/main_3.c` into a `src/part.c` it `#include`s, `generate` exited 0 and inserted the
+stub again (make: `invalid offset`), and after a TOML rename of that function it left the fragment's stub naming a file
+no longer written (make: `can't open`); fix round 6 read a fragment's definitions but not its statements.
+architecture-b2-1: the scaffold's `Makefile` and `setup.sh` hash `romlift.toml` by name against `modules.mk`'s stamp
+(D82 a), while `decomp.yaml`'s `tools.romlift.config` could name any project path, so a relocated config stopped
+`make` after every `generate`. Each fix is the simplest rule that cannot break a user's build, with a test that
+reproduces the reviewer's case and then runs `make`. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **A fragment's `INCLUDE_ASM` lines are read; romlift never edits a fragment** (correctness-b2-1,
+  architecture-b2-4, b2-5). The planner (`IncludeAsmWanted.fragments`, now the texts of the `src/*.c` that are no
+  module's source) reads each fragment a module's file `#include`s at file scope, and each `src/*.c` that fragment
+  includes in turn: its compiled definitions and its `INCLUDE_ASM` statements (at any depth when the scanner cannot
+  split it) hold their chunks at the module file's `#include` line (`IncludeAsmStatement.via`, `fragmentLine`), so no
+  stub a fragment holds is inserted again, and two chunks one `#include` holds raise no `W_C_ORDER`. romlift never
+  edits a fragment: a stub in one that the module no longer wants, or that names a file of a directory the tree no
+  longer writes it in, is `E_C_FRAGMENT_STUB` (new, error, `core/reconcile`), naming the fragment and the line; a
+  missing stub whose ROM-order place lies between two chunks one `#include` holds is `E_C_STUB_UNPLACED` naming the
+  fragment; a fragment the scanner cannot split is `W_C_UNSCANNABLE` naming it, or `E_C_UNSCANNABLE` (no edit) when the
+  module's file needs one. Each error makes `generate` write nothing; `make` then stops on the stale-tree guard
+  (D82 a) until the user edits the fragment. An `#include` of another module's source (`IncludeAsmWanted.sources`) is no
+  fragment, since make compiles it on its own: it refuses every insertion as an unread file does, and the message says
+  which module's source it is (it had said romlift does not read the file).
+- (b) **The config is always `romlift.toml`** (architecture-b2-1). `readDecompYaml` refuses a `tools.romlift.config`
+  other than `romlift.toml` with `E_DECOMP_YAML_INVALID`, as the schema refuses a ROM path other than `baserom.gba`
+  (D74 c), so the one file the `Makefile` and `setup.sh` hash is the one romlift reads. Every command that loads the
+  project refuses such a `decomp.yaml` before anything is read or written, and `make` keeps building the tree it has.
+  The hand-written-`decomp.yaml` test that read `config/project.toml` now expects the refusal, and `saveConfig`'s test
+  saves at `romlift.toml`.
+- (c) **The C sources' spelling has one owner** (architecture-b2-7, b2-12). `C_SOURCE_DIR`, `isCSource` and
+  `cSourceOf` stay in `foundation/util/project-files.ts`, the recorded exception (D76 h), and every layer imports them
+  from there: `core/model/paths.ts`'s `isCSource` re-export is gone, `src/api/reconcile.ts` re-exports it from
+  foundation, and `c-data-assert.ts` spells the source with `cSourceOf`. Architecture §2's exception list and
+  `src/foundation/index.md` name every spelling the exception holds.
+- (d) **The stamp and the write** (correctness-b2-2, b2-3, architecture-b2-2, b2-3, b2-11). `planWrites` orders the
+  write of `modules.mk` after every other op, so a `generate` that stops part-way (E_IO_WRITE, the write-time
+  E_STALE_EDIT, a kill) leaves the old `ROMLIFT_TOML_SHA1` and `make` still asks for `romlift generate`. `loadConfig`
+  returns the SHA-1 of the bytes it decoded (`ProjectConfig.sha1`), which `readProject` passes as `configSha1`; the
+  second read of `romlift.toml`, and its absolute-path diagnostic, are gone. The scaffold render test builds the
+  stamp's spelling from `CONFIG_SHA1_VARIABLE` and writes `modules.mk` with `modulesMkText`, so a renamed constant fails
+  it. `applyWrites`' check before an edit reads through the disk snapshot's own `digestOf`, one absence rule (ENOENT
+  and ENOTDIR) for both; typing the snapshot as a closed union is carried to phase 6. A pull that changes the romlift
+  version `package.json` pins is not noticed by `make` or `setup.sh`: the scaffold's `AGENTS.md` and `README.md` say to
+  run `./setup.sh` and then `npx romlift generate`, a known limitation; recording the version in `modules.mk` is
+  carried to phase 6, with publication (Q5).
+- (e) **Overrides and alignment** (architecture-b2-6, b2-8). `PlacedEntry.override` is the analysis options' override
+  object `placeEntries` applied, and `W_OVERRIDE_IGNORED` matches each applied override to one `[[overrides]]` entry of
+  its kind, span and mode, so a data override, or a second code override, on the span of an applied one is reported.
+  `insnAligned`'s docstring names its two readers (the assembler layout and the config); routing the analysis' own
+  bit tests through it is carried to phase 6, and `test/unit/rom/span.test.ts` tests `insnUnit` and `insnAligned`.
+  This amends D82 d's "read by … `seed.ram-copy`" (it reads `insnUnit`).
+- (f) **Edits and records** (architecture-b2-10, b2-9, gate-honesty-b2-1). `TextEdit.reason` is `'add-stub' |
+  'remove-stub' | 'add-header'`, the include insertion's own reason; `'move-stub'` and `'rename'` are gone until phase
+  6's renames produce theirs (a joined insertion at one offset keeps its first reason). The split of
+  `include-asm.ts` (architecture-b2-9) is carried to phase 6 with `rename-tokens.ts`. The memory limitation is
+  rewritten from every measured run, the review's re-run of fix round 6's list included: `generate --json` at
+  1,541.8 MiB joins the forms over D72 b's budget, so neither one-shot command is held under it on the doubled ROM.
+
+**Consequences.** New tests: the planner (a fragment's stubs held, nested fragments, `E_C_FRAGMENT_STUB` for a renamed
+stub and a stale directory, `E_C_STUB_UNPLACED` inside a fragment for stubs and for definitions, insertions beside a
+fragment, an unscannable fragment, an include of another module's source, the header's reason), `reconcileStubs`
+(nested fragment, `E_C_FRAGMENT_STUB`), the CLI (a stub moved into `src/part.c`, `generate` keep-only; a TOML rename
+refused naming the fragment, nothing written; the fragment fixed by hand, exit 0; a `decomp.yaml` naming
+`cfg/romlift.toml` refused by `generate`, `analyze --update` and `model`, nothing written), `readDecompYaml` and
+`loadConfig` (the refusal, the SHA-1 of the bytes), the write plan (`modules.mk` last), the model (the same-span
+override cases), span.ts, and `test/local/decompiled-c.test.ts` on klonoa with agbcc: three stubs moved into a
+fragment, `generate` and `make` to the SHA-1, the middle one renamed in the TOML (`E_C_FRAGMENT_STUB` and
+`E_C_STUB_UNPLACED`, nothing written, `make` stopping on the stale tree), fixed in the fragment, `generate` and `make`
+to the SHA-1; then `decomp.yaml` naming `cfg/romlift.toml`, `generate` refused and `make` to the SHA-1. The closing
+list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 7).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per
