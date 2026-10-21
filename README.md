@@ -59,7 +59,9 @@ scaffold (`Makefile`, `setup.sh`, …), `INCLUDE_ASM` C stubs and the generated 
 rebuilds the ROM to its SHA-1 with no file edited, on 50 committed fixtures and all six tuning ROMs (from the source
 tree, the packed tarball and fresh git worktrees); `generate` regenerates the tree from the TOML without ever writing
 it and keeps the `INCLUDE_ASM` lines of `src/*.c` in line with it, so every seeded legal TOML edit still builds with
-`make`; `analyze --update` proposes TOML patches that keep comments. Every gate of phases 1 to 4 passes on both tiers.
+`make` (one of its five kinds, a code override over a found function, changes nothing until phase 6 and warns
+`W_OVERRIDE_IGNORED`), and `make` stops on a tree older than the TOML, as after a pull, until `generate` runs;
+`analyze --update` proposes TOML patches that keep comments. Every gate of phases 1 to 4 passes on both tiers.
 The commands are `doctor`, `analyze`, `explain`, `model`, `verify`, `init`, `generate` and `scaffold`.
 
 | Phase | Delivers |

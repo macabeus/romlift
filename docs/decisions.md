@@ -3408,7 +3408,8 @@ gate beyond D79's answers.
   - A missing stub after a chunk held inside a region whose next held chunk lies in the same region has no safe place
     (`E_C_STUB_UNPLACED`). The ROM order is checked again over the planned text: an insertion that lands before the
     held chunk it was placed after, or after the one it was placed before, while the file held those two in order, is
-    `E_C_STUB_UNPLACED` and is not written; an order the file already broke stays `W_C_ORDER`.
+    `E_C_STUB_UNPLACED` and is not written; an order the file already broke stays `W_C_ORDER`. (That rescan is
+    removed by D82 c: no layout reached it.)
 - (b) **One predicate, every C file read, and the edit checked at its write** (architecture-a2-3, correctness-a2-4,
   a2-5). `compiledDefinitions` (`core/reconcile/include-asm.ts`, a named definition outside every conditional) is what
   the planner counts as held and what `decompStateOf` lists. `reconcileStubs` reads the `src/*.c` of no module too:
@@ -3469,7 +3470,8 @@ changes what a gate requires; the two gate edits the review proposed are carried
     `core/reconcile`), with the E_C_STALE_DEFINITION of a definition of a retired function, and the file builds as it
     did; so `setup.sh`'s duty 5 in a clone no longer fails on a project whose C built.
   - `compiledDefinitions` returns the scanner's verdict with the definitions (`{scannable, definitions,
-    unscannable?}`), so no caller can skip the precondition: the planner decides as above, a C file of no module is
+    unscannable?}`), so no caller can skip the precondition (D82 c: the planner reads its definitions and tests the
+    scanner's verdict itself, editing nothing in a file it cannot split): the planner decides as above, a C file of no module is
     checked over what was read and warns `W_C_UNSCANNABLE` (`unscannableWarning`, a reconcile code raised through
     its helper), and `decompStateOf` states its policy (the definitions as read: phase 4 emits nothing differently
     for the DecompState).
@@ -3494,7 +3496,7 @@ changes what a gate requires; the two gate edits the review proposed are carried
   gate's legal edit stays what its header says (a code override over a found function, which now warns) and passes.
 - (d) **Smaller fixes** (architecture-b0-3 to b0-7): `g4.worktree` reads the product's rule
   (`cx.need('underGeneratedRoot')`) instead of its own list of the generated roots, which is the same list, so the
-  gate's verdict is unchanged; the `romlift` reconcile barrel exports `compiledDefinitions`, `CompiledDefinitions`,
+  gate's verdict is unchanged (D82 e puts the gate's own R4 list back, united with the product's rule); the `romlift` reconcile barrel exports `compiledDefinitions`, `CompiledDefinitions`,
   `CUnscannable`, `CConditional`, `WantedChunk` and `StubTree`, its ownership line names phase 6, and the phase-4
   exports test covers it; `src/cli/index.md` lists the phase-4 commands and project mode, `src/core/index.md` and
   `src/shell/index.md` list the phase-4 modules, and `analyze.ts` and `core/index.md` no longer name legacy import
@@ -3510,6 +3512,87 @@ clone; an unscannable file warned then refused; a moved module with and without 
 without `from`; an ignored override), the shell's two mode-000 cases, and `test/local/decompiled-c.test.ts` on klonoa
 with agbcc (the idiom, a fresh clone through `./setup.sh`, a renamed module moved by hand, each to the SHA-1). The
 closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 5).
+
+## D82. Fix round 6 of phase 4: the review of fix round 5
+
+**Context.** The review of fix round 5's closing run at `3a1eea7` (round b1) raised seventeen findings: five on
+correctness (two majors, three minors), eight on the architecture (minors) and four on gate honesty (minors). The
+majors were reproduced on a composite project: since the generated tree is gitignored (Q9, D79 b), a `git pull` that
+changed `romlift.toml` left the old tree on disk, `make` failed in the assembler or the linker and `./setup.sh` could
+not repair it (correctness-b1-1); and a split that moved decompiled C to a new module sent the user to a file that did
+not exist, which, created with only the C, got `INCLUDE_ASM` lines and no `#include "include_asm.h"`, so it did not
+compile (correctness-b1-2). No fix changes what a gate requires; two gate files are restored to what their own text
+and the owner's Q9 answer say (gate-honesty-b1-1, b1-2), and one gate's note reports its counts by kind.
+
+**Decision.**
+
+- (a) **A generated tree older than `romlift.toml` stops `make`** (correctness-b1-1). `modules.mk` records the SHA-1
+  of the `romlift.toml` bytes it was generated from, `ROMLIFT_TOML_SHA1` (the shell hashes the file and passes it in,
+  `ProjectInputs.configSha1` and `EmitContext.configSha1`; `init` hashes the text it writes through its new `hash`
+  argument; outside a project, `verify --rom` and the bench, there is no such line, so their trees and digests are
+  unchanged). The scaffold's `Makefile` compares it with the file's SHA-1 before any build (`make clean` excepted) and
+  stops with "romlift.toml changed since romlift generate last ran (a pull, a checkout or an edit): run npx romlift
+  generate (or ./setup.sh), then make"; a C object's recorded SHA-1 leaves that line out, so a TOML edit does not
+  recompile every C unit. `setup.sh`'s duty 5 runs `romlift generate` when `asm/` is absent or when `modules.mk`
+  records another SHA-1 (or none). The scaffold's `AGENTS.md`, `README.md` and `.gitignore` say to run `npx romlift
+  generate` (or `./setup.sh`) after a pull or a checkout that changes `romlift.toml`. An existing project keeps its
+  `Makefile` (scaffold files are written once; `scaffold --diff` shows the new template).
+- (b) **The C reconciliation follows the C a user writes where romlift sends it** (correctness-b1-2 to b1-5).
+  - A file that gains a stub and holds neither an `INCLUDE_ASM` statement nor `#include "include_asm.h"` gains that
+    include (`C_STUB_HEADER`) above its first line of code, below the comments that open it.
+    `E_C_DEFINITION_MOVED` names the module's source path and says to create it with only the C.
+  - A `src/*.c` that a module's source `#include`s at file scope (outside every item; the quoted path resolved from
+    the file's directory) is part of that module: its compiled definitions hold their chunks at the `#include` line
+    (`IncludeAsmWanted.fragments`, `CDefinition.via`), a function of another module in it is `E_C_DEFINITION_MOVED`
+    naming it, a retired one `E_C_STALE_DEFINITION`, and it is no `W_C_FILE_UNUSED`. A quoted include of a file romlift
+    does not read whose path does not end in `.h` refuses every insertion into the including file
+    (`E_C_STUB_UNPLACED`), since that file may define the function; the scaffold's `AGENTS.md` says decompiled C goes in
+    `src/<module>.c` or a `src/*.c` it includes.
+  - A definition in every branch of a terminated conditional that has an `#else`, outside the conditionals nested in
+    those branches, is compiled in every build (`compiledDefinitions`; the first branch's counts), so pret's `#ifdef
+    NONMATCHING <C> #else NAKED <asm> #endif` holds its chunk and gets no second stub. A stub placed after such a
+    definition goes after the region's `#endif`.
+  - Every insertion takes the file's line terminator (`\r\n` when the first newline follows a carriage return).
+- (c) **Smaller fixes of the planner** (architecture-b1-4, b1-5, b1-7). Fix round 4's rescan of the planned text for
+  an insertion out of ROM order (`misplacedInsertions`) is removed: no test reached it, a 200,000-case fuzz never
+  produced it, and every insertion lands between the held chunks it was placed between; architecture §6.6 and D80 a's
+  clause no longer describe it. `heldOf` and the check of a file the scanner cannot split read
+  `compiledDefinitions(scan).definitions`; the docstring, §6.6 and D81 a now say the planner tests the scanner's
+  verdict itself (it edits nothing in a file it cannot split). `test/local/c-scan-corpus.test.ts` holds D81 a's
+  measurement: over the 1,729 `src/**/*.c` of the six tuning checkouts (D81 a's 1,739 counted the 10 of the
+  klonoa-empire-of-dreams working tree, which is no dataset checkout) the unscannable files are exactly sa2's two.
+- (d) **Config and layering** (architecture-b1-1 to b1-3, b1-6). `E_FUNCTION_MISALIGNED` moves from `core/model` to
+  `core/config` (`misalignedFunctionKeys` in `keys.ts`, raised by `parseConfig` after the schema, with the key's line),
+  so `analyze --update` and every other command that loads `romlift.toml` refuse a misaligned key, and the confirm run
+  never sees it beside a `W_LISTED_INVALID`; the predicate is `insnAligned(mode, addr)` with `insnUnit(mode)` in
+  `foundation/rom/span.ts`, read by the assembler layout, the instruction rows, `seed.ram-copy` and the config.
+  `valid.in-rom-unclaimed` keeps its Thumb-only test (no listed entry reaches it misaligned any more).
+  `W_OVERRIDE_IGNORED` is derived from what `placeEntries` reports it applied (`PlacedEntry.override`), not from the
+  override's kind, and is not raised for a range wholly outside the ROM (`W_OVERRIDE_OUTSIDE_ROM`'s). `staleEdit`
+  takes a closed union (`EditedFileState`: sha1, absent, unread), the planner reads the disk first (an absent file is
+  "absent"), the shell's write-time check reports a file removed since the plan, and `planWrites` has its docstring
+  back. The shell builds the chunk paths with `chunkFileOf(nonmatchingDir(…), stubNameOf(…))` and lists `src/` with
+  `isCSource` and `cSourceOf` (`foundation/util/project-files.ts`, beside `C_SOURCE_DIR`).
+- (e) **Gates and records** (gate-honesty-b1-1 to b1-4, architecture-b1-8). `g4.worktree` holds R4's list of
+  generated roots itself again (`R4_GENERATED`) and unites it with the product's `underGeneratedRoot`, so a product
+  that lost a root still fails and a root a later phase adds is covered; this amends D81 d. `g4.toml-mutations`'
+  snapshot of a refused `generate` leaves out only `.git` and `tools/agbcc` (the compiler checkout, which romlift never
+  writes and which is too large to hash per edit), no longer the whole `tools/`, and its header says so; its note
+  reports the legal edits by kind and that the add-override one is a no-op that warns (D81 c). The memory limitation
+  states the range the runs measured, and fix round 5's closing row states the no-op share of its legal edits.
+  roadmap.md "Carried from phase 4" lists the code whose only producers the owner dropped (`seed.evidence-hint`, the
+  `legacy` and `evidence:trace` proposal sources, the trace reader and format), and architecture §2 marks
+  `rename-tokens.ts` as phase 6's and the trace files as dropped.
+
+**Consequences.** New tests: the planner (the header, CRLF insertions, a definition in every branch, fragments read
+and unread), `reconcileStubs` (a fragment), the config (`E_FUNCTION_MISALIGNED` with lines), the model (an override
+wholly outside the ROM), `staleEdit` (the union, the absent-and-unread message), `modules.mk`'s stamp, the scaffold's
+`Makefile` and `setup.sh` duty 5 run against a stale and a current `modules.mk` (with `make`), the CLI (the stamp from
+`init` and after a TOML edit, a split behind decompiled C, a fragment, a misaligned key in `generate` and `analyze
+--update` with the full diagnostic list), `test/local/decompiled-c.test.ts` on klonoa with agbcc (a split at the
+decompiled function with its C pasted alone into the new file, and a Git clone that pulls two upstream renames,
+`make` stopping until `./setup.sh` or `romlift generate`, each to the SHA-1) and `test/local/c-scan-corpus.test.ts`.
+The closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 6).
 
 ## Review findings index
 

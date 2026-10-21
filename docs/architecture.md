@@ -117,7 +117,8 @@ romlift/
                                     util/project-files.ts's, D77 h), statements.ts (parser of the
                                     directive subset romlift emits), layout.ts (lays statements out to bytes)
       formats/                      elf.ts, gnu-map.ts, canonical-json.ts, luvdis-cfg.ts, ldscript-symbols.ts,
-                                    thumb-aliases.ts, trace-json.ts
+                                    thumb-aliases.ts, trace-json.ts (the trace's format: dropped by D76 g with the
+                                    gba-kit integration, pending phase 6's plan)
       diagnostics/                  diagnostic.ts (the mechanism; no codes)
       util/                         hex.ts, sorted.ts, interval-index.ts, csr.ts, min-heap.ts, arrays.ts (pushAll,
                                     lowerBound, spanIndexAt), fold.ts (foldPath), project-path.ts
@@ -154,7 +155,8 @@ romlift/
                                     symbols.ts, model.ts, codec.ts, c-unit.ts, c-data-assert.ts (the C-data
                                     section and ASSERT lines the ldscript writer prints and its check reads, D76 h),
                                     codes.ts (D62 b)
-      reconcile/                    c-tokens.ts, include-asm.ts, rename-tokens.ts, text-edit.ts, codes.ts
+      reconcile/                    c-tokens.ts, include-asm.ts, text-edit.ts, codes.ts; rename-tokens.ts is phase
+                                    6's, with the rename command (D76 g), and absent until then
       emit/                         tree.ts, emit-tree.ts, unit-text.ts (what the chunk-file and unit-file writers
                                     share; the resolver is core/model/resolver.ts, D62 b)
         print/                      insn.ts, pool.ts, table.ts, data.ts, raw.ts
@@ -183,6 +185,7 @@ romlift/
                                     system)
       config/                       load.ts, save.ts
       evidence/                     read-elf.ts, read-map.ts, read-legacy.ts (dropped by D76 g), read-trace.ts
+                                    (dropped by D76 g with the gba-kit integration, pending phase 6's plan)
       toolchain/                    binutils.ts, doctor.ts, corpus.ts (runCorpus), corpus-inputs.ts (the corpus
                                     inputs digest), link-check.ts, npm.ts (D55)
       signatures/                   build-from-references.ts, locate.ts
@@ -1362,13 +1365,19 @@ only `analyze --update --write`, `rename` and `import-legacy` patch the TOML.
   and old_agbcc when `tools/agbcc/bin/agbcc` is missing; (3) in a `git worktree` without the ROM, copy
   `baserom.gba` from the main worktree (the first entry of `git worktree list --porcelain`) and check it
   against `<name>.sha1`; (4) `npm ci`, or `npm install` when no lock exists yet; (5) `npx romlift
-  generate` when `asm/` is absent. `ROMLIFT_CLI`, when set, is the romlift command setup.sh runs instead of `npx
+  generate` when `asm/` is absent, or when `romlift.toml` is not the one `modules.mk` records (its
+  `ROMLIFT_TOML_SHA1`: a pull or a checkout changed it since the last `generate`; fix round 6, D82 a). `ROMLIFT_CLI`, when set, is the romlift command setup.sh runs instead of `npx
   romlift`, and duty 4 is then skipped: the way to drive an unpublished romlift (a checkout's source CLI, an installed
   tarball's bin). The gates set it; `g4.packed-e2e` runs one fixture without it, its package.json pointed at the
   packed tarball, so duties 4 and 5 run as a user's (D75 o). The scaffold's `.gitignore` ignores the generated roots
   (`/asm/`, `/data/`, `/expected/`, `/ldscript.txt`, `/symbols.ld`, `/modules.mk`, `/objdiff.json`; R4, the owner's
   answer to phase-4 Q9, D79 b), so a fresh clone or worktree has no `asm/` and duty 5 writes the tree; `g4.worktree`
-  requires that none of them is committed and that the worktree's `setup.sh` ran duty 5. The `Makefile` includes `modules.mk` and uses the per-compiler rule of
+  requires that none of them is committed and that the worktree's `setup.sh` ran duty 5. Since the tree is not in
+  Git, a pull or a checkout that changes `romlift.toml` leaves it stale: `modules.mk` records the SHA-1 of the
+  `romlift.toml` bytes it was generated from (`ROMLIFT_TOML_SHA1`, the shell's hash passed in as
+  `EmitContext.configSha1`; absent outside a project), and the `Makefile` stops before any build while the file's
+  SHA-1 differs (`make clean` excepted), naming `npx romlift generate`; a C object's recorded SHA-1 leaves that line
+  out (D82 a). The `Makefile` includes `modules.mk` and uses the per-compiler rule of
   `templates/compilers/<id>.mk`; an explicit rule the user adds for one object takes precedence over the
   pattern rule, which is how a legacy project keeps hand-written compile steps (D47).
 - **Frozen by D74.** `templates/MANIFEST.json` lists every scaffold file with its project path; templates and targets
@@ -1427,8 +1436,9 @@ A command that writes runs four steps; only the last touches files (D17, D49):
      `E_PROJECT_LOCKED`; a lock whose pid is gone on the same host is taken over with `W_STALE_LOCK`;
    - write `.romlift/journal.json` (`core/write-plan/journal.ts` defines it: every op with its path,
      `baseSha1` and result sha1) before the first op;
-   - hash an `edit`'s file again right before its write and pass the sha1 to core's `staleEdit`: a save that landed
-     since the plan stops the run with `E_STALE_EDIT`, the journal left (D80 b, D81 b);
+   - hash an `edit`'s file again right before its write and pass its state to core's `staleEdit` (its sha1, or
+     absent: a closed union, D82 d): a save or a removal that landed since the plan stops the run with
+     `E_STALE_EDIT`, the journal left (D80 b, D81 b);
    - apply each op through a temporary file and a rename; the journal, the manifest, edits, scaffold files
      and C stubs are flushed (`fsync`) before their rename, generated files are not, and a generated file whose
      path does not exist yet is created in place with `O_EXCL`: the next run's snapshot rewrites any generated
@@ -1524,12 +1534,16 @@ from = "evidence:trace"
 ```
 
 - `core/config/keys.ts` rejects any address key that is not `0x` plus eight upper-case hex digits
-  (`E_TOML_KEY_SPELLING`) and any address listed twice (`E_DUPLICATE_ADDRESS`). The model rejects a `[functions]`
-  key that is no instruction address of its mode, odd for Thumb or not word-aligned for ARM, such as a Thumb pointer
-  value pasted as the entry (`E_FUNCTION_MISALIGNED`, naming the key, D81 c).
+  (`E_TOML_KEY_SPELLING`), any address listed twice (`E_DUPLICATE_ADDRESS`), and, once the schema has given each
+  entry its mode, a `[functions]` key that is no instruction address of its mode, odd for Thumb or not word-aligned
+  for ARM, such as a Thumb pointer value pasted as the entry (`E_FUNCTION_MISALIGNED`, naming the key and its line;
+  D81 c, raised by the config since D82 d, so every command that loads `romlift.toml` refuses it before any analysis,
+  through the one predicate `insnAligned` of `foundation/rom/span.ts`).
 - `[[overrides]]` with `runs_at` place a RAM-run range (§6.7). Until phase 6 applies the others to the analysis, an
   override without `runs_at` changes nothing but the extent of a listed entry the analysis did not find (a `code`
-  override holding it); every other one is `W_OVERRIDE_IGNORED`, a warning (a known limitation of phase 4, D81 c).
+  override holding it, which `placeEntries` records on that entry); every other one is `W_OVERRIDE_IGNORED`, a
+  warning derived from what `placeEntries` reports it used, not from the override's kind, and not raised for a range
+  wholly outside the ROM, which is `W_OVERRIDE_OUTSIDE_ROM`'s (a known limitation of phase 4; D81 c, D82 d).
 - `from` records where a proposed entry came from, as a `sourceKey` (`sig:<library>@<version>`,
   `evidence:<id>`, `legacy`). It is data, not a comment: `explain` reads it, and `rename` removes it
   because the name is then the user's (D9). An entry without `from` was written by the analysis or by
@@ -1567,8 +1581,9 @@ definition never closes, or a block at file scope follows a head that names no f
 the definition's name is the identifier before its parameter list, past `(*` declarator groups and GCC attribute and
 asm groups; such a file that needs no edit, by the stubs its tokens spell at any depth and the definitions read, is
 `W_C_UNSCANNABLE`, a warning, so a committed project that builds also builds from a clone, D81 a), `E_C_STUB_UNPLACED` (no safe place: the text ends inside a comment, a literal, a directive
-or an unclosed `#if`, the stub would go between two chunks one `#if` region holds, or the planned text, scanned again,
-would hold it out of ROM order), `E_C_CONDITIONAL_STUB` (an unwanted stub inside
+or an unclosed `#if`, or the stub would go between two chunks one `#if` region holds; or the file `#include`s at file
+scope a file romlift does not read whose quoted path does not end in `.h`, which may define the function, D82 b),
+`E_C_CONDITIONAL_STUB` (an unwanted stub inside
 a conditional region, never removed), `E_C_STALE_DEFINITION` (a definition of a function of the tree romlift last
 generated, read from the chunk files on disk, that no module has now: the C of a function the TOML renamed or
 deleted, wherever it lies; or a definition where the stub goes of a chunk whose file that tree held in the module's
@@ -1581,9 +1596,19 @@ goes) and `E_C_DEFINITION_MOVED` (a definition of a function the TOML now gives 
 `src/*.c` that is the source of no module. A stub of another `asm/nonmatchings/<m>` directory whose file the new
 tree does not write (outside a `generated = false` module's directory) is unwanted like one of the module's own: a
 renamed `c` module whose source the user moved keeps no stub of the old directory (D81 a). "What the C defines" is one
-predicate, `compiledDefinitions` (a named definition not wholly inside one conditional, with the scanner's verdict:
-`scannable: false` and why for a file it cannot split, whose definitions are then only what it read), which the
-planner, the C files of no module and the project's `DecompState` read (D80 b, D81 a). An `edit` is written only
+predicate, `compiledDefinitions` (a named definition not wholly inside one conditional, or in every branch of one
+that has an `#else`, as pret's `#ifdef NONMATCHING <C> #else NAKED <asm> #endif`, the first branch's counted; with
+the scanner's verdict: `scannable: false` and why for a file it cannot split, whose definitions are then only what it
+read), which the planner (`heldOf`, and for a file it cannot split its check that no edit is needed; the planner tests
+the verdict itself, editing nothing in such a file), the C files of no module, the fragments a module's file includes
+and the project's `DecompState` read (D80 b, D81 a, D82 b). A `src/*.c` that a module's source `#include`s at file scope
+(resolved from `src/`) is part of that module: its definitions hold their chunks at the `#include` line, a function of
+another module in it is `E_C_DEFINITION_MOVED` naming it, and it is no `W_C_FILE_UNUSED` (D82 b). A file that gains a
+stub and holds neither an `INCLUDE_ASM` statement nor `#include "include_asm.h"` gains that include
+(`C_STUB_HEADER`) above its first line of code, so the file a user creates with only the C that `E_C_DEFINITION_MOVED`
+(which names the module's source path) sent there builds (D82 b). Every insertion takes the file's line terminator
+(D82 b). Fix round 4's rescan of the planned text for an insertion out of ROM order is gone: no layout reached it
+(D82 c). An `edit` is written only
 while its file still has its planned sha1, checked again right before the write (`E_STALE_EDIT`, D80 b, D81 b). `generate --out <dir>` writes the C files as generated files of that tree,
 so a second run into it rewrites them (D77 d). `rename-tokens.ts` renames identifier tokens
 only, never comments or strings.
@@ -2014,8 +2039,8 @@ defined. The codes:
 | Code | Module |
 | --- | --- |
 | `E_ROM_NOT_GBA` | `foundation/rom` |
-| `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER`, `E_DECOMP_YAML_INVALID`, `E_ROM_SHA1_MISMATCH` | `core/config` |
-| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_FUNCTION_MISALIGNED`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED` | `core/model` |
+| `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_FUNCTION_MISALIGNED`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER`, `E_DECOMP_YAML_INVALID`, `E_ROM_SHA1_MISMATCH` | `core/config` |
+| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED` | `core/model` |
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` (`E_STALE_EDIT` through `staleEdit`, which the shell's `applyWrites` also calls at write time, D81 b) |

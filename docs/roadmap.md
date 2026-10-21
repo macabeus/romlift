@@ -882,7 +882,15 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   no-op that now warns). Nothing here depends on `g5.import-legacy`.
 - **correctness-b0-4's gate case** (fix round 5, D81 c): `E_FUNCTION_MISALIGNED` is tested by unit and CLI tests;
   adding an odd `[functions]` key to `g4.toml-mutations`' illegal edits changes a gate, which the owner has not
-  authorised in phase 4.
+  authorised in phase 4. Since fix round 6 the config raises it (D82 d).
+- **Code whose only producers the owner dropped** (fix round 6, architecture-b1-8; D76 g): the rule
+  `seed.evidence-hint` (`src/core/analysis/rules/seed/evidence-hint.ts`, ordered in `src/core/profile/agbcc.ts`, its
+  rule id in `analysis/types.ts` `Seed['rule']` and `codec.ts`) has no seed producer now that the trace integration
+  is dropped; the `ProposalSource` variants `{kind: 'legacy'}` and `{kind: 'evidence', id: 'trace'}`
+  (`src/core/proposals/types.ts`) and their `sourceKey` spellings (`legacy`, `evidence:trace`) have none now that legacy
+  import is dropped; `shell/evidence/read-trace.ts` and `foundation/formats/trace-json.ts` serve only the trace.
+  Phase 6's plan rewrite keeps each (a new producer) or deletes it with its tests, codec spelling and architecture
+  entries; `seed.override` is carried above with the override semantics.
 
 ### 6.0 Signature and trace interfaces (lead)
 

@@ -395,8 +395,10 @@ plan.md's scaffold table mark "In Git: No"); a fresh clone builds through setup.
 `asm/` is absent). The reconciler's rule that uses the previous tree on disk (D78 a) holds from the second `generate`
 of a clone; the first uses the fallback rule (a definition its module no longer has where a missing stub goes is
 `E_C_STALE_DEFINITION`). D78 a, `src/core/workflow/c-stubs.ts` and the docs say so; `g4.worktree` now requires that no
-generated root is committed and that the worktree's `setup.sh` ran duty 5, and the scaffold render test requires each
-root to be ignored.
+generated root is committed (R4's list, written in the gate since fix round 6, united with the product's rule, D82 e)
+and that the worktree's `setup.sh` ran duty 5, and the scaffold render test requires each root to be ignored. Since the
+tree is not in Git, a pull that changes `romlift.toml` leaves it stale: since fix round 6 `modules.mk` records the
+TOML's SHA-1, `make` stops until `romlift generate` runs, and `setup.sh`'s duty 5 runs it (D82 a).
 
 Asked after the review of fix round 3 (architecture-a2-1): `templates/gitignore` (since `e7374f3`, D74 d) said the
 generated roots were "deliberately NOT ignored" so a fresh clone builds, against plan.md's R4 ("`.s` files are
@@ -443,8 +445,16 @@ count them.
   files; a K&R definition) is edited never: `W_C_UNSCANNABLE` while its `INCLUDE_ASM` lines already match, so a clone
   builds, and `E_C_UNSCANNABLE` once a TOML edit needs them changed (change them yourself). A split between two chunks
   one `#if` region holds is `E_C_STUB_UNPLACED` (write the new `INCLUDE_ASM` in each branch yourself). A `c` module
-  renamed with its source moved by hand (`git mv`) gets the new directory's stubs (D81 a). The scaffold's `AGENTS.md`
-  says so.
+  renamed with its source moved by hand (`git mv`) gets the new directory's stubs (D81 a). Since fix round 6 (D82 b)
+  a definition in every branch of a conditional with an `#else` counts for every build; decompiled C belongs in
+  `src/<module>.c` or a `src/*.c` it `#include`s (read as part of the module), and a quoted include of any other file
+  but a `.h` refuses every stub that file would gain (`E_C_STUB_UNPLACED`: romlift cannot tell what it defines); a
+  module's source created by hand with only C gains `#include "include_asm.h"` with its first stub. The scaffold's
+  `AGENTS.md` says so.
+- Since the generated tree is not in Git (Q9), a project whose `Makefile` predates fix round 6 (written once by an
+  earlier `init`) has no staleness guard: after a pull that changes `romlift.toml` its user must run `romlift generate`
+  (D82 a; `scaffold --diff` shows the new template). A project `init` makes from fix round 6 on stops `make` with the
+  command to run.
 - Until phase 6 (D81 c, roadmap.md "Carried from phase 4"): an `[[overrides]]` entry without `runs_at` is applied by no
   analysis rule; a `data` override, and a `code` override that gives no listed entry its extent, change nothing and
   warn `W_OVERRIDE_IGNORED`. `g4.toml-mutations`' add-override edit is such a no-op (it warns and builds); making it
@@ -472,12 +482,14 @@ count them.
   `AGENTS.md` and `README.md` as the way until romlift is published) or package.json pointed at a tarball.
 - `setup.sh` builds agbcc from source at the pin (network, git and a host C compiler; about 50 s); a mirror is
   `AGBCC_URL`.
-- Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,133 to 1,568 MiB RSS across
+- Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,133 to 1,581 MiB RSS across
   the runs of this phase (largest live heap 924.8 MiB, the raw `verify`), and three forms have gone over D72 b's
   1,536 MiB budget in some run: the readable `verify --link` once in six ("The closing gate", fix round 1), and, in the
   review's re-run of fix round 3's list at `2314ffe` (gate-honesty-a2-3), `init --json` at 1,562.8 MiB and the readable
   `verify --assemble` at 1,551.3 MiB, in fix round 4's closing run `verify --assemble --link --json` at 1,540.6 MiB, and
-  in fix round 5's `init --json` at 1,581.4 MiB; `init`, the phase-4 one-shot command, is not held under the budget on it. A
+  in fix round 5's `init --json` at 1,581.4 MiB; `init`, the phase-4 one-shot command, is not held under the budget on it,
+  and `generate --json`, the other, has come within a MiB of it (1,535.2 MiB in the review's re-run of fix round 5's
+  list, 0.8 MiB under), so both one-shot commands sit at the doubled ROM's budget edge. A
   code-dense ROM larger than 32 MiB of that density may exceed the cap (D72, unchanged). No gate measures the doubled
   ROM (D72 e), and `bench large-rom --bin` records the peaks without judging them.
 - Three `g5.*` gates fail instead of reporting `pending` once their inputs exist (`g5.c-data-ranges`: no
@@ -573,8 +585,8 @@ record). The doubled ROM is the same `fb17b88d…` image, rebuilt for the run an
 | `npm run bench -- regression` | 0 | no regression against `e915c82` |
 | `node --max-old-space-size=1024 --conditions=source src/cli/main.ts verify --rom <emx2.gba> --assemble --link --json < /dev/null` | 0 | the doubled ROM: 7 checks ok (29,463 files), linked SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`; 161 W_UNLISTED_FUNCTION (Q6) and 1 W_READING_BUDGET (48 s) |
 | `npm run bench -- large-rom --bin --rom <emx2.gba>` | 0 | all fourteen forms exit 0 with ok summaries or completed, 1,152.2 to 1,581.4 MiB peak RSS (`init --json` the largest, over D72 b's 1,536 MiB budget in this run, as recorded under "Known limitations"; `generate --json` 1,522.5, `verify --assemble --link --json` 1,478.9) (422 s) |
-| `npm run bench -- gates --require 4 --tier real` | 0 | 22 pass, 1 historical (g2.poc-parity), 2 fail (g5.expected-bytes, g5.objdiff: not required, phase 6's since D76 g), 8 pending. Among them: **g2.speed** ("median of 9 runs"; ratio 0.976; sa2 777 of 796 ms, 97.6%; klonoa 231 of 312, tmc 1,493 of 1,814, sa3 1,100 of 1,517, pokeemerald 2,110 of 4,289, fe7j 1,125 of 12,903), **g3.speed-budget** (ratio 1.028; analysis on the first five runs: largest pokeemerald 2,078 of 3,084 ms; pokeemerald `generate` 8,100 of 10,279 ms, `init` 10,692 of 15,419 ms), g4.e2e-real (six tuning ROMs; sealed 2 of 2), g4.toml-mutations (258 legal edits build with `make`, 170 illegal edits give their codes, 57 ROMs), g4.worktree (56, nothing generated committed by the product's `underGeneratedRoot`, duty 5 run in each worktree), g4.generate-idempotent (57 ROMs) (2,976 s) |
-| `npm run bench -- gates --require 4 --tier ci` | 0 | 37 pass, 3 fail (g5.c-data-ranges, g5.expected-bytes, g5.reconciler: not required, phase 6's since D76 g), 7 pending. Among them: g1.provenance (source digest `e8c617fc…`; 23 real-tier gates of phase ≤ 4 pass or are historical), g3.large-rom (`init` 1,245.9 MiB, `generate` 1,147.9 MiB, tree `d60c5331…`), g4.toml-mutations (228 legal, 152 illegal, 51 ROMs), g4.packed-e2e (672 files), g4.e2e-fixtures (50), g4.worktree (50), g4.cli-contract (8 commands, 12 `--json` runs), g4.no-toml-write (153 runs), g4.checks-fail (3 files, 24 tests), g4.c-data-fails-loud, g4.multi-compiler (1,653 s) |
+| `npm run bench -- gates --require 4 --tier real` | 0 | 22 pass, 1 historical (g2.poc-parity), 2 fail (g5.expected-bytes, g5.objdiff: not required, phase 6's since D76 g), 8 pending. Among them: **g2.speed** ("median of 9 runs"; ratio 0.976; sa2 777 of 796 ms, 97.6%; klonoa 231 of 312, tmc 1,493 of 1,814, sa3 1,100 of 1,517, pokeemerald 2,110 of 4,289, fe7j 1,125 of 12,903), **g3.speed-budget** (ratio 1.028; analysis on the first five runs: largest pokeemerald 2,078 of 3,084 ms; pokeemerald `generate` 8,100 of 10,279 ms, `init` 10,692 of 15,419 ms), g4.e2e-real (six tuning ROMs; sealed 2 of 2), g4.toml-mutations (258 legal edits build with `make`, 57 of them the add-override edit, a no-op that warns `W_OVERRIDE_IGNORED` (D81 c; noted by fix round 6, gate-honesty-b1-3), 170 illegal edits give their codes, 57 ROMs), g4.worktree (56, nothing generated committed by the product's `underGeneratedRoot`, duty 5 run in each worktree), g4.generate-idempotent (57 ROMs) (2,976 s) |
+| `npm run bench -- gates --require 4 --tier ci` | 0 | 37 pass, 3 fail (g5.c-data-ranges, g5.expected-bytes, g5.reconciler: not required, phase 6's since D76 g), 7 pending. Among them: g1.provenance (source digest `e8c617fc…`; 23 real-tier gates of phase ≤ 4 pass or are historical), g3.large-rom (`init` 1,245.9 MiB, `generate` 1,147.9 MiB, tree `d60c5331…`), g4.toml-mutations (228 legal, 51 of them the add-override no-op, D81 c; 152 illegal, 51 ROMs), g4.packed-e2e (672 files), g4.e2e-fixtures (50), g4.worktree (50), g4.cli-contract (8 commands, 12 `--json` runs), g4.no-toml-write (153 runs), g4.checks-fail (3 files, 24 tests), g4.c-data-fails-loud, g4.multi-compiler (1,653 s) |
 | `npm run bench -- provenance` | 0 | source digest `e8c617fc…` (Node 24) ok; gate record ok (23); families live; 6 rows, no sealed row |
 
 Every command exits 0, so **phase 4 passes its closing gate** at `landed` 4 after fix round 5. sa2 passes `g2.speed`
@@ -1030,3 +1042,32 @@ gate", fix round 5's closing run: every command exit 0).
 | architecture-b0-6 | minor | **Fixed** (`5fd0086`). `fs.test.ts`: `isDirectory` under a mode-000 directory is `E_IO_READ` (ENOTDIR and absent stay false); `read-inputs.test.ts`: `readChunkFiles` with `asm/`, `asm/nonmatchings/` or a module directory at mode 000 is `E_IO_READ`; both skipped as root. |
 | architecture-b0-7 | minor | **Fixed** (`5fd0086`). `moduleChunkStubs(files, module)` in `core/model/paths.ts`, beside `chunkNamesOf` and with its `chunkFileOf` round trip, is what `c-stubs.ts` reads; `IncludeAsmWanted.priorStubs` is `previousStubs`, beside `retired`. |
 | architecture-b0-8 | minor | **Nothing to do**: the six open architecture-r1 minors stay carried to phase 6 as roadmap.md writes them; none depends on `g5.import-legacy`. |
+
+### Fix round 6 (the review of fix round 5's closing run at `3a1eea7`)
+
+Seventeen findings: two majors and fifteen minors. Both majors are fixed, each reproduced first by a CLI test and then
+end to end on klonoa with agbcc in `test/local/decompiled-c.test.ts` (D82). Every minor is fixed. No gate changes what
+it requires: `g4.worktree` holds R4's list of generated roots again, united with the product's rule (the owner's Q9
+answer is the requirement it checks), `g4.toml-mutations`' refused-edit snapshot covers `tools/` but the agbcc
+checkout, as its header says, and its note reports the legal edits by kind. Commits on `phase-4` after `3a1eea7`:
+@@COMMITS@@
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-b1-1 | major | **Fixed** (D82 a). `modules.mk` records `ROMLIFT_TOML_SHA1`, the SHA-1 of the `romlift.toml` bytes it was generated from (`init` and `generate`); the scaffold's `Makefile` stops before any build while the file's SHA-1 differs, naming `npx romlift generate`; `setup.sh`'s duty 5 also regenerates then; the scaffold's `AGENTS.md`, `README.md` and `.gitignore` say to run it after a pull. Tests: `modules.mk`'s stamp (writer, CLI from `init` and after a TOML edit), the rendered `Makefile` and duty 5 run with `make` and `sh` against a stale, a stampless and a current `modules.mk`, and `decompiled-c` on klonoa: the project committed and cloned, two upstream renames pulled, `make` stopping with the message, then `./setup.sh` and `romlift generate` each followed by `make` to the SHA-1. |
+| correctness-b1-2 | major | **Fixed** (D82 b). A file that gains a stub with neither an `INCLUDE_ASM` statement nor `#include "include_asm.h"` gains that include above its first line of code; `E_C_DEFINITION_MOVED` names the new module's source path. Tests: the planner, a CLI case (a split behind decompiled C refused, the C pasted alone into `src/math.c`, `generate` exit 0 with the include and the stubs, idempotent), and `decompiled-c` on klonoa (a split at the decompiled `Nop`, the C pasted alone into `src/m3a.c`, `make` to the SHA-1). |
+| correctness-b1-3 | minor | **Fixed** (D82 b). A `src/*.c` a module's source `#include`s is part of the module (held at the `#include`, no `W_C_FILE_UNUSED`, another module's function `E_C_DEFINITION_MOVED` naming the fragment); a quoted include of an unread non-`.h` file refuses every insertion (`E_C_STUB_UNPLACED`). Tests: the planner, `reconcileStubs`, a CLI case (the `.c` fragment exit 0 with nothing written; the `.inc` one exit 1, nothing written). |
+| correctness-b1-4 | minor | **Fixed** (D82 b). A definition in every branch of a terminated conditional with an `#else` (outside nested conditionals) is compiled, the first branch's counted. Planner tests: the reviewer's text needs no edit; `#elif` without `#else`, one branch only and a nested conditional still get the stub; a split after it goes after the `#endif`. |
+| correctness-b1-5 | minor | **Fixed** (D82 b). Insertions (stubs, the header, joined insertions) take the file's line terminator. Planner tests in a CRLF file, with no bare LF left. |
+| architecture-b1-1 | minor | **Fixed** (D82 d). `insnAligned` and `insnUnit` in `foundation/rom/span.ts`, used by the layout, the rows, `seed.ram-copy` and the config; `E_FUNCTION_MISALIGNED` is `core/config`'s, raised by `parseConfig` with the key's line, so `generate` and `analyze --update` refuse it alone (no `W_LISTED_INVALID` beside it). Tests: the config (Thumb, ARM, with `from`), the CLI asserting the full diagnostic list of both commands. `valid.in-rom-unclaimed` is unchanged: no listed entry reaches it misaligned. |
+| architecture-b1-2 | minor | **Fixed** (D82 d). `PlacedEntry.override` records the override `placeEntries` applied; `W_OVERRIDE_IGNORED` is every override without `runs_at` it did not apply, never for a range wholly outside the ROM. Test: the model (the reviewer's wholly-outside code override gives only `W_OVERRIDE_OUTSIDE_ROM`). |
+| architecture-b1-3 | minor | **Fixed** (D82 d). `planWrites`' docstring is back above it; `staleEdit` takes `EditedFileState` (sha1, absent, unread), the planner reads the disk first, and the write-time check reports a removed file. Tests: the four messages, the absent-and-unread case through the planner; the journal mutation test mutates the new comparison. |
+| architecture-b1-4 | minor | **Fixed** (D82 c). `misplacedInsertions` is removed (unreachable: the review's coverage run and fuzz never reached it); architecture §6.6, D80 a and the planner's comment say so. |
+| architecture-b1-5 | minor | **Fixed** (D82 c). `test/local/c-scan-corpus.test.ts`: 1,729 files of the six tuning checkouts, unscannable exactly sa2's two (D81 a's 1,739 included the 10 files of the klonoa-empire-of-dreams working tree, no dataset checkout); AGENTS.md's `test:local` row lists it. |
+| architecture-b1-6 | minor | **Fixed** (D82 d). `readChunkFiles` builds paths with `chunkFileOf(nonmatchingDir(…), stubNameOf(…))`; `readCTexts` uses `isCSource` and `cSourceOf` (`foundation/util/project-files.ts`, which `moduleSource` uses too). |
+| architecture-b1-7 | minor | **Fixed** (D82 c). `heldOf` and the unscannable check read `compiledDefinitions(scan).definitions`; the docstring, §6.6 and D81 a say the planner tests the verdict itself. |
+| architecture-b1-8 | minor | **Fixed** (records). roadmap.md "Carried from phase 4" lists `seed.evidence-hint`, the `legacy` and `evidence:trace` proposal sources with their `sourceKey` spellings, and the trace reader and format; architecture §2 marks `rename-tokens.ts` as phase 6's and `read-trace.ts` and `trace-json.ts` as dropped. The six architecture-r1 remainders stay carried as written. |
+| gate-honesty-b1-1 | minor | **Fixed** (D82 e). `g4.worktree`'s `R4_GENERATED` is R4's list, united with `underGeneratedRoot`. |
+| gate-honesty-b1-2 | minor | **Fixed** (D82 e). The snapshot leaves out `.git` and `tools/agbcc` only; the header says so. |
+| gate-honesty-b1-3 | minor | **Fixed** (D82 e). Fix round 5's closing rows state the add-override share (57 of 258, 51 of 228); the gate's note now reports the legal edits by kind; README says one kind is a no-op until phase 6. |
+| gate-honesty-b1-4 | minor | **Fixed** (records). The memory limitation's range reads 1,133 to 1,581 MiB and records `generate --json` at 1,535.2 MiB, 0.8 MiB under the budget. |
