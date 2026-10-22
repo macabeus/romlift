@@ -912,7 +912,9 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   generate` (a known limitation, phase-4.md). With romlift published (Q5), record the version in `modules.mk`
   (`ROMLIFT_VERSION`) and have duty 5 regenerate when it differs from the installed one.
 - **architecture-r1-2, also** (architecture-b2-7, b2-12): fix round 7 removed `core/model/paths.ts`'s `isCSource`
-  re-export; `C_SOURCE_DIR`, `isCSource` and `cSourceOf` are imported from `foundation/util/project-files.ts` only. The
+  re-export; the internal layers import `C_SOURCE_DIR`, `isCSource` and `cSourceOf` from
+  `foundation/util/project-files.ts`, and only the public `api/` modules re-export project-files spellings
+  (`isCSource`, `nonmatchingDir`, `INCLUDE_ASM_HEADER_PATH`, `NONMATCHINGS_ROOT`; fix round 8, architecture-c0-4). The
   other aliases of r1-2 stay carried as written above.
 
 ### 6.0 Signature and trace interfaces (lead)

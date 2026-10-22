@@ -3670,6 +3670,68 @@ fragment, `generate` and `make` to the SHA-1, the middle one renamed in the TOML
 to the SHA-1; then `decomp.yaml` naming `cfg/romlift.toml`, `generate` refused and `make` to the SHA-1. The closing
 list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 7).
 
+## D84. Fix round 8 of phase 4: the review of fix round 7
+
+**Context.** The review of fix round 7's closing run at `8b03b1f` (round c0) raised eight findings: one major
+(correctness-c0-1) and seven minors. correctness-c0-1 was reproduced on klonoa: with a module's last `INCLUDE_ASM`
+lines moved into a `src/tail.c` its file `#include`s, a split that names the new module `tail` at the fragment's
+first function made `tail.c` that module's source while the old file still included it. `generate` exited 0 with no
+diagnostic, since D83 a refused an include of another module's source only when the file needed an insertion; `make`
+then compiled the fragment's chunks twice (in both objects) and the ROM was 2,724 bytes too large, and before that
+`tail.c` lacked the header that had come from the including file. Fix round 7 recorded architecture-b2-5 as fixed;
+only its insertion half was. Each fix is the simplest rule that cannot break a user's build, with a test that
+reproduces the reviewer's case and then runs `make`. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **An include of another module's source is always refused** (correctness-c0-1). `planIncludeAsm` raises
+  `E_C_MODULE_INCLUDED` (new, error, `core/reconcile`) for every file-scope `#include` of another module's source, in
+  the module's file or in a fragment it includes, whether or not the file needs an edit, naming the including file,
+  the line and the module, and saying make compiles that source on its own; `generate` writes nothing. The unread
+  includes that are no module's source keep D82 b's rule (they refuse only the insertions they might duplicate, with
+  `E_C_STUB_UNPLACED`). A file that `#include`s itself is no refusal. A file whose every `INCLUDE_ASM` statement the
+  plan removes, and that has no `#include` or `#define` that could define the macro, gains `#include "include_asm.h"`
+  with its new stubs: a fragment made a module's source, whose stubs served another directory under the including
+  file's header. A file that keeps a stub, or has such a directive, is left as D82 b left it. This corrects D83 a's
+  last sentence and the phase-4.md row of architecture-b2-5.
+- (b) **A nested fragment is named through its chain** (correctness-c0-3). A fragment's statements and definitions
+  carry `chain`, the `#include` lines that reach them from the module's file, and every message about one
+  (`E_C_FRAGMENT_STUB`, `E_C_STUB_UNPLACED` inside a fragment, `E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`,
+  `W_C_UNSCANNABLE`, `E_C_UNSCANNABLE`, `W_C_ORDER`, `E_C_MODULE_INCLUDED`) names it as `src/b.c, which src/a.c
+  includes (line 3), which src/main.c includes (line 68)` (`fragmentPhrase`).
+- (c) **W_C_ORDER reads a fragment's order** (architecture-c0-3). A fragment's items carry `order`, the offsets of
+  the `#include` lines that reach them and then their own offset, and the warning compares the held chunks by it, so
+  stubs out of ROM order inside one fragment, or across a nested one, warn naming the fragment. This replaces D83 a's
+  "two chunks one `#include` holds raise no `W_C_ORDER`".
+- (d) **An unscannable fragment's verdict follows what the file needs** (architecture-c0-1). The fragment is
+  `E_C_UNSCANNABLE` when the module's file needs an edit: one planned, one refused (a stub left unplaced), its own
+  `E_C_UNSCANNABLE`, or a stub that must go from a fragment or a conditional; otherwise `W_C_UNSCANNABLE`, whose text
+  now says the file "needs no INCLUDE_ASM line changed". This amends D83 a, which decided on "an edit was planned".
+- (e) **Fragments are read directly under `src/` only; records** (architecture-c0-2, c0-4, gate-honesty-c0-1,
+  correctness-c0-2). The shell reads only the `src/*.c` directly under `src/` (`readCTexts`), as before; the tests
+  that put a nested fragment under a subdirectory now use top-level paths, a CLI test asserts the refusal of a
+  subdirectory include, and `E_C_STUB_UNPLACED`'s advice, the scaffold's `AGENTS.md` and architecture §6.6 say
+  "directly under `src/`". Reading `src/**/*.c` was not chosen: it would make every file of a subdirectory that no
+  module includes a `W_C_FILE_UNUSED`. `src/foundation/index.md`, architecture §2 and roadmap.md no longer say the
+  project-files spellings are never re-exported: the internal layers import them from `project-files.ts`, the public
+  `api/` modules re-export some, and the aliases of architecture-r1-2 stay carried to phase 6. The memory limitation
+  counts its five forms.
+- (f) **The PoC's scaffold directory is per run** (architecture-c0-5). `export-poc` gives each PoC child a fresh
+  temporary directory as its working directory and `TMPDIR` (removed when the child exits), so the PoC's
+  `os.tmpdir()/romlift-bench/<name>` is no longer shared by two runs on one machine. The closing procedure still
+  requires an idle machine for the timed gates (phase-4.md).
+
+**Consequences.** New tests: the planner (`E_C_MODULE_INCLUDED` with and without an edit, from a fragment, no refusal
+for a file without such an include; the header for a file whose every stub is replaced, not with an `#include`; a
+nested fragment's `E_C_FRAGMENT_STUB` message and a definition's chain; `W_C_ORDER` inside a fragment, across a nested
+one and outside it; the unscannable fragment's two probe cases), the CLI (the reviewer's split named after a fragment
+on the composite fixture, refused and nothing written, then the `#include` removed and the new module's file with the
+header and its stubs; a fragment in `src/inner/` refused with the "directly under `src/`" advice, then moved and kept),
+`reconcileStubs` (the nested fragment at a top-level path), and `test/local/decompiled-c.test.ts` on klonoa with agbcc
+(step 9: boot's last stubs moved into `src/tail.c`, kept and built; the split named `tail` refused with
+`E_C_MODULE_INCLUDED`, nothing written; the `#include` removed, `generate` and `make` to the SHA-1). The closing list is
+re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 8).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

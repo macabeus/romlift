@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D83). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D84). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -457,7 +457,10 @@ count them.
   (D83 a) a `src/*.c` fragment's `INCLUDE_ASM` lines, and those of the files it includes, count as the module's too;
   romlift never edits a fragment, so a TOML edit that would remove or rename a stub in one (`E_C_FRAGMENT_STUB`), or
   put a new one between two chunks one fragment holds (`E_C_STUB_UNPLACED`), is refused naming the fragment and
-  writes nothing: edit the fragment yourself. The scaffold's `AGENTS.md` says so.
+  writes nothing: edit the fragment yourself. Since fix round 8 (D84 a, e) only a `src/*.c` directly under `src/` is
+  read as a fragment (one in a subdirectory is a file romlift does not read), and an `#include` of another module's
+  source is refused whether or not the file needs an edit (`E_C_MODULE_INCLUDED`): to make a fragment a module of its
+  own, remove its `#include` in the same step. The scaffold's `AGENTS.md` says so.
 - Since the generated tree is not in Git (Q9), a project whose `Makefile` predates fix round 6 (written once by an
   earlier `init`) has no staleness guard: after a pull that changes `romlift.toml` its user must run `romlift generate`
   (D82 a; `scaffold --diff` shows the new template). A project `init` makes from fix round 6 on stops `make` with the
@@ -498,10 +501,11 @@ count them.
 - Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,114.8 to 1,581.4 MiB RSS
   across every measured run of this phase, the review's re-runs included (the low end `analyze --json` in fix round
   7's closing run; largest live heap 925.4 MiB, the raw `verify`, in the review's re-run of fix round 6's list), and
-  four forms have gone over D72 b's 1,536 MiB budget in
+  five forms have gone over D72 b's 1,536 MiB budget in
   some run: the readable `verify --link` once in six ("The closing gate", fix round 1); `init --json` (1,562.8 MiB in
   the review's re-run of fix round 3's list at `2314ffe`, gate-honesty-a2-3, and 1,581.4 MiB in fix round 5's closing
-  run); the readable `verify --assemble` (1,551.3 MiB in that re-run of fix round 3's); `verify --assemble --link
+  run); the readable `verify --assemble` (1,551.3 MiB in that re-run of fix round 3's, and 1,559.4 MiB in the review's
+  re-run of fix round 7's list at `8b03b1f`, correctness-c0-2, where `generate --json` peaked at 1,530.9 MiB); `verify --assemble --link
   --json` (1,540.6 MiB in fix round 4's closing run, 1,569.9 MiB in fix round 6's); and `generate --json` (1,541.8 MiB
   in the review's re-run of fix round 6's list at `d615ceb`, gate-honesty-b2-1). Neither phase-4 one-shot command,
   `init` nor `generate`, is held under the budget on the doubled ROM. A code-dense ROM larger than 32 MiB of that
@@ -1184,7 +1188,7 @@ run: every command exit 0).
 | architecture-b2-2 | minor | **Fixed** (`fc401a3`, D83 d). `loadConfig` returns the SHA-1 of the bytes it decoded; the second read and its absolute-path diagnostic are gone. Test: `loadConfig`. |
 | architecture-b2-3 | minor | **Fixed** (`fc401a3`, D83 d). The render test builds the Makefile's and setup.sh's spelling from `CONFIG_SHA1_VARIABLE` and writes `modules.mk` with `modulesMkText`. |
 | architecture-b2-4 | minor | **Fixed** (`fc401a3`, D83 a). An included fragment the scanner cannot split is `W_C_UNSCANNABLE` naming it, `E_C_UNSCANNABLE` when the module's file needs an edit. Test: the planner. |
-| architecture-b2-5 | minor | **Fixed** (`fc401a3`, D83 a). An include of another module's source is no fragment, and the refusal names that module. Test: the planner. |
+| architecture-b2-5 | minor | **Fixed in part** (`fc401a3`, D83 a; corrected by fix round 8). An include of another module's source is no fragment, and the refusal names that module, but only when the file needed an insertion: with none, `generate` exited 0 and `make` built the included chunks twice (correctness-c0-1). Fix round 8 refuses every such include (`E_C_MODULE_INCLUDED`, D84 a). Test: the planner. |
 | architecture-b2-6 | minor | **Fixed** (`fc401a3`, D83 e). `PlacedEntry.override` is the applied override object, matched to one entry of its kind, span and mode. Tests: the model (data and code on one span, both orders; two identical code overrides). |
 | architecture-b2-7 | minor | **Fixed** (`fc401a3`, D83 c). The C-source spellings are imported from `foundation/util/project-files.ts` only; architecture §2 and `src/foundation/index.md` list the exception's contents; `c-data-assert.ts` uses `cSourceOf`. |
 | architecture-b2-8 | minor | **Fixed in part** (`fc401a3`, D83 e). The docstring names the two readers; `test/unit/rom/span.test.ts` tests `insnUnit` and `insnAligned`; routing the analysis' bit tests through it is carried (it changes analysis rules). |
@@ -1192,3 +1196,22 @@ run: every command exit 0).
 | architecture-b2-10 | minor | **Fixed** (`fc401a3`, D83 f). `TextEdit.reason` is `add-stub`, `remove-stub` or `add-header`; architecture §6.6 says so. |
 | architecture-b2-11 | minor | **Fixed in part** (`fc401a3`, D83 d). The write-time check reads through `digestOf`, the snapshot's rule (ENOENT and ENOTDIR); typing the snapshot as a closed union is carried. |
 | architecture-b2-12 | minor | **Nothing new**: the six architecture-r1 remainders stay carried; the `isCSource` re-export b2-7 named is removed (roadmap.md notes it under r1-2). |
+
+### Fix round 8 (the review of fix round 7's closing run at `8b03b1f`)
+
+Eight findings: one major and seven minors. The major is fixed, reproduced first by a CLI test on the composite
+fixture and then end to end on klonoa with agbcc in `test/local/decompiled-c.test.ts` (D84). Every minor is fixed. No
+gate changes what it requires. Commits on `phase-4` after `8b03b1f`: the code, templates and tests, the records commit,
+the closing run's artifact and this record's results ("The closing gate", fix round 8's closing run).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-c0-1 | major | **Fixed** (D84 a). Every file-scope `#include` of another module's source, in the module's file or a fragment it includes, is `E_C_MODULE_INCLUDED` (new, error) whether or not the file needs an edit; `generate` writes nothing. A file whose every stub the plan replaces and that has no `#include` or `#define` gains `#include "include_asm.h"` with its new stubs. architecture-b2-5's row above is corrected to "Fixed in part". Tests: the planner, a CLI case (the reviewer's split named after a fragment: refused, nothing written; the `#include` removed: the new module's file gains the header and its stubs, idempotent), and `decompiled-c` step 9 on klonoa (boot's last stubs in `src/tail.c`, kept, `make` to the SHA-1; the split named `tail` refused; the `#include` removed, `generate` and `make` to the SHA-1). |
+| gate-honesty-c0-1 | minor | **Fixed** (records). The memory limitation says "five forms". |
+| correctness-c0-2 | minor | **Fixed** (records). "Five forms", and the review's 1,559.4 MiB for the readable `verify --assemble` (and 1,530.9 MiB for `generate --json`) at `8b03b1f` added. |
+| correctness-c0-3 | minor | **Fixed** (D84 b). A fragment's items carry their include chain; every message about a nested fragment names the file that includes it directly, then the module's file (`src/deep.c, which src/part.c includes (line 3), which src/main.c includes (line 4)`). Tests: the planner (`E_C_FRAGMENT_STUB` in a nested fragment, a definition's chain). |
+| architecture-c0-1 | minor | **Fixed** (D84 d). The unscannable fragment's verdict reads what the file needs (an edit planned or refused, its own `E_C_UNSCANNABLE`, a stub that must go), not whether an edit was planned. Tests: the planner, the review's two probe cases (`E_C_UNSCANNABLE` for the fragment beside `E_C_STUB_UNPLACED`, and beside the file's own `E_C_UNSCANNABLE`; no "needs no" warning). |
+| architecture-c0-2 | minor | **Fixed** (D84 e), the second option: only `src/*.c` directly under `src/` is read. The planner and `reconcileStubs` tests use top-level paths; a CLI case asserts the refusal of `src/inner/deep.c` and its advice; `E_C_STUB_UNPLACED`'s advice, the scaffold's `AGENTS.md`, architecture §6.6 and D84 e say "directly under `src/`". Reading `src/**/*.c` would make every unincluded subdirectory file a `W_C_FILE_UNUSED`. |
+| architecture-c0-3 | minor | **Fixed** (D84 c). `W_C_ORDER` compares held chunks by their place through the includes and names the fragment when two of one fragment are out of order. Tests: the planner (reversed in a fragment, across a nested fragment, in order, and outside the fragment). |
+| architecture-c0-4 | minor | **Fixed** (records, D84 e). `src/foundation/index.md`, architecture §2 and roadmap.md say the internal layers import the spellings from `project-files.ts`, the public `api/` modules re-export some, and the aliases of architecture-r1-2 (`DECOMP_YAML_NAMES` in `locate.ts`, `BASEROM_PATH`, `SCAFFOLD_ROM_FILE`, `TARGET`) stay carried to phase 6. |
+| architecture-c0-5 | minor | **Fixed** (D84 f). `export-poc` runs each PoC child in a fresh temporary directory that is also its `TMPDIR`, removed afterwards, so two runs no longer share the PoC's `os.tmpdir()/romlift-bench/<name>`. The closing procedure still requires an idle machine for the timed gates. |

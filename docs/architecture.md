@@ -128,9 +128,12 @@ romlift/
                                     nonmatchingDir, chunkFileOf, isChunkFile, stubNameOf, INCLUDE_DIR,
                                     INCLUDE_ASM_HEADER_NAME and INCLUDE_ASM_HEADER_PATH, and the C sources'
                                     spelling, C_SOURCE_DIR, isCSource and cSourceOf (fix round 6; their one
-                                    owner since fix round 7, no re-export elsewhere, architecture-b2-7), which
-                                    asm/dialect.ts, core/config, core/model, core/reconcile, core/emit,
-                                    core/verify, core/scaffold and the shell share, D75 g, D76 h, D77 h, D83 c)
+                                    owner since fix round 7, architecture-b2-7), which asm/dialect.ts,
+                                    core/config, core/model, core/reconcile, core/emit, core/verify,
+                                    core/scaffold and the shell import from here; the public api/ modules
+                                    re-export some, and the aliases of architecture-r1-2 (locate.ts's
+                                    DECOMP_YAML_NAMES, BASEROM_PATH, SCAFFOLD_ROM_FILE, TARGET) stay until
+                                    phase 6, roadmap.md; D75 g, D76 h, D77 h, D83 c, D84 e)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -1626,9 +1629,16 @@ hold, count too, at the module file's `#include` line (`IncludeAsmStatement.via`
 a fragment already holds; romlift never edits a fragment, so a stub in one that would go (unwanted, or naming a file
 the tree no longer writes) is `E_C_FRAGMENT_STUB` naming it, an insertion whose ROM-order place lies between two
 chunks one `#include` holds is `E_C_STUB_UNPLACED` naming the fragment, and a fragment the scanner cannot split is
-`W_C_UNSCANNABLE` naming it, `E_C_UNSCANNABLE` when the module's file needs an edit (D83 a). An include of another
-module's source is no fragment (make compiles it on its own): it refuses every insertion, as an unread file does, and
-says so (D83 a). Fix round 4's rescan of the planned text for an insertion out of ROM order is gone: no layout reached it
+`W_C_UNSCANNABLE` naming it, `E_C_UNSCANNABLE` when the module's file needs an edit (D83 a). Since fix round 8
+(D84 a to d): an include of another module's source, from the module's file or a fragment, is `E_C_MODULE_INCLUDED`,
+an error whether or not the file needs an edit, since make compiles that source on its own and would build its
+functions twice (a fragment made a module by a split named after it); a file whose every stub the plan replaces and
+that has no `#include` or `#define` (such a fragment, whose stubs the including file's header served) gains the
+header with its new stubs; a message about a nested fragment names the include chain from the file that includes it
+directly to the module's file (`CDefinition.chain`, `IncludeAsmStatement.chain`); `W_C_ORDER` compares a fragment's
+chunks by their place in it (`order`) and names the fragment; a fragment the scanner cannot split is `E_C_UNSCANNABLE`
+whenever the module's file needs an edit, planned or refused. Only a `src/*.c` directly under `src/` is read
+(`readCTexts`), so an include of `src/inner/x.c` is an unread file. Fix round 4's rescan of the planned text for an insertion out of ROM order is gone: no layout reached it
 (D82 c). An `edit` is written only
 while its file still has its planned sha1, checked again right before the write (`E_STALE_EDIT`, D80 b, D81 b). `generate --out <dir>` writes the C files as generated files of that tree,
 so a second run into it rewrites them (D77 d). `rename-tokens.ts` renames identifier tokens
@@ -2065,7 +2075,7 @@ defined. The codes:
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` (`E_STALE_EDIT` through `staleEdit`, which the shell's `applyWrites` also calls at write time, D81 b) |
-| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_FRAGMENT_STUB`, `E_C_UNSCANNABLE`, `W_C_UNSCANNABLE` | `core/reconcile` (`W_C_UNSCANNABLE` also through `unscannableWarning`, which `core/workflow/c-stubs.ts` calls for a C file of no module, D81 a; `E_C_FRAGMENT_STUB` since fix round 7, D83 a) |
+| `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_FRAGMENT_STUB`, `E_C_MODULE_INCLUDED`, `E_C_UNSCANNABLE`, `W_C_UNSCANNABLE` | `core/reconcile` (`W_C_UNSCANNABLE` also through `unscannableWarning`, which `core/workflow/c-stubs.ts` calls for a C file of no module, D81 a; `E_C_FRAGMENT_STUB` since fix round 7, D83 a) |
 | `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG`, `E_C_DEFINITION_MOVED`, `W_C_FILE_UNUSED` | `core/workflow` (`init`'s verdict on its directory, D75 j, checked under the project lock, D77 j; `analyze --update --write` over a changed config, D75 m; the reconciliation of a project's C files, D77 a) |
 | `W_LEGACY_ENTRY_INSIDE`, `W_LEGACY_ENTRY_REJECTED` | `core/evidence` (raised for `legacy` sources) |
 | `W_EVIDENCE_CONFLICT` | `core/evidence` |
