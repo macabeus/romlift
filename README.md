@@ -50,7 +50,7 @@ whole closing list again unchanged with no gate change, and every command exited
 phase pull request's CI passed before the merge.
 
 Phase 4 (One shot) passes its closing gate at `landed` 4 ([docs/phase-4.md](docs/phase-4.md)), last re-run after fix
-round 9 (D85) at `dcd2253`; its merge to `main` waits for the phase pull request's CI. The owner answered its questions (D76, D79): `g2.speed` takes the median of nine runs per
+round 10 (D86) at `f383f3e`; its merge to `main` waits for the phase pull request's CI. The owner answered its questions (D76, D79): `g2.speed` takes the median of nine runs per
 ROM, the scaffold gitignores the generated tree as R4 says (a clone gets it from `setup.sh`), and the `env -S` launcher, `ROMLIFT_CLI` until romlift is published, listed entries without `from` taken without
 validation, tmc's `W_UNLISTED_FUNCTION` after `init`, the 0x46C0 nop-pad orphans and the zero pads kept at a `c` module's end are recorded limitations. He also
 skipped phase 5: rename, the reconciler, `expected/`, `objdiff.json`, the C data ranges and the objdiff gate move into
