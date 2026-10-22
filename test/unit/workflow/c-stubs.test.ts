@@ -159,7 +159,7 @@ test('a fragment that holds INCLUDE_ASM lines: its stubs hold their chunks, an u
   const [first, second] = namesOf('main');
   if (first === undefined || second === undefined) assert.fail('main has two chunks');
   const main = (TEXTS.get('src/main.c') ?? '').replace(`${includeAsmStatement('main', second)}\n`, '#include "frag.c"\n');
-  const held = reconcileStubs(MODEL, new Map([...TEXTS, ['src/main.c', main], ['src/frag.c', '#include "inner/deep.c"\n'], ['src/inner/deep.c', `${includeAsmStatement('main', second)}\n`]]));
+  const held = reconcileStubs(MODEL, new Map([...TEXTS, ['src/main.c', main], ['src/frag.c', '#include "deep.c"\n'], ['src/deep.c', `${includeAsmStatement('main', second)}\n`]]));
   assert.deepEqual(held.diagnostics, []);
   assert.deepEqual(held.files.find((f) => f.path === 'src/main.c')?.edits, [], 'the nested fragment holds the chunk: no second stub');
   const stale = reconcileStubs(MODEL, new Map([...TEXTS, ['src/main.c', main], ['src/frag.c', `${includeAsmStatement('main', second)}\n${includeAsmStatement('main', 'Gone')}\n`]]));

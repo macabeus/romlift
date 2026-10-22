@@ -63,14 +63,18 @@ branch of a block with an `#else` defines it (`#ifdef NONMATCHING` C `#else` a `
 decompiled function, change both its C name and `romlift.toml`; renamed in C alone, `romlift generate` refuses
 (`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again.
 
-Write decompiled C in `src/<module>.c` itself, or in a `src/*.c` file it `#include`s at file scope (romlift reads
-that file, and the `src/*.c` files it includes, as part of the module: their C and their `INCLUDE_ASM` lines). romlift
+Write decompiled C in `src/<module>.c` itself, or in a `src/*.c` file directly under `src/` that it `#include`s at
+file scope (romlift reads that file, and the `src/*.c` files directly under `src/` it includes, as part of the module:
+their C and their `INCLUDE_ASM` lines). romlift
 never edits an included file: when a `romlift.toml` edit means an `INCLUDE_ASM` line in it must go or be renamed, it
 refuses (`E_C_FRAGMENT_STUB`, naming the file), and when a new line's place in ROM order lies inside it, it refuses
 too (`E_C_STUB_UNPLACED`); change the included file yourself, then run `npx romlift generate` again. romlift reads no
-other file: when `src/<module>.c` includes one of another name (`#include "part.inc"`, any quoted include but a
-`.h`) or another module's source, `romlift generate` refuses to add an `INCLUDE_ASM` line to it
-(`E_C_STUB_UNPLACED`), since that file may define the function.
+other file: when `src/<module>.c` includes one of another name (`#include "part.inc"`, a file in a subdirectory of
+`src/`, any quoted include but a `.h`), `romlift generate` refuses to add an `INCLUDE_ASM` line to it
+(`E_C_STUB_UNPLACED`), since that file may define the function. Never `#include` another module's source: `make`
+compiles it on its own, so its functions would be built twice, and `romlift generate` refuses
+(`E_C_MODULE_INCLUDED`). To make an included file a module of its own, remove its `#include` in the same step as you
+add the module to `romlift.toml`.
 
 To rename a `c` module, change its `name` in `[[modules]]` and move its source in the same step
 (`git mv src/<old>.c src/<new>.c`), then run `npx romlift generate`: it replaces the file's

@@ -24,7 +24,13 @@
 //      (the old stub) and E_C_STUB_UNPLACED (the new one's place lies inside the fragment), nothing written, `make`
 //      stopping on the stale tree; the stub renamed in the fragment, `generate` and `make` to the SHA-1;
 //   8. (architecture-b2-1) decomp.yaml naming cfg/romlift.toml: `generate` refuses (E_DECOMP_YAML_INVALID), writes
-//      nothing, and `make` still ends at the SHA-1.
+//      nothing, and `make` still ends at the SHA-1;
+//   9. (fix round 8, correctness-c0-1) src/boot.c's last stubs moved into src/tail.c, which it #includes (`generate`
+//      keeps them, `make` to the SHA-1), then a `c` module split at tail.c's first function and named after it, so
+//      tail.c becomes the new module's source while boot.c still #includes it: `generate` refuses with
+//      E_C_MODULE_INCLUDED and writes nothing (the review's run linked a ROM 2,724 bytes too large, the fragment's
+//      chunks built twice); the #include removed, `generate` gives src/tail.c the header and its stubs and `make`
+//      ends at the SHA-1.
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -97,7 +103,7 @@ function codesOf(ran: Ran): readonly string[] {
     .map((l) => l.code ?? '?');
 }
 
-test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone, a moved module, a split at a decompiled function, a pulled TOML edit, stubs in a fragment and a relocated config build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
+test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone, a moved module, a split at a decompiled function, a pulled TOML edit, stubs in a fragment, a relocated config and a fragment made a module build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
   assert.equal(unavailable, undefined, unavailable);
   const bytes = readFileSync(ROM);
   assert.deepEqual([...bytes.subarray(0x28104, 0x28108)], [0x70, 0x47, 0, 0], 'sub_08028104 is `bx lr` and a zero pad');
@@ -294,5 +300,38 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
   await rm(file('cfg'), { recursive: true });
   const restored = await generate();
   assert.equal(restored.code, 0, restored.tail);
+  await make();
+
+  // 9. (fix round 8, correctness-c0-1) A fragment made a module of its own, as the review did: boot.c's last stubs
+  //    moved into src/tail.c, which boot.c #includes (kept, make to the SHA-1), then a split at its first function,
+  //    named after it, while boot.c still #includes it: make would compile tail.c twice, as tail's source and in boot.o.
+  const bootBefore = await readFile(file('src/boot.c'), 'utf8');
+  const tomlBeforeSplit = await readFile(file('romlift.toml'), 'utf8');
+  // Its last two lines, the first of a function: `sub_…` then `sub_…` or a pad's `unk_…`.
+  const tailStubs = new RegExp(`\n(${stub('boot', 'sub_[0-9A-F]{8}').replace(/[()]/g, '\\$&')}\n(?:${stub('boot', '\\w+').replace(/[()]/g, '\\$&')}\n)?)$`).exec(bootBefore)?.[1] ?? assert.fail('src/boot.c ends with stubs');
+  const firstOfTail = /sub_([0-9A-F]{8})/.exec(tailStubs)?.[1] ?? assert.fail('a sub_ stub');
+  await writeFile(file('src/tail.c'), tailStubs);
+  await writeFile(file('src/boot.c'), bootBefore.replace(tailStubs, '#include "tail.c"\n'));
+  const tailKept = await generate();
+  assert.equal(tailKept.code, 0, tailKept.tail);
+  assert.deepEqual(tailKept.codes, [], tailKept.tail);
+  await make();
+  const bootWithTail = await readFile(file('src/boot.c'), 'utf8');
+  const splitTail = tomlBeforeSplit.replace('[[modules]]\nname = "m3a"', `[[modules]]\nname = "tail"\nstart = 0x${firstOfTail}\nkind = "c"\n\n[[modules]]\nname = "m3a"`);
+  assert.notEqual(splitTail, tomlBeforeSplit, 'm3a follows boot');
+  await writeFile(file('romlift.toml'), splitTail);
+  const included = await generate();
+  assert.equal(included.code, 1, included.tail);
+  assert.deepEqual(included.codes, ['E_C_MODULE_INCLUDED'], included.tail);
+  assert.ok(included.tail.includes('src/boot.c #includes \\"tail.c\\"'), included.tail);
+  assert.equal(await readFile(file('src/tail.c'), 'utf8'), tailStubs, 'the refusal wrote nothing');
+  assert.equal(await readFile(file('src/boot.c'), 'utf8'), bootWithTail, 'the refusal wrote nothing');
+  // As the message says: the #include removed. tail.c held its stubs under boot.c's header, so it gains its own.
+  await writeFile(file('src/boot.c'), bootWithTail.replace('#include "tail.c"\n', ''));
+  const madeModule = await generate();
+  assert.equal(madeModule.code, 0, madeModule.tail);
+  assert.deepEqual(madeModule.codes, [], madeModule.tail);
+  const tailC = await readFile(file('src/tail.c'), 'utf8');
+  assert.ok(tailC.startsWith('#include "include_asm.h"\n') && tailC.includes(stub('tail', `sub_${firstOfTail}`)) && !tailC.includes('asm/nonmatchings/boot'), tailC);
   await make();
 });

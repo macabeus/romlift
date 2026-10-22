@@ -564,6 +564,63 @@ test('INCLUDE_ASM lines moved into an #included src/*.c fragment hold their chun
   assert.ok((await stat(path.join(dir, 'asm', 'nonmatchings', 'main_2', 'FragFn.s'))).isFile());
 });
 
+// Fix round 8 (D84): a fragment made a module of its own; a fragment under a subdirectory of src/.
+
+test('a split that makes an #included fragment a module: E_C_MODULE_INCLUDED naming the including file, nothing written; the #include removed, the new module\'s file gains the header and its stubs (fix round 8, correctness-c0-1)', async () => {
+  const dir = await initProject();
+  const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  const tail = `${stubIn('main_2', 'sub_0800045C')}\n${stubIn('main_2', 'sub_08000488')}\n`;
+  assert.ok(main2.endsWith(tail) && toml.includes('[[modules]]\nname = "main_3"'), 'the composite as this test knows it');
+  await writeFile(path.join(dir, 'src', 'tail.c'), tail);
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(tail, '#include "tail.c"\n'));
+  const kept = await run(dir, ['generate', '--json']);
+  assert.equal(kept.code, ExitCode.ok, kept.stdout);
+  assert.deepEqual(lines(kept.stdout).filter((l) => l['type'] === 'diagnostic'), [], kept.stdout);
+  // The review's split: a module named after the fragment, at its first function.
+  await writeFile(path.join(dir, 'romlift.toml'), toml.replace('[[modules]]\nname = "main_3"', '[[modules]]\nname = "tail"\nstart = 0x0800045C\nkind = "c"\n\n[[modules]]\nname = "main_3"'));
+  const before = await snapshot(dir);
+  const refused = await run(dir, ['generate', '--json']);
+  assert.equal(refused.code, ExitCode.errors, refused.stdout);
+  const diagnostics = lines(refused.stdout).filter((l) => l['type'] === 'diagnostic');
+  assert.deepEqual(diagnostics.map((l) => [l['code'], l['path']]), [['E_C_MODULE_INCLUDED', 'src/main_2.c']], refused.stdout);
+  assert.match(String(diagnostics[0]?.['message']), /src\/main_2\.c #includes "tail\.c" \(line \d+\), the source of module tail, which make compiles on its own/);
+  assert.deepEqual(await snapshot(dir), before, 'the refusal wrote nothing');
+  // As the message says: the #include removed. tail.c held its stubs under main_2's header, so it gains its own.
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(tail, ''));
+  const fixed = await run(dir, ['generate', '--json']);
+  assert.equal(fixed.code, ExitCode.ok, fixed.stdout);
+  assert.deepEqual(lines(fixed.stdout).filter((l) => l['type'] === 'diagnostic'), [], fixed.stdout);
+  assert.equal(await readFile(path.join(dir, 'src', 'tail.c'), 'utf8'), `#include "include_asm.h"\n\n${stubIn('tail', 'sub_0800045C')}\n${stubIn('tail', 'sub_08000488')}\n`);
+  // main_2 now ends with the zero pad before tail's first function, an orphan of its own (Q8).
+  assert.equal(await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8'), main2.replace(tail, `${stubIn('main_2', 'unk_0800045A')}\n`));
+  assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'idempotent');
+});
+
+test('a fragment in a subdirectory of src/ is not read: an insertion it might duplicate is E_C_STUB_UNPLACED, which says so (fix round 8, architecture-c0-2)', async () => {
+  const dir = await initProject();
+  const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');
+  assert.ok(main2.includes(stubIn('main_2', 'sub_08000488')), 'the composite as this test knows it');
+  await mkdir(path.join(dir, 'src', 'inner'));
+  await writeFile(path.join(dir, 'src', 'inner', 'deep.c'), `${stubIn('main_2', 'sub_08000488')}\n`);
+  await writeFile(path.join(dir, 'src', 'frag.c'), '#include "inner/deep.c"\n');
+  await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(stubIn('main_2', 'sub_08000488'), '#include "frag.c"'));
+  const before = await snapshot(dir);
+  const refused = await run(dir, ['generate', '--json']);
+  assert.equal(refused.code, ExitCode.errors, refused.stdout);
+  const diagnostics = lines(refused.stdout).filter((l) => l['type'] === 'diagnostic');
+  assert.deepEqual(diagnostics.map((l) => [l['code'], l['path']]), [['E_C_STUB_UNPLACED', 'src/main_2.c']], refused.stdout);
+  assert.match(String(diagnostics[0]?.['message']), /#includes "inner\/deep\.c" \(line 1 of src\/frag\.c\), which romlift does not read as part of it \(it reads a src\/\*\.c directly under src\/ that is no module's source/);
+  assert.deepEqual(await snapshot(dir), before, 'nothing written');
+  // Moved directly under src/, as the message says: held, nothing to write.
+  await writeFile(path.join(dir, 'src', 'deep.c'), `${stubIn('main_2', 'sub_08000488')}\n`);
+  await writeFile(path.join(dir, 'src', 'frag.c'), '#include "deep.c"\n');
+  await rm(path.join(dir, 'src', 'inner'), { recursive: true });
+  const kept = await run(dir, ['generate', '--json']);
+  assert.equal(kept.code, ExitCode.ok, kept.stdout);
+  assert.deepEqual(lines(kept.stdout).filter((l) => l['type'] === 'diagnostic'), [], kept.stdout);
+});
+
 test('decomp.yaml naming a config other than romlift.toml is refused, nothing written: the Makefile and setup.sh hash romlift.toml (fix round 7, architecture-b2-1)', async () => {
   const dir = await initProject();
   const yaml = await readFile(path.join(dir, 'decomp.yaml'), 'utf8');

@@ -21,7 +21,7 @@
 //
 // It refuses a PoC checkout whose files differ from bench/baseline/poc-source.json and a ROM whose
 // SHA-1 differs from its dataset.
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -317,12 +317,23 @@ async function runChild(cx: BenchContext, d: Dataset, args: readonly string[]): 
 async function runChildFor(cx: BenchContext, name: string, args: readonly string[], dataset: string | undefined): Promise<unknown> {
   const tsx = join(cx.pocRoot, 'node_modules', '.bin', 'tsx');
   if (!(await exists(tsx))) throw new BenchError(`${tsx} is missing: the PoC checkout has no node_modules`);
-  // Run outside both repositories; the PoC scaffolds into os.tmpdir()/romlift-bench/<name> itself.
-  const cwd = join(tmpdir(), 'romlift-bench');
-  await mkdir(cwd, { recursive: true });
+  // Run outside both repositories. The PoC scaffolds into os.tmpdir()/romlift-bench/<name>, so the child gets a
+  // temporary directory of its own as TMPDIR (fix round 8, architecture-c0-5): two export-poc runs at once on one
+  // machine no longer overwrite each other's scaffold and fail its verdict. Removed once the child exits.
+  const cwd = await mkdtemp(join(tmpdir(), 'romlift-poc-'));
+  try {
+    return await runChildIn(cwd, tsx, name, args, cx, dataset);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
+/** runChildFor's child, run in `cwd`, which is also its TMPDIR. */
+async function runChildIn(cwd: string, tsx: string, name: string, args: readonly string[], cx: BenchContext, dataset: string | undefined): Promise<unknown> {
   const run = await runProcess(tsx, [CHILD, name, ...args], {
     cwd,
     env: {
+      TMPDIR: cwd,
       ROMLIFT_BENCH_ROOT: cx.benchRoot,
       ROMLIFT_POC: cx.pocRoot,
       // For a tuning ROM the pinned PoC has no dataset file of (tmc, D60): the child uses the PoC's own file when it has one.

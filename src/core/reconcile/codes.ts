@@ -1,7 +1,8 @@
 // Diagnostic codes raised by core/reconcile (architecture §6.6, §9.1, D45): the C tokenizer and the INCLUDE_ASM
 // planner. Phase 4 adds W_C_ORDER with its raiser, planIncludeAsm (include-asm.ts), fix round 2 the planner's two
 // refusals (D77 a, b), fix round 3 the third (D78 a), fix round 4 the fourth (D80 a) and fix round 5 W_C_UNSCANNABLE (D81 a); fix round 6 widens E_C_STUB_UNPLACED (D82 b); fix round 7 adds
-// E_C_FRAGMENT_STUB and widens E_C_STUB_UNPLACED again (D83 a); phase 6's renames add theirs.
+// E_C_FRAGMENT_STUB and widens E_C_STUB_UNPLACED again (D83 a); fix round 8 adds E_C_MODULE_INCLUDED (D84 a); phase 6's
+// renames add theirs.
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
 export const ReconcileCodes = defineCodes({
@@ -11,7 +12,7 @@ export const ReconcileCodes = defineCodes({
   },
   E_C_STUB_UNPLACED: {
     severity: 'error',
-    meaning: "a C file has no safe place for the INCLUDE_ASM of a function its module gained: the text ends inside a comment, a literal, a directive or an unclosed #if, or the stub would go between two chunks one #if region holds; or the file #includes a file romlift does not read (no src/*.c, a module's source, no .h), which may define the function (fix round 6); or its place in ROM order lies inside a src/*.c fragment the file #includes, which romlift never edits (fix round 7) (include-asm.ts)",
+    meaning: "a C file has no safe place for the INCLUDE_ASM of a function its module gained: the text ends inside a comment, a literal, a directive or an unclosed #if, or the stub would go between two chunks one #if region holds; or the file #includes a file romlift does not read (no src/*.c directly under src/, no .h), which may define the function (fix round 6); or its place in ROM order lies inside a src/*.c fragment the file #includes, which romlift never edits (fix round 7) (include-asm.ts)",
   },
   E_C_STALE_DEFINITION: {
     severity: 'error',
@@ -24,6 +25,10 @@ export const ReconcileCodes = defineCodes({
   E_C_FRAGMENT_STUB: {
     severity: 'error',
     meaning: "a src/*.c fragment a module's C file #includes holds the INCLUDE_ASM of a chunk its module no longer has (or of another module's directory the tree no longer writes it in); romlift never edits an included file (include-asm.ts, fix round 7)",
+  },
+  E_C_MODULE_INCLUDED: {
+    severity: 'error',
+    meaning: "a C file (a module's source, or a src/*.c fragment it #includes) #includes another module's source at file scope, which make also compiles on its own, so its functions would be built twice; refused whether or not the file needs an edit (include-asm.ts, fix round 8)",
   },
   E_C_UNSCANNABLE: {
     severity: 'error',

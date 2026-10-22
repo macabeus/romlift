@@ -104,6 +104,18 @@ export interface IncludeAsmStatement {
    */
   readonly via?: string;
   readonly fragmentLine?: number;
+  /** The `#include` lines that reach `via` from the file, and its place in text order through them (CDefinition's, fix round 8). */
+  readonly chain?: readonly CIncludeLink[];
+  readonly order?: readonly number[];
+}
+
+/**
+ * One `#include` on the way from a module's file to a fragment (fix round 8, correctness-c0-3): the project path of
+ * the file that holds the directive, and its line there.
+ */
+export interface CIncludeLink {
+  readonly from: string;
+  readonly line: number;
 }
 
 /** One function definition at file scope. */
@@ -119,6 +131,14 @@ export interface CDefinition {
    * correctness-b1-3): its offsets and line are then those of the `#include` line.
    */
   readonly via?: string;
+  /**
+   * For an item of a fragment (fix round 8): `chain`, the `#include` lines that reach `via` from the file, the file's
+   * own first (correctness-c0-3, so a message names the file that includes `via` directly); `order`, the offsets of
+   * those `#include` lines in their files and then the item's own offset in `via`, which order the file's items as the
+   * preprocessor reads them (architecture-c0-3: W_C_ORDER inside a fragment).
+   */
+  readonly chain?: readonly CIncludeLink[];
+  readonly order?: readonly number[];
 }
 
 /** Code at file scope that is neither a stub nor a definition: a declaration, a prototype, stray tokens. */
@@ -577,7 +597,8 @@ export interface IncludeAsmWanted {
   readonly fragments?: ReadonlyMap<string, string>;
   /**
    * The module each module's source belongs to, by project path (fix round 7, architecture-b2-5): an include of one is
-   * no fragment (make compiles it on its own), and the E_C_STUB_UNPLACED it brings says so.
+   * no fragment, since make compiles it on its own, so its functions would be built twice: E_C_MODULE_INCLUDED, an
+   * error whether or not the file needs an edit (fix round 8, correctness-c0-1).
    */
   readonly sources?: ReadonlyMap<string, string>;
 }
@@ -591,7 +612,7 @@ export interface StubTree {
 export interface IncludeAsmPlan {
   /** Insertions and removals, in text order; apply with applyTextEdits. */
   readonly edits: readonly TextEdit[];
-  /** W_C_ORDER (at most once), E_C_STUB_UNPLACED, E_C_STALE_DEFINITION, E_C_CONDITIONAL_STUB, E_C_UNSCANNABLE, W_C_UNSCANNABLE. */
+  /** W_C_ORDER (at most once), E_C_STUB_UNPLACED, E_C_STALE_DEFINITION, E_C_CONDITIONAL_STUB, E_C_FRAGMENT_STUB, E_C_MODULE_INCLUDED, E_C_UNSCANNABLE, W_C_UNSCANNABLE. */
   readonly diagnostics: readonly Diagnostic<ReconcileCode>[];
   /** Wanted stub names the planner found no safe place for (each also an E_C_STUB_UNPLACED). */
   readonly unplaced: readonly string[];
@@ -601,18 +622,50 @@ export interface IncludeAsmPlan {
   readonly included: readonly string[];
 }
 
-/** Where a held chunk sits: offsets of its first token and of its end, its line; `via`, the fragment that holds it. */
+/**
+ * Where a held chunk sits: offsets of its first token and of its end, its line; `via`, the fragment that holds it,
+ * with the `#include` lines that reach it and its place in text order through them (CDefinition `chain`, `order`).
+ */
 interface Held {
   readonly start: number;
   readonly end: number;
   readonly line: number;
   readonly via?: string;
+  readonly chain?: readonly CIncludeLink[];
+  readonly order?: readonly number[];
 }
 
 /** `item`'s place, with the fragment that holds it. */
-function heldAt(item: COffsets & { readonly line: number; readonly via?: string }): Held {
+function heldAt(item: COffsets & Pick<CDefinition, 'line' | 'via' | 'chain' | 'order'>): Held {
   const at = { start: item.start, end: item.end, line: item.line };
-  return item.via === undefined ? at : { ...at, via: item.via };
+  return item.via === undefined ? at : { ...at, via: item.via, chain: item.chain ?? [], order: item.order ?? [item.start] };
+}
+
+/**
+ * Fragment `via` named by the `#include` lines that reach it from `where`, the module's file (fix round 8,
+ * correctness-c0-3): `src/b.c, which src/a.c includes (line 3), which src/main.c includes (line 68)`. Without `chain`,
+ * `where` includes it directly at `line`.
+ */
+export function fragmentPhrase(via: string, where: string, line: number, chain?: readonly CIncludeLink[]): string {
+  const links = chain === undefined || chain.length === 0 ? [{ from: where, line }] : chain;
+  return [via, ...[...links].reverse().map((l) => `which ${l.from} includes (line ${l.line})`)].join(', ');
+}
+
+/** The text-order key of a held chunk: its offset in the file, or the offsets that reach it through the includes. */
+function orderKey(h: Held): readonly number[] {
+  return h.order ?? [h.start];
+}
+
+/** Whether held chunk `a` comes after `b` in the text the preprocessor reads (keys compared element by element). */
+function laterThan(a: Held, b: Held): boolean {
+  const ka = orderKey(a);
+  const kb = orderKey(b);
+  for (let i = 0; i < Math.min(ka.length, kb.length); i++) {
+    const x = ka[i] ?? 0;
+    const y = kb[i] ?? 0;
+    if (x !== y) return x > y;
+  }
+  return ka.length > kb.length;
 }
 
 /**
@@ -708,7 +761,11 @@ function whereOf(wanted: IncludeAsmWanted): { readonly where: string; readonly e
   return { where: wanted.path ?? `the C file of module ${wanted.module}`, extra: wanted.path === undefined ? {} : { path: wanted.path } };
 }
 
-/** W_C_ORDER when the held wanted chunks are not in ROM order in the text (the first pair out of order). */
+/**
+ * W_C_ORDER when the held wanted chunks are not in ROM order in the text the preprocessor reads (the first pair out of
+ * order): the chunks of an #included fragment are ordered by their place in it (fix round 8, architecture-c0-3), and
+ * two out of order in one fragment are reported naming it.
+ */
 function orderDiagnostics(wanted: IncludeAsmWanted, held: readonly (Held | undefined)[]): Diagnostic<ReconcileCode>[] {
   const order = wanted.chunks.flatMap((chunk, k) => {
     const h = held[k];
@@ -717,9 +774,11 @@ function orderDiagnostics(wanted: IncludeAsmWanted, held: readonly (Held | undef
   for (let k = 1; k < order.length; k++) {
     const prev = order[k - 1];
     const cur = order[k];
-    // Two chunks one #included fragment holds share its #include line (correctness-b2-1).
-    if (prev === undefined || cur === undefined || cur.start > prev.start || (cur.start === prev.start && cur.via !== undefined)) continue;
+    if (prev === undefined || cur === undefined || laterThan(cur, prev)) continue;
     const { where, extra } = whereOf(wanted);
+    if (cur.via !== undefined && cur.via === prev.via) {
+      return [diagnostic(ReconcileCodes, 'W_C_ORDER', `${fragmentPhrase(cur.via, where, cur.line, cur.chain)}, holds ${cur.name} before ${prev.name}, which comes first in ROM order`, { path: cur.via })];
+    }
     return [diagnostic(ReconcileCodes, 'W_C_ORDER', `${where} holds ${cur.name} before ${prev.name}, which comes first in ROM order`, extra)];
   }
   return [];
@@ -770,13 +829,19 @@ function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, num
 /**
  * The insertion of the header that defines INCLUDE_ASM (C_STUB_HEADER, in the text's line terminator), or undefined
  * when the file needs none (fix round 6, correctness-b1-2): a file that gains a stub needs it unless it already
- * includes the header or holds an INCLUDE_ASM statement anywhere (whose macro its build then defines some other way,
- * a `global.h` that includes it). It goes above the first line that is not a comment, after a leading byte order mark
- * and the comments that open the file (a licence, a file comment): a file the user wrote with only the C of a
- * function E_C_DEFINITION_MOVED sent there.
+ * includes the header or keeps an INCLUDE_ASM statement anywhere (whose macro its build then defines some other way, a
+ * `global.h` that includes it). A file whose every stub the plan removes (`removed`) needs it too when it has no
+ * `#include` or `#define` that may define the macro: a `src/*.c` fragment that became a module's source, whose stubs
+ * served another directory and the including file's header (fix round 8, correctness-c0-1). It goes above the first line that is not a comment, after a leading byte order mark and the
+ * comments that open the file (a licence, a file comment): a file the user wrote with only the C of a function
+ * E_C_DEFINITION_MOVED sent there.
  */
-function headerInsertion(text: string, scan: CFileScan): TextEdit | undefined {
-  if (anyDepthStatements(scan).length > 0) return undefined;
+function headerInsertion(text: string, scan: CFileScan, removed: readonly IncludeAsmStatement[]): TextEdit | undefined {
+  const gone = new Set(removed.map((s) => s.start));
+  const statements = anyDepthStatements(scan);
+  if (statements.some((s) => !gone.has(s.start))) return undefined;
+  const mayDefine = scan.directives.some((t) => t.kind === 'preprocessor' && (directiveName(t.text) === 'include' || directiveName(t.text) === 'define'));
+  if (statements.length > 0 && mayDefine) return undefined;
   if (scan.directives.some((t) => t.kind === 'preprocessor' && quotedInclude(t.text) === INCLUDE_ASM_HEADER_NAME)) return undefined;
   const eol = eolOf(text);
   const header = C_STUB_HEADER.split('\n').join(eol);
@@ -799,18 +864,20 @@ function headerInsertion(text: string, scan: CFileScan): TextEdit | undefined {
 function staleDiagnostic(wanted: IncludeAsmWanted, d: CDefinition, slot: WantedChunk | undefined, replaced: WantedChunk | undefined): Diagnostic<ReconcileCode> {
   const { where: file, extra } = whereOf(wanted);
   // A definition of an included fragment: the file the user edits is the fragment (correctness-b1-3).
-  const where = d.via === undefined ? file : `${file}, through its #include of ${d.via},`;
+  // Named through the includes that reach it (fix round 8, correctness-c0-3); its line is then the #include's.
+  const where = d.via === undefined ? file : `${fragmentPhrase(d.via, file, d.line, d.chain)},`;
+  const at = d.via === undefined ? ` (line ${d.line})` : '';
   const dir = nonmatchingDir(wanted.module);
   if (replaced !== undefined) {
-    return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}) where the INCLUDE_ASM of ${replaced.stub} was, and module ${wanted.module} still has ${replaced.name}, which the file now neither includes nor defines: if you renamed ${replaced.name} in C, rename it in romlift.toml too (or the C back to ${replaced.name}); otherwise restore INCLUDE_ASM("${dir}", ${replaced.stub}); else make builds its bytes twice`, extra);
+    return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name}${at} where the INCLUDE_ASM of ${replaced.stub} was, and module ${wanted.module} still has ${replaced.name}, which the file now neither includes nor defines: if you renamed ${replaced.name} in C, rename it in romlift.toml too (or the C back to ${replaced.name}); otherwise restore INCLUDE_ASM("${dir}", ${replaced.stub}); else make builds its bytes twice`, extra);
   }
   if (wanted.retired === undefined) {
     // The tree romlift last generated is not known, so d may be the user's helper.
     const stub = slot?.stub ?? '';
-    return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}), which module ${wanted.module} no longer has, where the INCLUDE_ASM of ${stub} goes: if romlift.toml renamed it, rename the C function to ${slot?.name ?? ''}; otherwise write INCLUDE_ASM("${dir}", ${stub}); yourself`, extra);
+    return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name}${at}, which module ${wanted.module} no longer has, where the INCLUDE_ASM of ${stub} goes: if romlift.toml renamed it, rename the C function to ${slot?.name ?? ''}; otherwise write INCLUDE_ASM("${dir}", ${stub}); yourself`, extra);
   }
   const here = slot === undefined ? '' : `; the INCLUDE_ASM of ${slot.stub} goes where it lies: if romlift.toml renamed it to ${slot.name}, rename the C function to ${slot.name}`;
-  return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name} (line ${d.line}), a function of the tree romlift last generated that romlift.toml no longer has${here}; a function it renamed takes its new name, in the source of the module that holds it now, and one it deleted loses its C, else make builds its bytes twice`, extra);
+  return diagnostic(ReconcileCodes, 'E_C_STALE_DEFINITION', `${where} defines ${d.name}${at}, a function of the tree romlift last generated that romlift.toml no longer has${here}; a function it renamed takes its new name, in the source of the module that holds it now, and one it deleted loses its C, else make builds its bytes twice`, extra);
 }
 
 /**
@@ -838,20 +905,29 @@ export function planIncludeAsm(text: string, wanted: IncludeAsmWanted): IncludeA
 
 /**
  * An `#include "…"` at file scope that is no fragment romlift reads (a file that may define functions): its spelling,
- * its line in `from` (the module's file or a fragment it includes), and `module` when it names that module's source.
+ * its line in `from` (the module's file or a fragment it includes, reached through `chain`), and `module` when it names
+ * that module's source.
  */
 interface UnreadInclude {
   readonly spelled: string;
   readonly line: number;
   readonly from: string;
+  readonly chain: readonly CIncludeLink[];
   readonly module?: string;
 }
 
-/** A fragment the scanner cannot split (`why`), included at line `line` of the module's file. */
+/** A fragment the scanner cannot split (`why`), included at line `line` of the module's file, through `chain`. */
 interface UnscannableFragment {
   readonly path: string;
   readonly line: number;
+  readonly chain: readonly CIncludeLink[];
   readonly why: readonly CUnscannable[];
+}
+
+/** `from` of an unread include, named through the includes that reach it (fragmentPhrase). */
+function unreadFrom(u: UnreadInclude, where: string): string {
+  const last = u.chain[u.chain.length - 1];
+  return last === undefined ? where : fragmentPhrase(u.from, where, last.line, u.chain);
 }
 
 /** `path` of an `#include "<spelled>"` in the file at project path `from`, resolved from its directory; undefined above the root. */
@@ -890,30 +966,33 @@ function withFragments(scan: CFileScan, wanted: IncludeAsmWanted): { readonly sc
   const included: string[] = [];
   const unread: UnreadInclude[] = [];
   const unscannable: UnscannableFragment[] = [];
-  const visit = (from: string, fileScan: CFileScan, top: CToken | undefined): void => {
+  // `chain` and `prefix`: the #include lines that reach `from`, and their offsets (CDefinition chain, order).
+  const visit = (from: string, fileScan: CFileScan, top: CToken | undefined, chain: readonly CIncludeLink[], prefix: readonly number[]): void => {
     for (const { token, spelled } of fileScopeIncludes(fileScan)) {
       const at = top ?? token;
       const resolved = resolveInclude(from, spelled);
+      // A file including itself, or a fragment included twice, is read once.
+      if (resolved === path || (resolved !== undefined && included.includes(resolved))) continue;
       const module = resolved === undefined ? undefined : wanted.sources?.get(resolved);
       const text = resolved === undefined || module !== undefined ? undefined : fragments.get(resolved);
       if (resolved === undefined || text === undefined) {
-        if (module !== undefined) unread.push({ spelled, line: token.line, from, module });
-        else if (!spelled.endsWith('.h')) unread.push({ spelled, line: token.line, from });
+        if (module !== undefined) unread.push({ spelled, line: token.line, from, chain, module });
+        else if (!spelled.endsWith('.h')) unread.push({ spelled, line: token.line, from, chain });
         continue;
       }
-      // A fragment included twice, or including itself, is read once.
-      if (resolved === path || included.includes(resolved)) continue;
       included.push(resolved);
+      const links = [...chain, { from, line: token.line }];
+      const offsets = [...prefix, token.start];
       const fragment = scanC(text);
       const compiled = compiledDefinitions(fragment);
-      if (!compiled.scannable) unscannable.push({ path: resolved, line: at.line, why: compiled.unscannable });
-      const place = { start: at.start, end: at.end, line: at.line, via: resolved };
-      for (const d of compiled.definitions) definitions.push({ ...place, name: d.name });
-      for (const s of compiled.scannable ? fragment.statements : anyDepthStatements(fragment)) statements.push({ ...place, dir: s.dir, name: s.name, fragmentLine: s.line });
-      visit(resolved, fragment, at);
+      if (!compiled.scannable) unscannable.push({ path: resolved, line: at.line, chain: links, why: compiled.unscannable });
+      const place = { start: at.start, end: at.end, line: at.line, via: resolved, chain: links };
+      for (const d of compiled.definitions) definitions.push({ ...place, name: d.name, order: [...offsets, d.start] });
+      for (const s of compiled.scannable ? fragment.statements : anyDepthStatements(fragment)) statements.push({ ...place, dir: s.dir, name: s.name, fragmentLine: s.line, order: [...offsets, s.start] });
+      visit(resolved, fragment, at, links, offsets);
     }
   };
-  visit(path, scan, undefined);
+  visit(path, scan, undefined, [], []);
   if (definitions.length === 0 && statements.length === 0) return { scan, included, unread, unscannable };
   const byStart = (a: COffsets, b: COffsets): number => a.start - b.start;
   return { scan: { ...scan, definitions: [...scan.definitions, ...definitions].sort(byStart), statements: [...scan.statements, ...statements].sort(byStart) }, included, unread, unscannable };
@@ -921,14 +1000,18 @@ function withFragments(scan: CFileScan, wanted: IncludeAsmWanted): { readonly sc
 
 /**
  * `plan` with the verdict on the fragments the scanner cannot split (architecture-b2-4), as unscannablePlan gives one
- * on the file itself: W_C_UNSCANNABLE for each when the file needs no edit, else E_C_UNSCANNABLE for each and no edit,
- * since a stub or definition the scanner missed in the fragment may hold a chunk the edit would add again.
+ * on the file itself: W_C_UNSCANNABLE for each when the file needs no edit of its INCLUDE_ASM lines, else
+ * E_C_UNSCANNABLE for each and no edit, since a stub or definition the scanner missed in the fragment may hold a chunk
+ * the edit would add again. Whether it needs one is read from what it needs, not from what was planned (fix round 8,
+ * architecture-c0-1): an edit planned, a stub left unplaced (an edit refused), the file's own E_C_UNSCANNABLE, or a
+ * stub that must go from a fragment or a conditional.
  */
 function unscannableFragments(plan: Omit<IncludeAsmPlan, 'included'>, wanted: IncludeAsmWanted, fragments: readonly UnscannableFragment[]): Omit<IncludeAsmPlan, 'included'> {
   if (fragments.length === 0) return plan;
   const { where } = whereOf(wanted);
-  const named = (f: UnscannableFragment): string => `${f.path}, which ${where} includes (line ${f.line}),`;
-  if (plan.edits.length === 0) return { ...plan, diagnostics: [...plan.diagnostics, ...fragments.map((f) => unscannableWarning(named(f), f.path, f.why, `its definitions and INCLUDE_ASM lines were read as part of module ${wanted.module} as far as the scanner reads, and ${where} needs no edit`))] };
+  const named = (f: UnscannableFragment): string => `${fragmentPhrase(f.path, where, f.line, f.chain)},`;
+  const needsEdit = plan.edits.length > 0 || plan.unplaced.length > 0 || plan.diagnostics.some((d) => d.code === 'E_C_UNSCANNABLE' || d.code === 'E_C_FRAGMENT_STUB' || d.code === 'E_C_CONDITIONAL_STUB');
+  if (!needsEdit) return { ...plan, diagnostics: [...plan.diagnostics, ...fragments.map((f) => unscannableWarning(named(f), f.path, f.why, `its definitions and INCLUDE_ASM lines were read as part of module ${wanted.module} as far as the scanner reads, and ${where} needs no INCLUDE_ASM line changed`))] };
   const refusals = fragments.map((f) =>
     diagnostic(ReconcileCodes, 'E_C_UNSCANNABLE', `${named(f)} cannot be scanned for its definitions and INCLUDE_ASM lines (${f.why.map((u) => u.reason).join('; ')}), and ${where} needs its INCLUDE_ASM lines changed: romlift edits nothing, since the fragment may hold a function it would add again; make the fragment's branches agree, or change the INCLUDE_ASM lines yourself`, { path: f.path }),
   );
@@ -969,6 +1052,10 @@ function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted, un
   const unplaced: string[] = [];
   /** The stubs whose ROM-order place lies inside a fragment: between two chunks one `#include` holds (correctness-b2-1). */
   const insideFragment: { readonly chunk: WantedChunk; readonly before: Held & { readonly via: string }; readonly between: readonly [string, string] }[] = [];
+  // An include of another module's source is E_C_MODULE_INCLUDED whatever the file needs (correctness-c0-1); the
+  // others romlift does not read refuse only the insertions they might duplicate.
+  const moduleIncludes = unread.filter((u) => u.module !== undefined);
+  const otherUnread = unread.filter((u) => u.module === undefined);
   wanted.chunks.forEach((chunk, k) => {
     if (held[k] !== undefined) return;
     const e = earlier[k];
@@ -986,7 +1073,7 @@ function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted, un
     if (edit === undefined) unplaced.push(chunk.stub);
     else insertions.push(edit);
   });
-  const header = insertions.length > 0 ? headerInsertion(text, scan) : undefined;
+  const header = insertions.length > 0 ? headerInsertion(text, scan, removed) : undefined;
   const edits: TextEdit[] = [...(header === undefined ? [] : [header]), ...insertions];
   for (const statement of removed) edits.push(removalOf(text, statement));
   /** The chunk of the previous tree's own directory a stranger took the place of (correctness-a2-1). */
@@ -994,18 +1081,21 @@ function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted, un
   const stale = strangers.filter((d) => (retired === undefined ? slots.has(d) : retired.has(d.name) || replacedOf(d) !== undefined));
   const { where, extra } = whereOf(wanted);
   const diagnostics: Diagnostic<ReconcileCode>[] = [...orderDiagnostics(wanted, held)];
-  if (unplaced.length > 0 && unread.length > 0) {
-    const files = unread.map((u) => `"${u.spelled}" (line ${u.line}${u.from === wanted.path ? '' : ` of ${u.from}`}${u.module === undefined ? '' : `, the source of module ${u.module}, which make compiles on its own`})`).join(', ');
-    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} gains the INCLUDE_ASM of ${unplaced.join(', ')}, but it #includes ${files}, which romlift does not read as part of it (it reads a src/*.c that is no module's source as part of the file that includes it), so it cannot tell whether that file defines them: move the C into ${where}, or include it from a src/*.c that is no module's source, or write the statements yourself`, extra));
-  } else if (unplaced.length > 0) {
+  for (const u of moduleIncludes) {
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_MODULE_INCLUDED', `${unreadFrom(u, where)}${u.chain.length > 0 ? ',' : ''} #includes "${u.spelled}" (line ${u.line}), the source of module ${u.module ?? ''}, which make compiles on its own: its functions would be built twice, in both objects, and the ROM would not match; remove the #include (module ${u.module ?? ''} builds that file), or merge the two modules in romlift.toml`, { path: u.from }));
+  }
+  if (unplaced.length > 0 && otherUnread.length > 0) {
+    const files = otherUnread.map((u) => `"${u.spelled}" (line ${u.line}${u.from === wanted.path ? '' : ` of ${u.from}`})`).join(', ');
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} gains the INCLUDE_ASM of ${unplaced.join(', ')}, but it #includes ${files}, which romlift does not read as part of it (it reads a src/*.c directly under src/ that is no module's source as part of the file that includes it), so it cannot tell whether that file defines them: move the C into ${where}, or into a src/*.c directly under src/ that is no module's source and include that, or write the statements yourself`, extra));
+  } else if (unplaced.length > 0 && moduleIncludes.length === 0) {
     diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} has no safe place for the INCLUDE_ASM of ${unplaced.join(', ')}: the text ends inside a comment, a literal, a directive or an unclosed #if, or the stub would go between two chunks one #if region holds; close it, or write the statements yourself (in each branch of the region)`, extra));
   }
   for (const { chunk, before, between } of insideFragment) {
-    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} gains the INCLUDE_ASM of ${chunk.stub}, whose place in ROM order, between ${between[0]} and ${between[1]}, lies inside ${before.via}, which ${where} includes (line ${before.line}): romlift never edits an included file, so write INCLUDE_ASM("${dir}", ${chunk.stub}); there yourself`, { path: before.via }));
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_STUB_UNPLACED', `${where} gains the INCLUDE_ASM of ${chunk.stub}, whose place in ROM order, between ${between[0]} and ${between[1]}, lies inside ${fragmentPhrase(before.via, where, before.line, before.chain)}: romlift never edits an included file, so write INCLUDE_ASM("${dir}", ${chunk.stub}); there yourself`, { path: before.via }));
   }
   for (const s of inFragment) {
     const gone = s.dir === dir ? `module ${wanted.module} no longer has ${s.name}` : `no module of romlift.toml has ${chunkFileOf(s.dir, s.name)} any more`;
-    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_FRAGMENT_STUB', `${s.via ?? ''}, which ${where} includes (line ${s.line}), holds INCLUDE_ASM("${s.dir}", ${s.name}); (line ${s.fragmentLine ?? s.line}), and ${gone}: romlift never edits an included file, so rename or remove it there yourself (and the C beside it)`, { path: s.via ?? '' }));
+    diagnostics.push(diagnostic(ReconcileCodes, 'E_C_FRAGMENT_STUB', `${fragmentPhrase(s.via ?? '', where, s.line, s.chain)}, holds INCLUDE_ASM("${s.dir}", ${s.name}); (line ${s.fragmentLine ?? s.line}), and ${gone}: romlift never edits an included file, so rename or remove it there yourself (and the C beside it)`, { path: s.via ?? '' }));
   }
   for (const s of conditional) {
     const gone = s.dir === dir ? `module ${wanted.module} no longer has ${s.name}` : `no module of romlift.toml has ${chunkFileOf(s.dir, s.name)} any more`;
@@ -1030,7 +1120,7 @@ function unscannablePlan(scan: CFileScan, wanted: IncludeAsmWanted, plan: Omit<I
   const statements = anyDepthStatements(scan);
   // The stubs of the fragments it includes hold their chunks too (correctness-b2-1); an unwanted one is the fragment's E_C_FRAGMENT_STUB.
   const fragmentStubs = scan.statements.filter((s) => s.via !== undefined);
-  const fragmentErrors = plan.diagnostics.filter((d) => d.code === 'E_C_FRAGMENT_STUB');
+  const fragmentErrors = plan.diagnostics.filter((d) => d.code === 'E_C_FRAGMENT_STUB' || d.code === 'E_C_MODULE_INCLUDED');
   const included = new Set([...statements, ...fragmentStubs].filter((s) => s.dir === dir).map((s) => s.name));
   const defined = new Set(compiledDefinitions(scan).definitions.map((d) => d.name));
   const missing = wanted.chunks.some((c) => !included.has(c.stub) && !defined.has(c.name));

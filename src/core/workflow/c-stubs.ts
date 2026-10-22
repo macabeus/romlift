@@ -23,7 +23,9 @@
 // wherever a missing stub goes is stale; from the second `generate` on, the tree the first one wrote is on disk.
 // A src/*.c that a module's source #includes is part of the module (fix round 6; its INCLUDE_ASM lines too since fix
 // round 7, correctness-b2-1): the planner reads it, never edits it, and refuses an edit it would need (E_C_FRAGMENT_STUB,
-// E_C_STUB_UNPLACED naming it), so no included stub is duplicated or left stale.
+// E_C_STUB_UNPLACED naming it), so no included stub is duplicated or left stale. Only a src/*.c directly under src/ is
+// read (the shell's readCTexts), and an #include of another module's source is E_C_MODULE_INCLUDED (fix round 8,
+// correctness-c0-1, architecture-c0-2).
 //
 // Three views of one reconciliation:
 // - projectEntries: the stream written into the project; an existing C file's c-stub entry becomes a `reconciled`
@@ -43,7 +45,7 @@ import { stubChunks } from '../model/c-unit.ts';
 import { isCSource, nonmatchingDir } from '../../foundation/util/project-files.ts';
 import { chunkNamesOf, chunkPathsOf, moduleChunkStubs, moduleSource } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
-import { compiledDefinitions, planIncludeAsm, scanC, unscannableWarning } from '../reconcile/include-asm.ts';
+import { compiledDefinitions, fragmentPhrase, planIncludeAsm, scanC, unscannableWarning } from '../reconcile/include-asm.ts';
 import type { CDefinition, StubTree } from '../reconcile/include-asm.ts';
 import { applyTextEdits } from '../reconcile/text-edit.ts';
 import type { TextEdit } from '../reconcile/text-edit.ts';
@@ -81,14 +83,14 @@ function functionModules(model: Pick<Model, 'chunks'>): ReadonlyMap<string, stri
  * E_C_DEFINITION_MOVED for definition `d` of `path` (or of the fragment `d.via` that `path` includes), whose function
  * romlift.toml now puts in module `owner`, whose source is `ownerSource`.
  */
-function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'via'>, owner: Model['modules'][number] | undefined, ownerName: string, ownerSource: string | undefined): Diagnostic {
+function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'via' | 'chain'>, owner: Model['modules'][number] | undefined, ownerName: string, ownerSource: string | undefined): Diagnostic {
   // Named by its path (fix round 6, correctness-b1-2): the file may not exist yet, and the next generate writes the
   // module's INCLUDE_ASM lines and the include of include_asm.h around the C pasted into it.
   const advice =
     owner?.kind === 'c'
       ? `move its C to ${ownerSource ?? `${ownerName}'s source`} (create the file if it does not exist: the next generate adds the module's INCLUDE_ASM lines around it), or the function is defined twice`
       : `${ownerName} is ${owner?.kind === 'data' ? 'a data' : 'an asm'} module, which builds no C: delete the C definition, or make ${ownerName} a c module in romlift.toml, or the function is defined twice`;
-  const where = d.via === undefined ? `${path} defines ${d.name} (line ${d.line})` : `${d.via}, which ${path} includes (line ${d.line}), defines ${d.name}`;
+  const where = d.via === undefined ? `${path} defines ${d.name} (line ${d.line})` : `${fragmentPhrase(d.via, path, d.line, d.chain)}, defines ${d.name}`;
   return diagnostic(WorkflowCodes, 'E_C_DEFINITION_MOVED', `${where}, which romlift.toml now puts in module ${ownerName}: ${advice}`, { path: d.via ?? path });
 }
 
