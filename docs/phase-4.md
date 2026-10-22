@@ -23,7 +23,9 @@ fresh worktree with `landed` 4, exited 0 at every command, sa2 at 777 of 796 ms 
 at every command, sa2 at 689 of 766 ms ("The closing gate"). Fix round 7 (D83) fixed the review of that run; the whole
 closing list at `d1b573a`, in a fresh worktree with `landed` 4, exited 0 at every command, sa2 at 694 of 775 ms ("The
 closing gate"). Fix round 8 (D84) fixed the review of that run; the whole closing list at `ae3945f`, in a fresh
-worktree with `landed` 4, exited 0 at every command, sa2 at 700 of 777 ms ("The closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's
+worktree with `landed` 4, exited 0 at every command, sa2 at 700 of 777 ms ("The closing gate"). Fix round 9 (D85)
+fixed the review of that run; the whole closing list at `dcd2253`, in a fresh worktree with `landed` 4, exited 0 at
+every command, sa2 at 725 of 763 ms ("The closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's
 CI (AGENTS.md).
 
 ## Components
@@ -512,9 +514,10 @@ count them.
   re-runs of fix round 8's list at `1392483`); the readable `verify --assemble` (1,551.3 MiB in that re-run of fix
   round 3's, 1,559.4 MiB in the review's re-run of fix round 7's list at `8b03b1f`, correctness-c0-2, 1,553.3 and
   1,596.5 MiB in the re-runs of fix round 8's); `verify --assemble --link --json` (1,540.6 MiB in fix round 4's
-  closing run, 1,569.9 MiB in fix round 6's, 1,537.7 MiB in a re-run of fix round 8's); and `generate --json`
-  (1,541.8 MiB in the review's re-run of fix round 6's list at `d615ceb`, gate-honesty-b2-1, 1,537.1 MiB in fix round
-  8's closing run, 1,595.2 and 1,539.0 MiB in the re-runs of fix round 8's list, correctness-c1-4). Neither phase-4
+  closing run, 1,569.9 MiB in fix round 6's, 1,537.7 MiB in a re-run of fix round 8's, 1,564.7 MiB in fix round 9's
+  closing run); and `generate --json` (1,541.8 MiB in the review's re-run of fix round 6's list at `d615ceb`,
+  gate-honesty-b2-1, 1,537.1 MiB in fix round 8's closing run, 1,595.2 and 1,539.0 MiB in the re-runs of fix round 8's
+  list, correctness-c1-4, 1,538.2 MiB in fix round 9's closing run). Neither phase-4
   one-shot command, `init` nor `generate`, is held under the budget on the doubled ROM. A code-dense ROM larger than
   32 MiB of that density may exceed the cap (D72, unchanged). No gate measures the doubled ROM (D72 e), and `bench
   large-rom --bin` records the peaks without judging them.
@@ -580,6 +583,44 @@ Measured on branch `phase-4-workflows` (Node 24.15, macOS; the machine shared wi
   `generate` right after: 29,537 keep, 17.8 s, 1,499 MiB (below D72 b's 1,536 MiB budget, with 2% to spare).
 
 ## The closing gate
+
+### Fix round 9's closing run (`dcd2253`)
+
+After fix round 9 (D85; `6d3557b`, `dcd2253`), with `test/gates/phase.json` at `{ "landed": 4 }`, the whole closing
+list in a fresh worktree at `dcd2253` (`git worktree add --detach` under the system temporary directory: no
+`node_modules`, no `bench/.local`, so the PoC dumps, the corpus summary and the agbcc cache were made in the run;
+objdiff-cli 3.7.2 from the main checkout's build), in the landing run's order and environment (the real tier before
+the ci tier), from 08:50 to 10:37 on 22 October 2026. Node 24.15, binutils 2.45.1, macOS; nothing else ran on the
+machine. The worktree was clean afterwards but for the `bench/results.json` the run wrote, committed as this run's
+artifact (`6675afb`: `meta.commit` `dcd2253`, not dirty, source digest `15ef6cf3…`, with the real-tier gate record).
+The doubled ROM is the same `fb17b88d…` image, rebuilt for the run and never committed.
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (1 s) |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | the architecture checker and its mutation test pass |
+| `npm test` | 0 | 2,446 tests, 2,446 pass, 0 fail (30 s) |
+| `npm run fixtures -- check` | 0 | 51 of 51 fixtures agree (binutils 2.45.1) |
+| `npm run build && npm pack --pack-destination "$(mktemp -d)"` | 0 | `romlift-0.0.0.tgz`, 672 files, 484.9 kB |
+| `npm run export-poc -- --mode raw` | 0 | 51 fixtures dumped |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (244 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, parity equal to the committed digests (49 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 97 tests, 97 pass, 0 skipped (743 s); `decompiled-c` builds klonoa to its SHA-1 through every step, step 9 twice (the bare `src/tail.c`, then one starting with `#include "types.h"`: kept, `make` to the SHA-1; the split named `tail` refused with `E_C_MODULE_INCLUDED`; the `#include` removed, `generate` gives the file the header and its stubs, `make` to the SHA-1); `listed-invalid` W_LISTED_INVALID 0 on all six; `padding-orphans` orphan files fe7j 32, klonoa 23, pokeemerald 23, sa2 16, sa3 15, tmc 33, zero pads kept after a `c` module's last function 4, 0, 5, 1, 0, 1, equal to Q8's counts |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (objdiff-cli 3.7.2) |
+| `npm run corpus` | 0 | 100% round trip (4 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1 and the init build (init 0, setup.sh 0, make 0, SHA-1 match) on all six tuning ROMs; both sealed ROMs pass, init build SHA-1; memory family `init` 1,398.6 MiB, `generate` 1,268.5 MiB peak RSS under the 1,024 MiB cap, tree `d60c5331…` (323 s, agbcc built at the pin included) |
+| `npm run bench -- regression` | 0 | no regression against `e915c82` |
+| `node --max-old-space-size=1024 --conditions=source src/cli/main.ts verify --rom <emx2.gba> --assemble --link --json < /dev/null` | 0 | the doubled ROM: 7 checks ok (29,463 files), linked SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`; 161 W_UNLISTED_FUNCTION (Q6) and 1 W_READING_BUDGET (46 s) |
+| `npm run bench -- large-rom --bin --rom <emx2.gba>` | 0 | all fourteen forms exit 0 with ok summaries or completed, 1,149.9 to 1,564.7 MiB peak RSS (`verify --assemble --link --json` the largest and `generate --json` 1,538.2, both over D72 b's 1,536 MiB budget, forms the memory limitation already lists; the readable `verify --assemble` 1,525.6, `init --json` 1,515.5), live heap up to 925.3 MiB (the raw `verify`) (393 s) |
+| `npm run bench -- gates --require 4 --tier real` | 0 | 22 pass, 1 historical (g2.poc-parity), 2 fail (g5.expected-bytes, g5.objdiff: not required, phase 6's since D76 g), 8 pending. Among them: **g2.speed** ("median of 9 runs"; ratio 0.936; sa2 725 of 763 ms, 95.0%; klonoa 234 of 299, tmc 1,359 of 1,739, sa3 1,087 of 1,455, pokeemerald 2,083 of 4,113, fe7j 1,050 of 12,373), **g3.speed-budget** (ratio 0.935; largest analysis pokeemerald 2,046 of 2,804 ms; pokeemerald `generate` 7,573 of 9,347 ms, `init` 9,708 of 14,021 ms), g4.e2e-real (six tuning ROMs, from the source tree and the installed tarball; sealed 2 of 2), g4.toml-mutations (258 legal edits build with `make`: move-start 45, rename 57, delete-function 54, add-override 57 no-ops that warn `W_OVERRIDE_IGNORED`, split-module 45; 170 illegal edits give their codes; 57 ROMs), g4.worktree (56), g4.generate-idempotent (57 ROMs) (2,807 s) |
+| `npm run bench -- gates --require 4 --tier ci` | 0 | 37 pass, 3 fail (g5.c-data-ranges, g5.expected-bytes, g5.reconciler: not required, phase 6's since D76 g), 7 pending. Among them: g1.provenance (source digest `15ef6cf3…`; 23 real-tier gates of phase ≤ 4 pass or are historical), g3.large-rom (`init` 1,212.6 MiB, `generate` 1,212.0 MiB, tree `d60c5331…`), g4.toml-mutations (228 legal: move-start 39, rename 51, delete-function 48, add-override 51 no-ops, split-module 39; 152 illegal; 51 ROMs), g4.packed-e2e (672 files), g4.e2e-fixtures (50), g4.worktree (50), g4.cli-contract (8 commands, 12 `--json` runs), g4.no-toml-write (153 runs), g4.checks-fail (3 files, 24 tests), g4.c-data-fails-loud, g4.multi-compiler (1,677 s) |
+| `npm run bench -- provenance` | 0 | source digest `15ef6cf3…` (Node 24) ok; gate record ok (23); families live; 6 rows, no sealed row |
+
+Every command exits 0, so **phase 4 passes its closing gate** at `landed` 4 after fix round 9. sa2 passes `g2.speed`
+at 95.0% of its limit, inside the spread recorded under Q2 (85.6% to 97.7%), so no new owner question arises. The merge
+to `main` waits for the phase pull request's CI; nothing is merged or pushed.
 
 ### Fix round 8's closing run (`ae3945f`)
 
@@ -1272,8 +1313,8 @@ Twelve findings: two majors and ten minors. The two majors (correctness-c1-1, ar
 under two lenses; it is fixed, reproduced first by a planner test and a CLI test on the composite fixture and then end
 to end on klonoa with agbcc in `test/local/decompiled-c.test.ts` (D85). Of the minors, seven are fixed, one is recorded
 as a known limitation as its finding allows, and two needed nothing new. No gate changes what it requires. Commits on
-`phase-4` after `1392483`: `6d3557b` (the code, templates and tests), the records commit, the closing run's artifact and
-this record's results ("The closing gate", fix round 9's closing run).
+`phase-4` after `1392483`: `6d3557b` (the code, templates and tests), the records commit `dcd2253`, the closing run's
+artifact `6675afb` and this record's results ("The closing gate", fix round 9's closing run: every command exit 0).
 
 | Finding | Severity | Disposition |
 | --- | --- | --- |
