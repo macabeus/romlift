@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
-import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
+import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, isHeaderPath, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
@@ -118,18 +118,20 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
  * Every file under the project's include/ and every `.h` under its src/, at any depth, keyed by project path (fix
  * round 10, correctness-c2-1; src/ since fix round 11, correctness-d0-2): the headers the C reconciliation follows, as
  * the scaffold's `cpp -nostdinc -I include` finds them, to learn whether a file's includes already define INCLUDE_ASM
- * (IncludeAsmWanted.headers). Listed by disk-state's filesUnder, so a symbolic link is never followed into a directory:
- * a link to a file is read as that file, and one to a directory (EISDIR) or to nothing (ENOENT) is left out. Empty
- * when neither directory exists; any other failure to list or read is E_IO_READ.
+ * (IncludeAsmWanted.headers). Listed by disk-state's filesUnder with `followLinks`, as cpp follows a symbolic link (fix
+ * round 12, correctness-d1-1): a link to a file is read as that file, a link to a directory (include/ or src/ itself
+ * among them) is walked under its own project path, and a cycle ends at a directory the walk is already inside or at
+ * the project directory; a dangling link is left out. Empty when neither directory exists; any other failure to list
+ * or read is E_IO_READ.
  */
 export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyMap<string, string>>> {
   const headers: string[] = [];
-  const listedHeaders = await filesUnder(dir, INCLUDE_DIR, headers);
+  const listedHeaders = await filesUnder(dir, INCLUDE_DIR, headers, { followLinks: true });
   if (!listedHeaders.ok) return fromIo(listedHeaders);
   const sources: string[] = [];
-  const listedSources = await filesUnder(dir, C_SOURCE_DIR, sources);
+  const listedSources = await filesUnder(dir, C_SOURCE_DIR, sources, { followLinks: true });
   if (!listedSources.ok) return fromIo(listedSources);
-  const paths = [...headers.filter((p) => p.startsWith(`${INCLUDE_DIR}/`)), ...sources.filter((p) => p.startsWith(`${C_SOURCE_DIR}/`) && p.endsWith('.h'))];
+  const paths = [...headers.filter((p) => p.startsWith(`${INCLUDE_DIR}/`)), ...sources.filter((p) => p.startsWith(`${C_SOURCE_DIR}/`) && isHeaderPath(p))];
   const out = new Map<string, string>();
   for (const path of paths.sort(compareCodeUnits)) {
     const file = join(dir, ...path.split('/'));

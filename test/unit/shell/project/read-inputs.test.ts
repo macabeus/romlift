@@ -250,15 +250,48 @@ test('readHeaderTexts: no include/ or src/ is an empty map; every file under inc
   assert.deepEqual([...file.value], []);
 });
 
-test('readHeaderTexts never follows a symbolic link into a directory: a link cycle ends, a link to a file is read', async () => {
+// Fix round 12 (correctness-d1-1, architecture-d1-1, gate-honesty-d1-1): links are followed as the scaffold's cpp
+// follows them; fix round 11's lstat walk read nothing behind a link to a directory, and a module renamed with git mv
+// whose defining global.h sat behind one gained a second include_asm.h.
+
+test('readHeaderTexts follows a symbolic link into a directory as cpp does: a linked subdirectory of include/ or src/, a second path to a directory, a link to a file; a cycle ends; a dangling link or a link loop is left out', async () => {
+  const shared = await dirWith({ 'gba/macro.h': 'm', 'src/x.h': 'x', 'src/y.c': 'not a header' });
   const dir = await dirWith({ 'include/global.h': 'g', 'include/real/types.h': 't' });
   await symlink('.', path.join(dir, 'include', 'a'));
   await symlink('.', path.join(dir, 'include', 'b'));
+  await symlink('..', path.join(dir, 'include', 'up'));
+  await symlink('real', path.join(dir, 'include', 'alias'));
+  await symlink(path.join(shared, 'gba'), path.join(dir, 'include', 'gba'));
   await symlink('real/types.h', path.join(dir, 'include', 'types.h'));
   await symlink('missing.h', path.join(dir, 'include', 'dangling.h'));
+  await symlink('loop.h', path.join(dir, 'include', 'loop.h'));
+  await mkdir(path.join(dir, 'src'));
+  await symlink(path.join(shared, 'src'), path.join(dir, 'src', 'sub'));
   const read = await readHeaderTexts(dir);
   assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-  assert.deepEqual([...read.value], [['include/global.h', 'g'], ['include/real/types.h', 't'], ['include/types.h', 't']]);
+  assert.deepEqual([...read.value], [
+    ['include/alias/types.h', 't'],
+    ['include/gba/macro.h', 'm'],
+    ['include/global.h', 'g'],
+    ['include/real/types.h', 't'],
+    ['include/types.h', 't'],
+    ['src/sub/x.h', 'x'],
+  ]);
+});
+
+test('readHeaderTexts follows include/ and src/ that are themselves links; one to the project directory ends there', async () => {
+  const shared = await dirWith({ 'include/global.h': 'g', 'include/sub/a.h': 'a', 'src/local.h': 'l', 'src/main.c': 'not a header' });
+  const dir = await dirWith({});
+  await symlink(path.join(shared, 'include'), path.join(dir, 'include'));
+  await symlink(path.join(shared, 'src'), path.join(dir, 'src'));
+  const read = await readHeaderTexts(dir);
+  assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+  assert.deepEqual([...read.value], [['include/global.h', 'g'], ['include/sub/a.h', 'a'], ['src/local.h', 'l']]);
+  const self = await dirWith({ 'global.h': 'g' });
+  await symlink('.', path.join(self, 'include'));
+  const selfRead = await readHeaderTexts(self);
+  assert.ok(selfRead.ok);
+  assert.deepEqual([...selfRead.value], [], 'include -> . is the project directory: a cycle, walked no further');
 });
 
 test('readHeaderTexts: an include/ or src/ directory it cannot list, or a header it cannot read, is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {

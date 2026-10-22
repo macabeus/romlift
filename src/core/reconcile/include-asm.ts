@@ -80,7 +80,7 @@
 // wherever a missing stub goes (correctness-a0-1). The other unwanted definitions are returned (`undeclared`) for
 // the caller, which knows the other modules (core/workflow/c-stubs.ts: E_C_DEFINITION_MOVED).
 import { C_STUB_HEADER, includeAsmStatement } from '../../foundation/asm/dialect.ts';
-import { chunkFileOf, INCLUDE_ASM_HEADER_NAME, INCLUDE_ASM_HEADER_PATH, INCLUDE_DIR, nonmatchingDir, NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
+import { chunkFileOf, INCLUDE_ASM_HEADER_NAME, INCLUDE_ASM_HEADER_PATH, INCLUDE_DIR, isHeaderPath, nonmatchingDir, NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { tokenizeC, isTrivia } from './c-tokens.ts';
@@ -1081,7 +1081,7 @@ function withFragments(scan: CFileScan, wanted: IncludeAsmWanted): { readonly sc
       const text = resolved === undefined || module !== undefined ? undefined : fragments.get(resolved);
       if (resolved === undefined || text === undefined) {
         if (module !== undefined) unread.push({ spelled, line: token.line, from, chain, module });
-        else if (!spelled.endsWith('.h')) unread.push({ spelled, line: token.line, from, chain });
+        else if (!isHeaderPath(spelled)) unread.push({ spelled, line: token.line, from, chain });
         continue;
       }
       included.push(resolved);

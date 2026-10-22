@@ -6,7 +6,7 @@
 // carried into the INCLUDE_ASM lines of src/<module>.c (D75 b).
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -686,6 +686,46 @@ test('a c module renamed with git mv whose INCLUDE_ASM comes through a fragment 
     assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic'), [], out.stdout);
     // Fix round 10 added the header here, and the user's macros.inc then came twice: the assembler refused.
     assert.equal(await readFile(path.join(dir, 'src', 'boot.c'), 'utf8'), text.replaceAll('asm/nonmatchings/main_3', 'asm/nonmatchings/boot'), layout.name);
+    assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'idempotent');
+  }
+});
+
+test('a c module renamed with git mv whose INCLUDE_ASM comes from a header behind a symbolic link to a directory: no second header (fix round 12, correctness-d1-1, architecture-d1-1, gate-honesty-d1-1)', async () => {
+  // cpp -I include follows a linked include/ and a linked subdirectory of it; fix round 11 read nothing behind either.
+  const layouts = ['include/ a link', 'include/gba a link'] as const;
+  for (const layout of layouts) {
+    const dir = await initProject();
+    const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+    const main3 = await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8');
+    const header = await readFile(path.join(dir, 'include', 'include_asm.h'), 'utf8');
+    assert.ok(main3.startsWith('#include "include_asm.h"\n') && main3.includes(stubIn('main_3', 'sub_08000508')) && header.includes('macros.inc'), 'the composite as this test knows it');
+    const own = header.replace(/GUARD_INCLUDE_ASM_H/g, 'GUARD_GLOBAL_H');
+    const shared = `${dir}-shared`;
+    await mkdir(shared, { recursive: true });
+    if (layout === 'include/ a link') {
+      await writeFile(path.join(dir, 'include', 'global.h'), own);
+      await rename(path.join(dir, 'include'), path.join(shared, 'include'));
+      await symlink(path.join(shared, 'include'), path.join(dir, 'include'));
+    } else {
+      await mkdir(path.join(shared, 'gba'), { recursive: true });
+      await writeFile(path.join(shared, 'gba', 'macro.h'), own);
+      await symlink(path.join(shared, 'gba'), path.join(dir, 'include', 'gba'));
+      await writeFile(path.join(dir, 'include', 'global.h'), '#include "gba/macro.h"\n');
+    }
+    const text = main3.replace('#include "include_asm.h"\n', '#include "global.h"\n').replace(stubIn('main_3', 'sub_08000508'), 'void sub_08000508(void) {\n}');
+    await writeFile(path.join(dir, 'src', 'main_3.c'), text);
+    const first = await run(dir, ['generate', '--json']);
+    assert.equal(first.code, ExitCode.ok, first.stdout);
+    assert.deepEqual(lines(first.stdout).filter((l) => l['type'] === 'diagnostic'), [], first.stdout);
+    assert.equal(await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8'), text, layout);
+    await writeFile(path.join(dir, 'romlift.toml'), toml.replace('name = "main_3"', 'name = "boot"'));
+    await writeFile(path.join(dir, 'src', 'boot.c'), text);
+    await rm(path.join(dir, 'src', 'main_3.c'));
+    const out = await run(dir, ['generate', '--json']);
+    assert.equal(out.code, ExitCode.ok, out.stdout);
+    assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic'), [], out.stdout);
+    // Fix round 11 added the header here, and the user's macros.inc then came twice: the assembler refused.
+    assert.equal(await readFile(path.join(dir, 'src', 'boot.c'), 'utf8'), text.replaceAll('asm/nonmatchings/main_3', 'asm/nonmatchings/boot'), layout);
     assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'idempotent');
   }
 });

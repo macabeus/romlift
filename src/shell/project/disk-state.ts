@@ -3,7 +3,7 @@
 // Mechanical: the shell lists, reads and hashes; what the digests mean is planWrites'. Directories are
 // listed only through shell/fs.ts's listDir (architecture §2).
 import type { Stats } from 'node:fs';
-import { lstat, readFile, stat } from 'node:fs/promises';
+import { lstat, readFile, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -54,13 +54,35 @@ export async function digestOf(dir: string, path: string): Promise<IoResult<stri
   }
 }
 
+/** How filesUnder treats a symbolic link to a directory. */
+export interface FilesUnderOptions {
+  /**
+   * Follow it, as the Makefile's cpp and make do (readHeaderTexts, fix round 12, correctness-d1-1): a link to a
+   * directory is walked under its own project path. A cycle ends where a directory's real path (realpath) is the
+   * project directory's or that of a directory the walk is already inside, as `find -L` ends one; a dangling link or
+   * a link loop (ENOENT, ENOTDIR, ELOOP) is left out. Default false: listed as one entry, never followed (the disk
+   * snapshot, which hashes what romlift wrote).
+   */
+  readonly followLinks?: boolean;
+}
+
 /**
  * Every file below the project directory `path` (no trailing '/'), as project paths, in code-unit order; none when it
- * is absent. Symbolic links are listed, never followed (lstat): a link is one entry, whatever it points at, so a link
- * cycle ends. The one directory walker of the shell: the disk snapshot's and readHeaderTexts' (fix round 11,
- * architecture-d0-3).
+ * is absent. The recursive walker of the shell, with two link policies chosen by the caller (fix round 12,
+ * architecture-d1-2): the disk snapshot lists a symbolic link as one entry, whatever it points at (lstat), and
+ * readHeaderTexts follows a link to a directory as cpp does (`options.followLinks`). The shell's fixed-depth listings
+ * (readCTexts' `src/*.c`, readChunkFiles' `asm/nonmatchings/<module>/`) use stat, which follows a link as well.
  */
-export async function filesUnder(dir: string, path: string, out: string[]): Promise<IoResult<void>> {
+export async function filesUnder(dir: string, path: string, out: string[], options: FilesUnderOptions = {}): Promise<IoResult<void>> {
+  if (options.followLinks === true) {
+    let root: string;
+    try {
+      root = await realpath(dir);
+    } catch (error) {
+      return ioError('E_IO_READ', dir, `cannot resolve ${dir}: ${errorReason(error)}`);
+    }
+    return filesFollowing(dir, path, out, [root]);
+  }
   let stat: Stats;
   try {
     stat = await lstat(onDisk(dir, path));
@@ -76,6 +98,38 @@ export async function filesUnder(dir: string, path: string, out: string[]): Prom
   if (!names.ok) return names;
   for (const name of names.value) {
     const below = await filesUnder(dir, `${path}/${name}`, out);
+    if (!below.ok) return below;
+  }
+  return { ok: true, value: undefined };
+}
+
+/** filesUnder following links: `inside` holds the real paths of the project directory and of the directories walked into. */
+async function filesFollowing(dir: string, path: string, out: string[], inside: readonly string[]): Promise<IoResult<void>> {
+  const file = onDisk(dir, path);
+  let found: Stats;
+  try {
+    found = await stat(file);
+  } catch (error) {
+    const code = errnoOf(error);
+    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP') return { ok: true, value: undefined };
+    return ioError('E_IO_READ', file, `cannot stat ${file}: ${errorReason(error)}`);
+  }
+  if (!found.isDirectory()) {
+    out.push(path);
+    return { ok: true, value: undefined };
+  }
+  let real: string;
+  try {
+    real = await realpath(file);
+  } catch (error) {
+    return ioError('E_IO_READ', file, `cannot resolve ${file}: ${errorReason(error)}`);
+  }
+  if (inside.includes(real)) return { ok: true, value: undefined };
+  const names = await listDir(file);
+  if (!names.ok) return names;
+  const deeper = [...inside, real];
+  for (const name of names.value) {
+    const below = await filesFollowing(dir, `${path}/${name}`, out, deeper);
     if (!below.ok) return below;
   }
   return { ok: true, value: undefined };

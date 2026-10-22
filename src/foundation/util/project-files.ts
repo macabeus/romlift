@@ -63,6 +63,18 @@ export function isCSource(name: string): boolean {
   return name.endsWith(C_SOURCE_EXTENSION);
 }
 
+/** The extension of a C header. */
+const HEADER_EXTENSION = '.h';
+
+/**
+ * Whether a file name (or path) is a C header's: a `.h` under `src/` that the shell reads beside `include/`, and an
+ * unread quoted include the C reconciliation does not report as an unread `src/*.c` fragment (fix round 12,
+ * architecture-d1-3: the one definition both layers use).
+ */
+export function isHeaderPath(name: string): boolean {
+  return name.endsWith(HEADER_EXTENSION);
+}
+
 /** The project path of the C source called `name` (a file name directly under C_SOURCE_DIR, extension included). */
 export function cSourceOf(name: string): string {
   return `${C_SOURCE_DIR}/${name}`;

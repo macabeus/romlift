@@ -39,7 +39,13 @@
 //  11. (fix round 11, correctness-d0-1, d0-2) that global.h reached instead through a src/*.c fragment the module's
 //      file includes, then through `#include <global.h>`, then through a src/local.h that defines the macro: each
 //      builds, and each time the module renamed with `git mv` gains no header and `make` ends at the SHA-1 (fix round
-//      10's make failed in the assembler on all three).
+//      10's make failed in the assembler on all three);
+//  12. (fix round 12, correctness-d1-1, architecture-d1-1, gate-honesty-d1-1) the defining header behind a symbolic link
+//      to a directory, as cpp follows it: first include/gba linked to a directory outside the project, holding a
+//      macro.h that defines INCLUDE_ASM and includes macros.inc, reached through include/glue.h; then include/ itself a
+//      link to a directory outside the project, global.h reached through it. Each builds, and each time the module
+//      renamed with `git mv` gains no header and `make` ends at the SHA-1 (fix round 11's make failed in the assembler
+//      on both, its lstat walk reading nothing behind a link to a directory).
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -48,7 +54,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { chmod, copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, cp, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -414,6 +420,60 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
     assert.equal(await readFile(file(`src/${module}.c`), 'utf8'), laidOut, `${layout.name}: nothing to change`);
     await make();
     const next = `boot${k + 3}`;
+    const nextToml = tomlStep11.replace(`[[modules]]\nname = "${module}"\n`, `[[modules]]\nname = "${next}"\n`);
+    assert.notEqual(nextToml, tomlStep11, `module ${module}`);
+    await writeFile(file('romlift.toml'), nextToml);
+    await git(dir, 'mv', `src/${module}.c`, `src/${next}.c`);
+    const renamed = await generate();
+    assert.equal(renamed.code, 0, renamed.tail);
+    assert.deepEqual(renamed.codes, [], renamed.tail);
+    const expected = laidOut.replaceAll(`asm/nonmatchings/${module}/`, `asm/nonmatchings/${next}/`).replaceAll(`"asm/nonmatchings/${module}"`, `"asm/nonmatchings/${next}"`);
+    assert.equal(await readFile(file(`src/${next}.c`), 'utf8'), expected, `${layout.name}: the stubs renamed, no header added`);
+    await make();
+    module = next;
+    tomlStep11 = nextToml;
+    textNow = expected;
+  }
+
+  // 12. (fix round 12, correctness-d1-1, architecture-d1-1, gate-honesty-d1-1) The reviews' flows: the defining header
+  //     behind a symbolic link to a directory, which the scaffold's cpp follows. First include/gba links to a directory
+  //     outside the project whose macro.h defines the macro (include/glue.h includes "gba/macro.h"); then include/
+  //     itself links to a directory outside the project, global.h reached through it. Each builds, and the module
+  //     renamed with `git mv` gains no header: fix round 11 read nothing behind the link and added one (its make:
+  //     `Macro 'arm_func_start' was already defined`).
+  const shared = `${dir}-shared`;
+  await mkdir(path.join(shared, 'gba'), { recursive: true });
+  await writeFile(path.join(shared, 'gba', 'macro.h'), globalText.replace(/GUARD_GLOBAL_H/g, 'GUARD_GBA_MACRO_H'));
+  const linked = [
+    {
+      name: 'linked include/gba',
+      include: '#include "glue.h"\n',
+      lay: async (): Promise<void> => {
+        await symlink(path.join(shared, 'gba'), file('include/gba'));
+        await writeFile(file('include/glue.h'), '#include "gba/macro.h"\n');
+      },
+    },
+    {
+      name: 'linked include/',
+      include: '#include "global.h"\n',
+      lay: async (): Promise<void> => {
+        await rename(file('include'), path.join(shared, 'include'));
+        await symlink(path.join(shared, 'include'), file('include'));
+      },
+    },
+  ] as const;
+  for (const [k, layout] of linked.entries()) {
+    await layout.lay();
+    const first = textNow.slice(0, textNow.indexOf('\n') + 1);
+    assert.ok(first.startsWith('#include '), `src/${module}.c starts with its include`);
+    const laidOut = `${layout.include}${textNow.slice(first.length)}`;
+    await writeFile(file(`src/${module}.c`), laidOut);
+    const kept = await generate();
+    assert.equal(kept.code, 0, kept.tail);
+    assert.deepEqual(kept.codes, [], kept.tail);
+    assert.equal(await readFile(file(`src/${module}.c`), 'utf8'), laidOut, `${layout.name}: nothing to change`);
+    await make();
+    const next = `boot${k + 6}`;
     const nextToml = tomlStep11.replace(`[[modules]]\nname = "${module}"\n`, `[[modules]]\nname = "${next}"\n`);
     assert.notEqual(nextToml, tomlStep11, `module ${module}`);
     await writeFile(file('romlift.toml'), nextToml);

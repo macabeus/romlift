@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { assembleUnits, buildUnits, cAssemblyPath, chunkNamesOf, chunkPaths, cObjectPath, CRT0_PATH, HEADER_PATH, MODULES_MK_PATH, modulePathPrefixes, moduleSource, objectPath } from '../../../src/core/model/paths.ts';
-import { isCSource } from '../../../src/foundation/util/project-files.ts';
+import { isCSource, isHeaderPath } from '../../../src/foundation/util/project-files.ts';
 import { dataItem, modelOf, romWith } from '../../helpers/model.ts';
 
 function model() {
@@ -83,6 +83,8 @@ test('a C module builds src/<m>.c through build/src/<m>.s to build/src/<m>.o; it
   assert.equal(cAssemblyPath('main'), 'build/src/main.s');
   assert.equal(objectPath('main'), 'build/main.o');
   assert.deepEqual(['src/main.c', 'asm/main.s', 'data/data.s'].map(isCSource), [true, false, false]);
+  // The one header predicate of the shell's src/*.h listing and the reconciler's unread includes (architecture-d1-3).
+  assert.deepEqual(['src/local.h', 'global.h', 'src/main.c', 'include/macros.inc'].map(isHeaderPath), [true, true, false, false]);
   assert.deepEqual(modulePathPrefixes(c, c.modules[2]!), ['src/main.c', 'asm/nonmatchings/main/']);
   assert.equal(MODULES_MK_PATH, 'modules.mk');
   // The header's module keeps its file and object whatever its kind says.
