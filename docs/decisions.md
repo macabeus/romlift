@@ -3836,6 +3836,54 @@ module boot renamed boot2 and `git mv src/boot.c src/boot2.c`; `generate` exit 0
 `make` to the SHA-1), with steps 5 and 9 (fix rounds 6, 8 and 9's cases) still building. The closing list is re-run in
 a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 10).
 
+## D87. Fix round 11 of phase 4: the review of fix round 10
+
+**Context.** The review of fix round 10's closing run at `625d710` (round d0) raised six findings: two majors
+(correctness-d0-1, architecture-d0-1) and four minors. The two majors are one defect raised under two lenses: D86 a's
+`macroProvided` followed only the module file's own quoted includes, never those of the `src/*.c` fragments the file
+`#include`s, though the planner reads those fragments (D83 a). A `c` module renamed with `git mv`, whose
+`src/<module>.c` starts with `#include "part.c"` and whose `part.c` includes a `global.h` that defines `INCLUDE_ASM`
+and includes `macros.inc`, gained `#include "include_asm.h"`; `generate` exited 0 with no diagnostic and `make` failed
+in the assembler (`include/macros.inc:1: Error: Macro 'arm_func_start' was already defined`), where fix round 8's
+code built the same tree. Three minors (gate-honesty-d0-1, correctness-d0-2, architecture-d0-2) are one record defect
+under three lenses: an angle include of a header under `include/` (`#include <global.h>`, which the scaffold's `cpp
+-nostdinc -I include` resolves there) was not followed, with the same failure, and phase-4.md said the scaffold's
+`AGENTS.md` stated that limitation when it did not. The fourth minor (architecture-d0-3) is the shell reader
+`readHeaderTexts`: a second directory walker that followed symbolic links, untested. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **The fragments' includes are followed** (correctness-d0-1, architecture-d0-1). `macroProvided` starts from the
+  module's file and every fragment `withFragments` read for it (`included`, transitively, each once): a fragment that
+  `#define`s `INCLUDE_ASM` or includes `include_asm.h` provides the macro, and its includes are followed into the
+  headers like the file's own. `planScanned` passes `included` to `headerInsertion`.
+- (b) **Includes resolve as the scaffold's cpp resolves them** (correctness-d0-2, architecture-d0-2, gate-honesty-d0-1),
+  the findings' code option rather than a recorded limitation: `#include "…"` from the including file's own directory
+  first, then from `include/`; `#include <…>` from `include/` alone (`includeSpelling`, `headerPath`). The shell reads
+  every `.h` under `src/` beside every file under `include/`, so a quoted `src/local.h` that defines the macro, or a
+  `src/global.h` that shadows `include/global.h`, is read as cpp reads it. What stays unevaluated is an `#if` around an
+  `#include`, an `#include` spelled with a macro and an include directory the user adds to `CPPFLAGS`; the scaffold's
+  `AGENTS.md` says so, with the consequence (`make` stops in the assembler on a second `macros.inc`) and the remedy
+  (delete the added line; romlift adds it only to a file with no `INCLUDE_ASM` line left of its own). phase-4.md's
+  limitation sentence is replaced by that one; D86 a's "a `src/*.h`, an angle include" exception no longer holds.
+- (c) **One directory walker** (architecture-d0-3). `readHeaderTexts` lists `include/` and `src/` with disk-state's
+  `filesUnder`, now exported, which uses `lstat` and never follows a symbolic link into a directory: a link to a file is
+  read as that file, a link to a directory or a dangling link is left out, so a link cycle ends. HEADER_DEPTH is gone.
+  Unit tests: no `include/` or `src/` gives an empty map; nested files keyed by project path, only `.h` under `src/`;
+  two links to `.` end, a link to a file is read; an unlistable directory or unreadable header is `E_IO_READ`;
+  `readProject` passes `headerTexts`, and none with `withoutC`; `reconcileStubs`' fourth argument and the fragments
+  (`c-stubs.test.ts`). `src/shell/index.md` names the headers among what read-inputs reads.
+
+**Consequences.** New tests: the planner (the reviewers' fragment flow, two fragments deep, an angle include in the
+fragment, a fragment defining the macro or including `include_asm.h`: no header; a fragment whose `global.h` declares
+types: the header; `#include <global.h>` directly and nested, `<include_asm.h>`: no header; an angle include never finds
+`src/global.h`; a quoted include finds `src/local.h`, and `src/global.h` before `include/global.h`), the CLI (a `c`
+module renamed with its source moved, for each of the three layouts: no header, no diagnostic, idempotent), and
+`test/local/decompiled-c.test.ts` step 11 on klonoa with agbcc (the three layouts in turn, each built to the SHA-1, then
+the module renamed with `git mv`: `generate` exit 0, no diagnostic, no header, `make` to the SHA-1; at `625d710`'s code
+the step fails at "fragment: the stubs renamed, no header added"). The closing list is re-run in a fresh worktree with
+`landed` 4 (phase-4.md, "The closing gate", fix round 11).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

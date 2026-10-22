@@ -1623,7 +1623,7 @@ and the project's `DecompState` read (D80 b, D81 a, D82 b). A `src/*.c` that a m
 (resolved from `src/`) is part of that module: its definitions hold their chunks at the `#include` line, a function of
 another module in it is `E_C_DEFINITION_MOVED` naming it, and it is no `W_C_FILE_UNUSED` (D82 b). A file that gains a
 stub and holds no `INCLUDE_ASM` statement, and gets the macro neither from its own lines nor from a header it
-includes (D86 a), gains `#include "include_asm.h"`
+includes (D86 a, D87 a), gains `#include "include_asm.h"`
 (`C_STUB_HEADER`) above its first line of code, so the file a user creates with only the C that `E_C_DEFINITION_MOVED`
 (which names the module's source path) sent there builds (D82 b). Every insertion takes the file's line terminator
 (D82 b). Since fix round 7 the fragment's `INCLUDE_ASM` statements, and what the `src/*.c` files it includes in turn
@@ -1637,10 +1637,14 @@ an error whether or not the file needs an edit, since make compiles that source 
 functions twice (a fragment made a module by a split named after it), even under `#if 0` (D85 b); a file whose every
 stub the plan replaces (such a fragment, whose stubs the including file's header served, or a renamed module's source
 moved with `git mv`) gains the header with its new stubs unless the macro reaches it some other way: since fix round 10
-(D86 a) the planner follows the file's quoted includes that resolve under `include/` (`IncludeAsmWanted.headers`, every
-file under `include/`, which the shell reads; from a header its own directory first, as `cpp -I include` does),
-transitively and each header once, and adds nothing when the file or one of them `#define`s `INCLUDE_ASM` or includes
-`include_asm.h`. Which `#include` the file has decides nothing by itself (D85 a: a `global.h` of types alone still
+(D86 a) the planner follows the file's includes (`IncludeAsmWanted.headers`, which the shell reads with
+`readHeaderTexts`: every file under `include/` and, since fix round 11, every `.h` under `src/`), and since fix round 11
+(D87 a, b) those of the `src/*.c` fragments it includes too, resolved as the scaffold's `cpp -nostdinc -I include`
+does (`#include "…"` from the including file's own directory first, then `include/`; `#include <…>` from `include/`
+alone), transitively and each file once, and adds nothing when the file, a fragment or one of those headers
+`#define`s `INCLUDE_ASM` or includes `include_asm.h`; an `#if` around an `#include`, an `#include` spelled with a
+macro and an include directory added to `CPPFLAGS` are not evaluated (the scaffold's `AGENTS.md` names the remedy,
+deleting the added line). Which `#include` the file has decides nothing by itself (D85 a: a `global.h` of types alone still
 brings the header); the generated header's guard does not cover a `global.h` that defines the macro and includes
 `macros.inc` itself, whose second inclusion the assembler refuses (`Macro … was already defined`); a message about a nested fragment names the include chain from the
 file that includes it directly to the module's file (`CDefinition.chain`, `IncludeAsmStatement.chain`, `CIncludeLink`);

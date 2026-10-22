@@ -892,11 +892,11 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   import is dropped; `shell/evidence/read-trace.ts` and `foundation/formats/trace-json.ts` serve only the trace.
   Phase 6's plan rewrite keeps each (a new producer) or deletes it with its tests, codec spelling and architecture
   entries; `seed.override` is carried above with the override semantics.
-- **architecture-b2-9** (fix round 7, D83 f): `core/reconcile/include-asm.ts` (about 1,250 lines since fix round 10,
+- **architecture-b2-9** (fix round 7, D83 f): `core/reconcile/include-asm.ts` (about 1,280 lines since fix round 11,
   architecture-c1-4) holds the C scanner, the "C defines it" rule, include resolution and fragments, the header
   insertion and the planner. Split the scanner and the definition rule (`scanC`, `conditionalsOf`,
   `compiledDefinitions`, `CFileScan`, `CDefinition`) into `core/reconcile/c-scan.ts` beside `c-tokens.ts`, move the
-  include-resolution helpers (`withFragments`, `resolveInclude`, `fileScopeIncludes`, `headerPath`, `macroProvided`,
+  include-resolution helpers (`withFragments`, `resolveInclude`, `fileScopeIncludes`, `includeSpelling`, `headerPath`, `macroProvided`,
   `fragmentPhrase`, `CIncludeLink`, `orderKey`, `laterThan`) out of the planner with them, and update architecture §2's `core/reconcile` list. Carried: a pure
   move of about 500 lines with every importer and test, no defect behind it, and phase 6's `rename-tokens.ts` adds the
   next reader of the scanner, so the split lands with it.

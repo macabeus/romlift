@@ -469,8 +469,12 @@ count them.
   its own, remove its `#include` in the same step; the file then gains the new module's stubs and, unless it gets
   `INCLUDE_ASM` from its own lines or from a header under `include/` it includes (one that `#define`s it or includes
   `include_asm.h`, at any depth; fix round 10, D86 a), that header (D85 a); so does a renamed module's source moved
-  with `git mv`. A header romlift cannot resolve under `include/` (a `src/*.h`, an angle include) counts as defining
-  nothing. The scaffold's `AGENTS.md` says so.
+  with `git mv`. Since fix round 11 (D87 a, b) the fragments the file includes count too, and an include is resolved
+  as the scaffold's `cpp -nostdinc -I include` does (quoted: the including file's directory, then `include/`; angle:
+  `include/`; romlift reads every file under `include/` and every `.h` under `src/`). An `#if` around an `#include`,
+  an `#include` spelled with a macro and an include directory added to `CPPFLAGS` are not evaluated: when such a
+  header defines `INCLUDE_ASM`, `generate` exits 0 having added `#include "include_asm.h"`, and `make` stops in the
+  assembler (`Macro … was already defined`) until that line is deleted. The scaffold's `AGENTS.md` says so.
 - Since the generated tree is not in Git (Q9), a project whose `Makefile` predates fix round 6 (written once by an
   earlier `init`) has no staleness guard: after a pull that changes `romlift.toml` its user must run `romlift generate`
   (D82 a; `scaffold --diff` shows the new template). A project `init` makes from fix round 6 on stops `make` with the
@@ -1393,3 +1397,21 @@ artifact `411284f` and this record's results ("The closing gate", fix round 10's
 | correctness-c2-2 | minor | **Fixed**, the same record as gate-honesty-c2-1. |
 | architecture-c2-2 | minor | **Fixed**, the same record as gate-honesty-c2-1. |
 | architecture-c2-3 | minor | **Fixed** (records, D86 b). roadmap.md "Carried from phase 4": `write-project.ts` takes only `SCAFFOLD_ROM_FILE` from `core/scaffold/vars.ts`, the other two names from `project-files.ts` since fix round 9; the b2-7/b2-12 bullet lists `api/config.ts`'s re-export of `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE`. |
+
+### Fix round 11 (the review of fix round 10's closing run at `625d710`)
+
+Six findings: two majors and four minors. The two majors (correctness-d0-1, architecture-d0-1) are one defect raised
+under two lenses, and three minors (gate-honesty-d0-1, correctness-d0-2, architecture-d0-2) are one defect raised under
+three; both are fixed in code, reproduced first by planner and CLI tests on the composite fixture and then end to end on
+klonoa with agbcc in `test/local/decompiled-c.test.ts` step 11 (D87). The fourth minor is fixed. No gate changes what it
+requires. Commits on `phase-4` after `625d710`: `43e2da7` (the code, templates and tests), the records commit, the
+closing run's artifact and this record's results ("The closing gate", fix round 11's closing run).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-d0-1 | major | **Fixed** (`43e2da7`, D87 a). `macroProvided` starts from the module's file and every `src/*.c` fragment `withFragments` read for it, transitively: a fragment that defines `INCLUDE_ASM`, includes `include_asm.h` or includes a header that does provides the macro. Tests: the planner (the reviewer's `#include "part.c"` with `part.c` including a defining `global.h`, two fragments deep, an angle include in the fragment, a fragment defining the macro or including `include_asm.h`: no header; a fragment whose `global.h` declares types: the header), `reconcileStubs` with the fragment, the CLI (a `c` module renamed with its source moved: no header, no diagnostic, idempotent), and `decompiled-c` step 11 on klonoa (the layout built to the SHA-1, module renamed with `git mv`, `generate` exit 0 with no diagnostic and no header, `make` to the SHA-1; at `625d710`'s code the step fails at "fragment: the stubs renamed, no header added"). |
+| architecture-d0-1 | major | **Fixed**, the same defect and fix as correctness-d0-1. D86 a's exceptions, architecture §6.6, the known limitation and the scaffold's `AGENTS.md` (fragment and rename paragraphs) say that the file's fragments count. |
+| correctness-d0-2 | minor | **Fixed** (`43e2da7`, D87 b), the code option. Includes resolve as the scaffold's `cpp -nostdinc -I include` does: `#include <…>` from `include/` alone, `#include "…"` from the including file's own directory first, then `include/`; the shell reads every `.h` under `src/` too, so `src/*.h` is followed as well. Tests: the planner (`<global.h>` directly and nested, `<include_asm.h>`: no header; an angle include never finds `src/global.h`; a quoted `src/local.h` that defines the macro: no header; `src/global.h` shadows `include/global.h` both ways), `reconcileStubs`, the CLI (angle and `src/local.h` layouts renamed with their source moved), `decompiled-c` step 11 (both layouts on klonoa, renamed with `git mv`, to the SHA-1). |
+| architecture-d0-2 | minor | **Fixed**, the same as correctness-d0-2. What romlift still does not evaluate (an `#if` around an `#include`, an `#include` spelled with a macro, an include directory added to `CPPFLAGS`) is stated in the known limitations, D87 b and the scaffold's `AGENTS.md`, with its consequence (`generate` exit 0, `make` stops in the assembler) and its remedy (delete the added line). |
+| gate-honesty-d0-1 | minor | **Fixed**, the same as correctness-d0-2; the phase-4.md sentence now matches the scaffold's `AGENTS.md`, which states the resolution rule and the unevaluated cases (`test/golden/scaffold/scaffold.txt` updated). |
+| architecture-d0-3 | minor | **Fixed** (`43e2da7`, D87 c). `readHeaderTexts` lists `include/` and `src/` with disk-state's `filesUnder` (exported; `lstat`, a link never followed into a directory: a link to a file is read, one to a directory or a dangling one left out), so there is one walker with one link policy and HEADER_DEPTH is gone. Unit tests: empty without `include/` or `src/`; nested files keyed by project path, only `.h` under `src/`; two links to `.` end and a link to a file is read; an unlistable directory or unreadable header is `E_IO_READ`; `readProject` passes `headerTexts`, none with `withoutC`; `reconcileStubs`' fourth argument (`c-stubs.test.ts`). `src/shell/index.md` names the headers. |
