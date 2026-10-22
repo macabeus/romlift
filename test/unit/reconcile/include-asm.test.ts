@@ -368,11 +368,17 @@ test('a stub of a directory the tree no longer writes is removed; a user module\
   const decompiled = `${C_STUB_HEADER}${stub('A', 'agbmain')}\nvoid B(void) {\n}\n${stub('C', 'agbmain')}\n`;
   const three: IncludeAsmWanted = { ...wanted, chunks: same(['A', 'B', 'C']), tree: { ...tree, files: new Set([...tree.files, 'asm/nonmatchings/boot/C.s']) } };
   assert.equal(planned(decompiled, three), `${C_STUB_HEADER}${stub('A', 'boot')}\nvoid B(void) {\n}\n${stub('C', 'boot')}\n`);
-  // Every stub replaced in a file with no directive that could define INCLUDE_ASM (a fragment made a module's source,
-  // correctness-c0-1): the header comes with the new stubs; with an #include that may define it, it does not.
+  // Every stub replaced in a file that does not include the header itself (a fragment made a module's source, whose
+  // stubs compiled under the including file's header, correctness-c0-1): the header comes with the new stubs, whatever
+  // other #include or #define the file has (a global.h for its types; fix round 9, correctness-c1-1, architecture-c1-1).
   const bare = `${stub('A', 'agbmain')}\n${stub('B', 'agbmain')}\n`;
   assert.equal(planned(bare, wanted), `${C_STUB_HEADER}${stub('A', 'boot')}\n${stub('B', 'boot')}\n`);
-  assert.equal(planned(`#include "global.h"\n${bare}`, wanted), `#include "global.h"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`);
+  assert.equal(planned(`#include "global.h"\n${bare}`, wanted), `${C_STUB_HEADER}#include "global.h"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`);
+  assert.equal(planned(`#define UNUSED 1\n${bare}`, wanted), `${C_STUB_HEADER}#define UNUSED 1\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`);
+  // A file that includes the header itself, or defines the macro itself, gains none.
+  assert.equal(planned(`#include "global.h"\n#include "include_asm.h"\n${bare}`, wanted), `#include "global.h"\n#include "include_asm.h"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`);
+  const own = '#define INCLUDE_ASM(DIR, NAME) asm("")\n';
+  assert.equal(planned(`${own}${bare}`, wanted), `${own}${stub('A', 'boot')}\n${stub('B', 'boot')}\n`);
   // Kept: another live module's chunk, a user module's directory, a directory outside asm/nonmatchings.
   const others = `${stub('A', 'boot')}\n${stub('B', 'boot')}\n${stub('X', 'other')}\n${stub('Y', 'mine')}\nINCLUDE_ASM("asm/custom", Z);\n`;
   assert.deepEqual(planIncludeAsm(others, wanted).edits, []);
@@ -526,15 +532,18 @@ test('W_C_ORDER covers the chunks inside a fragment, naming it (fix round 8, arc
   const reversed = planIncludeAsm(text, { ...WANTED, fragments: new Map([['src/part.c', `${stub('C')}\n${stub('B')}\n`]]) });
   assert.deepEqual([reversed.edits, reversed.diagnostics.map((d) => [d.code, d.path])], [[], [['W_C_ORDER', 'src/part.c']]]);
   assert.equal(reversed.diagnostics[0]?.message, 'src/part.c, which src/main.c includes (line 4), holds C before B, which comes first in ROM order');
-  // Across a nested fragment: B in part.c after the include of deep.c, which holds C.
+  // Across a nested fragment: B in part.c after the include of deep.c, which holds C; both files named (fix round 9,
+  // correctness-c1-3).
   const nested = planIncludeAsm(text, { ...WANTED, fragments: new Map([['src/part.c', `#include "deep.c"\n${stub('B')}\n`], ['src/deep.c', `${stub('C')}\n`]]) });
-  assert.deepEqual(nested.diagnostics.map((d) => d.code), ['W_C_ORDER']);
+  assert.deepEqual(nested.diagnostics.map((d) => [d.code, d.path]), [['W_C_ORDER', 'src/deep.c']]);
+  assert.equal(nested.diagnostics[0]?.message, 'src/main.c holds C before B, which comes first in ROM order, through its includes: C is in src/deep.c, which src/part.c includes (line 1), which src/main.c includes (line 4); B is in src/part.c, which src/main.c includes (line 4)');
   // In order, and a decompiled function in the fragment: no warning.
   const ordered = planIncludeAsm(text, { ...WANTED, fragments: new Map([['src/part.c', `void B(void) {\n}\n${stub('C')}\n`]]) });
   assert.deepEqual(ordered.diagnostics, []);
   // The fragment after a chunk the module's file holds later in ROM order: the file's own warning.
   const outside = planIncludeAsm(`${C_STUB_HEADER}${stub('A')}\n${stub('D')}\n#include "part.c"\n`, { ...WANTED, fragments: new Map([['src/part.c', `${stub('B')}\n${stub('C')}\n`]]) });
   assert.deepEqual(outside.diagnostics.map((d) => [d.code, d.path]), [['W_C_ORDER', 'src/main.c']]);
+  assert.equal(outside.diagnostics[0]?.message, 'src/main.c holds D before C, which comes first in ROM order, through its includes: D is in src/main.c; C is in src/part.c, which src/main.c includes (line 5)');
 });
 
 test('a fragment\'s stub the module no longer has is E_C_FRAGMENT_STUB naming the fragment; a stub whose place lies inside it is E_C_STUB_UNPLACED (correctness-b2-1)', () => {
@@ -589,6 +598,11 @@ test('an include of another module\'s source is E_C_MODULE_INCLUDED, whether or 
   assert.deepEqual(held.diagnostics, []);
   const noEdit = planIncludeAsm(`${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n#include "main_2.c"\n`, { ...WANTED, fragments: new Map(), sources });
   assert.deepEqual([noEdit.edits, noEdit.diagnostics.map((d) => d.code)], [[], ['E_C_MODULE_INCLUDED']]);
+  // A recorded limitation (fix round 9, correctness-c1-2): an include under a conditional is refused too, even `#if 0`.
+  const dead = planIncludeAsm(`${C_STUB_HEADER}${stub('A')}\n${stub('B')}\n${stub('C')}\n${stub('D')}\n#if 0\n#include "main_2.c"\n#endif\n`, { ...WANTED, fragments: new Map(), sources });
+  assert.deepEqual(dead.diagnostics.map((d) => d.code), ['E_C_MODULE_INCLUDED']);
+  // `sources` is read only while includes are followed, with `fragments` given (its docstring; architecture-c1-3).
+  assert.deepEqual(planIncludeAsm(text, { ...WANTED, sources }).diagnostics, []);
   // From a fragment the file includes: named through it. An include of the file itself is no refusal.
   const deep = planIncludeAsm(`${C_STUB_HEADER}${stub('A')}\n#include "part.c"\n${stub('D')}\n`, { ...WANTED, fragments: new Map([['src/part.c', `${stub('B')}\n${stub('C')}\n#include "main_2.c"\n`]]), sources });
   assert.deepEqual(deep.diagnostics.map((d) => [d.code, d.path]), [['E_C_MODULE_INCLUDED', 'src/part.c']]);

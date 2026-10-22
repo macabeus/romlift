@@ -9,7 +9,8 @@ import { test } from 'node:test';
 import { parseDecompYaml } from '@match-kit/decomp-yaml';
 
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
-import { readDecompYaml, regionOf, renderDecompYaml, ROMLIFT_CONFIG_FILE } from '../../../src/core/config/decomp-yaml.ts';
+import { readDecompYaml, regionOf, renderDecompYaml } from '../../../src/core/config/decomp-yaml.ts';
+import { ROMLIFT_CONFIG_FILE } from '../../../src/foundation/util/project-files.ts';
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 
 const VARS = { name: 'akle', title: 'KLONOA', gameCode: 'AKLE', sha1: '1e10000000000000000000000000000000000000' } as const;

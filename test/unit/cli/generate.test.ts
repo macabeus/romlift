@@ -597,6 +597,30 @@ test('a split that makes an #included fragment a module: E_C_MODULE_INCLUDED nam
   assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'idempotent');
 });
 
+test('the fragment made a module has an #include of its own (a global.h for its types): it gains the header all the same (fix round 9, correctness-c1-1, architecture-c1-1)', async () => {
+  for (const prelude of ['#include "global.h"\n', '#define UNUSED 1\n']) {
+    const dir = await initProject();
+    const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');
+    const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+    const tail = `${stubIn('main_2', 'sub_0800045C')}\n${stubIn('main_2', 'sub_08000488')}\n`;
+    assert.ok(main2.endsWith(tail), 'the composite as this test knows it');
+    await writeFile(path.join(dir, 'include', 'global.h'), '#ifndef GUARD_GLOBAL_H\n#define GUARD_GLOBAL_H\ntypedef unsigned char u8;\n#endif\n');
+    await writeFile(path.join(dir, 'src', 'tail.c'), `${prelude}${tail}`);
+    await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(tail, '#include "tail.c"\n'));
+    assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok);
+    await writeFile(path.join(dir, 'romlift.toml'), toml.replace('[[modules]]\nname = "main_3"', '[[modules]]\nname = "tail"\nstart = 0x0800045C\nkind = "c"\n\n[[modules]]\nname = "main_3"'));
+    const refused = await run(dir, ['generate', '--json']);
+    assert.deepEqual(lines(refused.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => l['code']), ['E_C_MODULE_INCLUDED'], refused.stdout);
+    await writeFile(path.join(dir, 'src', 'main_2.c'), main2.replace(tail, ''));
+    const fixed = await run(dir, ['generate', '--json']);
+    assert.equal(fixed.code, ExitCode.ok, fixed.stdout);
+    assert.deepEqual(lines(fixed.stdout).filter((l) => l['type'] === 'diagnostic'), [], fixed.stdout);
+    // Fix round 8 left this file without the header, so INCLUDE_ASM did not compile (the review's make: a syntax error).
+    assert.equal(await readFile(path.join(dir, 'src', 'tail.c'), 'utf8'), `#include "include_asm.h"\n\n${prelude}${stubIn('tail', 'sub_0800045C')}\n${stubIn('tail', 'sub_08000488')}\n`, prelude);
+    assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'idempotent');
+  }
+});
+
 test('a fragment in a subdirectory of src/ is not read: an insertion it might duplicate is E_C_STUB_UNPLACED, which says so (fix round 8, architecture-c0-2)', async () => {
   const dir = await initProject();
   const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');

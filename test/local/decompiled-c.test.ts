@@ -30,7 +30,8 @@
 //      tail.c becomes the new module's source while boot.c still #includes it: `generate` refuses with
 //      E_C_MODULE_INCLUDED and writes nothing (the review's run linked a ROM 2,724 bytes too large, the fragment's
 //      chunks built twice); the #include removed, `generate` gives src/tail.c the header and its stubs and `make`
-//      ends at the SHA-1.
+//      ends at the SHA-1. Fix round 9 (correctness-c1-1, architecture-c1-1) runs it again with src/tail.c starting
+//      with `#include "types.h"`, an include of its own, which fix round 8 took for the header (its make failed).
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -310,28 +311,41 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
   // Its last two lines, the first of a function: `sub_…` then `sub_…` or a pad's `unk_…`.
   const tailStubs = new RegExp(`\n(${stub('boot', 'sub_[0-9A-F]{8}').replace(/[()]/g, '\\$&')}\n(?:${stub('boot', '\\w+').replace(/[()]/g, '\\$&')}\n)?)$`).exec(bootBefore)?.[1] ?? assert.fail('src/boot.c ends with stubs');
   const firstOfTail = /sub_([0-9A-F]{8})/.exec(tailStubs)?.[1] ?? assert.fail('a sub_ stub');
-  await writeFile(file('src/tail.c'), tailStubs);
-  await writeFile(file('src/boot.c'), bootBefore.replace(tailStubs, '#include "tail.c"\n'));
-  const tailKept = await generate();
-  assert.equal(tailKept.code, 0, tailKept.tail);
-  assert.deepEqual(tailKept.codes, [], tailKept.tail);
-  await make();
-  const bootWithTail = await readFile(file('src/boot.c'), 'utf8');
-  const splitTail = tomlBeforeSplit.replace('[[modules]]\nname = "m3a"', `[[modules]]\nname = "tail"\nstart = 0x${firstOfTail}\nkind = "c"\n\n[[modules]]\nname = "m3a"`);
-  assert.notEqual(splitTail, tomlBeforeSplit, 'm3a follows boot');
-  await writeFile(file('romlift.toml'), splitTail);
-  const included = await generate();
-  assert.equal(included.code, 1, included.tail);
-  assert.deepEqual(included.codes, ['E_C_MODULE_INCLUDED'], included.tail);
-  assert.ok(included.tail.includes('src/boot.c #includes \\"tail.c\\"'), included.tail);
-  assert.equal(await readFile(file('src/tail.c'), 'utf8'), tailStubs, 'the refusal wrote nothing');
-  assert.equal(await readFile(file('src/boot.c'), 'utf8'), bootWithTail, 'the refusal wrote nothing');
-  // As the message says: the #include removed. tail.c held its stubs under boot.c's header, so it gains its own.
-  await writeFile(file('src/boot.c'), bootWithTail.replace('#include "tail.c"\n', ''));
-  const madeModule = await generate();
-  assert.equal(madeModule.code, 0, madeModule.tail);
-  assert.deepEqual(madeModule.codes, [], madeModule.tail);
-  const tailC = await readFile(file('src/tail.c'), 'utf8');
-  assert.ok(tailC.startsWith('#include "include_asm.h"\n') && tailC.includes(stub('tail', `sub_${firstOfTail}`)) && !tailC.includes('asm/nonmatchings/boot'), tailC);
+  // Twice: a bare fragment, then (fix round 9, correctness-c1-1, architecture-c1-1) one with an #include of its own, a
+  // types header, which fix round 8 took for the header that defines INCLUDE_ASM: its stubs then did not compile.
+  await writeFile(file('include/types.h'), '#ifndef GUARD_TYPES_H\n#define GUARD_TYPES_H\ntypedef unsigned char u8;\n#endif\n');
+  for (const prelude of ['', '#include "types.h"\n']) {
+    await writeFile(file('src/tail.c'), `${prelude}${tailStubs}`);
+    await writeFile(file('src/boot.c'), bootBefore.replace(tailStubs, '#include "tail.c"\n'));
+    const tailKept = await generate();
+    assert.equal(tailKept.code, 0, tailKept.tail);
+    assert.deepEqual(tailKept.codes, [], tailKept.tail);
+    await make();
+    const bootWithTail = await readFile(file('src/boot.c'), 'utf8');
+    const splitTail = tomlBeforeSplit.replace('[[modules]]\nname = "m3a"', `[[modules]]\nname = "tail"\nstart = 0x${firstOfTail}\nkind = "c"\n\n[[modules]]\nname = "m3a"`);
+    assert.notEqual(splitTail, tomlBeforeSplit, 'm3a follows boot');
+    await writeFile(file('romlift.toml'), splitTail);
+    const included = await generate();
+    assert.equal(included.code, 1, included.tail);
+    assert.deepEqual(included.codes, ['E_C_MODULE_INCLUDED'], included.tail);
+    assert.ok(included.tail.includes('src/boot.c #includes \\"tail.c\\"'), included.tail);
+    assert.equal(await readFile(file('src/tail.c'), 'utf8'), `${prelude}${tailStubs}`, 'the refusal wrote nothing');
+    assert.equal(await readFile(file('src/boot.c'), 'utf8'), bootWithTail, 'the refusal wrote nothing');
+    // As the message says: the #include removed. tail.c held its stubs under boot.c's header, so it gains its own.
+    await writeFile(file('src/boot.c'), bootWithTail.replace('#include "tail.c"\n', ''));
+    const madeModule = await generate();
+    assert.equal(madeModule.code, 0, madeModule.tail);
+    assert.deepEqual(madeModule.codes, [], madeModule.tail);
+    const tailC = await readFile(file('src/tail.c'), 'utf8');
+    assert.ok(tailC.startsWith(`#include "include_asm.h"\n\n${prelude}`) && tailC.includes(stub('tail', `sub_${firstOfTail}`)) && !tailC.includes('asm/nonmatchings/boot'), tailC);
+    await make();
+    // Back to step 8's state for the next form.
+    await writeFile(file('romlift.toml'), tomlBeforeSplit);
+    await writeFile(file('src/boot.c'), bootBefore);
+    await rm(file('src/tail.c'));
+    const back = await generate();
+    assert.equal(back.code, 0, back.tail);
+    assert.deepEqual(back.codes, [], back.tail);
+  }
   await make();
 });

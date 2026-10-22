@@ -73,8 +73,10 @@ other file: when `src/<module>.c` includes one of another name (`#include "part.
 `src/`, any quoted include but a `.h`), `romlift generate` refuses to add an `INCLUDE_ASM` line to it
 (`E_C_STUB_UNPLACED`), since that file may define the function. Never `#include` another module's source: `make`
 compiles it on its own, so its functions would be built twice, and `romlift generate` refuses
-(`E_C_MODULE_INCLUDED`). To make an included file a module of its own, remove its `#include` in the same step as you
-add the module to `romlift.toml`.
+(`E_C_MODULE_INCLUDED`), even under `#if 0`. To make an included file a module of its own, remove its `#include` in
+the same step as you add the module to `romlift.toml`; `romlift generate` then gives the file the new module's
+`INCLUDE_ASM` lines and, unless it includes `include_asm.h` itself, that header, which its old lines took from the file
+that included it.
 
 To rename a `c` module, change its `name` in `[[modules]]` and move its source in the same step
 (`git mv src/<old>.c src/<new>.c`), then run `npx romlift generate`: it replaces the file's

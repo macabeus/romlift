@@ -23,7 +23,6 @@ import type { ConfigCode } from './codes.ts';
 import { buildCompilerOf, DEFAULT_BUILD_COMPILER } from './compilers.ts';
 import type { BuildCompilerId } from './compilers.ts';
 
-export { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 /** romlift's key under `tools`. */
 export const ROMLIFT_TOOL = 'romlift';
 /** The ROM every project reads (the config's [rom] path). */

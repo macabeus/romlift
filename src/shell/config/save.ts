@@ -4,7 +4,7 @@
 // written as given.
 import { join } from 'node:path';
 
-import { ROMLIFT_CONFIG_FILE } from '../../core/config/decomp-yaml.ts';
+import { ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { isProjectPath } from '../../foundation/util/project-path.ts';
 import { ShellCodes } from '../codes.ts';

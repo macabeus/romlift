@@ -7,5 +7,6 @@ export type { ConfigParseResult } from '../core/config/parse.ts';
 export { serializeConfig } from '../core/config/serialize.ts';
 export { planPatch } from '../core/config/patch.ts';
 export type { ConfigPatchResult } from '../core/config/patch.ts';
-export { DECOMP_YAML_FILE, readDecompYaml, renderDecompYaml, ROMLIFT_CONFIG_FILE } from '../core/config/decomp-yaml.ts';
+export { readDecompYaml, renderDecompYaml } from '../core/config/decomp-yaml.ts';
+export { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../foundation/util/project-files.ts';
 export type { DecompYamlProject, DecompYamlRead, DecompYamlVars } from '../core/config/decomp-yaml.ts';

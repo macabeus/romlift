@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../core/config/decomp-yaml.ts';
+import { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import type { FileEntry } from '../../core/emit/tree.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { SCAFFOLD_ROM_FILE } from '../../core/scaffold/vars.ts';

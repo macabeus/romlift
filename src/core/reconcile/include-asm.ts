@@ -211,6 +211,12 @@ function directiveName(text: string): string {
   return name;
 }
 
+/** The macro a `#define` line names (`#define INCLUDE_ASM(DIR, NAME) …` -> `INCLUDE_ASM`); undefined for another directive. */
+function definedMacro(text: string): string | undefined {
+  if (directiveName(text) !== 'define') return undefined;
+  return /^#[ \t]*define[ \t]+([A-Za-z_][A-Za-z0-9_]*)/.exec(text)?.[1];
+}
+
 /**
  * The outermost conditional regions the preprocessor lines of `tokens` open and close, with their branches and the
  * conditionals nested in them; a stray `#endif` is ignored.
@@ -598,7 +604,9 @@ export interface IncludeAsmWanted {
   /**
    * The module each module's source belongs to, by project path (fix round 7, architecture-b2-5): an include of one is
    * no fragment, since make compiles it on its own, so its functions would be built twice: E_C_MODULE_INCLUDED, an
-   * error whether or not the file needs an edit (fix round 8, correctness-c0-1).
+   * error whether or not the file needs an edit (fix round 8, correctness-c0-1). Read only while includes are followed,
+   * that is with `path` and `fragments` both given (pass an empty `fragments` to check the includes alone; fix round 9,
+   * architecture-c1-3). An include inside a conditional region counts as well, even under `#if 0`.
    */
   readonly sources?: ReadonlyMap<string, string>;
 }
@@ -779,7 +787,12 @@ function orderDiagnostics(wanted: IncludeAsmWanted, held: readonly (Held | undef
     if (cur.via !== undefined && cur.via === prev.via) {
       return [diagnostic(ReconcileCodes, 'W_C_ORDER', `${fragmentPhrase(cur.via, where, cur.line, cur.chain)}, holds ${cur.name} before ${prev.name}, which comes first in ROM order`, { path: cur.via })];
     }
-    return [diagnostic(ReconcileCodes, 'W_C_ORDER', `${where} holds ${cur.name} before ${prev.name}, which comes first in ROM order`, extra)];
+    if (cur.via === undefined && prev.via === undefined) {
+      return [diagnostic(ReconcileCodes, 'W_C_ORDER', `${where} holds ${cur.name} before ${prev.name}, which comes first in ROM order`, extra)];
+    }
+    // The two in different files of the include chain (fix round 9, correctness-c1-3): each named with its file.
+    const fileOf = (h: Held): string => (h.via === undefined ? where : fragmentPhrase(h.via, where, h.line, h.chain));
+    return [diagnostic(ReconcileCodes, 'W_C_ORDER', `${where} holds ${cur.name} before ${prev.name}, which comes first in ROM order, through its includes: ${cur.name} is in ${fileOf(cur)}; ${prev.name} is in ${fileOf(prev)}`, cur.via === undefined ? extra : { path: cur.via })];
   }
   return [];
 }
@@ -829,20 +842,20 @@ function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, num
 /**
  * The insertion of the header that defines INCLUDE_ASM (C_STUB_HEADER, in the text's line terminator), or undefined
  * when the file needs none (fix round 6, correctness-b1-2): a file that gains a stub needs it unless it already
- * includes the header or keeps an INCLUDE_ASM statement anywhere (whose macro its build then defines some other way, a
- * `global.h` that includes it). A file whose every stub the plan removes (`removed`) needs it too when it has no
- * `#include` or `#define` that may define the macro: a `src/*.c` fragment that became a module's source, whose stubs
- * served another directory and the including file's header (fix round 8, correctness-c0-1). It goes above the first line that is not a comment, after a leading byte order mark and the
- * comments that open the file (a licence, a file comment): a file the user wrote with only the C of a function
+ * includes the header itself, defines the macro itself (`#define INCLUDE_ASM`), or keeps an INCLUDE_ASM statement of
+ * its own (whose macro its build then defines some other way, a `global.h` that includes the header). A file whose
+ * every stub the plan removes (`removed`) is not known to define the macro: its stubs may have been compiled under
+ * another file's header, as a `src/*.c` fragment made a module's source was (fix round 8, correctness-c0-1), whatever
+ * `#include` of its own it has (a `global.h` for its types: fix round 9, correctness-c1-1, architecture-c1-1). It
+ * gains the header then too; the header is guarded (INCLUDE_ASM_HEADER), so a second include through another header
+ * is harmless. It goes above the first line that is not a comment, after a leading byte order mark and the comments
+ * that open the file (a licence, a file comment): a file the user wrote with only the C of a function
  * E_C_DEFINITION_MOVED sent there.
  */
 function headerInsertion(text: string, scan: CFileScan, removed: readonly IncludeAsmStatement[]): TextEdit | undefined {
   const gone = new Set(removed.map((s) => s.start));
-  const statements = anyDepthStatements(scan);
-  if (statements.some((s) => !gone.has(s.start))) return undefined;
-  const mayDefine = scan.directives.some((t) => t.kind === 'preprocessor' && (directiveName(t.text) === 'include' || directiveName(t.text) === 'define'));
-  if (statements.length > 0 && mayDefine) return undefined;
-  if (scan.directives.some((t) => t.kind === 'preprocessor' && quotedInclude(t.text) === INCLUDE_ASM_HEADER_NAME)) return undefined;
+  if (anyDepthStatements(scan).some((s) => !gone.has(s.start))) return undefined;
+  if (scan.directives.some((t) => t.kind === 'preprocessor' && (quotedInclude(t.text) === INCLUDE_ASM_HEADER_NAME || definedMacro(t.text) === INCLUDE_ASM_MACRO))) return undefined;
   const eol = eolOf(text);
   const header = C_STUB_HEADER.split('\n').join(eol);
   const first = scan.tokens.find((t) => t.kind !== 'comment');
