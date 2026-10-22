@@ -175,12 +175,14 @@ the same step as you add the module to `romlift.toml`; `romlift generate` then g
 `INCLUDE_ASM` lines and, unless the file gets `INCLUDE_ASM` from its own lines, from a `src/*.c` it includes or from a
 header either includes (one that `#define`s it or includes `include_asm.h`, at any depth), that header, which its old
 lines took from the file that included it. romlift finds a header as the Makefile's `cpp -nostdinc -I include` does:
-`#include "…"` in the including file's own directory first, then in `include/`; `#include <…>` in `include/` only;
-like `cpp`, it follows a symbolic link, whether `include/` itself, a directory under it or under `src/` is the link.
-It does not evaluate an `#if` around an `#include`, an `#include` spelled with a macro, or an include directory you
-add to `CPPFLAGS`. When such a header defines `INCLUDE_ASM` and romlift adds `#include "include_asm.h"` anyway,
-`make` stops in the assembler (`Macro … was already defined`): delete that line (romlift adds it only to a file that
-has no `INCLUDE_ASM` line left of its own, as a rename leaves it).
+`#include "…"` in the including file's own directory first, then in `include/`; `#include <…>` in `include/` only.
+It follows a symbolic link, whether `include/` itself, a directory under it or under `src/` is the link, but not
+exactly as `cpp` does: a `..` in an include, in a header reached through a linked directory, is resolved against the
+link's path, not its target, and a link back to the project or to a directory already walked is not entered. It does
+not evaluate an `#if` around an `#include`, an `#include` spelled with a macro, or an include directory you add to
+`CPPFLAGS`. When a header that romlift does not reach for one of these reasons defines `INCLUDE_ASM` and romlift adds
+`#include "include_asm.h"` anyway, `make` stops in the assembler (`Macro … was already defined`): delete that line
+(romlift adds it only to a file that has no `INCLUDE_ASM` line left of its own, as a rename leaves it).
 
 To rename a `c` module, change its `name` in `[[modules]]` and move its source in the same step
 (`git mv src/<old>.c src/<new>.c`), then run `npx romlift generate`: it replaces the file's

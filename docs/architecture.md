@@ -1639,14 +1639,15 @@ stub the plan replaces (such a fragment, whose stubs the including file's header
 moved with `git mv`) gains the header with its new stubs unless the macro reaches it some other way: since fix round 10
 (D86 a) the planner follows the file's includes (`IncludeAsmWanted.headers`, which the shell reads with
 `readHeaderTexts`: every file under `include/` and, since fix round 11, every `.h` under `src/`; since fix round 12, D88 a, through a
-symbolic link to a directory as cpp follows it, a cycle ending at a directory the walk is already inside or at the
-project directory), and since fix round 11
+symbolic link to a directory, a cycle ending at a directory the walk is already inside or at the project directory;
+not exactly as cpp follows links, D89 a: a `..` in an include behind a linked directory is resolved against the link's
+path, not its target, and a link back to the project or to a directory already walked is not entered), and since fix round 11
 (D87 a, b) those of the `src/*.c` fragments it includes too, resolved as the scaffold's `cpp -nostdinc -I include`
 does (`#include "…"` from the including file's own directory first, then `include/`; `#include <…>` from `include/`
 alone), transitively and each file once, and adds nothing when the file, a fragment or one of those headers
 `#define`s `INCLUDE_ASM` or includes `include_asm.h`; an `#if` around an `#include`, an `#include` spelled with a
-macro and an include directory added to `CPPFLAGS` are not evaluated (the scaffold's `AGENTS.md` names the remedy,
-deleting the added line). Which `#include` the file has decides nothing by itself (D85 a: a `global.h` of types alone still
+macro and an include directory added to `CPPFLAGS` are not evaluated, nor are those two link layouts resolved as cpp
+resolves them (the scaffold's `AGENTS.md` names the remedy, deleting the added line). Which `#include` the file has decides nothing by itself (D85 a: a `global.h` of types alone still
 brings the header); the generated header's guard does not cover a `global.h` that defines the macro and includes
 `macros.inc` itself, whose second inclusion the assembler refuses (`Macro … was already defined`); a message about a nested fragment names the include chain from the
 file that includes it directly to the module's file (`CDefinition.chain`, `IncludeAsmStatement.chain`, `CIncludeLink`);
