@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "dcd2253586c85f356b225a5d119979b6b6f2e8c7",
+    "commit": "f383f3e31d81d93e90c6188ccd51288c213088ac",
     "dirty": false,
-    "sourceDigest": "15ef6cf39cdeeda5848d4de380410441f5867f3d8eb023afaac54b1e17ceab78",
+    "sourceDigest": "43e0ca4b78b61a09975d3f164c821e512c76578713d99d2290a924d28a67b484",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -1897,14 +1897,14 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1398.58,
+        "maxRssMiB": 1344.97,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "d60c5331838241e9e271472e0fa90e19657f2a320563dafeb9bc6d5e32b92ffc"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1268.47,
+        "maxRssMiB": 1210.81,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "d60c5331838241e9e271472e0fa90e19657f2a320563dafeb9bc6d5e32b92ffc"
       }
@@ -2018,7 +2018,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.936; CPU/limit: fe7j 1050/12373 ms, klonoa 234/299 ms, pokeemerald 2083/4113 ms, sa2 725/763 ms, sa3 1087/1455 ms, tmc 1359/1739 ms"
+        "detail": "median of 9 runs; calibration ratio 0.955; CPU/limit: fe7j 1086/12625 ms, klonoa 232/305 ms, pokeemerald 2053/4196 ms, sa2 695/779 ms, sa3 1065/1484 ms, tmc 1404/1775 ms"
       },
       {
         "id": "g3.link",
@@ -2061,7 +2061,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.935; fe7j analysis 1071/2804 ms, klonoa analysis 230/2804 ms, pokeemerald analysis 2046/2804 ms, pokeemerald generate 7573/9347 ms, pokeemerald init 9708/14021 ms, sa2 analysis 692/2804 ms, sa3 analysis 1064/2804 ms, tmc analysis 1366/2804 ms"
+        "detail": "calibration ratio 0.964; fe7j analysis 1152/2892 ms, klonoa analysis 234/2892 ms, pokeemerald analysis 2046/2892 ms, pokeemerald generate 7675/9641 ms, pokeemerald init 10101/14461 ms, sa2 analysis 725/2892 ms, sa3 analysis 1083/2892 ms, tmc analysis 1406/2892 ms"
       },
       {
         "id": "g3.text-layout",
