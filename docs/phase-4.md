@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D86). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D88). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -27,7 +27,8 @@ worktree with `landed` 4, exited 0 at every command, sa2 at 700 of 777 ms ("The 
 fixed the review of that run; the whole closing list at `dcd2253`, in a fresh worktree with `landed` 4, exited 0 at
 every command, sa2 at 725 of 763 ms ("The closing gate"). Fix round 10 (D86) fixed the review of that run; the whole
 closing list at `f383f3e`, in a fresh worktree with `landed` 4, exited 0 at every command, sa2 at 695 of 779 ms ("The
-closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's
+closing gate"). Fix round 11 (D87) fixed the review of that run; the whole closing list at `b42513e`, in a fresh
+worktree with `landed` 4, exited 0 at every command, sa2 at 698 of 779 ms ("The closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's
 CI (AGENTS.md).
 
 ## Components
@@ -471,7 +472,8 @@ count them.
   `include_asm.h`, at any depth; fix round 10, D86 a), that header (D85 a); so does a renamed module's source moved
   with `git mv`. Since fix round 11 (D87 a, b) the fragments the file includes count too, and an include is resolved
   as the scaffold's `cpp -nostdinc -I include` does (quoted: the including file's directory, then `include/`; angle:
-  `include/`; romlift reads every file under `include/` and every `.h` under `src/`). An `#if` around an `#include`,
+  `include/`; romlift reads every file under `include/` and every `.h` under `src/`, following a symbolic link to a
+  directory as cpp does since fix round 12, D88 a). An `#if` around an `#include`,
   an `#include` spelled with a macro and an include directory added to `CPPFLAGS` are not evaluated: when such a
   header defines `INCLUDE_ASM`, `generate` exits 0 having added `#include "include_asm.h"`, and `make` stops in the
   assembler (`Macro … was already defined`) until that line is deleted. The scaffold's `AGENTS.md` says so.
@@ -1453,4 +1455,21 @@ command exit 0).
 | correctness-d0-2 | minor | **Fixed** (`43e2da7`, D87 b), the code option. Includes resolve as the scaffold's `cpp -nostdinc -I include` does: `#include <…>` from `include/` alone, `#include "…"` from the including file's own directory first, then `include/`; the shell reads every `.h` under `src/` too, so `src/*.h` is followed as well. Tests: the planner (`<global.h>` directly and nested, `<include_asm.h>`: no header; an angle include never finds `src/global.h`; a quoted `src/local.h` that defines the macro: no header; `src/global.h` shadows `include/global.h` both ways), `reconcileStubs`, the CLI (angle and `src/local.h` layouts renamed with their source moved), `decompiled-c` step 11 (both layouts on klonoa, renamed with `git mv`, to the SHA-1). |
 | architecture-d0-2 | minor | **Fixed**, the same as correctness-d0-2. What romlift still does not evaluate (an `#if` around an `#include`, an `#include` spelled with a macro, an include directory added to `CPPFLAGS`) is stated in the known limitations, D87 b and the scaffold's `AGENTS.md`, with its consequence (`generate` exit 0, `make` stops in the assembler) and its remedy (delete the added line). |
 | gate-honesty-d0-1 | minor | **Fixed**, the same as correctness-d0-2; the phase-4.md sentence now matches the scaffold's `AGENTS.md`, which states the resolution rule and the unevaluated cases (`test/golden/scaffold/scaffold.txt` updated). |
-| architecture-d0-3 | minor | **Fixed** (`43e2da7`, D87 c). `readHeaderTexts` lists `include/` and `src/` with disk-state's `filesUnder` (exported; `lstat`, a link never followed into a directory: a link to a file is read, one to a directory or a dangling one left out), so there is one walker with one link policy and HEADER_DEPTH is gone. Unit tests: empty without `include/` or `src/`; nested files keyed by project path, only `.h` under `src/`; two links to `.` end and a link to a file is read; an unlistable directory or unreadable header is `E_IO_READ`; `readProject` passes `headerTexts`, none with `withoutC`; `reconcileStubs`' fourth argument (`c-stubs.test.ts`). `src/shell/index.md` names the headers. |
+| architecture-d0-3 | minor | **Fixed** (`43e2da7`, D87 c; its link policy replaced by D88 a, b in fix round 12, whose review found it a regression). `readHeaderTexts` lists `include/` and `src/` with disk-state's `filesUnder` (exported; `lstat`, a link never followed into a directory: a link to a file is read, one to a directory or a dangling one left out), so there is one walker with one link policy and HEADER_DEPTH is gone. Unit tests: empty without `include/` or `src/`; nested files keyed by project path, only `.h` under `src/`; two links to `.` end and a link to a file is read; an unlistable directory or unreadable header is `E_IO_READ`; `readProject` passes `headerTexts`, none with `withoutC`; `reconcileStubs`' fourth argument (`c-stubs.test.ts`). `src/shell/index.md` names the headers. |
+
+### Fix round 12 (the review of fix round 11's closing run at `9085564`)
+
+Six findings: three majors and three minors. The three majors (gate-honesty-d1-1, correctness-d1-1,
+architecture-d1-1) are one defect raised under three lenses, fixed in code, reproduced first by read-inputs and CLI
+tests on the composite fixture and then end to end on klonoa with agbcc in `test/local/decompiled-c.test.ts` step 12
+(D88). The three minors are fixed. No gate changes what it requires. Commits on `phase-4` after `9085564`: `553410a`
+(the code, templates and tests), the records commit, the closing run's artifact and this record's results ("The closing gate", fix round 12's closing run).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| gate-honesty-d1-1 | major | **Fixed** (`553410a`, D88 a), the code option. `readHeaderTexts` lists `include/` and `src/` with `filesUnder(…, { followLinks: true })`, which walks with `stat`: a link to a directory, `include/` or `src/` itself among them, is walked under its own project path, and a cycle ends by real path at the project directory or at a directory the walk is already inside (two links to `.`, a link to `..`, `include -> .`), not by a depth bound; a dangling link or a link loop is left out. D87 c says it was replaced, the read-inputs test of the opposite policy is replaced by two tests named for what they assert, and the scaffold's `AGENTS.md` says romlift follows a link as cpp does (`test/golden/scaffold/scaffold.txt` updated). Tests: read-inputs (a linked `include/gba` and `src/sub` outside the project, `include/alias -> real` listed under both paths, a link to a file; cycles, a dangling link and a link loop; `include/` and `src/` themselves links: read; `include -> .`: nothing; both tests fail at `9085564`'s code), the CLI (a `c` module renamed with its source moved, the defining header behind a linked `include/` or a linked `include/gba`: no header, no diagnostic, idempotent; fails at `9085564`'s code), `decompiled-c` step 12 on klonoa (the reviewers' flows, a linked `include/gba` and then a linked `include/`, each built to the SHA-1, then the module renamed with `git mv`: `generate` exit 0, no diagnostic, no header, `make` to the SHA-1; 102 s, exit 0; at `9085564`'s code the step fails at "linked include/gba: the stubs renamed, no header added"). |
+| correctness-d1-1 | major | **Fixed**, the same defect and fix as gate-honesty-d1-1. |
+| architecture-d1-1 | major | **Fixed**, the same defect and fix as gate-honesty-d1-1. The known limitation's "romlift reads every file under `include/`" now holds through links, and says so; architecture §6.6 states the link rule. |
+| gate-honesty-d1-2 | minor | **Fixed** (records, D88 d). The scope line runs to D88; the Verdict paragraph has fix round 11's run at `b42513e` (sa2 698 of 779 ms) and fix round 12's. |
+| architecture-d1-2 | minor | **Fixed** (`553410a`, D88 b), the second option: the records now say what holds. `filesUnder` is the recursive walker of the disk snapshot (`lstat`, a link one entry, since it lists what romlift wrote) and of `readHeaderTexts` (links followed, since it reads what cpp reads); `readCTexts` and `readChunkFiles` keep their `stat`-based fixed-depth listing, which follows a link as make does, so every reader of the build's inputs follows links and only the snapshot does not. `disk-state.ts`'s comment, `src/shell/index.md`, D87 c (replaced) and D88 b say so; nothing is carried. |
+| architecture-d1-3 | minor | **Fixed** (`553410a`, D88 c). `isHeaderPath` in `foundation/util/project-files.ts`, beside `isCSource`, is used by the shell's `src/*.h` listing (`read-inputs.ts`) and the reconciler's unread-include rule (`include-asm.ts`); `grep "'\.h'" src` finds only its constant. Tested in `paths.test.ts`. |

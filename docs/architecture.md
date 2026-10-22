@@ -1638,7 +1638,9 @@ functions twice (a fragment made a module by a split named after it), even under
 stub the plan replaces (such a fragment, whose stubs the including file's header served, or a renamed module's source
 moved with `git mv`) gains the header with its new stubs unless the macro reaches it some other way: since fix round 10
 (D86 a) the planner follows the file's includes (`IncludeAsmWanted.headers`, which the shell reads with
-`readHeaderTexts`: every file under `include/` and, since fix round 11, every `.h` under `src/`), and since fix round 11
+`readHeaderTexts`: every file under `include/` and, since fix round 11, every `.h` under `src/`; since fix round 12, D88 a, through a
+symbolic link to a directory as cpp follows it, a cycle ending at a directory the walk is already inside or at the
+project directory), and since fix round 11
 (D87 a, b) those of the `src/*.c` fragments it includes too, resolved as the scaffold's `cpp -nostdinc -I include`
 does (`#include "…"` from the including file's own directory first, then `include/`; `#include <…>` from `include/`
 alone), transitively and each file once, and adds nothing when the file, a fragment or one of those headers

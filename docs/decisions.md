@@ -3873,6 +3873,9 @@ under three lenses: an angle include of a header under `include/` (`#include <gl
   two links to `.` end, a link to a file is read; an unlistable directory or unreadable header is `E_IO_READ`;
   `readProject` passes `headerTexts`, and none with `withoutC`; `reconcileStubs`' fourth argument and the fragments
   (`c-stubs.test.ts`). `src/shell/index.md` names the headers among what read-inputs reads.
+  **Replaced by D88 a and b** (fix round 12): the `lstat` walk read nothing behind a symbolic link to a directory, a
+  regression against fix round 10 that broke the build of a module renamed with `git mv`; `readHeaderTexts` follows
+  such a link as cpp does, a cycle ending by real path, and the shell keeps two link policies, each named.
 
 **Consequences.** New tests: the planner (the reviewers' fragment flow, two fragments deep, an angle include in the
 fragment, a fragment defining the macro or including `include_asm.h`: no header; a fragment whose `global.h` declares
@@ -3883,6 +3886,59 @@ module renamed with its source moved, for each of the three layouts: no header, 
 the module renamed with `git mv`: `generate` exit 0, no diagnostic, no header, `make` to the SHA-1; at `625d710`'s code
 the step fails at "fragment: the stubs renamed, no header added"). The closing list is re-run in a fresh worktree with
 `landed` 4 (phase-4.md, "The closing gate", fix round 11).
+
+## D88. Fix round 12 of phase 4: the review of fix round 11
+
+**Context.** The review of fix round 11's closing run at `9085564` (round d1) raised six findings: three majors
+(gate-honesty-d1-1, correctness-d1-1, architecture-d1-1) and three minors. The three majors are one defect raised under
+three lenses: D87 c made `readHeaderTexts` list `include/` and `src/` with disk-state's `lstat` walk, which never
+follows a symbolic link into a directory. The headers behind a linked `include/` (listed as the bare entry `include`,
+then dropped by the `include/` prefix filter), a linked subdirectory such as `include/gba -> ../shared/gba`, or a
+linked directory under `src/` were no longer read, though the scaffold's `cpp -nostdinc -I include` follows those
+links. A `c` module renamed with `git mv` whose defining `global.h` sat behind such a link gained
+`#include "include_asm.h"`; `generate` exited 0 with no diagnostic and `make` stopped in the assembler
+(`include/macros.inc:1: Error: Macro 'arm_func_start' was already defined`), where fix round 10's code (`625d710`)
+built the same tree to the SHA-1. Only D87 c named the mechanism, and the read-inputs test asserted it as intended. The
+minors: phase-4.md's summary header still ended at D86 and fix round 10's run (gate-honesty-d1-2); the records said
+the shell has one walker with one link policy, while `readChunkFiles` and `readCTexts` follow links through `stat`
+(architecture-d1-2); and the rule "a `.h` is a header" was written in the shell and in core with no shared definition
+(architecture-d1-3). No gate changes what it requires.
+
+**Decision.**
+
+- (a) **`readHeaderTexts` follows a symbolic link as cpp does** (gate-honesty-d1-1, correctness-d1-1,
+  architecture-d1-1), the findings' code option, not the recorded limitation, since the limitation would keep a
+  regression against fix round 10. disk-state's `filesUnder` takes `{ followLinks: true }`: it walks with `stat`, so a
+  link to a directory, `include/` or `src/` itself among them, is walked under its own project path (`include/gba/
+  macro.h`, as `#include "gba/macro.h"` names it), and a link to a file is read as that file. A cycle ends by real path
+  (`realpath`), not by a depth bound: a directory whose real path is the project directory's or that of a directory
+  the walk is already inside is not entered, as `find -L` ends one, so two links to `.`, a link to `..` and
+  `include -> .` all end, while a second, non-cyclic path to a directory (`include/alias -> real`) is listed under both
+  spellings, as cpp finds both. A dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out.
+- (b) **Two link policies, each named** (architecture-d1-2), the finding's second option. `filesUnder` is the
+  recursive walker of the disk snapshot and of `readHeaderTexts`; the snapshot keeps `lstat` (a link is one entry,
+  hashed through to its target), since it lists what romlift wrote, and `readHeaderTexts` follows links, since it
+  reads what cpp reads. `readCTexts` (`src/*.c`, one level) and `readChunkFiles` (`asm/nonmatchings/<module>/`, two
+  levels) keep their `stat`-based fixed-depth listing, which follows a link as make and cpp do; so every reader of the
+  build's inputs follows links, and only the snapshot does not. The comment in `disk-state.ts`, D87 c and phase-4.md
+  say so; nothing is carried.
+- (c) **One header predicate** (architecture-d1-3). `isHeaderPath` in `foundation/util/project-files.ts`, beside
+  `isCSource`, is the rule both sites use: the shell's `src/*.h` listing and the reconciler's choice not to report an
+  unread quoted `.h` include as an unread `src/*.c` fragment (`core/reconcile/include-asm.ts`).
+- (d) **Records** (gate-honesty-d1-2). phase-4.md's scope line runs to D88, and its Verdict paragraph has fix round 11's
+  and fix round 12's runs.
+
+**Consequences.** New tests: read-inputs (a linked `include/gba` outside the project, a second path `include/alias ->
+real`, a linked `src/sub`, a link to a file: read; two links to `.`, a link to `..`, a dangling link and a link loop:
+ended or left out; `include/` and `src/` themselves links outside the project: read; `include -> .`: nothing; fix
+round 11's test of the opposite policy is replaced), `isHeaderPath` (`paths.test.ts`), the CLI (a `c` module renamed
+with its source moved, whose defining header is behind a linked `include/` or a linked `include/gba`: no header, no
+diagnostic, idempotent; at `9085564`'s code it fails), and `test/local/decompiled-c.test.ts` step 12 on klonoa with
+agbcc (a linked `include/gba` holding a defining `macro.h` reached through `include/glue.h`, then a linked `include/`;
+each built to the SHA-1, then the module renamed with `git mv`: `generate` exit 0, no diagnostic, no header, `make` to
+the SHA-1; at `9085564`'s code the step fails at "linked include/gba: the stubs renamed, no header added"). The scaffold's
+`AGENTS.md` says romlift follows a symbolic link as cpp does; architecture §6.6 and phase-4.md's known limitation say
+it too. The closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 12).
 
 ## Review findings index
 
