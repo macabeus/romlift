@@ -3672,8 +3672,9 @@ list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gat
 
 ## D84. Fix round 8 of phase 4: the review of fix round 7
 
-**Context.** The review of fix round 7's closing run at `8b03b1f` (round c0) raised eight findings: one major
-(correctness-c0-1) and seven minors. correctness-c0-1 was reproduced on klonoa: with a module's last `INCLUDE_ASM`
+**Context.** The review of fix round 7's closing run at `8b03b1f` (round c0) raised nine findings: one major
+(correctness-c0-1) and eight minors (corrected from "eight findings … seven minors" by D85 e; gate-honesty-c0-1 and
+correctness-c0-2 are one defect of the memory limitation, its count of forms, raised under two lenses). correctness-c0-1 was reproduced on klonoa: with a module's last `INCLUDE_ASM`
 lines moved into a `src/tail.c` its file `#include`s, a split that names the new module `tail` at the fragment's
 first function made `tail.c` that module's source while the old file still included it. `generate` exited 0 with no
 diagnostic, since D83 a refused an include of another module's source only when the file needed an insertion; `make`
@@ -3693,7 +3694,9 @@ reproduces the reviewer's case and then runs `make`. No gate changes what it req
   plan removes, and that has no `#include` or `#define` that could define the macro, gains `#include "include_asm.h"`
   with its new stubs: a fragment made a module's source, whose stubs served another directory under the including
   file's header. A file that keeps a stub, or has such a directive, is left as D82 b left it. This corrects D83 a's
-  last sentence and the phase-4.md row of architecture-b2-5.
+  last sentence and the phase-4.md row of architecture-b2-5. (D85 a replaces "or has such a directive": a fragment
+  with an `#include` of its own, a `global.h` for its types, was left without the header and its new stubs did not
+  compile; such a file now gains the header unless it includes `include_asm.h` itself or `#define`s `INCLUDE_ASM`.)
 - (b) **A nested fragment is named through its chain** (correctness-c0-3). A fragment's statements and definitions
   carry `chain`, the `#include` lines that reach them from the module's file, and every message about one
   (`E_C_FRAGMENT_STUB`, `E_C_STUB_UNPLACED` inside a fragment, `E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`,
@@ -3702,7 +3705,8 @@ reproduces the reviewer's case and then runs `make`. No gate changes what it req
 - (c) **W_C_ORDER reads a fragment's order** (architecture-c0-3). A fragment's items carry `order`, the offsets of
   the `#include` lines that reach them and then their own offset, and the warning compares the held chunks by it, so
   stubs out of ROM order inside one fragment, or across a nested one, warn naming the fragment. This replaces D83 a's
-  "two chunks one `#include` holds raise no `W_C_ORDER`".
+  "two chunks one `#include` holds raise no `W_C_ORDER`". (Across a nested fragment the message named neither file
+  until D85 c.)
 - (d) **An unscannable fragment's verdict follows what the file needs** (architecture-c0-1). The fragment is
   `E_C_UNSCANNABLE` when the module's file needs an edit: one planned, one refused (a stub left unplaced), its own
   `E_C_UNSCANNABLE`, or a stub that must go from a fragment or a conditional; otherwise `W_C_UNSCANNABLE`, whose text
@@ -3731,6 +3735,58 @@ header and its stubs; a fragment in `src/inner/` refused with the "directly unde
 (step 9: boot's last stubs moved into `src/tail.c`, kept and built; the split named `tail` refused with
 `E_C_MODULE_INCLUDED`, nothing written; the `#include` removed, `generate` and `make` to the SHA-1). The closing list is
 re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 8).
+
+## D85. Fix round 9 of phase 4: the review of fix round 8
+
+**Context.** The review of fix round 8's closing run at `1392483` (round c1) raised twelve findings: two majors
+(correctness-c1-1 and architecture-c1-1, one defect raised under two lenses) and ten minors. The majors were reproduced
+on klonoa and on the composite fixture: a `src/*.c` fragment made a module's source by D84 a's flow, whose file had any
+`#include` or `#define` of its own (a `types.h` or `global.h` for its types, as decompiled C has), lost its stubs'
+header. D84 a took any such directive for one that might define `INCLUDE_ASM`, so `generate` exited 0 with no
+diagnostic and wrote the new module's stubs without `#include "include_asm.h"`; `make` failed with a syntax error at
+each `INCLUDE_ASM` line. Each fix is the simplest rule that cannot break a user's build, with a test that reproduces
+the reviewer's case and then runs `make`. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **A file whose every stub is replaced gains the header unless it provides the macro itself**
+  (correctness-c1-1, architecture-c1-1). `headerInsertion` adds `#include "include_asm.h"` to a file that gains a stub
+  and keeps no `INCLUDE_ASM` statement of its own unless the file itself includes `include_asm.h` or `#define`s
+  `INCLUDE_ASM`; another `#include` or `#define` no longer stops it. The generated header is guarded
+  (`GUARD_INCLUDE_ASM_H`), so a second include through a `global.h` that includes it is harmless. This replaces D84 a's
+  "or has such a directive". The scaffold's `AGENTS.md` says the new module's file gains the header unless it includes
+  it itself.
+- (b) **An include of a module's source is refused even under a conditional** (correctness-c1-2): recorded, not
+  changed. `E_C_MODULE_INCLUDED` reads every file-scope quoted include, `#if 0` included; the refusal writes nothing and
+  names the line, and removing a dead line is the fix. Downgrading a conditional one to a warning would let a taken
+  `#ifdef` build a module's functions twice. A known limitation (phase-4.md), and the scaffold's `AGENTS.md` says
+  "even under `#if 0`".
+- (c) **W_C_ORDER names both files across nested fragments** (correctness-c1-3). Two chunks out of order in
+  different files of the include chain give `<file> holds X before Y, which comes first in ROM order, through its
+  includes: X is in <file or fragment chain>; Y is in <…>`, with the path of X's fragment; one fragment keeps D84 c's
+  message.
+- (d) **The planner's public contract** (architecture-c1-3). `IncludeAsmWanted.sources` is documented as read only
+  while includes are followed, with `path` and `fragments` both given (an empty `fragments` checks the includes
+  alone), and as covering an include under a conditional; `CIncludeLink` is exported from `api/reconcile.ts`. The
+  product path (`c-stubs.ts`) always passes both.
+- (e) **Records** (gate-honesty-c1-1, c1-2, correctness-c1-4, architecture-c1-2, c1-4, c1-5).
+  `core/config/decomp-yaml.ts` no longer re-exports `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE`: `shell/config/save.ts`,
+  `shell/project/write-project.ts` and the decomp-yaml unit test import them from `project-files.ts`, and
+  `api/config.ts` re-exports them from there, so D84 e's sentence (the internal layers import the spellings from
+  `project-files.ts`) holds; `src/foundation/index.md` and architecture §2 name `api/config.ts` among the public
+  re-exports, and roadmap.md's architecture-r1-2 no longer lists the decomp-yaml re-export. D84's Context counts nine
+  findings. The memory limitation no longer states a closed range: the peaks vary from run to run by about 60 MiB on
+  one machine, and it gives the largest measured (1,596.5 MiB, the readable `verify --assemble`, in the review's
+  re-run of fix round 8's list). roadmap.md's architecture-b2-9 gives `include-asm.ts`'s size and adds the
+  include-resolution helpers to the phase-6 split.
+
+**Consequences.** New tests: the planner (the header for a replaced file with `#include "global.h"` or `#define UNUSED
+1`, none with `#include "include_asm.h"` or `#define INCLUDE_ASM`; the nested `W_C_ORDER` message and the one across a
+fragment and the module's file; an include of a module's source under `#if 0` refused; `sources` without `fragments`
+not followed), the CLI (the fragment made a module with an `#include "global.h"`, then a `#define UNUSED 1`, prelude:
+refused, then the header and its stubs, idempotent), and `test/local/decompiled-c.test.ts` step 9 on klonoa with agbcc,
+run twice, the second time with `src/tail.c` starting with `#include "types.h"`, each through `make` to the SHA-1. The
+closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 9).
 
 ## Review findings index
 

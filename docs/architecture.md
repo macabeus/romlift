@@ -131,9 +131,10 @@ romlift/
                                     owner since fix round 7, architecture-b2-7), which asm/dialect.ts,
                                     core/config, core/model, core/reconcile, core/emit, core/verify,
                                     core/scaffold and the shell import from here; the public api/ modules
-                                    re-export some, and the aliases of architecture-r1-2 (locate.ts's
+                                    re-export some (api/reconcile.ts, api/model.ts, api/one-shot-types.ts,
+                                    api/config.ts), and the aliases of architecture-r1-2 (locate.ts's
                                     DECOMP_YAML_NAMES, BASEROM_PATH, SCAFFOLD_ROM_FILE, TARGET) stay until
-                                    phase 6, roadmap.md; D75 g, D76 h, D77 h, D83 c, D84 e)
+                                    phase 6, roadmap.md; D75 g, D76 h, D77 h, D83 c, D84 e, D85 e)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -1632,11 +1633,13 @@ chunks one `#include` holds is `E_C_STUB_UNPLACED` naming the fragment, and a fr
 `W_C_UNSCANNABLE` naming it, `E_C_UNSCANNABLE` when the module's file needs an edit (D83 a). Since fix round 8
 (D84 a to d): an include of another module's source, from the module's file or a fragment, is `E_C_MODULE_INCLUDED`,
 an error whether or not the file needs an edit, since make compiles that source on its own and would build its
-functions twice (a fragment made a module by a split named after it); a file whose every stub the plan replaces and
-that has no `#include` or `#define` (such a fragment, whose stubs the including file's header served) gains the
-header with its new stubs; a message about a nested fragment names the include chain from the file that includes it
-directly to the module's file (`CDefinition.chain`, `IncludeAsmStatement.chain`); `W_C_ORDER` compares a fragment's
-chunks by their place in it (`order`) and names the fragment; a fragment the scanner cannot split is `E_C_UNSCANNABLE`
+functions twice (a fragment made a module by a split named after it), even under `#if 0` (D85 b); a file whose every
+stub the plan replaces (such a fragment, whose stubs the including file's header served) gains the header with its new
+stubs unless it includes `include_asm.h` itself or `#define`s `INCLUDE_ASM` (since fix round 9 whatever other
+`#include` it has, D85 a; the header is guarded); a message about a nested fragment names the include chain from the
+file that includes it directly to the module's file (`CDefinition.chain`, `IncludeAsmStatement.chain`, `CIncludeLink`);
+`W_C_ORDER` compares a fragment's chunks by their place in it (`order`) and names the fragment, or both files when the
+two chunks lie in different files of the chain (D85 c); a fragment the scanner cannot split is `E_C_UNSCANNABLE`
 whenever the module's file needs an edit, planned or refused. Only a `src/*.c` directly under `src/` is read
 (`readCTexts`), so an include of `src/inner/x.c` is an unread file. Fix round 4's rescan of the planned text for an insertion out of ROM order is gone: no layout reached it
 (D82 c). An `edit` is written only

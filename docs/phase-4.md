@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D84). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D85). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -460,8 +460,10 @@ count them.
   put a new one between two chunks one fragment holds (`E_C_STUB_UNPLACED`), is refused naming the fragment and
   writes nothing: edit the fragment yourself. Since fix round 8 (D84 a, e) only a `src/*.c` directly under `src/` is
   read as a fragment (one in a subdirectory is a file romlift does not read), and an `#include` of another module's
-  source is refused whether or not the file needs an edit (`E_C_MODULE_INCLUDED`): to make a fragment a module of its
-  own, remove its `#include` in the same step. The scaffold's `AGENTS.md` says so.
+  source is refused whether or not the file needs an edit (`E_C_MODULE_INCLUDED`), even one inside a conditional the
+  preprocessor never takes, such as `#if 0` (fix round 9, D85 b: remove the dead line): to make a fragment a module of
+  its own, remove its `#include` in the same step; the file then gains the new module's stubs and, unless it includes
+  `include_asm.h` itself or `#define`s `INCLUDE_ASM`, that header (D85 a). The scaffold's `AGENTS.md` says so.
 - Since the generated tree is not in Git (Q9), a project whose `Makefile` predates fix round 6 (written once by an
   earlier `init`) has no staleness guard: after a pull that changes `romlift.toml` its user must run `romlift generate`
   (D82 a; `scaffold --diff` shows the new template). A project `init` makes from fix round 6 on stops `make` with the
@@ -499,20 +501,23 @@ count them.
   `AGENTS.md` and `README.md` as the way until romlift is published) or package.json pointed at a tarball.
 - `setup.sh` builds agbcc from source at the pin (network, git and a host C compiler; about 50 s); a mirror is
   `AGBCC_URL`.
-- Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak at 1,114.8 to 1,581.4 MiB RSS
-  across every measured run of this phase, the review's re-runs included (the low end `analyze --json` in fix round
-  7's closing run; largest live heap 925.5 MiB, the raw `verify --assemble`, in fix round 8's closing run), and
-  five forms have gone over D72 b's 1,536 MiB budget in
-  some run: the readable `verify --link` once in six ("The closing gate", fix round 1); `init --json` (1,562.8 MiB in
-  the review's re-run of fix round 3's list at `2314ffe`, gate-honesty-a2-3, and 1,581.4 MiB in fix round 5's closing
-  run); the readable `verify --assemble` (1,551.3 MiB in that re-run of fix round 3's, and 1,559.4 MiB in the review's
-  re-run of fix round 7's list at `8b03b1f`, correctness-c0-2, where `generate --json` peaked at 1,530.9 MiB); `verify --assemble --link
-  --json` (1,540.6 MiB in fix round 4's closing run, 1,569.9 MiB in fix round 6's); and `generate --json` (1,541.8 MiB
-  in the review's re-run of fix round 6's list at `d615ceb`, gate-honesty-b2-1, and 1,537.1 MiB in fix round 8's closing
-  run). Neither phase-4 one-shot command,
-  `init` nor `generate`, is held under the budget on the doubled ROM. A code-dense ROM larger than 32 MiB of that
-  density may exceed the cap (D72, unchanged). No gate measures the doubled ROM (D72 e), and `bench large-rom --bin`
-  records the peaks without judging them.
+- Memory: under the bin's 1,024 MiB cap the doubled pokeemerald ROM's commands peak between about 1,100 and 1,600 MiB
+  RSS. The peaks vary from run to run by about 60 MiB on one machine, so no closed range is stated (fix round 9,
+  correctness-c1-4, architecture-c1-5); the largest measured in this phase is 1,596.5 MiB (the readable `verify
+  --assemble`, in the review's re-run of fix round 8's list at `1392483`, on a machine running two other closing runs),
+  the smallest 1,114.8 MiB (`analyze --json`, fix round 7's closing run), and the largest live heap 925.5 MiB (the raw
+  `verify --assemble`). Five forms have gone over D72 b's 1,536 MiB budget in some run: the readable `verify --link`
+  once in six ("The closing gate", fix round 1); `init --json` (1,562.8 MiB in the review's re-run of fix round 3's
+  list at `2314ffe`, gate-honesty-a2-3, 1,581.4 MiB in fix round 5's closing run, 1,531.9 and 1,547.8 MiB in the two
+  re-runs of fix round 8's list at `1392483`); the readable `verify --assemble` (1,551.3 MiB in that re-run of fix
+  round 3's, 1,559.4 MiB in the review's re-run of fix round 7's list at `8b03b1f`, correctness-c0-2, 1,553.3 and
+  1,596.5 MiB in the re-runs of fix round 8's); `verify --assemble --link --json` (1,540.6 MiB in fix round 4's
+  closing run, 1,569.9 MiB in fix round 6's, 1,537.7 MiB in a re-run of fix round 8's); and `generate --json`
+  (1,541.8 MiB in the review's re-run of fix round 6's list at `d615ceb`, gate-honesty-b2-1, 1,537.1 MiB in fix round
+  8's closing run, 1,595.2 and 1,539.0 MiB in the re-runs of fix round 8's list, correctness-c1-4). Neither phase-4
+  one-shot command, `init` nor `generate`, is held under the budget on the doubled ROM. A code-dense ROM larger than
+  32 MiB of that density may exceed the cap (D72, unchanged). No gate measures the doubled ROM (D72 e), and `bench
+  large-rom --bin` records the peaks without judging them.
 - Three `g5.*` gates fail instead of reporting `pending` once their inputs exist (`g5.c-data-ranges`: no
   `expect-ranges.json`; `g5.expected-bytes`: no `expected/`; `g5.reconciler`: no reconcile goldens); `--require 4` does
   not require them, and phase 6 builds what they read (D76 g).
@@ -1242,7 +1247,8 @@ run: every command exit 0).
 
 ### Fix round 8 (the review of fix round 7's closing run at `8b03b1f`)
 
-Eight findings: one major and seven minors. The major is fixed, reproduced first by a CLI test on the composite
+Nine findings: one major and eight minors (corrected by fix round 9, gate-honesty-c1-2; gate-honesty-c0-1 and
+correctness-c0-2 are one defect of the memory limitation, its count of forms, raised under two lenses). The major is fixed, reproduced first by a CLI test on the composite
 fixture and then end to end on klonoa with agbcc in `test/local/decompiled-c.test.ts` (D84). Every minor is fixed. No
 gate changes what it requires. Commits on `phase-4` after `8b03b1f`:
 `fb73b28` (the code, templates and tests), the records commit `ae3945f`, the closing run's artifact `0ea6cb3` and this
@@ -1259,3 +1265,27 @@ record's results ("The closing gate", fix round 8's closing run: every command e
 | architecture-c0-3 | minor | **Fixed** (D84 c). `W_C_ORDER` compares held chunks by their place through the includes and names the fragment when two of one fragment are out of order. Tests: the planner (reversed in a fragment, across a nested fragment, in order, and outside the fragment). |
 | architecture-c0-4 | minor | **Fixed** (records, D84 e). `src/foundation/index.md`, architecture §2 and roadmap.md say the internal layers import the spellings from `project-files.ts`, the public `api/` modules re-export some, and the aliases of architecture-r1-2 (`DECOMP_YAML_NAMES` in `locate.ts`, `BASEROM_PATH`, `SCAFFOLD_ROM_FILE`, `TARGET`) stay carried to phase 6. |
 | architecture-c0-5 | minor | **Fixed** (D84 f). `export-poc` runs each PoC child in a fresh temporary directory that is also its `TMPDIR`, removed afterwards, so two runs no longer share the PoC's `os.tmpdir()/romlift-bench/<name>`. The closing procedure still requires an idle machine for the timed gates. |
+
+### Fix round 9 (the review of fix round 8's closing run at `1392483`)
+
+Twelve findings: two majors and ten minors. The two majors (correctness-c1-1, architecture-c1-1) are one defect raised
+under two lenses; it is fixed, reproduced first by a planner test and a CLI test on the composite fixture and then end
+to end on klonoa with agbcc in `test/local/decompiled-c.test.ts` (D85). Of the minors, seven are fixed, one is recorded
+as a known limitation as its finding allows, and two needed nothing new. No gate changes what it requires. Commits on
+`phase-4` after `1392483`: `6d3557b` (the code, templates and tests), the records commit, the closing run's artifact and
+this record's results ("The closing gate", fix round 9's closing run).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-c1-1 | major | **Fixed** (`6d3557b`, D85 a). A file that gains a stub and keeps no `INCLUDE_ASM` statement of its own gains `#include "include_asm.h"` unless it includes that header itself or `#define`s `INCLUDE_ASM`; any other `#include` or `#define` no longer stops it (the generated header is guarded, so a second include through a `global.h` is harmless). D84 a's sentence is corrected in decisions.md. Tests: `include-asm.test.ts` (the replaced file with `#include "global.h"` and with `#define UNUSED 1` gains the header; with `#include "include_asm.h"` or `#define INCLUDE_ASM` it does not); a CLI case (the fragment made a module with each prelude: refused, then the header and its stubs, idempotent); `decompiled-c` step 9 run twice on klonoa, the second time with `src/tail.c` starting with `#include "types.h"`, each through `make` to the SHA-1 (80 s, exit 0, before the closing run). The scaffold's `AGENTS.md` says the file gains the header. |
+| architecture-c1-1 | major | **Fixed**, the same defect and fix as correctness-c1-1 (the second option: the header whenever the file gains a stub and does not provide the macro itself). |
+| correctness-c1-2 | minor | **Recorded** (D85 b), the finding's third option. An include of another module's source is refused even inside `#if 0`; the refusal writes nothing and names the line. Downgrading it would let a taken `#ifdef` build a module twice. Known limitations, D84 a's record in architecture §6.6 and the scaffold's `AGENTS.md` say so; a planner test asserts it. |
+| correctness-c1-3 | minor | **Fixed** (`6d3557b`, D85 c). Two chunks out of order in different files of the include chain give `src/main.c holds C before B, which comes first in ROM order, through its includes: C is in src/deep.c, which src/part.c includes (line 1), which src/main.c includes (line 4); B is in src/part.c, which src/main.c includes (line 4)`. The nested test and the fragment-and-file test assert the message. |
+| correctness-c1-4 | minor | **Fixed** (records, D85 e). The memory limitation states no closed range: peaks vary by about 60 MiB from run to run; the largest measured is given, and the review's `generate --json` at 1,595.2 MiB is added to that form. |
+| gate-honesty-c1-1 | minor | **Fixed** (`6d3557b`, D85 e), the second option: `save.ts`, `write-project.ts` and the decomp-yaml unit test import `ROMLIFT_CONFIG_FILE` (and `DECOMP_YAML_FILE`) from `project-files.ts`; `core/config/decomp-yaml.ts`'s re-export is removed, and `api/config.ts` re-exports them from `project-files.ts`. `src/foundation/index.md` and architecture §2 name `api/config.ts` among the public re-exports. |
+| gate-honesty-c1-2 | minor | **Fixed** (records). Fix round 8's section and D84's Context say nine findings, one major and eight minors, and that gate-honesty-c0-1 and correctness-c0-2 are one defect raised under two lenses. |
+| architecture-c1-2 | minor | **Fixed**, the same as gate-honesty-c1-1; roadmap.md's architecture-r1-2 notes the decomp-yaml re-export is gone. |
+| architecture-c1-3 | minor | **Fixed** (`6d3557b`, D85 d). `IncludeAsmWanted.sources`' docstring says it is read only with `path` and `fragments` given (an empty `fragments` checks the includes alone); `CIncludeLink` is exported from `api/reconcile.ts`. A planner test asserts `sources` alone is not followed. |
+| architecture-c1-4 | minor | **Fixed** (records). roadmap.md gives `include-asm.ts` about 1,190 lines and moves the include-resolution helpers out of the planner with the phase-6 split. |
+| architecture-c1-5 | minor | **Fixed** (records), with correctness-c1-4: the largest measured, 1,596.5 MiB (the readable `verify --assemble`), is stated, with no fixed upper bound. |
+| architecture-c1-6 | minor | **Nothing new**: the architecture-r1 and b2 carries stay in roadmap.md "Carried from phase 4" (r1-2 updated for the removed re-export); none depends on `g5.import-legacy`. |
