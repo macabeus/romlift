@@ -853,8 +853,9 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   `test/unit/workflow/init.test.ts` and the project-plan tests to `test/unit/write-plan/project-plan.test.ts`
   (`test/unit/workflow/c-stubs.test.ts` landed in fix round 2, D77).
 - **architecture-r1-2, also**: `src/shell/project/locate.ts` re-exports `DECOMP_YAML_NAMES`, and
-  `shell/project/write-project.ts` takes the three file names from three modules; one import from
-  `foundation/util/project-files.ts` each (architecture-a0-10).
+  `shell/project/write-project.ts` takes `SCAFFOLD_ROM_FILE` from `core/scaffold/vars.ts`, the alias left to carry; the
+  other two names (`DECOMP_YAML_FILE`, `ROMLIFT_CONFIG_FILE`) it imports from `foundation/util/project-files.ts` since
+  fix round 9 (architecture-a0-10; fix round 10, architecture-c2-3).
 - **architecture-r1-3, also** (architecture-a0-4): `legalBorders` has no caller in `src`; the model uses `codeLayout`
   with its own `isLegalStart` and data-start rule, and `analyze --update --write` never checks the patched config's
   borders. Either it checks the patched config with `planModules` before it offers `--write`, or the limitation
@@ -891,12 +892,12 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   import is dropped; `shell/evidence/read-trace.ts` and `foundation/formats/trace-json.ts` serve only the trace.
   Phase 6's plan rewrite keeps each (a new producer) or deletes it with its tests, codec spelling and architecture
   entries; `seed.override` is carried above with the override semantics.
-- **architecture-b2-9** (fix round 7, D83 f): `core/reconcile/include-asm.ts` (about 1,190 lines since fix round 9,
+- **architecture-b2-9** (fix round 7, D83 f): `core/reconcile/include-asm.ts` (about 1,250 lines since fix round 10,
   architecture-c1-4) holds the C scanner, the "C defines it" rule, include resolution and fragments, the header
   insertion and the planner. Split the scanner and the definition rule (`scanC`, `conditionalsOf`,
   `compiledDefinitions`, `CFileScan`, `CDefinition`) into `core/reconcile/c-scan.ts` beside `c-tokens.ts`, move the
-  include-resolution helpers (`withFragments`, `resolveInclude`, `fileScopeIncludes`, `fragmentPhrase`, `CIncludeLink`,
-  `orderKey`, `laterThan`) out of the planner with them, and update architecture §2's `core/reconcile` list. Carried: a pure
+  include-resolution helpers (`withFragments`, `resolveInclude`, `fileScopeIncludes`, `headerPath`, `macroProvided`,
+  `fragmentPhrase`, `CIncludeLink`, `orderKey`, `laterThan`) out of the planner with them, and update architecture §2's `core/reconcile` list. Carried: a pure
   move of about 500 lines with every importer and test, no defect behind it, and phase 6's `rename-tokens.ts` adds the
   next reader of the scanner, so the split lands with it.
 - **architecture-b2-8's remainder** (fix round 7, D83 e): the analysis keeps its own alignment bit tests
@@ -916,7 +917,9 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
 - **architecture-r1-2, also** (architecture-b2-7, b2-12): fix round 7 removed `core/model/paths.ts`'s `isCSource`
   re-export; the internal layers import `C_SOURCE_DIR`, `isCSource` and `cSourceOf` from
   `foundation/util/project-files.ts`, and only the public `api/` modules re-export project-files spellings
-  (`isCSource`, `nonmatchingDir`, `INCLUDE_ASM_HEADER_PATH`, `NONMATCHINGS_ROOT`; fix round 8, architecture-c0-4). The
+  (`isCSource`, `nonmatchingDir`, `INCLUDE_ASM_HEADER_PATH`, `NONMATCHINGS_ROOT`; fix round 8, architecture-c0-4;
+  `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE` from `api/config.ts` since fix round 9, recorded by fix round 10,
+  architecture-c2-3). The
   other aliases of r1-2 stay carried as written above.
 
 ### 6.0 Signature and trace interfaces (lead)

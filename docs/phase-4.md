@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D85). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D86). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -464,8 +464,11 @@ count them.
   read as a fragment (one in a subdirectory is a file romlift does not read), and an `#include` of another module's
   source is refused whether or not the file needs an edit (`E_C_MODULE_INCLUDED`), even one inside a conditional the
   preprocessor never takes, such as `#if 0` (fix round 9, D85 b: remove the dead line): to make a fragment a module of
-  its own, remove its `#include` in the same step; the file then gains the new module's stubs and, unless it includes
-  `include_asm.h` itself or `#define`s `INCLUDE_ASM`, that header (D85 a). The scaffold's `AGENTS.md` says so.
+  its own, remove its `#include` in the same step; the file then gains the new module's stubs and, unless it gets
+  `INCLUDE_ASM` from its own lines or from a header under `include/` it includes (one that `#define`s it or includes
+  `include_asm.h`, at any depth; fix round 10, D86 a), that header (D85 a); so does a renamed module's source moved
+  with `git mv`. A header romlift cannot resolve under `include/` (a `src/*.h`, an angle include) counts as defining
+  nothing. The scaffold's `AGENTS.md` says so.
 - Since the generated tree is not in Git (Q9), a project whose `Makefile` predates fix round 6 (written once by an
   earlier `init`) has no staleness guard: after a pull that changes `romlift.toml` its user must run `romlift generate`
   (D82 a; `scaffold --diff` shows the new template). A project `init` makes from fix round 6 on stops `make` with the
@@ -1311,8 +1314,9 @@ record's results ("The closing gate", fix round 8's closing run: every command e
 
 Twelve findings: two majors and ten minors. The two majors (correctness-c1-1, architecture-c1-1) are one defect raised
 under two lenses; it is fixed, reproduced first by a planner test and a CLI test on the composite fixture and then end
-to end on klonoa with agbcc in `test/local/decompiled-c.test.ts` (D85). Of the minors, seven are fixed, one is recorded
-as a known limitation as its finding allows, and two needed nothing new. No gate changes what it requires. Commits on
+to end on klonoa with agbcc in `test/local/decompiled-c.test.ts` (D85). Of the minors, eight are fixed (architecture-c1-2
+by the same change as gate-honesty-c1-1, architecture-c1-5 with correctness-c1-4), one is recorded as a known limitation
+as its finding allows, and one needed nothing new (corrected by fix round 10, gate-honesty-c2-1). No gate changes what it requires. Commits on
 `phase-4` after `1392483`: `6d3557b` (the code, templates and tests), the records commit `dcd2253`, the closing run's
 artifact `6675afb` and this record's results ("The closing gate", fix round 9's closing run: every command exit 0).
 
@@ -1330,3 +1334,21 @@ artifact `6675afb` and this record's results ("The closing gate", fix round 9's 
 | architecture-c1-4 | minor | **Fixed** (records). roadmap.md gives `include-asm.ts` about 1,190 lines and moves the include-resolution helpers out of the planner with the phase-6 split. |
 | architecture-c1-5 | minor | **Fixed** (records), with correctness-c1-4: the largest measured, 1,596.5 MiB (the readable `verify --assemble`), is stated, with no fixed upper bound. |
 | architecture-c1-6 | minor | **Nothing new**: the architecture-r1 and b2 carries stay in roadmap.md "Carried from phase 4" (r1-2 updated for the removed re-export); none depends on `g5.import-legacy`. |
+
+### Fix round 10 (the review of fix round 9's closing run at `5e73637`)
+
+Six findings: one major and five minors (gate-honesty-c2-1, correctness-c2-2 and architecture-c2-2 are one record
+defect, fix round 9's count of its minors, raised under three lenses). The major is fixed, reproduced first by a
+planner test and a CLI test on the composite fixture and then end to end on klonoa with agbcc in
+`test/local/decompiled-c.test.ts` step 10 (D86). Every minor is fixed. No gate changes what it requires. Commits on
+`phase-4` after `5e73637`: the code and tests commit, the records commit, the closing run's artifact and this record's
+results ("The closing gate", fix round 10's closing run).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-c2-1 | major | **Fixed** (D86 a). Whether a file that gains a stub needs `#include "include_asm.h"` is decided from what defines the macro: the planner follows the file's quoted includes that resolve under `include/` (from a header, its own directory first, then `include/`, as `cpp -I include` does), transitively and each header once, and adds the header only when neither the file nor any of them `#define`s `INCLUDE_ASM` or includes `include_asm.h`. The shell reads every file under `include/` (`readHeaderTexts`). D85 a's "harmless" sentence, architecture §6.6 and the scaffold's `AGENTS.md` (fragment and rename paragraphs) are corrected. Tests: the planner (the reviewer's rename with a defining `global.h`, directly, nested from the header's directory and from `include/`, and through `include_asm.h`: no header; a `global.h` of types alone, a header cycle, an include above `include/`, no headers: the header; fix round 9's fragment with `types.h`: the header); a CLI case (a `c` module renamed with its source moved, `global.h` reaching a nested header that defines the macro: no header, no diagnostic, idempotent; with a header of types alone: the header); `decompiled-c` step 10 on klonoa (the reviewer's flow: `include/global.h` defining the macro and including `macros.inc`, `src/boot.c` including it, `make` to the SHA-1; module boot renamed boot2 with `git mv`; `generate` exit 0 with no diagnostic and no header; `make` to the SHA-1), steps 5 and 9 still building (73 s, exit 0, before the closing run; at `5e73637`'s planner step 10 fails at "no header added"). |
+| architecture-c2-1 | minor | **Fixed** with correctness-c2-1, the second option's aim by the first option's means: the rule now covers the rename path by what defines the macro, so a renamed module whose `global.h` defines it gains nothing and one whose `global.h` only declares types gains the header, which its build needs. The rename path is recorded in D86 a, architecture §6.6 and the scaffold's rename paragraph; the planner and CLI tests cover it, and the comment at `include-asm.test.ts` that cited "a global.h that includes the header" now says why a kept stub stops the header. |
+| gate-honesty-c2-1 | minor | **Fixed** (records). Fix round 9's section says eight minors fixed, one recorded, one nothing new, as its table does. |
+| correctness-c2-2 | minor | **Fixed**, the same record as gate-honesty-c2-1. |
+| architecture-c2-2 | minor | **Fixed**, the same record as gate-honesty-c2-1. |
+| architecture-c2-3 | minor | **Fixed** (records, D86 b). roadmap.md "Carried from phase 4": `write-project.ts` takes only `SCAFFOLD_ROM_FILE` from `core/scaffold/vars.ts`, the other two names from `project-files.ts` since fix round 9; the b2-7/b2-12 bullet lists `api/config.ts`'s re-export of `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE`. |

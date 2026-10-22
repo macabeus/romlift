@@ -3753,9 +3753,12 @@ the reviewer's case and then runs `make`. No gate changes what it requires.
   (correctness-c1-1, architecture-c1-1). `headerInsertion` adds `#include "include_asm.h"` to a file that gains a stub
   and keeps no `INCLUDE_ASM` statement of its own unless the file itself includes `include_asm.h` or `#define`s
   `INCLUDE_ASM`; another `#include` or `#define` no longer stops it. The generated header is guarded
-  (`GUARD_INCLUDE_ASM_H`), so a second include through a `global.h` that includes it is harmless. This replaces D84 a's
-  "or has such a directive". The scaffold's `AGENTS.md` says the new module's file gains the header unless it includes
-  it itself.
+  (`GUARD_INCLUDE_ASM_H`), so a second include through a `global.h` that includes `include_asm.h` is harmless; it is
+  not harmless through a `global.h` that defines `INCLUDE_ASM` and includes `macros.inc` itself, under its own guard,
+  where the second `macros.inc` breaks the assembler (corrected by D86 a, which decides from what defines the macro;
+  this sentence first called every second include harmless, and the rule also reached a renamed module's source moved
+  with `git mv`, correctness-c2-1, architecture-c2-1). This replaces D84 a's "or has such a directive". The scaffold's
+  `AGENTS.md` says the new module's file gains the header unless it includes it itself.
 - (b) **An include of a module's source is refused even under a conditional** (correctness-c1-2): recorded, not
   changed. `E_C_MODULE_INCLUDED` reads every file-scope quoted include, `#if 0` included; the refusal writes nothing and
   names the line, and removing a dead line is the fix. Downgrading a conditional one to a warning would let a taken
@@ -3787,6 +3790,51 @@ not followed), the CLI (the fragment made a module with an `#include "global.h"`
 refused, then the header and its stubs, idempotent), and `test/local/decompiled-c.test.ts` step 9 on klonoa with agbcc,
 run twice, the second time with `src/tail.c` starting with `#include "types.h"`, each through `make` to the SHA-1. The
 closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 9).
+
+## D86. Fix round 10 of phase 4: the review of fix round 9
+
+**Context.** The review of fix round 9's closing run at `5e73637` (round c2) raised six findings: one major
+(correctness-c2-1) and five minors. The major was reproduced by the reviewer on klonoa: D85 a's `headerInsertion` adds
+`#include "include_asm.h"` to every file whose stubs are all replaced and that does not include that header by name or
+`#define` `INCLUDE_ASM` itself. A `c` module renamed with `git mv`, as the scaffold's `AGENTS.md` describes, whose file
+gets `INCLUDE_ASM` from the user's own `include/global.h` (which defines the macro and includes `macros.inc` under its
+own guard, as `include_asm.h` does), gained the header; `generate` exited 0 with no diagnostic, and `make` failed in
+the assembler (`include/macros.inc:26: Error: Macro 'thumb_func_start_local' was already defined`). Fix round 8's code
+built the same tree. architecture-c2-1 is the same rule seen as a scope defect: it fires on a module rename, not only
+on the fragment made a module it was written for. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **Whether a file needs the header is decided from what defines the macro** (correctness-c2-1, architecture-c2-1).
+  A file that gains a stub and keeps no `INCLUDE_ASM` statement of its own gains `#include "include_asm.h"` only when
+  neither the file itself nor any header it reaches defines the macro: the planner follows the file's quoted includes
+  that resolve under `include/` (as the Makefile's `cpp -I include` finds them: from a header, its own directory
+  first, then `include/`), transitively and each header once, so a cycle ends, and adds nothing when one of them
+  `#define`s `INCLUDE_ASM` or includes `include_asm.h`. The shell reads every file under `include/`
+  (`readHeaderTexts`, `ProjectInputs.headerTexts`, `IncludeAsmWanted.headers`; `reconcileStubs` takes them as a fourth
+  argument). An include that resolves to no file read (above `include/`, a `src/*.h`, an angle include) defines
+  nothing as far as the planner knows. So the reviewer's rename keeps its `global.h` alone, and fix round 9's fragment
+  made a module whose `types.h` only declares types still gains the header (D85 a holds for it). The fragment-only
+  narrowing (the review's second option) was not taken: a renamed module whose `global.h` only declares types, and
+  whose stubs `include_asm.h` served through a line the rename does not remove, is no different from that fragment.
+  D85 a's "harmless" sentence, architecture §6.6 and the scaffold's `AGENTS.md` (the fragment paragraph and the rename
+  paragraph) say so.
+- (b) **Records** (gate-honesty-c2-1, correctness-c2-2, architecture-c2-2, architecture-c2-3). Fix round 9's section
+  of phase-4.md counts its minors as the table does: eight fixed, one recorded, one nothing new. roadmap.md "Carried
+  from phase 4": the a0-10 bullet says `write-project.ts` takes `SCAFFOLD_ROM_FILE` from `core/scaffold/vars.ts` and
+  the other two names from `project-files.ts` since fix round 9, and the b2-7/b2-12 bullet lists `api/config.ts`'s
+  re-export of `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE`.
+
+**Consequences.** New tests: the planner (the reviewer's rename with a `global.h` that defines the macro, directly,
+through a nested header from its own directory and from `include/`, and through `include_asm.h` by name: no header; a
+`global.h` of types alone, a cycle of headers none of which defines it, an include that resolves above `include/`, and
+no headers given: the header; fix round 9's fragment with `types.h`: the header), the CLI (a `c` module renamed with its
+source moved, whose `global.h` reaches a nested header that defines the macro: no header, idempotent; the same header
+of types alone: the header), and `test/local/decompiled-c.test.ts` step 10 on klonoa with agbcc (the reviewer's flow:
+`include/global.h` defining the macro and including `macros.inc`, `src/boot.c` including it, `make` to the SHA-1;
+module boot renamed boot2 and `git mv src/boot.c src/boot2.c`; `generate` exit 0 with no diagnostic and no header added;
+`make` to the SHA-1), with steps 5 and 9 (fix rounds 6, 8 and 9's cases) still building. The closing list is re-run in
+a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 10).
 
 ## Review findings index
 

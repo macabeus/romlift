@@ -1622,7 +1622,8 @@ the verdict itself, editing nothing in such a file), the C files of no module, t
 and the project's `DecompState` read (D80 b, D81 a, D82 b). A `src/*.c` that a module's source `#include`s at file scope
 (resolved from `src/`) is part of that module: its definitions hold their chunks at the `#include` line, a function of
 another module in it is `E_C_DEFINITION_MOVED` naming it, and it is no `W_C_FILE_UNUSED` (D82 b). A file that gains a
-stub and holds neither an `INCLUDE_ASM` statement nor `#include "include_asm.h"` gains that include
+stub and holds no `INCLUDE_ASM` statement, and gets the macro neither from its own lines nor from a header it
+includes (D86 a), gains `#include "include_asm.h"`
 (`C_STUB_HEADER`) above its first line of code, so the file a user creates with only the C that `E_C_DEFINITION_MOVED`
 (which names the module's source path) sent there builds (D82 b). Every insertion takes the file's line terminator
 (D82 b). Since fix round 7 the fragment's `INCLUDE_ASM` statements, and what the `src/*.c` files it includes in turn
@@ -1634,9 +1635,14 @@ chunks one `#include` holds is `E_C_STUB_UNPLACED` naming the fragment, and a fr
 (D84 a to d): an include of another module's source, from the module's file or a fragment, is `E_C_MODULE_INCLUDED`,
 an error whether or not the file needs an edit, since make compiles that source on its own and would build its
 functions twice (a fragment made a module by a split named after it), even under `#if 0` (D85 b); a file whose every
-stub the plan replaces (such a fragment, whose stubs the including file's header served) gains the header with its new
-stubs unless it includes `include_asm.h` itself or `#define`s `INCLUDE_ASM` (since fix round 9 whatever other
-`#include` it has, D85 a; the header is guarded); a message about a nested fragment names the include chain from the
+stub the plan replaces (such a fragment, whose stubs the including file's header served, or a renamed module's source
+moved with `git mv`) gains the header with its new stubs unless the macro reaches it some other way: since fix round 10
+(D86 a) the planner follows the file's quoted includes that resolve under `include/` (`IncludeAsmWanted.headers`, every
+file under `include/`, which the shell reads; from a header its own directory first, as `cpp -I include` does),
+transitively and each header once, and adds nothing when the file or one of them `#define`s `INCLUDE_ASM` or includes
+`include_asm.h`. Which `#include` the file has decides nothing by itself (D85 a: a `global.h` of types alone still
+brings the header); the generated header's guard does not cover a `global.h` that defines the macro and includes
+`macros.inc` itself, whose second inclusion the assembler refuses (`Macro … was already defined`); a message about a nested fragment names the include chain from the
 file that includes it directly to the module's file (`CDefinition.chain`, `IncludeAsmStatement.chain`, `CIncludeLink`);
 `W_C_ORDER` compares a fragment's chunks by their place in it (`order`) and names the fragment, or both files when the
 two chunks lie in different files of the chain (D85 c); a fragment the scanner cannot split is `E_C_UNSCANNABLE`
