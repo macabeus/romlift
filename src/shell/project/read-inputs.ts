@@ -10,6 +10,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
@@ -22,7 +23,7 @@ import type { ProjectConfig } from '../config/load.ts';
 import { errnoOf, errorReason, isDirectory, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { readRom } from '../rom.ts';
-import { readDiskState, readJournal, readManifest, readReconciledTexts } from './disk-state.ts';
+import { filesUnder, readDiskState, readJournal, readManifest, readReconciledTexts } from './disk-state.ts';
 import { sha1Of } from '../hash.ts';
 import { locateProject } from './locate.ts';
 import { readAgbccPin, readTemplates } from './templates.ts';
@@ -113,41 +114,33 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
   return fromIo(await readReconciledTexts(dir, paths));
 }
 
-/** How many directories deep readHeaderTexts reads under include/. */
-const HEADER_DEPTH = 16;
-
 /**
- * Every file under the project's include/, at any depth, keyed by project path (fix round 10, correctness-c2-1): the
- * headers the C reconciliation follows to learn whether a file's `#include "global.h"` already defines INCLUDE_ASM
- * (IncludeAsmWanted.headers), up to HEADER_DEPTH directories deep. Empty when there is no such directory.
+ * Every file under the project's include/ and every `.h` under its src/, at any depth, keyed by project path (fix
+ * round 10, correctness-c2-1; src/ since fix round 11, correctness-d0-2): the headers the C reconciliation follows, as
+ * the scaffold's `cpp -nostdinc -I include` finds them, to learn whether a file's includes already define INCLUDE_ASM
+ * (IncludeAsmWanted.headers). Listed by disk-state's filesUnder, so a symbolic link is never followed into a directory:
+ * a link to a file is read as that file, and one to a directory (EISDIR) or to nothing (ENOENT) is left out. Empty
+ * when neither directory exists; any other failure to list or read is E_IO_READ.
  */
 export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyMap<string, string>>> {
-  const paths: string[] = [];
-  // A symbolic link may close a cycle; no header tree is deeper than this.
-  const walk = async (rel: string, depth = 0): Promise<ReadResult<void>> => {
-    if (depth > HEADER_DEPTH) return { ok: true, value: undefined };
-    const at = join(dir, ...rel.split('/'));
-    const names = await listDir(at);
-    if (!names.ok) return fromIo(names);
-    for (const name of names.value) {
-      const path = `${rel}/${name}`;
-      const inner = await isDirectory(join(at, name));
-      if (!inner.ok) return fromIo(inner);
-      if (!inner.value) {
-        paths.push(path);
-        continue;
-      }
-      const walked = await walk(path, depth + 1);
-      if (!walked.ok) return walked;
+  const headers: string[] = [];
+  const listedHeaders = await filesUnder(dir, INCLUDE_DIR, headers);
+  if (!listedHeaders.ok) return fromIo(listedHeaders);
+  const sources: string[] = [];
+  const listedSources = await filesUnder(dir, C_SOURCE_DIR, sources);
+  if (!listedSources.ok) return fromIo(listedSources);
+  const paths = [...headers.filter((p) => p.startsWith(`${INCLUDE_DIR}/`)), ...sources.filter((p) => p.startsWith(`${C_SOURCE_DIR}/`) && p.endsWith('.h'))];
+  const out = new Map<string, string>();
+  for (const path of paths.sort(compareCodeUnits)) {
+    const file = join(dir, ...path.split('/'));
+    try {
+      out.set(path, await readFile(file, 'utf8'));
+    } catch (error) {
+      if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'EISDIR') continue;
+      return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })] };
     }
-    return { ok: true, value: undefined };
-  };
-  const present = await isDirectory(join(dir, INCLUDE_DIR));
-  if (!present.ok) return fromIo(present);
-  if (!present.value) return { ok: true, value: new Map() };
-  const walked = await walk(INCLUDE_DIR);
-  if (!walked.ok) return walked;
-  return fromIo(await readReconciledTexts(dir, paths));
+  }
+  return { ok: true, value: out };
 }
 
 /**
@@ -177,7 +170,7 @@ export async function readChunkFiles(dir: string): Promise<ReadResult<readonly s
 /**
  * The project that holds `from` (a directory): located (decomp.yaml), its config loaded and parsed, its ROM read
  * (the config's `[rom] path` under the project, or `options.rom` resolved from `from`), and its C texts with the chunk
- * files on disk (readChunkFiles) and the headers under include/ (readHeaderTexts).
+ * files on disk (readChunkFiles) and the headers under include/ and src/ (readHeaderTexts).
  */
 export async function readProject(from: string, options: ReadProjectOptions = {}): Promise<ReadResult<ReadProject>> {
   const located = await locateProject(from);

@@ -72,8 +72,9 @@ export interface ProjectInputs {
    */
   readonly previousChunkFiles?: readonly string[];
   /**
-   * Every file under `include/` -> its text (fix round 10, correctness-c2-1): the headers the C reconciliation follows
-   * to learn whether a file already gets INCLUDE_ASM from its own includes. Absent: none is followed.
+   * Every file under `include/` and every `.h` under `src/` -> its text (fix round 10, correctness-c2-1; `src/` since
+   * fix round 11, correctness-d0-2): the headers the C reconciliation follows to learn whether a file already gets
+   * INCLUDE_ASM from its own includes or those of its fragments. Absent: none is followed.
    */
   readonly headerTexts?: ReadonlyMap<string, string>;
   /** The analysis profile; default the discover profile (agbcc). */

@@ -417,6 +417,46 @@ test('a renamed module whose file gets INCLUDE_ASM from its own global.h gains n
   assert.equal(planned(fragment, { ...base, headers: new Map([['include/types.h', 'typedef int s32;\n']]) }), `${C_STUB_HEADER}#include "types.h"\n${stub('A', 'boot2')}\n${stub('B', 'boot2')}\n`);
 });
 
+test('the macro reached through a src/*.c fragment the file includes, an angle include or a src/*.h: no second header (fix round 11, correctness-d0-1, d0-2)', () => {
+  const tree = { files: new Set(['asm/nonmatchings/boot2/A.s', 'asm/nonmatchings/boot2/B.s']), userDirs: new Set<string>() };
+  const base: IncludeAsmWanted = { module: 'boot2', chunks: same(['A', 'B']), path: 'src/boot2.c', tree };
+  const defining = '#ifndef GUARD_GLOBAL_H\n#define GUARD_GLOBAL_H\n#define INCLUDE_ASM(DIR, NAME) asm(".include \\"" DIR "/" #NAME ".s\\"")\nasm(".include \\"include/macros.inc\\"\\n");\n#endif\n';
+  const types = 'typedef int s32;\n';
+  const kinds = (text: string, wanted: IncludeAsmWanted): string[] => {
+    const plan = planIncludeAsm(text, wanted);
+    assert.deepEqual(plan.diagnostics, []);
+    return plan.edits.map((e) => e.reason);
+  };
+  // The reviewers' flow: src/boot2.c includes the fragment src/part.c, which includes the defining global.h.
+  const viaPart = `#include "part.c"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`;
+  const renamed = `#include "part.c"\n${stub('A', 'boot2')}\n${stub('B', 'boot2')}\n`;
+  const part = (text: string): ReadonlyMap<string, string> => new Map([['src/part.c', text]]);
+  assert.equal(planned(viaPart, { ...base, fragments: part('#include "global.h"\n'), headers: new Map([['include/global.h', defining]]) }), renamed);
+  assert.deepEqual(kinds(viaPart, { ...base, fragments: part('#include "global.h"\n'), headers: new Map([['include/global.h', defining]]) }), ['remove-stub', 'remove-stub', 'add-stub'], 'no add-header, no diagnostic');
+  // Two fragments deep, an angle include in the fragment, the fragment defining the macro, or including include_asm.h.
+  const deep = new Map([['src/part.c', '#include "deeper.c"\n'], ['src/deeper.c', '#include "global.h"\nvoid Z(void) {}\n']]);
+  assert.equal(planned(viaPart, { ...base, fragments: deep, headers: new Map([['include/global.h', defining]]) }), renamed);
+  assert.equal(planned(viaPart, { ...base, fragments: part('#include <global.h>\n'), headers: new Map([['include/global.h', defining]]) }), renamed);
+  assert.equal(planned(viaPart, { ...base, fragments: part('#define INCLUDE_ASM(DIR, NAME)\n') }), renamed);
+  assert.equal(planned(viaPart, { ...base, fragments: part('#include "include_asm.h"\n') }), renamed);
+  // A fragment whose global.h only declares types: the header comes.
+  assert.equal(planned(viaPart, { ...base, fragments: part('#include "global.h"\n'), headers: new Map([['include/global.h', types]]) }), `${C_STUB_HEADER}${renamed}`);
+  // The angle include of include/global.h, as cpp -nostdinc -I include resolves it; <include_asm.h> by its path.
+  const angle = `#include <global.h>\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`;
+  const angleRenamed = `#include <global.h>\n${stub('A', 'boot2')}\n${stub('B', 'boot2')}\n`;
+  assert.equal(planned(angle, { ...base, headers: new Map([['include/global.h', defining]]) }), angleRenamed);
+  assert.equal(planned(angle, { ...base, headers: new Map([['include/global.h', '#include <gba/macro.h>\n'], ['include/gba/macro.h', defining]]) }), angleRenamed);
+  assert.equal(planned(angle.replace('<global.h>', '<include_asm.h>'), base), angleRenamed.replace('<global.h>', '<include_asm.h>'));
+  // An angle include never searches the file's own directory: a src/global.h that defines the macro is not it.
+  assert.equal(planned(angle, { ...base, headers: new Map([['src/global.h', defining]]) }), `${C_STUB_HEADER}${angleRenamed}`);
+  // A quoted include searches the file's own directory first: src/local.h, and src/global.h before include/global.h.
+  const quoted = (name: string): string => `#include "${name}"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`;
+  const quotedRenamed = (name: string): string => `#include "${name}"\n${stub('A', 'boot2')}\n${stub('B', 'boot2')}\n`;
+  assert.equal(planned(quoted('local.h'), { ...base, headers: new Map([['src/local.h', defining]]) }), quotedRenamed('local.h'));
+  assert.equal(planned(quoted('global.h'), { ...base, headers: new Map([['src/global.h', types], ['include/global.h', defining]]) }), `${C_STUB_HEADER}${quotedRenamed('global.h')}`);
+  assert.equal(planned(quoted('global.h'), { ...base, headers: new Map([['src/global.h', defining], ['include/global.h', types]]) }), quotedRenamed('global.h'));
+});
+
 test('a split of the first of two stubs one #if region holds is E_C_STUB_UNPLACED: the stub is never put behind the later one', () => {
   const text = `${stub('A')}\n#ifdef NONMATCHING\n#else\n${stub('B')}\n${stub('D')}\n#endif\n${stub('E')}\n`;
   const plan = planIncludeAsm(text, { module: 'main', chunks: same(['A', 'B', 'C', 'D', 'E']), path: 'src/main.c' });

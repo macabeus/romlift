@@ -35,7 +35,11 @@
 //  10. (fix round 10, correctness-c2-1) include/global.h defining INCLUDE_ASM and including macros.inc itself, which
 //      src/boot.c includes instead of include_asm.h (make to the SHA-1); module boot renamed boot2 and `git mv
 //      src/boot.c src/boot2.c`: `generate` exits 0 with no diagnostic and adds no `#include "include_asm.h"`, which
-//      would include macros.inc twice (fix round 9's make failed in the assembler), and `make` ends at the SHA-1.
+//      would include macros.inc twice (fix round 9's make failed in the assembler), and `make` ends at the SHA-1;
+//  11. (fix round 11, correctness-d0-1, d0-2) that global.h reached instead through a src/*.c fragment the module's
+//      file includes, then through `#include <global.h>`, then through a src/local.h that defines the macro: each
+//      builds, and each time the module renamed with `git mv` gains no header and `make` ends at the SHA-1 (fix round
+//      10's make failed in the assembler on all three).
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -381,4 +385,47 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
   assert.deepEqual(renamedOwn.codes, [], renamedOwn.tail);
   assert.equal(await readFile(file('src/boot2.c'), 'utf8'), bootOwn.replaceAll('asm/nonmatchings/boot/', 'asm/nonmatchings/boot2/').replaceAll('"asm/nonmatchings/boot"', '"asm/nonmatchings/boot2"'), 'the stubs renamed, no header added');
   await make();
+
+  // 11. (fix round 11, correctness-d0-1, d0-2, architecture-d0-1, d0-2) The reviews' flows: the defining global.h
+  //     reached through a src/*.c fragment the module's file includes (src/hdr.c), then through an angle include
+  //     (`#include <global.h>`, which the scaffold's cpp -nostdinc -I include finds under include/), then through a
+  //     src/*.h (src/local.h, which a quoted include finds in the file's own directory first). Each builds (make to the
+  //     SHA-1), and the module renamed with `git mv` keeps its text but for the stubs' directory: no header, which
+  //     fix round 10 added (its make: `Macro 'arm_func_start' was already defined`), and make ends at the SHA-1.
+  const globalText = await readFile(file('include/global.h'), 'utf8');
+  const layouts = [
+    { name: 'fragment', include: '#include "hdr.c"\n', files: { 'src/hdr.c': '#include "global.h"\n' } },
+    { name: 'angle include', include: '#include <global.h>\n', files: {} },
+    { name: 'src header', include: '#include "local.h"\n', files: { 'src/local.h': globalText.replace(/GUARD_GLOBAL_H/g, 'GUARD_LOCAL_H') } },
+  ] as const;
+  let module = 'boot2';
+  let tomlStep11 = boot2Toml;
+  let textNow = await readFile(file('src/boot2.c'), 'utf8');
+  for (const [k, layout] of layouts.entries()) {
+    for (const extra of ['src/hdr.c', 'src/local.h']) await rm(file(extra), { force: true });
+    for (const [name, text] of Object.entries(layout.files)) await writeFile(file(name), text);
+    const first = textNow.slice(0, textNow.indexOf('\n') + 1);
+    assert.ok(first.startsWith('#include '), `src/${module}.c starts with its include`);
+    const laidOut = `${layout.include}${textNow.slice(first.length)}`;
+    await writeFile(file(`src/${module}.c`), laidOut);
+    const kept = await generate();
+    assert.equal(kept.code, 0, kept.tail);
+    assert.deepEqual(kept.codes, [], kept.tail);
+    assert.equal(await readFile(file(`src/${module}.c`), 'utf8'), laidOut, `${layout.name}: nothing to change`);
+    await make();
+    const next = `boot${k + 3}`;
+    const nextToml = tomlStep11.replace(`[[modules]]\nname = "${module}"\n`, `[[modules]]\nname = "${next}"\n`);
+    assert.notEqual(nextToml, tomlStep11, `module ${module}`);
+    await writeFile(file('romlift.toml'), nextToml);
+    await git(dir, 'mv', `src/${module}.c`, `src/${next}.c`);
+    const renamed = await generate();
+    assert.equal(renamed.code, 0, renamed.tail);
+    assert.deepEqual(renamed.codes, [], renamed.tail);
+    const expected = laidOut.replaceAll(`asm/nonmatchings/${module}/`, `asm/nonmatchings/${next}/`).replaceAll(`"asm/nonmatchings/${module}"`, `"asm/nonmatchings/${next}"`);
+    assert.equal(await readFile(file(`src/${next}.c`), 'utf8'), expected, `${layout.name}: the stubs renamed, no header added`);
+    await make();
+    module = next;
+    tomlStep11 = nextToml;
+    textNow = expected;
+  }
 });

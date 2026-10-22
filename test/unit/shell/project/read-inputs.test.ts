@@ -4,7 +4,7 @@
 // ROM, src/*.c; --rom; no project), the write state planWrites needs, the package's scaffold inputs and version, and
 // the digests replacedProblems compares so init replaces no file of a project.
 import assert from 'node:assert/strict';
-import { chmod, copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -23,6 +23,7 @@ import {
   readChunkFiles,
   readCTexts,
   readDigests,
+  readHeaderTexts,
   readInitDir,
   readProject,
   readProjectTexts,
@@ -221,4 +222,71 @@ test('readChunkFiles: an asm/ or module directory it cannot examine or list is E
       await chmod(locked, 0o755);
     }
   }
+});
+
+// Fix round 11 (architecture-d0-3): the headers the C reconciliation follows (IncludeAsmWanted.headers, D87 c).
+
+test('readHeaderTexts: no include/ or src/ is an empty map; every file under include/ and every .h under src/, at any depth, by project path', async () => {
+  const none = await readHeaderTexts(await dirWith({}));
+  assert.ok(none.ok);
+  assert.deepEqual([...none.value], []);
+  const dir = await dirWith({
+    'include/global.h': '#include "gba/gba.h"\n',
+    'include/gba/gba.h': '#define X 1\n',
+    'include/gba/deep/io_reg.h': '',
+    'include/macros.inc': '.macro m\n.endm\n',
+    'src/main.c': 'not a header',
+    'src/local.h': '#define INCLUDE_ASM(DIR, NAME)\n',
+    'src/sub/inner.h': '',
+    'src/sub/inner.c': 'not a header',
+    'asm/x.h': 'not under include/ or src/',
+  });
+  const read = await readHeaderTexts(dir);
+  assert.ok(read.ok);
+  assert.deepEqual([...read.value.keys()], ['include/gba/deep/io_reg.h', 'include/gba/gba.h', 'include/global.h', 'include/macros.inc', 'src/local.h', 'src/sub/inner.h']);
+  assert.equal(read.value.get('include/global.h'), '#include "gba/gba.h"\n');
+  const file = await readHeaderTexts(await dirWith({ include: 'a file, not a directory' }));
+  assert.ok(file.ok);
+  assert.deepEqual([...file.value], []);
+});
+
+test('readHeaderTexts never follows a symbolic link into a directory: a link cycle ends, a link to a file is read', async () => {
+  const dir = await dirWith({ 'include/global.h': 'g', 'include/real/types.h': 't' });
+  await symlink('.', path.join(dir, 'include', 'a'));
+  await symlink('.', path.join(dir, 'include', 'b'));
+  await symlink('real/types.h', path.join(dir, 'include', 'types.h'));
+  await symlink('missing.h', path.join(dir, 'include', 'dangling.h'));
+  const read = await readHeaderTexts(dir);
+  assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+  assert.deepEqual([...read.value], [['include/global.h', 'g'], ['include/real/types.h', 't'], ['include/types.h', 't']]);
+});
+
+test('readHeaderTexts: an include/ or src/ directory it cannot list, or a header it cannot read, is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  const dir = await dirWith({ 'include/gba/gba.h': '', 'src/sub/a.h': '' });
+  for (const locked of [path.join(dir, 'include'), path.join(dir, 'include', 'gba'), path.join(dir, 'src', 'sub'), path.join(dir, 'include', 'gba', 'gba.h')]) {
+    await chmod(locked, 0o000);
+    try {
+      const read = await readHeaderTexts(dir);
+      assert.equal(read.ok, false, locked);
+      assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ'), locked);
+    } finally {
+      await chmod(locked, locked.endsWith('.h') ? 0o644 : 0o755);
+    }
+  }
+});
+
+test('readProject passes the headers as headerTexts, and none with withoutC', async () => {
+  const { dir } = await project();
+  const before = await readProject(dir);
+  assert.ok(before.ok);
+  assert.deepEqual([...(before.value.inputs.headerTexts ?? new Map())], [], 'no include/ and no src/*.h');
+  await mkdir(path.join(dir, 'include'), { recursive: true });
+  await writeFile(path.join(dir, 'include', 'global.h'), '#define INCLUDE_ASM(DIR, NAME)\n');
+  await writeFile(path.join(dir, 'src', 'local.h'), '');
+  const read = await readProject(dir);
+  assert.ok(read.ok);
+  assert.deepEqual([...(read.value.inputs.headerTexts ?? new Map()).keys()], ['include/global.h', 'src/local.h']);
+  const withoutC = await readProject(dir, { withoutC: true });
+  assert.ok(withoutC.ok);
+  assert.equal(withoutC.value.inputs.headerTexts, undefined);
 });

@@ -165,3 +165,23 @@ test('a fragment that holds INCLUDE_ASM lines: its stubs hold their chunks, an u
   const stale = reconcileStubs(MODEL, new Map([...TEXTS, ['src/main.c', main], ['src/frag.c', `${includeAsmStatement('main', second)}\n${includeAsmStatement('main', 'Gone')}\n`]]));
   assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.path]), [['E_C_FRAGMENT_STUB', 'src/frag.c']]);
 });
+
+// Fix round 11 (architecture-d0-3): reconcileStubs passes the headers and the fragments to the planner (D87 a).
+
+test('reconcileStubs follows headerTexts and the src/*.c fragments a file includes to learn whether INCLUDE_ASM is defined', () => {
+  const defining = '#define INCLUDE_ASM(DIR, NAME)\n';
+  const reasons = (texts: ReadonlyMap<string, string>, headers?: ReadonlyMap<string, string>): readonly string[] => {
+    const stubs = reconcileStubs(PAIR, texts, undefined, headers);
+    assert.deepEqual(stubs.diagnostics, []);
+    return (stubs.files.find((f) => f.path === 'src/main.c') ?? assert.fail('src/main.c')).edits.map((e) => e.reason);
+  };
+  // src/main.c lost every stub: it gains them, and the header unless the macro reaches it.
+  assert.deepEqual(reasons(new Map([['src/main.c', '#include "global.h"\n']])), ['add-header', 'add-stub']);
+  assert.deepEqual(reasons(new Map([['src/main.c', '#include "global.h"\n']]), new Map([['include/global.h', defining]])), ['add-stub']);
+  assert.deepEqual(reasons(new Map([['src/main.c', '#include <global.h>\n']]), new Map([['include/global.h', defining]])), ['add-stub']);
+  assert.deepEqual(reasons(new Map([['src/main.c', '#include "local.h"\n']]), new Map([['src/local.h', defining]])), ['add-stub']);
+  // Through a fragment the file includes (a src/*.c of no module), which includes the defining global.h.
+  const viaFragment = new Map([['src/main.c', '#include "part.c"\n'], ['src/part.c', '#include "global.h"\n']]);
+  assert.deepEqual(reasons(viaFragment, new Map([['include/global.h', defining]])), ['add-stub']);
+  assert.deepEqual(reasons(viaFragment, new Map([['include/global.h', 'typedef int s32;\n']])), ['add-header', 'add-stub']);
+});

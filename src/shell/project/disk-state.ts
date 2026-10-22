@@ -54,8 +54,13 @@ export async function digestOf(dir: string, path: string): Promise<IoResult<stri
   }
 }
 
-/** Every file below the project directory `path` (no trailing '/'), as project paths; none when it is absent. */
-async function filesUnder(dir: string, path: string, out: string[]): Promise<IoResult<void>> {
+/**
+ * Every file below the project directory `path` (no trailing '/'), as project paths, in code-unit order; none when it
+ * is absent. Symbolic links are listed, never followed (lstat): a link is one entry, whatever it points at, so a link
+ * cycle ends. The one directory walker of the shell: the disk snapshot's and readHeaderTexts' (fix round 11,
+ * architecture-d0-3).
+ */
+export async function filesUnder(dir: string, path: string, out: string[]): Promise<IoResult<void>> {
   let stat: Stats;
   try {
     stat = await lstat(onDisk(dir, path));

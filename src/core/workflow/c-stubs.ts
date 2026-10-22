@@ -98,9 +98,10 @@ function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'v
  * The reconciliation of every C file of `cTexts` (project path -> text) that is the source of a generated C module of
  * `model`; a C file of no such module is not romlift's to edit and is left out (W_C_FILE_UNUSED when it is the source
  * of no module at all, with E_C_DEFINITION_MOVED for each function it defines that a module has). `previousChunkFiles`: the project paths of the chunk files of the tree on disk (the one
- * romlift last generated), or undefined (or empty) when there is none. `headerTexts`: every file under `include/` by
- * project path, which the planner follows to learn whether a file's own includes define INCLUDE_ASM (fix round 10,
- * correctness-c2-1, IncludeAsmWanted.headers); undefined, none is followed.
+ * romlift last generated), or undefined (or empty) when there is none. `headerTexts`: every file under `include/` and
+ * every `.h` under `src/` by project path, which the planner follows to learn whether the includes of a file or of
+ * its fragments define INCLUDE_ASM (fix round 10, correctness-c2-1; fix round 11, correctness-d0-1, d0-2;
+ * IncludeAsmWanted.headers); undefined, none is followed.
  */
 export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>, previousChunkFiles?: readonly string[], headerTexts?: ReadonlyMap<string, string>): StubReconciliation {
   const files: ReconciledStub[] = [];
