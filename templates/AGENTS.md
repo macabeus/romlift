@@ -75,12 +75,16 @@ other file: when `src/<module>.c` includes one of another name (`#include "part.
 compiles it on its own, so its functions would be built twice, and `romlift generate` refuses
 (`E_C_MODULE_INCLUDED`), even under `#if 0`. To make an included file a module of its own, remove its `#include` in
 the same step as you add the module to `romlift.toml`; `romlift generate` then gives the file the new module's
-`INCLUDE_ASM` lines and, unless it includes `include_asm.h` itself, that header, which its old lines took from the file
-that included it.
+`INCLUDE_ASM` lines and, unless the file gets `INCLUDE_ASM` from its own lines or from a header under `include/` it
+includes (one that `#define`s it or includes `include_asm.h`, at any depth), that header, which its old lines took
+from the file that included it.
 
 To rename a `c` module, change its `name` in `[[modules]]` and move its source in the same step
 (`git mv src/<old>.c src/<new>.c`), then run `npx romlift generate`: it replaces the file's
-`INCLUDE_ASM("asm/nonmatchings/<old>", …)` lines with the new directory's and keeps your C. Renamed in
+`INCLUDE_ASM("asm/nonmatchings/<old>", …)` lines with the new directory's and keeps your C. It adds
+`#include "include_asm.h"` only when the file gets `INCLUDE_ASM` neither from its own lines nor from a header under
+`include/` it includes: a `global.h` that defines the macro and includes `macros.inc` itself is left alone, since a
+second `macros.inc` would stop the assembler. Renamed in
 `romlift.toml` alone, the old file is left unbuilt (`W_C_FILE_UNUSED`), and if it holds decompiled C `romlift
 generate` refuses (`E_C_DEFINITION_MOVED`) until you move it.
 

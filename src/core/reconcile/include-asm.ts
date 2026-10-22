@@ -53,7 +53,10 @@
 //
 // Fix round 6 (correctness-b1-2, b1-3, b1-5): a file that gains a stub and has neither an INCLUDE_ASM statement nor
 // `#include "include_asm.h"` gains that include too (C_STUB_HEADER), above its first line of code: the file a user
-// writes with only the C E_C_DEFINITION_MOVED sent there. A src/*.c fragment the file `#include`s at file scope
+// writes with only the C E_C_DEFINITION_MOVED sent there; since fix round 10 (correctness-c2-1) what decides is what
+// defines the macro: the file's own lines and the headers under `include/` its quoted includes reach, transitively
+// (IncludeAsmWanted.headers), so a `global.h` that defines INCLUDE_ASM itself is never paired with a second definition
+// that would include `macros.inc` twice. A src/*.c fragment the file `#include`s at file scope
 // (IncludeAsmWanted.fragments) defines its functions there, at the `#include` line; a quoted include of a file romlift
 // does not read that is no `.h` refuses every insertion (E_C_STUB_UNPLACED), since the fragment may define the
 // function. An insertion takes the file's line terminator (`\r\n` in a CRLF file).
@@ -76,7 +79,7 @@
 // wherever a missing stub goes (correctness-a0-1). The other unwanted definitions are returned (`undeclared`) for
 // the caller, which knows the other modules (core/workflow/c-stubs.ts: E_C_DEFINITION_MOVED).
 import { C_STUB_HEADER, includeAsmStatement } from '../../foundation/asm/dialect.ts';
-import { chunkFileOf, INCLUDE_ASM_HEADER_NAME, nonmatchingDir, NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
+import { chunkFileOf, INCLUDE_ASM_HEADER_NAME, INCLUDE_ASM_HEADER_PATH, INCLUDE_DIR, nonmatchingDir, NONMATCHINGS_ROOT } from '../../foundation/util/project-files.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { tokenizeC, isTrivia } from './c-tokens.ts';
@@ -609,6 +612,15 @@ export interface IncludeAsmWanted {
    * architecture-c1-3). An include inside a conditional region counts as well, even under `#if 0`.
    */
   readonly sources?: ReadonlyMap<string, string>;
+  /**
+   * The text of every file under `include/`, by project path (fix round 10, correctness-c2-1): what decides whether a
+   * file that gains a stub needs `#include "include_asm.h"`. Its quoted includes that resolve under `include/` (the
+   * Makefile's `-I include`; from a header, its own directory first) are followed, transitively and each file once: a
+   * file one of them `#define`s INCLUDE_ASM in, or that includes `include_asm.h`, gets its macro from there (a
+   * `global.h` that defines it and includes `macros.inc` itself, whose second inclusion would break the assembler).
+   * Read only with `path` given. Undefined: no include is followed, and such a file gains the header.
+   */
+  readonly headers?: ReadonlyMap<string, string>;
 }
 
 /** The chunk files a run writes, and the directories it leaves to the user (IncludeAsmWanted.tree). */
@@ -841,21 +853,21 @@ function placement(text: string, scan: CFileScan, skips: ReadonlyMap<number, num
 
 /**
  * The insertion of the header that defines INCLUDE_ASM (C_STUB_HEADER, in the text's line terminator), or undefined
- * when the file needs none (fix round 6, correctness-b1-2): a file that gains a stub needs it unless it already
- * includes the header itself, defines the macro itself (`#define INCLUDE_ASM`), or keeps an INCLUDE_ASM statement of
- * its own (whose macro its build then defines some other way, a `global.h` that includes the header). A file whose
- * every stub the plan removes (`removed`) is not known to define the macro: its stubs may have been compiled under
- * another file's header, as a `src/*.c` fragment made a module's source was (fix round 8, correctness-c0-1), whatever
- * `#include` of its own it has (a `global.h` for its types: fix round 9, correctness-c1-1, architecture-c1-1). It
- * gains the header then too; the header is guarded (INCLUDE_ASM_HEADER), so a second include through another header
- * is harmless. It goes above the first line that is not a comment, after a leading byte order mark and the comments
- * that open the file (a licence, a file comment): a file the user wrote with only the C of a function
- * E_C_DEFINITION_MOVED sent there.
+ * when the file needs none (fix round 6, correctness-b1-2): a file that gains a stub needs it unless it keeps an
+ * INCLUDE_ASM statement of its own (whose macro its build defines some other way), or the macro comes from the file
+ * itself or a header it includes (macroProvided). Which `#include` the file has decides nothing by itself: a file
+ * whose every stub the plan removes (`removed`, a renamed module's or a `src/*.c` fragment made a module's source,
+ * fix round 8, correctness-c0-1) gains the header when its `global.h` only declares its types (fix round 9,
+ * correctness-c1-1), and does not when its `global.h` defines the macro itself (fix round 10, correctness-c2-1): the
+ * generated header's guard does not cover the user's own definition, so both would include `macros.inc` and the
+ * assembler would refuse its macros defined twice. It goes above the first line that is not a comment, after a leading
+ * byte order mark and the comments that open the file (a licence, a file comment): a file the user wrote with only
+ * the C of a function E_C_DEFINITION_MOVED sent there.
  */
-function headerInsertion(text: string, scan: CFileScan, removed: readonly IncludeAsmStatement[]): TextEdit | undefined {
+function headerInsertion(text: string, scan: CFileScan, removed: readonly IncludeAsmStatement[], wanted: IncludeAsmWanted): TextEdit | undefined {
   const gone = new Set(removed.map((s) => s.start));
   if (anyDepthStatements(scan).some((s) => !gone.has(s.start))) return undefined;
-  if (scan.directives.some((t) => t.kind === 'preprocessor' && (quotedInclude(t.text) === INCLUDE_ASM_HEADER_NAME || definedMacro(t.text) === INCLUDE_ASM_MACRO))) return undefined;
+  if (macroProvided(scan, wanted)) return undefined;
   const eol = eolOf(text);
   const header = C_STUB_HEADER.split('\n').join(eol);
   const first = scan.tokens.find((t) => t.kind !== 'comment');
@@ -867,6 +879,54 @@ function headerInsertion(text: string, scan: CFileScan, removed: readonly Includ
   const lineStart = lineStartOf(text, first.start);
   const at = scan.tokens.some((t) => t.kind === 'comment' && t.start < first.start && t.end > lineStart) ? first.start : lineStart;
   return { start: at, end: at, text: at === lineStart ? header : `${eol}${header}`, reason: 'add-header' };
+}
+
+/** Whether a preprocessor line of `scan` includes `include_asm.h` or `#define`s INCLUDE_ASM. */
+function providesMacro(scan: CFileScan, from: string): boolean {
+  return scan.directives.some((t) => {
+    if (t.kind !== 'preprocessor') return false;
+    if (definedMacro(t.text) === INCLUDE_ASM_MACRO) return true;
+    const spelled = quotedInclude(t.text);
+    return spelled !== undefined && (spelled === INCLUDE_ASM_HEADER_NAME || headerPath(from, spelled) === INCLUDE_ASM_HEADER_PATH);
+  });
+}
+
+/**
+ * The project path under `include/` an `#include "<spelled>"` of the file at `from` names, as the Makefile's
+ * `cpp -I include` finds it: from a header, its own directory first when the file is in `headers`; then `include/`.
+ * Undefined when neither is a file of `headers` (without `headers`, the `include/` spelling).
+ */
+function headerPath(from: string, spelled: string, headers?: ReadonlyMap<string, string>): string | undefined {
+  const inside = (p: string | undefined): p is string => p !== undefined && p.startsWith(`${INCLUDE_DIR}/`);
+  const own = from.startsWith(`${INCLUDE_DIR}/`) ? resolveInclude(from, spelled) : undefined;
+  if (inside(own) && (headers === undefined || headers.has(own))) return own;
+  const rooted = resolveInclude(`${INCLUDE_DIR}/.`, spelled);
+  return inside(rooted) && (headers === undefined || headers.has(rooted)) ? rooted : undefined;
+}
+
+/**
+ * Whether INCLUDE_ASM comes from the file itself or from a header it includes (fix round 10, correctness-c2-1): its
+ * own lines include `include_asm.h` or define the macro, or one of its quoted includes that resolve under `include/`
+ * does (`wanted.headers`, followed transitively, each header once, so an include cycle ends).
+ */
+function macroProvided(scan: CFileScan, wanted: IncludeAsmWanted): boolean {
+  const { headers, path } = wanted;
+  if (providesMacro(scan, path ?? '')) return true;
+  if (headers === undefined || path === undefined) return false;
+  const seen = new Set<string>();
+  const pending: { readonly from: string; readonly scan: CFileScan }[] = [{ from: path, scan }];
+  for (let next = pending.shift(); next !== undefined; next = pending.shift()) {
+    for (const t of next.scan.directives) {
+      const spelled = t.kind === 'preprocessor' ? quotedInclude(t.text) : undefined;
+      const found = spelled === undefined ? undefined : headerPath(next.from, spelled, headers);
+      if (found === undefined || seen.has(found)) continue;
+      seen.add(found);
+      const header = scanC(headers.get(found) ?? '');
+      if (providesMacro(header, found)) return true;
+      pending.push({ from: found, scan: header });
+    }
+  }
+  return false;
 }
 
 /**
@@ -1086,7 +1146,7 @@ function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted, un
     if (edit === undefined) unplaced.push(chunk.stub);
     else insertions.push(edit);
   });
-  const header = insertions.length > 0 ? headerInsertion(text, scan, removed) : undefined;
+  const header = insertions.length > 0 ? headerInsertion(text, scan, removed, wanted) : undefined;
   const edits: TextEdit[] = [...(header === undefined ? [] : [header]), ...insertions];
   for (const statement of removed) edits.push(removalOf(text, statement));
   /** The chunk of the previous tree's own directory a stranger took the place of (correctness-a2-1). */

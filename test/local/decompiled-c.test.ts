@@ -31,7 +31,11 @@
 //      E_C_MODULE_INCLUDED and writes nothing (the review's run linked a ROM 2,724 bytes too large, the fragment's
 //      chunks built twice); the #include removed, `generate` gives src/tail.c the header and its stubs and `make`
 //      ends at the SHA-1. Fix round 9 (correctness-c1-1, architecture-c1-1) runs it again with src/tail.c starting
-//      with `#include "types.h"`, an include of its own, which fix round 8 took for the header (its make failed).
+//      with `#include "types.h"`, an include of its own, which fix round 8 took for the header (its make failed);
+//  10. (fix round 10, correctness-c2-1) include/global.h defining INCLUDE_ASM and including macros.inc itself, which
+//      src/boot.c includes instead of include_asm.h (make to the SHA-1); module boot renamed boot2 and `git mv
+//      src/boot.c src/boot2.c`: `generate` exits 0 with no diagnostic and adds no `#include "include_asm.h"`, which
+//      would include macros.inc twice (fix round 9's make failed in the assembler), and `make` ends at the SHA-1.
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -104,7 +108,7 @@ function codesOf(ran: Ran): readonly string[] {
     .map((l) => l.code ?? '?');
 }
 
-test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone, a moved module, a split at a decompiled function, a pulled TOML edit, stubs in a fragment, a relocated config and a fragment made a module build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
+test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled function, the do/while idiom in a clone, a moved module, a split at a decompiled function, a pulled TOML edit, stubs in a fragment, a relocated config, a fragment made a module and a module renamed with git mv whose global.h defines INCLUDE_ASM build to the SHA-1', { skip: REQUIRE ? false : (unavailable ?? false), timeout: 60 * 60_000 }, async () => {
   assert.equal(unavailable, undefined, unavailable);
   const bytes = readFileSync(ROM);
   assert.deepEqual([...bytes.subarray(0x28104, 0x28108)], [0x70, 0x47, 0, 0], 'sub_08028104 is `bx lr` and a zero pad');
@@ -347,5 +351,34 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
     assert.equal(back.code, 0, back.tail);
     assert.deepEqual(back.codes, [], back.tail);
   }
+  await make();
+
+  // 10. (fix round 10, correctness-c2-1) The review's flow: include/global.h defines INCLUDE_ASM and includes
+  //     macros.inc under its own guard, and src/boot.c includes it instead of include_asm.h (make to the SHA-1); then
+  //     module boot renamed boot2 in romlift.toml and `git mv src/boot.c src/boot2.c`. Every stub of the file is
+  //     replaced, and generate gives it no `#include "include_asm.h"`, which would include macros.inc a second time
+  //     (fix round 9's make: `Macro 'thumb_func_start_local' was already defined`).
+  const includeAsm = await readFile(file('include/include_asm.h'), 'utf8');
+  assert.ok(includeAsm.includes('macros.inc'), 'include_asm.h includes macros.inc');
+  await writeFile(file('include/global.h'), includeAsm.replace(/GUARD_INCLUDE_ASM_H/g, 'GUARD_GLOBAL_H'));
+  // Step 7's fragment put back in place first: its stubs name boot's directory, which romlift never edits there.
+  const partText = await readFile(file('src/part.c'), 'utf8');
+  const bootOwn = bootBefore.replace('#include "include_asm.h"\n', '#include "global.h"\n').replace('#include "part.c"\n', partText);
+  assert.ok(bootOwn.startsWith('#include "global.h"\n') && !bootOwn.includes('part.c'), 'src/boot.c includes include_asm.h and part.c');
+  await writeFile(file('src/boot.c'), bootOwn);
+  await rm(file('src/part.c'));
+  const viaGlobal = await generate();
+  assert.equal(viaGlobal.code, 0, viaGlobal.tail);
+  assert.deepEqual(viaGlobal.codes, [], viaGlobal.tail);
+  assert.equal(await readFile(file('src/boot.c'), 'utf8'), bootOwn, 'nothing to change');
+  await make();
+  const boot2Toml = tomlBeforeSplit.replace('[[modules]]\nname = "boot"\n', '[[modules]]\nname = "boot2"\n');
+  assert.notEqual(boot2Toml, tomlBeforeSplit, 'module boot');
+  await writeFile(file('romlift.toml'), boot2Toml);
+  await git(dir, 'mv', 'src/boot.c', 'src/boot2.c');
+  const renamedOwn = await generate();
+  assert.equal(renamedOwn.code, 0, renamedOwn.tail);
+  assert.deepEqual(renamedOwn.codes, [], renamedOwn.tail);
+  assert.equal(await readFile(file('src/boot2.c'), 'utf8'), bootOwn.replaceAll('asm/nonmatchings/boot/', 'asm/nonmatchings/boot2/').replaceAll('"asm/nonmatchings/boot"', '"asm/nonmatchings/boot2"'), 'the stubs renamed, no header added');
   await make();
 });

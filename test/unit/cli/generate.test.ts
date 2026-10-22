@@ -621,6 +621,41 @@ test('the fragment made a module has an #include of its own (a global.h for its 
   }
 });
 
+test('a c module renamed with git mv whose INCLUDE_ASM comes from its own global.h: no second header, so macros.inc is included once; a global.h of types alone brings it (fix round 10, correctness-c2-1)', async () => {
+  for (const defines of [true, false]) {
+    const dir = await initProject();
+    const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+    const main3 = await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8');
+    const header = await readFile(path.join(dir, 'include', 'include_asm.h'), 'utf8');
+    assert.ok(main3.startsWith('#include "include_asm.h"\n') && main3.includes(stubIn('main_3', 'sub_08000508')) && header.includes('macros.inc'), 'the composite as this test knows it');
+    // The reviewer's klonoa layout: global.h defines INCLUDE_ASM and includes macros.inc under its own guard (through a
+    // nested header here), and the module's file includes global.h instead of include_asm.h; one function decompiled.
+    const own = header.replace(/GUARD_INCLUDE_ASM_H/g, 'GUARD_MACRO_H');
+    await mkdir(path.join(dir, 'include', 'gba'));
+    await writeFile(path.join(dir, 'include', 'gba', 'macro.h'), defines ? own : 'typedef unsigned char u8;\n');
+    await writeFile(path.join(dir, 'include', 'global.h'), '#ifndef GUARD_GLOBAL_H\n#define GUARD_GLOBAL_H\n#include "gba/macro.h"\n#endif\n');
+    const text = main3.replace('#include "include_asm.h"\n', '#include "global.h"\n').replace(stubIn('main_3', 'sub_08000508'), 'void sub_08000508(void) {\n}');
+    await writeFile(path.join(dir, 'src', 'main_3.c'), text);
+    const first = await run(dir, ['generate', '--json']);
+    assert.equal(first.code, ExitCode.ok, first.stdout);
+    const kept = await readFile(path.join(dir, 'src', 'main_3.c'), 'utf8');
+    assert.equal(kept, text, 'a file that needs no stub inserted gains no header');
+    // `git mv src/main_3.c src/boot.c` and the TOML rename: every stub of the file is replaced.
+    await writeFile(path.join(dir, 'romlift.toml'), toml.replace('name = "main_3"', 'name = "boot"'));
+    await writeFile(path.join(dir, 'src', 'boot.c'), kept);
+    await rm(path.join(dir, 'src', 'main_3.c'));
+    const out = await run(dir, ['generate', '--json']);
+    assert.equal(out.code, ExitCode.ok, out.stdout);
+    assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic'), [], out.stdout);
+    const boot = await readFile(path.join(dir, 'src', 'boot.c'), 'utf8');
+    assert.ok(!boot.includes('asm/nonmatchings/main_3') && boot.includes('void sub_08000508(void) {'), boot);
+    // Fix round 9 added the header here too, and global.h's macros.inc then came twice: the assembler refused.
+    const renamedText = kept.replaceAll('asm/nonmatchings/main_3', 'asm/nonmatchings/boot');
+    assert.equal(boot, defines ? renamedText : `#include "include_asm.h"\n\n${renamedText}`, `global.h ${defines ? 'defines' : 'does not define'} INCLUDE_ASM`);
+    assert.equal((await run(dir, ['generate', '--json'])).code, ExitCode.ok, 'idempotent');
+  }
+});
+
 test('a fragment in a subdirectory of src/ is not read: an insertion it might duplicate is E_C_STUB_UNPLACED, which says so (fix round 8, architecture-c0-2)', async () => {
   const dir = await initProject();
   const main2 = await readFile(path.join(dir, 'src', 'main_2.c'), 'utf8');

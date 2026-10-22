@@ -98,9 +98,11 @@ function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'v
  * The reconciliation of every C file of `cTexts` (project path -> text) that is the source of a generated C module of
  * `model`; a C file of no such module is not romlift's to edit and is left out (W_C_FILE_UNUSED when it is the source
  * of no module at all, with E_C_DEFINITION_MOVED for each function it defines that a module has). `previousChunkFiles`: the project paths of the chunk files of the tree on disk (the one
- * romlift last generated), or undefined (or empty) when there is none.
+ * romlift last generated), or undefined (or empty) when there is none. `headerTexts`: every file under `include/` by
+ * project path, which the planner follows to learn whether a file's own includes define INCLUDE_ASM (fix round 10,
+ * correctness-c2-1, IncludeAsmWanted.headers); undefined, none is followed.
  */
-export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>, previousChunkFiles?: readonly string[]): StubReconciliation {
+export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>, previousChunkFiles?: readonly string[], headerTexts?: ReadonlyMap<string, string>): StubReconciliation {
   const files: ReconciledStub[] = [];
   const diagnostics: Diagnostic[] = [];
   const sources = new Set(model.modules.map((m) => moduleSource(model, m)));
@@ -129,7 +131,7 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
     if (!isCSource(path) || base === undefined) continue;
     tree ??= stubTree(model);
     const previous = retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previousChunkFiles ?? [], module.name) };
-    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, sources: sourceModules, ...previous });
+    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, sources: sourceModules, ...(headerTexts === undefined ? {} : { headers: headerTexts }), ...previous });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
     for (const fragment of plan.included) included.add(fragment);

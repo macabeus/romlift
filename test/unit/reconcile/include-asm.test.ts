@@ -391,6 +391,32 @@ test('a stub of a directory the tree no longer writes is removed; a user module\
   assert.deepEqual(planIncludeAsm(moved, { module: 'boot', chunks: same(['A', 'B']) }).edits.filter((e) => e.reason === 'remove-stub'), []);
 });
 
+test('a renamed module whose file gets INCLUDE_ASM from its own global.h gains no second header; one whose global.h only declares types does (fix round 10, correctness-c2-1)', () => {
+  const tree = { files: new Set(['asm/nonmatchings/boot2/A.s', 'asm/nonmatchings/boot2/B.s']), userDirs: new Set<string>() };
+  // The reviewer's klonoa flow: module boot renamed boot2 in romlift.toml, `git mv src/boot.c src/boot2.c`.
+  const base: IncludeAsmWanted = { module: 'boot2', chunks: same(['A', 'B']), path: 'src/boot2.c', tree };
+  const text = `#include "global.h"\n${stub('A', 'boot')}\nvoid B(void) {\n}\n`;
+  const renamed = `#include "global.h"\n${stub('A', 'boot2')}\nvoid B(void) {\n}\n`;
+  const defining = '#ifndef GUARD_GLOBAL_H\n#define GUARD_GLOBAL_H\n#define INCLUDE_ASM(DIR, NAME) asm(".include \\"" DIR "/" #NAME ".s\\"")\nasm(".include \\"include/macros.inc\\"\\n");\n#endif\n';
+  // global.h defines the macro and includes macros.inc itself: the header would include macros.inc a second time.
+  assert.equal(planned(text, { ...base, headers: new Map([['include/global.h', defining]]) }), renamed);
+  // Through a nested header, from the header's own directory or from include/, and through include_asm.h by name.
+  const nested = new Map([['include/global.h', '#include "gba/gba.h"\n'], ['include/gba/gba.h', '#include "macro.h"\n'], ['include/gba/macro.h', defining]]);
+  assert.equal(planned(text, { ...base, headers: nested }), renamed);
+  const rooted = new Map([['include/global.h', '#include "gba/gba.h"\n'], ['include/gba/gba.h', '#include "macro.h"\n'], ['include/macro.h', defining]]);
+  assert.equal(planned(text, { ...base, headers: rooted }), renamed);
+  assert.equal(planned(text, { ...base, headers: new Map([['include/global.h', '#include "include_asm.h"\n']]) }), renamed);
+  // A global.h that only declares types, or includes headers in a cycle none of which defines it: the header comes.
+  const types = new Map([['include/global.h', '#include "types.h"\ntypedef int s32;\n'], ['include/types.h', '#include "global.h"\n']]);
+  assert.equal(planned(text, { ...base, headers: types }), `${C_STUB_HEADER}${renamed}`);
+  // An include that resolves to no header read (above include/, or absent), and no headers at all: the header comes.
+  assert.equal(planned(text.replace('global.h', '../src/global.h'), { ...base, headers: new Map([['include/global.h', defining]]) }), `${C_STUB_HEADER}${renamed.replace('global.h', '../src/global.h')}`);
+  assert.equal(planned(text, base), `${C_STUB_HEADER}${renamed}`);
+  // The fragment made a module (fix round 9's case, correctness-c1-1) keeps its rule: types.h defines nothing.
+  const fragment = `#include "types.h"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`;
+  assert.equal(planned(fragment, { ...base, headers: new Map([['include/types.h', 'typedef int s32;\n']]) }), `${C_STUB_HEADER}#include "types.h"\n${stub('A', 'boot2')}\n${stub('B', 'boot2')}\n`);
+});
+
 test('a split of the first of two stubs one #if region holds is E_C_STUB_UNPLACED: the stub is never put behind the later one', () => {
   const text = `${stub('A')}\n#ifdef NONMATCHING\n#else\n${stub('B')}\n${stub('D')}\n#endif\n${stub('E')}\n`;
   const plan = planIncludeAsm(text, { module: 'main', chunks: same(['A', 'B', 'C', 'D', 'E']), path: 'src/main.c' });
@@ -440,7 +466,7 @@ test('a file of decompiled C alone gains the header with its first stub, below i
   assert.equal(planned('/* licence */\n// file\nvoid A(void) {\n}\n', two), `/* licence */\n// file\n${C_STUB_HEADER}void A(void) {\n}\n${stub('B')}\n`);
   assert.equal(planned('/* licence */ void A(void) {\n}\n', two), `/* licence */ \n${C_STUB_HEADER}void A(void) {\n}\n${stub('B')}\n`, 'a comment on the first code line stays whole');
   assert.equal(planned('#include "global.h"\nvoid A(void) {\n}\n', two), `${C_STUB_HEADER}#include "global.h"\nvoid A(void) {\n}\n${stub('B')}\n`);
-  // The include or a stub anywhere (a global.h that includes the header): no second include.
+  // The include or a stub anywhere (a stub kept: its macro is defined some way the build has): no second include.
   assert.equal(planned('#include "include_asm.h"\nvoid A(void) {\n}\n', two), `#include "include_asm.h"\nvoid A(void) {\n}\n${stub('B')}\n`);
   assert.equal(planned(`#include "global.h"\n#ifdef NONMATCHING\nvoid A(void) {\n}\n#else\n${stub('A')}\n#endif\n`, two), `#include "global.h"\n#ifdef NONMATCHING\nvoid A(void) {\n}\n#else\n${stub('A')}\n#endif\n${stub('B')}\n`);
   // Only an insertion brings it: a file that needs none, or only a removal, is left without it.

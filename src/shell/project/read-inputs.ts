@@ -10,7 +10,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { chunkFileOf, C_SOURCE_DIR, cSourceOf, isChunkFile, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
+import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
@@ -113,6 +113,43 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
   return fromIo(await readReconciledTexts(dir, paths));
 }
 
+/** How many directories deep readHeaderTexts reads under include/. */
+const HEADER_DEPTH = 16;
+
+/**
+ * Every file under the project's include/, at any depth, keyed by project path (fix round 10, correctness-c2-1): the
+ * headers the C reconciliation follows to learn whether a file's `#include "global.h"` already defines INCLUDE_ASM
+ * (IncludeAsmWanted.headers), up to HEADER_DEPTH directories deep. Empty when there is no such directory.
+ */
+export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyMap<string, string>>> {
+  const paths: string[] = [];
+  // A symbolic link may close a cycle; no header tree is deeper than this.
+  const walk = async (rel: string, depth = 0): Promise<ReadResult<void>> => {
+    if (depth > HEADER_DEPTH) return { ok: true, value: undefined };
+    const at = join(dir, ...rel.split('/'));
+    const names = await listDir(at);
+    if (!names.ok) return fromIo(names);
+    for (const name of names.value) {
+      const path = `${rel}/${name}`;
+      const inner = await isDirectory(join(at, name));
+      if (!inner.ok) return fromIo(inner);
+      if (!inner.value) {
+        paths.push(path);
+        continue;
+      }
+      const walked = await walk(path, depth + 1);
+      if (!walked.ok) return walked;
+    }
+    return { ok: true, value: undefined };
+  };
+  const present = await isDirectory(join(dir, INCLUDE_DIR));
+  if (!present.ok) return fromIo(present);
+  if (!present.value) return { ok: true, value: new Map() };
+  const walked = await walk(INCLUDE_DIR);
+  if (!walked.ok) return walked;
+  return fromIo(await readReconciledTexts(dir, paths));
+}
+
 /**
  * The project paths of the chunk files under the project's asm/nonmatchings/ (`asm/nonmatchings/<module>/<name>.s`,
  * one level of module directories), in code-unit order: the tree romlift last generated, which the C
@@ -140,7 +177,7 @@ export async function readChunkFiles(dir: string): Promise<ReadResult<readonly s
 /**
  * The project that holds `from` (a directory): located (decomp.yaml), its config loaded and parsed, its ROM read
  * (the config's `[rom] path` under the project, or `options.rom` resolved from `from`), and its C texts with the chunk
- * files on disk (readChunkFiles).
+ * files on disk (readChunkFiles) and the headers under include/ (readHeaderTexts).
  */
 export async function readProject(from: string, options: ReadProjectOptions = {}): Promise<ReadResult<ReadProject>> {
   const located = await locateProject(from);
@@ -153,6 +190,7 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
   if (!rom.ok) return fromIo(rom);
   let cTexts: ReadonlyMap<string, string> = new Map();
   let previousChunkFiles: readonly string[] | undefined;
+  let headerTexts: ReadonlyMap<string, string> | undefined;
   if (options.withoutC !== true) {
     const read = await readCTexts(dir);
     if (!read.ok) return read;
@@ -160,8 +198,11 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
     const chunks = await readChunkFiles(dir);
     if (!chunks.ok) return chunks;
     previousChunkFiles = chunks.value;
+    const headers = await readHeaderTexts(dir);
+    if (!headers.ok) return headers;
+    headerTexts = headers.value;
   }
-  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: loaded.value.sha1, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }) };
+  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: loaded.value.sha1, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }), ...(headerTexts === undefined ? {} : { headerTexts }) };
   return { ok: true, value: { dir, config: loaded.value, romPath, inputs } };
 }
 
