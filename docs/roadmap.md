@@ -924,11 +924,14 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
 - **A cpp-exact include resolution behind a symbolic link** (fix round 13, D89 a; gate-honesty-d2-2,
   correctness-d2-1, architecture-d2-1): `readHeaderTexts` keys a followed file by its link spelling and the planner's
   `resolveInclude` normalizes `..` lexically, so a `..` in an include behind a linked directory is resolved against the
-  link's path, not its target; and `filesUnder` does not enter a link back to the project or to a directory already
-  walked (`include -> .` reads nothing). Resolve a quoted include from a followed header's real directory (the shell
-  passes each header's real path too), read through a link to the project or an ancestor as cpp does, add the
-  reviewers' probes as CLI tests and drop the recorded limitation (phase-4.md, the scaffold's `AGENTS.md`); then the
-  comments in `shell/project/read-inputs.ts` and `disk-state.ts` that say "as cpp does" hold. Carried: phase 4 records
+  link's path, not its target; `filesUnder` does not enter a link whose target is the project directory or a
+  directory the walk is already inside, one of the link's own parent directories (`include -> .` reads nothing); and
+  a link to a directory above the project is entered, all of it but the project directory below it, and every file
+  there is read (fix round 14, D90 a). Resolve a quoted include from a followed header's real directory (the shell
+  passes each header's real path too), read through a link to the project directory or to one of the walk's parent
+  directories the files an `#include` names, read only those through a link above the project, add the reviewers'
+  probes as CLI tests and drop the recorded limitation (phase-4.md, the scaffold's `AGENTS.md`). The comments and
+  index that said "as cpp does" were reworded by fix round 14 (D90 b). Carried: phase 4 records
   it (the remedy, deleting the added `#include "include_asm.h"` line, already exists), and phase 6's rename reworks the
   reconciler.
 

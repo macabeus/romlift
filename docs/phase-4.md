@@ -1,7 +1,7 @@
 # Phase 4: One shot
 
 The record of phase 4 (roadmap "Phase 4", architecture §2.1, §3.4, §6.3 to §6.6, §13, D20, D21, D23, D47, D49, D51,
-D62 to D89). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
+D62 to D90). It is kept by the phase lead: the components as they merge, every deviation from the roadmap, the owner
 questions, the known limitations, the measured numbers and the closing gate. Every number is measured on the owner's
 machine with `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler` and
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc`. The tuning set is six ROMs (fe7j, klonoa, pokeemerald,
@@ -478,7 +478,11 @@ count them.
   `include/`; romlift reads every file under `include/` and every `.h` under `src/`, following a symbolic link to a
   directory since fix round 12, D88 a). Two link layouts are not resolved as cpp resolves them (fix round 13, D89 a):
   a `..` in an include, in a header reached through a linked directory, is resolved against the link's path, not its
-  target, and a link back to the project or to a directory already walked is not entered. An `#if` around an
+  target; a link whose target is the project directory, or a directory the walk is already inside (one of the link's
+  own parent directories), is not entered, so `include -> .` reads nothing (fix round 14, D90 a). A link from
+  `include/` or `src/` to a directory above the project is entered, all of it but the project directory below it, and
+  every file there is read as text: no wrong tree (a header no `#include` names never decides `INCLUDE_ASM`), but the
+  time and memory of reading it, and `E_IO_READ` on an unreadable file (fix round 14, D90 a). An `#if` around an
   `#include`, an `#include` spelled with a macro and an include directory added to `CPPFLAGS` are not evaluated. When a
   header that romlift does not reach for one of these reasons defines `INCLUDE_ASM`, `generate` exits 0 having added
   `#include "include_asm.h"`, and `make` stops in the assembler (`Macro … was already defined`) until that line is
@@ -609,7 +613,8 @@ After fix round 13 (D89; records only, `f6dc916`), with `test/gates/phase.json` 
 closing list in a fresh worktree at `f6dc916` (`git worktree add --detach` under the system temporary directory: no
 `node_modules`, no `bench/.local`, so the PoC dumps, the corpus summary and the agbcc cache were made in the run;
 objdiff-cli 3.7.2 from the main checkout's build), in the landing run's order and environment (the real tier before
-the ci tier), run in the foreground to its last command, from 23:49 on 22 October to 01:38 on 23 October 2026. Node
+the ci tier), detached in its own process group (`nohup`) and waited on until every command had an exit line (D90 c;
+fix round 13 recorded it as "in the foreground"), from 23:49 on 22 October to 01:38 on 23 October 2026. Node
 24.15, binutils 2.45.1, macOS; no other closing run ran on the machine. This run covers fix round 12's code
 (`553410a`), whose own closing run was interrupted (D89 b). The worktree was clean afterwards but for the
 `bench/results.json` the run wrote, committed as this run's artifact (`71957a3`: `meta.commit` `f6dc916`, not dirty,
@@ -1537,9 +1542,28 @@ and this record's results ("The closing gate", fix round 13's closing run: every
 
 | Finding | Severity | Disposition |
 | --- | --- | --- |
-| gate-honesty-d2-1 | major | **Fixed** (records, D89 b). D88 d, D88's consequences, fix round 12's section and its gate-honesty-d1-2 row say that fix round 12's closing run was interrupted and is not recorded. Fix round 13 ran the whole closing list at its records commit in a fresh worktree with `landed` 4, in the foreground to its last command, committed the artifact and added "Fix round 13's closing run" and the Verdict sentence. |
+| gate-honesty-d2-1 | major | **Fixed** (records, D89 b). D88 d, D88's consequences, fix round 12's section and its gate-honesty-d1-2 row say that fix round 12's closing run was interrupted and is not recorded. Fix round 13 ran the whole closing list at its records commit in a fresh worktree with `landed` 4, detached in its own process group and waited on until every command had an exit line (fix round 13 wrote "in the foreground to its last command"; corrected by fix round 14, D90 c), committed the artifact and added "Fix round 13's closing run" and the Verdict sentence. |
 | correctness-d2-2 | minor | **Fixed**, the same record as gate-honesty-d2-1. |
 | architecture-d2-2 | minor | **Fixed**, the same record as gate-honesty-d2-1: the Verdict sentence and the closing-run section are fix round 13's, and fix round 12's section names its records commit `cc874b0` and no artifact. |
-| gate-honesty-d2-2 | minor | **Recorded** (D89 a), the findings' record option. D88 a (amended), the scaffold's `AGENTS.md` (golden regenerated), architecture §6.6 and the known limitations drop "like cpp" and state that a `..` in an include behind a linked directory is resolved against the link's path, not its target, and that a link back to the project or to a directory already walked is not entered; the remedy is deleting the added `#include "include_asm.h"` line. A cpp-exact resolution, with the reviewers' probes as CLI tests, is carried to phase 6 (roadmap.md "Carried from phase 4"). |
+| gate-honesty-d2-2 | minor | **Recorded** (D89 a), the findings' record option. D88 a (amended), the scaffold's `AGENTS.md` (golden regenerated), architecture §6.6 and the known limitations drop "like cpp" and state that a `..` in an include behind a linked directory is resolved against the link's path, not its target, and that a link back to the project or to a directory already walked is not entered (corrected by fix round 14, D90 a: a link whose target is the project directory or a directory the walk is already inside, one of the link's own parent directories); the remedy is deleting the added `#include "include_asm.h"` line. A cpp-exact resolution, with the reviewers' probes as CLI tests, is carried to phase 6 (roadmap.md "Carried from phase 4"). |
 | correctness-d2-1 | minor | **Recorded**, the same as gate-honesty-d2-2. |
 | architecture-d2-1 | minor | **Recorded**, the same as gate-honesty-d2-2. |
+
+### Fix round 14 (the review of fix round 13's closing run at `b189922`)
+
+Seven findings: one major and six minors, three record defects, none in the product's behaviour (D90). The major and
+two minors (correctness-e0-1, gate-honesty-e0-1, architecture-e0-2) are the link rule fix round 13 wrote, which said
+more than the code does and missed a layout; two minors under three lenses (gate-honesty-e0-2, correctness-e0-2,
+architecture-e0-1) are the "as cpp does" left in `src/shell/index.md`, D87 c and two tests; two (correctness-e0-3,
+architecture-e0-3) are fix round 13's run described as "in the foreground". No gate changes what it requires.
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-e0-1 | major | **Fixed** (records, D90 a). In all seven places (the scaffold's `AGENTS.md` and `test/golden/scaffold/scaffold.txt`, architecture §6.6, the known limitation, D88 a's amendment, D89 a, the gate-honesty-d2-2 row, roadmap.md's carried item) the rule now reads: a link whose target is the project directory, or a directory the walk is already inside (one of the link's own parent directories), is not entered. The roadmap's carry no longer says an ancestor is not read; it states that a link above the project is read in full but for the project directory. |
+| gate-honesty-e0-1 | minor | **Fixed**, the same records as correctness-e0-1, with the wording D88 a and `disk-state.ts` use. |
+| architecture-e0-2 | minor | **Recorded** (D90 a), the finding's second option: a link from `include/` or `src/` to a directory above the project is entered, all of it but the project directory, and every file there read as text (no wrong tree; time, memory, `E_IO_READ` on an unreadable file), in the known limitation, the scaffold's `AGENTS.md`, architecture §6.6, D88 a's amendment and the roadmap carry, which asks phase 6 to read only the files an `#include` names. Not the code option: seeding `inside` with the project's ancestors would drop the headers an `#include` names through such a link, which cpp reads. New unit test (read-inputs: `include/up -> ../..` lists the files above the project and none of the project's). |
+| gate-honesty-e0-2 | minor | **Fixed** (D90 b), the reword option: D87 c's replacement note and `src/shell/index.md` say "not exactly as cpp does" with D89 a and D90 a. |
+| correctness-e0-2 | minor | **Fixed** (D90 b): `src/shell/index.md` reworded, with the comments in `disk-state.ts` and `read-inputs.ts`; the roadmap's carried item no longer lists comments, D89 a says D90 b reworded them. |
+| architecture-e0-1 | minor | **Fixed** (D90 b): `src/shell/index.md`, the read-inputs test's name and comment and `test/local/decompiled-c.test.ts`'s step 12 comment reworded; `git grep -n -i -E "as cpp (does\|follows)\|cpp follows"` now finds only quotations of the old wording (D89 a, D90, phase-4.md's tables, the roadmap's note that it was reworded), the negated "not exactly as cpp follows links" (D88 a's amendment, architecture §6.6) and `read-inputs.ts`'s "not exactly as cpp does". |
+| correctness-e0-3 | minor | **Fixed** (records, D90 c): fix round 13's closing-run section, its gate-honesty-d2-1 row and D89 b say the run was detached in its own process group (`nohup`) and waited on until every command had an exit line. |
+| architecture-e0-3 | minor | **Fixed**, the same records as correctness-e0-3. |

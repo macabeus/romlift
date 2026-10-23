@@ -1641,7 +1641,9 @@ moved with `git mv`) gains the header with its new stubs unless the macro reache
 `readHeaderTexts`: every file under `include/` and, since fix round 11, every `.h` under `src/`; since fix round 12, D88 a, through a
 symbolic link to a directory, a cycle ending at a directory the walk is already inside or at the project directory;
 not exactly as cpp follows links, D89 a: a `..` in an include behind a linked directory is resolved against the link's
-path, not its target, and a link back to the project or to a directory already walked is not entered), and since fix round 11
+path, not its target; a link whose target is the project directory, or a directory the walk is already inside (one of
+the link's own parent directories), is not entered; a link to a directory above the project is entered, all of it but
+the project directory below it, and every file there is read, D90 a), and since fix round 11
 (D87 a, b) those of the `src/*.c` fragments it includes too, resolved as the scaffold's `cpp -nostdinc -I include`
 does (`#include "…"` from the including file's own directory first, then `include/`; `#include <…>` from `include/`
 alone), transitively and each file once, and adds nothing when the file, a fragment or one of those headers

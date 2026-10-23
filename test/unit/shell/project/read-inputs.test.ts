@@ -250,11 +250,12 @@ test('readHeaderTexts: no include/ or src/ is an empty map; every file under inc
   assert.deepEqual([...file.value], []);
 });
 
-// Fix round 12 (correctness-d1-1, architecture-d1-1, gate-honesty-d1-1): links are followed as the scaffold's cpp
-// follows them; fix round 11's lstat walk read nothing behind a link to a directory, and a module renamed with git mv
-// whose defining global.h sat behind one gained a second include_asm.h.
+// Fix round 12 (correctness-d1-1, architecture-d1-1, gate-honesty-d1-1): links are followed, as the scaffold's cpp
+// follows them, though not exactly as cpp resolves includes (D89 a, D90 a); fix round 11's lstat walk read nothing
+// behind a link to a directory, and a module renamed with git mv whose defining global.h sat behind one gained a second
+// include_asm.h.
 
-test('readHeaderTexts follows a symbolic link into a directory as cpp does: a linked subdirectory of include/ or src/, a second path to a directory, a link to a file; a cycle ends; a dangling link or a link loop is left out', async () => {
+test('readHeaderTexts follows a symbolic link into a directory: a linked subdirectory of include/ or src/, a second path to a directory, a link to a file; a cycle ends; a dangling link or a link loop is left out', async () => {
   const shared = await dirWith({ 'gba/macro.h': 'm', 'src/x.h': 'x', 'src/y.c': 'not a header' });
   const dir = await dirWith({ 'include/global.h': 'g', 'include/real/types.h': 't' });
   await symlink('.', path.join(dir, 'include', 'a'));
@@ -292,6 +293,23 @@ test('readHeaderTexts follows include/ and src/ that are themselves links; one t
   const selfRead = await readHeaderTexts(self);
   assert.ok(selfRead.ok);
   assert.deepEqual([...selfRead.value], [], 'include -> . is the project directory: a cycle, walked no further');
+});
+
+// Fix round 14 (architecture-e0-2, D90 a): the recorded third layout. A link to a directory above the project is
+// entered and every file under it read, but for the project directory below it, where the walk is already inside.
+test('readHeaderTexts enters a link to a directory above the project, all of it but the project directory', async () => {
+  const outer = await dirWith({ 'other/x.h': 'x', 'blob.bin': 'b' });
+  const dir = path.join(outer, 'proj');
+  await mkdir(path.join(dir, 'include'), { recursive: true });
+  await writeFile(path.join(dir, 'include', 'global.h'), 'g');
+  await symlink(path.join('..', '..'), path.join(dir, 'include', 'up'));
+  const read = await readHeaderTexts(dir);
+  assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+  assert.deepEqual([...read.value], [
+    ['include/global.h', 'g'],
+    ['include/up/blob.bin', 'b'],
+    ['include/up/other/x.h', 'x'],
+  ]);
 });
 
 test('readHeaderTexts: an include/ or src/ directory it cannot list, or a header it cannot read, is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {

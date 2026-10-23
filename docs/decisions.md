@@ -3875,7 +3875,8 @@ under three lenses: an angle include of a header under `include/` (`#include <gl
   (`c-stubs.test.ts`). `src/shell/index.md` names the headers among what read-inputs reads.
   **Replaced by D88 a and b** (fix round 12): the `lstat` walk read nothing behind a symbolic link to a directory, a
   regression against fix round 10 that broke the build of a module renamed with `git mv`; `readHeaderTexts` follows
-  such a link as cpp does, a cycle ending by real path, and the shell keeps two link policies, each named.
+  such a link, a cycle ending by real path (not exactly as cpp does: the layouts of D89 a and D90 a), and the shell
+  keeps two link policies, each named.
 
 **Consequences.** New tests: the planner (the reviewers' fragment flow, two fragments deep, an angle include in the
 fragment, a fragment defining the macro or including `include_asm.h`: no header; a fragment whose `global.h` declares
@@ -3917,8 +3918,11 @@ the shell has one walker with one link policy, while `readChunkFiles` and `readC
   spellings, as cpp finds both. A dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out.
   **Amended by D89 a** (fix round 13): this is not exactly as cpp follows links, and the records no longer say "like
   cpp". A `..` in an include, in a header reached through a linked directory, is resolved against the link's path, not
-  its target (the planner's `resolveInclude` normalizes it lexically), and a link back to the project or to a
-  directory already walked is not entered (`include -> .` reads nothing, while cpp reads the files there). When the
+  its target (the planner's `resolveInclude` normalizes it lexically), and a link whose target is the project
+  directory, or a directory the walk is already inside (one of the link's own parent directories), is not entered
+  (`include -> .` reads nothing, while cpp reads the files there); D90 a corrected this sentence, which fix round 13
+  wrote as "a link back to the project or to a directory already walked", and added the third layout, a link to a
+  directory above the project, which is entered and read in full. When the
   header that defines `INCLUDE_ASM` lies behind either layout, a `c` module renamed with `git mv` gains
   `#include "include_asm.h"`, `generate` exits 0 and `make` stops in the assembler; the remedy is deleting the added
   line, as for the unevaluated forms of D87 b. A cpp-exact resolution is carried to phase 6.
@@ -3969,19 +3973,62 @@ command. No gate changes what it requires.
   the findings' record option. D88 a (amended), the scaffold's `AGENTS.md` (`test/golden/scaffold/scaffold.txt`
   regenerated), architecture §6.6 and phase-4.md's known limitations drop the "like cpp" claim and state that a `..`
   in an include behind a linked directory is resolved against the link's path, not its target, and that a link back
-  to the project or to a directory already walked is not entered; the remedy is deleting the added
+  to the project or to a directory already walked is not entered (corrected by D90 a: a link whose target is the
+  project directory or a directory the walk is already inside, one of the link's own parent directories; a second
+  path to a directory walked before is entered); the remedy is deleting the added
   `#include "include_asm.h"` line. A cpp-exact resolution (resolving a quoted include from a followed header's real
   directory, and reading through a link to the project or an ancestor) is carried to phase 6 (roadmap.md "Carried
   from phase 4"). No code under `src/` changes; its comments that say links are followed "as cpp does" go with the
-  carried item.
+  carried item (reworded by D90 b instead, with `src/shell/index.md` and two tests, which this sentence missed).
 - (b) **Only runs that exist are cited** (gate-honesty-d2-1, correctness-d2-2, architecture-d2-2). D88 d, D88's
   consequences and phase-4.md's fix-round-12 section say that fix round 12's closing run was interrupted and is not
-  recorded. Fix round 13 runs the whole closing list at its records commit in a fresh worktree with `landed` 4, in the
-  foreground to its last command, commits the `bench/results.json` artifact and adds "Fix round 13's closing run" and
-  the Verdict sentence.
+  recorded. Fix round 13 runs the whole closing list at its records commit in a fresh worktree with `landed` 4, detached
+  in its own process group and waited on until every command had an exit line (corrected by D90 c, which fix round 13
+  wrote as "in the foreground to its last command"), commits the `bench/results.json` artifact and adds "Fix round 13's
+  closing run" and the Verdict sentence.
 
 **Consequences.** Records only: `templates/AGENTS.md` and its golden, `docs/` and `bench/results.json`. The closing
 list's result is in phase-4.md, "The closing gate", fix round 13.
+
+## D90. Fix round 14 of phase 4: the review of fix round 13
+
+**Context.** The review of fix round 13's closing run at `b189922` (round e0) raised seven findings: one major
+(correctness-e0-1) and six minors. They are three record defects. First (correctness-e0-1, gate-honesty-e0-1,
+architecture-e0-2): fix round 13 wrote, in seven places, that "a link back to the project or to a directory already
+walked is not entered", while `filesUnder` (`disk-state.ts`) refuses a directory only when its real path is the project
+directory's or one on the walk's current path (`inside`, built per branch), so a second, non-cyclic link to a directory
+walked before is entered, as D88 a's own sentence and the read-inputs test say; and a link from `include/` or `src/` to
+a directory above the project is entered and every file there read as text, a layout no record named. Second
+(gate-honesty-e0-2, correctness-e0-2, architecture-e0-1): "as cpp does" survived in `src/shell/index.md`, in D87 c's
+replacement note and in two tests, which D89 a's carry did not name. Third (correctness-e0-3, architecture-e0-3): fix
+round 13's closing run was started detached in its own process group (`nohup`), not "in the foreground", as its records
+said. The reviewers' runs found the run itself complete, every command exit 0. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **The link rule says what the code does** (correctness-e0-1, gate-honesty-e0-1, architecture-e0-2), the findings'
+  record option; no behaviour changes. The scaffold's `AGENTS.md` (golden regenerated), architecture §6.6, phase-4.md's
+  known limitation, D88 a's amendment, D89 a, the fix-round-13 row and roadmap.md's carried item say: a link whose
+  target is the project directory, or a directory the walk is already inside (one of the link's own parent
+  directories), is not entered. They add the third layout: a link to a directory above the project is entered, all of
+  it but the project directory below it, and every file there is read as text. The tree is not wrong, since a header
+  no `#include` names never decides `INCLUDE_ASM`; the cost is the time and memory of reading it, and `E_IO_READ` on an
+  unreadable file. Seeding `inside` with the project's ancestors was not chosen: it would stop reading the headers an
+  `#include "up/other/x.h"` names through such a link, which cpp reads. A unit test asserts the recorded behaviour
+  (`include/up -> ../..` lists the files above the project and none of the project's). The carried item now asks phase 6
+  to read, through such links, only the files an `#include` names.
+- (b) **"As cpp does" is gone from the records and the code's comments** (gate-honesty-e0-2, correctness-e0-2,
+  architecture-e0-1), the findings' reword option rather than a longer carry: `src/shell/index.md`, the comments in
+  `disk-state.ts` and `read-inputs.ts`, D87 c's replacement note, the read-inputs test's name and comment and
+  `test/local/decompiled-c.test.ts`'s step list say links are followed, not exactly as cpp does (D89 a, D90 a). The
+  roadmap's carried item no longer lists comments to fix. Comments only: no code path changes.
+- (c) **The run is described as it ran** (correctness-e0-3, architecture-e0-3). phase-4.md's fix-round-13 closing run,
+  its gate-honesty-d2-1 row and D89 b say it ran detached in its own process group and was waited on until every
+  command had an exit line. Fix round 14's closing run is recorded with how it was launched.
+
+**Consequences.** One new unit test (read-inputs, the link above the project); comments in two `src/shell/project`
+files, `src/shell/index.md`, `templates/AGENTS.md` and its golden, `docs/`. The closing list is re-run in a fresh
+worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 14).
 
 ## Review findings index
 

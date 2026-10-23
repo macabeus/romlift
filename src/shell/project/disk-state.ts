@@ -57,11 +57,11 @@ export async function digestOf(dir: string, path: string): Promise<IoResult<stri
 /** How filesUnder treats a symbolic link to a directory. */
 export interface FilesUnderOptions {
   /**
-   * Follow it, as the Makefile's cpp and make do (readHeaderTexts, fix round 12, correctness-d1-1): a link to a
-   * directory is walked under its own project path. A cycle ends where a directory's real path (realpath) is the
-   * project directory's or that of a directory the walk is already inside, as `find -L` ends one; a dangling link or
-   * a link loop (ENOENT, ENOTDIR, ELOOP) is left out. Default false: listed as one entry, never followed (the disk
-   * snapshot, which hashes what romlift wrote).
+   * Follow it, as the Makefile's cpp and make do, though not exactly as cpp resolves includes (readHeaderTexts, fix
+   * round 12, correctness-d1-1; D89 a, D90 a): a link to a directory is walked under its own project path. A cycle ends
+   * where a directory's real path (realpath) is the project directory's or that of a directory the walk is already
+   * inside, as `find -L` ends one; a dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out. Default false:
+   * listed as one entry, never followed (the disk snapshot, which hashes what romlift wrote).
    */
   readonly followLinks?: boolean;
 }
@@ -70,8 +70,9 @@ export interface FilesUnderOptions {
  * Every file below the project directory `path` (no trailing '/'), as project paths, in code-unit order; none when it
  * is absent. The recursive walker of the shell, with two link policies chosen by the caller (fix round 12,
  * architecture-d1-2): the disk snapshot lists a symbolic link as one entry, whatever it points at (lstat), and
- * readHeaderTexts follows a link to a directory as cpp does (`options.followLinks`). The shell's fixed-depth listings
- * (readCTexts' `src/*.c`, readChunkFiles' `asm/nonmatchings/<module>/`) use stat, which follows a link as well.
+ * readHeaderTexts follows a link to a directory (`options.followLinks`; not exactly as cpp does, D89 a, D90 a). The
+ * shell's fixed-depth listings (readCTexts' `src/*.c`, readChunkFiles' `asm/nonmatchings/<module>/`) use stat, which
+ * follows a link as well.
  */
 export async function filesUnder(dir: string, path: string, out: string[], options: FilesUnderOptions = {}): Promise<IoResult<void>> {
   if (options.followLinks === true) {

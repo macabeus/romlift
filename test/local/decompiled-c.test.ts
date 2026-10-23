@@ -40,12 +40,12 @@
 //      file includes, then through `#include <global.h>`, then through a src/local.h that defines the macro: each
 //      builds, and each time the module renamed with `git mv` gains no header and `make` ends at the SHA-1 (fix round
 //      10's make failed in the assembler on all three);
-//  12. (fix round 12, correctness-d1-1, architecture-d1-1, gate-honesty-d1-1) the defining header behind a symbolic link
-//      to a directory, as cpp follows it: first include/gba linked to a directory outside the project, holding a
-//      macro.h that defines INCLUDE_ASM and includes macros.inc, reached through include/glue.h; then include/ itself a
-//      link to a directory outside the project, global.h reached through it. Each builds, and each time the module
-//      renamed with `git mv` gains no header and `make` ends at the SHA-1 (fix round 11's make failed in the assembler
-//      on both, its lstat walk reading nothing behind a link to a directory).
+//  12. (fix round 12, correctness-d1-1, architecture-d1-1, gate-honesty-d1-1) the defining header behind a symbolic
+//      link to a directory, which cpp follows and readHeaderTexts follows too: first include/gba linked to a directory
+//      outside the project, holding a macro.h that defines INCLUDE_ASM and includes macros.inc, reached through
+//      include/glue.h; then include/ itself a link to a directory outside the project, global.h reached through it.
+//      Each builds, and each time the module renamed with `git mv` gains no header and `make` ends at the SHA-1 (fix
+//      round 11's make failed in the assembler on both, its lstat walk reading nothing behind a link to a directory).
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and

@@ -115,14 +115,14 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
 }
 
 /**
- * Every file under the project's include/ and every `.h` under its src/, at any depth, keyed by project path (fix
- * round 10, correctness-c2-1; src/ since fix round 11, correctness-d0-2): the headers the C reconciliation follows, as
- * the scaffold's `cpp -nostdinc -I include` finds them, to learn whether a file's includes already define INCLUDE_ASM
- * (IncludeAsmWanted.headers). Listed by disk-state's filesUnder with `followLinks`, as cpp follows a symbolic link (fix
- * round 12, correctness-d1-1): a link to a file is read as that file, a link to a directory (include/ or src/ itself
- * among them) is walked under its own project path, and a cycle ends at a directory the walk is already inside or at
- * the project directory; a dangling link is left out. Empty when neither directory exists; any other failure to list
- * or read is E_IO_READ.
+ * Every file under the project's include/ and every `.h` under its src/, at any depth, keyed by project path (fix round
+ * 10, correctness-c2-1; src/ since fix round 11, correctness-d0-2): the headers the C reconciliation follows, as the
+ * scaffold's `cpp -nostdinc -I include` finds them, to learn whether a file's includes already define INCLUDE_ASM
+ * (IncludeAsmWanted.headers). Listed by disk-state's filesUnder with `followLinks`, which follows a symbolic link, not
+ * exactly as cpp does (fix round 12, correctness-d1-1; D89 a, D90 a): a link to a file is read as that file, a link to
+ * a directory (include/ or src/ itself among them) is walked under its own project path, and a cycle ends at a
+ * directory the walk is already inside or at the project directory; a dangling link is left out. Empty when neither
+ * directory exists; any other failure to list or read is E_IO_READ.
  */
 export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyMap<string, string>>> {
   const headers: string[] = [];
