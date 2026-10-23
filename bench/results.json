@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "b42513e61f223014a6241fd76040eeae88351abd",
+    "commit": "f6dc9163c7e3eddcd14b5706f489ad61af08eeba",
     "dirty": false,
-    "sourceDigest": "fc933ed79ab165fbea0a81ec290ce51ed9487594ecd0b0381151bbfc377ebb5b",
+    "sourceDigest": "bca5cbf8a9ad3cce7fb087738169cca55ce76ee3ec570194aebbcb136db347e0",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -113,7 +113,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "5bbdd3db583f8224d6fda7bb011baf781d83cd80c69058380afbec61c5e005ce",
+    "inputsDigest": "5906ce97668653ecbd7c9224c38e481eee30bf38a0d262d30c1996cb3f559bc7",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1897,14 +1897,14 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1340.3,
+        "maxRssMiB": 1276.61,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "d60c5331838241e9e271472e0fa90e19657f2a320563dafeb9bc6d5e32b92ffc"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1203.73,
+        "maxRssMiB": 1130.92,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "d60c5331838241e9e271472e0fa90e19657f2a320563dafeb9bc6d5e32b92ffc"
       }
@@ -2018,7 +2018,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.955; CPU/limit: fe7j 1092/12621 ms, klonoa 234/305 ms, pokeemerald 2040/4195 ms, sa2 698/779 ms, sa3 1066/1484 ms, tmc 1370/1774 ms"
+        "detail": "median of 9 runs; calibration ratio 0.989; CPU/limit: fe7j 1125/13076 ms, klonoa 235/316 ms, pokeemerald 2133/4347 ms, sa2 741/807 ms, sa3 1116/1537 ms, tmc 1439/1838 ms"
       },
       {
         "id": "g3.link",
@@ -2061,7 +2061,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.980; fe7j analysis 1111/2940 ms, klonoa analysis 231/2940 ms, pokeemerald analysis 2034/2940 ms, pokeemerald generate 7640/9801 ms, pokeemerald init 10052/14701 ms, sa2 analysis 724/2940 ms, sa3 analysis 1083/2940 ms, tmc analysis 1403/2940 ms"
+        "detail": "calibration ratio 0.955; fe7j analysis 1134/2864 ms, klonoa analysis 253/2864 ms, pokeemerald analysis 2069/2864 ms, pokeemerald generate 7883/9546 ms, pokeemerald init 10333/14319 ms, sa2 analysis 725/2864 ms, sa3 analysis 1107/2864 ms, tmc analysis 1383/2864 ms"
       },
       {
         "id": "g3.text-layout",
