@@ -9,7 +9,7 @@
 import { C_STUB_HEADER } from '../../foundation/asm/dialect.ts';
 import { stubAssemblyText } from '../model/c-unit.ts';
 import { chunkFileOf } from '../../foundation/util/project-files.ts';
-import { scanC } from '../reconcile/include-asm.ts';
+import { scanC } from '../reconcile/c-scan.ts';
 
 /** The header include a stub starts with (C_STUB_HEADER without its blank line). */
 const HEADER_INCLUDE = C_STUB_HEADER.trimEnd();

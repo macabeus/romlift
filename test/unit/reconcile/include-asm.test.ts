@@ -1,6 +1,6 @@
-// scanC and planIncludeAsm (architecture §6.3 `c-stub`, §6.6, roadmap 4.C): file-scope INCLUDE_ASM statements,
-// function definitions and other code found through the tokenizer; the phase-4 planner adds each missing stub at its
-// ROM-order position (the empty-file case included), removes a stub of the module's directory whose function is no
+// planIncludeAsm (architecture §6.3 `c-stub`, §6.6, roadmap 4.C) over the file-scope INCLUDE_ASM statements,
+// function definitions and other code scanC finds (its own tests are c-scan.test.ts): the phase-4 planner adds each
+// missing stub at its ROM-order position (the empty-file case included), removes a stub of the module's directory whose function is no
 // longer wanted (a rename, a deletion, a move to another module: D75 b), counts a defined function as held, never
 // touches a comment, string or directive, and raises W_C_ORDER when the file's order is not ROM order. Fix round 2
 // (D77 a to c): a stub never goes inside a preprocessor conditional (the NONMATCHING pattern), a leading byte order
@@ -9,7 +9,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { compiledDefinitions, planIncludeAsm, scanC } from '../../../src/core/reconcile/include-asm.ts';
+import { compiledDefinitions, scanC } from '../../../src/core/reconcile/c-scan.ts';
+import { planIncludeAsm } from '../../../src/core/reconcile/include-asm.ts';
 import type { IncludeAsmWanted } from '../../../src/core/reconcile/include-asm.ts';
 import { applyTextEdits } from '../../../src/core/reconcile/text-edit.ts';
 import { C_STUB_HEADER, includeAsmStatement } from '../../../src/foundation/asm/dialect.ts';
@@ -28,40 +29,6 @@ function stub(name: string, module = 'main'): string {
 function planned(text: string, wanted: IncludeAsmWanted = WANTED): string {
   return applyTextEdits(text, planIncludeAsm(text, wanted).edits);
 }
-
-test('scanC: statements, definitions, other code, directives, with offsets and lines', () => {
-  const text = [
-    '#include "include_asm.h"',
-    '/* INCLUDE_ASM("asm/nonmatchings/main", Commented); */',
-    'INCLUDE_ASM("asm/nonmatchings/main", A);',
-    'INCLUDE_ASM ( /* dir */ "asm/nonmatchings/main" , B ) ;',
-    'static int gCount = 0;',
-    'struct S { int a; };',
-    'int Sum(int a, int b) { if (a) { return a + b; } return b; }',
-    'void Proto(void);',
-    'const int gTable[2] = { 1, 2 };',
-    'INCLUDE_ASM("asm/nonmatchings/" "main", C);',
-    'INCLUDE_ASM("asm/nonmatchings/main", D)',
-  ].join('\n');
-  const scan = scanC(text);
-  assert.deepEqual(scan.statements.map((s) => [s.dir, s.name, s.line, text.slice(s.start, s.end)]), [
-    ['asm/nonmatchings/main', 'A', 3, 'INCLUDE_ASM("asm/nonmatchings/main", A);'],
-    ['asm/nonmatchings/main', 'B', 4, 'INCLUDE_ASM ( /* dir */ "asm/nonmatchings/main" , B ) ;'],
-  ]);
-  assert.deepEqual(scan.definitions.map((d) => [d.name, d.line, text.slice(d.end - 1, d.end)]), [['Sum', 7, '}']]);
-  assert.deepEqual(scan.others.map((o) => [o.first, o.line]), [['static', 5], ['struct', 6], ['void', 8], ['const', 9], ['INCLUDE_ASM', 10], ['INCLUDE_ASM', 11]]);
-  assert.deepEqual(scan.directives.map((d) => d.kind), ['preprocessor', 'comment', 'comment']);
-  assert.deepEqual(scan.unterminated, []);
-});
-
-test('scanC: a definition with an initializer-like body is not one; an unclosed definition runs to the end and is unscannable', () => {
-  const scan = scanC('int (*fp)(void) = { 0 };\nint main(void) {\n  return 0;\n');
-  assert.deepEqual(scan.others.map((o) => o.first), ['int']);
-  assert.deepEqual(scan.definitions.map((d) => [d.name, d.end]), [['main', 'int (*fp)(void) = { 0 };\nint main(void) {\n  return 0;\n'.length]]);
-  assert.deepEqual(scan.unscannable.map((u) => u.line), [2]);
-  assert.deepEqual(scanC('/* open').unterminated.map((t) => t.kind), ['comment']);
-  assert.deepEqual(scanC('/* open').unscannable, []);
-});
 
 test('the empty file and the template header: one stub per wanted function, in ROM order, each on its own line', () => {
   // A file with no stub and no include of the header gains it with its first stub (fix round 6, correctness-b1-2).
@@ -470,32 +437,12 @@ test('a split of the first of two stubs one #if region holds is E_C_STUB_UNPLACE
   assert.equal(applyTextEdits(text, tail.edits), text.replace('#endif\n', `#endif\n${stub('X')}\n`));
 });
 
-test('scanC names a function returning a function pointer and one with an attribute; a K&R definition is unscannable', () => {
-  const names = (text: string): string[] => scanC(text).definitions.map((d) => d.name);
-  assert.deepEqual(names('static void (*GetGfxFunc(void))(void) {\n    return 0;\n}\n'), ['GetGfxFunc']);
-  assert.deepEqual(names('__attribute__((section(".iwram"))) void B(void) {}\n'), ['B']);
-  assert.deepEqual(names('void C(int a) __attribute__((noinline));\nint D(void (*cb)(void)) { return 0; }\n'), ['D']);
+test('a function returning a function pointer is held; a K&R definition is unscannable', () => {
   const fnPointer = `${stub('A')}\nvoid (*B(void))(void) {\n    return 0;\n}\n${stub('C')}\n${stub('D')}\n`;
   assert.deepEqual(planIncludeAsm(fnPointer, WANTED).edits, [], 'B is held: no stub inserted beside it');
   const knr = `${stub('A')}\nint B(a) int a; {\n    return a;\n}\n${stub('C')}\n${stub('D')}\n`;
   assert.deepEqual(planIncludeAsm(knr, WANTED).diagnostics.map((d) => d.code), ['E_C_UNSCANNABLE']);
   assert.deepEqual(planIncludeAsm(knr, WANTED).edits, []);
-});
-
-test('compiledDefinitions: named definitions outside every conditional, the one rule for what the C defines', () => {
-  const scan = scanC('#ifdef NONMATCHING\nvoid Foo(void) {\n}\n#endif\nvoid Bar(void) {\n}\n');
-  assert.deepEqual(scan.definitions.map((d) => d.name), ['Foo', 'Bar']);
-  assert.deepEqual(compiledDefinitions(scan), { scannable: true, definitions: [scan.definitions[1]] });
-  // A bare macro a conditional leaves unfinished (sa2's `#if COLLECT_RINGS_ROM END_NONMATCH #endif`) is no part of the
-  // next head: that definition starts at its own head, outside the region, and is compiled (fix round 5).
-  const leftover = scanC('#if COLLECT_RINGS_ROM\nEND_NONMATCH\n#endif\n\nstatic void Task(void)\n{\n}\n');
-  assert.deepEqual(leftover.definitions.map((d) => [d.name, d.line]), [['Task', 5]]);
-  assert.deepEqual(compiledDefinitions(leftover).definitions.map((d) => d.name), ['Task']);
-  // An unscannable file: the definitions as far as the scanner read, and why (architecture-b0-2).
-  const knr = scanC('int K(a) int a; {\n    return a;\n}\nvoid L(void) {\n}\n');
-  const compiled = compiledDefinitions(knr);
-  assert.equal(compiled.scannable, false);
-  assert.ok(!compiled.scannable && compiled.unscannable.length === 1);
 });
 
 // Fix round 6 (D82): the header a file gains with its first stub, a definition in every branch, and the fragments a
