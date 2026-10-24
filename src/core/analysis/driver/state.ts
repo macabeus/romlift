@@ -36,7 +36,7 @@ import { resolveRules } from './rules.ts';
 import type { ResolvedRules } from './rules.ts';
 import { read } from './settle.ts';
 import { valid, whyInvalid } from './validity.ts';
-import { wellFormedSeeds } from './seeds.ts';
+import { dataOverrideSpans, overrideSeeds, wellFormedSeeds } from './seeds.ts';
 import { makeView } from './view.ts';
 
 /** An accepted function: its current reading and how it was accepted. */
@@ -68,6 +68,10 @@ export interface DriverInputs {
 }
 
 export interface DriverState extends DriverInputs {
+  /** The seeds the seed rules read: the options' well-formed seeds, then a seed.override seed per code override (seeds.ts). */
+  readonly seeds: readonly Seed[];
+  /** The data overrides' spans (seeds.ts dataOverrideSpans): claimed data from round 0, never walked, never claimed again. */
+  readonly dataOverrides: readonly Span[];
   /** One claim kind per ROM byte. */
   readonly claims: Uint8Array;
   readonly funcs: Map<Addr, Accepted>;
@@ -147,6 +151,9 @@ export function createDriver(rom: Rom, profile: CompilerProfile, given: Analysis
     return state;
   };
   const view = makeView(get);
+  const dataOverrides = dataOverrideSpans(rom, options.overrides);
+  const claims = new Uint8Array(rom.bytes.length);
+  for (const d of dataOverrides) claims.fill(Claim.data, d.start - rom.base, d.end - rom.base);
   state = {
     rom,
     profile,
@@ -156,7 +163,9 @@ export function createDriver(rom: Rom, profile: CompilerProfile, given: Analysis
     addresses: addressMap(options.overrides),
     pointers: buildPointerIndex(rom),
     ...(sink === undefined ? {} : { sink }),
-    claims: new Uint8Array(rom.bytes.length),
+    seeds: [...options.seeds, ...overrideSeeds(rom, options.overrides)],
+    dataOverrides,
+    claims,
     funcs: new Map(),
     entryBits: new Uint8Array((rom.bytes.length + 7) >>> 3),
     ...(tuning.cache === 'epoch-reuse' && options.trail === 'off' ? { reuse: reuseState(rom.base, rom.bytes.length) } : {}),

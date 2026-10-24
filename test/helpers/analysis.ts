@@ -174,6 +174,7 @@ export function viewWith(setup: ViewSetup): AnalysisView {
     epoch: 0,
     seeds: [],
     overrides: [],
+    inDataOverride: () => false,
     claimAt: (a) => (a >= BASE && a - BASE < claims.length ? ((claims[a - BASE] ?? 0) as ClaimKind) : Claim.free),
     owner: (a) => setup.owner?.(a),
     isFunction: (a) => functions.includes(a),

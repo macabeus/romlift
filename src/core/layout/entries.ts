@@ -2,10 +2,12 @@
 // model's chunks start at (discover mode: every function, nested ones as labels; confirm mode: the TOML's
 // functions with their size and label), and the end of each extent (the TOML's size, the analysis' extent, a code
 // override, or the next chunk start). Part of the legal-border computation of borders.ts, which re-exports what
-// core/model uses.
+// core/model uses. With them, the report of the overrides without runs_at something applied, which core/model's
+// W_OVERRIDE_IGNORED reads: those placeEntries gave an extent from, and those the analysis applied (appliedOverrides).
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
-import type { AnalysisResult, FunctionFact, OverrideFact } from '../analysis/types.ts';
+import { Claim } from '../analysis/types.ts';
+import type { AnalysisResult, ClaimRun, FunctionFact, OverrideFact } from '../analysis/types.ts';
 
 /**
  * Where a chunk's end comes from: the analysis' extent, the TOML's size, a code override, or up to the next
@@ -125,3 +127,41 @@ export function listedEntriesOf(analysis: AnalysisResult, headerEnd: Addr): List
     .map((s) => ({ entry: s.entry, label: isLabelEntry(s.entry, s.label, headerCovered), ...(s.size === undefined ? {} : { size: s.size }) }));
 }
 
+
+/** Whether a claim run of kind data overlaps `span` (`claims` in address order, as the analysis result holds them). */
+function claimsData(claims: readonly ClaimRun[], span: OverrideFact['span']): boolean {
+  let lo = 0;
+  let hi = claims.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((claims[mid]?.span.end ?? 0) <= span.start) lo = mid + 1;
+    else hi = mid;
+  }
+  for (let i = lo; i < claims.length; i++) {
+    const c = claims[i];
+    if (c === undefined || c.span.start >= span.end) break;
+    if (c.kind === Claim.data) return true;
+  }
+  return false;
+}
+
+/**
+ * The overrides without runs_at the analysis applied itself (correctness-b0-3), each the options' own object and at
+ * most one per kind, span and mode (a second identical entry changes nothing): a `data` override whose span holds
+ * data the run claimed (it claims the whole span from round 0), and a `code` override whose start the run took from
+ * its seed.override seed, accepted with origin 'override' or, in confirm mode, reported as unlisted with it. A code
+ * override over a function another rule, or the [functions] list, already started there changes nothing.
+ */
+export function appliedOverrides(analysis: AnalysisResult): readonly OverrideFact[] {
+  const fromOverride = new Set<Addr>(analysis.functions.filter((f) => f.origin === 'override').map((f) => f.entry));
+  if (analysis.mode === 'confirm') for (const u of analysis.unlisted) if (u.origin === 'override') fromOverride.add(u.entry);
+  const seen = new Set<string>();
+  return analysis.options.overrides.filter((o) => {
+    if (o.runsAt !== undefined) return false;
+    const key = `${o.kind}:${o.span.start}:${o.span.end}:${o.mode ?? ''}`;
+    if (seen.has(key)) return false;
+    const applied = o.kind === 'data' ? claimsData(analysis.claims, o.span) : fromOverride.has(o.span.start);
+    if (applied) seen.add(key);
+    return applied;
+  });
+}

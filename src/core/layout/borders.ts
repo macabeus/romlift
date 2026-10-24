@@ -39,7 +39,7 @@ import type { TiledChunk } from './tiling.ts';
 
 // What core/model and core/workflow use of the sibling files, through this one entry.
 export { alignUp } from './align.ts';
-export { coveredEntries, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from './entries.ts';
+export { appliedOverrides, coveredEntries, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from './entries.ts';
 export type { ExtentSource, ListedEntry, PlacedEntry } from './entries.ts';
 export { tileCode } from './tiling.ts';
 

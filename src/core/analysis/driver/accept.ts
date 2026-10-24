@@ -12,6 +12,7 @@ import { Claim } from '../types.ts';
 import type { Candidate, ClaimEdit, FunctionFact, Reading } from '../types.ts';
 import { checkListed, isOtherModeOfListed, isUnlisted, recordUnlisted } from './confirm.ts';
 import { factOf, factOfBlock } from './facts.ts';
+import { inSpans, outsideSpans } from './seeds.ts';
 import { touch } from './reuse.ts';
 import { RULES } from './rules.ts';
 import { analyzeArm, settle } from './settle.ts';
@@ -32,16 +33,23 @@ export function originOf(s: DriverState, rule: RuleId): Origin {
   return origin;
 }
 
-/** Applies one claim edit. */
+/** Applies one claim edit; the bytes of a data override keep their data claim (seeds.ts). */
 export function write(s: DriverState, e: ClaimEdit): void {
   const lo = Math.max(e.span.start - s.rom.base, 0);
   const hi = Math.min(e.span.end - s.rom.base, s.claims.length);
   if (lo >= hi) return;
   if (s.reuse !== undefined) touch(s.reuse, s.rom.base + lo, s.rom.base + hi);
-  if (e.when === 'always') s.claims.fill(e.kind, lo, hi);
-  else if (e.when === 'start-free') {
-    if (s.claims[lo] === Claim.free) s.claims.fill(e.kind, lo, hi);
-  } else for (let k = lo; k < hi; k++) if (s.claims[k] === Claim.free) s.claims[k] = e.kind;
+  if (e.when === 'free-bytes') {
+    for (let k = lo; k < hi; k++) if (s.claims[k] === Claim.free) s.claims[k] = e.kind;
+    return;
+  }
+  if (e.when === 'start-free' && s.claims[lo] !== Claim.free) return;
+  if (s.dataOverrides.length === 0) {
+    s.claims.fill(e.kind, lo, hi);
+    return;
+  }
+  const B = s.rom.base;
+  for (const part of outsideSpans(s.dataOverrides, B + lo, B + hi)) s.claims.fill(e.kind, part.start - B, part.end - B);
 }
 
 /** A 'verdict' event for every walk-slot answer the reading applied (Reading.steps; recorded only when a trail is on). */
@@ -106,7 +114,8 @@ export function accept(s: DriverState, first: Candidate, note?: string): number 
       also(s, c);
       continue;
     }
-    if (!contains(s.rom, c.entry) || isOtherModeOfListed(s, c)) continue;
+    // An entry inside a data override is never taken, whoever proposes it (correctness-b0-3).
+    if (!contains(s.rom, c.entry) || isOtherModeOfListed(s, c) || inSpans(s.dataOverrides, c.entry)) continue;
     if (isUnlisted(s, c)) {
       recordUnlisted(s, c, originOf(s, c.proposedBy));
       continue;

@@ -2,9 +2,11 @@
 // project whose config may be older than romlift or than the user's edits, as a TOML patch. Two analyses, one at a
 // time so their results never share the bin's heap cap:
 //
-//   1. the discover run of the ROM: every function it finds that [functions] does not list is a function proposal
-//      (source `analysis`, its accepting rule; `label = true` when its entry lies inside another found function's
-//      extent, as configFromDiscover writes it). Only those proposals outlive the run.
+//   1. the discover run of the ROM under the config's [[overrides]] (a data override claims its span, a code override
+//      seeds its start, correctness-b0-3): every function it finds that [functions] does not list is a function
+//      proposal (source `analysis`, its accepting rule, seed.override for a code override's start; `label = true` when
+//      its entry lies inside another found function's extent, as configFromDiscover writes it). Only those proposals
+//      outlive the run.
 //   2. the confirm run over the project's config, with `generate`'s seeds (listedSeedsOf): under the owner's answer
 //      to Q1 ("Only entries with `from`", D76 a, applied here by D77 e) only a listed entry with `from` is validated
 //      (`Seed.validate`), one that fails the valid.* rules is reported (W_LISTED_INVALID) and stays listed, since the
@@ -38,8 +40,8 @@ import type { ModelCode } from '../model/codes.ts';
 import { planModules } from '../model/modules.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { Proposal } from '../proposals/types.ts';
-import { discover, profileOrDefault } from './discover.ts';
-import { confirmOptions } from './generate.ts';
+import { discoverOptions, profileOrDefault } from './discover.ts';
+import { confirmOptions, overrideFactsOf } from './generate.ts';
 import { romSha1Problems } from '../config/rom-sha1.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { WorkflowCodes } from './codes.ts';
@@ -75,7 +77,7 @@ export function unlistedProposals(result: Pick<AnalysisResult, 'functions'>, con
 
 /** Step 1 of the header; the discover result does not outlive this call. */
 function discovered(rom: Rom, config: RomliftConfig, profile: CompilerProfile): Discovered {
-  const result = discover(rom, { profile });
+  const result = analyze(rom, profile, { ...discoverOptions(), overrides: overrideFactsOf(config) });
   return { proposals: unlistedProposals(result, config), diagnostics: result.diagnostics };
 }
 

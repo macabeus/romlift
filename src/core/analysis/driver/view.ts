@@ -7,6 +7,7 @@ import type { PointerIndex } from '../pointers.ts';
 import type { AnalysisView, OverrideFact, Seed } from '../types.ts';
 import { factOf, ownerOf } from './facts.ts';
 import { readAddr, readInProgress, readOpaque } from './reuse.ts';
+import { inSpans } from './seeds.ts';
 import { claimAt, isFunction } from './state.ts';
 import type { DriverState } from './state.ts';
 
@@ -35,7 +36,7 @@ export function makeView(get: () => DriverState): AnalysisView {
       return get().epoch;
     },
     get seeds(): readonly Seed[] {
-      return get().options.seeds;
+      return get().seeds;
     },
     get overrides(): readonly OverrideFact[] {
       return get().options.overrides;
@@ -43,6 +44,7 @@ export function makeView(get: () => DriverState): AnalysisView {
     get pointers(): PointerIndex {
       return get().pointers;
     },
+    inDataOverride: (a) => inSpans(get().dataOverrides, a),
     claimAt: (a) => {
       const s = get();
       if (s.reuse !== undefined) readAddr(s.reuse, a);

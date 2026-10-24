@@ -53,6 +53,7 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
     runs.current = run;
     while (!rec.insns.has(pc)) {
       if (pc !== entry && view.isFunction(pc)) break;
+      if (view.inDataOverride(pc)) break; // a data override, which no walk enters (correctness-b0-3)
       if (!contains(rom, pc, 4) || !insnAligned('arm', pc) || rec.pools.has(pc)) {
         rec.errors.push({ reason: 'not-code', at: pc });
         break;

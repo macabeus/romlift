@@ -304,9 +304,14 @@ export interface AnalysisView {
   readonly addresses: AddressMap;
   readonly round: number;
   readonly epoch: number;
-  /** The options' seeds and overrides, for the seed rules (D56). */
+  /** The run's seeds (the options' own, and a seed.override seed per code override without runs_at) and the options' overrides, for the seed rules (D56). */
   readonly seeds: readonly Seed[];
   readonly overrides: readonly OverrideFact[];
+  /**
+   * Whether `a` lies in a data override without runs_at: claimed data from round 0, which no walk enters (a path that
+   * reaches it ends there, as at the next function) and no claim overwrites (correctness-b0-3).
+   */
+  inDataOverride(a: Addr): boolean;
   /** The claim of a byte; free outside the ROM. */
   claimAt(a: Addr): ClaimKind;
   /** The innermost accepted extent covering a (§9.3). */

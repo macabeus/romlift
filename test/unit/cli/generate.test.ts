@@ -801,16 +801,31 @@ test('a misaligned [functions] key, with or without `from`, is E_FUNCTION_MISALI
   }
 });
 
-test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_IGNORED (exit 0)', async () => {
+test('an [[overrides]] entry without runs_at: a code override over a listed function changes nothing and is W_OVERRIDE_IGNORED; a data override is applied (exit 0, correctness-b0-3)', async () => {
   const dir = await initProject(FAR_JUMP.rom, []);
   const file = path.join(dir, 'romlift.toml');
   const text = await readFile(file, 'utf8');
-  const line = text.split('\n').find((l) => /^0x0[0-9A-F]{7} = /.test(l)) ?? assert.fail('no entry');
+  // The last listed Thumb function, past the header and the startup code.
+  const line = text.split('\n').filter((l) => /^0x0[0-9A-F]{7} = "sub_/.test(l)).at(-1) ?? assert.fail('no entry');
   const start = line.slice(0, 10);
-  for (const kind of ['data', 'code']) {
-    await writeFile(file, `${text.trimEnd()}\n\n[[overrides]]\nstart = ${start}\nsize = 0x4\nkind = "${kind}"\n`);
-    const out = await run(dir, ['generate', '--json']);
-    assert.equal(out.code, ExitCode.ok, out.stdout);
-    assert.deepEqual(lines(out.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => l['code']), ['W_OVERRIDE_IGNORED'], kind);
-  }
+  const name = /"(sub_[0-9A-F]{8})"/.exec(line)?.[1] ?? assert.fail('no name');
+  const withOverride = (kind: string): string => `${text.trimEnd()}\n\n[[overrides]]\nstart = ${start}\nsize = 0x4\nkind = "${kind}"\n`;
+  /** The first item of the function's chunk in `model --json`: [kind, addr, size, mnemonic, value]. */
+  const firstItem = async (): Promise<unknown> => lines((await run(dir, ['model', '--json'])).stdout).find((l) => l['name'] === name && l['kind'] === 'function')?.['items'];
+  const plain = await firstItem();
+  assert.ok(Array.isArray(plain) && Array.isArray(plain[0]) && typeof plain[0][3] === 'string', 'without an override the chunk starts with an instruction');
+
+  await writeFile(file, withOverride('code'));
+  const code = await run(dir, ['generate', '--json']);
+  assert.equal(code.code, ExitCode.ok, code.stdout);
+  const ignored = lines(code.stdout).filter((l) => l['type'] === 'diagnostic');
+  assert.deepEqual(ignored.map((l) => l['code']), ['W_OVERRIDE_IGNORED']);
+  assert.match(String(ignored[0]?.['message']), new RegExp(`changes nothing: a function already starts at ${start}`));
+
+  await writeFile(file, withOverride('data'));
+  const data = await run(dir, ['generate', '--json']);
+  assert.equal(data.code, ExitCode.ok, data.stdout);
+  assert.deepEqual(lines(data.stdout).filter((l) => l['type'] === 'diagnostic').map((l) => l['code']), [], 'the data override is applied: no W_OVERRIDE_IGNORED');
+  const items = await firstItem();
+  assert.ok(Array.isArray(items) && Array.isArray(items[0]) && items[0][1] === start && items[0][3] === null, `the overridden word is data, no instruction: ${JSON.stringify(items)}`);
 });
