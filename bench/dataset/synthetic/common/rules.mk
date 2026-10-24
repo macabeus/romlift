@@ -9,6 +9,9 @@
 # Two compilers, both built from the one recorded pret/agbcc commit: a .c source is compiled by agbcc,
 # or by old_agbcc when build.mk lists it in OLD_AGBCC_SRCS (`OLD_AGBCC_SRCS := x.c`, set before the
 # include). A source's own flags, appended to CFLAGS, are CFLAGS_<stem> (`CFLAGS_x := -mno-thumb-interwork`).
+#
+# `MAP := yes` (the signature fixtures of phase 6) also writes the GNU ld map, $(BUILD)/$(NAME).map; ld's output is
+# the same with or without it, so no other fixture's bytes change.
 BUILD ?= build
 AGBCC ?= agbcc
 # old_agbcc beside agbcc: the same directory, the name with the `old_` prefix.
@@ -32,8 +35,10 @@ all: $(BUILD)/$(NAME).gba
 $(BUILD)/$(NAME).gba: $(BUILD)/$(NAME).elf
 	$(ARM_OBJCOPY) -O binary $< $@
 
+LDMAP := $(if $(filter yes,$(MAP)),-Map $(BUILD)/$(NAME).map)
+
 $(BUILD)/$(NAME).elf: $(OBJS) $(COMMON)/rom.ld
-	$(ARM_LD) -T $(COMMON)/rom.ld -o $@ $(OBJS)
+	$(ARM_LD) -T $(COMMON)/rom.ld $(LDMAP) -o $@ $(OBJS)
 
 $(BUILD)/crt0.o: $(COMMON)/crt0.s | $(BUILD)
 	$(ARM_AS) $(ASFLAGS) -o $@ $<

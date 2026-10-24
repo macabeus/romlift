@@ -1,0 +1,117 @@
+{
+  "negative": true,
+  "entries": [
+    {
+      "addr": "0x08000000",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000C0",
+      "mode": "arm"
+    },
+    {
+      "addr": "0x080000F4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080000F4",
+        "end": "0x08000140"
+      }
+    },
+    {
+      "addr": "0x08000140",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000140",
+        "end": "0x0800015A"
+      }
+    },
+    {
+      "addr": "0x0800015C",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x0800015C",
+        "end": "0x08000168"
+      }
+    },
+    {
+      "addr": "0x08000168",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000168",
+        "end": "0x08000184"
+      }
+    },
+    {
+      "addr": "0x08000184",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x08000184",
+        "end": "0x080001A8"
+      }
+    },
+    {
+      "addr": "0x080001A8",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080001A8",
+        "end": "0x080001C0"
+      }
+    },
+    {
+      "addr": "0x080001C0",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080001C0",
+        "end": "0x080001C4"
+      }
+    },
+    {
+      "addr": "0x080001C4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080001C4",
+        "end": "0x080001C8"
+      }
+    },
+    {
+      "addr": "0x080001C8",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080001C8",
+        "end": "0x080001CC"
+      }
+    },
+    {
+      "addr": "0x080001CC",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080001CC",
+        "end": "0x080001D0"
+      }
+    },
+    {
+      "addr": "0x080001D0",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080001D0",
+        "end": "0x080001DE"
+      }
+    },
+    {
+      "addr": "0x080001E0",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080001E0",
+        "end": "0x080001E4"
+      }
+    },
+    {
+      "addr": "0x080001E4",
+      "mode": "thumb",
+      "extent": {
+        "start": "0x080001E4",
+        "end": "0x080001E8"
+      }
+    }
+  ]
+}
