@@ -31,7 +31,10 @@ closing gate"). Fix round 11 (D87) fixed the review of that run; the whole closi
 worktree with `landed` 4, exited 0 at every command, sa2 at 698 of 779 ms ("The closing gate"). Fix round 12 (D88)
 fixed the review of that run; its own closing run was interrupted during `npm test` and is not recorded. Fix round 13
 (D89) corrected the records the review of fix round 12 found wrong; the whole closing list at `f6dc916`, in a fresh
-worktree with `landed` 4, exited 0 at every command, sa2 at 741 of 807 ms ("The closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's
+worktree with `landed` 4, exited 0 at every command, sa2 at 741 of 807 ms ("The closing gate"). Fix round 14 (D90)
+corrected the records the review of that run found wrong; its first closing run, at `4e17305`, was paused by the
+owner and is not recorded; the whole closing list at `76eacdb`, in a fresh worktree with `landed` 4, exited 0 at every
+command, sa2 at 725 of 816 ms ("The closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's
 CI (AGENTS.md).
 
 ## Components
@@ -606,6 +609,48 @@ Measured on branch `phase-4-workflows` (Node 24.15, macOS; the machine shared wi
   `generate` right after: 29,537 keep, 17.8 s, 1,499 MiB (below D72 b's 1,536 MiB budget, with 2% to spare).
 
 ## The closing gate
+
+### Fix round 14's closing run (`76eacdb`)
+
+After fix round 14 (D90; records and comments, `4e17305`, finished by `76eacdb`, which adds the "not exactly as cpp
+does" that D90 b names to `test/local/decompiled-c.test.ts`'s step list), with `test/gates/phase.json` at
+`{ "landed": 4 }`, the whole closing list in a fresh worktree at `76eacdb` (`git worktree add --detach` under the
+system temporary directory: no `node_modules`, no `bench/.local`, so the PoC dumps, the corpus summary and the agbcc
+cache were made in the run; objdiff-cli 3.7.2 from the main checkout's build), in the landing run's order and
+environment (the real tier before the ci tier), from 15:49 to 17:42 on 24 October 2026. It was started as a
+background job of the agent's session (a `zsh` script, not `nohup`) and waited on until every command had an exit
+line. Node 24.15, binutils 2.45.1, macOS; no other closing run ran on the machine. A first closing run at `4e17305`,
+started on 23 October, was paused by the owner during `gates --tier real` (steps 1 to 17 had exited 0) and does not
+count. The worktree was clean afterwards but for the `bench/results.json` the run wrote, committed as this run's
+artifact (`198d8b3`: `meta.commit` `76eacdb`, not dirty, source digest `ab683cce…`, with the real-tier gate record).
+The doubled ROM is the same `fb17b88d…` image (its SHA-1 checked), never committed.
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (1 s) |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | the architecture checker and its mutation test pass |
+| `npm test` | 0 | 2,458 tests, 2,458 pass, 0 fail (35 s) |
+| `npm run fixtures -- check` | 0 | 51 of 51 fixtures agree (binutils 2.45.1) |
+| `npm run build && npm pack --pack-destination "$(mktemp -d)"` | 0 | `romlift-0.0.0.tgz`, 672 files, 489.9 kB |
+| `npm run export-poc -- --mode raw` | 0 | 51 fixtures dumped |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (250 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` byte-identical |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, parity equal to the committed digests (51 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 97 tests, 97 pass, 0 skipped (778 s); `decompiled-c` builds klonoa to its SHA-1 through every step, step 12 (a linked `include/gba`, then a linked `include/`) included (131 s); `listed-invalid` W_LISTED_INVALID 0 on all six; `padding-orphans` orphan files fe7j 32, klonoa 23, pokeemerald 23, sa2 16, sa3 15, tmc 33, zero pads kept after a `c` module's last function 4, 0, 5, 1, 0, 1, equal to Q8's counts |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (objdiff-cli 3.7.2) |
+| `npm run corpus` | 0 | ok (4 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1 and the init build (init 0, setup.sh 0, make 0, SHA-1 match) on all six tuning ROMs; both sealed ROMs pass, init build SHA-1; memory family `init` 1,190.4 MiB, `generate` 1,055.4 MiB peak RSS under the 1,024 MiB cap, tree `d60c5331…` (346 s, agbcc built at the pin included) |
+| `npm run bench -- regression` | 0 | no regression against `e915c82` |
+| `node --max-old-space-size=1024 --conditions=source src/cli/main.ts verify --rom <emx2.gba> --assemble --link --json < /dev/null` | 0 | the doubled ROM: 7 checks ok (29,463 files), linked SHA-1 `fb17b88d0535cc86b62604dedc09b05d881d888a`; 161 W_UNLISTED_FUNCTION (Q6) and 1 W_READING_BUDGET (49 s) |
+| `npm run bench -- large-rom --bin --rom <emx2.gba>` | 0 | all fourteen forms exit 0 with ok summaries or completed, 1,120.2 to 1,410.8 MiB peak RSS (`analyze --json` the smallest, `init --json` the largest; none over D72 b's 1,536 MiB budget in this run; `generate --json` 1,339.0), live heap up to 925.5 MiB (the raw printer's `verify`) (413 s) |
+| `npm run bench -- gates --require 4 --tier real` | 0 | 22 pass, 1 historical (g2.poc-parity), 2 fail (g5.expected-bytes, g5.objdiff: not required, phase 6's since D76 g), 8 pending. Among them: **g2.speed** ("median of 9 runs"; ratio 1.001; sa2 725 of 816 ms, 88.8%; klonoa 238 of 319, tmc 1,412 of 1,859, sa3 1,094 of 1,555, pokeemerald 2,065 of 4,397, fe7j 1,086 of 13,227), **g3.speed-budget** (ratio 0.997; largest analysis pokeemerald 2,051 of 2,992 ms; pokeemerald `generate` 8,016 of 9,973 ms, `init` 10,090 of 14,959 ms), g4.e2e-real (six tuning ROMs, from the source tree and the installed tarball; sealed 2 of 2), g4.toml-mutations (258 legal edits build with `make`: move-start 45, rename 57, delete-function 54, add-override 57 no-ops that warn `W_OVERRIDE_IGNORED`, split-module 45; 170 illegal edits give their codes; 57 ROMs), g4.worktree (56), g4.generate-idempotent (57 ROMs) (2,972 s) |
+| `npm run bench -- gates --require 4 --tier ci` | 0 | 37 pass, 3 fail (g5.c-data-ranges, g5.expected-bytes, g5.reconciler: not required, phase 6's since D76 g), 7 pending. Among them: g1.provenance (source digest `ab683cce…`; 23 real-tier gates of phase ≤ 4 pass or are historical), g3.large-rom (`init` 1,220.3 MiB, `generate` 1,092.0 MiB, tree `d60c5331…`), g4.toml-mutations (228 legal: move-start 39, rename 51, delete-function 48, add-override 51 no-ops, split-module 39; 152 illegal; 51 ROMs), g4.packed-e2e (672 files), g4.e2e-fixtures (50), g4.worktree (50), g4.cli-contract (8 commands, 12 `--json` runs), g4.no-toml-write (153 runs), g4.checks-fail (3 files, 24 tests), g4.c-data-fails-loud, g4.multi-compiler (1,779 s) |
+| `npm run bench -- provenance` | 0 | source digest `ab683cce…` (Node 24) ok; gate record ok (23); families live; 6 rows, no sealed row |
+
+Every command exits 0, so **phase 4 passes its closing gate** at `landed` 4 after fix round 14. sa2 passes `g2.speed`
+at 88.8% of its limit, inside the spread recorded under Q2 (85.6% to 97.7%), so no new owner question arises. The merge
+to `main` waits for the phase pull request's CI; nothing is merged or pushed.
 
 ### Fix round 13's closing run (`f6dc916`)
 
@@ -1567,3 +1612,9 @@ architecture-e0-3) are fix round 13's run described as "in the foreground". No g
 | architecture-e0-1 | minor | **Fixed** (D90 b): `src/shell/index.md`, the read-inputs test's name and comment and `test/local/decompiled-c.test.ts`'s step 12 comment reworded; `git grep -n -i -E "as cpp (does\|follows)\|cpp follows"` now finds only quotations of the old wording (D89 a, D90, phase-4.md's tables, the roadmap's note that it was reworded), the negated "not exactly as cpp follows links" (D88 a's amendment, architecture §6.6), the negated "not exactly as cpp does" (D87 c's note, `src/shell/index.md`, `disk-state.ts`, `read-inputs.ts`), and `decompiled-c.test.ts`'s two step-12 comments that say cpp follows the link, the step list's with "not exactly as cpp does" (its "not exactly" added by the resumed fix round 14, which found the step list without it, against D90 b). |
 | correctness-e0-3 | minor | **Fixed** (records, D90 c): fix round 13's closing-run section, its gate-honesty-d2-1 row and D89 b say the run was detached in its own process group (`nohup`) and waited on until every command had an exit line. |
 | architecture-e0-3 | minor | **Fixed**, the same records as correctness-e0-3. |
+
+Fix round 14 was paused by the owner on 23 October 2026 during its first closing run at `4e17305` and resumed on 24
+October. The resumed round checked that `4e17305` disposes of all seven findings (each grep of the findings' evidence
+finds only the corrected or quoted wording), and finished D90 b in `76eacdb`: `test/local/decompiled-c.test.ts`'s step
+list now says "not exactly as cpp does", which D90 b claimed it said, and the architecture-e0-1 row lists every line
+its grep finds. The whole closing list then ran at `76eacdb` ("Fix round 14's closing run"), every command exit 0.
