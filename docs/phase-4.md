@@ -35,8 +35,13 @@ worktree with `landed` 4, exited 0 at every command, sa2 at 741 of 807 ms ("The 
 corrected the records the review of that run found wrong; its first closing run, at `4e17305`, was paused by the
 owner and is not recorded; the whole closing list at `76eacdb`, in a fresh worktree with `landed` 4, exited 0 at every
 command, sa2 at 725 of 816 ms ("The closing gate"). The review of that run raised three minors on the records of the
-link-above-the-project layout, carried into phase 6 ("Review"). The merge to `main` waits for the phase pull request's
-CI (AGENTS.md).
+link-above-the-project layout, carried into phase 6 ("Review"). The phase pull request (#4) passed 13 of its 14 CI checks at `c42ff79`. The fourteenth,
+`ci.yml`'s "Analysis and tree digests agree across Linux, macOS and both Node versions", never started: GitHub refused
+it over the account's billing (run 40118246654, twice), so no step ran. That job's own comparison, run locally on the
+four `ci-digests-*` artifacts of the same run (`node --conditions=source bench/tools/ci-digests.ts --compare … --expect
+4`), exited 0: 51 fixture analysis and tree digests agree across darwin-arm64 and linux-x64, Node 22.18 and 24. The
+owner decided on 24 October 2026, in his words "Merge with the local check": the local comparison stands in for that
+one job, and the phase merges.
 
 ## Components
 
