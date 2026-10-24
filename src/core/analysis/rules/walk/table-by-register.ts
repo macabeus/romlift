@@ -7,7 +7,10 @@
 // odd, or further than maxTargetSpan from the jump. The table's targets are walked and the path ends.
 // With no table the rule declines, and walk.mov-pc-without-table ends the path as a register jump. It
 // replaces walk.table-nearest-pool-load, whose 40-instruction look-behind took the nearest qualifying
-// load whatever register it set.
+// load whatever register it set. Inside a runs_at range (§6.7) the table base and its entries are run addresses; the
+// idiom reads the range's words in load space (address-map.ts loadSpaceRom), so the table and its targets are found at
+// the load addresses that hold them, and a target outside the range ends the table as one outside the ROM does.
+import { loadSpaceRom, runsElsewhere } from '../../address-map.ts';
 import { defineRule } from '../define-rule.ts';
 
 export default defineRule({
@@ -24,7 +27,9 @@ export default defineRule({
     if (cursor.mode !== 'thumb' || cursor.phase !== 'insn' || insn.flow.kind !== 'indirect') return undefined;
     if (insn.flow.via !== 'mov-pc' && insn.flow.via !== 'add-pc') return undefined;
     const run = cursor.run;
-    const match = cursor.view.profile.idioms.matchTableJump(run, run.length - 1, cursor.view.rom);
+    const { view } = cursor;
+    const rom = runsElsewhere(view.addresses, insn.addr) ? loadSpaceRom(view.addresses, view.rom) : view.rom;
+    const match = view.profile.idioms.matchTableJump(run, run.length - 1, rom);
     if (match === undefined) return undefined;
     return { step: 'table', table: { base: match.base, targets: match.targets, thumbBit: false } };
   },

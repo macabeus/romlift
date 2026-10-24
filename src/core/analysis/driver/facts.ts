@@ -1,9 +1,10 @@
-// The facts the driver derives from its state: the FunctionFact of an accepted entry, the extent end of a
-// reading (cut at the next listed entry in confirm mode, §4.2) and the innermost accepted extent covering
-// an address (§9.3).
+// The facts the driver derives from its state: the FunctionFact of an accepted entry (with the run address of an
+// entry inside a runs_at range, §6.7), the extent end of a reading (cut at the next listed entry in confirm mode,
+// §4.2) and the innermost accepted extent covering an address (§9.3).
 import type { Addr, Span } from '../../../foundation/rom/span.ts';
 import { compareNumbers } from '../../../foundation/util/sorted.ts';
 import { innermost, intervalIndex } from '../../../foundation/util/interval-index.ts';
+import { runsElsewhere, toRun } from '../address-map.ts';
 import { Claim } from '../types.ts';
 import type { FunctionFact, Reading } from '../types.ts';
 import { nextSpanStart } from './seeds.ts';
@@ -53,6 +54,7 @@ function factFrom(s: DriverState, r: Reading, f: Pick<Accepted, 'origin' | 'acce
   return {
     entry: r.entry,
     mode: r.mode,
+    ...(runsElsewhere(s.addresses, r.entry) ? { runAt: toRun(s.addresses, r.entry) } : {}),
     extent,
     codeEnd: r.codeEnd,
     code,

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { addressMap } from '../../../../../src/core/analysis/address-map.ts';
 import poolPointer from '../../../../../src/core/analysis/rules/seed/pool-pointer.ts';
 import { readingOf, romWith, viewWith } from '../../../../helpers/analysis.ts';
 
@@ -33,4 +34,22 @@ test('no accepted pools, nothing harvested', () => {
   const rom = romWith([]);
   assert.deepEqual(poolPointer.harvest(viewWith({ rom }), new Set()), []);
   assert.equal(poolPointer.meta.origin, 'pool-pointer');
+});
+
+test('inside a runs_at range a pool word names code by its run address: harvested at its load address; the load address itself is the copy source', () => {
+  const rom = romWith([], { size: 0x800 });
+  const L = 0x0800_0400;
+  const R = 0x0300_0000;
+  const f = readingOf(rom, {
+    entry: F,
+    pools: [
+      { addr: F + 0x10, value: R + 0x21 },
+      { addr: F + 0x14, value: L + 1 },
+      { addr: F + 0x18, value: R + 0x101 },
+      { addr: F + 0x1c, value: R + 0x22 + 1 },
+      { addr: F + 0x20, value: 0x0800_0601 },
+    ],
+  });
+  const v = { ...viewWith({ rom, functions: [F], readings: [f] }), addresses: addressMap([{ span: { start: L, end: L + 0x100 }, kind: 'code', runsAt: R }]) };
+  assert.deepEqual(poolPointer.harvest(v, new Set()), [L + 0x20, 0x0800_0600], 'R + 0x21 is L + 0x20; L + 1 is the source, R + 0x101 is RAM past the range, R + 0x23 is no word');
 });

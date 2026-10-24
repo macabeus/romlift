@@ -5,11 +5,13 @@
 // extent of nothing (an entry of NaN, a negative or a 64 MiB size). An entry outside the ROM, odd, or
 // listed twice is well formed: validity judges it (W_LISTED_INVALID).
 //
-// The overrides without runs_at apply here too (correctness-b0-3; a runs_at range is the address map's, §6.7): each
-// `code` override builds a seed.override seed at its start in its mode (Thumb when it names none), and each `data`
-// override's span, clipped to the ROM, is claimed as data before round 0 (driver/state.ts), a claim no walk enters
-// and no later claim overwrites. An override whose start is no instruction address of its mode, or whose span is no
-// range inside the ROM, builds nothing (core/model then warns W_OVERRIDE_IGNORED).
+// The overrides apply here too (correctness-b0-3): each `code` override builds a seed.override seed at its start in its
+// mode (Thumb when it names none), and each `data` override's span, clipped to the ROM, is claimed as data before
+// round 0 (driver/state.ts), a claim no walk enters and no later claim overwrites. An override with runs_at does the
+// same at its load addresses (§6.7, D91): where its bytes run is the address map's (address-map.ts), what they are is
+// its kind's, so a hand-written code range copied to RAM is walked from its start. An override whose start is no
+// instruction address of its mode, or whose span is no range inside the ROM, builds nothing (core/model then warns
+// W_OVERRIDE_IGNORED for one without runs_at).
 import { diagnostic } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../../foundation/diagnostics/diagnostic.ts';
 import { contains } from '../../../foundation/rom/rom.ts';
@@ -52,12 +54,12 @@ export function wellFormedSeeds(rom: Rom, seeds: readonly Seed[]): { readonly se
   return { seeds: kept, diagnostics };
 }
 
-/** Whether the analysis applies `o` itself: no runs_at, and a span of safe integers that is not empty. */
+/** Whether the analysis applies `o` itself: a span of safe integers that is not empty (with or without runs_at). */
 function appliedHere(o: OverrideFact): boolean {
-  return o.runsAt === undefined && Number.isSafeInteger(o.span.start) && Number.isSafeInteger(o.span.end) && o.span.start < o.span.end;
+  return Number.isSafeInteger(o.span.start) && Number.isSafeInteger(o.span.end) && o.span.start < o.span.end;
 }
 
-/** The seed.override seeds of the code overrides without runs_at: one at each start inside the ROM that is an instruction address of its mode. */
+/** The seed.override seeds of the code overrides: one at each start inside the ROM that is an instruction address of its mode. */
 export function overrideSeeds(rom: Rom, overrides: readonly OverrideFact[]): readonly Seed[] {
   return overrides.flatMap((o): Seed[] => {
     const mode = o.mode ?? 'thumb';
@@ -66,7 +68,7 @@ export function overrideSeeds(rom: Rom, overrides: readonly OverrideFact[]): rea
   });
 }
 
-/** The spans of the data overrides without runs_at, clipped to the ROM, sorted and merged where they touch. */
+/** The spans of the data overrides, clipped to the ROM, sorted and merged where they touch. */
 export function dataOverrideSpans(rom: Rom, overrides: readonly OverrideFact[]): readonly Span[] {
   const clipped = overrides
     .filter((o) => o.kind === 'data' && appliedHere(o))

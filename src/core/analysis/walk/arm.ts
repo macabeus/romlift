@@ -17,7 +17,7 @@ import { toRun } from '../address-map.ts';
 import { LIMITS } from '../limits.ts';
 import { DECODER_FLOW } from '../types.ts';
 import type { Reading, WalkStep } from '../types.ts';
-import { askWalk, asksWalk, toLoadInsn, walkCursor } from './cursor.ts';
+import { askWalk, asksWalk, externalTarget, toLoadInsn, walkCursor } from './cursor.ts';
 import type { WalkEnv } from './cursor.ts';
 import { WalkRecord } from './record.ts';
 
@@ -83,13 +83,15 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
       const conditional = isConditional(insn);
       const flow = insn.flow;
       let ends = false;
-      if (flow.kind === 'bl') rec.calls.push({ site: pc, target: flow.target, mode: 'arm' });
-      else if (flow.kind === 'adr') rec.adrs.push(flow.target);
+      if (flow.kind === 'bl') {
+        // A bl from a runs_at range to RAM outside every range returns like any call and names no function (§6.7).
+        if (!externalTarget(view, pc, flow.target)) rec.calls.push({ site: pc, target: flow.target, mode: 'arm' });
+      } else if (flow.kind === 'adr') rec.adrs.push(flow.target);
       else if (asksWalk(flow)) {
         cursor.at = pc;
         cursor.conditional = conditional;
         const answer = askWalk(env, insn, cursor);
-        ends = answer === undefined ? follow(rec, insn, conditional, work, isFunction) : apply(rec, insn, conditional, answer.id, answer.step, work, isFunction, env);
+        ends = answer === undefined ? follow(rec, insn, conditional, work, isFunction, env) : apply(rec, insn, conditional, answer.id, answer.step, work, isFunction, env);
       }
       if (ends) break;
       pc += 4;
@@ -120,10 +122,12 @@ function apply(rec: WalkRecord, insn: Insn, conditional: boolean, id: RuleId, st
   }
 }
 
-function follow(rec: WalkRecord, insn: Insn, conditional: boolean, work: Addr[], isFunction: (a: Addr) => boolean): boolean {
+function follow(rec: WalkRecord, insn: Insn, conditional: boolean, work: Addr[], isFunction: (a: Addr) => boolean, env: WalkEnv): boolean {
   const flow = insn.flow;
   switch (flow.kind) {
     case 'branch':
+      // A branch from a runs_at range to RAM outside every range leaves the function (§6.7).
+      if (externalTarget(env.view, insn.addr, flow.target)) return exitHere(rec, insn, conditional, 'tail', DECODER_FLOW, isFunction);
       rec.branchTargets.push(flow.target);
       work.push(flow.target);
       return !conditional;

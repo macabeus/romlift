@@ -1,4 +1,4 @@
-// The [[overrides]] without runs_at the analysis applies (correctness-b0-3, driver/seeds.ts): a `data` override claims
+// The [[overrides]] the analysis applies (correctness-b0-3, driver/seeds.ts; with runs_at too, at its load addresses): a `data` override claims
 // its span from round 0, so no seed, call or gap scan takes an entry there, no walk enters it and no extent covers it;
 // a `code` override builds a seed.override seed at its start in its mode, which adds a function nothing else finds
 // (in confirm mode, an unlisted one is reported, not taken) and changes nothing over a function already found. On
@@ -97,13 +97,13 @@ test('in confirm mode a code override at an unlisted start is reported unlisted 
   assert.ok(r.diagnostics.some((d) => d.code === 'W_UNLISTED_FUNCTION' && d.addr === LONELY));
 });
 
-test('the overrides with runs_at are the address map\'s: they build no seed and claim nothing here', () => {
+test('an override with runs_at applies its kind at its load addresses: a code range seeds its start, a data range is claimed', () => {
   const ram: OverrideFact[] = [
     { span: { start: LONELY, end: LONELY + 10 }, kind: 'code', mode: 'thumb', runsAt: 0x0300_0000 },
     { span: { start: CALLED, end: CALLED + 4 }, kind: 'data', runsAt: 0x0300_0100 },
   ];
-  assert.deepEqual(overrideSeeds(ROM, ram), []);
-  assert.deepEqual(dataOverrideSpans(ROM, ram), []);
+  assert.deepEqual(overrideSeeds(ROM, ram), [{ entry: LONELY, mode: 'thumb', rule: 'seed.override' }]);
+  assert.deepEqual(dataOverrideSpans(ROM, ram), [{ start: CALLED, end: CALLED + 4 }]);
 });
 
 test('dataOverrideSpans clips to the ROM and merges; outsideSpans leaves the parts around them', () => {
