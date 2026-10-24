@@ -110,14 +110,18 @@ async function writeBuildFile(dir: string, path: string, text: string): Promise<
 }
 
 /**
- * The unit `as` assembles for `unit`: itself for an assembly source; for a C source, its stub's agbcc assembly,
- * written to build/src/<module>.s (core/verify/c-stub.ts stubAssemblyOf), with the same object.
+ * The unit `as` assembles for `unit`: itself for an assembly source; for a C source, its stub's assembly by the
+ * unit's build compiler (BuildUnit.compiler, the module's), written to build/src/<module>.s (core/verify/c-stub.ts
+ * stubAssemblyOf), with the same object. A C unit that names no compiler is refused.
  */
 async function assemblySource(dir: string, unit: BuildUnit): Promise<BuildUnit | Diagnostic> {
   if (!isCSource(unit.source)) return unit;
   const text = await readOutput(dir, unit.source);
   if (isDiagnostic(text)) return text;
-  const assembly = stubAssemblyOf(new TextDecoder().decode(text));
+  if (unit.compiler === undefined) {
+    return diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', `${unit.source} (module ${unit.module}) names no build compiler: a C unit assembles as its compiler's assembly of the stub`, { path: unit.source });
+  }
+  const assembly = stubAssemblyOf(new TextDecoder().decode(text), unit.compiler);
   if (!assembly.ok) {
     const first = assembly.problems[0];
     const message = `${unit.source} line ${first?.line ?? 1} ${first?.message ?? ''}: only a stub-only C unit assembles without a compiler`;

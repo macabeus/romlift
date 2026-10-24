@@ -5,7 +5,8 @@
 // with include/include_asm.h and include/macros.inc; then every emitted src/<m>.c goes through the frozen pipeline,
 // `cc -E -x c -nostdinc -undef -I include` then tools/agbcc/bin/<compiler> with the module's flags, with both agbcc and
 // old_agbcc, and
-//   - the compiler's assembly must equal stubUnitAssembly(model, module), byte for byte, and
+//   - the compiler's assembly must equal stubUnitAssembly(model, module) with the module's compiler set to that
+//     compiler (the banner is the module's build compiler's, architecture-r1-4), byte for byte, and
 //   - its object (`arm-none-eabi-as -mcpu=arm7tdmi`) must have the .text bytes and the .text alignment of the object
 //     built from the stub assembly (what link-check.ts assembles), which is as long as the module's ROM range (that
 //     those bytes link to the ROM is g3.link's and emission-real.test.ts's proof).
@@ -155,7 +156,8 @@ async function proveUnits(name: string, rom: Rom, model: Model): Promise<readonl
       const output: string = compiler === module.compiler ? cAssemblyPath(module.name) : `build/src/${module.name}.${compiler}.s`;
       await run(path.join(AGBCC, 'bin', compiler), [...module.cflags, input, '-o', output], { cwd: dir });
       const compiled: string = await readFile(path.join(dir, output), 'utf8');
-      assert.equal(compiled, expected, `${name} ${module.name}: ${compiler}'s assembly is the stub assembly`);
+      const encoded: string = compiler === module.compiler ? expected : stubUnitAssembly(model, { ...module, compiler });
+      assert.equal(compiled, encoded, `${name} ${module.name}: ${compiler}'s assembly is the stub assembly of a module built with ${compiler}`);
       const object = `${output.slice(0, -2)}.o`;
       await assemble(dir, output, object);
       const text = await textOf(dir, object);

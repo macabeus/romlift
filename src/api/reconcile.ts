@@ -10,7 +10,7 @@ export { applyTextEdits } from '../core/reconcile/text-edit.ts';
 export { ReconcileCodes } from '../core/reconcile/codes.ts';
 export type { ReconcileCode } from '../core/reconcile/codes.ts';
 export type { StubChunk } from '../core/model/c-unit.ts';
-export { moduleCompile, STUB_UNIT_MODE, STUB_UNIT_PRELUDE, stubAssemblyText, stubChunkFiles, stubChunks, stubUnitAssembly, stubUnitPrelude } from '../core/model/c-unit.ts';
+export { moduleCompile, STUB_UNIT_MODE, stubAssemblyText, stubChunkFiles, stubChunks, stubUnitAssembly, stubUnitPrelude } from '../core/model/c-unit.ts';
 export { cDataAssertLine, cDataSectionLine } from '../core/model/c-data-assert.ts';
 export { cAssemblyPath, cObjectPath, MODULES_MK_PATH } from '../core/model/paths.ts';
 export { isCSource } from '../foundation/util/project-files.ts';

@@ -13,6 +13,7 @@ import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
 import { sortedKeys } from '../../foundation/util/sorted.ts';
 import type { Span } from '../../foundation/rom/span.ts';
+import type { BuildCompilerId } from '../config/compilers.ts';
 import type { Chunk, Model, Module } from './types.ts';
 
 export const HEADER_PATH = 'asm/rom_header.s';
@@ -163,12 +164,17 @@ export interface BuildUnit {
   readonly module: string;
   readonly source: string;
   readonly object: string;
+  /**
+   * The build compiler of a C unit (the module's `compiler`), whose assembly of the stub `verify --assemble/--link`
+   * writes (core/model/c-unit.ts stubAssemblyText); absent for an assembly source.
+   */
+  readonly compiler?: BuildCompilerId;
 }
 
-/** The link unit of module `m`: a C source builds to build/src/<m>.o, an assembly one to build/<m>.o. */
+/** The link unit of module `m`: a C source builds to build/src/<m>.o with the module's compiler, an assembly one to build/<m>.o. */
 function buildUnitOf(model: Pick<Model, 'chunks'>, m: Module): BuildUnit {
   const source = moduleSource(model, m);
-  return { module: m.name, source, object: isCSource(source) ? cObjectPath(m.name) : objectPath(m.name) };
+  return isCSource(source) ? { module: m.name, source, object: cObjectPath(m.name), compiler: m.compiler } : { module: m.name, source, object: objectPath(m.name) };
 }
 
 /** One unit per module, in ROM (link) order. */

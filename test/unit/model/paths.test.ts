@@ -75,9 +75,9 @@ test('the path prefixes of a module: its source, and its nonmatchings directory 
 
 test('a C module builds src/<m>.c through build/src/<m>.s to build/src/<m>.o; its prefixes are its stub and its directory (D74 f)', () => {
   const m = model();
-  const c = { ...m, modules: m.modules.map((x) => (x.name === 'main' ? { ...x, kind: 'c' as const } : x)) };
-  assert.deepEqual(buildUnits(c)[2], { module: 'main', source: 'src/main.c', object: 'build/src/main.o' });
-  assert.deepEqual(assembleUnits(c)[2], { module: 'main', source: 'src/main.c', object: 'build/src/main.o', span: c.modules[2]!.span });
+  const c = { ...m, modules: m.modules.map((x) => (x.name === 'main' ? { ...x, kind: 'c' as const, compiler: 'old_agbcc' } : x)) };
+  assert.deepEqual(buildUnits(c)[2], { module: 'main', source: 'src/main.c', object: 'build/src/main.o', compiler: 'old_agbcc' }, 'a C unit carries its module\'s compiler');
+  assert.deepEqual(assembleUnits(c)[2], { module: 'main', source: 'src/main.c', object: 'build/src/main.o', compiler: 'old_agbcc', span: c.modules[2]!.span });
   assert.deepEqual(buildUnits(c).filter((_, i) => i !== 2), buildUnits(m).filter((_, i) => i !== 2), 'the other units keep build/<m>.o');
   assert.equal(cObjectPath('main'), 'build/src/main.o');
   assert.equal(cAssemblyPath('main'), 'build/src/main.s');
