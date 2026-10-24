@@ -31,9 +31,10 @@ interface RamOverride {
   readonly mode?: Mode;
 }
 
+/** model --json's first line: addresses are "0x…" strings (romlift/model-json@1), read with num(). */
 interface ModelHeader {
   readonly schema: string;
-  readonly modules: readonly { readonly name: string; readonly span: { readonly start: number; readonly end: number }; readonly runAt?: number }[];
+  readonly modules: readonly { readonly name: string; readonly span: { readonly start: unknown; readonly end: unknown }; readonly runAt?: unknown }[];
 }
 
 interface Case {
@@ -142,7 +143,12 @@ async function check(cx: GateContext, cli: string, c: Case, dir: string): Promis
   await step(cx, 'generate', cli, ['generate', '--json'], dir, env);
   const model = await step(cx, 'model', cli, ['model', '--json'], dir, env);
   const header = JSON.parse(model.stdout.split('\n')[0] ?? '{}') as ModelHeader;
-  const module = header.modules.find((m) => m.span.start === range.start);
+  const modules = header.modules.map((m) => ({
+    name: m.name,
+    span: { start: num(m.span.start, `module ${m.name} span.start`), end: num(m.span.end, `module ${m.name} span.end`) },
+    runAt: m.runAt === undefined ? undefined : num(m.runAt, `module ${m.name} runAt`),
+  }));
+  const module = modules.find((m) => m.span.start === range.start);
   if (module === undefined) problems.push(`no module starts at ${hex(range.start)}`);
   else {
     if (module.runAt !== range.runAt) problems.push(`module ${module.name} runs at ${module.runAt === undefined ? 'its load address' : hex(module.runAt)}, expected ${hex(range.runAt)}`);

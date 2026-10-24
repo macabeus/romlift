@@ -92,11 +92,12 @@ function address(value: unknown, where: string): number {
 }
 
 /**
- * The keys an expect.json may hold: the analysis expectation above, and the phase-4 keys the g4 gates read and
- * this parser leaves to them (`init` in g4.e2e-fixtures and g4.multi-compiler, `illegalBorder` in g4.e2e-fixtures,
- * `compilers` in g4.multi-compiler; test/unit/fixtures/phase4-fixtures.test.ts checks their shapes).
+ * The keys an expect.json may hold: the analysis expectation above, and the keys the later gates read and this parser
+ * leaves to them (`init` in g4.e2e-fixtures and g4.multi-compiler, `illegalBorder` in g4.e2e-fixtures, `compilers` in
+ * g4.multi-compiler, test/unit/fixtures/phase4-fixtures.test.ts checking their shapes; `ramCopy`, the hand-written
+ * runs_at range, in g6.ram-code-mapped and test/local/ram-code.test.ts).
  */
-const KEYS = new Set(['negative', 'entries', 'codeEnd', 'init', 'illegalBorder', 'compilers']);
+const KEYS = new Set(['negative', 'entries', 'codeEnd', 'init', 'illegalBorder', 'compilers', 'ramCopy']);
 
 /** Parses and checks the text of an expect.json; throws naming `where` and the first problem. */
 export function parseExpect(text: string, where: string): FixtureExpect {
