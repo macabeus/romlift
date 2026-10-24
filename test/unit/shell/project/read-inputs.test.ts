@@ -4,6 +4,8 @@
 // scaffold inputs and version, and the digests init compares. What core/workflow/init.ts decides from the listing and
 // the digests (initDirVerdict, replacedProblems) is tested in test/unit/workflow/init.test.ts.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { closeSync, constants, openSync, unlinkSync } from 'node:fs';
 import { chmod, copyFile, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -282,6 +284,38 @@ test('readHeaderTexts follows include/ and src/ that are themselves links; one t
   const selfRead = await readHeaderTexts(self);
   assert.ok(selfRead.ok);
   assert.deepEqual([...selfRead.value], [], 'include -> . is the project directory: a cycle, walked no further');
+});
+
+test('readHeaderTexts returns promptly when a followed link reaches a FIFO: it is not listed, not read (gate-honesty-e1-2)', { skip: process.platform === 'win32' ? 'mkfifo is POSIX' : false }, async () => {
+  const shared = await dirWith({ 'gba/macro.h': 'm' });
+  const pipe = path.join(shared, 'gba', 'pipe.h');
+  execFileSync('mkfifo', [pipe]);
+  const dir = await dirWith({ 'include/global.h': 'g' });
+  await symlink(path.join(shared, 'gba'), path.join(dir, 'include', 'gba'));
+  await mkdir(path.join(dir, 'src'));
+  await symlink(pipe, path.join(dir, 'src', 'pipe.h'));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('readHeaderTexts did not return within 5 s: it read the FIFO')), 5000);
+  });
+  try {
+    const read = await Promise.race([readHeaderTexts(dir), timeout]);
+    assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+    assert.deepEqual([...read.value], [
+      ['include/gba/macro.h', 'm'],
+      ['include/global.h', 'g'],
+    ]);
+  } finally {
+    clearTimeout(timer);
+    // A reader blocked on the FIFO (the defect) gets end of file, and the FIFO goes in the same tick, so the next open
+    // (through the other link) finds nothing: a failure fails instead of hanging the process.
+    try {
+      closeSync(openSync(pipe, constants.O_WRONLY | constants.O_NONBLOCK));
+    } catch {
+      // ENXIO: nothing reads it, as it should be.
+    }
+    unlinkSync(pipe);
+  }
 });
 
 // Fix round 14 (architecture-e0-2, D90 a): the recorded third layout. A link to a directory above the project is

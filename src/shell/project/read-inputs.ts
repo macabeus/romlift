@@ -122,8 +122,9 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
  * (IncludeAsmWanted.headers). Listed by disk-state's filesUnder with `followLinks`, which follows a symbolic link, not
  * exactly as cpp does (fix round 12, correctness-d1-1; D89 a, D90 a): a link to a file is read as that file, a link to
  * a directory (include/ or src/ itself among them) is walked under its own project path, and a cycle ends at a
- * directory the walk is already inside or at the project directory; a dangling link is left out. Empty when neither
- * directory exists; any other failure to list or read is E_IO_READ.
+ * directory the walk is already inside or at the project directory; a dangling link is left out, and so is a FIFO, a
+ * socket or a device, which reading would block on (only regular files are listed, gate-honesty-e1-2). Empty when
+ * neither directory exists; any other failure to list or read is E_IO_READ.
  */
 export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyMap<string, string>>> {
   const headers: string[] = [];
