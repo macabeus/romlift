@@ -155,7 +155,7 @@ export type AnalysisResult =
 export interface Seed {
   readonly entry: Addr;
   readonly mode: Mode;
-  readonly rule: 'seed.listed' | 'seed.override' | 'seed.evidence-hint';
+  readonly rule: 'seed.listed' | 'seed.override';
   readonly name?: string;
   readonly size?: number;
   readonly label?: boolean;
@@ -304,9 +304,14 @@ export interface AnalysisView {
   readonly addresses: AddressMap;
   readonly round: number;
   readonly epoch: number;
-  /** The options' seeds and overrides, for the seed rules (D56). */
+  /** The run's seeds (the options' own, and a seed.override seed per code override without runs_at) and the options' overrides, for the seed rules (D56). */
   readonly seeds: readonly Seed[];
   readonly overrides: readonly OverrideFact[];
+  /**
+   * Whether `a` lies in a data override without runs_at: claimed data from round 0, which no walk enters (a path that
+   * reaches it ends there, as at the next function) and no claim overwrites (correctness-b0-3).
+   */
+  inDataOverride(a: Addr): boolean;
   /** The claim of a byte; free outside the ROM. */
   claimAt(a: Addr): ClaimKind;
   /** The innermost accepted extent covering a (§9.3). */
@@ -356,8 +361,8 @@ export interface Candidate extends Proposal {
  * target, both ARM. seed.startup-pointer (origin startup-pointer): for each accepted ARM function in
  * acceptance order (v.functions()), each pool value of its accepted reading in walk order that is an odd
  * pointer to a word-aligned ROM address, as Thumb.
- * seed.listed / seed.override / seed.evidence-hint (origins listed, override, evidence): the
- * options' seeds whose `rule` is the rule's id, sorted by entry.
+ * seed.listed / seed.override (origins listed, override): the run's seeds whose `rule` is the rule's id, sorted
+ * by entry; the seed.override seeds are the options' own and one at the start of each code override (driver/seeds.ts).
  */
 export interface SeedRule {
   readonly kind: 'seed';

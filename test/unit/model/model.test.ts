@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { Claim } from '../../../src/core/analysis/types.ts';
 import { itemAt } from '../../../src/core/model/item-table.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import type { RomliftConfig } from '../../../src/core/config/schema.ts';
@@ -179,8 +180,8 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })] });
   const ignored = (overrides: NonNullable<Parameters<typeof configOf>[0]['overrides']>, functions: NonNullable<Parameters<typeof configOf>[0]['functions']> = [[BASE + 0x100, 'A']]): readonly string[] =>
     buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions, overrides })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => d.message);
-  assert.equal(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'data' }]).length, 1, 'a data override');
-  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: it gives the extent only of a listed function the analysis did not find/);
+  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'data' }])[0] ?? '', /changes nothing: the analysis claimed none of its bytes as data/, 'a data override the analysis did not apply');
+  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: a function already starts at 0x08000100 \(listed in \[functions\], or found by another rule\)/);
   // A listed entry the analysis did not find, inside a code override the run read: its extent comes from the override.
   const override = { start: BASE + 0x120, size: 0x10, kind: 'code' as const, mode: 'thumb' as const };
   const read = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], overrides: [{ span: { start: override.start, end: override.start + override.size }, kind: 'code', mode: 'thumb' }] });
@@ -196,6 +197,25 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   assert.deepEqual(sameSpan([override, { start: override.start, size: override.size, kind: 'data' }]), ['data']);
   assert.deepEqual(sameSpan([{ start: override.start, size: override.size, kind: 'data' }, override]), ['data']);
   assert.deepEqual(sameSpan([override, override]), ['code']);
+  // What the analysis applied (correctness-b0-3, core/layout appliedOverrides): a data override whose span holds a data
+  // claim, a code override whose start the run took from its seed (origin override), a second identical one ignored.
+  const data = { start: BASE + 0x130, size: 0x10, kind: 'data' as const };
+  const code = { start: BASE + 0x150, size: 0x10, kind: 'code' as const, mode: 'thumb' as const };
+  const facts = [data, code].map((o) => ({ span: { start: o.start, end: o.start + o.size }, kind: o.kind, ...('mode' in o ? { mode: o.mode } : {}) }));
+  const seeded = { ...fact({ entry: code.start, end: code.start + 0x10 }), origin: 'override' as const, accepted: { rule: 'seed.override' as const, round: 0, cites: [] } };
+  const applied = analysisOf(ROM, {
+    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 }), seeded],
+    claims: [{ span: { start: data.start, end: data.start + data.size }, kind: Claim.data }],
+    overrides: [...facts, ...facts],
+  });
+  const both = buildModel(ROM, applied, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [data, code] }));
+  assert.deepEqual(both.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED'), [], 'both applied');
+  const twice = buildModel(ROM, applied, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [data, data, code, code] }));
+  assert.deepEqual(twice.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => [d.addr, /kind = "(\w+)"/.exec(d.message)?.[1]]), [[data.start, 'data'], [code.start, 'code']], 'a second identical entry changes nothing');
+  // In confirm mode a code override at an unlisted start is reported unlisted from its seed (W_UNLISTED_FUNCTION): applied.
+  const confirm = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], seeds: [{ entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed' }], overrides: [facts[1] ?? assert.fail()] });
+  const unlisted = { ...confirm, unlisted: [{ entry: code.start, mode: 'thumb' as const, origin: 'override' as const, provenance: { rule: 'seed.override' as const, round: 0, cites: [] } }] };
+  assert.deepEqual(buildModel(ROM, unlisted, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED'), []);
   // A range wholly outside the ROM is W_OVERRIDE_OUTSIDE_ROM's alone (fix round 6, architecture-b1-2).
   const outside = buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [{ start: 0x0900_0000, size: 4, kind: 'code', mode: 'thumb' }] }));
   assert.deepEqual(outside.diagnostics.map((d) => d.code), ['W_OVERRIDE_OUTSIDE_ROM']);

@@ -11,7 +11,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { BUILD_COMPILERS, configFromDiscover, DEFAULT_BUILD_COMPILER, discover, inferModules, legalBorders, profileById, type AnalysisResult, type Rom } from 'romlift';
+import { BUILD_COMPILERS, codeLayout, configFromDiscover, DEFAULT_BUILD_COMPILER, discover, inferModules, isLegalStart, legalStartsBetween, profileById, type AnalysisResult, type Rom } from 'romlift';
 
 import { listSyntheticFixtures, readExpect, readFixtureRom, type SyntheticFixture } from '../../helpers/fixtures.ts';
 
@@ -116,12 +116,13 @@ test('the three phase-4 fixtures are committed', () => {
 test('composite: init.args is --module-size 0x200, which gives at least three C modules with legal borders inside them', () => {
   const p = load('composite');
   assert.deepEqual(initArgs(p), ['--module-size', '0x200']);
-  const borders = legalBorders(p.rom, p.analysis);
+  // core/layout's one legal-start rule (architecture-r1-3).
+  const layout = codeLayout(p.rom, p.analysis);
   const modules = modulesOf(p);
-  for (const m of modules) assert.ok(borders.includes(m.start), `${m.name} starts at ${hex(m.start)}, no legal border`);
+  for (const m of modules) assert.ok(isLegalStart(layout, m.start), `${m.name} starts at ${hex(m.start)}, no legal border`);
   const c = modules.filter((m) => m.kind === 'c');
   assert.ok(c.length >= 3, `${c.length} C modules`);
-  const split = c.filter((m) => borders.some((b) => b > m.start && b < m.end));
+  const split = c.filter((m) => legalStartsBetween(layout, m.start, m.end).length > 0);
   assert.ok(split.length >= 3, `C modules with a legal border inside: ${split.map((m) => m.name).join(', ')}`);
   assert.ok(modules.some((m) => m.kind === 'asm' && m.name.startsWith('asm_')), 'an assembly-only module');
   assert.ok(modules.some((m) => m.kind === 'data'), 'a data module');
@@ -146,7 +147,7 @@ test("composite: illegalBorder names a C module and a start between its neighbou
   const previous = modules[at - 1];
   assert.ok(previous !== undefined && addr > previous.start && addr < target.end, `${start} lies between ${previous?.name ?? '?'} and the module after ${module}`);
   assert.notEqual(addr, target.start);
-  assert.ok(!legalBorders(p.rom, p.analysis).includes(addr), `${start} is a legal border`);
+  assert.ok(!isLegalStart(codeLayout(p.rom, p.analysis), addr), `${start} is a legal border`);
 });
 
 test('multi-compiler: the named modules are C proposals under init.args, built with old_agbcc and flags; another C module stays on agbcc', () => {

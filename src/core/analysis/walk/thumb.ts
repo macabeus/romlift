@@ -7,6 +7,7 @@ import { decode, fieldsOf, rowFor, thumbWordAt } from '../../../foundation/isa/d
 import type { Insn } from '../../../foundation/isa/types.ts';
 import { contains, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
+import { insnAligned } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { toRun } from '../address-map.ts';
 import { LIMITS } from '../limits.ts';
@@ -180,7 +181,8 @@ export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, nor
     runs.current = path.run;
     while (!rec.insns.has(pc)) {
       if (pc !== entry && view.isFunction(pc)) break; // fell into the next function
-      if (!contains(rom, pc, 2) || (pc & 1) !== 0) {
+      if (view.inDataOverride(pc)) break; // reached a data override, which no walk enters (correctness-b0-3)
+      if (!contains(rom, pc, 2) || !insnAligned('thumb', pc)) {
         rec.errors.push({ reason: 'out-of-rom', at: pc });
         break;
       }

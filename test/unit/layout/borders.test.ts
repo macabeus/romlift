@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { asmOnlyRanges, asmOnlyReasons } from '../../../src/core/layout/asm-only.ts';
-import { codeLayout, legalBorders, nearestBorders } from '../../../src/core/layout/borders.ts';
+import { codeLayout, isLegalStart, legalBorders, legalStartsBetween, nearestBorders, nearestLegalStarts } from '../../../src/core/layout/borders.ts';
 import { coveredEntries, factsByEntry, headerCoveredEntries, isLabelEntry, listedEntriesOf, nestedEntries, placeEntries } from '../../../src/core/layout/entries.ts';
 import type { PlacedEntry } from '../../../src/core/layout/entries.ts';
 import { borderRefs } from '../../../src/core/layout/refs.ts';
@@ -286,6 +286,33 @@ test('nearestBorders names the legal borders below and above', () => {
   assert.deepEqual(nearestBorders(borders, BASE + 0x100), { below: HEADER_END, above: BASE + 0x118 });
 });
 
+test('isLegalStart is the whole rule: the code borders, then every word from the data start to the ROM end (architecture-r1-3, D75 a)', () => {
+  const { rom, analysis } = crossingRom();
+  const layout = codeLayout(rom, analysis);
+  assert.equal(layout.end, rom.end);
+  // Below the data start only the borders; 0x104 is crossed by the branch, 0x10E is no word.
+  for (const b of layout.borders) assert.ok(isLegalStart(layout, b), `border ${b.toString(16)}`);
+  assert.deepEqual([BASE + 0x104, BASE + 0x10e, BASE + 0x110, BASE + 0x116].map((a) => isLegalStart(layout, a)), [false, false, false, false]);
+  // At or past the data start every word before the ROM end.
+  assert.deepEqual([layout.dataStart, layout.dataStart + 4, layout.dataStart + 2, rom.end - 4, rom.end].map((a) => isLegalStart(layout, a)), [true, true, false, true, false]);
+  const rule = { borders: [BASE, HEADER_END, BASE + 0x100], dataStart: BASE + 0x120, end: BASE + 0x140 };
+  assert.deepEqual(legalStartsBetween(rule, BASE + 0x100, BASE + 0x130), [BASE + 0x120, BASE + 0x124, BASE + 0x128, BASE + 0x12c]);
+  assert.deepEqual(legalStartsBetween(rule, BASE, BASE + 0x124), [HEADER_END, BASE + 0x100, BASE + 0x120]);
+  assert.deepEqual(legalStartsBetween(rule, BASE + 0x13c, BASE + 0x200), [], 'the ROM end starts nothing');
+  for (let a = BASE; a < BASE + 0x150; a += 2) assert.equal(legalStartsBetween(rule, a - 1, a + 1).length === 1, isLegalStart(rule, a), `between agrees with the predicate at ${a.toString(16)}`);
+});
+
+test('nearestLegalStarts: the nearest borders below the data start, the nearest words past it', () => {
+  const rule = { borders: [BASE, HEADER_END, BASE + 0x100, BASE + 0x118], dataStart: BASE + 0x118, end: BASE + 0x200 };
+  assert.deepEqual(nearestLegalStarts(rule, BASE + 0x104), { below: BASE + 0x100, above: BASE + 0x118 });
+  assert.deepEqual(nearestLegalStarts(rule, BASE + 0x11a), { below: BASE + 0x118, above: BASE + 0x11c });
+  assert.deepEqual(nearestLegalStarts(rule, BASE + 0x1fe), { below: BASE + 0x1fc, above: undefined });
+  assert.deepEqual(nearestLegalStarts(rule, BASE + 0x100), { below: HEADER_END, above: BASE + 0x118 });
+  // With no data region (the data start at the ROM end) it is nearestBorders.
+  const none = { ...rule, dataStart: rule.end };
+  assert.deepEqual(nearestLegalStarts(none, BASE + 0x1fe), nearestBorders(rule.borders, BASE + 0x1fe));
+});
+
 test('listedEntriesOf: discover lists every function, nested ones as labels; confirm lists the listed seeds', () => {
   const rom = romWith([], { size: 0x200 });
   const functions = [fact({ entry: BASE + 0x100, end: BASE + 0x120 }), fact({ entry: BASE + 0x108, end: BASE + 0x110 })];
@@ -298,7 +325,7 @@ test('listedEntriesOf: discover lists every function, nested ones as labels; con
     seeds: [
       { entry: BASE + 0x108, mode: 'thumb', rule: 'seed.listed', label: true },
       { entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed', size: 0x10 },
-      { entry: BASE + 0x140, mode: 'thumb', rule: 'seed.evidence-hint' },
+      { entry: BASE + 0x140, mode: 'thumb', rule: 'seed.override' },
     ],
   });
   assert.deepEqual(listedEntriesOf(confirm, HEADER_END), [

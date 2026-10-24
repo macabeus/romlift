@@ -5,11 +5,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
-import { isLegalStart, loadAddressOf, loadModuleAt, moduleIndexAt, planModules, relocatedModules, runOffsetAt, runStartOf, toLoad } from '../../../src/core/model/modules.ts';
+import { loadAddressOf, loadModuleAt, moduleIndexAt, planModules, relocatedModules, runOffsetAt, runStartOf, toLoad } from '../../../src/core/model/modules.ts';
+import { isLegalStart } from '../../../src/core/layout/borders.ts';
 import { BASE, configOf, HEADER_END, romWith } from '../layout/hand-made.ts';
 
 const ROM = romWith([], { size: 0x400 });
 const BORDERS = [BASE, HEADER_END, BASE + 0x100, BASE + 0x200, BASE + 0x300];
+/** The border rule of BORDERS with no data region past them (the data start at the ROM end). */
+const RULE = { borders: BORDERS, dataStart: ROM.end, end: ROM.end };
 
 test('modules span from their start to the next one, the last to the ROM end, with the build compiler resolved', () => {
   const config = configOf({
@@ -20,7 +23,7 @@ test('modules span from their start to the next one, the last to the ROM end, wi
       { name: 'data', start: BASE + 0x300, kind: 'data', generated: true },
     ],
   });
-  const { modules, diagnostics } = planModules(ROM, config, BORDERS);
+  const { modules, diagnostics } = planModules(ROM, config, RULE);
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(
     modules.map((m) => [m.name, m.span.start - BASE, m.span.end - BASE, m.kind, m.generated, m.compiler]),
@@ -39,7 +42,7 @@ test('modules span from their start to the next one, the last to the ROM end, wi
 
 test('a start that is not a legal border is E_MODULE_BORDER naming the nearest legal borders below and above', () => {
   const config = configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], ['moved', BASE + 0x180]] });
-  const { modules, diagnostics } = planModules(ROM, config, BORDERS);
+  const { modules, diagnostics } = planModules(ROM, config, RULE);
   assert.equal(diagnostics.length, 1);
   const d = diagnostics[0];
   assert.equal(d?.code, 'E_MODULE_BORDER');
@@ -51,47 +54,51 @@ test('a start that is not a legal border is E_MODULE_BORDER naming the nearest l
 });
 
 test('past the data start every word-aligned address is a legal start (D75 a); below it only the legal borders are', () => {
-  const rule = { borders: BORDERS, dataStart: BASE + 0x2f0 };
+  const rule = { borders: BORDERS, dataStart: BASE + 0x2f0, end: ROM.end };
   const config = configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], ['data', BASE + 0x318]] });
   assert.deepEqual(planModules(ROM, config, rule).diagnostics, [], 'a data border the TOML keeps past a lower data start');
-  assert.deepEqual(planModules(ROM, config, BORDERS).diagnostics.map((d) => d.code), ['E_MODULE_BORDER'], 'without the data start the same start is refused');
-  assert.equal(isLegalStart(ROM, rule, BASE + 0x2f0), true);
-  assert.equal(isLegalStart(ROM, rule, BASE + 0x31a), false, 'not word-aligned');
-  assert.equal(isLegalStart(ROM, rule, BASE + 0x2ec), false, 'below the data start, and no legal border');
-  assert.equal(isLegalStart(ROM, rule, ROM.end), false, 'the ROM end starts nothing');
+  assert.deepEqual(planModules(ROM, config, RULE).diagnostics.map((d) => d.code), ['E_MODULE_BORDER'], 'without the data start the same start is refused');
+  assert.equal(isLegalStart(rule, BASE + 0x2f0), true);
+  assert.equal(isLegalStart(rule, BASE + 0x31a), false, 'not word-aligned');
+  assert.equal(isLegalStart(rule, BASE + 0x2ec), false, 'below the data start, and no legal border');
+  assert.equal(isLegalStart(rule, ROM.end), false, 'the ROM end starts nothing');
+  // E_MODULE_BORDER in the data region names the nearest words, from core/layout's one rule.
+  const unaligned = planModules(ROM, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], ['data', BASE + 0x31a]] }), rule).diagnostics;
+  assert.deepEqual(unaligned.map((d) => [d.code, d.cites]), [['E_MODULE_BORDER', [BASE + 0x318, BASE + 0x31c]]]);
+  assert.match(unaligned[0]?.message ?? '', /0x08000318 below and 0x0800031C above/);
 });
 
 test('starts that do not increase are E_MODULE_ORDER and are left out; a first start above the base is moved to it', () => {
   const config = configOf({ modules: [['rom_header', BASE], ['main', BASE + 0x200], ['back', BASE + 0x100], ['same', BASE + 0x200]] });
-  const { modules, diagnostics } = planModules(ROM, config, BORDERS);
+  const { modules, diagnostics } = planModules(ROM, config, RULE);
   assert.deepEqual(diagnostics.map((d) => [d.code, d.addr]), [
     ['E_MODULE_ORDER', BASE + 0x100],
     ['E_MODULE_ORDER', BASE + 0x200],
   ]);
   assert.deepEqual(modules.map((m) => m.name), ['rom_header', 'main']);
 
-  const late = planModules(ROM, configOf({ modules: [['main', HEADER_END]] }), BORDERS);
+  const late = planModules(ROM, configOf({ modules: [['main', HEADER_END]] }), RULE);
   assert.deepEqual(late.diagnostics.map((d) => d.code), ['E_MODULE_ORDER']);
   assert.equal(late.modules[0]?.span.start, BASE);
 
-  const none = planModules(ROM, configOf({ modules: [] }), BORDERS);
+  const none = planModules(ROM, configOf({ modules: [] }), RULE);
   assert.deepEqual(none.diagnostics.map((d) => d.code), ['E_MODULE_ORDER']);
   assert.deepEqual(none.modules.map((m) => [m.name, m.span.start, m.span.end]), [['main', BASE, ROM.end]]);
 
-  const outside = planModules(ROM, configOf({ modules: [['rom_header', BASE], ['past', ROM.end]] }), BORDERS);
+  const outside = planModules(ROM, configOf({ modules: [['rom_header', BASE], ['past', ROM.end]] }), RULE);
   assert.deepEqual(outside.diagnostics.map((d) => d.code), ['E_MODULE_BORDER']);
   assert.equal(outside.modules.length, 1);
 });
 
 test('a runs_at override bounded by module borders sets the run address of its modules (identity in phase 3)', () => {
   const modules3 = [['rom_header', BASE], ['main', HEADER_END], ['iwram', BASE + 0x200], ['data', BASE + 0x300]] as const;
-  const identity = planModules(ROM, configOf({ modules: modules3, overrides: [{ start: BASE + 0x200, size: 0x100, kind: 'code', runsAt: BASE + 0x200 }] }), BORDERS);
+  const identity = planModules(ROM, configOf({ modules: modules3, overrides: [{ start: BASE + 0x200, size: 0x100, kind: 'code', runsAt: BASE + 0x200 }] }), RULE);
   assert.deepEqual(identity.diagnostics, []);
   assert.deepEqual(identity.modules.map((m) => m.runAt), [undefined, undefined, BASE + 0x200, undefined]);
   const relocated = relocatedModules(identity.modules);
   assert.equal(runOffsetAt(relocated, BASE + 0x210), 0);
 
-  const ram = planModules(ROM, configOf({ modules: modules3, overrides: [{ start: BASE + 0x200, size: 0x100, kind: 'code', runsAt: 0x0300_0000 }] }), BORDERS);
+  const ram = planModules(ROM, configOf({ modules: modules3, overrides: [{ start: BASE + 0x200, size: 0x100, kind: 'code', runsAt: 0x0300_0000 }] }), RULE);
   const moved = relocatedModules(ram.modules);
   assert.equal(ram.modules[2]?.runAt, 0x0300_0000);
   assert.equal(runOffsetAt(moved, BASE + 0x210), 0x0300_0000 - (BASE + 0x200));
@@ -121,9 +128,9 @@ test('a runs_at range that does not start and end on module borders is E_OVERRID
       { start: BASE + 0x100, size: 0x40, kind: 'data' },
     ],
   });
-  const { modules, diagnostics } = planModules(ROM, config, BORDERS);
+  const { modules, diagnostics } = planModules(ROM, config, RULE);
   assert.deepEqual(diagnostics.map((d) => [d.code, d.span]), [['E_OVERRIDE_INVALID', { start: BASE + 0x200, end: BASE + 0x280 }]]);
   assert.ok(modules.every((m) => m.runAt === undefined));
-  const toEnd = planModules(ROM, configOf({ modules: [['rom_header', BASE], ['iwram', BASE + 0x200]], overrides: [{ start: BASE + 0x200, size: 0x200, kind: 'code', runsAt: 0x0300_0000 }] }), BORDERS);
+  const toEnd = planModules(ROM, configOf({ modules: [['rom_header', BASE], ['iwram', BASE + 0x200]], overrides: [{ start: BASE + 0x200, size: 0x200, kind: 'code', runsAt: 0x0300_0000 }] }), RULE);
   assert.deepEqual(toEnd.diagnostics, [], 'the ROM end is a border');
 });

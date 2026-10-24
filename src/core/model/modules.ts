@@ -2,11 +2,9 @@
 // from its start to the next one's (the last to the ROM end), checked against the ROM's legal borders, with its
 // build compiler resolved and the run address of a runs_at override. Their chunks are filled in by model.ts.
 //
-// A start in the data region (at or past the layout's data start) is legal at every word-aligned address: no
-// instruction lies there, so no branch, PC-relative load or adr can cross it, and ld word-aligns every object. That
-// is how the TOML keeps its data border when the confirm run's code ends lower than discover's, after the user
-// deleted the last listed function (D75 a): the bytes between the new data start and the stated border are the tail
-// of the module before, an orphan chunk there.
+// Whether a start is legal is core/layout's one rule (borders.ts isLegalStart, architecture-r1-3): the code region's
+// legal borders, and every word from the data start to the ROM end (D75 a). The bytes between a confirm run's lower
+// data start and a data border the TOML keeps are the tail of the module before, an orphan chunk there.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
@@ -15,7 +13,8 @@ import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { buildCompilerOf } from '../config/compilers.ts';
 import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
-import { nearestBorders } from '../layout/borders.ts';
+import { isLegalStart, nearestLegalStarts } from '../layout/borders.ts';
+import type { BorderRule } from '../layout/borders.ts';
 import { ModelCodes } from './codes.ts';
 import type { Module } from './types.ts';
 
@@ -28,32 +27,15 @@ export interface ModulesPlan {
 /** The module a config with no usable module gets, so a model can still be built and its errors reported. */
 const FALLBACK_NAME = 'main';
 
-function describeBorders(borders: readonly Addr[], start: Addr): string {
-  const { below, above } = nearestBorders(borders, start);
+/** The nearest legal starts around `start` under `rule`, as E_MODULE_BORDER's message names them. */
+function describeBorders(rule: BorderRule, start: Addr): string {
+  const { below, above } = nearestLegalStarts(rule, start);
   const parts = [below === undefined ? undefined : `${hexAddr(below)} below`, above === undefined ? undefined : `${hexAddr(above)} above`].filter((p) => p !== undefined);
   return parts.length === 0 ? 'there is no legal border' : `the nearest legal borders are ${parts.join(' and ')}`;
 }
 
-/** The word every legal border is a multiple of, from the ROM base (ld word-aligns every object). */
-const WORD = 4;
-
-/** What a module start is checked against: the legal borders of the code region and where data starts (codeLayout). */
-export interface BorderRule {
-  /** The legal borders, ascending (core/layout/borders.ts legalBorders). */
-  readonly borders: readonly Addr[];
-  /** The data start; every word-aligned address from it to the ROM end is legal too. Default: none past the borders. */
-  readonly dataStart?: Addr;
-}
-
-/** Whether `start` is a legal module border under `rule`. */
-export function isLegalStart(rom: Pick<Rom, 'base' | 'end'>, rule: BorderRule, start: Addr): boolean {
-  if (rule.borders.includes(start)) return true;
-  return rule.dataStart !== undefined && start >= rule.dataStart && start < rom.end && (start - rom.base) % WORD === 0;
-}
-
 /** The modules whose starts increase from the ROM base, with the diagnostics of every one left out or moved. */
 function orderedModules(rom: Rom, config: RomliftConfig, rule: BorderRule, diagnostics: Diagnostic[]): ModuleConfig[] {
-  const { borders } = rule;
   const kept: ModuleConfig[] = [];
   for (const m of config.modules) {
     const last = kept[kept.length - 1];
@@ -65,8 +47,9 @@ function orderedModules(rom: Rom, config: RomliftConfig, rule: BorderRule, diagn
       diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_BORDER', `module ${m.name} starts at ${hexAddr(m.start)}, outside the ROM [${hexAddr(rom.base)}, ${hexAddr(rom.end)})`, { addr: m.start }));
       continue;
     }
-    if (!isLegalStart(rom, rule, m.start)) {
-      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_BORDER', `module ${m.name} starts at ${hexAddr(m.start)}, which is not a legal border: ${describeBorders(borders, m.start)}`, { addr: m.start, cites: Object.values(nearestBorders(borders, m.start)).filter((a): a is Addr => a !== undefined) }));
+    if (!isLegalStart(rule, m.start)) {
+      const near = nearestLegalStarts(rule, m.start);
+      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_BORDER', `module ${m.name} starts at ${hexAddr(m.start)}, which is not a legal border: ${describeBorders(rule, m.start)}`, { addr: m.start, cites: [near.below, near.above].filter((a): a is Addr => a !== undefined) }));
     }
     kept.push(m);
   }
@@ -100,10 +83,9 @@ function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonl
   return runAt;
 }
 
-/** The modules of `config` over `rom`, checked against the legal borders (ascending, or a BorderRule with the data start). */
-export function planModules(rom: Rom, config: RomliftConfig, borders: readonly Addr[] | BorderRule): ModulesPlan {
+/** The modules of `config` over `rom`, each start checked with core/layout's isLegalStart under `rule` (a CodeLayout is one). */
+export function planModules(rom: Rom, config: RomliftConfig, rule: BorderRule): ModulesPlan {
   const diagnostics: Diagnostic[] = [];
-  const rule: BorderRule = 'borders' in borders ? borders : { borders };
   const kept = orderedModules(rom, config, rule, diagnostics);
   const spans = kept.map((m, i) => ({ start: m.start, end: kept[i + 1]?.start ?? rom.end }));
   const runAt = runAddresses(rom, config, spans, diagnostics);

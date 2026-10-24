@@ -26,7 +26,7 @@ export const ModelCodes = defineCodes({
   E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
   W_OVERRIDE_IGNORED: {
     severity: 'warning',
-    meaning: 'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override is not applied yet, and a code override only gives the extent of a listed entry the analysis did not find (fix round 5, D81 c; a known limitation)',
+    meaning: 'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override whose bytes the analysis did not claim, or a code override whose seed added no function (one already starts there) and that gives no listed entry its extent (fix round 5, D81 c; applied since phase 6, correctness-b0-3)',
   },
   W_FUNCTION_OUTSIDE_ROM: {
     severity: 'warning',

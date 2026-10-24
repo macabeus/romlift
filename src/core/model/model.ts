@@ -14,7 +14,7 @@ import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundatio
 import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import type { FunctionConfig, RomliftConfig } from '../config/schema.ts';
-import { codeLayout, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from '../layout/borders.ts';
+import { appliedOverrides, codeLayout, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from '../layout/borders.ts';
 import type { ListedEntry, PlacedEntry } from '../layout/borders.ts';
 import { ModelCodes } from './codes.ts';
 import type { ChunkPlan } from './chunks.ts';
@@ -102,18 +102,19 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
 }
 
 /**
- * W_OVERRIDE_IGNORED for every [[overrides]] entry without runs_at that nothing applied (fix round 5, correctness-b0-3,
- * a known limitation until the analysis applies overrides): derived from what placeEntries reports it used (the
- * override of an entry whose extent it gave, fix round 6, architecture-b1-2), never from the override's kind, so the
- * day a layer applies data overrides it reports them and the warning follows. A range wholly outside the ROM is
- * W_OVERRIDE_OUTSIDE_ROM's alone.
+ * W_OVERRIDE_IGNORED for every [[overrides]] entry without runs_at that nothing applied (fix round 5, correctness-b0-3):
+ * derived from what core/layout reports was used, never from the override's kind: the overrides the analysis applied
+ * (appliedOverrides: a data override's claim, a code override's seed that took its start) and the override of an
+ * entry whose extent placeEntries gave (fix round 6, architecture-b1-2). What is left changes nothing, such as a code
+ * override exactly over a function the [functions] list or another rule already starts. A range wholly outside the
+ * ROM is W_OVERRIDE_OUTSIDE_ROM's alone.
  */
-function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly PlacedEntry[]): Diagnostic[] {
-  // Each override placeEntries applied (its own object, however many entries it gave an extent) answers for one
-  // [[overrides]] entry of its kind, span and mode (fix round 7, architecture-b2-6): a data override, or a second
-  // code override, on the span of an applied one is still ignored.
+function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly PlacedEntry[], analysis: AnalysisResult): Diagnostic[] {
+  // Each applied override (its own object, however many entries it gave an extent) answers for one [[overrides]]
+  // entry of its kind, span and mode (fix round 7, architecture-b2-6): a data override, or a second code override, on
+  // the span of an applied one is still ignored.
   const unmatched: NonNullable<PlacedEntry['override']>[] = [];
-  for (const p of placed) if (p.override !== undefined && !unmatched.includes(p.override)) unmatched.push(p.override);
+  for (const o of [...appliedOverrides(analysis), ...placed.flatMap((p) => (p.override === undefined ? [] : [p.override]))]) if (!unmatched.includes(o)) unmatched.push(o);
   const out: Diagnostic[] = [];
   for (const o of config.overrides) {
     if (o.runsAt !== undefined) continue;
@@ -124,7 +125,10 @@ function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly Plac
       unmatched.splice(at, 1);
       continue;
     }
-    const why = o.kind === 'data' ? 'romlift does not apply a data override yet: the analysis still decodes and claims the range as it finds it' : 'it gives the extent only of a listed function the analysis did not find, and none lies in it; add the function to [functions] (with size) instead';
+    const why =
+      o.kind === 'data'
+        ? 'the analysis claimed none of its bytes as data'
+        : `a function already starts at ${hexAddr(o.start)} (listed in [functions], or found by another rule) or its start is no ${o.mode ?? 'thumb'} instruction address, so its seed adds none, and it gives no listed entry its extent`;
     out.push(diagnostic(ModelCodes, 'W_OVERRIDE_IGNORED', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`, { span, addr: o.start }));
   }
   return out;
@@ -145,7 +149,7 @@ function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
 /** The Model of `rom` under `config`, with the facts of `analysis` (a discover or confirm result). */
 export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftConfig): Model {
   const layout = codeLayout(rom, analysis);
-  const planned = planModules(rom, config, { borders: layout.borders, dataStart: layout.dataStart });
+  const planned = planModules(rom, config, layout);
   const modules = planned.modules;
   const relocated = relocatedModules(modules);
 
@@ -214,6 +218,6 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     labels: labelled.labels,
     symbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...moduleNameProblems(modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...moduleNameProblems(modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
   };
 }

@@ -82,7 +82,7 @@ test('the header chunk clips the cartridge entry; startup, function, orphan and 
 test('a chunk never crosses a module border: a function cut by a moved border leaves an orphan in the next module', () => {
   const a = analysis();
   const c = config([['rom_header', BASE], ['crt0', HEADER_END], ['main', BASE + 0xdc], ['moved', BASE + 0x108], ['data', BASE + 0x130]]);
-  const { modules } = planModules(ROM, c, []);
+  const { modules } = planModules(ROM, c, { borders: [], dataStart: ROM.end, end: ROM.end });
   const functions = new Map([...c.functions].filter(([, f]) => f.label !== true));
   const entries = placeEntries([...functions.keys()].map((entry) => ({ entry, label: false })), a);
   const chunks = planChunks({ rom: ROM, modules, entries, functions, headerEnd: HEADER_END, startupEnd: BASE + 0xdc, symbols: [] });
