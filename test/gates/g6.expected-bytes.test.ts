@@ -1,15 +1,18 @@
-// g5.expected-bytes (architecture §6.3 `expected`, §6.8, §13): every expected/<module>.s is judged by the
-// ROM, never by another project's expected/ output. In a project `init` wrote, every `c` module of the model
+// g6.expected-bytes (architecture §6.3 `expected`, §6.6, §13; g5.expected-bytes until the owner skipped phase 5 and
+// moved the expected/ and objdiff.json writers into phase 6, D92): every expected/<module>.s is judged by the ROM,
+// never by another project's expected/ output. In a project `init` wrote, every `c` module of the model
 // has an expected/<module>.s; `make expected` assembles each into expected/<module>.o; the .text of each
 // object must equal the ROM range of its module byte for byte, and on a mismatch the symbols that cover the
-// first differing offsets are named. The ci tier runs every committed fixture; the real tier adds the five
-// tuning ROMs.
+// first differing offsets are named. The ci tier runs every committed fixture; the real tier adds the six
+// tuning ROMs (D60).
 //
-// Expected interfaces, for the phase-5 lead to align (architecture §2.1, §3.4, §6.3):
+// Expected interfaces, aligned by the phase-6 lead (architecture §2.1, §3.4, §6.3, D93; the `expected` writer is
+// p6-c-data-expected's):
 //   romlift init baserom.gba --json      exit 0
 //   romlift model --json                 the first line is the header {"schema":"romlift/model-json@1",
 //     "modules":[{"name":string,"kind":"asm"|"c"|"data","span":{"start":number,"end":number}},…],…}
-//   make expected                        assembles expected/<module>.s into expected/<module>.o (no agbcc)
+//   make expected                        assembles expected/<module>.s into expected/<module>.o (no agbcc); the
+//     scaffold's Makefile target, written with the writer
 import { copyFile, mkdir, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult, type GateContext } from './gate.ts';
@@ -98,8 +101,8 @@ async function checkTarget(cx: GateContext, target: Target, dir: string): Promis
 }
 
 gate({
-  id: 'g5.expected-bytes',
-  phase: 5,
+  id: 'g6.expected-bytes',
+  phase: 6,
   tier: 'both',
   inputs: ['toolchain'],
   realInputs: ['roms'],

@@ -41,7 +41,7 @@ kind = "data"
 0x08000000 = { name = "sub_08000000", mode = "arm" }
 0x080000C0 = { name = "sub_080000C0", mode = "arm", label = true }
 # the game's main loop, found by hand
-0x080000F4 = { name = "AgbMain", from = "legacy" }   # TODO: name it
+0x080000F4 = { name = "AgbMain", from = "sig:gate@0" }   # TODO: name it
 0x08000104 = "sub_08000104"
 0x08000108 = "sub_08000108"
 0x0800010C = { name = "sub_0800010C", label = true }

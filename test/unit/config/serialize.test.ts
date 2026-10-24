@@ -22,7 +22,7 @@ const EXAMPLE: RomliftConfig = {
   modules: [
     { name: 'crt0', start: 0x0800_00c0, kind: 'asm', generated: true },
     { name: 'main', start: 0x0800_043c, kind: 'c', generated: true },
-    { name: 'eeprom', start: 0x0804_e800, kind: 'c', generated: true, compiler: 'old_agbcc', cflags: ['-O1'] },
+    { name: 'eeprom', start: 0x0804_e800, kind: 'c', dataStart: 0x0804_ef00, generated: true, compiler: 'old_agbcc', cflags: ['-O1'] },
     { name: 'm4a', start: 0x0804_f000, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
     { name: 'm4a_ram', start: 0x0804_f318, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
     { name: 'm4a_2', start: 0x0804_f718, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
@@ -39,7 +39,7 @@ const EXAMPLE: RomliftConfig = {
     [0x0300_2920, { name: 'gEntityInfo', aliases: ['gUnk_03002920'] }],
     [0x0818_9e84, { name: 'gSpriteDataTable', size: 0x40, type: 'pointers', aliases: [] }],
   ]),
-  overrides: [{ start: 0x0804_f318, size: 0x400, kind: 'code', runsAt: 0x0300_0388, from: 'evidence:trace' }],
+  overrides: [{ start: 0x0804_f318, size: 0x400, kind: 'code', runsAt: 0x0300_0388 }],
 };
 
 const EXAMPLE_TEXT = `schema = 1
@@ -69,6 +69,7 @@ kind = "c"
 name = "eeprom"
 start = 0x0804E800
 kind = "c"
+data_start = 0x0804EF00
 compiler = "old_agbcc"
 cflags = ["-O1"]
 
@@ -114,7 +115,6 @@ start = 0x0804F318
 size = 0x400
 kind = "code"
 runs_at = 0x03000388
-from = "evidence:trace"
 `;
 
 test("§6.5's example serialises to the canonical layout, entries in address order", () => {
@@ -125,24 +125,24 @@ test('every optional key is written only when set, in its fixed order', () => {
   assert.equal(functionLine(0x0800_0000, { name: 'F', mode: 'thumb', aliases: [] }), '0x08000000 = "F"');
   assert.equal(functionLine(0x0800_0000, { name: 'F', mode: 'thumb', label: false, aliases: [] }), '0x08000000 = "F"');
   assert.equal(
-    functionLine(0x0800_0000, { from: 'legacy', aliases: ['A', 'B'], label: true, size: 0x10, mode: 'arm', name: 'F' }),
-    '0x08000000 = { name = "F", mode = "arm", size = 0x10, label = true, aliases = ["A", "B"], from = "legacy" }',
+    functionLine(0x0800_0000, { from: 'sig:gate@0', aliases: ['A', 'B'], label: true, size: 0x10, mode: 'arm', name: 'F' }),
+    '0x08000000 = { name = "F", mode = "arm", size = 0x10, label = true, aliases = ["A", "B"], from = "sig:gate@0" }',
   );
   assert.equal(symbolLine(0x0300_0000, { name: 'gS', aliases: [] }), '0x03000000 = "gS"');
   assert.equal(
-    symbolLine(0x0300_0000, { from: 'evidence:map', aliases: ['gT'], type: 'bytes', size: 4, name: 'gS' }),
-    '0x03000000 = { name = "gS", size = 0x4, type = "bytes", aliases = ["gT"], from = "evidence:map" }',
+    symbolLine(0x0300_0000, { from: 'sig:m4a@2001', aliases: ['gT'], type: 'bytes', size: 4, name: 'gS' }),
+    '0x03000000 = { name = "gS", size = 0x4, type = "bytes", aliases = ["gT"], from = "sig:m4a@2001" }',
   );
   const text = serializeConfig({
     ...EXAMPLE,
     signatures: { enabled: false, libraries: ['m4a'] },
-    modules: [{ name: 'legacy', start: 0x0800_0000, kind: 'c', generated: false, compiler: 'old_agbcc', cflags: [], library: 'agb', version: '1' }],
+    modules: [{ name: 'kept', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0f00, generated: false, compiler: 'old_agbcc', cflags: [], library: 'agb', version: '1' }],
     functions: new Map(),
     symbols: new Map(),
     overrides: [{ start: 0x0800_0100, size: 0x20, kind: 'data' }],
   });
   assert.ok(text.includes('[signatures]\nenabled = false\nlibraries = ["m4a"]\n\n'), text);
-  assert.ok(text.includes('[[modules]]\nname = "legacy"\nstart = 0x08000000\nkind = "c"\ngenerated = false\ncompiler = "old_agbcc"\ncflags = []\nlibrary = "agb"\nversion = "1"\n\n'), text);
+  assert.ok(text.includes('[[modules]]\nname = "kept"\nstart = 0x08000000\nkind = "c"\ndata_start = 0x08000F00\ngenerated = false\ncompiler = "old_agbcc"\ncflags = []\nlibrary = "agb"\nversion = "1"\n\n'), text);
   assert.ok(text.endsWith('[functions]\n\n[symbols]\n\n[[overrides]]\nstart = 0x08000100\nsize = 0x20\nkind = "data"\n'), text);
 });
 

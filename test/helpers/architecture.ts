@@ -106,8 +106,6 @@ export const EDGE_TABLE: readonly EdgeRow[] = [
     from: 'src/core/layout/**',
     allow: [FOUNDATION, 'src/core/profile/types.ts', 'src/core/analysis/types.ts', 'src/core/proposals/**', 'src/core/layout/**'],
   },
-  { from: 'src/core/evidence/**', allow: [FOUNDATION, 'src/core/analysis/types.ts', 'src/core/proposals/**', 'src/core/evidence/**'] },
-  { from: 'src/core/legacy/**', allow: [FOUNDATION, 'src/core/evidence/facts.ts', 'npm:smol-toml{,/**}', 'src/core/legacy/**'] },
   {
     from: 'src/core/signatures/**',
     allow: [FOUNDATION, 'src/core/provenance/**', 'src/core/analysis/types.ts', 'src/core/proposals/**', 'src/core/signatures/**'],
@@ -144,7 +142,6 @@ export const EDGE_TABLE: readonly EdgeRow[] = [
   { from: 'src/core/workflow/**', allow: [FOUNDATION, 'src/core/**'] },
   // Any other core file has no row: the table must be extended in the commit that adds the module.
   { from: 'src/core/**', allow: [] },
-  { from: 'src/shell/trace/**', allow: ['src/core/**', FOUNDATION, 'src/shell/**', 'node:**', ...RUNTIME_DEPS, 'npm:@gba-kit/gba-node{,/**}'] },
   { from: 'src/shell/**', allow: ['src/core/**', FOUNDATION, 'src/shell/**', 'node:**', ...RUNTIME_DEPS] },
   { from: 'src/cli/commands/index.ts', allow: ['src/cli/commands/lists/*.ts'], rule: 'barrel' },
   {

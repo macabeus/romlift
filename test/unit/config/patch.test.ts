@@ -18,7 +18,7 @@ import { configFromDiscover } from '../../../src/core/workflow/config-from-disco
 import { discover } from '../../../src/core/workflow/discover.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
-const LEGACY = { kind: 'legacy' } as const;
+const SIGNATURE = { kind: 'signature', library: 'gate', version: '0', rule: 'sig.unique-fit' } as const;
 const COMMENTS = ['# a comment above everything', '# a comment above an entry', '# a trailing comment'] as const;
 const PLAIN_DEFAULT_ENTRY = /^(0x[0-9A-F]{8}) = "(sub_[0-9A-F]{8})"$/;
 
@@ -61,7 +61,7 @@ function refusal(text: string, proposals: readonly Proposal[], config: RomliftCo
 }
 
 function rename(addr: number, name: string, mode: 'thumb' | 'arm' = 'thumb'): Proposal {
-  return { kind: 'function', addr, mode, name, source: LEGACY };
+  return { kind: 'function', addr, mode, name, source: SIGNATURE };
 }
 
 /** The lines of `after` that are not the same line of `before` (both with equally many lines, or the added ones). */
@@ -97,7 +97,7 @@ test("g4.toml-canonical's patch assertions hold on every committed fixture's con
     const addr = Number.parseInt(match[1], 16);
     const output = patched(input, [rename(addr, 'GatePatchedName', config.functions.get(addr)?.mode)], config);
     for (const comment of COMMENTS) assert.ok(output.includes(comment), `${name}: lost ${comment}`);
-    assert.deepEqual(changedLines(input, output), [`${match[1]} = { name = "GatePatchedName", from = "legacy" }`], name);
+    assert.deepEqual(changedLines(input, output), [`${match[1]} = { name = "GatePatchedName", from = "sig:gate@0" }`], name);
     const again = parsed(output);
     assert.equal(again.functions.get(addr)?.name, 'GatePatchedName');
     assert.equal(again.functions.size, config.functions.size);
@@ -109,14 +109,14 @@ test("g4.toml-canonical's patch assertions hold on every committed fixture's con
     assert.equal(serializeConfig(movedConfig), text, `${name}: the restructured file means the same config`);
     const refused = refusal(moved, [rename(addr, 'GatePatchedName', config.functions.get(addr)?.mode)], movedConfig);
     assert.equal(refused.length, 1, name);
-    assert.match(refused[0] ?? '', /^E_TOML_PATCH_REFUSED .* restructured by hand.*: 0x[0-9A-F]{8} = \{ name = "GatePatchedName", from = "legacy" \}$/);
+    assert.match(refused[0] ?? '', /^E_TOML_PATCH_REFUSED .* restructured by hand.*: 0x[0-9A-F]{8} = \{ name = "GatePatchedName", from = "sig:gate@0" \}$/);
   }
 });
 
 test('a rename keeps the indentation and a trailing comment of its line, and the comment above it', () => {
   const text = `${BASE}\n[functions]\n# the entry\n  0x08000010 = "sub_08000010"   # keep me\n0x08000020 = "sub_08000020"\n`;
   const output = patched(text, [rename(0x0800_0010, 'Main')]);
-  assert.equal(output, text.replace('0x08000010 = "sub_08000010"', '0x08000010 = { name = "Main", from = "legacy" }'));
+  assert.equal(output, text.replace('0x08000010 = "sub_08000010"', '0x08000010 = { name = "Main", from = "sig:gate@0" }'));
 });
 
 test('a new entry goes after the next lower address, or right after the header, with its neighbour’s indentation', () => {
@@ -133,33 +133,33 @@ test('a new entry goes after the next lower address, or right after the header, 
 
 test('a CRLF file gets CRLF lines', () => {
   const text = `${BASE}\n[functions]\n0x08000010 = "A"\n\n[symbols]\n`.replace(/\n/g, '\r\n');
-  const output = patched(text, [{ kind: 'function', addr: 0x0800_0020, mode: 'arm', name: 'B', source: LEGACY }, rename(0x0800_0010, 'C')]);
-  assert.equal(output, text.replace('0x08000010 = "A"\r\n', '0x08000010 = { name = "C", from = "legacy" }\r\n0x08000020 = { name = "B", mode = "arm", from = "legacy" }\r\n'));
+  const output = patched(text, [{ kind: 'function', addr: 0x0800_0020, mode: 'arm', name: 'B', source: SIGNATURE }, rename(0x0800_0010, 'C')]);
+  assert.equal(output, text.replace('0x08000010 = "A"\r\n', '0x08000010 = { name = "C", from = "sig:gate@0" }\r\n0x08000020 = { name = "B", mode = "arm", from = "sig:gate@0" }\r\n'));
 });
 
 test('`from` records a persisted source; the analysis leaves it as it was; aliases and size are kept', () => {
-  const text = `${BASE}\n[functions]\n0x08000010 = { name = "A", size = 0x20, aliases = ["B"], from = "legacy" }\n`;
+  const text = `${BASE}\n[functions]\n0x08000010 = { name = "A", size = 0x20, aliases = ["B"], from = "sig:gate@0" }\n`;
   const signature: Proposal = { kind: 'function', addr: 0x0800_0010, mode: 'thumb', name: 'm4aSoundMain', source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.test' as RuleId } };
   assert.match(patched(text, [signature]), /^0x08000010 = \{ name = "m4aSoundMain", size = 0x20, aliases = \["B"\], from = "sig:m4a@2001" \}$/m);
   const analysis: Proposal = { kind: 'function', addr: 0x0800_0010, mode: 'thumb', size: 0x30, source: { kind: 'analysis', rule: 'seed.test' as RuleId } };
-  assert.match(patched(text, [analysis]), /^0x08000010 = \{ name = "A", size = 0x30, aliases = \["B"\], from = "legacy" \}$/m);
+  assert.match(patched(text, [analysis]), /^0x08000010 = \{ name = "A", size = 0x30, aliases = \["B"\], from = "sig:gate@0" \}$/m);
 });
 
 test('a proposal never removes `label = true`: the startup code inside the cartridge entry keeps it (D64 a)', () => {
   const text = `${BASE}\n[functions]\n0x08000000 = { name = "sub_08000000", mode = "arm" }\n0x080000C0 = { name = "sub_080000C0", mode = "arm", label = true }\n`;
   const output = patched(text, [rename(0x0800_00c0, 'start', 'arm')]);
-  assert.deepEqual(changedLines(text, output), ['0x080000C0 = { name = "start", mode = "arm", label = true, from = "legacy" }']);
-  const cleared: Proposal = { kind: 'function', addr: 0x0800_00c0, mode: 'arm', label: false, name: 'start', source: LEGACY };
+  assert.deepEqual(changedLines(text, output), ['0x080000C0 = { name = "start", mode = "arm", label = true, from = "sig:gate@0" }']);
+  const cleared: Proposal = { kind: 'function', addr: 0x0800_00c0, mode: 'arm', label: false, name: 'start', source: SIGNATURE };
   assert.equal(parsed(patched(text, [cleared])).functions.get(0x0800_00c0)?.label, true);
 });
 
 test('symbols are patched like functions', () => {
   const text = `${BASE}\n[functions]\n\n[symbols]\n0x03000000 = "gUnk_03000000"   # RAM\n`;
   const output = patched(text, [
-    { kind: 'symbol', addr: 0x0300_0000, name: 'gMain', source: { kind: 'evidence', id: 'map' } },
-    { kind: 'symbol', addr: 0x0300_0010, name: 'gTable', size: 0x40, type: 'pointers', source: LEGACY },
+    { kind: 'symbol', addr: 0x0300_0000, name: 'gMain', source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.unique-fit' } },
+    { kind: 'symbol', addr: 0x0300_0010, name: 'gTable', size: 0x40, type: 'pointers', source: SIGNATURE },
   ]);
-  assert.equal(output, `${BASE}\n[functions]\n\n[symbols]\n0x03000000 = { name = "gMain", from = "evidence:map" }   # RAM\n0x03000010 = { name = "gTable", size = 0x40, type = "pointers", from = "legacy" }\n`);
+  assert.equal(output, `${BASE}\n[functions]\n\n[symbols]\n0x03000000 = { name = "gMain", from = "sig:m4a@2001" }   # RAM\n0x03000010 = { name = "gTable", size = 0x40, type = "pointers", from = "sig:gate@0" }\n`);
 });
 
 test('an unchanged entry is not rewritten, so a no-op patch returns the text itself', () => {
@@ -171,27 +171,27 @@ test('an unchanged entry is not rewritten, so a no-op patch returns the text its
 test('the refusals: a block entry, a missing table, a multi-line value, dotted keys, and a stale config', () => {
   const text = `${BASE}\n[functions]\n0x08000010 = { name = "A", aliases = [\n  "B",\n] }\n0x08000020.name = "C"\n`;
   assert.deepEqual(refusal(text, [rename(0x0800_0010, 'X')]), [
-    'E_TOML_PATCH_REFUSED 0x08000010 in [functions] is not one single-line entry (line 20): it was restructured by hand, so the planner does not edit it; replace it with this line under [functions]: 0x08000010 = { name = "X", aliases = ["B"], from = "legacy" }',
+    'E_TOML_PATCH_REFUSED 0x08000010 in [functions] is not one single-line entry (line 20): it was restructured by hand, so the planner does not edit it; replace it with this line under [functions]: 0x08000010 = { name = "X", aliases = ["B"], from = "sig:gate@0" }',
   ]);
   assert.deepEqual(refusal(text, [rename(0x0800_0020, 'X')]), [
-    'E_TOML_PATCH_REFUSED 0x08000020 in [functions] is not one single-line entry (line 23): it was restructured by hand, so the planner does not edit it; replace it with this line under [functions]: 0x08000020 = { name = "X", from = "legacy" }',
+    'E_TOML_PATCH_REFUSED 0x08000020 in [functions] is not one single-line entry (line 23): it was restructured by hand, so the planner does not edit it; replace it with this line under [functions]: 0x08000020 = { name = "X", from = "sig:gate@0" }',
   ]);
-  assert.deepEqual(refusal(BASE, [{ kind: 'symbol', addr: 0x0300_0000, name: 'gA', source: LEGACY }]), [
-    'E_TOML_PATCH_REFUSED romlift.toml has no [symbols] table to add 0x03000000 to; add the table with this line: 0x03000000 = { name = "gA", from = "legacy" }',
+  assert.deepEqual(refusal(BASE, [{ kind: 'symbol', addr: 0x0300_0000, name: 'gA', source: SIGNATURE }]), [
+    'E_TOML_PATCH_REFUSED romlift.toml has no [symbols] table to add 0x03000000 to; add the table with this line: 0x03000000 = { name = "gA", from = "sig:gate@0" }',
   ]);
   const module: Proposal = { kind: 'module', name: 'm4a', start: 0x0800_0100, moduleKind: 'asm', library: { name: 'm4a', version: '2001' }, source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.x' as RuleId } };
   assert.deepEqual(refusal(`${BASE}\n[functions]\n`, [module]), [
     'E_TOML_PATCH_REFUSED [[modules]] are blocks, which the planner does not edit; make the [[modules]] read, in link order:\n[[modules]]\nname = "main"\nstart = 0x08000000\nkind = "asm"\n\n[[modules]]\nname = "m4a"\nstart = 0x08000100\nkind = "asm"\nlibrary = "m4a"\nversion = "2001"',
   ]);
-  const override: Proposal = { kind: 'override', span: { start: 0x0800_0100, end: 0x0800_0140 }, overrideKind: 'code', mode: 'arm', runsAt: 0x0300_0000, source: { kind: 'evidence', id: 'trace' } };
+  const override: Proposal = { kind: 'override', span: { start: 0x0800_0100, end: 0x0800_0140 }, overrideKind: 'code', mode: 'arm', runsAt: 0x0300_0000, source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.unique-fit' } };
   assert.deepEqual(refusal(`${BASE}\n[functions]\n`, [override]), [
-    'E_TOML_PATCH_REFUSED [[overrides]] are blocks, which the planner does not edit; make the [[overrides]] read:\n[[overrides]]\nstart = 0x08000100\nsize = 0x40\nkind = "code"\nmode = "arm"\nruns_at = 0x03000000\nfrom = "evidence:trace"',
+    'E_TOML_PATCH_REFUSED [[overrides]] are blocks, which the planner does not edit; make the [[overrides]] read:\n[[overrides]]\nstart = 0x08000100\nsize = 0x40\nkind = "code"\nmode = "arm"\nruns_at = 0x03000000\nfrom = "sig:m4a@2001"',
   ]);
   const plain = `${BASE}\n[functions]\n0x08000010 = "A"\n0x08000020 = "B"\n`;
   const stale = parsed(plain.replace('"B"', '"Stale"'));
   const message = refusal(plain, [rename(0x0800_0010, 'X')], stale);
   assert.equal(message.length, 1);
-  assert.match(message[0] ?? '', /^E_TOML_PATCH_REFUSED the patched text does not mean the intended config: the patched file reads "0x08000020 = \\"B\\"" where the intended config reads "0x08000020 = \\"Stale\\""; paste these entries by hand:\n\[functions\] 0x08000010 = \{ name = "X", from = "legacy" \}$/);
+  assert.match(message[0] ?? '', /^E_TOML_PATCH_REFUSED the patched text does not mean the intended config: the patched file reads "0x08000020 = \\"B\\"" where the intended config reads "0x08000020 = \\"Stale\\""; paste these entries by hand:\n\[functions\] 0x08000010 = \{ name = "X", from = "sig:gate@0" \}$/);
 });
 
 test('applyProposals: in order, later wins; modules and overrides land in start order', () => {
@@ -199,9 +199,9 @@ test('applyProposals: in order, later wins; modules and overrides land in start 
   const next = applyProposals(config, [
     rename(0x0800_0010, 'First'),
     rename(0x0800_0010, 'Second'),
-    { kind: 'module', name: 'lib', start: 0x0800_0200, moduleKind: 'asm', source: LEGACY },
-    { kind: 'module', name: 'rodata', start: 0x0800_0400, moduleKind: 'data', source: LEGACY },
-    { kind: 'override', span: { start: 0x0800_0300, end: 0x0800_0310 }, overrideKind: 'data', source: LEGACY },
+    { kind: 'module', name: 'lib', start: 0x0800_0200, moduleKind: 'asm', source: SIGNATURE },
+    { kind: 'module', name: 'rodata', start: 0x0800_0400, moduleKind: 'data', source: SIGNATURE },
+    { kind: 'override', span: { start: 0x0800_0300, end: 0x0800_0310 }, overrideKind: 'data', source: SIGNATURE },
     { kind: 'override', span: { start: 0x0800_0100, end: 0x0800_0110 }, overrideKind: 'code', source: { kind: 'layout', reason: 'data' } },
   ]);
   assert.equal(next.functions.get(0x0800_0010)?.name, 'Second');
@@ -215,7 +215,7 @@ test('applyProposals: in order, later wins; modules and overrides land in start 
   );
   assert.deepEqual(next.overrides, [
     { start: 0x0800_0100, size: 0x10, kind: 'code' },
-    { start: 0x0800_0300, size: 0x10, kind: 'data', from: 'legacy' },
+    { start: 0x0800_0300, size: 0x10, kind: 'data', from: 'sig:gate@0' },
   ]);
   assert.equal(config.functions.size, 0, 'the input config is not changed');
 });

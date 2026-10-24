@@ -74,7 +74,7 @@ test('shapes the schema refuses, all reported at once', () => {
     rom: { path: 'baserom.gba', sha1: 'NOT-A-SHA' },
     modules: [
       { name: 'bad/name', start: 0x0800_0000, kind: 'asm', generated: true },
-      { name: 'main', start: 0x0800_043c, kind: 'c', generated: true, dataStart: 0x0800_8000 },
+      { name: 'main', start: 0x0800_043c, kind: 'c', generated: true, dataEnd: 0x0800_8000 },
     ],
     functions: new Map([[0x0800_0470, { name: '1bad', mode: 'thumb', aliases: [] }]]),
     overrides: [{ start: 0x0800_0000, size: 0, kind: 'code' }],

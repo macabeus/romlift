@@ -4,7 +4,7 @@
 // places every member that another reference of the version also has. The gate requires the bench to
 // report every such (library, version, reference) triple from the specs, and every count to be zero.
 //
-// Expected output, for the phase-6 lead to align (architecture §8.5):
+// Expected output, aligned by the phase-6 lead (architecture §8.5, D93; bench/src/signatures.ts is p6-signatures-match's):
 //   npm run bench -- signatures --loo --json   exit 0; the last stdout line is
 //   {"schema":"romlift/bench-signatures-loo@1","runs":[{"library","version","reference",
 //     "added","moved","missingShared"}]}   reference = the dataset name the spec gives

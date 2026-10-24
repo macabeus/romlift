@@ -14,7 +14,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test, type TestContext } from 'node:test';
@@ -24,7 +24,7 @@ import { byCodeUnit } from './order.ts';
 export { byCodeUnit } from './order.ts';
 
 export type GateTier = 'ci' | 'real';
-export type GateInput = 'roms' | 'elfs' | 'objects' | 'poc' | 'toolchain' | 'klonoa';
+export type GateInput = 'roms' | 'elfs' | 'objects' | 'poc' | 'toolchain';
 export type Verdict = 'pass' | 'fail' | 'pending' | 'unavailable' | 'historical';
 export type GatePhase = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -373,7 +373,6 @@ export interface GateIo {
   listFiles(dir: string): Promise<readonly string[]>;
   readBytes(file: string): Promise<Uint8Array>;
   readText(file: string): Promise<string>;
-  realpath(file: string): Promise<string>;
   hash(algorithm: 'sha256'): Hasher;
   exec(command: string, args: readonly string[], options?: ExecOptions): Promise<ExecResult>;
 }
@@ -508,17 +507,6 @@ export async function checkInput(input: GateInput, env: InputEnv, io: GateIo): P
         else lines.push((run.stdout.split('\n')[0] ?? '').trim());
       }
       return result(io, problems, lines);
-    }
-    case 'klonoa': {
-      const dir = path.join(env.benchRoot, 'klonoa-empire-of-dreams');
-      if (!(await io.isDirectory(dir))) return { available: false, detail: `${dir} is missing` };
-      const top = await io.exec('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
-      if (top.code !== 0 || (await io.realpath(top.stdout.trim())) !== (await io.realpath(dir))) {
-        return { available: false, detail: `${dir} is not a git checkout` };
-      }
-      const head = await io.exec('git', ['-C', dir, 'rev-parse', 'HEAD']);
-      if (head.code !== 0) return { available: false, detail: `${dir} has no HEAD commit` };
-      return { available: true, detail: '', digest: head.stdout.trim() };
     }
   }
 }
@@ -674,13 +662,6 @@ export const nodeIo: GateIo = {
   },
   readText(file) {
     return readFile(file, 'utf8');
-  },
-  async realpath(file) {
-    try {
-      return await realpath(file);
-    } catch {
-      return file;
-    }
   },
   hash(algorithm) {
     const hasher = createHash(algorithm);

@@ -62,7 +62,6 @@ function fakeIo(files: Readonly<Record<string, string>>, commands: Readonly<Reco
         .map((file) => file.slice(dir.length + 1)),
     readBytes: async (file) => bytes(file),
     readText: async (file) => new TextDecoder().decode(bytes(file)),
-    realpath: async (file) => file.replace(/\/$/, ''),
     hash: () => {
       const hasher = createHash('sha256');
       return { update: (chunk) => void hasher.update(chunk), digest: () => hasher.digest('hex') };
@@ -308,19 +307,6 @@ test('toolchain: as, ld and objcopy must run', async () => {
   assert.equal((await checkInput('toolchain', env([]), fakeIo({}, noLd))).detail, 'arm-none-eabi-ld --version exited 127');
 });
 
-test('klonoa: the checkout must be the top of a git work tree', async () => {
-  const dir = '/bench/klonoa-empire-of-dreams';
-  const files = { [`${dir}/Makefile`]: '' };
-  const checkout = fakeIo(files, {
-    [`git -C ${dir} rev-parse --show-toplevel`]: { code: 0, stdout: `${dir}\n`, stderr: '' },
-    [`git -C ${dir} rev-parse HEAD`]: { code: 0, stdout: '693ccb7\n', stderr: '' },
-  });
-  assert.deepEqual(await checkInput('klonoa', env([]), checkout), { available: true, detail: '', digest: '693ccb7' });
-  const nested = fakeIo(files, { [`git -C ${dir} rev-parse --show-toplevel`]: { code: 0, stdout: '/bench\n', stderr: '' } });
-  assert.match((await checkInput('klonoa', env([]), nested)).detail, /is not a git checkout/);
-  assert.match((await checkInput('klonoa', env([]), fakeIo({}))).detail, /is missing/);
-});
-
 test('gate() registers one test per gate and appends one NDJSON line per recorded verdict', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'romlift-gate-'));
   try {
@@ -334,7 +320,7 @@ test('gate() registers one test per gate and appends one NDJSON line per recorde
         `gate({ id: 'g1.fails', phase: 1, tier: 'both', needs: [], async run() { throw new Error('broken'); } });`,
         `gate({ id: 'g1.waits', phase: 1, tier: 'ci', needs: ['noSuchExportAnywhere'], async run() {} });`,
         `gate({ id: 'g1.elsewhere', phase: 1, tier: 'real', needs: [], async run() {} });`,
-        `gate({ id: 'g1.later', phase: 1, tier: 'both', needs: [], realInputs: ['klonoa'], async run(cx) { cx.note(\`fixtures \${Array.isArray(cx.fixtures)}\`); } });`,
+        `gate({ id: 'g1.later', phase: 1, tier: 'both', needs: [], realInputs: ['objects'], async run(cx) { cx.note(\`fixtures \${Array.isArray(cx.fixtures)}\`); } });`,
         '',
       ].join('\n'),
     );

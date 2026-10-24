@@ -32,6 +32,7 @@ import type { CompilerProfile } from '../profile/types.ts';
 import type { RuleMeta } from '../provenance/rule-id.ts';
 import { trailKeeps } from '../provenance/trail.ts';
 import type { TrailEvent } from '../provenance/trail.ts';
+import type { SignatureRuleId } from '../signatures/schema.ts';
 import { discover, profileOrDefault } from './discover.ts';
 import { confirmOptions, discoverModel } from './generate.ts';
 import { romSha1Problems } from '../config/rom-sha1.ts';
@@ -54,7 +55,22 @@ export interface ExplainName {
   readonly source: NameSource;
 }
 
-/** The explanation of one address (D35): its analysis part, from phase 3 its item and chunk, from phase 4 its function's name. */
+/**
+ * The signature behind the function holding an address (phase 6, D93): read from its [functions] entry's `from` key
+ * (`sig:<library>@<version>`), so explain never re-runs the matcher in a project; `rule` when the placement is known
+ * (a bare ROM's matcher run).
+ */
+export interface ExplainSignature {
+  readonly library: string;
+  readonly version: string;
+  readonly name: string;
+  readonly rule?: SignatureRuleId;
+}
+
+/**
+ * The explanation of one address (D35): its analysis part, from phase 3 its item and chunk, from phase 4 its function's
+ * name, from phase 6 its signature.
+ */
 export type ExplainReport = AnalysisExplanation & {
   /** The model's item holding the address, decoded at its run address; absent outside the model. */
   readonly item?: Item;
@@ -62,6 +78,8 @@ export type ExplainReport = AnalysisExplanation & {
   readonly chunk?: ExplainChunk;
   /** The name of the innermost model function whose extent holds the address; absent when none does. */
   readonly name?: ExplainName;
+  /** The signature that named that function; absent when no signature did (p6-proposals fills it). */
+  readonly signature?: ExplainSignature;
 };
 
 export interface ExplainOptions {

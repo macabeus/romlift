@@ -3,7 +3,7 @@
 // and every table is an ELF OBJECT or a label. Only counts are read and printed: never an address, a name,
 // or the bench's raw output.
 //
-// Expected output, for the phase-6 lead to align (architecture §8.5):
+// Expected output, aligned by the phase-6 lead (architecture §8.5, D93; bench/src/signatures.ts is p6-signatures-match's):
 //   npm run bench -- signatures --only <sealed dataset> --json   exit 0; the last stdout line is
 //   romlift/bench-signatures@1 whose `sealed[]` holds one entry of counts for that dataset:
 //     {name, placements: {total, atElfFunc, untyped, wrong}, tables: {total, object, label, wrong}}

@@ -5,11 +5,12 @@
 //   real: every signatures/specs/<library>.json built twice gives identical files, and each equals the PoC's
 //         file of that library converted to schema 3 (bench/tools/convert-poc-signatures.ts), apart from
 //         the names the spec reviews; a library the PoC had no file for is only built twice.
-// `builtWith` (the romlift version) is left out of every comparison with a committed or converted file.
-// Built files go to temporary directories: nothing is written into signatures/.
+// Every field is compared but `builtWith` (the romlift version), which is left out of every comparison with a
+// committed or converted file. Built files go to temporary directories: nothing is written into signatures/.
 //
-// Expected interfaces, for the phase-6 lead to align (architecture §2.1, §7.1, §8.5):
-//   romlift signatures build <spec> --out <dir> --json   exit 0; writes <dir>/<library>.json
+// Expected interfaces, aligned by the phase-6 lead (architecture §2.1, §7.1, §8.5, D93; all p6-signatures-build's):
+//   romlift signatures build <spec> --out <dir> --json   exit 0; writes <dir>/<library>.json, a SignatureFile of
+//     schema 3 (src/core/signatures/schema.ts, frozen by D93)
 //   node --conditions=source bench/tools/convert-poc-signatures.ts --out <dir>   exit 0; writes
 //     <dir>/<library>.json for each PoC signature file, in schema 3
 import { readdir, readFile } from 'node:fs/promises';

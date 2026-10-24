@@ -1,4 +1,4 @@
 [
-  { "kind": "function", "addr": "0x080000C0", "mode": "arm", "name": "start", "source": { "kind": "legacy" } },
-  { "kind": "function", "addr": "0x0800010C", "mode": "thumb", "name": "Stub_0C", "label": false, "source": { "kind": "legacy" } }
+  { "kind": "function", "addr": "0x080000C0", "mode": "arm", "name": "start", "source": { "kind": "signature", "library": "gate", "version": "0", "rule": "sig.unique-fit" } },
+  { "kind": "function", "addr": "0x0800010C", "mode": "thumb", "name": "Stub_0C", "label": false, "source": { "kind": "signature", "library": "gate", "version": "0", "rule": "sig.unique-fit" } }
 ]

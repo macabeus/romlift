@@ -1,11 +1,13 @@
-// g5.c-data-ranges (architecture §6.6, §8.1, §13, D21): with a data range, a C array replaces its slice of
-// the ROM and the build still matches. On the c-data fixture, after `init`, the gate copies the fixture's
-// decompiled C (the file that defines a `const` array) over the project and writes by hand the module's
-// `data_start` that bench/dataset/synthetic/c-data/expect-ranges.json names; then `generate`, `./setup.sh`
-// and `make` must reach the SHA-1, the array must be defined by src/<module>.o (a data or read-only
-// symbol of its size), and in the linked ELF it must sit at its address in the ROM.
+// g6.c-data-ranges (architecture §6.6, §8.1, §13, D21; g5.c-data-ranges until the owner skipped phase 5 and moved the
+// C data ranges into phase 6, D92): with a data range, a C array replaces its slice of the ROM and the build still
+// matches. On the c-data fixture, after `init`, the gate copies the fixture's decompiled C (the file that defines a
+// `const` array) over the project and writes by hand the module's `data_start` that
+// bench/dataset/synthetic/c-data/expect-ranges.json names; then `generate`, `./setup.sh` and `make` must reach the
+// SHA-1, the array must be defined by the module's C object, build/src/<module>.o (D74 f; a data or read-only symbol
+// of its size), and in the linked ELF it must sit at its address in the ROM.
 //
-// Expected interfaces, for the phase-5 lead to align (architecture §6.5, §6.6, §8.1):
+// Expected interfaces, aligned by the phase-6 lead (architecture §6.5, §6.6, §8.1, D93; the data ranges are
+// p6-c-data-expected's; the TOML key `data_start` is the config's since D93):
 //   bench/dataset/synthetic/c-data/expect-ranges.json   {"module": string, "dataStart": "0x…",
 //     "symbol": string, "addr": "0x…", "size": number}
 //   bench/dataset/synthetic/c-data/overlay/src/<module>.c   the decompiled C with the array
@@ -92,8 +94,8 @@ async function linkedElf(dir: string): Promise<string> {
 }
 
 gate({
-  id: 'g5.c-data-ranges',
-  phase: 5,
+  id: 'g6.c-data-ranges',
+  phase: 6,
   tier: 'ci',
   inputs: ['toolchain'],
   needs: ['init', 'generate', 'buildModel'],
@@ -121,7 +123,7 @@ gate({
     const actual = built !== undefined && (await exists(built)) ? sha1(await readFile(built)) : 'nothing';
     if (actual !== expected) throw new Error(`with a data range, make built ${actual}, expected ${expected}`);
 
-    const object = path.join('src', `${ranges.module}.o`);
+    const object = path.join('build', 'src', `${ranges.module}.o`);
     const defined = (await symbols(cx, object, dir)).get(ranges.symbol);
     if (defined === undefined || !DATA_TYPES.has(defined.type)) throw new Error(`${object} does not define ${ranges.symbol} as data (${defined?.type ?? 'absent'})`);
     if (defined.size !== ranges.size) throw new Error(`${object} defines ${ranges.symbol} with ${defined.size} bytes, expected ${ranges.size}`);
