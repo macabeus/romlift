@@ -54,8 +54,8 @@ import { hexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
 import { moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
-import { isCSource } from '../../foundation/util/project-files.ts';
-import { BASEROM_PATH, chunkPathsOf, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
+import { BASEROM_FILE, isCSource } from '../../foundation/util/project-files.ts';
+import { chunkPathsOf, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { STUB_UNIT_MODE } from '../model/c-unit.ts';
 import { wordValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
@@ -168,7 +168,7 @@ function inModule(model: Model, index: IndexData, m: number): (name: string) => 
 }
 
 function romIncbin(rom: Rom): (file: string, offset: number, length: number) => Uint8Array | undefined {
-  return (file, offset, length) => (file === BASEROM_PATH && offset + length <= rom.bytes.length ? rom.bytes.subarray(offset, offset + length) : undefined);
+  return (file, offset, length) => (file === BASEROM_FILE && offset + length <= rom.bytes.length ? rom.bytes.subarray(offset, offset + length) : undefined);
 }
 
 /** The mode of an item's isa row, or undefined when it names none. */
@@ -331,7 +331,7 @@ function chunkBytes(order: readonly { readonly path: string; readonly span: Span
   const files = new Map(order.map((f) => [f.path, f.span] as const));
   return (path) => {
     const span = files.get(path);
-    return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_PATH, offset: span.start - ROM_BASE, length: span.end - span.start }];
+    return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_FILE, offset: span.start - ROM_BASE, length: span.end - span.start }];
   };
 }
 
@@ -457,16 +457,6 @@ function checkOne(rom: Rom, model: Model, index: IndexData, entry: FileEntry): E
       return { diagnostics: checkSymbolsFile(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
   }
   return { diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY), unit: { module: target.module, sectionAlign: file.sectionAlign } };
-}
-
-
-/**
- * The text-layout check of ONE entry against `model`, with an index built for it alone: O(model) per call, so for
- * tests and single files, never for a stream (checkEntries indexes once per pass). [] when it is not this check's or
- * it passes. Not part of romlift's public API.
- */
-export function checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[] {
-  return checkOne(rom, model, indexData(model), entry).diagnostics;
 }
 
 /**

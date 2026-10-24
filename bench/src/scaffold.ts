@@ -19,10 +19,9 @@ import { join } from 'node:path';
 
 import {
   buildUnits,
-  decodeAgbccPin,
   discoverModel as modelOfDiscover,
   emitTree,
-  SCAFFOLD_ROM_FILE,
+  BASEROM_FILE,
   type AgbccPin,
   type AnalysisResult,
   type ElfSymbol,
@@ -31,7 +30,7 @@ import {
   type PrintStats,
   type Rom,
 } from 'romlift';
-import { linkCheck, sha1Of, writeFreshTree } from 'romlift/node';
+import { linkCheck, readAgbccPin, sha1Of, writeFreshTree } from 'romlift/node';
 
 import type { BenchContext } from './context.ts';
 import { BenchError, exists } from './files.ts';
@@ -169,28 +168,46 @@ export type CommandRunner = (command: string, args: readonly string[], options: 
 
 /** The agbcc cache of `bench run --scaffold`: tools/agbcc as pret/agbcc's install.sh lays it out (bin, include, lib). */
 export const agbccCachePath = (cx: BenchContext): string => join(cx.repoRoot, 'bench', '.local', 'agbcc');
-/** The pin the cache was built from, beside it; a cache whose pin differs from templates/agbcc.json is rebuilt. */
+/** The pin stamp: the pin an agbcc directory was built from, beside its bin/ (the bench's cache writes it). */
 export const AGBCC_CACHE_PIN = 'romlift-agbcc-pin.json';
 const AGBCC_BINARIES = ['agbcc', 'old_agbcc'] as const;
 
-/** templates/agbcc.json, the pin `init` writes into every project's setup.sh. */
-export async function readAgbccPin(cx: BenchContext): Promise<AgbccPin> {
-  const file = join(cx.repoRoot, 'templates', 'agbcc.json');
-  const decoded = decodeAgbccPin(await readFile(file, 'utf8'));
-  if (!decoded.ok) throw new BenchError(`${file}: ${decoded.message}`);
-  return decoded.value;
-}
-
-/** Whether `dir` is an agbcc cache built from `pin`: both compilers present and the pin file equal. */
-export async function agbccCacheCurrent(dir: string, pin: AgbccPin): Promise<boolean> {
-  for (const bin of AGBCC_BINARIES) if (!(await exists(join(dir, 'bin', bin)))) return false;
-  const stamp = join(dir, AGBCC_CACHE_PIN);
-  if (!(await exists(stamp))) return false;
-  return (await readFile(stamp, 'utf8')) === pinText(pin);
-}
-
-/** The text of an agbcc cache's pin stamp (AGBCC_CACHE_PIN). */
+/** The text of an agbcc directory's pin stamp (AGBCC_CACHE_PIN). */
 export const pinText = (pin: AgbccPin): string => `${JSON.stringify({ url: pin.url, commit: pin.commit })}\n`;
+
+/**
+ * How agbccPinProblem takes a directory with no pin stamp. 'refuse' is the bench cache's policy: agbccCache writes the
+ * stamp before it moves a finished build into place, so a cache without one is not its build and is rebuilt. 'accept'
+ * is the policy for a prebuilt directory the user names (ROMLIFT_AGBCC, the workflows' build at the pinned commit):
+ * nothing stamps it, so it is taken as built at the pin, and only a stamp that records another pin refuses it.
+ */
+export type UnstampedAgbcc = 'refuse' | 'accept';
+
+/**
+ * The one pin-stamp check of an agbcc directory, used by the bench's cache (agbccCache) and test/helpers/e2e.ts's:
+ * undefined when the agbcc in `dir` may be used under `pin`, else why not. A stamp equal to pinText(pin) may be used,
+ * a stamp of another pin may not, and a directory without a stamp follows `unstamped` (UnstampedAgbcc). Throws when the
+ * stamp exists but cannot be read.
+ */
+export async function agbccPinProblem(dir: string, pin: AgbccPin, unstamped: UnstampedAgbcc): Promise<string | undefined> {
+  const stamp = join(dir, AGBCC_CACHE_PIN);
+  if (!(await exists(stamp))) return unstamped === 'accept' ? undefined : `the agbcc ${dir} records no pin (no ${AGBCC_CACHE_PIN})`;
+  const recorded = await readFile(stamp, 'utf8');
+  return recorded === pinText(pin) ? undefined : `the agbcc ${dir} was built at ${recorded.trim()}, not at templates/agbcc.json's ${pinText(pin).trim()}`;
+}
+
+/** templates/agbcc.json, the pin `init` writes into every project's setup.sh, read by romlift's reader (romlift/node readAgbccPin). */
+async function templatePin(cx: BenchContext): Promise<AgbccPin> {
+  const pin = await readAgbccPin(cx.repoRoot);
+  if (!pin.ok) throw new BenchError(pin.diagnostic.message);
+  return pin.value;
+}
+
+/** Whether `dir` holds both compilers a project builds with. */
+async function hasCompilers(dir: string): Promise<boolean> {
+  for (const bin of AGBCC_BINARIES) if (!(await exists(join(dir, 'bin', bin)))) return false;
+  return true;
+}
 
 const tail = (run: ProcessResult, lines = 20): string => `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 
@@ -218,9 +235,9 @@ export async function agbccSource(cx: BenchContext, pin: AgbccPin, deps: Pick<Ag
  * it. A current cache is reused as it is. Throws a BenchError when a step fails.
  */
 export async function agbccCache(cx: BenchContext, deps: AgbccCacheDeps): Promise<string> {
-  const pin = await readAgbccPin(cx);
+  const pin = await templatePin(cx);
   const cache = agbccCachePath(cx);
-  if (await agbccCacheCurrent(cache, pin)) return cache;
+  if ((await hasCompilers(cache)) && (await agbccPinProblem(cache, pin, 'refuse')) === undefined) return cache;
   const source = await agbccSource(cx, pin, deps);
   deps.log(`agbcc: building ${pin.commit} from ${source} into ${cache} (once; a few minutes)`);
   const work = await mkdtemp(join(tmpdir(), 'romlift-agbcc-'));
@@ -291,8 +308,8 @@ export async function initBuild(rom: Rom, dir: string, withhold: boolean, deps: 
   const exits = { initExit: NOT_RUN, setupExit: NOT_RUN, makeExit: NOT_RUN };
   const done = (sha1Match: boolean, detail: string): InitBuild => ({ ...exits, sha1Match, seconds: Math.round((performance.now() - started) / 100) / 10, detail });
   const failed = (step: string, run: ProcessResult): InitBuild => done(false, `${step} exited ${run.code}${withhold ? ' (output withheld: sealed)' : `:\n${tail(run)}`}`);
-  await writeFile(join(dir, SCAFFOLD_ROM_FILE), rom.bytes);
-  const init = await deps.run(deps.cli, ['init', SCAFFOLD_ROM_FILE, '--json'], { cwd: dir });
+  await writeFile(join(dir, BASEROM_FILE), rom.bytes);
+  const init = await deps.run(deps.cli, ['init', BASEROM_FILE, '--json'], { cwd: dir });
   exits.initExit = init.code;
   if (init.code !== 0) return failed('romlift init', init);
   await cp(deps.agbcc, join(dir, 'tools', 'agbcc'), { recursive: true });

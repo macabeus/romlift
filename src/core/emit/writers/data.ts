@@ -17,7 +17,8 @@ import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex, hexAddr } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../../foundation/util/sorted.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
-import { BASEROM_PATH, moduleSource } from '../../model/paths.ts';
+import { BASEROM_FILE } from '../../../foundation/util/project-files.ts';
+import { moduleSource } from '../../model/paths.ts';
 import { moduleIndexAt, relocatedModules, runOffsetOf, runStartOf } from '../../model/modules.ts';
 import { compareLabels, wordValueOf } from '../../model/resolver.ts';
 import { ItemKind } from '../../model/types.ts';
@@ -114,7 +115,7 @@ function wordName(model: Model, index: number, word: number, relocated: readonly
 }
 
 function incbin(from: Addr, to: Addr): string {
-  return `\t.incbin "${BASEROM_PATH}", 0x${hex(from - ROM_BASE, 1)}, 0x${hex(to - from, 1)}`;
+  return `\t.incbin "${BASEROM_FILE}", 0x${hex(from - ROM_BASE, 1)}, 0x${hex(to - from, 1)}`;
 }
 
 /** The text of a data module's file. */

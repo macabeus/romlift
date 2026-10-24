@@ -9,7 +9,8 @@ import { cStubWriter } from '../../../src/core/emit/writers/c-stub.ts';
 import { WRITERS } from '../../../src/core/emit/writers/index.ts';
 import type { Model } from '../../../src/core/model/types.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
-import { checkEntries, checkEntry } from '../../../src/core/verify/text-layout.ts';
+import { checkEntries } from '../../../src/core/verify/text-layout.ts';
+import { entryDiagnostics } from '../../helpers/text-layout.ts';
 import { fixtureEntries, fixtureModel, fixtureRom } from '../../unit/verify/fixture.ts';
 
 const rom = fixtureRom();
@@ -33,7 +34,7 @@ function mutated(path: string, edit: (text: string) => string): { readonly entri
 }
 
 function assertFails(entries: readonly FileEntry[], entry: FileEntry, line: number, addr: number): void {
-  const found = checkEntry(rom, model, entry);
+  const found = entryDiagnostics(rom, model, entry);
   assert.equal(found[0]?.code, 'E_SELF_CHECK_TEXT');
   assert.equal(found[0]?.severity, 'error');
   assert.equal(found[0]?.path, entry.path);
@@ -60,7 +61,7 @@ test('a flipped byte in a FileEntry fails with E_SELF_CHECK_TEXT at its file, li
 test('a wrong `.align` fails with E_SELF_CHECK_TEXT at its line and address', () => {
   // Func's pool alignment widened to 16 bytes emits 10 bytes at 0x08000106, where the padding item is 2.
   const { entries, entry } = mutated('asm/nonmatchings/main/Func.s', (t) => t.replace('.align 2, 0', '.align 4, 0'));
-  const found = checkEntry(rom, model, entry);
+  const found = entryDiagnostics(rom, model, entry);
   assert.ok(found.some((d) => d.code === 'E_SELF_CHECK_TEXT' && d.addr === 0x0800_0106 && /line 7: the alignment emits 10 bytes, but the padding item there is 2 bytes/.test(d.message)));
   assertFails(entries, entry, 5, 0x0800_0102);
 });
@@ -68,7 +69,7 @@ test('a wrong `.align` fails with E_SELF_CHECK_TEXT at its line and address', ()
 test('a missing include fails with E_SELF_CHECK_TEXT at its line and the chunk address', () => {
   const { entries, entry } = mutated('asm/main.s', (t) => t.replace('.include "asm/nonmatchings/main/Veneer.s"\n', ''));
   assertFails(entries, entry, 6, 0x0800_010c);
-  assert.match(checkEntry(rom, model, entry)[0]?.message ?? '', /"asm\/nonmatchings\/main\/Veneer\.s"/);
+  assert.match(entryDiagnostics(rom, model, entry)[0]?.message ?? '', /"asm\/nonmatchings\/main\/Veneer\.s"/);
 });
 
 test('a [symbols] entry inside the ROM that no file defines is an undefined symbol, as for `as` (correctness-1)', () => {
@@ -78,7 +79,7 @@ test('a [symbols] entry inside the ROM that no file defines is an undefined symb
   const entries = stream().map((e) => (e.path === 'asm/nonmatchings/main/Func.s' && e.ownership === 'generated' ? { ...e, text: e.text.replace('_08000108: .4byte Func', '_08000108: .4byte gOddSym') } : e));
   const entry = entries.find((e) => e.path === 'asm/nonmatchings/main/Func.s');
   assert.ok(entry !== undefined && 'text' in entry && entry.text.includes('gOddSym'));
-  const found = checkEntry(rom, odd, entry);
+  const found = entryDiagnostics(rom, odd, entry);
   assert.equal(found[0]?.code, 'E_SELF_CHECK_TEXT');
   assert.match(found[0]?.message ?? '', /gOddSym/);
   assert.equal(checkEntries(rom, odd, entries).ok, false);
@@ -86,7 +87,7 @@ test('a [symbols] entry inside the ROM that no file defines is an undefined symb
   const ram = stream().map((e) => (e.path === 'asm/nonmatchings/main/Func.s' && e.ownership === 'generated' ? { ...e, text: e.text.replace('_08000108: .4byte Func', '_08000108: .4byte gRam') } : e));
   const ramEntry = ram.find((e) => e.path === 'asm/nonmatchings/main/Func.s');
   assert.ok(ramEntry !== undefined);
-  assert.match(checkEntry(rom, model, ramEntry)[0]?.message ?? '', /lays out 0x00 where the ROM holds 0x01/);
+  assert.match(entryDiagnostics(rom, model, ramEntry)[0]?.message ?? '', /lays out 0x00 where the ROM holds 0x01/);
 });
 
 /** The consistent stream with main a C unit: the c-stub writer's src/main.c instead of asm/main.s. */
@@ -105,7 +106,7 @@ function mutatedStub(edit: (text: string) => string): { readonly first: { readon
   const text = edit(stub.text);
   assert.notEqual(text, stub.text, 'the mutation changed the stub');
   const changed = { ...stub, text };
-  const first = checkEntry(rom, c, changed)[0];
+  const first = entryDiagnostics(rom, c, changed)[0];
   return { first, ok: checkEntries(rom, c, entries.map((e) => (e.path === stub.path ? changed : e))).ok };
 }
 

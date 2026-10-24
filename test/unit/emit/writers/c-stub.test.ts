@@ -69,7 +69,7 @@ test('the text is the planner run on the template header, a stub-only unit whose
   assert.equal(text, applyTextEdits(C_STUB_HEADER, planIncludeAsm(C_STUB_HEADER, { module: 'main', chunks }).edits));
   assert.ok(text.startsWith(C_STUB_HEADER));
   assert.deepEqual(planIncludeAsm(text, { module: 'main', chunks }), { edits: [], diagnostics: [], unplaced: [], undeclared: [], included: [] }, 'the planner has nothing to add');
-  const assembly = stubAssemblyOf(text);
+  const assembly = stubAssemblyOf(text, main.compiler);
   assert.ok(assembly.ok);
   assert.equal(assembly.text, stubUnitAssembly(model, main));
 });

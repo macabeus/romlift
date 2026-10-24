@@ -9,12 +9,12 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { discover, emitTree, parseElf, profileById, romFromBytes, type Rom } from 'romlift';
-import { findBinutils } from 'romlift/node';
+import { findBinutils, readAgbccPin } from 'romlift/node';
 
 import type { BenchContext } from '../../../../bench/src/context.ts';
 import { CLI_MAIN } from '../../../../bench/src/large-rom-bin.ts';
@@ -23,14 +23,13 @@ import { readableStats, treePass } from '../../../../bench/src/readability.ts';
 import {
   AGBCC_CACHE_PIN,
   agbccCache,
-  agbccCacheCurrent,
   agbccCachePath,
+  agbccPinProblem,
   agbccSource,
   discoverModel,
   initBuild,
   initVerdict,
   NOT_RUN,
-  readAgbccPin,
   ROMLIFT_FAMILIES,
   scaffoldTree,
   sourceCli,
@@ -232,14 +231,28 @@ function fakeAgbcc(calls: Call[], options: { readonly shallowFails?: boolean; re
   };
 }
 
-test('readAgbccPin reads templates/agbcc.json; the repository pins pret/agbcc', async () => {
-  const pin = await readAgbccPin({ repoRoot: join(import.meta.dirname, '..', '..', '..', '..'), benchRoot: '', pocRoot: '' });
-  assert.equal(pin.url, PIN.url);
-  assert.match(pin.commit, /^[0-9a-f]{40}$/);
+test('agbccCache reads the pin with romlift\'s readAgbccPin: the repository pins pret/agbcc, and a malformed pin throws', async () => {
+  const pin = await readAgbccPin(join(import.meta.dirname, '..', '..', '..', '..'));
+  assert.ok(pin.ok);
+  assert.equal(pin.value.url, PIN.url);
+  assert.match(pin.value.commit, /^[0-9a-f]{40}$/);
   await withTempDir('romlift-agbcc-pin-', async (root) => {
     const cx = await cacheTier(root);
     await writeFile(join(cx.repoRoot, 'templates', 'agbcc.json'), '{"url":"x"}');
-    await assert.rejects(readAgbccPin(cx), /agbcc\.json: commit is not forty/);
+    await assert.rejects(agbccCache(cx, { run: fakeAgbcc([]), env: {}, log: () => {} }), /agbcc\.json: commit is not forty/);
+  });
+});
+
+test('agbccPinProblem: the one pin-stamp check, with the caller\'s policy for a directory without a stamp', async () => {
+  await withTempDir('romlift-agbcc-stamp-', async (dir) => {
+    assert.match((await agbccPinProblem(dir, PIN, 'refuse')) ?? '', /records no pin \(no romlift-agbcc-pin\.json\)/, 'the bench cache rebuilds an unstamped directory');
+    assert.equal(await agbccPinProblem(dir, PIN, 'accept'), undefined, 'a prebuilt directory without a stamp is taken as built at the pin');
+    await writeFile(join(dir, AGBCC_CACHE_PIN), `${JSON.stringify(PIN)}\n`);
+    for (const policy of ['refuse', 'accept'] as const) assert.equal(await agbccPinProblem(dir, PIN, policy), undefined, policy);
+    const other = { ...PIN, commit: 'a'.repeat(40) };
+    for (const policy of ['refuse', 'accept'] as const) {
+      assert.match((await agbccPinProblem(dir, other, policy)) ?? '', /was built at .*, not at templates\/agbcc\.json's .*aaaa/, `another pin is refused (${policy})`);
+    }
   });
 });
 
@@ -254,7 +267,7 @@ test('agbccCache builds once from the pin, then reuses the cache while its pin i
     assert.equal(cache, join(cx.repoRoot, 'bench', '.local', 'agbcc'));
     assert.deepEqual((await readdir(join(cache, 'bin'))).sort(), ['agbcc', 'agbcc_arm', 'old_agbcc']);
     assert.equal(await readFile(join(cache, AGBCC_CACHE_PIN), 'utf8'), `${JSON.stringify(PIN)}\n`);
-    assert.ok(await agbccCacheCurrent(cache, PIN));
+    assert.equal(await agbccPinProblem(cache, PIN, 'refuse'), undefined);
     assert.deepEqual(
       calls.map((c) => [c.command, ...c.args.map((a) => (a.startsWith(root) || a.startsWith('/') ? '<path>' : a))]),
       [
@@ -273,10 +286,16 @@ test('agbccCache builds once from the pin, then reuses the cache while its pin i
     assert.equal(calls.length, 0);
     // Another pin rebuilds it.
     await writeFile(join(cx.repoRoot, 'templates', 'agbcc.json'), JSON.stringify({ ...PIN, commit: 'a'.repeat(40) }));
-    assert.equal(await agbccCacheCurrent(cache, { ...PIN, commit: 'a'.repeat(40) }), false);
+    assert.notEqual(await agbccPinProblem(cache, { ...PIN, commit: 'a'.repeat(40) }, 'refuse'), undefined);
     await agbccCache(cx, deps);
     assert.ok(calls.some((c) => c.command === './build.sh'));
-    assert.ok(await agbccCacheCurrent(cache, { ...PIN, commit: 'a'.repeat(40) }));
+    assert.equal(await agbccPinProblem(cache, { ...PIN, commit: 'a'.repeat(40) }, 'refuse'), undefined);
+    // A cache without its stamp is not the bench's build: rebuilt (UnstampedAgbcc 'refuse').
+    await rm(join(cache, AGBCC_CACHE_PIN));
+    calls.length = 0;
+    await agbccCache(cx, deps);
+    assert.ok(calls.some((c) => c.command === './build.sh'), 'an unstamped cache is rebuilt');
+    assert.equal(await agbccPinProblem(cache, { ...PIN, commit: 'a'.repeat(40) }, 'refuse'), undefined);
   });
 });
 
@@ -284,7 +303,7 @@ test('agbccCache: a failing build throws with its output and leaves no cache', a
   await withTempDir('romlift-agbcc-cache-fail-', async (root) => {
     const cx = await cacheTier(root);
     await assert.rejects(agbccCache(cx, { run: fakeAgbcc([], { buildFails: true }), env: {}, log: () => {} }), /agbcc: build\.sh exited 2:\ngcc: error/);
-    assert.equal(await agbccCacheCurrent(agbccCachePath(cx), PIN), false);
+    assert.notEqual(await agbccPinProblem(agbccCachePath(cx), PIN, 'refuse'), undefined);
   });
 });
 

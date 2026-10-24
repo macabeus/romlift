@@ -13,8 +13,6 @@ import type { ShellCode } from '../codes.ts';
 import { DECOMP_YAML_NAMES } from '../../foundation/util/project-files.ts';
 import { errnoOf, errorReason } from '../fs.ts';
 
-export { DECOMP_YAML_NAMES } from '../../foundation/util/project-files.ts';
-
 /** A located project: its root directory and its decomp.yaml, both absolute. */
 export interface ProjectLocation {
   readonly dir: string;

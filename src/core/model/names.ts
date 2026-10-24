@@ -1,4 +1,5 @@
-// Names (architecture §6.2, D9): the default spellings, where a function's name came from, the check that every
+// Names (architecture §6.2, D9): where a function's name came from (the default spellings and their parser are
+// foundation/util/project-files.ts's), the check that every
 // configured name is a symbol name, and the check that names are unique within a module. A name may repeat in another module only when every label of that name is
 // module-scoped (printed with the _local macros), as static functions repeat in real decomps; a repeated name
 // one of whose labels is referenced from another module, or a name used twice inside one module, is
@@ -8,7 +9,7 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
-import { hex, hexAddr } from '../../foundation/util/hex.ts';
+import { hexAddr } from '../../foundation/util/hex.ts';
 import { defaultFunctionName } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
@@ -16,45 +17,12 @@ import { ModelCodes } from './codes.ts';
 import { moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, Module, NameSource } from './types.ts';
 
-/** The default name of a function: sub_ and eight upper-case hex digits (foundation/util/project-files.ts, the one spelling). */
-export function functionName(addr: Addr): string {
-  return defaultFunctionName(addr);
-}
-
-/** The default name of the bytes between functions (an orphan chunk). */
-export function orphanName(addr: Addr): string {
-  return `unk_${hex(addr)}`;
-}
-
-/** The default name of a local, pool or table label. */
-export function localName(addr: Addr): string {
-  return `_${hex(addr)}`;
-}
-
-/** The default name of a data label. */
-export function dataName(addr: Addr): string {
-  return `gUnk_${hex(addr)}`;
-}
-
 /** The name of the cartridge header's chunk and label. */
 export const HEADER_NAME = 'rom_header';
 
-const DEFAULT_SPELLING = /^(?:sub|unk|gUnk)?_([0-9A-F]{8})$/;
-
-/** Whether `name` is one of romlift's default spellings (any address). */
-export function isDefaultSpelling(name: string): boolean {
-  return DEFAULT_SPELLING.test(name);
-}
-
-/** The address a default spelling encodes (`sub_08000100` is 0x08000100), or undefined for any other name. */
-export function defaultSpellingAddress(name: string): Addr | undefined {
-  const digits = DEFAULT_SPELLING.exec(name)?.[1];
-  return digits === undefined ? undefined : Number.parseInt(digits, 16);
-}
-
 /** Where a listed function's name came from: a name equal to the default spelling of its entry counts as 'default'. */
 export function nameSourceOf(entry: Addr, config: Pick<FunctionConfig, 'name' | 'from'>): NameSource {
-  if (config.name === functionName(entry)) return { kind: 'default' };
+  if (config.name === defaultFunctionName(entry)) return { kind: 'default' };
   return config.from === undefined ? { kind: 'toml' } : { kind: 'toml', from: config.from };
 }
 
