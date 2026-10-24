@@ -10,10 +10,9 @@ import { join, resolve } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
+import { BASEROM_FILE, DECOMP_YAML_FILE, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import type { FileEntry } from '../../core/emit/tree.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import { SCAFFOLD_ROM_FILE } from '../../core/scaffold/vars.ts';
 import { retainedPrefixes } from '../../core/model/paths.ts';
 import { generatedEntries, outTreeEntriesOf, projectTreeEntries, reconciledTextsOf } from '../../core/workflow/generate.ts';
 import { replacedProblems } from '../../core/workflow/init.ts';
@@ -150,12 +149,12 @@ function initTexts(files: InitFiles): readonly (readonly [string, string])[] {
  * decomp.yaml (saveConfig: a temporary file, flushed, renamed).
  */
 async function writeInitFiles(dir: string, files: InitFiles): Promise<Diagnostic | undefined> {
-  const rom = join(dir, SCAFFOLD_ROM_FILE);
+  const rom = join(dir, BASEROM_FILE);
   if (resolve(files.romPath) !== resolve(rom) && !(await exists(rom))) {
     try {
       await copyFile(files.romPath, rom);
     } catch (error) {
-      return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot copy ${files.romPath} to ${rom}: ${errorReason(error)}`, { path: SCAFFOLD_ROM_FILE });
+      return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot copy ${files.romPath} to ${rom}: ${errorReason(error)}`, { path: BASEROM_FILE });
     }
   }
   for (const [path, text] of initTexts(files)) {
@@ -175,7 +174,7 @@ export type InitWriteOutcome = { readonly ok: true; readonly value: TreeWrite } 
 
 /** What init's own files must be on disk (absent or these digests): its two texts (initTexts) and baserom.gba. */
 function initDigests(files: InitFiles, rom: Rom): ReadonlyMap<string, string> {
-  return new Map([...initTexts(files).map(([path, text]) => [path, sha1Of(text)] as const), [SCAFFOLD_ROM_FILE, rom.sha1]]);
+  return new Map([...initTexts(files).map(([path, text]) => [path, sha1Of(text)] as const), [BASEROM_FILE, rom.sha1]]);
 }
 
 /**

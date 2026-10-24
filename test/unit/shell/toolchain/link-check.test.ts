@@ -15,7 +15,8 @@ import { cDataAssertLine, cDataSectionLine } from '../../../../src/core/model/c-
 import { romFromBytes } from '../../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import type { AssembleUnit } from '../../../../src/core/model/paths.ts';
-import { BASEROM_PATH, MACROS_PATH } from '../../../../src/core/model/paths.ts';
+import { MACROS_PATH } from '../../../../src/core/model/paths.ts';
+import { BASEROM_FILE } from '../../../../src/foundation/util/project-files.ts';
 import { assembleCheck, linkCheck } from '../../../../src/shell/toolchain/link-check.ts';
 import { findBinutils, runTool } from '../../../../src/shell/toolchain/binutils.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
@@ -95,15 +96,15 @@ test('the tree links to the hand-built image, writing macros.inc and baserom.gba
   assert.equal(result.ok, true, result.detail);
   assert.equal(result.sha1, sha1Of(IMAGE));
   assert.equal(await readFile(join(dir, MACROS_PATH), 'utf8'), DIALECT.macrosInc);
-  assert.deepEqual(new Uint8Array(await readFile(join(dir, BASEROM_PATH))), IMAGE);
+  assert.deepEqual(new Uint8Array(await readFile(join(dir, BASEROM_FILE))), IMAGE);
 });
 
 test('files already present are not overwritten', { skip }, async () => {
-  const dir = await treeDir({ [MACROS_PATH]: `${DIALECT.macrosInc}@ user line\n`, [BASEROM_PATH]: 'not the rom' });
+  const dir = await treeDir({ [MACROS_PATH]: `${DIALECT.macrosInc}@ user line\n`, [BASEROM_FILE]: 'not the rom' });
   const result = await linkCheck({ dir, rom: romOf(IMAGE), units: UNITS });
   assert.equal(result.ok, true, result.detail);
   assert.equal(await readFile(join(dir, MACROS_PATH), 'utf8'), `${DIALECT.macrosInc}@ user line\n`);
-  assert.equal(await readFile(join(dir, BASEROM_PATH), 'utf8'), 'not the rom');
+  assert.equal(await readFile(join(dir, BASEROM_FILE), 'utf8'), 'not the rom');
 });
 
 test('a ROM that differs fails the link check with the linked SHA-1 and the first difference', { skip }, async () => {

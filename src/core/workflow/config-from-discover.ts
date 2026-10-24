@@ -15,8 +15,7 @@ import type { Proposal } from '../proposals/types.ts';
 import { coveredEntries } from '../layout/borders.ts';
 import { inferModules } from '../layout/infer-modules.ts';
 import type { ConfigFromDiscoverOptions } from '../layout/types.ts';
-import { functionName } from '../model/names.ts';
-import { BASEROM_PATH } from '../model/paths.ts';
+import { BASEROM_FILE, defaultFunctionName } from '../../foundation/util/project-files.ts';
 
 /** The build name when the header's game code is not four letters or digits. */
 const FALLBACK_BUILD_NAME = 'rom';
@@ -49,11 +48,11 @@ export function configFromDiscover(rom: Rom, analysis: AnalysisResult, options: 
   });
   const nested = coveredEntries(analysis.functions);
   const functions = new Map<Addr, FunctionConfig>(
-    analysis.functions.map((f) => [f.entry, { name: functionName(f.entry), mode: f.mode, aliases: [], ...(nested.has(f.entry) ? { label: true } : {}) }] as const),
+    analysis.functions.map((f) => [f.entry, { name: defaultFunctionName(f.entry), mode: f.mode, aliases: [], ...(nested.has(f.entry) ? { label: true } : {}) }] as const),
   );
   return {
     schema: 1,
-    rom: { path: BASEROM_PATH, sha1: rom.sha1 },
+    rom: { path: BASEROM_FILE, sha1: rom.sha1 },
     build: { name: buildNameOf(rom), compiler: DEFAULT_BUILD_COMPILER },
     signatures: { enabled: false },
     modules,

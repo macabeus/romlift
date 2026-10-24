@@ -31,7 +31,6 @@ export { compareLabels, LABEL_KIND_ORDER, moduleAt, resolverFor, wordValueOf } f
 export { moduleIndexAt } from '../core/model/modules.ts';
 export type { AssembleUnit, BuildUnit } from '../core/model/paths.ts';
 export {
-  BASEROM_PATH,
   assembleUnits,
   buildUnits,
   chunkPaths,

@@ -25,7 +25,7 @@ import type { FunctionConfig } from '../config/schema.ts';
 import type { ChunkPlan } from './chunks.ts';
 import type { Segments } from './segments.ts';
 import { loadAddressOf, loadModuleAt, moduleIndexAt, runOffsetAt } from './modules.ts';
-import { dataName, localName } from './names.ts';
+import { dataName, localName } from '../../foundation/util/project-files.ts';
 import { compareLabels, isExactLabel, wordValueOf } from './resolver.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 

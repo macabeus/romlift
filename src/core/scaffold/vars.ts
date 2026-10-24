@@ -16,15 +16,12 @@ export interface AgbccPin {
   readonly commit: string;
 }
 
-/** The ROM's file name in every project: the config's [rom] path and the only file an `.incbin` reads (core/model/paths.ts BASEROM_PATH). */
-export const SCAFFOLD_ROM_FILE = BASEROM_FILE;
-
 /** What a scaffold is rendered with; every member is plain data (D19). */
 export interface ScaffoldVars {
   /** The build name ([build] name): the built ROM and the SHA-1 file are named after it. */
   readonly name: string;
   /** The user's ROM in the project (`baserom.gba`), whatever name `init` was given. */
-  readonly romFile: typeof SCAFFOLD_ROM_FILE;
+  readonly romFile: typeof BASEROM_FILE;
   /** The ROM `make` builds: `<name>.gba`. */
   readonly builtRom: string;
   /** The ROM's SHA-1, forty lower-case hex digits. */
@@ -48,7 +45,7 @@ export function scaffoldVars(input: {
 }): ScaffoldVars {
   return {
     name: input.name,
-    romFile: SCAFFOLD_ROM_FILE,
+    romFile: BASEROM_FILE,
     builtRom: `${input.name}.gba`,
     sha1: input.sha1,
     sha1File: `${input.name}.sha1`,

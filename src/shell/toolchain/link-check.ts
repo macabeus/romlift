@@ -19,8 +19,8 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { BuildUnit } from '../../core/model/paths.ts';
-import { isCSource } from '../../foundation/util/project-files.ts';
-import { BASEROM_PATH, cAssemblyPath, LDSCRIPT_PATH, MACROS_PATH } from '../../core/model/paths.ts';
+import { BASEROM_FILE, isCSource } from '../../foundation/util/project-files.ts';
+import { cAssemblyPath, LDSCRIPT_PATH, MACROS_PATH } from '../../core/model/paths.ts';
 import { stubAssemblyOf } from '../../core/verify/c-stub.ts';
 import { assembleFailure, assembleVerdict, compareObject, linkFailure, linkVerdict, unassemblable } from '../../core/verify/toolchain.ts';
 import type { AssembleUnit } from '../../core/model/paths.ts';
@@ -94,7 +94,7 @@ async function writeIfAbsent(dir: string, path: string, data: string | Uint8Arra
 
 /** include/macros.inc (DIALECT.macrosInc) and baserom.gba (the ROM's bytes), each when absent. */
 async function prepare(dir: string, rom: Rom): Promise<Diagnostic | undefined> {
-  return (await writeIfAbsent(dir, MACROS_PATH, DIALECT.macrosInc)) ?? (await writeIfAbsent(dir, BASEROM_PATH, rom.bytes));
+  return (await writeIfAbsent(dir, MACROS_PATH, DIALECT.macrosInc)) ?? (await writeIfAbsent(dir, BASEROM_FILE, rom.bytes));
 }
 
 /** Writes `text` at `path` under `dir`, replacing what is there (a build product, like an object). */

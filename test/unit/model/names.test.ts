@@ -1,21 +1,12 @@
-// Names (architecture §6.2, D9): the default spellings, where a function's name came from, and names unique
+// Names (architecture §6.2, D9): where a function's name came from, and names unique
 // within a module; a name may repeat in another module only while every label of it is module-scoped.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { buildModel } from '../../../src/core/model/model.ts';
-import { dataName, functionName, invalidNames, isDefaultSpelling, localName, moduleNameProblems, nameCollisions, nameSourceOf, orphanName } from '../../../src/core/model/names.ts';
+import { invalidNames, moduleNameProblems, nameCollisions, nameSourceOf } from '../../../src/core/model/names.ts';
 import type { Module } from '../../../src/core/model/types.ts';
 import { analysisOf, BASE, configOf, fact, HEADER_END, romWith, thumbAt } from '../layout/hand-made.ts';
-
-test('the default spellings: sub_, unk_, _ and gUnk_ with eight upper-case hex digits', () => {
-  assert.equal(functionName(0x0800_00ab), 'sub_080000AB');
-  assert.equal(orphanName(0x0800_00ab), 'unk_080000AB');
-  assert.equal(localName(0x0800_00ab), '_080000AB');
-  assert.equal(dataName(0x0300_0010), 'gUnk_03000010');
-  for (const name of ['sub_080000AB', 'unk_080000AB', '_080000AB', 'gUnk_03000010']) assert.ok(isDefaultSpelling(name), name);
-  for (const name of ['sub_080000ab', 'Main', 'sub_0800AB', 'r0']) assert.ok(!isDefaultSpelling(name), name);
-});
 
 test('a config name equal to the default spelling is a default name; another one is the TOML\'s, with its from key', () => {
   assert.deepEqual(nameSourceOf(0x0800_0100, { name: 'sub_08000100' }), { kind: 'default' });

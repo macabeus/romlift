@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { SCAFFOLD_ROM_FILE } from 'romlift';
+import { BASEROM_FILE } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
 import { REPO_ROOT } from './context.ts';
@@ -66,7 +66,7 @@ export const BIN_RUNS: readonly BinRun[] = [
   { command: 'verify --assemble --link --json', args: ['verify', '--rom', '{rom}', '--assemble', '--link', '--json'], json: true, link: true },
   { command: 'verify --printer raw --assemble --json', args: ['verify', '--rom', '{rom}', '--printer', 'raw', '--assemble', '--json'], json: true },
   { command: 'verify --printer raw --link --json', args: ['verify', '--rom', '{rom}', '--printer', 'raw', '--link', '--json'], json: true, link: true },
-  { command: 'init --json', args: ['init', SCAFFOLD_ROM_FILE, '--json'], json: true, inProject: true },
+  { command: 'init --json', args: ['init', BASEROM_FILE, '--json'], json: true, inProject: true },
   { command: 'generate --json', args: ['generate', '--json'], json: true, inProject: true },
 ];
 
@@ -147,7 +147,7 @@ export async function largeRomBin(deps: LargeRomBinDeps): Promise<LargeRomBinRep
     await writeFile(rom, bytes);
     const project = join(dir, 'project');
     await mkdir(project);
-    await writeFile(join(project, SCAFFOLD_ROM_FILE), bytes);
+    await writeFile(join(project, BASEROM_FILE), bytes);
     deps.log(`ROM: ${bytes.length} bytes, SHA-1 ${sha1}; node ${nodeOptions.join(' ')}`);
     const runs: BinRunResult[] = [];
     for (const run of BIN_RUNS) {

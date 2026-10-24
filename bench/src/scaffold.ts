@@ -22,7 +22,7 @@ import {
   decodeAgbccPin,
   discoverModel as modelOfDiscover,
   emitTree,
-  SCAFFOLD_ROM_FILE,
+  BASEROM_FILE,
   type AgbccPin,
   type AnalysisResult,
   type ElfSymbol,
@@ -291,8 +291,8 @@ export async function initBuild(rom: Rom, dir: string, withhold: boolean, deps: 
   const exits = { initExit: NOT_RUN, setupExit: NOT_RUN, makeExit: NOT_RUN };
   const done = (sha1Match: boolean, detail: string): InitBuild => ({ ...exits, sha1Match, seconds: Math.round((performance.now() - started) / 100) / 10, detail });
   const failed = (step: string, run: ProcessResult): InitBuild => done(false, `${step} exited ${run.code}${withhold ? ' (output withheld: sealed)' : `:\n${tail(run)}`}`);
-  await writeFile(join(dir, SCAFFOLD_ROM_FILE), rom.bytes);
-  const init = await deps.run(deps.cli, ['init', SCAFFOLD_ROM_FILE, '--json'], { cwd: dir });
+  await writeFile(join(dir, BASEROM_FILE), rom.bytes);
+  const init = await deps.run(deps.cli, ['init', BASEROM_FILE, '--json'], { cwd: dir });
   exits.initExit = init.code;
   if (init.code !== 0) return failed('romlift init', init);
   await cp(deps.agbcc, join(dir, 'tools', 'agbcc'), { recursive: true });

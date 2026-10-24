@@ -32,7 +32,8 @@ import { compareNumbers, sortedKeys } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import { tileCode } from '../layout/borders.ts';
 import type { PlacedEntry } from '../layout/borders.ts';
-import { dataName, HEADER_NAME, orphanName } from './names.ts';
+import { dataName, orphanName } from '../../foundation/util/project-files.ts';
+import { HEADER_NAME } from './names.ts';
 import type { Chunk, ChunkKind, ModelSymbol, Module } from './types.ts';
 
 /** The word `.align 2, 0` aligns to: the start macros of a function at a word-aligned entry emit up to WORD - 1 zeros. */

@@ -18,7 +18,7 @@ import type { ModuleConfig, OverrideConfig, RomliftConfig } from '../../../src/c
 import { serializeConfig } from '../../../src/core/config/serialize.ts';
 import { emitTree } from '../../../src/core/emit/emit-tree.ts';
 import { legalBorders } from '../../../src/core/layout/borders.ts';
-import { functionName } from '../../../src/core/model/names.ts';
+import { defaultFunctionName } from '../../../src/foundation/util/project-files.ts';
 import { combineReports } from '../../../src/core/verify/report.ts';
 import { checkEntries } from '../../../src/core/verify/text-layout.ts';
 import { verifyModel } from '../../../src/core/verify/tiling.ts';
@@ -106,7 +106,7 @@ function legalEdits(kind: LegalKind, facts: Facts, draw: Draw): readonly Edit[] 
       }));
     }
     case 'rename': {
-      const entries = [...config.functions.keys()].sort(byNumber).filter((a) => config.functions.get(a)?.name === functionName(a));
+      const entries = [...config.functions.keys()].sort(byNumber).filter((a) => config.functions.get(a)?.name === defaultFunctionName(a));
       return drawSome(draw, entries, EDITS_PER_KIND).flatMap((addr) => {
         const fn = config.functions.get(addr);
         if (fn === undefined) return [];

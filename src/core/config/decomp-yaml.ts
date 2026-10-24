@@ -25,8 +25,6 @@ import type { BuildCompilerId } from './compilers.ts';
 
 /** romlift's key under `tools`. */
 export const ROMLIFT_TOOL = 'romlift';
-/** The ROM every project reads (the config's [rom] path). */
-const TARGET = BASEROM_FILE;
 
 /** `tools.romlift`: a key it does not name is an error, so a typo is refused. */
 const ROMLIFT_BLOCK = z.strictObject({
@@ -151,7 +149,7 @@ versions:
     fullname: ${q(`${region.fullname} (${vars.gameCode || 'no game code'})`)}
     sha1: ${q(vars.sha1)}
     paths:
-      target: ${q(TARGET)}
+      target: ${q(BASEROM_FILE)}
       build_dir: build
       map: ${q(`${vars.name}.map`)}
       compiled_target: ${q(`${vars.name}.gba`)}
