@@ -13,6 +13,15 @@ export const ShellCodes = defineCodes({
     severity: 'warning',
     meaning: 'npm could not write package-lock.json (the registry is unreachable, npm is missing or it timed out); setup.sh writes it on its first run',
   },
+  // The signature builder and locator (shell/signatures, phase 6, architecture §7.1, §7.2).
+  E_SIGNATURE_SPEC_INVALID: { severity: 'error', meaning: 'a signature spec is not JSON or not a spec (parseSignatureSpec refused it)' },
+  E_SIGNATURE_DATASET_UNKNOWN: { severity: 'error', meaning: 'a spec reference names neither a dataset under bench/dataset/real nor a synthetic fixture' },
+  E_SIGNATURE_DATASET_SEALED: { severity: 'error', meaning: 'a spec reference names a sealed held-out dataset, which is never signature data (D32)' },
+  E_SIGNATURE_DATASET_INVALID: { severity: 'error', meaning: 'a reference dataset file lacks its rom, elf, map, sha1 or elfCommit' },
+  E_SIGNATURE_REFERENCE_SHA1: { severity: 'error', meaning: "a reference ROM's SHA-1 is not the one its dataset records" },
+  E_SIGNATURE_REFERENCE_INVALID: { severity: 'error', meaning: "a reference's ELF or map does not parse" },
+  E_SIGNATURE_FILE_INVALID: { severity: 'error', meaning: 'a signature file is not JSON or not of schema 3 (parseSignatureFile refused it)' },
+  W_SIGNATURE_FILE_SKIPPED: { severity: 'warning', meaning: 'a signature file the locator found could not be read or repeats a library; skipped' },
 });
 
 export type ShellCode = keyof typeof ShellCodes;
