@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77 and D78 what the phase-4 fix rounds changed, D76 the owner's answers to the phase-4 questions); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -1011,7 +1011,7 @@ wrong address, and retrofitting it would change types frozen in phases 1 to 3.
 reads bytes at load addresses and computes targets in run space; `FunctionFact`, `Chunk` and `Module`
 carry an optional `runAt`; a `Label` holds the run address. The `ldscript` writer links such a module at
 its run address with `AT(<load>)` and defines `__load_<module>`. Phase 6 only fills the map from
-overrides and traces.
+overrides and traces. (Amended by D91: the trace is dropped, so phase 6 fills the map from hand-written overrides only.)
 
 **Consequences.** No frozen type changes when RAM code arrives; `g6.ram-code-mapped` tests behaviour, not
 a retrofit.
@@ -1103,6 +1103,8 @@ PoC staying put.
 
 ## D51. `import-legacy` keeps every legacy entry by default
 
+**Superseded by D92**: the owner skipped phase 5 and dropped legacy import; nothing below is built.
+
 **Context.** The plan lists, as the owner's decision, whether this repository should adopt the recovered
 boundaries (drop the 283 cfg entries that are not ELF functions, add the 183 the list lacks), in one pull
 request or module by module. The first version reported legacy entries inside found functions and did not
@@ -1121,6 +1123,9 @@ open.
 **Rejected.** Adopting by default (decides an owner question). Silently dropping or importing entries.
 
 ## D52. The Klonoa switch-over pull request is a phase-5 deliverable, pinned by commit
+
+**Superseded by D92**: the owner skipped phase 5 and dropped the Klonoa migration tooling and switch-over; nothing below is
+built, and the Klonoa repository is not touched.
 
 **Context.** The plan's phase-5 gate is that this repository builds without `generate_asm.py` and Luvdis,
 and its work items include the pull request that switches it over. The first version gated a rehearsal in
@@ -4029,6 +4034,203 @@ said. The reviewers' runs found the run itself complete, every command exit 0. N
 **Consequences.** One new unit test (read-inputs, the link above the project); comments in two `src/shell/project`
 files, `src/shell/index.md`, `templates/AGENTS.md` and its golden, `docs/`. The closing list is re-run in a fresh
 worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 14).
+
+## D91. The owner's decision of 20 October 2026: the gba-kit trace is dropped
+
+**Context.** The plan's gba-kit evaluation (plan.md, "gba-kit evaluation") proposed an optional `romlift trace` command
+with `@gba-kit/gba-node` as an optional peer dependency, a trace file read as one more evidence source, the tracing code
+moved into gba-kit as a supported API, and roadmap 6.C built it with `g6.ram-code-mapped` and `g6.evidence-conflict`
+reading a trace. The evaluation itself measured how little a trace reaches: 5.6% of Klonoa's code region in 600 boot
+frames, 8.4% after 440 in-level frames, against 98.8% classified statically in about four seconds. D76 g recorded that
+the owner dropped the integration and left the plan's rewrite to phase 6. Bruno Macabeus's words, given on 20 October
+2026: **"I think we can skip this part of the plan, since very few functions are called and found by gba-kit"**.
+
+**Decision.**
+
+- (a) **Dropped**: the `romlift trace` command, the optional peer dependency `@gba-kit/gba-node`,
+  `src/shell/trace/gba-kit.ts`, `src/foundation/formats/trace-json.ts` (the trace's format) and
+  `src/shell/evidence/read-trace.ts` (its reader), the trace fact kinds (`executed`, `returned-call`,
+  `indirect-target`, `copied-to-ram`, `data-extent`), and any change in the gba-kit repository (the pull request that
+  would have made its tracing code a supported API). None of these files existed in the tree at `89deb54`; only their
+  architecture and roadmap entries go.
+- (b) **Kept, because none depends on a trace**: code run from RAM through hand-written `[[overrides]]` entries with
+  `runs_at` (the non-identity `AddressMap`, the walk's run-space targets, the ldscript's `runs_at` emission with
+  `AT(<load>)` and `__load_<module>`, the RAM-copy fixture's expectations; architecture §6.7, D46).
+- (c) **`g6.ram-code-mapped` is restated without a trace.** ci: every committed fixture whose `expect.json` has
+  `ramCopy` (the override appended by hand after `init`) is mapped and links to its SHA-1, as before. real: on Klonoa the
+  range `0x0804F318 -> 0x03000388` is given as an `[[overrides]]` entry with `runs_at` in the bench config
+  `bench/overrides/klonoa.json` (`{"schema": 1, "overrides": [{start, size, kind: "code", mode?, runsAt}], "source"}`,
+  written by p6-ram-code); the gate appends it after `init`, runs `analyze --update --write`, requires one module
+  spanning exactly the range with `runAt` `0x03000388`, its ldscript `AT(...)` and `__load_<module>`, then `./setup.sh`
+  and `make` to the dataset's SHA-1. Its `needs` no longer name `parseTrace` or `runTrace`.
+- (d) **`g6.evidence-conflict` is restated over the evidence that remains.** With the trace gone and phase 5's legacy,
+  ELF and map importers dropped (D92), library signatures are the only external source of proposals, and they can
+  contradict the analysis and the config, so the gate stays: a signature proposal that contradicts the analysis (a
+  function in the other mode at a found entry) or the config (a listed function in the other mode; a function under a
+  `data` override) gives `W_EVIDENCE_CONFLICT` from `checkProposals` and changes nothing, the kept proposals being
+  exactly those kept without the contradiction (architecture §7.4, §13; D93 freezes `CheckProposals`).
+- (e) **What no producer is left for goes.** With no evidence importer: `core/evidence` (`EvidenceFact`,
+  `EvidenceSource`, `mergeEvidence`), `core/legacy`, `shell/evidence`, the `ProposalSource` variants `{kind: 'legacy'}`
+  and `{kind: 'evidence', id}` with their `from` spellings `legacy` and `evidence:<id>` (the lead's, D93), and the rule
+  `seed.evidence-hint` with its `evidence` origin (p6-analysis-layout's). `W_EVIDENCE_CONFLICT` survives with the
+  proposal screen; `W_LEGACY_ENTRY_INSIDE` and `W_LEGACY_ENTRY_REJECTED` go with legacy import (D92). The plan's
+  gba-kit evaluation stays in plan.md as the measured reason, with its integration marked dropped by the owner.
+
+**Consequences.** romlift has three runtime dependencies and no optional peer dependency (`g1.runtime-deps`); code run
+from RAM needs a hand-written override, which the analysis then honours (the plan's "Phase 6 is where … code run from
+RAM stop[s] needing overrides" no longer holds: release 1 keeps the override); the RAM gate proves the mapping, not its
+discovery. The word "evidence" keeps its meaning (an external fact, AGENTS.md), and signature proposals are the only
+such facts in release 1.
+
+**Rejected.** Keeping a trace importer without the command (a format with no producer). Deleting `g6.evidence-conflict`
+(a source that can conflict remains, so the gate has a subject). Proposing `runs_at` from `seed.ram-copy`'s IWRAM
+copies (a new rule after the gate's restatement; not asked).
+
+## D92. The owner's decision of 20 October 2026: phase 5 is skipped; rename and objdiff move into phase 6
+
+**Context.** Phase 5 (Migration) planned legacy import, the reconciler and `rename`, the `expected/` and `objdiff.json`
+writers, the C data ranges and the Klonoa switch-over (roadmap "Phase 5", D51, D52). D76 g recorded the owner's scope
+decision and left its plan to phase 6. Bruno Macabeus's words, given on 20 October 2026: **"We don't need it. Skip phase
+5"**, and then, asked what to keep, he chose **"Keep rename and objdiff"**.
+
+**Decision.**
+
+- (a) **Phase 5 never runs and never lands**: there is no `docs/phase-5.md`, no `phase-5` tag, and
+  `test/gates/phase.json` goes from `{ "landed": 4 }` to `{ "landed": 6 }` when phase 6 lands. `bench gates --require 6`
+  and every path that reads `landed` (provenance, the gate record) work with no phase-5 gate: architecture §1's phase-5
+  row lists no gate id and says the phase was skipped, which `test/gates-index.test.ts` accepts for a skipped phase
+  only.
+- (b) **Dropped**: 5.B legacy import (the luvdis-cfg, ldscript-symbols and thumb-aliases parsers, renames-toml,
+  `import-legacy`, read-elf, read-map and read-legacy, `analyze --evidence`, the evidence merge), 5.D the Klonoa
+  migration tooling (`bench/migration/`, `bench/src/migration.ts`), 5.I the switch-over pull request. Nothing in the
+  Klonoa repository is touched, created or pushed. The gates `g5.evidence-merge`, `g5.import-legacy`,
+  `g5.klonoa-rehearsal` and `g5.klonoa-switch` are deleted, with the gate input `klonoa` that only they read. D51 and D52
+  are superseded; architecture §12's owner decision 2 (adopting a legacy repository's boundaries) is moot.
+- (c) **Moved into phase 6**, as components of its own waves (D93): 5.A the reconciler's move and remove cases and
+  `romlift rename` (`g5.reconciler`, `g5.rename` become `g6.reconciler`, `g6.rename`, both ci); 5.C the `expected/` and
+  `objdiff.json` writers and the C data ranges, which replace phase 4's C-data assertion for a module that declares a
+  range (`g5.expected-bytes`, `g5.c-data-ranges` become `g6.expected-bytes`, ci and real, and `g6.c-data-ranges`, ci,
+  whose C object is `build/src/<module>.o`, D74 f); and the part of 5.0 they need, the `[[modules]]` key `data_start`
+  (`ModuleConfig.dataStart`).
+- (d) **The objdiff gate moves with them.** The gate the owner moved from phase 3 to phase 5 (phase-3.md Q1, "Move gate
+  to phase 5", D68 a) is `g6.objdiff` (real) and applies as D34 writes it: on every tuning ROM whose readable build
+  links, every agreeing function scores 0 under objdiff-cli but `unnamed-target`. Its baseline is phase-3.md Q1's table,
+  the differences the committed classifier counted that D34 gates: fe7j 200, klonoa 320, pokeemerald 13,788, sa2 1,374,
+  sa3 564, tmc 895 (`unnamed-target`, reported only: 55, 0, 2,758, 143, 44, 357). The carried minors architecture-r2-2
+  (one REL/RELA addend decoder shared with `foundation/formats/elf.ts`, the `R_ARM_*`/`SHT_*` constants in one place) and
+  architecture-r2-3 (fixture tests for `objdiffDifferences`' `sectionBase` and `baseField` plumbing) come with it. If the
+  gate still fails after phase 6's fix rounds, the phase does not land: the measured counts and the options go to the
+  owner (phase-6.md, "Owner questions"); no amendment of D34 is assumed.
+
+**Consequences.** The gate index loses four phase-5 ids and renames five; `g4.cli-contract`'s `rename` recipes apply in
+phase 6; `explain`'s signature part, `analyze --update` and `init` read only `sig:<library>@<version>` from `from`
+(D91 e); the Klonoa decomp keeps its own tooling. Release 1 has no import path for an existing decomp's function list.
+
+**Rejected.** Renumbering phase 6 as phase 5 (every `g6.*` id, the roadmap and the records cite phase 6). Keeping the
+phase-5 gate files as pending (a gate no phase can land is not a gate). Keeping `{kind: 'legacy'}` for a future importer
+(nothing ships before its phase).
+
+## D93. Phase-6 component boundaries as executed, and the contracts frozen for them
+
+**Context.** Roadmap 6.0–6.I splits phase 6 into a lead, four parallel components (6.A signature builder and specs, 6.B
+matcher and placement rules, 6.C trace and code run from RAM, 6.D proposals plumbing and full explain) and an
+integrator. D91 drops the trace half of 6.C, D92 moves phase 5's reconciler, rename, writers, data ranges and objdiff
+gate in, and the section "Carried from phase 4" holds the minors phase 4 carried (D76 h to D90). As in phases 1 to 4
+(D54, D56, D62, D74), the owner asked for no checkpoints: every owner decision of architecture §12 is taken with its
+documented safe default (signature files stay local and gitignored, D40; §12 item 3, a border across a short branch,
+stays as built, D15), and any gate change, waiver or limitation the owner has not authorised in his own words is an
+owner question in phase-6.md, never assumed.
+
+**Decision.** Phase 6 runs as twelve components in three waves on the branch `phase-6` (cut from `main` at `89deb54`,
+`landed` 4), each on its own flat branch and worktree under `romlift-wt/` (the flat `phase-6-<component>` spelling,
+because Git cannot hold `phase-6` and `phase-6/<component>` at once; D55 j); roadmap.md "Phase 6", "As executed
+(D93)", lists them with what they take, and phase-6.md records their merges.
+
+- (a) **Wave 1**: `p6-lead` (this record, the gates, the contracts below, the documents of D91 and D92; then the
+  integration after each wave), `p6-analysis-layout` (the rule `seed.evidence-hint` and its origin deleted, D91 e; the
+  analysis's alignment bit tests through `insnAligned`, architecture-b2-8; one owner of the legal-start rule in
+  core/layout and the gate oracle over it, architecture-r1-3, a0-4, a1-5; the override semantics of correctness-b0-5;
+  `test/gates/g4.toml-mutations.test.ts`), `p6-hygiene` (the carried minors that change no behaviour: architecture-r1-2's
+  aliases, r1-4, r1-6 with a2-8, r1-8's remainder, a2-6) and `p6-reconcile-carried` (the C scanner and include resolution
+  split out of the planner, architecture-b2-9; the closed union of the disk snapshot, b2-11; r1-7's remaining test moves;
+  the shell's walks listing regular files only, gate-honesty-e1-2). **Wave 2**: `p6-signatures-build` (6.A: specs for m4a,
+  libagbsyscall, libgcc and the serial libraries, `extractSignatures`, `buildSignatures`, `locateSignatures`, `romlift
+  signatures build`, the library fixtures, `bench/tools/convert-poc-signatures.ts`), `p6-c-data-expected` (5.C: the
+  `expected` and `objdiff` writers, the C data ranges replacing the ASSERT for a module with `data_start` and its
+  semantic checks, the c-data fixture's ranges, the objdiff gate's classifier minors architecture-r2-2 and r2-3),
+  `p6-ram-code` (6.C without the trace: the non-identity `AddressMap`, run-space walk targets, the ldscript `runs_at`
+  emission, the RAM-copy fixture's `ramCopy`, `bench/overrides/klonoa.json`), `p6-rename` (5.A: `rename-tokens.ts`, the
+  move and remove cases, `planRename`, `rename`, the CLI, the matchings split, correctness-r0-5's remainder) and
+  `p6-include-links` (the cpp-exact include resolution behind a symbolic link through
+  `ProjectInputs.headerRealPaths`, D89 a, D90 a, gate-honesty-e1-1). **Wave 3**: `p6-signatures-match` (6.B: the five
+  placement rules, `matchSignatures`, `resolvePlacements`, `proposeFromSignatures`, `romlift signatures <rom>`,
+  `bench signatures` with its judged, held-out and leave-one-out runs), `p6-proposals` (6.D: `checkProposals`, the
+  signature proposals of `init` and `analyze --update`, `init --no-signatures`, the `LibraryRegion` wiring into module
+  inference, explain's signature part and its `sig/` goldens) and a twelfth component whose name and files the
+  integrator records at its merge (phase-6.md). The waves of the wave-2 and wave-3 components are as planned when
+  wave 1 started; a component that moves is recorded at its merge.
+- (b) **The frozen signature contract** (`core/signatures/schema.ts`, `spec.ts`; plain readonly data, D19):
+  ``MemberId = `${string}@${string}.o` ``; `SignatureRuleId = 'sig.unique-fit' | 'sig.link-order-run' |
+  'sig.neighbour-spacing' | 'sig.pinned-both-sides' | 'sig.short-member-window'` (`SIGNATURE_RULE_IDS` in strength
+  order); `SignatureReference {dataset, commit, romSha1}`; `LinkOrderMember {id, addr}` (the member's address in that
+  reference, which fixes the spacing); `SignatureFunction {id, name, mode, size, bytes, mask}` and `SignatureTable {id,
+  name, size, bytes, mask, names?}` (lower-case hex, two digits per byte; `names` one entry per whole aligned word, a
+  `MemberId` or null); `LibraryVersion {id, idNote, references, linkOrder: {reference, members}[], functions, tables}`;
+  `SignatureFile {schema: 3, library, builtWith, versions}`; `SignaturePlacement {library, version, member, name, kind:
+  'function' | 'table', addr, size, mode?, rule, constants?: {offset, reference, rom}[]}`; `SignatureSpec {library,
+  versions: {id, idNote, references: {dataset, objects, tables?}[]}[], reviewedNames: Record<MemberId, {name,
+  reason}>}`. `parseSignatureFile(json)` and `parseSignatureSpec(json)` return `{ok: true, value} | {ok: false, error}`,
+  validate by hand (core/signatures may not import zod), refuse unknown keys and never throw. Architecture §7.1 wrote a
+  reference as `{project, commit, romSha1}` and a link-order member as a bare `MemberId`; the dataset name (the spec's
+  word) and the member's address (which the spacing rules read) replace them.
+- (c) **The empty registries and codes.** `core/signatures/rules/index.ts` exports `SIGNATURE_RULES: Readonly<Record<string,
+  RuleMeta>> = {}` (to p6-signatures-match); `core/signatures/codes.ts` exports `SignatureCodes = defineCodes({})`, in
+  the `core/diagnostic-codes.ts` union (to p6-signatures-build, then p6-signatures-match).
+- (d) **Proposals** (`core/proposals/types.ts`): `ProposalSource` is `signature | analysis | layout`; `sourceKey`
+  spells `sig:<library>@<version>` or undefined (D91 e). The config, patch and workflow tests that used the dropped
+  sources use a signature source instead.
+- (e) **Config**: the `[[modules]]` key `data_start` (`ModuleConfig.dataStart?: Addr`), TOML spelling `data_start` in
+  the parser's key table and its message spelling, serialised right after `kind`; syntax only (its semantic checks are
+  p6-c-data-expected's); the canonical goldens carry a case.
+- (f) **Workflow types** (`core/workflow/types.ts`): `InitOptions.signatures?: boolean` (false = `--no-signatures`);
+  `InitInputs.signatureFiles?` and `AnalyzeUpdateInputs.signatureFiles?: readonly SignatureFile[]`;
+  `ProjectInputs.headerRealPaths?: ReadonlyMap<string, string>` (a header's project spelling to its real path, for
+  p6-include-links); `CheckProposalsContext {analysis: AnalysisResult; config?: RomliftConfig}`, `ProposalCheck {kept:
+  readonly Proposal[]; conflicts: readonly Diagnostic[]}`, `type CheckProposals = (proposals, cx) => ProposalCheck`.
+  `core/workflow/explain.ts`: `ExplainSignature {library, version, name, rule?: SignatureRuleId}` and `signature?` on
+  `ExplainReport` (the type only; p6-proposals fills it).
+- (g) **Barrels and command lists.** `src/api/signatures-types.ts` (`romlift`: the frozen types, the two validators,
+  `isMemberId`, `SIGNATURE_RULE_IDS`, `SignatureCodes`, the CheckProposals and ExplainSignature types),
+  `src/api/internal-signatures.ts` (`romlift/internal`: `SIGNATURE_RULES`); empty: `src/api/signatures-build.ts`
+  (`romlift`) and `signatures-files.ts` (`romlift/node`) to p6-signatures-build, `signatures-match.ts` (`romlift`) to
+  p6-signatures-match, `rename.ts` (`romlift`) and `rename-files.ts` (`romlift/node`) to p6-rename, `proposals.ts`
+  (`romlift`) to p6-proposals; `cli/commands/lists/signatures.ts` (one command, `signatures build <spec>` and
+  `signatures <rom>`) to p6-signatures-build, `lists/rename.ts` to p6-rename. The edge table of `test/helpers/architecture.ts`
+  drops the `core/evidence`, `core/legacy` and `shell/trace` rows (architecture §2).
+- (h) **The gates.** The g6 files' expected interfaces and `needs` name these contracts; `g6.ram-code-mapped` and
+  `g6.evidence-conflict` as D91 c, d; `g6.signatures-judged` compares names through the placement member's symbol (the
+  `MemberId` before '@'), reports reviewed display names without gating them, takes its floors from
+  `bench/baseline/poc-2026-10-16.json` for the five PoC ROMs and judges tmc by the ELF checks with no floor;
+  `g6.signatures-rebuild` builds with `romlift signatures build <spec> --out <dir> --json` and compares every field but
+  `builtWith`; `g6.explain-coverage` also requires `SIGNATURE_RULES` to hold exactly `SIGNATURE_RULE_IDS` (stricter:
+  it loosens nothing); `g4.cli-contract` gains the `signatures` and `rename` recipes and `init --no-signatures`, each run
+  once its command or option is registered.
+- (i) **The exit loop's build command.** Roadmap 6's exit list built the signature files with `npx romlift signatures
+  build`; romlift is not published (D76 d), and npx would query the registry, so the closing list runs `node
+  --conditions=source src/cli/main.ts signatures build "$s"` instead.
+- (j) **Integration** (the lead after each wave): merge the wave's components in listed order, typecheck, `npm test`,
+  `npm run bench -- gates --require 4 --tier ci`; after wave 2, `UPDATE_GOLDEN=1` only for the library fixtures and the
+  `expected`/`objdiff` writers, every diff reviewed; after wave 3, build the signature files, raise `phase.json` to
+  `{ "landed": 6 }` in its own commit, run the closing list (real tier before ci) in a fresh worktree, commit
+  `bench/results.json` as the run's artifact. A gate that still fails after the fix rounds is recorded with measured
+  numbers as an owner question, and the phase is not merged; a CI job GitHub refuses to start is not a pass.
+
+**Consequences.** Every wave-2 and wave-3 component codes against frozen types and owns files no other component of its
+wave touches; the g6 gates stay `pending` or `fail` until their exports and writers land, and no g5 gate exists.
+
+**Rejected.** Freezing the matcher's internal shapes (candidate, fit) now: they are p6-signatures-match's. A zod schema for
+signature files (forbidden in core/signatures). Keeping the `phase-6/<component>` branch spelling (Git refuses it beside
+`phase-6`).
 
 ## Review findings index
 
