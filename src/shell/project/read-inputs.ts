@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
-import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, isHeaderPath, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
+import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, isHeaderPath, matchingDir, MATCHINGS_ROOT, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
@@ -148,25 +148,31 @@ export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyM
 }
 
 /**
- * The project paths of the chunk files under the project's asm/nonmatchings/ (`asm/nonmatchings/<module>/<name>.s`,
- * one level of module directories), in code-unit order: the tree romlift last generated, which the C
- * reconciliation reads (D78 a). Empty when there is no such directory.
+ * The project paths of the chunk files under the project's asm/nonmatchings/ and asm/matchings/
+ * (`<root>/<module>/<name>.s`, one level of module directories; asm/matchings holds the decompiled functions' since
+ * phase 6, D92), in code-unit order: the tree romlift last generated, which the C reconciliation reads (D78 a). Empty
+ * when there is no such directory.
  */
 export async function readChunkFiles(dir: string): Promise<ReadResult<readonly string[]>> {
-  const root = join(dir, ...NONMATCHINGS_ROOT.split('/'));
-  const present = await isDirectory(root);
-  if (!present.ok) return fromIo(present);
-  if (!present.value) return { ok: true, value: [] };
-  const modules = await listDir(root);
-  if (!modules.ok) return fromIo(modules);
   const out: string[] = [];
-  for (const module of modules.value) {
-    const isModule = await isDirectory(join(root, module));
-    if (!isModule.ok) return fromIo(isModule);
-    if (!isModule.value) continue;
-    const names = await listDir(join(root, module));
-    if (!names.ok) return fromIo(names);
-    for (const name of names.value) if (isChunkFile(name)) out.push(chunkFileOf(nonmatchingDir(module), stubNameOf(name)));
+  for (const [rootPath, dirOf] of [
+    [MATCHINGS_ROOT, matchingDir],
+    [NONMATCHINGS_ROOT, nonmatchingDir],
+  ] as const) {
+    const root = join(dir, ...rootPath.split('/'));
+    const present = await isDirectory(root);
+    if (!present.ok) return fromIo(present);
+    if (!present.value) continue;
+    const modules = await listDir(root);
+    if (!modules.ok) return fromIo(modules);
+    for (const module of modules.value) {
+      const isModule = await isDirectory(join(root, module));
+      if (!isModule.ok) return fromIo(isModule);
+      if (!isModule.value) continue;
+      const names = await listDir(join(root, module));
+      if (!names.ok) return fromIo(names);
+      for (const name of names.value) if (isChunkFile(name)) out.push(chunkFileOf(dirOf(module), stubNameOf(name)));
+    }
   }
   return { ok: true, value: out };
 }

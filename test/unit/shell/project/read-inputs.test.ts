@@ -28,6 +28,7 @@ import {
   readInitDir,
   readProject,
   readProjectTexts,
+  readRenameTexts,
   readScaffoldInputs,
   readWriteState,
 } from '../../../../src/shell/project/read-inputs.ts';
@@ -183,6 +184,39 @@ test('readChunkFiles: no asm/nonmatchings is no tree; only the .s files of each 
   const notDir = await readChunkFiles(file);
   assert.ok(notDir.ok);
   assert.deepEqual(notDir.value, []);
+});
+
+test('readChunkFiles lists asm/matchings too, the decompiled functions\' chunk files (phase 6, D92), in code-unit order', async () => {
+  const dir = await dirWith({
+    'asm/nonmatchings/main/sub_08000100.s': '',
+    'asm/matchings/main/Decompiled.s': '',
+    'asm/matchings/main/notes.txt': 'not a chunk',
+    'asm/matchings/stray.s': 'not in a module directory',
+  });
+  const read = await readChunkFiles(dir);
+  assert.ok(read.ok);
+  assert.deepEqual(read.value, ['asm/matchings/main/Decompiled.s', 'asm/nonmatchings/main/sub_08000100.s']);
+});
+
+test('readRenameTexts: every .c and .h under src/ and every file under include/, with the sha1 of its bytes; no link, no binary', async () => {
+  const dir = await dirWith({
+    'src/main.c': '\ufeffint A;\r\n',
+    'src/deep/part.c': 'int B;\n',
+    'src/deep/part.h': 'int C;\n',
+    'src/notes.txt': 'not C',
+    'include/global.h': '#define X 1\n',
+    'include/macros.inc': '.macro m\n.endm\n',
+    'include/blob.bin': 'a\u0000b',
+  });
+  await writeFile(path.join(dir, 'include', 'latin1.h'), Buffer.from([0x63, 0xe9, 0x0a]));
+  await symlink(path.join(dir, 'src', 'main.c'), path.join(dir, 'src', 'link.c'));
+  const read = await readRenameTexts(dir);
+  assert.ok(read.ok);
+  assert.deepEqual([...read.value.texts.keys()], ['include/global.h', 'include/macros.inc', 'src/deep/part.c', 'src/deep/part.h', 'src/main.c']);
+  assert.equal(read.value.texts.get('src/main.c'), '\ufeffint A;\r\n', 'the byte order mark is kept');
+  assert.equal(read.value.sha1s.get('src/main.c'), sha1Of('\ufeffint A;\r\n'));
+  const empty = await readRenameTexts(await dirWith({}));
+  assert.ok(empty.ok && empty.value.texts.size === 0);
 });
 
 test('readProject passes the chunk files on disk as previousChunkFiles, and none with withoutC', async () => {

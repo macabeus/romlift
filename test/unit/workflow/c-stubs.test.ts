@@ -106,6 +106,18 @@ test('the previous tree: the C of a renamed or deleted function is stale anywher
   assert.match(refused[0]?.message ?? '', /now puts in module tail: tail is an asm module, which builds no C: delete the C definition, or make tail a c module in romlift.toml/);
 });
 
+test('the previous tree read from asm/matchings: a decompiled function counts at its chunk path (phase 6, D92)', () => {
+  // sub_08000100 was decompiled, so its file was asm/matchings/main/sub_08000100.s; the TOML renamed it: stale, as from asm/nonmatchings.
+  const previous = ['asm/matchings/main/sub_08000100.s', 'asm/nonmatchings/main/Foo_080000C0.s', 'asm/nonmatchings/main/foo_080000E0.s', 'asm/nonmatchings/tail/Moved.s'];
+  const renamed = `${PAIR_STUB}void sub_08000100(void) {\n}\n`;
+  assert.deepEqual(reconcileStubs(PAIR, new Map([['src/main.c', renamed]]), previous).diagnostics.map((d) => d.code), ['E_C_STALE_DEFINITION']);
+  // A C-only rename of a decompiled function (Nop's file was in asm/matchings/main): the new name is stale where Nop's stub goes.
+  const renamedInC = PAIR_STUB.replace(`${includeAsmStatement('main', 'Nop')}\n`, 'void Pause(void) {\n}\n');
+  const matched = ['asm/matchings/main/Nop.s', 'asm/nonmatchings/main/Foo_080000C0.s', 'asm/nonmatchings/main/foo_080000E0.s', 'asm/nonmatchings/tail/Moved.s'];
+  const stale = reconcileStubs(PAIR, new Map([['src/main.c', renamedInC]]), matched);
+  assert.match(stale.diagnostics[0]?.message ?? '', /defines Pause \(line \d+\) where the INCLUDE_ASM of Nop was, and module main still has Nop/);
+});
+
 // Fix round 4 (D80 a): the module's own chunk files of the previous tree, and a file of no module that holds decompiled C.
 
 test('a C-only rename where a chunk of the module\'s own previous directory was is stale; a file of no module is still read (correctness-a2-1, a2-4)', () => {
