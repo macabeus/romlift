@@ -1,11 +1,14 @@
 // The resolver (architecture §3.2, §5, §6.2, D62): labels are visible in their own module or when global,
 // a module-scoped name may repeat in two modules and each resolves its own, several labels at one address
-// print by kind then name, runs_at modules own their run range, and wordValueOf is what `.4byte Name` links to.
+// print by kind then name, runs_at modules own their run range, and wordValueOf is what `.4byte Name` links to. A word
+// holding a load address of a runs_at module names no label (its labels hold run addresses) and loadWordOperand names
+// it through `__load_<module>` (§6.7).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
-import { adrResolverFor, compareLabels, isExactLabel, moduleAt, resolverFor, resolverOver, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { wordText } from '../../../src/core/emit/print/pool.ts';
+import { adrResolverFor, compareLabels, isExactLabel, loadSymbolOf, loadWordOperand, moduleAt, resolverFor, resolverOver, wordValueOf } from '../../../src/core/model/resolver.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
 
@@ -100,4 +103,21 @@ test('adrResolverFor names only a label that links to the address itself: never 
   assert.equal(adr.labelFor(A + 0x30, A), undefined, 'no label links to the address itself');
   assert.equal(adr.addressOf('Func'), A + 0x10);
   assert.deepEqual([isExactLabel({ addr: A, kind: 'func', thumb: true }), isExactLabel({ addr: A, kind: 'func', thumb: false }), isExactLabel({ addr: A, kind: 'local', thumb: false })], [false, true, true]);
+});
+
+test('a word holding a load address of a runs_at module: no label names it, loadWordOperand names it through __load_<module>', () => {
+  const m = model([{ ...label('RamCode', RAM), kind: 'func', thumb: true }, label('Alpha', A)]);
+  assert.equal(loadSymbolOf({ name: 'ram' }), '__load_ram');
+  assert.equal(wordText(m, 'alpha', 0x0800_3001), '0x08003001', 'never RamCode, which links to its run address');
+  assert.equal(wordText(m, 'ram', RAM + 1), 'RamCode', 'the run address prints the label');
+  assert.equal(loadWordOperand(m, 0x0800_3000), '__load_ram');
+  assert.equal(loadWordOperand(m, 0x0800_3001), '__load_ram + 1');
+  assert.equal(loadWordOperand(m, 0x0800_4000), '__load_ram + 4096', 'the end of the copy');
+  assert.equal(loadWordOperand(m, RAM), undefined);
+  assert.equal(loadWordOperand(m, A), undefined, 'a module that runs where it is loaded');
+});
+
+test('the pool printer names a load address of a runs_at module through __load_<module>', { todo: 'core/emit/print/pool.ts wordText (and the text-layout check, which must resolve __load_<module>) are not this component\'s: reported to the lead' }, () => {
+  const m = model([{ ...label('RamCode', RAM), kind: 'func', thumb: true }]);
+  assert.equal(wordText(m, 'alpha', 0x0800_3001), '__load_ram + 1');
 });
