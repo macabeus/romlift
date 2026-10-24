@@ -30,7 +30,7 @@ import type { DecompState, EmitContext, FileEntry, Printer } from '../emit/tree.
 import { buildModel } from '../model/model.ts';
 import type { Model } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
-import { compiledDefinitions, scanC } from '../reconcile/include-asm.ts';
+import { compiledDefinitions, scanC } from '../reconcile/c-scan.ts';
 import { combineReports } from '../verify/report.ts';
 import type { VerifyReport } from '../verify/report.ts';
 import { checkEntries } from '../verify/text-layout.ts';

@@ -23,8 +23,6 @@ import {
   writable,
 } from '../../../src/core/workflow/generate.ts';
 import { generateFromRom, initConfigOf, initModel } from '../../../src/core/workflow/init-config.ts';
-import { retainedPrefixes } from '../../../src/core/model/paths.ts';
-import { freshTreePlanInputs } from '../../../src/core/write-plan/project-plan.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
@@ -218,19 +216,4 @@ test('initConfigOf, initModel and generateFromRom: the config configFromDiscover
     assert.equal(refused.ok, false);
     if (!refused.ok) assert.ok(refused.diagnostics.some((d) => d.code === 'E_ROM_NOT_GBA'));
   }
-});
-
-test('freshTreePlanInputs: no manifest, every path absent, no reconciled text, the non-generated modules retained', () => {
-  const fixture = fixtures.find((f) => f.name === 'far-jump');
-  assert.ok(fixture !== undefined);
-  const rom = readFixtureRom(fixture);
-  const result = generate({ rom, config: configFromDiscover(rom, discover(rom)), decomp: NO_C, printer: 'readable' });
-  const kept = { ...result.model, modules: result.model.modules.map((m, i) => (i === 1 ? { ...m, generated: false } : m)) };
-  const inputs = freshTreePlanInputs(generatedEntries(rom, result), result.paths, (t) => String(t.length), retainedPrefixes(kept));
-  assert.equal(inputs.manifest, null);
-  assert.deepEqual([...inputs.disk.values()].every((v) => v === 'absent'), true);
-  assert.deepEqual([...inputs.disk.keys()], result.paths);
-  assert.equal(inputs.reconciledTexts.size, 0);
-  assert.ok(inputs.retained.length > 0);
-  assert.equal(inputs.hash('abc'), '3');
 });

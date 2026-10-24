@@ -4,8 +4,10 @@
 // reconciler (phase 5 skipped, D76 g).
 export type { CToken, CTokenKind } from '../core/reconcile/c-tokens.ts';
 export { tokenizeC } from '../core/reconcile/c-tokens.ts';
-export type { CConditional, CDefinition, CFileScan, CIncludeLink, COther, CompiledDefinitions, CUnscannable, IncludeAsmPlan, IncludeAsmStatement, IncludeAsmWanted, StubTree, WantedChunk } from '../core/reconcile/include-asm.ts';
-export { compiledDefinitions, INCLUDE_ASM_MACRO, planIncludeAsm, scanC } from '../core/reconcile/include-asm.ts';
+export type { CConditional, CDefinition, CFileScan, CIncludeLink, COther, CompiledDefinitions, CUnscannable, IncludeAsmStatement } from '../core/reconcile/c-scan.ts';
+export { compiledDefinitions, INCLUDE_ASM_MACRO, scanC } from '../core/reconcile/c-scan.ts';
+export type { IncludeAsmPlan, IncludeAsmWanted, StubTree, WantedChunk } from '../core/reconcile/include-asm.ts';
+export { planIncludeAsm } from '../core/reconcile/include-asm.ts';
 export { applyTextEdits } from '../core/reconcile/text-edit.ts';
 export { ReconcileCodes } from '../core/reconcile/codes.ts';
 export type { ReconcileCode } from '../core/reconcile/codes.ts';

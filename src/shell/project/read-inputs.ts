@@ -16,6 +16,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
 import type { ProjectWriteState } from '../../core/write-plan/project-plan.ts';
+import type { DiskFileState } from '../../core/write-plan/types.ts';
 import type { InitDirListing } from '../../core/workflow/init.ts';
 import { ShellCodes } from '../codes.ts';
 import { loadConfig } from '../config/load.ts';
@@ -121,8 +122,9 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
  * (IncludeAsmWanted.headers). Listed by disk-state's filesUnder with `followLinks`, which follows a symbolic link, not
  * exactly as cpp does (fix round 12, correctness-d1-1; D89 a, D90 a): a link to a file is read as that file, a link to
  * a directory (include/ or src/ itself among them) is walked under its own project path, and a cycle ends at a
- * directory the walk is already inside or at the project directory; a dangling link is left out. Empty when neither
- * directory exists; any other failure to list or read is E_IO_READ.
+ * directory the walk is already inside or at the project directory; a dangling link is left out, and so is a FIFO, a
+ * socket or a device, which reading would block on (only regular files are listed, gate-honesty-e1-2). Empty when
+ * neither directory exists; any other failure to list or read is E_IO_READ.
  */
 export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyMap<string, string>>> {
   const headers: string[] = [];
@@ -247,15 +249,15 @@ export async function readInitDir(dir: string, romPath: string): Promise<ReadRes
   return { ok: true, value: { ...base, state: 'directory', names: names.value } };
 }
 
-/** The sha1 of each project path of `paths` under `dir`, or 'absent' (replacedProblems compares them). */
-export async function readDigests(dir: string, paths: Iterable<string>): Promise<ReadResult<ReadonlyMap<string, string | 'absent'>>> {
-  const out = new Map<string, string | 'absent'>();
+/** What is at each project path of `paths` under `dir`: a file and its sha1, or absent (replacedProblems compares them). */
+export async function readDigests(dir: string, paths: Iterable<string>): Promise<ReadResult<ReadonlyMap<string, DiskFileState>>> {
+  const out = new Map<string, DiskFileState>();
   for (const path of paths) {
     try {
-      out.set(path, sha1Of(await readFile(join(dir, ...path.split('/')))));
+      out.set(path, { kind: 'present', sha1: sha1Of(await readFile(join(dir, ...path.split('/')))) });
     } catch (error) {
       if (errnoOf(error) !== 'ENOENT') return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${join(dir, path)}: ${errorReason(error)}`, { path })] };
-      out.set(path, 'absent');
+      out.set(path, { kind: 'absent' });
     }
   }
   return { ok: true, value: out };

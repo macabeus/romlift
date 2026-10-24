@@ -43,7 +43,7 @@ with phase 5 and the gba-kit trace, D91, D92: `core/evidence` and `core/legacy` 
 | Path | Responsibility |
 | --- | --- |
 | `config/` | adds the TOML parser and its key checks (`parse.ts`, `keys.ts`), the canonical serializer (`serialize.ts`), the comment-keeping patch planner (`patch.ts`), the decomp.yaml reader (`decomp-yaml.ts`), the project ROM check (`rom-sha1.ts`) and their codes |
-| `reconcile/` | the C tokenizer (`c-tokens.ts`), the file-scope scanner, `compiledDefinitions` and the INCLUDE_ASM planner (`include-asm.ts`), text edits (`text-edit.ts`) and their codes |
+| `reconcile/` | the C tokenizer (`c-tokens.ts`), the file-scope scanner, `compiledDefinitions` and the include resolution (`c-scan.ts`), the INCLUDE_ASM planner (`include-asm.ts`), text edits (`text-edit.ts`) and their codes |
 | `model/` | adds the C units (`c-unit.ts`: stub chunks, compile settings, the stub assembly), the C-data ASSERT lines (`c-data-assert.ts`) and the chunk-file readers of a tree on disk (`paths.ts`: `chunkNamesOf`, `moduleChunkStubs`) |
 | `scaffold/` | the scaffold's variables and placeholders (`vars.ts`) and its rendering (`render.ts`) |
 | `workflow/` | `generateProject` (`generate.ts`), the C stubs reconciled with the model (`c-stubs.ts`), `init`'s plan and directory verdict (`init.ts`, `init-config.ts`), `analyze --update` (`analyze-update.ts`), `scaffold --diff` (`scaffold-diff.ts`), the project inputs (`types.ts`) |

@@ -2,7 +2,10 @@
 // canonical TOML that parses back to its config, a decomp.yaml that reads back, the checked tree (c stubs and
 // modules.mk included) and the scaffold of templates/MANIFEST.json; the build name follows the header's game code and
 // never makes `make` overwrite a ROM; --module-size reaches the module inference; an image that is not a cartridge and
-// an invalid --name are refused with nothing planned.
+// an invalid --name are refused with nothing planned. The directory init is given, as the shell lists it
+// (initDirVerdict: absent, empty, the ROM with .git and dot-files, a project; anything else E_DIR_NOT_EMPTY), and the
+// files of a project init would replace (replacedProblems), moved here from the shell's read-inputs test
+// (architecture-r1-7).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -12,10 +15,12 @@ import { serializeConfig } from '../../../src/core/config/serialize.ts';
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
-import { init, wantsLockStep } from '../../../src/core/workflow/init.ts';
+import { init, initDirVerdict, replacedProblems, wantsLockStep } from '../../../src/core/workflow/init.ts';
+import type { InitDirListing } from '../../../src/core/workflow/init.ts';
 import { BUILD_NAME_SUFFIX, builtRomCollides, initBuildName } from '../../../src/core/workflow/init-config.ts';
 import { projectScaffold, scaffoldDrift } from '../../../src/core/workflow/scaffold-diff.ts';
 import type { InitInputs } from '../../../src/core/workflow/types.ts';
+import type { DiskFileState } from '../../../src/core/write-plan/types.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { readScaffoldInputs } from '../../../src/shell/project/read-inputs.ts';
@@ -142,4 +147,43 @@ test('wantsLockStep: only after a write without an error, and only while no pack
   assert.equal(wantsLockStep([warning], false), true);
   assert.equal(wantsLockStep([warning], true), false);
   assert.equal(wantsLockStep([error], false), false);
+});
+
+test("initDirVerdict: absent, empty, or the ROM with .git and dot-files is accepted; another entry or a file is E_DIR_NOT_EMPTY", () => {
+  const at = (over: Partial<InitDirListing>): InitDirListing => ({ dir: '/work/game', state: 'directory', names: [], ...over });
+  assert.deepEqual(initDirVerdict(at({ state: 'absent' })), { ok: true });
+  assert.deepEqual(initDirVerdict(at({})), { ok: true });
+  assert.deepEqual(initDirVerdict(at({ romInside: 'game.gba', names: ['.DS_Store', '.git', 'game.gba'] })), { ok: true });
+  const refused = initDirVerdict(at({ romInside: 'game.gba', names: ['another.gba', 'game.gba'] }));
+  assert.ok(!refused.ok);
+  assert.deepEqual(refused.diagnostics.map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', '/work/game']]);
+  assert.match(refused.diagnostics[0]?.message ?? '', /another\.gba/);
+  assert.doesNotMatch(refused.diagnostics[0]?.message ?? '', /holds [^;]*\bgame\.gba/, 'the ROM itself is not named');
+  const many = initDirVerdict(at({ names: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] }));
+  assert.ok(!many.ok);
+  assert.match(many.diagnostics[0]?.message ?? '', /a, b, c, d, e, … \(7 in all\)/);
+  const file = initDirVerdict(at({ state: 'not-directory' }));
+  assert.ok(!file.ok);
+  assert.deepEqual(file.diagnostics.map((d) => d.code), ['E_DIR_NOT_EMPTY']);
+});
+
+test('initDirVerdict: a romlift project is accepted whatever else it holds', () => {
+  const names = ['Makefile', 'asm', 'baserom.gba', 'decomp.yaml', 'romlift.toml', 'src'];
+  assert.deepEqual(initDirVerdict({ dir: '/work/game', state: 'directory', names, romInside: 'baserom.gba' }), { ok: true });
+  assert.deepEqual(initDirVerdict({ dir: '/work/game', state: 'directory', names: ['.romlift', 'notes.txt'] }), { ok: true });
+});
+
+test('replacedProblems: absent, unlisted and equal files are fine; another romlift.toml or another ROM is E_DIR_NOT_EMPTY', () => {
+  const current: ReadonlyMap<string, DiskFileState> = new Map<string, DiskFileState>([
+    ['romlift.toml', { kind: 'present', sha1: 'toml-1' }],
+    ['decomp.yaml', { kind: 'absent' }],
+    ['baserom.gba', { kind: 'present', sha1: 'rom' }],
+  ]);
+  const same = new Map([['romlift.toml', 'toml-1'], ['decomp.yaml', 'yaml'], ['baserom.gba', 'rom'], ['unlisted.txt', 'x']]);
+  assert.deepEqual(replacedProblems('/work/game', same, current), []);
+  const other = new Map([['romlift.toml', 'toml-2'], ['baserom.gba', 'mor']]);
+  const problems = replacedProblems('/work/game', other, current);
+  assert.deepEqual(problems.map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'romlift.toml'], ['E_DIR_NOT_EMPTY', 'baserom.gba']]);
+  assert.match(problems[0]?.message ?? '', /romlift generate/);
+  assert.match(problems[1]?.message ?? '', /another ROM/);
 });

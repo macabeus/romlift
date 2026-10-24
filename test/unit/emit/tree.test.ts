@@ -53,7 +53,7 @@ const manifest: Manifest = { schema: 1, romlift: '0.0.0', files: { 'asm/main.s':
 const inputs: WritePlanInputs = {
   entries: [generated, scaffold, reconciled],
   manifest,
-  disk: new Map([['asm/main.s', 'absent']]),
+  disk: new Map([['asm/main.s', { kind: 'absent' }]]),
   reconciledTexts: new Map([['src/main.c', '']]),
   hash: (t) => t,
   retained: ['asm/nonmatchings/m4a/', 'asm/m4a.s'],
