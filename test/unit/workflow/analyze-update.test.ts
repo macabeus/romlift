@@ -3,17 +3,19 @@
 // planPatch inserts in place, keeping the user's comments; a listed entry with `from` is validated and, when it fails,
 // reported (W_LISTED_INVALID) and kept, one without `from` is taken as it is (D76 a, D77 e); another ROM is refused; a nested discovery is proposed as a label;
 // a patch whose module starts generate would refuse is refused with E_MODULE_BORDER naming the proposal
-// (architecture-r1-3, a0-4); and unifiedDiff renders a patch in `diff -u` form.
+// (architecture-r1-3, a0-4); the borders of a hand-written runs_at range are proposed as modules (`ram_<RUNADDR>` at
+// its start, the module it splits resumed at its end, §6.7), and a range that cannot be its own module is
+// E_OVERRIDE_INVALID; and unifiedDiff renders a patch in `diff -u` form.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import { serializeConfig } from '../../../src/core/config/serialize.ts';
-import { analyzeUpdate, staleConfigProblems, unlistedProposals } from '../../../src/core/workflow/analyze-update.ts';
+import { analyzeUpdate, runsAtBorders, staleConfigProblems, unlistedProposals } from '../../../src/core/workflow/analyze-update.ts';
 import { unifiedDiff } from '../../../src/foundation/util/line-diff.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
-import type { RomliftConfig } from '../../../src/core/config/schema.ts';
+import type { ModuleConfig, OverrideConfig, RomliftConfig } from '../../../src/core/config/schema.ts';
 import { borderRefs } from '../../../src/core/layout/refs.ts';
 import { confirmModel } from '../../../src/core/workflow/generate.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
@@ -168,4 +170,97 @@ test('staleConfigProblems: a config that changed on disk since it was read is E_
   assert.deepEqual(staleConfigProblems('romlift.toml', 'a = 1\n', 'a = 1\n'), []);
   const stale = staleConfigProblems('romlift.toml', 'a = 1\n', 'a = 1\n# edited meanwhile\n');
   assert.deepEqual(stale.map((d) => [d.code, d.severity, d.path]), [['E_STALE_CONFIG', 'error', 'romlift.toml']]);
+});
+
+const RAM_ROM = { base: 0x0800_0000, end: 0x0800_4000 } as const;
+
+function moduleAt(name: string, start: number, kind: ModuleConfig['kind'] = 'asm', library?: { readonly name: string; readonly version: string }): ModuleConfig {
+  return { name, start, kind, generated: true, ...(library === undefined ? {} : { library: library.name, version: library.version }) };
+}
+
+function ramRange(start: number, size: number, runsAt: number): OverrideConfig {
+  return { start, size, kind: 'code', mode: 'thumb', runsAt };
+}
+
+test('runsAtBorders: an asm module ram_<RUNADDR> at the start, and the split module resumed at the end with its kind, library and version', () => {
+  const modules = [moduleAt('rom_header', 0x0800_0000), moduleAt('m4a', 0x0800_1000, 'asm', { name: 'm4a', version: '2001' }), moduleAt('main', 0x0800_3000, 'c')];
+  const r = runsAtBorders(RAM_ROM, { modules, overrides: [ramRange(0x0800_1318, 0x3a4, 0x0300_0388), { start: 0x0800_0200, size: 0x10, kind: 'data' }] });
+  assert.deepEqual(r.refusals, []);
+  assert.deepEqual(r.proposals, [
+    { kind: 'module', name: 'ram_03000388', start: 0x0800_1318, moduleKind: 'asm', source: { kind: 'layout', reason: 'runs-at' } },
+    { kind: 'module', name: 'm4a_080016BC', start: 0x0800_16bc, moduleKind: 'asm', library: { name: 'm4a', version: '2001' }, source: { kind: 'layout', reason: 'runs-at' } },
+  ]);
+  // A c module split by the range is resumed as a c module.
+  const c = runsAtBorders(RAM_ROM, { modules: [moduleAt('rom_header', 0x0800_0000), moduleAt('main', 0x0800_0100, 'c')], overrides: [ramRange(0x0800_0400, 0x40, 0x0300_0000)] });
+  assert.deepEqual(c.proposals.map((p) => [p.name, p.start, p.moduleKind]), [['ram_03000000', 0x0800_0400, 'asm'], ['main_08000440', 0x0800_0440, 'c']]);
+});
+
+test('runsAtBorders: no proposal at a border that exists or at the ROM end; a taken name gets _2', () => {
+  const modules = [moduleAt('rom_header', 0x0800_0000), moduleAt('ram_03000000', 0x0800_0100), moduleAt('data', 0x0800_0400, 'data')];
+  assert.deepEqual(runsAtBorders(RAM_ROM, { modules, overrides: [ramRange(0x0800_0400, 0x3c00, 0x0300_0000)] }).proposals, [], 'a module starts there and the range ends the ROM');
+  const named = runsAtBorders(RAM_ROM, { modules, overrides: [ramRange(0x0800_0200, 0x100, 0x0300_0000)] }).proposals;
+  assert.deepEqual(named.map((p) => p.name), ['ram_03000000_2', 'ram_03000000_08000300']);
+  const adjacent = runsAtBorders(RAM_ROM, { modules, overrides: [ramRange(0x0800_0280, 0x40, 0x0300_1000), ramRange(0x0800_0200, 0x80, 0x0300_0800)] }).proposals;
+  assert.deepEqual(adjacent.map((p) => [p.name, p.start]), [['ram_03000800', 0x0800_0200], ['ram_03001000', 0x0800_0280], ['ram_03000000_080002C0', 0x0800_02c0]], 'two ranges that touch share their border');
+});
+
+test('runsAtBorders: a range taking a c module start inside it, or reaching outside the ROM, is E_OVERRIDE_INVALID', () => {
+  const modules = [moduleAt('rom_header', 0x0800_0000), moduleAt('main', 0x0800_0100, 'c'), moduleAt('main_2', 0x0800_0400, 'c')];
+  const inner = runsAtBorders(RAM_ROM, { modules, overrides: [ramRange(0x0800_0300, 0x200, 0x0300_0000)] });
+  assert.deepEqual(inner.proposals, []);
+  assert.deepEqual(inner.refusals.map((d) => [d.code, d.addr, d.span]), [['E_OVERRIDE_INVALID', 0x0800_0300, { start: 0x0800_0300, end: 0x0800_0500 }]]);
+  assert.match(inner.refusals[0]?.message ?? '', /the runs_at range \[0x08000300, 0x08000500\) does not start and end on module borders; a range that runs from RAM is its own module, and the c module main_2 starts inside it at 0x08000400/);
+  const outside = runsAtBorders(RAM_ROM, { modules, overrides: [ramRange(0x0800_3f00, 0x200, 0x0300_0000)] });
+  assert.match(outside.refusals[0]?.message ?? '', /it does not lie inside the ROM/);
+});
+
+/** The RAM-copy fixture's init config with its ramCopy range appended, as g6.ram-code-mapped appends it. */
+function ramCopyProject(dropData: boolean): { readonly rom: Rom; readonly text: string; readonly config: RomliftConfig } {
+  const rom = fixtureRom('code-copied-to-ram');
+  const init = configFromDiscover(rom, discover(rom));
+  const base = dropData ? { ...init, modules: init.modules.filter((m) => m.kind !== 'data') } : init;
+  const config: RomliftConfig = { ...base, overrides: [{ start: 0x0800_012c, size: 0xc, kind: 'code', mode: 'arm', runsAt: 0x0300_0000 }] };
+  const text = serializeConfig(config);
+  const parsed = parseConfig(text);
+  assert.ok(parsed.ok);
+  return { rom, text, config: parsed.value };
+}
+
+test('the RAM-copy fixture: its range already starts a module, so the code inside it is the only proposal; the model runs it at 0x03000000', () => {
+  const { rom, text, config } = ramCopyProject(false);
+  assert.ok(config.modules.some((m) => m.start === 0x0800_012c), 'init ends the code before the copied bytes');
+  const plan = analyzeUpdate({ rom, configText: text, config });
+  assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.message).join('; '));
+  assert.deepEqual(plan.proposals.map((p) => [p.kind, p.kind === 'function' ? p.addr : 0, p.source]), [['function', 0x0800_012c, { kind: 'analysis', rule: 'seed.override' }]]);
+  const patched = parseConfig(plan.text);
+  assert.ok(patched.ok);
+  const model = confirmModel({ rom, config: patched.value }).model;
+  assert.deepEqual(model.diagnostics, []);
+  assert.deepEqual(model.modules.filter((m) => m.runAt !== undefined).map((m) => [m.span, m.runAt]), [[{ start: 0x0800_012c, end: 0x0800_0138 }, 0x0300_0000]]);
+  assert.equal(model.functions.find((f) => f.entry === 0x0800_012c)?.runAt, 0x0300_0000);
+});
+
+test('a range inside a module: its start border is proposed and patched in as a [[modules]] block, and generate accepts the result', () => {
+  const { rom, text, config } = ramCopyProject(true);
+  assert.equal(confirmModel({ rom, config }).model.diagnostics.map((d) => d.code).includes('E_OVERRIDE_INVALID'), true, 'off the module borders on disk');
+  const plan = analyzeUpdate({ rom, configText: text, config });
+  assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.message).join('; '));
+  assert.deepEqual(
+    plan.proposals.filter((p) => p.kind === 'module').map((p) => (p.kind === 'module' ? [p.name, p.start, p.moduleKind] : [])),
+    [['ram_03000000', 0x0800_012c, 'asm']],
+  );
+  assert.ok(plan.text.includes('[[modules]]\nname = "ram_03000000"\nstart = 0x0800012C\nkind = "asm"\n\n[functions]'), plan.text);
+  const patched = parseConfig(plan.text);
+  assert.ok(patched.ok);
+  const model = confirmModel({ rom, config: patched.value }).model;
+  assert.deepEqual(model.diagnostics, []);
+  assert.deepEqual(model.modules.map((m) => [m.name, m.kind, m.runAt]).at(-1), ['ram_03000000', 'asm', 0x0300_0000]);
+});
+
+test('a range analyze --update cannot make its own module is refused with E_OVERRIDE_INVALID, and nothing is offered', () => {
+  const { rom, config } = ramCopyProject(false);
+  const bad: RomliftConfig = { ...config, overrides: [{ start: 0x0800_00f0, size: 0x10, kind: 'code', mode: 'thumb', runsAt: 0x0300_0000 }] };
+  const plan = analyzeUpdate({ rom, configText: serializeConfig(bad), config: bad });
+  assert.equal(plan.ok, false);
+  assert.deepEqual(plan.ok ? [] : plan.diagnostics.map((d) => d.code), ['E_OVERRIDE_INVALID']);
 });
