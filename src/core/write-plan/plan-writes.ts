@@ -21,6 +21,8 @@
 //               always a `write`, and the old path's `delete` comes before every other op, so the delete
 //               cannot remove the new file and a directory left empty is pruned before the new spelling is made.
 //
+// planEdits is the policy of a run that only edits (rename, phase 6): the reconciled entries alone, the manifest kept.
+//
 // A plan with an error diagnostic must not be applied: applyWrites (shell/project/apply-writes.ts) refuses
 // it and touches nothing, and a caller sees it as `planHasErrors(plan)`. The plan still lists every op it
 // could decide, so `--dry-run --json` shows the whole picture.
@@ -213,6 +215,17 @@ class Planner {
     }
   }
 
+  /**
+   * The plan of edits alone (planEdits): the ops by path, and the manifest as it was, since an edit is no generated
+   * file and nothing else is planned.
+   */
+  editsPlan(): WritePlan {
+    const ops = [...this.ops].sort((a, b) => compareCodeUnits(a.path, b.path));
+    const manifest = this.inputs.manifest ?? { schema: 1, romlift: this.inputs.romlift ?? UNKNOWN_ROMLIFT_VERSION, files: {} };
+    const diagnostics = [...this.diagnostics].sort((a, b) => compareCodeUnits(a.path ?? '', b.path ?? '') || compareCodeUnits(a.code, b.code));
+    return { ops, manifest, diagnostics };
+  }
+
   plan(): WritePlan {
     // The deletes of case-renamed paths first, then every op by path, and the write of modules.mk last (fix round 7,
     // correctness-b2-2): it records romlift.toml's SHA-1, the stamp the scaffold's Makefile and setup.sh trust as "the
@@ -267,4 +280,23 @@ export function planWrites(inputs: WritePlanInputs): WritePlan {
   for (const entry of inputs.entries) planner.entry(entry);
   planner.finish();
   return planner.plan();
+}
+
+/** What planEdits reads: reconciled entries and what planWrites reads of the directory they edit. */
+export interface EditPlanInputs extends Pick<WritePlanInputs, 'manifest' | 'disk' | 'reconciledTexts' | 'hash' | 'journal' | 'romlift'> {
+  readonly entries: Iterable<Extract<FileEntry, { readonly ownership: 'reconciled' }>>;
+}
+
+/**
+ * The write plan of a run that only edits files (`rename`'s identifier edits, phase 6, D92): each reconciled entry by
+ * the `reconciled` policy of planWrites (an `edit` while its file still has its base sha1, else E_STALE_EDIT; `keep`
+ * when the edits change nothing), and nothing else: no generated path is deleted or reported, and the manifest is the
+ * one on disk, unchanged (or an empty one when there is none, which a later generate reads as it reads none: it lists
+ * nothing to delete). The same invariants as planWrites: a path twice, a path that is no project path or one missing
+ * from the disk snapshot throws RomliftInvariantError.
+ */
+export function planEdits(inputs: EditPlanInputs): WritePlan {
+  const planner = new Planner({ ...inputs, entries: [], retained: [] });
+  for (const entry of inputs.entries) planner.entry(entry);
+  return planner.editsPlan();
 }
