@@ -14,8 +14,9 @@
 //   - setup.sh and make run with a time limit (buildProject), and the whole loop (runEndToEnd).
 // The interfaces are the frozen ones of D74 that g4.e2e-fixtures, g4.packed-e2e, g4.e2e-real and g4.worktree
 // read; the gates keep their own copies, since they import romlift only through its entry points (D37). The source-CLI
-// shim and the agbcc cache's pin check are bench/src/scaffold.ts's, the one implementation `bench run --scaffold` uses
-// too (architecture-11): a cached or prebuilt agbcc that records another pin than templates/agbcc.json is refused.
+// shim and the agbcc pin-stamp check are bench/src/scaffold.ts's (sourceCliScript, agbccPinProblem), the one
+// implementation `bench run --scaffold` uses too (architecture-11, architecture-r1-6): a cached or prebuilt agbcc that
+// records another pin than templates/agbcc.json is refused, and the pin is read by romlift's readAgbccPin.
 // Every command runs with stdin closed (g4.cli-contract) through a CommandRunner, which the unit tests replace.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -24,9 +25,10 @@ import { constants, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { AGBCC_CACHE_PIN, pinText, sourceCliScript } from '../../bench/src/scaffold.ts';
-import { decodeAgbccPin } from '../../src/core/scaffold/vars.ts';
-import type { AgbccPin } from '../../src/core/scaffold/vars.ts';
+import type { AgbccPin } from 'romlift';
+import { readAgbccPin } from 'romlift/node';
+
+import { agbccPinProblem, sourceCliScript } from '../../bench/src/scaffold.ts';
 import { listSyntheticFixtures, type SyntheticFixture } from './fixtures.ts';
 
 export { shellQuote } from '../../bench/src/scaffold.ts';
@@ -400,26 +402,11 @@ async function copyInstalled(from: string, to: string): Promise<void> {
   }
 }
 
-/** templates/agbcc.json of `repoRoot`, the pin every project's setup.sh builds agbcc at. */
-export async function readAgbccPin(repoRoot: string = REPO_ROOT): Promise<AgbccPin> {
-  const decoded = decodeAgbccPin(await readFile(path.join(repoRoot, 'templates', 'agbcc.json'), 'utf8'));
-  if (!decoded.ok) throw new Error(`templates/agbcc.json: ${decoded.message}`);
-  return decoded.value;
-}
-
-/**
- * Why a prebuilt agbcc may not be used under `pin`, or undefined: it records another pin (bench/src/scaffold.ts's
- * stamp, AGBCC_CACHE_PIN, as `bench run --scaffold`'s cache writes it). One without a stamp (the workflows' build at
- * the pinned commit, ROMLIFT_AGBCC) is taken as built at the pin.
- */
-async function stalePrebuilt(prebuilt: string, pin: AgbccPin): Promise<string | undefined> {
-  let stamp: string;
-  try {
-    stamp = await readFile(path.join(prebuilt, AGBCC_CACHE_PIN), 'utf8');
-  } catch {
-    return undefined;
-  }
-  return stamp === pinText(pin) ? undefined : `the prebuilt agbcc ${prebuilt} was built at ${stamp.trim()}, not at templates/agbcc.json's ${pinText(pin).trim()}`;
+/** templates/agbcc.json of this checkout, the pin every project's setup.sh builds agbcc at (romlift/node readAgbccPin). */
+async function templatePin(): Promise<AgbccPin> {
+  const pin = await readAgbccPin(REPO_ROOT);
+  if (!pin.ok) throw new Error(pin.diagnostic.message);
+  return pin.value;
 }
 
 /**
@@ -433,7 +420,8 @@ export async function agbccCache(dir: string, prebuilt?: string, pin?: AgbccPin)
   const filled = (): Promise<boolean> => isFile(path.join(dir, AGBCC_BIN));
   if (prebuilt !== undefined && !(await filled())) {
     if (!(await isFile(path.join(prebuilt, AGBCC_BIN)))) throw new Error(`no ${AGBCC_BIN} under the prebuilt agbcc ${prebuilt}`);
-    const stale = await stalePrebuilt(prebuilt, pin ?? (await readAgbccPin()));
+    // A prebuilt agbcc without a pin stamp is taken as built at the pin (bench/src/scaffold.ts UnstampedAgbcc).
+    const stale = await agbccPinProblem(prebuilt, pin ?? (await templatePin()), 'accept');
     if (stale !== undefined) throw new Error(stale);
     await copyInstalled(prebuilt, dir);
   }
