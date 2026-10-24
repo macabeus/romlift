@@ -459,16 +459,6 @@ function checkOne(rom: Rom, model: Model, index: IndexData, entry: FileEntry): E
   return { diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY), unit: { module: target.module, sectionAlign: file.sectionAlign } };
 }
 
-
-/**
- * The text-layout check of ONE entry against `model`, with an index built for it alone: O(model) per call, so for
- * tests and single files, never for a stream (checkEntries indexes once per pass). [] when it is not this check's or
- * it passes. Not part of romlift's public API.
- */
-export function checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[] {
-  return checkOne(rom, model, indexData(model), entry).diagnostics;
-}
-
 /**
  * The unit-level part of the check, once the stream has passed: GNU as pads each object's section to a multiple
  * of its alignment (the largest any of the unit's files asks, Layout.sectionAlign) and ld places it at a

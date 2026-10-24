@@ -6,7 +6,7 @@ import { test } from 'node:test';
 
 import { ldscriptText, ldscriptWriter } from '../../../../src/core/emit/writers/ldscript.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
-import { checkEntry } from '../../../../src/core/verify/text-layout.ts';
+import { entryDiagnostics } from '../../../helpers/text-layout.ts';
 import { dataItem, modelOf, romWith } from '../../../helpers/model.ts';
 
 const CX = { decomp: { defined: [] } };
@@ -44,7 +44,7 @@ SECTIONS {
 }
 `,
   );
-  assert.deepEqual(checkEntry(rom, model, e), []);
+  assert.deepEqual(entryDiagnostics(rom, model, e), []);
 });
 
 test('INCLUDE symbols.ld when a symbol lies outside the ROM', () => {
@@ -85,7 +85,7 @@ SECTIONS {
   );
   const [e] = [...ldscriptWriter.emit(rom, model, CX, null)];
   assert.ok(e !== undefined);
-  assert.deepEqual(checkEntry(rom, model, e), []);
+  assert.deepEqual(entryDiagnostics(rom, model, e), []);
 });
 
 test('a C unit: its object build/src/<m>.o places only .text, then its C-data check section and ASSERT, in ROM order (D74 f)', () => {
@@ -124,5 +124,5 @@ SECTIONS {
   );
   const [e] = [...ldscriptWriter.emit(rom, model, CX, null)];
   assert.ok(e !== undefined);
-  assert.deepEqual(checkEntry(rom, model, e), []);
+  assert.deepEqual(entryDiagnostics(rom, model, e), []);
 });
