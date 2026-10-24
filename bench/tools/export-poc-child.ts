@@ -3,7 +3,8 @@
 //
 //   scored   prints one JSON document: two analyses of the ROM by the PoC's Analyzer, the PoC's miss
 //            diagnoses against its own ELF truth, and the PoC's own bench row with its scaffold built
-//            (scaffold, make, generate, make, in os.tmpdir()/romlift-bench/<name>);
+//            (scaffold, make, generate, make, in os.tmpdir()/romlift-bench/<name>, where os.tmpdir() is a fresh directory
+//            export-poc gives each child as TMPDIR, fix round 8);
 //   parity   prints one JSON document {parity, seconds}: the parity view of one analysis
 //            (bench/src/parity-view.ts);
 //   queries  writes the lockstep log (bench/src/poc-log.ts) to <out>/queries.ndjson and

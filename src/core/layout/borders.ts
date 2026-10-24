@@ -113,7 +113,8 @@ export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
 /**
  * The legal module borders of an analysis, ascending: the ROM base, the header's end, the word-aligned chunk
  * starts of the code region and the data start, without those a short Thumb branch or a PC-relative load or
- * adr crosses (D63) or that fall strictly inside an assembly-only range. The model, init, analyze --update and the TOML patcher all use it.
+ * adr crosses (D63) or that fall strictly inside an assembly-only range. Exported; no module of src calls it yet (the model uses
+ * codeLayout's borders with core/model/modules.ts isLegalStart, D77 k; one owner of the rule is carried to phase 6).
  */
 export function legalBorders(rom: Rom, analysis: AnalysisResult): readonly Addr[] {
   return codeLayout(rom, analysis).borders;

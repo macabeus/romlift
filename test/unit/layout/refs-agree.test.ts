@@ -14,7 +14,7 @@ import { borderRefs } from '../../../src/core/layout/refs.ts';
 import { codeRefs } from '../../../src/core/model/labels.ts';
 import { relocatedModules, runOffsetAt } from '../../../src/core/model/modules.ts';
 import { segmentsOf } from '../../../src/core/model/segments.ts';
-import { initModel } from '../../../src/core/workflow/generate.ts';
+import { initModel } from '../../../src/core/workflow/init-config.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import type { Module } from '../../../src/core/model/types.ts';
@@ -40,7 +40,7 @@ function missing(rom: Rom, analysis: AnalysisResult, modules: readonly Module[])
 }
 
 test('every committed fixture is found', () => {
-  assert.equal(fixtures.length, 47);
+  assert.equal(fixtures.length, 51);
 });
 
 test('every PC-relative reference the model names inside a function is one borderRefs bounds the borders by, discover and confirm runs', () => {

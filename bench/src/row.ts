@@ -9,6 +9,7 @@ import type { MissReason, Origin } from 'romlift';
 import type { ListName } from './dataset.ts';
 import type { ObjdiffSummary } from './objdiff.ts';
 import type { ReadabilityMember } from './readability.ts';
+import type { InitBuildVerdict } from './scaffold.ts';
 import type { ArtifactCategory } from './vocabulary.ts';
 
 export interface MissRow {
@@ -94,9 +95,11 @@ export interface BenchRow {
   readonly deterministic: boolean;
   /**
    * Whether the scaffold reproduces the SHA-1: the PoC's verdict from its dump in phases 1 and 2; from phase 3
-   * romlift's raw printer's tree linked (`bench run --scaffold`), absent without --scaffold.
+   * romlift's raw printer's tree linked (`bench run --scaffold`), absent without --scaffold. From phase 4 `init` is
+   * the ROM built as a user builds it, `romlift init`, `./setup.sh` and `make` (scaffold.ts InitBuildVerdict: each
+   * step's exit code, -1 when skipped, and whether the built ROM has the ROM's SHA-1); its time is in timings.json.
    */
-  readonly scaffold?: { readonly ok: boolean };
+  readonly scaffold?: { readonly ok: boolean; readonly init?: InitBuildVerdict };
   /** The readable printer's shares and their floor (phase 3, romlift rows). */
   readonly readability?: ReadabilityMember;
   /** The objdiff family (phase 3, `bench run --scaffold`). */

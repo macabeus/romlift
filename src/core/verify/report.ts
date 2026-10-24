@@ -6,10 +6,10 @@
 //     core/verify/{tiling,reencode,module-size}.ts: every byte in exactly one item (E_SELF_CHECK_TILING),
 //     every mnemonic round-trips (E_SELF_CHECK_REENCODE), each module's items add up to its span
 //     (E_MODULE_SIZE); one CheckResult each, ids 'tiling', 'reencode', 'module-size'.
-//   checkEntry(rom: Rom, model: Model, index: TextLayoutIndex, entry: FileEntry): readonly Diagnostic[]
-//     core/verify/text-layout.ts: the text-layout check of ONE entry (E_SELF_CHECK_TEXT with path, line and
-//     address), so the check pass streams the emission and keeps no tree; the caller folds the
-//     diagnostics into the 'text-layout' CheckResult.
+//   checkEntries(rom: Rom, model: Model, entries: Iterable<FileEntry>): VerifyReport
+//     core/verify/text-layout.ts: the text-layout check of a streamed emission, one entry at a time
+//     (E_SELF_CHECK_TEXT with path, line and address), so the check pass keeps no tree, and the paths check of the
+//     same pass; the 'text-layout' and 'paths' CheckResults.
 //   checkPaths(paths: Iterable<string>): readonly Diagnostic[]
 //     core/verify/paths.ts: duplicates and case-folded collisions among the stream's paths
 //     (E_PATH_CASE_COLLISION); the 'paths' CheckResult.

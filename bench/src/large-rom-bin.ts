@@ -7,16 +7,19 @@
 //   node --conditions=source bench/src/large-rom.ts --bin [--json] [--rom <path>]
 // Each run reports its exit code, its peak RSS and its peak live heap (bench/src/rss-probe.ts: the largest heap V8
 // found used after a full mark-compact, what runs into the cap; neither when V8 aborted it), and for a --json command
-// whether its last line is an ok summary and the SHA-1 it linked. The report, last on stdout:
+// whether its last line is an ok summary and the SHA-1 it linked. From phase 4 it also runs the one-shot workflow as a
+// user does: `init baserom.gba --json` in a project directory holding only the ROM as baserom.gba, then
+// `generate --json` in the project init wrote (roadmap 4.E). The report, last on stdout:
 //   {schema: 'romlift/bench-large-rom-bin@1', romBytes, sha1, nodeOptions, runs: [{command, exitCode, maxRssMiB,
 //    peakLiveHeapMiB, summaryOk?, sha1?, detail}]}
 // The script exits 0 when every run completed (exit 0, an ok summary, the ROM's SHA-1 after --link), else 1; nothing
 // gates it: test/local/large-rom-bin.test.ts requires it.
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { SCAFFOLD_ROM_FILE } from 'romlift';
 import { sha1Of } from 'romlift/node';
 
 import { REPO_ROOT } from './context.ts';
@@ -37,12 +40,18 @@ export interface BinRun {
   readonly json: boolean;
   /** It links the tree: the summary's sha1 must be the ROM's. */
   readonly link?: boolean;
+  /**
+   * It runs in the project directory, which starts holding only the ROM as baserom.gba (`init` writes the project
+   * there, the later project runs read it); otherwise in the bench's own working directory.
+   */
+  readonly inProject?: boolean;
 }
 
 /**
  * Every phase-3 command that reads a whole ROM: analyze, explain and model in both output forms, and verify in each
  * checking form (none, --assemble, --assemble --link) with the readable printer, --assemble and --link with the raw
- * one, and --assemble as text, the forms whose memory the review of 16d1280 measured highest (correctness-r1-3).
+ * one, and --assemble as text, the forms whose memory the review of 16d1280 measured highest (correctness-r1-3); then
+ * phase 4's one-shot workflow in a project directory: init, and generate over the project init wrote.
  */
 export const BIN_RUNS: readonly BinRun[] = [
   { command: 'analyze', args: ['analyze', '{rom}'], json: false },
@@ -57,6 +66,8 @@ export const BIN_RUNS: readonly BinRun[] = [
   { command: 'verify --assemble --link --json', args: ['verify', '--rom', '{rom}', '--assemble', '--link', '--json'], json: true, link: true },
   { command: 'verify --printer raw --assemble --json', args: ['verify', '--rom', '{rom}', '--printer', 'raw', '--assemble', '--json'], json: true },
   { command: 'verify --printer raw --link --json', args: ['verify', '--rom', '{rom}', '--printer', 'raw', '--link', '--json'], json: true, link: true },
+  { command: 'init --json', args: ['init', SCAFFOLD_ROM_FILE, '--json'], json: true, inProject: true },
+  { command: 'generate --json', args: ['generate', '--json'], json: true, inProject: true },
 ];
 
 export interface BinRunResult {
@@ -117,12 +128,15 @@ export function completed(run: BinRun, result: BinRunResult, romSha1: string): b
 
 export interface LargeRomBinDeps {
   readonly image: () => Promise<Uint8Array>;
-  /** Runs node with these arguments; default a child process. */
-  readonly spawn: (args: readonly string[]) => Promise<ProcessResult>;
+  /** Runs node with these arguments in `cwd` (undefined: the bench's own); default a child process. */
+  readonly spawn: (args: readonly string[], cwd?: string) => Promise<ProcessResult>;
   readonly log: (line: string) => void;
 }
 
-/** Runs every BIN_RUNS command on the image, one process each, one after the other. */
+/**
+ * Runs every BIN_RUNS command on the image, one process each, one after the other; the project runs in `project/`,
+ * which holds only the ROM as baserom.gba until `init` writes the project.
+ */
 export async function largeRomBin(deps: LargeRomBinDeps): Promise<LargeRomBinReport> {
   const bytes = await deps.image();
   const sha1 = sha1Of(bytes);
@@ -131,11 +145,14 @@ export async function largeRomBin(deps: LargeRomBinDeps): Promise<LargeRomBinRep
   try {
     const rom = join(dir, 'large-rom.gba');
     await writeFile(rom, bytes);
+    const project = join(dir, 'project');
+    await mkdir(project);
+    await writeFile(join(project, SCAFFOLD_ROM_FILE), bytes);
     deps.log(`ROM: ${bytes.length} bytes, SHA-1 ${sha1}; node ${nodeOptions.join(' ')}`);
     const runs: BinRunResult[] = [];
     for (const run of BIN_RUNS) {
       const args = run.args.map((a) => (a === '{rom}' ? rom : a));
-      const result = binRunOf(run, await deps.spawn(['--conditions=source', ...nodeOptions, '--import', RSS_PROBE, CLI_MAIN, ...args]), sha1);
+      const result = binRunOf(run, await deps.spawn(['--conditions=source', ...nodeOptions, '--import', RSS_PROBE, CLI_MAIN, ...args], run.inProject === true ? project : undefined), sha1);
       deps.log(
         `${run.command.padEnd(40)} exit ${result.exitCode}, peak RSS ${result.maxRssMiB === null ? '-' : `${result.maxRssMiB.toFixed(1)} MiB`}, peak live heap ${result.peakLiveHeapMiB === null ? '-' : `${result.peakLiveHeapMiB.toFixed(1)} MiB`}: ${result.detail}`,
       );
@@ -156,6 +173,6 @@ export function allCompleted(report: LargeRomBinReport): boolean {
 }
 
 /** The default spawn: node itself. */
-export function spawnNode(args: readonly string[]): Promise<ProcessResult> {
-  return runProcess(process.execPath, args);
+export function spawnNode(args: readonly string[], cwd?: string): Promise<ProcessResult> {
+  return runProcess(process.execPath, args, cwd === undefined ? {} : { cwd });
 }

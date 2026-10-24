@@ -10,8 +10,10 @@
 //     never 70 (internal).
 // A command with no recipe here fails the gate, so a new command cannot skip the contract.
 //
-// Expected interfaces, for the phase-4 lead to align (architecture §2.1, D33):
+// Interfaces, frozen by D74 (architecture §2.1, D33):
 //   exit codes 0 ok, 1 errors, 2 usage, 3 verifyFailed, 70 internal; NDJSON as in g4.e2e-fixtures.
+//   init's options are [dir], --name, --module-size and --json in phase 4 (--no-signatures is phase 6's, D74);
+//   init in a directory holding another file than the given ROM, .git and dot-files is E_DIR_NOT_EMPTY, exit 1.
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult, type GateContext } from './gate.ts';
@@ -67,9 +69,7 @@ const RECIPES: Readonly<Record<string, readonly Recipe[]>> = {
     { label: 'rename <unknown> <new>', args: () => ['RomliftGateUnknownName', 'RomliftGateNewName'], place: 'project', exits: [1] },
     { label: 'rename <old> <new>', args: (p) => [p.defaultName, 'RomliftGateRenamed'], place: 'project', exits: [0] },
   ],
-  'import-legacy': [{ label: 'import-legacy without legacy files', args: () => [], place: 'bare', exits: [1, 2] }],
   signatures: [{ label: 'signatures <rom>', args: () => [ROM], place: 'bare', exits: [0] }],
-  trace: [{ label: 'trace', args: () => [], place: 'project', exits: [0, 1] }],
 };
 
 function tail(run: ExecResult, lines = 20): string {

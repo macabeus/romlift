@@ -7,9 +7,9 @@ import type { JsonValue } from '../../foundation/formats/types.ts';
 import { extraKeys, isProjectPath, isSha1 } from './manifest.ts';
 import type { WriteOp } from './types.ts';
 
-/** One journalled op: a write carries its result sha1, an edit its base and result sha1, a delete neither. */
+/** One journalled op: a write carries its result sha1, an edit its base and result sha1, a delete and a mode neither. */
 export interface JournalOp {
-  readonly op: 'write' | 'edit' | 'delete';
+  readonly op: 'write' | 'edit' | 'delete' | 'mode';
   readonly path: string;
   readonly baseSha1?: string;
   readonly resultSha1?: string;
@@ -30,6 +30,7 @@ export function journalOf(ops: readonly WriteOp[]): Journal {
     if (op.op === 'write') out.push({ op: 'write', path: op.path, resultSha1: op.sha1 });
     else if (op.op === 'edit') out.push({ op: 'edit', path: op.path, baseSha1: op.baseSha1, resultSha1: op.resultSha1 });
     else if (op.op === 'delete') out.push({ op: 'delete', path: op.path });
+    else if (op.op === 'mode') out.push({ op: 'mode', path: op.path });
   }
   return { schema: 1, ops: out };
 }
@@ -40,7 +41,7 @@ export function* encodeJournal(journal: Journal): Generator<string> {
   yield '\n';
 }
 
-const OPS: readonly JournalOp['op'][] = ['write', 'edit', 'delete'];
+const OPS: readonly JournalOp['op'][] = ['write', 'edit', 'delete', 'mode'];
 
 function decodeOp(value: unknown, at: string): JournalOp | string {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return `${at} is not an object`;
@@ -51,14 +52,14 @@ function decodeOp(value: unknown, at: string): JournalOp | string {
   const path = record['path'];
   const base = record['baseSha1'];
   const result = record['resultSha1'];
-  if (typeof op !== 'string' || !(OPS as readonly string[]).includes(op)) return `${at}.op ${JSON.stringify(op)} is not write, edit or delete`;
+  if (typeof op !== 'string' || !(OPS as readonly string[]).includes(op)) return `${at}.op ${JSON.stringify(op)} is not write, edit, delete or mode`;
   if (typeof path !== 'string' || !isProjectPath(path)) return `${at}.path ${JSON.stringify(path)} is not a project path`;
   if (base !== undefined && !isSha1(base)) return `${at}.baseSha1 is not a lower-case hex SHA-1`;
   if (result !== undefined && !isSha1(result)) return `${at}.resultSha1 is not a lower-case hex SHA-1`;
   const kind = op as JournalOp['op'];
   if (kind === 'write' && (result === undefined || base !== undefined)) return `${at}: a write carries resultSha1 only`;
   if (kind === 'edit' && (result === undefined || base === undefined)) return `${at}: an edit carries baseSha1 and resultSha1`;
-  if (kind === 'delete' && (result !== undefined || base !== undefined)) return `${at}: a delete carries no sha1`;
+  if ((kind === 'delete' || kind === 'mode') && (result !== undefined || base !== undefined)) return `${at}: a ${kind} carries no sha1`;
   return {
     op: kind,
     path,

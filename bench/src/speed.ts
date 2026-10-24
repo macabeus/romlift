@@ -1,9 +1,15 @@
 // `bench speed [--only <rom>] [--json] [--write-baseline]` (architecture §8.4 "Speed", §9.3, D41): one
-// ROM at a time, in this process, no workers. Per ROM a warm-up run, then the median CPU time of five
-// (process.cpuUsage), the wall time for information. A fixed calibration workload is measured the same
-// way, so the ratchet against bench/baseline/speed.json scales by the ratio of this machine to the one
+// ROM at a time, in this process, no workers. Per ROM a warm-up run, then the median CPU time of nine
+// (process.cpuUsage; nine since the owner's answer to Q2 of phase-4.md, "Median of more runs", D76 b; five
+// before), the wall time for information. A fixed calibration workload is measured the same way over five
+// runs, so the ratchet against bench/baseline/speed.json scales by the ratio of this machine to the one
 // that wrote it: a ROM passes when its CPU time is at most 1.5 x its baseline x the ratio. The command
-// never writes speed.json; only the phase lead raises it, with --write-baseline (D43).
+// never writes speed.json; only the phase lead raises it, with --write-baseline (D43). Each ROM also reports
+// `budgetAnalysisCpuMs`, the median of the first five of those nine runs (exactly the warm-up and five runs every ROM
+// was measured over before D76 b), which g3.speed-budget holds to its 3 s, so that gate measures what it measured
+// before (D77 f); and `analysisRuns`, the number of samples measured, from which `runs.analysis` is derived (D77 g).
+// `runs.emission` is measured the same way since fix round 3 (D78 e): the fewest samples behind any generateCpuMs or
+// initCpuMs, 0 when no ROM got one (the synthetic tier has no cartridge).
 //
 // Phase 3 (g3.speed-budget, architecture §9.3): for every tuning ROM that is a cartridge, the same warm-up and
 // median of five for `generateCpuMs` (generate over the config configFromDiscover built beforehand, then
@@ -28,7 +34,13 @@ export const SPEED_SCHEMA = 'romlift/bench-speed@1';
 export const SPEED_BASELINE_SCHEMA = 'romlift-bench/speed@1';
 /** The ratchet of D41: the median CPU time may be at most this multiple of the baseline (calibrated). */
 export const SPEED_RATCHET = 1.5;
+/** The measured runs of the calibration and of each emission timing (g3.speed-budget). */
 export const SPEED_RUNS = 5;
+/**
+ * The measured runs of each ROM's analysis, whose median g2.speed holds to the ratchet: nine, by the owner's answer to
+ * Q2 of phase-4.md ("Median of more runs", D76 b), for sa2's headroom; the ratchet and speed.json are unchanged.
+ */
+export const ANALYSIS_SPEED_RUNS = 9;
 
 /** bench/baseline/speed.json: the calibration's CPU time and each ROM's median analysis CPU time on the machine that wrote it. */
 export interface SpeedBaseline {
@@ -39,7 +51,12 @@ export interface SpeedBaseline {
 
 export interface SpeedRom {
   readonly name: string;
+  /** The median CPU time of the ROM's ANALYSIS_SPEED_RUNS analysis runs (g2.speed). */
   readonly analysisCpuMs: number;
+  /** The median CPU time of the first SPEED_RUNS of those runs: g3.speed-budget's analysis time, as before D76 b. */
+  readonly budgetAnalysisCpuMs: number;
+  /** How many analysis runs were measured (the samples behind analysisCpuMs). */
+  readonly analysisRuns: number;
   readonly wallMs: number;
   /** 0 when the baseline does not hold the ROM. */
   readonly baselineCpuMs: number;
@@ -52,6 +69,12 @@ export interface SpeedRom {
 /** The --json line (frozen by test/gates/g2.speed.test.ts). */
 export interface SpeedReport {
   readonly schema: typeof SPEED_SCHEMA;
+  /**
+   * The measured runs behind each median (D76 b): `analysis` is the fewest analysis samples any ROM measured
+   * (SpeedRom.analysisRuns), so g2.speed, which requires it to be ANALYSIS_SPEED_RUNS, fails a run that measured fewer;
+   * `emission` the fewest behind any generateCpuMs or initCpuMs (0 when none was measured, D78 e).
+   */
+  readonly runs: { readonly calibration: number; readonly analysis: number; readonly emission: number };
   /** ratio = cpuMs / baselineCpuMs; 0 without a baseline. */
   readonly calibration: { readonly cpuMs: number; readonly baselineCpuMs: number; readonly ratio: number };
   readonly roms: readonly SpeedRom[];
@@ -88,6 +111,8 @@ export function calibrationWorkload(size = 200_000, rounds = 4): number {
 export interface MedianTimes {
   readonly cpuMs: number;
   readonly wallMs: number;
+  /** Every measured run's CPU time, in run order: its length is the number of runs measured. */
+  readonly cpuSamples: readonly number[];
 }
 
 /** A warm-up run of `fn`, then the median CPU and wall times of `runs` runs. */
@@ -100,12 +125,14 @@ export function medianTimes(fn: () => unknown, runs = SPEED_RUNS): MedianTimes {
     cpu.push(m.cpuMs);
     wall.push(m.wallMs);
   }
-  return { cpuMs: median(cpu), wallMs: median(wall) };
+  return { cpuMs: median(cpu), wallMs: median(wall), cpuSamples: cpu };
 }
 
-/** The median times of an emission run, and the warm-up's outcome (a failed one means the time is not the workload). */
-export interface EmissionTimes extends MedianTimes {
+/** The median times of an emission run, its sample count, and the warm-up's outcome (a failed one means the time is not the workload). */
+export interface EmissionTimes extends Omit<MedianTimes, 'cpuSamples'> {
   readonly outcome: EmissionOutcome;
+  /** The measured runs behind the medians. */
+  readonly runs: number;
 }
 
 /**
@@ -133,12 +160,18 @@ export async function medianEmissionTimes(fn: (dir: string) => Promise<EmissionO
     cpu.push(m.cpuMs);
     wall.push(m.wallMs);
   }
-  return { cpuMs: median(cpu), wallMs: median(wall), outcome: warm.outcome };
+  return { cpuMs: median(cpu), wallMs: median(wall), outcome: warm.outcome, runs: cpu.length };
 }
 
-/** The generateCpuMs and initCpuMs of a ROM, each only when its run wrote the tree; one log line each. */
-export async function emissionTimes(rom: Rom, runner: EmissionRunner, log: (line: string) => void, runs = SPEED_RUNS): Promise<Pick<SpeedRom, 'generateCpuMs' | 'initCpuMs'>> {
-  if (checkRom(rom.bytes).length > 0) return {};
+/** A ROM's emission timings and the fewest measured runs behind the ones it got (0 when it got none). */
+export interface EmissionMeasurement {
+  readonly times: Pick<SpeedRom, 'generateCpuMs' | 'initCpuMs'>;
+  readonly runs: number;
+}
+
+/** The generateCpuMs and initCpuMs of a ROM, each only when its run wrote the tree, with their run count; one log line each. */
+export async function emissionTimes(rom: Rom, runner: EmissionRunner, log: (line: string) => void, runs = SPEED_RUNS): Promise<EmissionMeasurement> {
+  if (checkRom(rom.bytes).length > 0) return { times: {}, runs: 0 };
   const config = runner.prepare(rom);
   const generate = await medianEmissionTimes((dir) => runner.generate(rom, config, dir), runs);
   const init = await medianEmissionTimes((dir) => runner.init(rom, dir), runs);
@@ -146,7 +179,32 @@ export async function emissionTimes(rom: Rom, runner: EmissionRunner, log: (line
     log(`  ${label.padEnd(8)} ${t.cpuMs.toFixed(1)} ms CPU, ${t.wallMs.toFixed(1)} ms wall, ${t.outcome.files} files${t.outcome.ok ? '' : `: NOT MEASURED, ${t.outcome.detail}`}`);
   report('generate', generate);
   report('init', init);
-  return { ...(generate.outcome.ok ? { generateCpuMs: generate.cpuMs } : {}), ...(init.outcome.ok ? { initCpuMs: init.cpuMs } : {}) };
+  const measured = [generate, init].filter((t) => t.outcome.ok);
+  return {
+    times: { ...(generate.outcome.ok ? { generateCpuMs: generate.cpuMs } : {}), ...(init.outcome.ok ? { initCpuMs: init.cpuMs } : {}) },
+    runs: fewest(measured.map((t) => t.runs)),
+  };
+}
+
+/** The smallest of `counts`, or 0 when there is none (no ROM measured: never Infinity). */
+export function fewest(counts: readonly number[]): number {
+  return counts.length === 0 ? 0 : Math.min(...counts);
+}
+
+/**
+ * A ROM's analysis row from its measured analysis runs: `analysisCpuMs` the median of every sample (g2.speed),
+ * `budgetAnalysisCpuMs` the median of the first SPEED_RUNS of them (g3.speed-budget, D77 f), `analysisRuns` how many
+ * there are (D77 g).
+ */
+export function analysisRow(name: string, times: MedianTimes, baselineCpuMs: number): Omit<SpeedRom, 'generateCpuMs' | 'initCpuMs'> {
+  return {
+    name,
+    analysisCpuMs: times.cpuMs,
+    budgetAnalysisCpuMs: median(times.cpuSamples.slice(0, SPEED_RUNS)),
+    analysisRuns: times.cpuSamples.length,
+    wallMs: times.wallMs,
+    baselineCpuMs,
+  };
 }
 
 /** cpuMs / baselineCpuMs, or 0 when there is no baseline. */
@@ -226,26 +284,29 @@ export async function benchSpeed(cx: BenchContext, options: SpeedOptions): Promi
   const profile = benchProfile();
   const tuning = analysisTuning(DEFAULT_RUN_TUNING);
   const roms: SpeedRom[] = [];
+  const emissionRuns: number[] = [];
   for (const d of chosen) {
     const inputs = await readRealInputs(cx, d);
     let times: MedianTimes;
     try {
-      times = medianTimes(() => options.runner.analyze(inputs.rom, profile, discoverOptions(), tuning));
+      times = medianTimes(() => options.runner.analyze(inputs.rom, profile, discoverOptions(), tuning), ANALYSIS_SPEED_RUNS);
     } catch (error) {
       throw new BenchError(`${d.name}: the analysis failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const analysis: SpeedRom = { name: d.name, analysisCpuMs: times.cpuMs, wallMs: times.wallMs, baselineCpuMs: baseline?.roms[d.name]?.analysisCpuMs ?? 0 };
+    const analysis = analysisRow(d.name, times, baseline?.roms[d.name]?.analysisCpuMs ?? 0);
     const limit = SPEED_RATCHET * analysis.baselineCpuMs * ratio;
     log(`${d.name.padEnd(12)} ${analysis.analysisCpuMs.toFixed(1)} ms CPU, ${analysis.wallMs.toFixed(1)} ms wall, ${analysis.baselineCpuMs > 0 ? `limit ${limit.toFixed(1)} ms: ${withinRatchet(analysis, ratio) ? 'ok' : 'SLOWER'}` : 'no baseline'}`);
-    let emission: Pick<SpeedRom, 'generateCpuMs' | 'initCpuMs'>;
+    let emission: EmissionMeasurement;
     try {
       emission = await emissionTimes(inputs.rom, options.emission ?? ROMLIFT_EMISSION, log);
     } catch (error) {
       throw new BenchError(`${d.name}: the emission failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    roms.push({ ...analysis, ...emission });
+    roms.push({ ...analysis, ...emission.times });
+    if (emission.runs > 0) emissionRuns.push(emission.runs);
   }
-  const report: SpeedReport = { schema: SPEED_SCHEMA, calibration: { cpuMs: calibration.cpuMs, baselineCpuMs: baselineCalibration, ratio }, roms };
+  const runs = { calibration: calibration.cpuSamples.length, analysis: fewest(roms.map((r) => r.analysisRuns)), emission: fewest(emissionRuns) };
+  const report: SpeedReport = { schema: SPEED_SCHEMA, runs, calibration: { cpuMs: calibration.cpuMs, baselineCpuMs: baselineCalibration, ratio }, roms };
   if (options.writeBaseline === true) {
     await writeText(speedBaselinePath(cx), prettyJson(raisedBaseline(baseline, report)));
     log('wrote bench/baseline/speed.json (the phase lead commits it)');

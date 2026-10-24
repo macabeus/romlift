@@ -9,7 +9,9 @@
 //            `as --version` line that differs is a note. Exit 0 only when every fixture agrees.
 //
 // The toolchain: agbcc from ROMLIFT_AGBCC (a directory holding bin/agbcc), else
-// $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc; binutils from the PATH. The agbcc commit is
+// $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, and old_agbcc beside it (bin/old_agbcc, built from the
+// same commit), which make gets as OLD_AGBCC for the sources a build.mk lists in OLD_AGBCC_SRCS; a
+// fixture that lists one fails when bin/old_agbcc is missing. Binutils from the PATH. The agbcc commit is
 // ROMLIFT_AGBCC_COMMIT, else the HEAD of the git checkout whose top level is that directory; when
 // neither names it, `check` notes that the commit is unknown and the rebuilt bytes decide, and
 // `rebuild` refuses to write a record. --json prints a final summary line.
@@ -18,7 +20,7 @@
 import { execFile } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, readdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { compareCodeUnits, parseElf, type ElfFile, type ElfSymbolType } from 'romlift';
@@ -42,6 +44,8 @@ export interface ToolchainRecord {
 /** The toolchain of this run; `agbccCommit` is undefined when nothing names it. */
 export interface ToolchainInUse {
   readonly agbcc: string;
+  /** bin/old_agbcc beside agbcc, or undefined when that file does not exist. */
+  readonly oldAgbcc: string | undefined;
   readonly agbccCommit: string | undefined;
   readonly binutils: Binutils;
   readonly asVersion: string;
@@ -97,6 +101,28 @@ export function withToolchainRecord(buildMk: string, record: ToolchainRecord): s
   const at = lines.findIndex((l) => l.startsWith('include '));
   const index = at === -1 ? lines.length : at;
   return [...lines.slice(0, index), ...block, ...lines.slice(index)].join('\n');
+}
+
+const OLD_AGBCC_SRCS_KEY = 'OLD_AGBCC_SRCS';
+
+/** The sources a build.mk compiles with old_agbcc (its `OLD_AGBCC_SRCS := …` line), in the order it lists them. */
+export function oldAgbccSources(buildMk: string): readonly string[] {
+  return (recordLine(buildMk, OLD_AGBCC_SRCS_KEY) ?? '').split(/\s+/).filter((s) => s !== '');
+}
+
+/** old_agbcc beside an agbcc executable: the same directory, `old_agbcc` (pret/agbcc's install.sh puts both in bin/). */
+export function oldAgbccBeside(agbcc: string): string {
+  return join(dirname(agbcc), 'old_agbcc');
+}
+
+/** The make arguments of one fixture build into `out` (OLD_AGBCC only when the toolchain has it). */
+export function makeArgs(out: string, toolchain: Pick<ToolchainInUse, 'agbcc' | 'oldAgbcc' | 'binutils'>): readonly string[] {
+  return [
+    '-f', 'build.mk', '--no-print-directory',
+    `BUILD=${out}`, `AGBCC=${toolchain.agbcc}`,
+    ...(toolchain.oldAgbcc === undefined ? [] : [`OLD_AGBCC=${toolchain.oldAgbcc}`]),
+    `ARM_AS=${toolchain.binutils.as}`, `ARM_LD=${toolchain.binutils.ld}`, `ARM_OBJCOPY=${toolchain.binutils.objcopy}`,
+  ];
 }
 
 /** Whether two commit spellings name the same commit: equal, or one a prefix (at least 7 digits) of the other. */
@@ -230,11 +256,12 @@ async function toolchainFromEnv(env: Readonly<Record<string, string | undefined>
   const dir = named !== undefined && named !== '' ? named : join(contextFromEnv(env).benchRoot, 'pokeemerald', 'tools', 'agbcc');
   const agbcc = join(dir, 'bin', 'agbcc');
   if (!(await exists(agbcc))) throw new BenchError(`no agbcc at ${agbcc}: set ROMLIFT_AGBCC to a directory holding bin/agbcc`);
+  const oldAgbcc = oldAgbccBeside(agbcc);
   const binutils = findBinutils(env);
   if ('code' in binutils) throw new BenchError(binutils.message);
   const versions = await binutilsVersions(binutils);
   if (versions.as === '') throw new BenchError(`${binutils.as} --version printed nothing`);
-  return { agbcc, agbccCommit: await agbccCommit(dir, env), binutils, asVersion: versions.as };
+  return { agbcc, oldAgbcc: (await exists(oldAgbcc)) ? oldAgbcc : undefined, agbccCommit: await agbccCommit(dir, env), binutils, asVersion: versions.as };
 }
 
 function buildOf(gba: Uint8Array, elfBytes: Uint8Array, what: string): FixtureBuild {
@@ -247,14 +274,14 @@ async function readBuild(dir: string, name: string, what: string): Promise<Fixtu
   return buildOf(await readFileBytes(join(dir, `${name}.gba`)), await readFileBytes(join(dir, `${name}.elf`)), what);
 }
 
-/** Builds fixture `name` into `out` with make; throws with make's output when it fails. */
+/** Builds fixture `name` into `out` with make; throws with make's output when it fails, or when it needs a missing old_agbcc. */
 async function make(name: string, out: string, toolchain: ToolchainInUse): Promise<void> {
-  const args = [
-    '-f', 'build.mk', '--no-print-directory',
-    `BUILD=${out}`, `AGBCC=${toolchain.agbcc}`,
-    `ARM_AS=${toolchain.binutils.as}`, `ARM_LD=${toolchain.binutils.ld}`, `ARM_OBJCOPY=${toolchain.binutils.objcopy}`,
-  ];
-  const made = await run('make', args, join(SYNTHETIC_DIR, name));
+  const dir = join(SYNTHETIC_DIR, name);
+  const old = oldAgbccSources(await readText(join(dir, 'build.mk')));
+  if (old.length > 0 && toolchain.oldAgbcc === undefined) {
+    throw new BenchError(`${name}: compiles ${old.join(', ')} with old_agbcc, and there is no ${oldAgbccBeside(toolchain.agbcc)}`);
+  }
+  const made = await run('make', makeArgs(out, toolchain), dir);
   if (made.code !== 0) throw new BenchError(`${name}: make exited ${made.code}:\n${made.stdout}${made.stderr}`);
 }
 

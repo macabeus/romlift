@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 
-import { atomicWrite, listDir, readBytes } from '../../../src/shell/fs.ts';
+import { atomicWrite, isDirectory, listDir, readBytes } from '../../../src/shell/fs.ts';
 
 let dir = '';
 
@@ -113,4 +113,22 @@ test('atomicWrite with inPlaceWhenAbsent and not durable creates an absent file 
   assert.ok(!failed.ok);
   assert.equal(failed.diagnostic.code, 'E_IO_WRITE');
   assert.deepEqual(await readdir(sub), ['gen.s', 'stream.s']);
+});
+
+// Fix round 5 (architecture-b0-6): a failure other than ENOENT/ENOTDIR is reported, never read as absent.
+test('isDirectory: absent and a file are false; a path it cannot examine is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  await mkdir(join(dir, 'is-dir', 'locked', 'inner'), { recursive: true });
+  await writeFile(join(dir, 'is-dir', 'file'), 'x');
+  assert.deepEqual(await isDirectory(join(dir, 'is-dir', 'locked')), { ok: true, value: true });
+  assert.deepEqual(await isDirectory(join(dir, 'is-dir', 'absent')), { ok: true, value: false });
+  assert.deepEqual(await isDirectory(join(dir, 'is-dir', 'file')), { ok: true, value: false });
+  assert.deepEqual(await isDirectory(join(dir, 'is-dir', 'file', 'below')), { ok: true, value: false }, 'ENOTDIR');
+  await chmod(join(dir, 'is-dir', 'locked'), 0o000);
+  try {
+    const locked = await isDirectory(join(dir, 'is-dir', 'locked', 'inner'));
+    assert.equal(locked.ok, false);
+    assert.ok(!locked.ok && locked.diagnostic.code === 'E_IO_READ');
+  } finally {
+    await chmod(join(dir, 'is-dir', 'locked'), 0o755);
+  }
 });

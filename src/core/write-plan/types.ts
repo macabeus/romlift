@@ -14,7 +14,9 @@ export interface Manifest {
 }
 
 export type WriteOp =
-  | { readonly op: 'write'; readonly path: string; readonly text: string; readonly sha1: string; readonly writer: WriterId }
+  | { readonly op: 'write'; readonly path: string; readonly text: string; readonly sha1: string; readonly writer: WriterId; readonly executable?: true }
+  /** A scaffold file that must be executable (setup.sh) and is not on disk: its executable bits are set. */
+  | { readonly op: 'mode'; readonly path: string; readonly executable: true }
   | { readonly op: 'edit'; readonly path: string; readonly baseSha1: string; readonly resultSha1: string; readonly text: string }
   | { readonly op: 'delete'; readonly path: string }
   | { readonly op: 'keep'; readonly path: string; readonly sha1: string };
@@ -42,6 +44,11 @@ export interface WritePlanInputs {
   readonly journal?: Journal | null;
   /** The romlift version stamped on the new manifest; default the old manifest's, else 'unknown'. */
   readonly romlift?: string;
+  /**
+   * The tree paths of executable scaffold entries whose file on disk has the executable bits; such an entry whose
+   * file exists without them gets a `mode` op. Default: none.
+   */
+  readonly executables?: ReadonlySet<string>;
 }
 
 export interface WritePlan {

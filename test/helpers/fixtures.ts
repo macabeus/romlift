@@ -5,6 +5,7 @@
 //
 // expect.json (frozen by test/gates/g2.synthetic-analysis.test.ts):
 //   { negative?: boolean, entries: [{ addr, mode: 'thumb' | 'arm', extent?: { start, end } }], codeEnd? }
+// plus, on the phase-4 fixtures, the keys the g4 gates read (init, illegalBorder, compilers), not parsed here.
 // with addresses as "0x..." strings (numbers are accepted, as the gate accepts them). The entries are
 // every FUNC symbol of the fixture's ELF inside the ROM, the two startup functions of common/crt0.s
 // included: the gate allows a negative fixture no entry beyond its list.
@@ -90,7 +91,12 @@ function address(value: unknown, where: string): number {
   return n;
 }
 
-const KEYS = new Set(['negative', 'entries', 'codeEnd']);
+/**
+ * The keys an expect.json may hold: the analysis expectation above, and the phase-4 keys the g4 gates read and
+ * this parser leaves to them (`init` in g4.e2e-fixtures and g4.multi-compiler, `illegalBorder` in g4.e2e-fixtures,
+ * `compilers` in g4.multi-compiler; test/unit/fixtures/phase4-fixtures.test.ts checks their shapes).
+ */
+const KEYS = new Set(['negative', 'entries', 'codeEnd', 'init', 'illegalBorder', 'compilers']);
 
 /** Parses and checks the text of an expect.json; throws naming `where` and the first problem. */
 export function parseExpect(text: string, where: string): FixtureExpect {

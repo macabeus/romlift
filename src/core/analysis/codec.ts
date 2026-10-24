@@ -97,6 +97,15 @@ const bool: Codec<boolean> = {
   },
 };
 
+/** The literal true of a flag that is absent when false. */
+const yes: Codec<true> = {
+  enc: (b) => b,
+  dec(json, at) {
+    if (json !== true) throw new Malformed(at, `expected true, got ${JSON.stringify(json)}`);
+    return json;
+  },
+};
+
 const text: Codec<string> = {
   enc: (s) => s,
   dec(json, at) {
@@ -250,6 +259,7 @@ const seed = record<Seed>({
   name: optional(text),
   size: optional(count),
   label: optional(bool),
+  validate: optional(yes),
 });
 
 const overrideFact = record<OverrideFact>({ span: required(span), kind: required(oneOf<OverrideFact['kind']>(['code', 'data'])), mode: optional(mode), runsAt: optional(addr) });

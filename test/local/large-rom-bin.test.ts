@@ -3,8 +3,9 @@
 // under it"; phase-3.md, fix round 4). g3.large-rom measures the bench's `init` and `generate` workflow children; the CLI's commands take their own
 // paths (verify's generateFromRom, analyze's and model's NDJSON), so `bench/src/large-rom.ts --bin` runs each of
 // them from source with the Node options of src/cli/main.ts's first line, and every one must exit 0 with an ok summary
-// (and, after --link, the ROM's SHA-1). Their peak RSS and live heap are recorded in phase-3.md, not judged: the budget
-// is the gate's.
+// (and, after --link, the ROM's SHA-1). From phase 4 that includes the one-shot workflow (roadmap 4.E): `init` in a
+// directory holding only the ROM as baserom.gba, then `generate` in the project it wrote. Their peak RSS and live heap
+// are recorded in the phase records, not judged: the budget is the gate's.
 //
 // Needs no ROM (the image is built from the committed fixtures); missing binutils makes the test `unavailable`, or
 // fails it when ROMLIFT_REQUIRE_LOCAL=1. About fifteen minutes of CPU, one command after another.
@@ -37,7 +38,7 @@ interface Report {
   }[];
 }
 
-test('the romlift bin completes every command on the 32 MiB synthetic ROM under its 1,024 MiB heap cap', { skip: REQUIRE ? false : (unavailable ?? false) }, () => {
+test('the romlift bin completes every command, init and generate among them, on the 32 MiB synthetic ROM under its 1,024 MiB heap cap', { skip: REQUIRE ? false : (unavailable ?? false) }, () => {
   assert.equal(unavailable, undefined, unavailable);
   const ran = spawnSync(process.execPath, ['--conditions=source', path.join(REPO, 'bench', 'src', 'large-rom.ts'), '--bin', '--json'], { cwd: REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const last = ran.stdout.trimEnd().split('\n').at(-1) ?? '';
@@ -60,6 +61,8 @@ test('the romlift bin completes every command on the 32 MiB synthetic ROM under 
       'verify --assemble --link --json',
       'verify --printer raw --assemble --json',
       'verify --printer raw --link --json',
+      'init --json',
+      'generate --json',
     ],
   );
   const failed = report.runs.filter((r) => r.exitCode !== 0 || r.summaryOk === false || (r.command.includes('--link') && r.sha1 !== report.sha1));

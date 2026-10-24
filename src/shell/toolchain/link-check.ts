@@ -2,9 +2,15 @@
 // `linkCheck` assembles every build unit with arm-none-eabi-as, links them with the tree's ldscript.txt,
 // copies the image out with objcopy -O binary and hashes it (`verify --link`, the final proof);
 // `assembleCheck` assembles each unit and reads its object (`verify --assemble`). Mechanical: it runs the
-// programs, writes the two files a link needs and reads what the programs wrote; every verdict on those bytes
+// programs, writes the files a link needs and reads what the programs wrote; every verdict on those bytes
 // is core/verify/toolchain.ts's, and the tree, the units and their spans come from the caller
 // (core/model/paths.ts buildUnits).
+//
+// A C unit (source `src/<module>.c`, object `build/src/<module>.o`, D74 f) needs no compiler here: its stub is read
+// back (core/verify/c-stub.ts stubAssemblyOf) into the assembly agbcc emits for it (core/model/c-unit.ts, measured
+// and proved by test/local/c-stub-agbcc.test.ts), which is written to `build/src/<module>.s` and assembled like an
+// asm unit, so `verify --assemble/--link` and the g3 gates still need only binutils. A C file that is not a
+// stub-only unit (a decompiled function, a declaration) is refused with its first problem.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
@@ -13,7 +19,9 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { BuildUnit } from '../../core/model/paths.ts';
-import { BASEROM_PATH, LDSCRIPT_PATH, MACROS_PATH } from '../../core/model/paths.ts';
+import { isCSource } from '../../foundation/util/project-files.ts';
+import { BASEROM_PATH, cAssemblyPath, LDSCRIPT_PATH, MACROS_PATH } from '../../core/model/paths.ts';
+import { stubAssemblyOf } from '../../core/verify/c-stub.ts';
 import { assembleFailure, assembleVerdict, compareObject, linkFailure, linkVerdict, unassemblable } from '../../core/verify/toolchain.ts';
 import type { AssembleUnit } from '../../core/model/paths.ts';
 import type { AssembleCheckResult, LinkCheckResult, ModuleAssembly } from '../../core/verify/toolchain.ts';
@@ -89,8 +97,41 @@ async function prepare(dir: string, rom: Rom): Promise<Diagnostic | undefined> {
   return (await writeIfAbsent(dir, MACROS_PATH, DIALECT.macrosInc)) ?? (await writeIfAbsent(dir, BASEROM_PATH, rom.bytes));
 }
 
-/** Assembles one unit's source to its object, with DIALECT.asArgs and `-I <dir>`, from `dir`. */
-async function assembleUnit(dir: string, unit: BuildUnit, tools: Binutils): Promise<Diagnostic | undefined> {
+/** Writes `text` at `path` under `dir`, replacing what is there (a build product, like an object). */
+async function writeBuildFile(dir: string, path: string, text: string): Promise<Diagnostic | undefined> {
+  const file = onDisk(dir, path);
+  try {
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, text);
+    return undefined;
+  } catch (error) {
+    return diagnostic(ShellCodes, 'E_IO_WRITE', `cannot write ${file}: ${errorReason(error)}`, { path: file });
+  }
+}
+
+/**
+ * The unit `as` assembles for `unit`: itself for an assembly source; for a C source, its stub's agbcc assembly,
+ * written to build/src/<module>.s (core/verify/c-stub.ts stubAssemblyOf), with the same object.
+ */
+async function assemblySource(dir: string, unit: BuildUnit): Promise<BuildUnit | Diagnostic> {
+  if (!isCSource(unit.source)) return unit;
+  const text = await readOutput(dir, unit.source);
+  if (isDiagnostic(text)) return text;
+  const assembly = stubAssemblyOf(new TextDecoder().decode(text));
+  if (!assembly.ok) {
+    const first = assembly.problems[0];
+    const message = `${unit.source} line ${first?.line ?? 1} ${first?.message ?? ''}: only a stub-only C unit assembles without a compiler`;
+    return diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', message, { path: unit.source });
+  }
+  const source = cAssemblyPath(unit.module);
+  const written = await writeBuildFile(dir, source, assembly.text);
+  return written ?? { ...unit, source };
+}
+
+/** Assembles one unit's source to its object, with DIALECT.asArgs and `-I <dir>`, from `dir` (a C unit from its stub's assembly). */
+async function assembleUnit(dir: string, given: BuildUnit, tools: Binutils): Promise<Diagnostic | undefined> {
+  const unit = await assemblySource(dir, given);
+  if ('code' in unit) return unit;
   const refused = unassemblable(unit);
   if (refused !== undefined) return diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', refused, { path: unit.source });
   try {

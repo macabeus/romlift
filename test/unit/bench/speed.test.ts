@@ -14,10 +14,12 @@ import { sha1Of } from 'romlift/node';
 import type { EmissionRunner } from '../../../bench/src/emission-run.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 import {
+  analysisRow,
   benchSpeed,
   calibrationRatio,
   calibrationWorkload,
   emissionTimes,
+  fewest,
   median,
   medianEmissionTimes,
   medianTimes,
@@ -42,6 +44,17 @@ test('medianTimes runs a warm-up and then the given number of measured runs', ()
   const t = medianTimes(() => calls++, 5);
   assert.equal(calls, 6);
   assert.ok(t.cpuMs >= 0 && t.wallMs >= 0);
+  assert.equal(t.cpuSamples.length, 5, 'the samples measured, which bench speed reports as its run counts (D77 g)');
+});
+
+test('analysisRow: g2.speed reads the median of all nine samples, g3.speed-budget the median of the first five (D77 f, g)', () => {
+  // Nine known samples in run order: the first five's median is 30, all nine's is 50.
+  const cpuSamples = [10, 50, 30, 20, 40, 90, 80, 70, 60];
+  const row = analysisRow('sa2', { cpuMs: median(cpuSamples), wallMs: 7, cpuSamples }, 100);
+  assert.deepEqual(row, { name: 'sa2', analysisCpuMs: 50, budgetAnalysisCpuMs: 30, analysisRuns: 9, wallMs: 7, baselineCpuMs: 100 });
+  assert.equal(analysisRow('x', { cpuMs: 1, wallMs: 1, cpuSamples: [3, 1, 2] }, 0).budgetAnalysisCpuMs, 2, 'fewer than five: all of them');
+  assert.equal(fewest([9, 5, 9]), 5);
+  assert.equal(fewest([]), 0, 'no ROM measured: 0, never Infinity');
 });
 
 test('the calibration workload is deterministic', () => {
@@ -63,7 +76,7 @@ test('speed.json: parsed strictly, and raised with the measured ROMs replaced an
   const base = parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 100 }, roms: { sa3: { analysisCpuMs: 900 }, fe7j: { analysisCpuMs: 800 } } }, 'x');
   assert.throws(() => parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 0 }, roms: {} }, 'x'), /calibration\.cpuMs must be a positive number/);
   assert.throws(() => parseSpeedBaseline({ schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 1 }, roms: { a: {} } }, 'x'), /roms\.a\.analysisCpuMs/);
-  const report: SpeedReport = { schema: 'romlift/bench-speed@1', calibration: { cpuMs: 123.456, baselineCpuMs: 100, ratio: 1.23 }, roms: [{ name: 'fe7j', analysisCpuMs: 700.04, wallMs: 701, baselineCpuMs: 800 }] };
+  const report: SpeedReport = { schema: 'romlift/bench-speed@1', runs: { calibration: 5, analysis: 9, emission: 5 }, calibration: { cpuMs: 123.456, baselineCpuMs: 100, ratio: 1.23 }, roms: [{ name: 'fe7j', analysisCpuMs: 700.04, budgetAnalysisCpuMs: 699, analysisRuns: 9, wallMs: 701, baselineCpuMs: 800 }] };
   const raised = raisedBaseline(base, report);
   assert.deepEqual(raised, { schema: SPEED_BASELINE_SCHEMA, calibration: { cpuMs: 123.46 }, roms: { fe7j: { analysisCpuMs: 700.04 }, sa3: { analysisCpuMs: 900 } } });
   assert.deepEqual(Object.keys(raised.roms), ['fe7j', 'sa3']);
@@ -83,12 +96,15 @@ test('bench speed --json prints the frozen shape, never writes speed.json, and t
     // Without a baseline the ratchet cannot hold: exit 1, baselines 0.
     assert.equal(await main(['speed', '--json'], cx, io, deps), 1);
     const first = JSON.parse(io.lines.at(-1) ?? '') as SpeedReport;
-    assert.deepEqual(Object.keys(first), ['schema', 'calibration', 'roms']);
+    assert.deepEqual(Object.keys(first), ['schema', 'runs', 'calibration', 'roms']);
     assert.equal(first.schema, 'romlift/bench-speed@1');
+    // The owner's answer to Q2 of phase-4.md (D76 b): each ROM's analysis is the median of nine runs.
+    // The emission count is measured (D78 e): the synthetic tier is no cartridge, so no emission sample.
+    assert.deepEqual(first.runs, { calibration: 5, analysis: 9, emission: 0 });
     assert.deepEqual(Object.keys(first.calibration), ['cpuMs', 'baselineCpuMs', 'ratio']);
     assert.deepEqual(first.calibration.baselineCpuMs, 0);
     assert.deepEqual(first.calibration.ratio, 0);
-    assert.deepEqual(first.roms.map((r) => [r.name, Object.keys(r), r.baselineCpuMs]), [['tiny', ['name', 'analysisCpuMs', 'wallMs', 'baselineCpuMs'], 0]]);
+    assert.deepEqual(first.roms.map((r) => [r.name, Object.keys(r), r.baselineCpuMs, r.analysisRuns]), [['tiny', ['name', 'analysisCpuMs', 'budgetAnalysisCpuMs', 'analysisRuns', 'wallMs', 'baselineCpuMs'], 0, 9]]);
     await assert.rejects(readFile(path, 'utf8'), /ENOENT/);
     assert.equal(await main(['speed', '--write-baseline'], cx, (io = capture()), deps), 0);
     const written = parseSpeedBaseline(JSON.parse(await readFile(path, 'utf8')), path);
@@ -129,6 +145,7 @@ test('medianEmissionTimes: a warm-up and five runs, each in its own fresh empty 
   assert.equal(new Set(dirs).size, 6);
   assert.ok(dirs.every((d) => !existsSync(d)));
   assert.ok(t.cpuMs >= 0 && t.wallMs >= 0 && t.outcome.ok);
+  assert.equal(t.runs, 5);
 });
 
 function fakeEmission(ok: { readonly generate: boolean; readonly init: boolean }, calls: string[]): EmissionRunner {
@@ -157,11 +174,15 @@ test('emissionTimes: the config is prepared once, outside the timings; each work
   const log: string[] = [];
   const both = await emissionTimes(rom, fakeEmission({ generate: true, init: true }, calls), (l) => log.push(l));
   assert.deepEqual(calls, ['prepare', ...Array<string>(6).fill('generate'), ...Array<string>(6).fill('init')]);
-  assert.deepEqual(Object.keys(both), ['generateCpuMs', 'initCpuMs']);
-  assert.ok((both.generateCpuMs ?? -1) >= 0 && (both.initCpuMs ?? -1) >= 0);
+  assert.deepEqual(Object.keys(both.times), ['generateCpuMs', 'initCpuMs']);
+  assert.ok((both.times.generateCpuMs ?? -1) >= 0 && (both.times.initCpuMs ?? -1) >= 0);
+  assert.equal(both.runs, 5, 'the measured samples behind the medians (D78 e)');
   assert.equal(log.length, 2);
   const failed = await emissionTimes(rom, fakeEmission({ generate: false, init: true }, []), (l) => log.push(l));
-  assert.deepEqual(Object.keys(failed), ['initCpuMs']);
+  assert.deepEqual(Object.keys(failed.times), ['initCpuMs']);
+  assert.equal(failed.runs, 5);
+  assert.equal((await emissionTimes(rom, fakeEmission({ generate: false, init: false }, []), () => {})).runs, 0, 'nothing measured');
+  assert.equal((await emissionTimes(rom, fakeEmission({ generate: true, init: true }, []), () => {}, 3)).runs, 3);
   assert.match(log.at(-2) ?? '', /generate .* NOT MEASURED, the paths check failed/);
 });
 
@@ -169,7 +190,7 @@ test('emissionTimes measures nothing on an image that is not a cartridge', async
   const bytes = new Uint8Array(0x40);
   const rom = romFromBytes(bytes, sha1Of(bytes));
   const calls: string[] = [];
-  assert.deepEqual(await emissionTimes(rom, fakeEmission({ generate: true, init: true }, calls), () => {}), {});
+  assert.deepEqual(await emissionTimes(rom, fakeEmission({ generate: true, init: true }, calls), () => {}), { times: {}, runs: 0 });
   assert.deepEqual(calls, []);
 });
 
@@ -179,6 +200,6 @@ test('bench speed passes its emission runner through; the synthetic tier, which 
     const calls: string[] = [];
     const report = await benchSpeed(cx, { runner: TINY_DEPS.runner, calibrate: () => calibrationWorkload(1000, 1), emission: fakeEmission({ generate: true, init: true }, calls) });
     assert.deepEqual(calls, []);
-    assert.deepEqual(report.roms.map((r) => Object.keys(r)), [['name', 'analysisCpuMs', 'wallMs', 'baselineCpuMs']]);
+    assert.deepEqual(report.roms.map((r) => Object.keys(r)), [['name', 'analysisCpuMs', 'budgetAnalysisCpuMs', 'analysisRuns', 'wallMs', 'baselineCpuMs']]);
   });
 });

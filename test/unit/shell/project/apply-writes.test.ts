@@ -4,9 +4,11 @@
 // reads the journal into planWrites, converges to the same tree and manifest as an uninterrupted run.
 //
 // The fault is real: the path of the op that must fail is replaced by a directory (a rename onto it and an
-// unlink of it both fail), and removed again before the next run, as a crash leaves the old file in place.
+// unlink of it both fail), and removed again before the next run, as a crash leaves the old file in place. A crash
+// between the two renames of a case rename is a child process killed there (architecture-r2-4).
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, readFile, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
@@ -19,7 +21,7 @@ import { JOURNAL_PATH, MANIFEST_PATH } from '../../../../src/core/write-plan/typ
 import type { Manifest, WritePlan } from '../../../../src/core/write-plan/types.ts';
 import { sha1Of } from '../../../../src/shell/hash.ts';
 import { applyWrites, durableOp } from '../../../../src/shell/project/apply-writes.ts';
-import { readDiskState, readJournal, readManifest, readReconciledTexts } from '../../../../src/shell/project/disk-state.ts';
+import { readDiskState, readExecutables, readJournal, readManifest, readReconciledTexts } from '../../../../src/shell/project/disk-state.ts';
 import { withProjectLock } from '../../../../src/shell/project/lock.ts';
 
 const roots: string[] = [];
@@ -45,7 +47,7 @@ async function sameDirUnderOtherCase(dir: string, a: string, b: string): Promise
 }
 
 const BASE_C = '#include "global.h"\n\nINCLUDE_ASM("asm/nonmatchings/main", Old);\n';
-const RENAME: TextEdit = { start: BASE_C.indexOf('Old'), end: BASE_C.indexOf('Old') + 3, text: 'New', reason: 'rename' };
+const RENAME: TextEdit = { start: BASE_C.indexOf('Old'), end: BASE_C.indexOf('Old') + 3, text: 'New', reason: 'add-stub' };
 
 /** The project before the run: an old manifest, a file it no longer generates, a user Makefile and C file. */
 const INITIAL: Readonly<Record<string, string>> = {
@@ -186,6 +188,20 @@ test('a plan with an error diagnostic is refused and nothing is touched', async 
   assert.deepEqual(await filesOf(dir), before);
 });
 
+test('a save between the plan and the write is E_STALE_EDIT: the edit is not written, the save is kept, the journal stays (correctness-a2-5)', async () => {
+  const dir = await tempDir();
+  await seed(dir);
+  const plan = await planFor(dir, tree());
+  assert.deepEqual(plan.diagnostics, []);
+  const saved = `${BASE_C}/* USER EDIT */\n`;
+  await writeFile(join(dir, 'src/main.c'), saved);
+  const applied = await applyWrites(dir, plan);
+  assert.equal(applied.ok, false);
+  assert.deepEqual(applied.diagnostics.map((d) => [d.code, d.path]), [['E_STALE_EDIT', 'src/main.c']]);
+  assert.equal(await readFile(join(dir, 'src/main.c'), 'utf8'), saved);
+  assert.equal(await exists(join(dir, JOURNAL_PATH)), true, 'the journal is left for the next run');
+});
+
 /** Replaces `path` by a directory, so writing or removing it fails; returns the undo. */
 async function obstruct(dir: string, path: string): Promise<() => Promise<void>> {
   const file = join(dir, path);
@@ -253,6 +269,22 @@ test('an op path that is not a project path is refused before anything is writte
   assert.equal(applied.ok, false);
   assert.deepEqual(applied.diagnostics.map((d) => d.code), ['E_IO_WRITE']);
   assert.deepEqual(await filesOf(dir), {});
+});
+
+test('an executable entry is written executable before its rename; a mode op restores the bits a crash or a checkout lost (architecture-4)', async () => {
+  const dir = await tempDir();
+  const setup: FileEntry = { ownership: 'scaffold', path: 'setup.sh', text: '#!/bin/sh\n', writer: 'scaffold', executable: true };
+  const plan1 = planWrites({ entries: [setup], manifest: null, disk: new Map([['setup.sh', 'absent']]), reconciledTexts: new Map(), hash: sha1Of, retained: [] });
+  assert.equal((await applyWrites(dir, plan1)).ok, true);
+  assert.equal((await stat(join(dir, 'setup.sh'))).mode & 0o777, 0o755);
+  await chmod(join(dir, 'setup.sh'), 0o644);
+  const disk = await readDiskState(dir, ['setup.sh']);
+  assert.ok(disk.ok);
+  const plan2 = planWrites({ entries: [setup], manifest: plan1.manifest, disk: disk.value, reconciledTexts: new Map(), hash: sha1Of, retained: [], executables: await readExecutables(dir, ['setup.sh']) });
+  assert.deepEqual(plan2.ops, [{ op: 'mode', path: 'setup.sh', executable: true }]);
+  assert.equal((await applyWrites(dir, plan2)).ok, true);
+  assert.equal((await stat(join(dir, 'setup.sh'))).mode & 0o777, 0o755);
+  assert.deepEqual([...(await readExecutables(dir, ['setup.sh', 'absent.sh']))], ['setup.sh']);
 });
 
 test('durableOp: an edit and a scaffold or c-stub file are flushed before their rename, a generated file is not', () => {
@@ -354,4 +386,84 @@ test('readDiskState lists a file once, under the spelling it is asked for, when 
   }
   if (caseInsensitive) assert.deepEqual([...state.value.keys()], ['asm/nonmatchings/Main/f.s']);
   else assert.deepEqual([...state.value.entries()], [['asm/nonmatchings/Main/f.s', 'absent'], ['asm/nonmatchings/main/f.s', sha1Of('F\n')]]);
+});
+
+/** A module tree whose module name a later run changes by case only (architecture-r2-4). */
+function moduleTree(module: string): FileEntry[] {
+  return [
+    { ownership: 'generated', path: `asm/${module}.s`, text: `.include "asm/nonmatchings/${module}/sub_08000100.s"\n`, writer: 'module' },
+    { ownership: 'generated', path: `asm/nonmatchings/${module}/sub_08000100.s`, text: 'F\n', writer: 'function' },
+    { ownership: 'generated', path: `asm/nonmatchings/${module}/sub_08000200.s`, text: 'G\n', writer: 'function' },
+  ];
+}
+
+/** A project that `main`'s tree was written into, with the user's notes.txt in the module's directory. */
+async function moduleProject(): Promise<string> {
+  const dir = await tempDir();
+  await run(dir, moduleTree('main'));
+  await writeFile(join(dir, 'asm', 'nonmatchings', 'main', 'notes.txt'), 'mine\n');
+  return dir;
+}
+
+const APPLY_WRITES_URL = new URL('../../../../src/shell/project/apply-writes.ts', import.meta.url).href;
+
+/**
+ * Applies `plan` to `dir` in a child process that is killed (SIGKILL) right after the first rename of a case rename,
+ * the one onto its temporary name: a crash between renameCase's two renames. Resolves with the child's signal.
+ */
+async function applyAndCrashInCaseRename(dir: string, plan: WritePlan): Promise<NodeJS.Signals | null> {
+  const planFile = join(await tempDir(), 'plan.json');
+  await writeFile(planFile, JSON.stringify(plan));
+  const code = [
+    `import fsp from 'node:fs/promises';`,
+    `import { readFileSync } from 'node:fs';`,
+    `import { syncBuiltinESMExports } from 'node:module';`,
+    `import { basename } from 'node:path';`,
+    `const original = fsp.rename;`,
+    `fsp.rename = async (from, to) => {`,
+    `  await original(from, to);`,
+    `  if (basename(String(to)).startsWith('.romlift-case-')) process.kill(process.pid, 'SIGKILL');`,
+    `};`,
+    `syncBuiltinESMExports();`,
+    `const { applyWrites } = await import(${JSON.stringify(APPLY_WRITES_URL)});`,
+    `await applyWrites(${JSON.stringify(dir)}, JSON.parse(readFileSync(${JSON.stringify(planFile)}, 'utf8')));`,
+  ].join('\n');
+  const child = spawn(process.execPath, ['--conditions=source', '--input-type=module', '-e', code], { stdio: ['ignore', 'ignore', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')));
+  const [exitCode, signal] = await new Promise<[number | null, NodeJS.Signals | null]>((resolve) => child.on('close', (c, s) => resolve([c, s])));
+  assert.ok(signal !== null || exitCode === 0, stderr);
+  return signal;
+}
+
+test('a crash between the two renames of a case rename is finished by the next run, and no temporary name is left (architecture-r2-4)', async (t) => {
+  const reference = await moduleProject();
+  await run(reference, moduleTree('Main'));
+  const expected = await filesOf(reference);
+  const dir = await moduleProject();
+  if (!(await sameDirUnderOtherCase(join(dir, 'asm', 'nonmatchings'), 'main', 'MAIN'))) {
+    t.skip('a case-sensitive file system: respell renames nothing, so there is no rename to cut');
+    return;
+  }
+  const plan = await planFor(dir, moduleTree('Main'));
+  assert.equal(await applyAndCrashInCaseRename(dir, plan), 'SIGKILL', 'the child was killed between the two renames');
+  const stranded = (await readdir(join(dir, 'asm', 'nonmatchings'))).filter((n) => n.startsWith('.romlift-case-'));
+  assert.equal(stranded.length, 1, 'the crash left the directory under its temporary name');
+  assert.deepEqual(await readdir(join(dir, 'asm', 'nonmatchings', stranded[0] ?? '')), ['notes.txt']);
+  assert.ok(ok(await readJournal(dir)) !== null, 'and the journal');
+  // The next run snapshots and plans without finishing the rename itself: applyWrites does it from the journal.
+  await run(dir, moduleTree('Main'));
+  assert.deepEqual(await filesOf(dir), expected, 'the next run converges to the same tree and manifest as an uninterrupted run');
+});
+
+test('applyWrites refuses to apply over a journal it cannot read, and applies nothing', async () => {
+  const dir = await tempDir();
+  await seed(dir);
+  const plan = await planFor(dir, tree());
+  await writeFile(join(dir, JOURNAL_PATH), '{ "schema": 2 }\n');
+  const before = await filesOf(dir);
+  const applied = await applyWrites(dir, plan);
+  assert.deepEqual([applied.ok, applied.applied], [false, 0]);
+  assert.deepEqual(applied.diagnostics.map((d) => d.code), ['E_IO_READ']);
+  assert.deepEqual(await filesOf(dir), before);
 });

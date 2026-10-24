@@ -1,0 +1,73 @@
+schema = 1
+
+[rom]
+path = "baserom.gba"
+sha1 = "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b"
+
+[build]
+name = "klonoa-eod"
+compiler = "agbcc"
+
+[signatures]
+enabled = true
+
+[[modules]]
+name = "crt0"
+start = 0x080000C0
+kind = "asm"
+
+[[modules]]
+name = "main"
+start = 0x0800043C
+kind = "c"
+
+[[modules]]
+name = "eeprom"
+start = 0x0804E800
+kind = "c"
+compiler = "old_agbcc"
+cflags = ["-O1"]
+
+[[modules]]
+name = "m4a"
+start = 0x0804F000
+kind = "asm"
+library = "m4a"
+version = "2001"
+
+[[modules]]
+name = "m4a_ram"
+start = 0x0804F318
+kind = "asm"
+library = "m4a"
+version = "2001"
+
+[[modules]]
+name = "m4a_2"
+start = 0x0804F718
+kind = "asm"
+library = "m4a"
+version = "2001"
+
+[[modules]]
+name = "data"
+start = 0x08051BD4
+kind = "data"
+
+[functions]
+0x080000FC = { name = "IntrMain", mode = "arm" }
+0x08000470 = "AgbMain"
+0x0804F318 = { name = "SoundMainRAM", size = 0x3A4, from = "sig:m4a@2001" }
+0x0804F73E = { name = "_0804F73E", label = true }
+
+[symbols]
+0x03002920 = { name = "gEntityInfo", aliases = ["gUnk_03002920"] }
+0x03005220 = "gUnk_03005220"
+0x08189E84 = { name = "gSpriteDataTable", size = 0x40, type = "pointers" }
+
+[[overrides]]
+start = 0x0804F318
+size = 0x400
+kind = "code"
+runs_at = 0x03000388
+from = "evidence:trace"

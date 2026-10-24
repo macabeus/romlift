@@ -168,10 +168,37 @@ test('an [[overrides]] range reaching outside the ROM is W_OVERRIDE_OUTSIDE_ROM,
   });
   const model = buildModel(ROM, analysis, config);
   assert.deepEqual(model.diagnostics.map((d) => [d.code, d.addr ?? d.span?.start]), [
+    ['W_OVERRIDE_IGNORED', BASE + 0x3f0],
     ['W_OVERRIDE_OUTSIDE_ROM', BASE + 0x3f0],
     ['W_FUNCTION_OUTSIDE_ROM', 0x0900_0000],
   ]);
-  assert.match(model.diagnostics[0]?.message ?? '', /the \[\[overrides\]\] range 0x080003F0\.\.0x08000410 reaches outside the ROM/);
+  assert.match(model.diagnostics.find((d) => d.code === 'W_OVERRIDE_OUTSIDE_ROM')?.message ?? '', /the \[\[overrides\]\] range 0x080003F0\.\.0x08000410 reaches outside the ROM/);
+});
+
+test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_IGNORED; a code override that gives a listed extent is not (fix round 5, correctness-b0-3)', () => {
+  const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })] });
+  const ignored = (overrides: NonNullable<Parameters<typeof configOf>[0]['overrides']>, functions: NonNullable<Parameters<typeof configOf>[0]['functions']> = [[BASE + 0x100, 'A']]): readonly string[] =>
+    buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions, overrides })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => d.message);
+  assert.equal(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'data' }]).length, 1, 'a data override');
+  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: it gives the extent only of a listed function the analysis did not find/);
+  // A listed entry the analysis did not find, inside a code override the run read: its extent comes from the override.
+  const override = { start: BASE + 0x120, size: 0x10, kind: 'code' as const, mode: 'thumb' as const };
+  const read = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], overrides: [{ span: { start: override.start, end: override.start + override.size }, kind: 'code', mode: 'thumb' }] });
+  const used = buildModel(ROM, read, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x120, 'Unfound']], overrides: [override] }));
+  assert.deepEqual(used.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED'), []);
+  // The applied override answers for one entry of its kind and span (fix round 7, architecture-b2-6): a data override
+  // on the same span, or a second identical code override (placeEntries applies the first), is still ignored.
+  const sameSpan = (overrides: readonly (typeof override | { readonly start: number; readonly size: number; readonly kind: 'data' })[]): readonly (string | undefined)[] => {
+    const facts = overrides.map((o) => ({ span: { start: o.start, end: o.start + o.size }, kind: o.kind, ...('mode' in o ? { mode: o.mode } : {}) }));
+    const run = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], overrides: facts });
+    return buildModel(ROM, run, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x120, 'Unfound']], overrides })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => /kind = "(\w+)"/.exec(d.message)?.[1]);
+  };
+  assert.deepEqual(sameSpan([override, { start: override.start, size: override.size, kind: 'data' }]), ['data']);
+  assert.deepEqual(sameSpan([{ start: override.start, size: override.size, kind: 'data' }, override]), ['data']);
+  assert.deepEqual(sameSpan([override, override]), ['code']);
+  // A range wholly outside the ROM is W_OVERRIDE_OUTSIDE_ROM's alone (fix round 6, architecture-b1-2).
+  const outside = buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [{ start: 0x0900_0000, size: 4, kind: 'code', mode: 'thumb' }] }));
+  assert.deepEqual(outside.diagnostics.map((d) => d.code), ['W_OVERRIDE_OUTSIDE_ROM']);
 });
 
 test('never a throw for content: no module, a function outside the ROM, a symbol in RAM', () => {

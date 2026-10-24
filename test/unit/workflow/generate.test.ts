@@ -16,16 +16,15 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import {
   confirmModel,
   confirmOptions,
-  freshTreePlanInputs,
   generate,
   generatedEntries,
-  generateFromRom,
-  initConfig,
-  initModel,
   listedSeedsOf,
   overrideFactsOf,
   writable,
 } from '../../../src/core/workflow/generate.ts';
+import { generateFromRom, initConfigOf, initModel } from '../../../src/core/workflow/init-config.ts';
+import { retainedPrefixes } from '../../../src/core/model/paths.ts';
+import { freshTreePlanInputs } from '../../../src/core/write-plan/project-plan.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
@@ -83,6 +82,24 @@ test('confirmOptions lists every [functions] entry as seed.listed with name, siz
   assert.equal(options.trail, 'off');
   assert.deepEqual(options.seeds, listedSeedsOf(c));
   assert.deepEqual(options.overrides, overrideFactsOf(c));
+});
+
+test('listedSeedsOf validates exactly the entries with `from` (another source\'s proposal), not those the analysis or a person wrote', () => {
+  const c = config({
+    functions: new Map([
+      [0x0800_0100, { name: 'Found', mode: 'thumb' as const, aliases: [] }],
+      [0x0800_0104, { name: 'Legacy', mode: 'thumb' as const, aliases: [], from: 'legacy' }],
+      [0x0800_0108, { name: 'SoundMain', mode: 'arm' as const, aliases: [], size: 0x10, from: 'sig:m4a@2001' }],
+      [0x0800_0118, { name: 'Inner', mode: 'thumb' as const, aliases: [], label: true, from: 'evidence:trace' }],
+    ]),
+  });
+  assert.deepEqual(listedSeedsOf(c), [
+    { entry: 0x0800_0100, mode: 'thumb', rule: 'seed.listed', name: 'Found' },
+    { entry: 0x0800_0104, mode: 'thumb', rule: 'seed.listed', name: 'Legacy', validate: true },
+    { entry: 0x0800_0108, mode: 'arm', rule: 'seed.listed', name: 'SoundMain', size: 0x10, validate: true },
+    { entry: 0x0800_0118, mode: 'thumb', rule: 'seed.listed', name: 'Inner', label: true, validate: true },
+  ]);
+  assert.equal(Object.hasOwn(listedSeedsOf(c)[0] ?? {}, 'validate'), false, 'no member at all without `from`');
 });
 
 const MODEL_CHECKS = ['tiling', 'reencode', 'module-size', 'text-layout'];
@@ -176,14 +193,19 @@ test('a generate result is plain data: no function anywhere in it (D19)', () => 
   assert.deepEqual(JSON.parse(JSON.stringify(result.cx)) as unknown, { decomp: { defined: [] }, printer: 'readable' });
 });
 
-test('initConfig, initModel and generateFromRom: the config configFromDiscover builds, refused on a discover error', () => {
+test('initConfigOf, initModel and generateFromRom: the config configFromDiscover builds, named and parsed back as init writes it, refused on a discover error', () => {
   const fixture = fixtures.find((f) => f.name === 'far-jump');
   assert.ok(fixture !== undefined);
   const rom = readFixtureRom(fixture);
   const found = discover(rom);
-  const init = initConfig(rom);
+  const init = initConfigOf(rom);
   assert.ok(init.ok);
-  assert.deepEqual(init.config, configFromDiscover(rom, found));
+  const built = configFromDiscover(rom, found);
+  assert.deepEqual(init.config, { ...built, build: { ...built.build, name: init.config.build.name } });
+  const sized = initConfigOf(rom, { moduleSize: 0x40, name: 'named' });
+  assert.ok(sized.ok);
+  assert.equal(sized.config.build.name, 'named');
+  assert.deepEqual(sized.config.modules, configFromDiscover(rom, found, { moduleSize: 0x40 }).modules, 'the --module-size init passes');
   const model = initModel(rom);
   assert.ok(model.ok);
   assert.deepEqual(model.model, confirmModel({ rom, config: init.config }).model);
@@ -192,7 +214,7 @@ test('initConfig, initModel and generateFromRom: the config configFromDiscover b
   assert.equal(writable(generated), true);
   const bytes = Uint8Array.from({ length: 0x30 }, (_, i) => (i * 7) & 0xff);
   const notGba = romFromBytes(bytes, SHA1);
-  for (const refused of [initConfig(notGba), initModel(notGba), generateFromRom(notGba, { decomp: NO_C, printer: 'readable' })]) {
+  for (const refused of [initConfigOf(notGba), initModel(notGba), generateFromRom(notGba, { decomp: NO_C, printer: 'readable' })]) {
     assert.equal(refused.ok, false);
     if (!refused.ok) assert.ok(refused.diagnostics.some((d) => d.code === 'E_ROM_NOT_GBA'));
   }
@@ -204,7 +226,7 @@ test('freshTreePlanInputs: no manifest, every path absent, no reconciled text, t
   const rom = readFixtureRom(fixture);
   const result = generate({ rom, config: configFromDiscover(rom, discover(rom)), decomp: NO_C, printer: 'readable' });
   const kept = { ...result.model, modules: result.model.modules.map((m, i) => (i === 1 ? { ...m, generated: false } : m)) };
-  const inputs = freshTreePlanInputs(kept, generatedEntries(rom, result), result.paths, (t) => String(t.length));
+  const inputs = freshTreePlanInputs(generatedEntries(rom, result), result.paths, (t) => String(t.length), retainedPrefixes(kept));
   assert.equal(inputs.manifest, null);
   assert.deepEqual([...inputs.disk.values()].every((v) => v === 'absent'), true);
   assert.deepEqual([...inputs.disk.keys()], result.paths);

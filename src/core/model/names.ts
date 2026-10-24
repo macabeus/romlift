@@ -9,15 +9,16 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex, hexAddr } from '../../foundation/util/hex.ts';
+import { defaultFunctionName } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import { ModelCodes } from './codes.ts';
 import { moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, Module, NameSource } from './types.ts';
 
-/** The default name of a function: sub_ and eight upper-case hex digits. */
+/** The default name of a function: sub_ and eight upper-case hex digits (foundation/util/project-files.ts, the one spelling). */
 export function functionName(addr: Addr): string {
-  return `sub_${hex(addr)}`;
+  return defaultFunctionName(addr);
 }
 
 /** The default name of the bytes between functions (an orphan chunk). */

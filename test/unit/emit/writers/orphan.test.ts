@@ -1,9 +1,13 @@
 // The orphan writer (architecture §6.2, §6.3): one file per orphan chunk, `@ bytes between functions`, a
-// global unk_ label and its bytes, never glued to a neighbour.
+// global unk_ label and its bytes, never glued to a neighbour; a padding-only orphan is folded into the function
+// after it (core/model/chunks.ts), so it has no file.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { orphanWriter } from '../../../../src/core/emit/writers/orphan.ts';
+import { buildModel } from '../../../../src/core/model/model.ts';
+import { thumbAt } from '../../../helpers/thumb.ts';
+import { analysisOf, BASE, configOf, fact, HEADER_END, romWith } from '../../layout/hand-made.ts';
 import { sampleModel, sampleRom } from '../print/fixture.ts';
 
 const rom = sampleRom();
@@ -44,4 +48,24 @@ test('the raw printer keeps the opening and prints the bytes as the PoC', () => 
       '',
     ].join('\n'),
   );
+});
+
+/** buildModel over A (0x100..0x10A), a 2-byte zero pad and B (0x10C), which folds the pad (phase-3.md Q5 b). */
+function foldedPad() {
+  const r = romWith(
+    [
+      { at: BASE + 0x100, bytes: thumbAt(BASE + 0x100)`push {lr}; movs r0, #0; bl _0800010C; pop {pc}` },
+      { at: BASE + 0x10c, bytes: thumbAt(BASE + 0x10c)`movs r0, #1; bx lr` },
+    ],
+    { size: 0x200 },
+  );
+  const analysis = analysisOf(r, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x10a }), fact({ entry: BASE + 0x10c, end: BASE + 0x110 })] });
+  const config = configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }], functions: [[BASE + 0x100, 'A'], [BASE + 0x10c, 'B']] });
+  return { rom: r, model: buildModel(r, analysis, config) };
+}
+
+test('a padding-only orphan has no file: the function after it holds the pad', () => {
+  const { rom: r, model: m } = foldedPad();
+  const main = m.modules.findIndex((x) => x.name === 'main');
+  assert.deepEqual([...orphanWriter.emit(r, m, cx, main)].map((e) => e.path), ['asm/nonmatchings/main/unk_080000C0.s']);
 });

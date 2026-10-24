@@ -45,6 +45,7 @@ import { BIOS_COPY_ARGS, biosCopyBytes, isBiosCopy } from '../../../../foundatio
 import { MEMORY_REGIONS, regionOf } from '../../../../foundation/rom/memory-map.ts';
 import { contains, u16, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../../foundation/rom/span.ts';
+import { insnUnit } from '../../../../foundation/rom/span.ts';
 import { compareNumbers, sortedKeys } from '../../../../foundation/util/sorted.ts';
 import type { AnalysisView, Proposal, Reading } from '../../types.ts';
 import { Claim } from '../../types.ts';
@@ -557,7 +558,7 @@ function exits(insn: Insn): boolean {
  * function at an entry its reading reaches.
  */
 function opensFunction(entry: Addr, mode: Mode, copy: Copy, isPool: (word: Addr) => boolean, v: AnalysisView): boolean {
-  const size = mode === 'arm' ? 4 : 2;
+  const size = insnUnit(mode);
   const prev = entry - size;
   if (entry === copy.source || prev < copy.source) return true;
   if (contains(v.rom, prev, size) && exits(decodedAt(prev, mode, v))) return true;

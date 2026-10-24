@@ -6,7 +6,7 @@
 // callback, sync and promise forms) and records each call that names romlift.toml. No call may be recorded,
 // and the file must keep its bytes, inode and modification time.
 //
-// Expected interface, for the phase-4 lead to align (architecture §2.1):
+// Interface, frozen by D74 (architecture §2.1):
 //   romlift init <rom> --json, romlift generate [--dry-run] --json   exit 0; NDJSON, last line a summary
 import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';

@@ -7,6 +7,10 @@
 // so the instruction naming it fails the printing rule and prints raw), and a `data` label `gUnk_<ADDR>` where a pool word or a table points into a data
 // module. A label holds its run address (the load address outside runs_at).
 //
+// An adr target whose only labels are Thumb functions gets its local label too: an adr names a label that links to
+// the target itself (resolver.ts adrResolverFor), never a Thumb function's, which links to the target plus one
+// (the owner's answer to Q7 of phase 3, D72 c). Every other reference still names the function.
+//
 // Scope: a label is 'global' when something in another module references it (a call, a branch, an adr, a
 // pool load, a pool word naming it, its Thumb form included, a table entry), else 'module'. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
@@ -22,7 +26,7 @@ import type { ChunkPlan } from './chunks.ts';
 import type { Segments } from './segments.ts';
 import { loadAddressOf, loadModuleAt, moduleIndexAt, runOffsetAt } from './modules.ts';
 import { dataName, localName } from './names.ts';
-import { compareLabels, wordValueOf } from './resolver.ts';
+import { compareLabels, isExactLabel, wordValueOf } from './resolver.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -146,9 +150,18 @@ function compareCandidates(a: Candidate, b: Candidate): number {
   return compareLabels({ addr: a.load, kind: a.kind, name: a.name }, { addr: b.load, kind: b.kind, name: b.name });
 }
 
-/** The candidates of one address, without a local or default data label another label there replaces, one per name. */
+/** Whether a candidate links to its own address: every label but a Thumb function's (resolver.ts isExactLabel). */
+function isExact(c: Candidate): boolean {
+  return isExactLabel({ addr: c.load, kind: c.kind, thumb: c.thumb });
+}
+
+/**
+ * The candidates of one address, without a local or default data label another label there replaces, one per
+ * name. A local label is replaced only by a label that links to the address itself, so an adr target that has only
+ * Thumb function labels keeps it (candidatesOf adds one there for an adr alone).
+ */
 function keep(group: readonly Candidate[]): Candidate[] {
-  const hasOther = group.some((c) => c.kind !== 'local');
+  const hasOther = group.some((c) => c.kind !== 'local' && isExact(c));
   const namedData = group.some((c) => c.kind === 'data' && c.name !== dataName(c.load));
   const out: Candidate[] = [];
   for (const c of group) {
@@ -218,10 +231,22 @@ function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; 
       else targets.push(s.target);
     }
   }
-  for (const r of inputs.refs) targets.push(loadAddressOf(inputs.relocated, r.target));
+  const adrs: Addr[] = [];
+  for (const r of inputs.refs) {
+    const load = loadAddressOf(inputs.relocated, r.target);
+    targets.push(load);
+    if (r.kind === 'adr') adrs.push(load);
+  }
   // A data or local label only where no other label names the address yet, once per address.
   for (const a of data) if (!named.has(a)) add({ load: a, name: dataName(a), kind: 'data', thumb: false });
   for (const a of targets) if (!named.has(a) && contains(rom, a) && !inside(a)) add({ load: a, name: localName(a), kind: 'local', thumb: false });
+  // An adr target named only by Thumb functions: its local label too, which the adr names.
+  const exact = new Set(out.filter(isExact).map((c) => c.load));
+  for (const a of adrs) {
+    if (exact.has(a) || !contains(rom, a) || inside(a)) continue;
+    add({ load: a, name: localName(a), kind: 'local', thumb: false });
+    exact.add(a);
+  }
   return { candidates: out.sort(compareCandidates), unplaced };
 }
 
@@ -262,7 +287,8 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
   };
   for (const r of inputs.refs) {
     if (r.kind === 'short-branch' && loadModuleAt(modules, r.site) !== moduleIndexAt(modules, r.target, inputs.relocated)) continue;
-    exact(r.site, r.target);
+    if (r.kind === 'adr') reference(r.site, preferredAt(index, r.target, isExactLabel));
+    else exact(r.site, r.target);
   }
   for (const s of segments.concrete) {
     if (s.kind === 'pool') word(s.start, s.value);

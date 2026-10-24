@@ -1,0 +1,1 @@
+E_TOML_PATCH_REFUSED 0x08000104 in [functions] is not one single-line entry (line 52): it was restructured by hand, so the planner does not edit it; replace it with this line under [functions]: 0x08000104 = { name = "VBlankIntr", from = "legacy" }

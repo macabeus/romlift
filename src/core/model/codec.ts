@@ -141,6 +141,7 @@ function chunkJson(model: Model, chunk: Chunk) {
     module: chunk.module,
     innerLabels: chunk.innerLabels.map(label),
     ...(chunk.runAt === undefined ? {} : { runAt: hexAddr(chunk.runAt) }),
+    ...(chunk.entry === undefined ? {} : { entry: hexAddr(chunk.entry) }),
     items,
   } satisfies ModelJsonChunk;
 }

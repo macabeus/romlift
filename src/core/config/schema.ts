@@ -1,12 +1,13 @@
 // The in-memory project config (architecture §3.4, §6.5, D9, D22, D47): what `romlift.toml` (schema 1)
 // means once parsed, and a zod schema that validates such a value in memory. Phase 3 builds the config
 // in memory (core/workflow/config-from-discover.ts); phase 4 parses and serialises the TOML into the same
-// shape (parse.ts, serialize.ts, with their codes). The phase-5 key `data_start` is not part of schema 1
+// shape (parse.ts, serialize.ts, with their codes). The key `data_start` (the C data ranges, phase 6's since D76 g) is not part of schema 1
 // yet (D62). Addresses are numbers here; the TOML spells them '0x' and eight upper-case hex digits.
 import { z } from 'zod';
 
 import { isModuleName, isSymbolName, MODULE_NAME_RULE, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
+import { BASEROM_FILE } from '../../foundation/util/project-files.ts';
 import { isBuildCompilerId } from './compilers.ts';
 import type { BuildCompilerId } from './compilers.ts';
 
@@ -78,7 +79,26 @@ const mode = z.enum(['thumb', 'arm']);
 const symbolName = z.string().refine(isSymbolName, `not an assembler symbol name (${SYMBOL_NAME_RULE})`);
 /** A module name: it names files (asm/<name>.s), objects and linker sections. */
 const moduleName = z.string().refine(isModuleName, `not a module name (${MODULE_NAME_RULE})`);
-const compilerId = z.string().refine(isBuildCompilerId, 'not a registered build compiler (core/config/compilers.ts)');
+/** The message of a compiler the registry does not know. */
+const UNKNOWN_COMPILER = 'not a registered build compiler (core/config/compilers.ts)';
+/**
+ * The structured marker of that refinement, which validateConfig carries into the issue's `code` and parse.ts reports
+ * as E_UNKNOWN_COMPILER: the code follows the refinement, never its human-readable message (architecture-r1-5, D76 h).
+ */
+const UNKNOWN_COMPILER_PARAMS = { romliftCode: 'E_UNKNOWN_COMPILER' } as const;
+const compilerId = z.string().refine(isBuildCompilerId, { message: UNKNOWN_COMPILER, params: UNKNOWN_COMPILER_PARAMS });
+
+/** What a build name is (`<name>.gba`, `<name>.sha1`, a make target): what `init` accepts and writes (D75 i). */
+export const BUILD_NAME_RULE = "letters, digits, '.', '_' and '-', a letter or digit first, at most 100 characters";
+const BUILD_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+
+/** Whether `name` is a build name (BUILD_NAME_RULE). */
+export function isBuildName(name: string): boolean {
+  return BUILD_NAME.test(name);
+}
+const buildName = z.string().refine(isBuildName, `not a build name (${BUILD_NAME_RULE})`);
+/** The project's ROM: always baserom.gba (D74 c), which setup.sh, the Makefile and every `.incbin` name. */
+const romPath = z.string().refine((path): boolean => path === BASEROM_FILE, `the project's ROM is always ${BASEROM_FILE}, which setup.sh, the Makefile and every .incbin name (D74 c)`);
 const sha1 = z.string().regex(/^[0-9a-f]{40}$/, 'not a lower-case hex SHA-1');
 const nonEmpty = z.string().min(1);
 
@@ -134,8 +154,8 @@ const overrideSchema = z
 const ROMLIFT_CONFIG_SCHEMA = z
   .object({
     schema: z.literal(1),
-    rom: z.object({ path: nonEmpty, sha1 }).strict().readonly(),
-    build: z.object({ name: nonEmpty, compiler: compilerId }).strict().readonly(),
+    rom: z.object({ path: romPath, sha1 }).strict().readonly(),
+    build: z.object({ name: buildName, compiler: compilerId }).strict().readonly(),
     signatures: z
       .object({ enabled: z.boolean(), libraries: z.array(nonEmpty).readonly().exactOptional() })
       .strict()
@@ -157,6 +177,8 @@ void sameShape;
 export interface ConfigIssue {
   readonly path: string;
   readonly message: string;
+  /** Present when the issue has a code of its own: a compiler the registry does not know. */
+  readonly code?: 'E_UNKNOWN_COMPILER';
 }
 
 export type ConfigValidation =
@@ -167,9 +189,14 @@ function pathText(path: readonly PropertyKey[]): string {
   return path.map((key) => (typeof key === 'number' ? `[${key}]` : `.${String(key)}`)).join('').replace(/^\./, '');
 }
 
+/** The issue's own code, read from its refinement's structured marker. */
+function issueCode(issue: z.core.$ZodIssue): Pick<ConfigIssue, 'code'> {
+  return issue.code === 'custom' && issue.params?.['romliftCode'] === UNKNOWN_COMPILER_PARAMS.romliftCode ? { code: 'E_UNKNOWN_COMPILER' } : {};
+}
+
 /** Validates an in-memory config against schema 1; every issue at once, never a throw. */
 export function validateConfig(value: unknown): ConfigValidation {
   const parsed = ROMLIFT_CONFIG_SCHEMA.safeParse(value);
   if (parsed.success) return { ok: true, config: parsed.data };
-  return { ok: false, issues: parsed.error.issues.map((issue) => ({ path: pathText(issue.path), message: issue.message })) };
+  return { ok: false, issues: parsed.error.issues.map((issue) => ({ path: pathText(issue.path), message: issue.message, ...issueCode(issue) })) };
 }

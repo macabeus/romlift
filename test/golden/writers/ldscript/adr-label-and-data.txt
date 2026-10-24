@@ -5,9 +5,13 @@ SECTIONS {
     .text : {
         build/rom_header.o(.text);
         build/crt0.o(.text);
-        build/main.o(.text);
+        build/src/main.o(.text);
         build/asm_08000108.o(.text);
-        build/main_2.o(.text);
+        build/src/main_2.o(.text);
         build/data.o(.text);
     }
+    .c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }
+    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")
+    .c_data_main_2 (NOLOAD) : { *src/main_2.o(.rodata* .data* .bss* COMMON) }
+    ASSERT(SIZEOF(.c_data_main_2) == 0, "src/main_2.c defines data; see AGENTS.md (romlift does not place C data yet)")
 }

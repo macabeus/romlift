@@ -7,7 +7,7 @@
 // object are joined by `ld -r` so objdiff-cli runs once per reference object.
 //
 // Each difference has a kind; `unnamed-target` (a relocation whose reference side targets a section symbol)
-// is reported and not gated, every other kind fails g5.objdiff (g3.objdiff until the owner moved it to phase 5, D68 a):
+// is reported and not gated, every other kind fails g5.objdiff (g3.objdiff until the owner moved it to phase 5, D68 a, and phase 6's since he skipped phase 5, D76 g):
 //   instruction         a row whose instruction differs
 //   resolved-call       a `bl` or `b` the reference's assembler resolved inside its object, which the base, holding
 //                       one function, relocates against the same target (the same call, counted apart)

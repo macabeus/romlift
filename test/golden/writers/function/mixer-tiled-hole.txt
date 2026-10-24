@@ -77,6 +77,7 @@ _0800015C:
 	movs r0, #2
 	adds r0, #1
 	bx lr
+	.align 2, 0
 	thumb_func_end sub_08000148
 ==> asm/nonmatchings/main_3/sub_08000164.s (generated, function) <==
 .thumb

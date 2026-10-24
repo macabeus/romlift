@@ -86,9 +86,14 @@ export interface Chunk {
   /** `label = true` entries and second entries inside the chunk, sorted by addr then name. */
   readonly innerLabels: readonly Label[];
   readonly runAt?: Addr;
+  /**
+   * The listed entry its label and start macro go at, when it is not the chunk's start: a function chunk that folded
+   * the zero pad before its entry (chunks.ts). Absent: the entry, if any, is span.start.
+   */
+  readonly entry?: Addr;
 }
 
-/** A link unit (§6.2, §6.3). Module.dataStart (the phase-5 C data range) lands with ModuleConfig's in phase 5 (D62). */
+/** A link unit (§6.2, §6.3). Module.dataStart (the C data range) lands with ModuleConfig's in phase 6 (D62, D76 g). */
 export interface Module {
   readonly name: string;
   /** Load addresses; modules tile the ROM in order. */
@@ -254,5 +259,7 @@ export interface ModelJsonChunk {
   readonly module: string;
   readonly innerLabels: readonly ModelJsonLabel[];
   readonly runAt?: HexAddr;
+  /** Chunk.entry: present when the chunk opens with a folded pad before its entry. */
+  readonly entry?: HexAddr;
   readonly items: readonly ModelJsonItem[];
 }

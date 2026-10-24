@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagnostic.ts';
 import type { FileEntry, TextEdit } from '../../../src/core/emit/tree.ts';
 import type { Journal } from '../../../src/core/write-plan/journal.ts';
-import { applyTextEdits, planHasErrors, planWrites, UNKNOWN_ROMLIFT_VERSION } from '../../../src/core/write-plan/plan-writes.ts';
+import { applyTextEdits, planHasErrors, planWrites, staleEdit, UNKNOWN_ROMLIFT_VERSION } from '../../../src/core/write-plan/plan-writes.ts';
 import type { Manifest, WritePlan, WritePlanInputs } from '../../../src/core/write-plan/types.ts';
 
 /** A deterministic 40-hex-digit stand-in for SHA-1: five FNV-1a lanes with different seeds. */
@@ -163,6 +163,17 @@ test('scaffold: written only when absent, kept otherwise, never in the manifest'
   assert.deepEqual(p.manifest.files, {});
 });
 
+test('scaffold: an executable entry is written executable; one on disk without its executable bits gets a mode op (architecture-4)', () => {
+  const setup: FileEntry = { ownership: 'scaffold', path: 'setup.sh', text: '#!/bin/sh\n', writer: 'scaffold', executable: true };
+  const absent = plan({ entries: [setup], disk: diskOf({ 'setup.sh': null }) });
+  assert.deepEqual(absent.ops, [{ op: 'write', path: 'setup.sh', text: '#!/bin/sh\n', sha1: fakeHash('#!/bin/sh\n'), writer: 'scaffold', executable: true }]);
+  const lost = plan({ entries: [setup], disk: diskOf({ 'setup.sh': 'my own setup' }) });
+  assert.deepEqual(lost.ops, [{ op: 'mode', path: 'setup.sh', executable: true }], 'the content is the user\'s, only the mode is set');
+  const fine = plan({ entries: [setup], disk: diskOf({ 'setup.sh': 'my own setup' }), executables: new Set(['setup.sh']) });
+  assert.deepEqual(fine.ops, [{ op: 'keep', path: 'setup.sh', sha1: fakeHash('my own setup') }]);
+  assert.deepEqual(fine.manifest.files, {});
+});
+
 const BASE = 'int a;\nINCLUDE_ASM("asm/nonmatchings/main", F);\n';
 
 function reconciled(path: string, baseText: string, edits: readonly TextEdit[]): FileEntry {
@@ -170,7 +181,7 @@ function reconciled(path: string, baseText: string, edits: readonly TextEdit[]):
 }
 
 test('reconciled: edited while the file still has its base sha1, with the result sha1 from the hash', () => {
-  const edit: TextEdit = { start: 0, end: 6, text: 'int b;', reason: 'rename' };
+  const edit: TextEdit = { start: 0, end: 6, text: 'int b;', reason: 'add-stub' };
   const p = plan({
     entries: [reconciled('src/main.c', BASE, [edit])],
     disk: diskOf({ 'src/main.c': BASE }),
@@ -192,10 +203,13 @@ test('reconciled: E_STALE_EDIT when the file changed, is absent, or its text is 
   assert.deepEqual(changed.ops, []);
   assert.deepEqual(codes(changed), ['E_STALE_EDIT src/main.c']);
   assert.equal(planHasErrors(changed), true);
+  // Absent and unread: the message says absent, the disk state first (fix round 6, architecture-b1-3).
   const absent = plan({ entries: [reconciled('src/main.c', BASE, [edit])], disk: diskOf({ 'src/main.c': null }) });
   assert.deepEqual(codes(absent), ['E_STALE_EDIT src/main.c']);
+  assert.match(absent.diagnostics[0]?.message ?? '', /it is absent/);
   const noText = plan({ entries: [reconciled('src/main.c', BASE, [edit])], disk: diskOf({ 'src/main.c': BASE }) });
   assert.deepEqual(codes(noText), ['E_STALE_EDIT src/main.c']);
+  assert.match(noText.diagnostics[0]?.message ?? '', /it is not the text its edits were planned on/);
   const wrongText = plan({
     entries: [reconciled('src/main.c', BASE, [edit])],
     disk: diskOf({ 'src/main.c': BASE }),
@@ -206,7 +220,7 @@ test('reconciled: E_STALE_EDIT when the file changed, is absent, or its text is 
 
 test('reconciled: edits that change nothing are a keep', () => {
   const p = plan({
-    entries: [reconciled('src/main.c', BASE, [{ start: 0, end: 3, text: 'int', reason: 'rename' }])],
+    entries: [reconciled('src/main.c', BASE, [{ start: 0, end: 3, text: 'int', reason: 'add-stub' }])],
     disk: diskOf({ 'src/main.c': BASE }),
     reconciledTexts: new Map([['src/main.c', BASE]]),
   });
@@ -214,7 +228,7 @@ test('reconciled: edits that change nothing are a keep', () => {
 });
 
 test('a journal: its paths count as owned, a done edit is kept, a base edit is re-applied, others are stale', () => {
-  const edit: TextEdit = { start: 0, end: 6, text: 'int b;', reason: 'rename' };
+  const edit: TextEdit = { start: 0, end: 6, text: 'int b;', reason: 'add-stub' };
   const result = applyTextEdits(BASE, [edit]);
   const journal: Journal = {
     schema: 1,
@@ -287,7 +301,7 @@ test('a broken caller contract throws RomliftInvariantError', () => {
 test('applyTextEdits applies non-overlapping edits by offset, insertions at one offset in order', () => {
   const edits: TextEdit[] = [
     { start: 6, end: 6, text: '2', reason: 'add-stub' },
-    { start: 0, end: 5, text: 'HELLO', reason: 'rename' },
+    { start: 0, end: 5, text: 'HELLO', reason: 'add-stub' },
     { start: 6, end: 6, text: '3', reason: 'add-stub' },
     { start: 11, end: 11, text: '!', reason: 'add-stub' },
   ];
@@ -332,4 +346,34 @@ test('a case-only rename: the old spelling is deleted before every other op and 
   // The old spelling already gone (an interrupted run): only the write.
   const r = plan({ entries: [gen('asm/Main.s', 'M')], manifest: manifestOf({ 'asm/main.s': 'M' }), disk: diskOf({ 'asm/Main.s': null, 'asm/main.s': null }) });
   assert.deepEqual(r.ops.map((o) => [o.op, o.path]), [['write', 'asm/Main.s']]);
+});
+
+test('staleEdit: the one staleness rule, at plan time and at write time (fix round 5, architecture-b0-1)', () => {
+  const op = { path: 'src/main.c', baseSha1: 'a'.repeat(40) };
+  assert.equal(staleEdit(op, { kind: 'sha1', sha1: op.baseSha1 }, 'planned'), undefined);
+  assert.equal(staleEdit(op, { kind: 'sha1', sha1: op.baseSha1 }, 'written'), undefined);
+  const planned = staleEdit(op, { kind: 'absent' }, 'planned');
+  assert.deepEqual([planned?.code, planned?.severity, planned?.path], ['E_STALE_EDIT', 'error', 'src/main.c']);
+  assert.match(planned?.message ?? '', /changed since its edits were planned: it is absent/);
+  assert.match(staleEdit(op, { kind: 'unread' }, 'planned')?.message ?? '', /changed since its edits were planned: it is not the text its edits were planned on, the edits expect a{40}/);
+  assert.match(staleEdit(op, { kind: 'sha1', sha1: 'b'.repeat(40) }, 'written')?.message ?? '', /changed while its edits were being written: it has sha1 b{40}/);
+  assert.match(staleEdit(op, { kind: 'absent' }, 'written')?.message ?? '', /changed while its edits were being written: it is absent/);
+});
+
+test('the write of modules.mk, the staleness stamp, is the last op, after every src edit and symbols.ld (fix round 7, correctness-b2-2)', () => {
+  const base = 'INCLUDE_ASM("asm/nonmatchings/main", A);\n';
+  const edits: readonly TextEdit[] = [{ start: base.length, end: base.length, text: 'INCLUDE_ASM("asm/nonmatchings/main", B);\n', reason: 'add-stub' }];
+  const p = plan({
+    entries: [
+      { ownership: 'generated', path: 'modules.mk', text: 'ROMLIFT_TOML_SHA1 := new\n', writer: 'modules-mk' },
+      gen('asm/nonmatchings/main/B.s', 'B'),
+      { ownership: 'reconciled', path: 'src/main.c', baseSha1: fakeHash(base), edits },
+      { ownership: 'generated', path: 'symbols.ld', text: 'S', writer: 'symbols' },
+      gen('ldscript.txt', 'L'),
+    ],
+    disk: diskOf({ 'modules.mk': 'ROMLIFT_TOML_SHA1 := old\n', 'asm/nonmatchings/main/B.s': null, 'src/main.c': base, 'symbols.ld': null, 'ldscript.txt': null }),
+    reconciledTexts: new Map([['src/main.c', base]]),
+  });
+  assert.deepEqual(codes(p), []);
+  assert.deepEqual(p.ops.map((op) => `${op.op} ${op.path}`), ['write asm/nonmatchings/main/B.s', 'write ldscript.txt', 'edit src/main.c', 'write symbols.ld', 'write modules.mk']);
 });

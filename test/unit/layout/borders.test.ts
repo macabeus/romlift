@@ -326,7 +326,7 @@ test('placeEntries: the size first, then the analysis extent, then a code overri
     [
       { entry: BASE + 0x100, label: false, end: BASE + 0x120, source: 'analysis' },
       { entry: BASE + 0x130, label: false, end: BASE + 0x136, source: 'toml-size' },
-      { entry: BASE + 0x144, label: false, end: BASE + 0x150, source: 'override' },
+      { entry: BASE + 0x144, label: false, end: BASE + 0x150, source: 'override', override: { span: { start: BASE + 0x140, end: BASE + 0x150 }, kind: 'code' } },
       { entry: BASE + 0x160, label: true, end: undefined, source: 'next-listed' },
     ],
   );

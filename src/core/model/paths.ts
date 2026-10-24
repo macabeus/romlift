@@ -8,8 +8,10 @@
 // directory is written `<Name>_<ADDR>.s` (ADDR: eight upper-case hex digits of its load address), never
 // only the second one. core/verify/paths.ts (E_PATH_CASE_COLLISION) guards the result.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
+import { BASEROM_FILE, chunkFileOf, cSourceOf, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
+import { sortedKeys } from '../../foundation/util/sorted.ts';
 import type { Span } from '../../foundation/rom/span.ts';
 import type { Chunk, Model, Module } from './types.ts';
 
@@ -17,19 +19,30 @@ export const HEADER_PATH = 'asm/rom_header.s';
 export const CRT0_PATH = 'asm/crt0.s';
 export const LDSCRIPT_PATH = 'ldscript.txt';
 export const SYMBOLS_PATH = 'symbols.ld';
+/** The per-unit build variables the scaffold's Makefile includes (the modules-mk writer, D74 f). */
+export const MODULES_MK_PATH = 'modules.mk';
 /** The user's ROM at the project root: the config's rom.path, and the only file an `.incbin` reads. */
-export const BASEROM_PATH = 'baserom.gba';
+export const BASEROM_PATH = BASEROM_FILE;
 /** The macro file every generated `.s` includes, as the dialect defines it (foundation/asm/dialect.ts DIALECT.macrosPath). */
 export const MACROS_PATH = DIALECT.macrosPath;
 
-/** The directory of a module's function and orphan files, without a trailing '/'. */
-export function nonmatchingDir(module: string): string {
-  return `asm/nonmatchings/${module}`;
-}
-
-/** The object a module builds to. */
+/** The object an asm or data module builds to (as from its `.s` source). */
 export function objectPath(module: string): string {
   return `build/${module}.o`;
+}
+
+/**
+ * The object a C module builds to (D74 f): `src/<module>.c` is preprocessed, compiled by agbcc into
+ * cAssemblyPath(module) and assembled to `build/src/<module>.o`, which the ldscript's C-data check names as
+ * `*src/<module>.o`.
+ */
+export function cObjectPath(module: string): string {
+  return `build/src/${module}.o`;
+}
+
+/** The assembly agbcc writes for C module `module`, which `as` assembles to cObjectPath(module). */
+export function cAssemblyPath(module: string): string {
+  return `build/src/${module}.s`;
 }
 
 function isFileChunk(chunk: Chunk): boolean {
@@ -55,8 +68,57 @@ export function chunkPaths(model: Pick<Model, 'chunks'>): readonly (string | und
   return model.chunks.map((chunk) => {
     if (!isFileChunk(chunk)) return undefined;
     const name = (groupSize.get(keyOf(chunk)) ?? 0) > 1 ? `${chunk.name}_${hex(chunk.span.start)}` : chunk.name;
-    return `${nonmatchingDir(chunk.module)}/${name}.s`;
+    return chunkFileOf(nonmatchingDir(chunk.module), name);
   });
+}
+
+/** A case-folded group member's file base name: `<Name>_<ADDR>`, ADDR eight upper-case hex digits (chunkPaths). */
+const GROUP_MEMBER = /^(.+)_[0-9A-F]{8}$/;
+
+/**
+ * The names of the function and orphan chunks a tree's chunk files hold, from their paths alone (chunkPaths'
+ * inverse), unique, in code-unit order: each file's base name, and also `<Name>` for each member of a case-folded
+ * group, a file `<Name>_<ADDR>.s` whose directory holds another such file of a different `<Name>` that folds to the
+ * same text. A function named `sub_<ADDR>` is not mistaken for a group named `sub`, since every such file of a
+ * directory has the same `<Name>`. Files outside the nonmatchings directories are ignored.
+ */
+export function chunkNamesOf(files: Iterable<string>): readonly string[] {
+  const names = new Set<string>();
+  /** Per directory and folded group name, the distinct `<Name>`s of its `<Name>_<ADDR>` files. */
+  const groups = new Map<string, Set<string>>();
+  for (const file of files) {
+    const dir = file.slice(0, Math.max(0, file.lastIndexOf('/')));
+    const base = stubNameOf(file);
+    if (!dir.startsWith(`${NONMATCHINGS_ROOT}/`) || chunkFileOf(dir, base) !== file) continue;
+    names.add(base);
+    const member = GROUP_MEMBER.exec(base)?.[1];
+    if (member === undefined) continue;
+    const key = `${dir}/${folded(member)}`;
+    const group = groups.get(key) ?? new Set<string>();
+    group.add(member);
+    groups.set(key, group);
+  }
+  for (const key of sortedKeys(groups)) {
+    const group = groups.get(key) ?? new Set<string>();
+    if (group.size > 1) for (const name of sortedKeys(group)) names.add(name);
+  }
+  return sortedKeys(names);
+}
+
+/**
+ * The stub names of the chunk files of `files` (a tree's project paths) that lie directly in module `module`'s
+ * nonmatchings directory, in the order given: each file's base name, a file whose path is chunkFileOf of its
+ * directory and base name (the same round trip as chunkNamesOf). The one reader of "the chunk files of one module"
+ * of a tree on disk (fix round 5, architecture-b0-7).
+ */
+export function moduleChunkStubs(files: Iterable<string>, module: string): readonly string[] {
+  const dir = nonmatchingDir(module);
+  const out: string[] = [];
+  for (const file of files) {
+    const base = stubNameOf(file);
+    if (chunkFileOf(dir, base) === file) out.push(base);
+  }
+  return out;
 }
 
 const CHUNK_PATHS = new WeakMap<readonly Chunk[], readonly (string | undefined)[]>();
@@ -94,20 +156,21 @@ export function moduleSource(model: Pick<Model, 'chunks'>, module: Module): stri
     case 'data':
       return `data/${module.name}.s`;
     case 'c':
-      return `src/${module.name}.c`;
+      return cSourceOf(`${module.name}.c`);
   }
 }
 
-/** One link unit: a module, the source it builds from, and its object. */
+/** One link unit: a module, the source it builds from (`src/<m>.c` for a C module), and its object. */
 export interface BuildUnit {
   readonly module: string;
   readonly source: string;
   readonly object: string;
 }
 
-/** The link unit of module `m`. */
+/** The link unit of module `m`: a C source builds to build/src/<m>.o, an assembly one to build/<m>.o. */
 function buildUnitOf(model: Pick<Model, 'chunks'>, m: Module): BuildUnit {
-  return { module: m.name, source: moduleSource(model, m), object: objectPath(m.name) };
+  const source = moduleSource(model, m);
+  return { module: m.name, source, object: isCSource(source) ? cObjectPath(m.name) : objectPath(m.name) };
 }
 
 /** One unit per module, in ROM (link) order. */
@@ -133,4 +196,9 @@ export function assembleUnits(model: Pick<Model, 'modules' | 'chunks'>): readonl
 export function modulePathPrefixes(model: Pick<Model, 'chunks'>, module: Module): readonly string[] {
   const source = moduleSource(model, module);
   return chunksOf(model, module).some(isFileChunk) ? [source, `${nonmatchingDir(module.name)}/`] : [source];
+}
+
+/** The path prefixes of the modules romlift does not generate (`generated = false`): planWrites never touches them (D62 d). */
+export function retainedPrefixes(model: Pick<Model, 'modules' | 'chunks'>): readonly string[] {
+  return model.modules.filter((m) => !m.generated).flatMap((m) => [...modulePathPrefixes(model, m)]);
 }

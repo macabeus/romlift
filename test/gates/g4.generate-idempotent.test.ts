@@ -2,9 +2,9 @@
 // gives an identical tree. In a directory holding only the ROM, `init` writes the project; then `generate
 // --dry-run --json` must plan only `keep` operations, and `generate --json` must leave every file with the
 // same content and the same modification time (so `make` stays incremental). The ci tier runs every
-// committed fixture; the real tier adds the five tuning ROMs.
+// committed fixture; the real tier adds the six tuning ROMs (D60, D62 h, D74).
 //
-// Expected interfaces, for the phase-4 lead to align (architecture §2.1, §6.4):
+// Interfaces, frozen by D74 (architecture §2.1, §6.4):
 //   romlift init <rom> --json, romlift generate --json    exit 0; NDJSON, last line {"type":"summary","exitCode":0}
 //   romlift generate --dry-run --json                     exit 0; one line per write-plan op,
 //     {"type":"op","op":"write"|"edit"|"delete"|"keep","path":string}, then the summary

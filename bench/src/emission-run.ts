@@ -6,7 +6,7 @@
 // stream order (g3.tree-determinism's), hashed while planWrites reads the stream, so no tree is held for it.
 import { createHash } from 'node:crypto';
 
-import { generate, generatedEntries, initConfig, type FileEntry, type Rom, type RomliftConfig } from 'romlift';
+import { generate, generatedEntries, initConfigOf, type FileEntry, type Rom, type RomliftConfig } from 'romlift';
 import { writeFreshTree } from 'romlift/node';
 
 /** What one emission run did. */
@@ -41,9 +41,9 @@ function* hashing(entries: Iterable<FileEntry>, hash: ReturnType<typeof createHa
   }
 }
 
-/** The config of a ROM as `init` would write it: configFromDiscover over its discover analysis (initConfig). */
+/** The config of a ROM as `init` writes it (initConfigOf: discover, configFromDiscover, the canonical TOML parsed back). */
 export function configOf(rom: Rom): RomliftConfig {
-  const init = initConfig(rom);
+  const init = initConfigOf(rom);
   if (!init.ok) throw new Error(`the discover run raised errors: ${init.diagnostics.map((d) => `${d.code}: ${d.message}`).join('; ')}`);
   return init.config;
 }
@@ -68,7 +68,7 @@ export const ROMLIFT_EMISSION: EmissionRunner = {
   prepare: configOf,
   generate: generateInto,
   async init(rom, dir) {
-    const init = initConfig(rom);
+    const init = initConfigOf(rom);
     if (!init.ok) return { ok: false, failure: 'error', detail: `${init.diagnostics.map((d) => `${d.code}: ${d.message}`).join('; ')}; nothing written`, files: 0 };
     return generateInto(rom, init.config, dir);
   },

@@ -72,8 +72,8 @@ for (const name of ['far-jump', 'arm-pools-in-front', 'large-data-referenced']) 
 }
 
 test('treePass hashes a reconciled entry by its edits', () => {
-  const pass = treePass([{ ownership: 'reconciled', path: 'src/a.c', baseSha1: 'x', edits: [{ start: 0, end: 1, text: 'y', reason: 'rename' }] }]);
-  const expected = createHash('sha256').update(`src/a.c\0${JSON.stringify([{ start: 0, end: 1, text: 'y', reason: 'rename' }])}\0`).digest('hex');
+  const pass = treePass([{ ownership: 'reconciled', path: 'src/a.c', baseSha1: 'x', edits: [{ start: 0, end: 1, text: 'y', reason: 'add-stub' }] }]);
+  const expected = createHash('sha256').update(`src/a.c\0${JSON.stringify([{ start: 0, end: 1, text: 'y', reason: 'add-stub' }])}\0`).digest('hex');
   assert.deepEqual(pass, { paths: ['src/a.c'], treeDigest: expected });
 });
 

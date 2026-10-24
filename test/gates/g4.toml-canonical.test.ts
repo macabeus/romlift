@@ -8,8 +8,8 @@
 //     E_TOML_PATCH_REFUSED;
 // and the config goldens under test/golden/config/ pass with UPDATE_GOLDEN unset.
 //
-// Calls, for the phase-4 lead to align (architecture §3.4, §6.5):
-//   parseConfig(text) -> {ok: true, value: RomliftConfig} | {ok: false, diagnostics}
+// Calls, frozen by D74 (architecture §3.4, §6.5; p4-config's):
+//   parseConfig(text) -> {ok: true, value: RomliftConfig, diagnostics} | {ok: false, diagnostics}
 //   serializeConfig(config) -> string
 //   planPatch(text, config, proposals) -> {ok: true, text: string, diagnostics} | {ok: false, diagnostics}
 //   a rename proposal: {kind: 'function', addr, mode, name, source: {kind: 'legacy'}}

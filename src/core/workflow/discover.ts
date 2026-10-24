@@ -29,10 +29,12 @@ export interface DiscoverOptions {
   readonly trailFilter?: Span;
 }
 
-function defaultProfile(): CompilerProfile {
-  const profile = profileById(DISCOVER_PROFILE);
-  if (profile === undefined) throw new RomliftInvariantError(`the ${DISCOVER_PROFILE} profile is not registered`);
-  return profile;
+/** `profile`, or the profile discover runs with by default (DISCOVER_PROFILE): every workflow's one resolver. */
+export function profileOrDefault(profile?: CompilerProfile): CompilerProfile {
+  if (profile !== undefined) return profile;
+  const found = profileById(DISCOVER_PROFILE);
+  if (found === undefined) throw new RomliftInvariantError(`the ${DISCOVER_PROFILE} profile is not registered`);
+  return found;
 }
 
 /** The analysis options of a discover run: no seeds (phase 2 has no evidence), no overrides. */
@@ -68,7 +70,7 @@ function notAnalysed(rom: Rom, profile: CompilerProfile, options: AnalysisOption
  * disabled rules here. `discover` is this with DEFAULT_TUNING.
  */
 export function discoverTuned(rom: Rom, options: DiscoverOptions, tuning: AnalysisTuning, sink?: TrailSink): AnalysisResult {
-  const profile = options.profile ?? defaultProfile();
+  const profile = profileOrDefault(options.profile);
   const analysisOptions = discoverOptions(options);
   const problems = checkRom(rom.bytes);
   if (problems.length > 0) return notAnalysed(rom, profile, analysisOptions, problems);

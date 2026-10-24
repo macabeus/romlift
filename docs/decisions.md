@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77 and D78 what the phase-4 fix rounds changed, D76 the owner's answers to the phase-4 questions); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -2827,6 +2827,1208 @@ sa2 725 ms against 798 ms) and `gates --require 3 --tier ci` with `g3.large-rom`
 and 1,002.9 MiB, budget 1,536 MiB). Phase 3 passes its closing gate; the marker stays at `{ "landed": 3 }`, the artifact
 of that run (`meta.commit` `0784b4e`) is committed, and the merge to `main` waits for the phase pull request's CI.
 Nothing is merged or pushed.
+
+## D74. Phase-4 component boundaries as executed, and the contract members phase 4 needs
+
+**Context.** Roadmap 4.0–4.I splits phase 4 into a lead, five parallel components (4.A config on disk, 4.B scaffold
+and templates, 4.C C stubs, modules.mk and the C-data assertion, 4.D workflows and commands, 4.E end-to-end harness)
+and an integrator, and its section "Carried from phase 3" adds three work items the owner assigned on 19 October 2026
+(phase-3.md Q5 b, Q5 c and Q7, D68 e, D72 c) plus the carried minors. As in phases 1 to 3 (D54, D56, D62), freezing the
+phase's types showed where the roadmap's split and the edge table do not fit: the C-unit text-layout check needs the C
+tokenizer, which core/verify may not import; `scaffold --diff`'s command needs the project loading of 4.A; the C build
+(compiler invocation, object paths, modules.mk's variables, the C-data ASSERT) is written by three components and read
+by a fourth. The owner asked for no checkpoints: every owner decision of architecture §12 is built with its documented
+safe default, and every choice below that is not in the owner's words is an owner question in phase-4.md, built with
+its default while it waits (Q1 to Q3).
+
+**Decision.** Phase 4 runs as eleven components in three waves on the branch `phase-4`, each on its own flat branch
+`phase-4-<component>` and worktree (D56 h; roadmap.md, "Phase 4", "As executed (D74)"):
+
+- (a) **Wave 1**: `p4-lead` (this record; 4.0 below), `p4-emission-carried` (Q5 b, padding-only orphans folded into the
+  next function without changing a byte, then Q7, the readable printer's `adr` naming a function label, with the fixture
+  `adr-function-label` that fails without the fix: `core/model/{chunks,items,labels,resolver,codec,printing-cache}.ts`,
+  `core/layout/{borders,tiling}.ts`, `core/emit/print/{chunk,insn,pool,raw}.ts`, the function and orphan writers,
+  `core/verify/text-layout.ts`, the writer, model and explain goldens) and `p4-confirm-listed` (Q5 c, the confirm run no
+  longer re-validating the functions configFromDiscover listed: `core/analysis/{types,codec}.ts`,
+  `core/analysis/driver/confirm.ts`, `core/workflow/generate.ts`'s `listedSeedsOf`, `test/local/listed-invalid.test.ts`).
+  **Wave 2**: `p4-config` (4.A: `core/config/{keys,parse,serialize,patch,decomp-yaml,codes}.ts`,
+  `shell/config/{load,save}.ts`, `shell/project/locate.ts`, the config goldens, `test/mutation/phase4/patch-planner`),
+  `p4-scaffold` (4.B without its CLI: the templates but `MANIFEST.json`, `core/scaffold/render.ts`,
+  `shell/project/templates.ts`, the scaffold goldens), `p4-c-modules` (4.C, below), `p4-fixtures` (4.E's three fixtures,
+  `composite`, `multi-compiler` and `c-data`, and the old_agbcc support of the fixture build) and `p4-safety-minors`
+  (`test/mutation/phase4/{lock,journal}`, and the carried minors that touch code outside the other components:
+  architecture-r2-4, correctness-ci-1, correctness-r0-2, gate-honesty-r0-1). **Wave 3**: `p4-workflows` (4.D: `init`,
+  `generate` over a project, `analyze --update`, `scaffold --diff`, the project mode of `model`, `verify` and `explain`,
+  `shell/project/read-inputs.ts`, `shell/toolchain/npm.ts`), `p4-e2e` (4.E's harness: `test/helpers/e2e.ts`, the TOML
+  mutation property test, `packed.yml`, the fixtures workflow's init step) and `p4-bench-init` (4.E's bench part: `bench
+  run --scaffold` through `init`, `setup.sh` and `make`; `init` and `generate` in `bench large-rom --bin`). The lead
+  integrates after each wave, regenerates `bench/results.json`, raises `test/gates/phase.json` and runs the closing gate.
+- (b) **Deviations from the roadmap's owners.** Q5 b and Q7, which roadmap "Carried from phase 3" gives to 4.0, are one
+  wave-1 component (`p4-emission-carried`): both regenerate the writer goldens, so they run in sequence in one place, and
+  the lead's freeze is not blocked on them. Q5 c, which the roadmap gives to 4.D, is its own wave-1 component
+  (`p4-confirm-listed`), measured against g2's gates before the workflows land. `scaffold --diff`'s command moves from 4.B
+  to `p4-workflows`, because it reads a project through 4.A. `p4-c-modules` also owns configFromDiscover's kind flip of
+  the agbcc-shaped modules to `c` (D62 c), the C units of the text-layout check and of `verify --assemble/--link`
+  (`core/verify/{text-layout,link-scripts}.ts`, `shell/toolchain/link-check.ts`) and `objectPath` for C modules
+  (`core/model/paths.ts`). 4.E is three components (fixtures in wave 2; harness and bench in wave 3). The roadmap gives
+  `src/shell/codes.ts` to 4.0; the shell's codes land with their raisers instead (`p4-config`: `E_PROJECT_NOT_FOUND`;
+  `p4-workflows`: `E_DIR_NOT_EMPTY`, `W_LOCKFILE_DEFERRED` and the others it raises), because
+  `test/unit/diagnostics/codes.test.ts` requires every defined code to have a raiser (D45). Nothing else moves.
+- (c) **The frozen workflow types** (`core/workflow/types.ts`, plain readonly data): `InitOptions { name?; moduleSize? }`
+  (phase 4's `init` takes `<rom> [dir] [--name] [--module-size] [--json]`; `--no-signatures` lands with signatures in
+  phase 6, since nothing ships before its phase); `InitInputs { rom; romFile; options; templates: ScaffoldTemplates;
+  romliftVersion; agbcc: AgbccPin; profile? }`; `InitPlan = { ok: true; config; tomlText; decompYamlText; result:
+  GenerateResult; scaffold: readonly FileEntry[]; diagnostics } | { ok: false; diagnostics }`; `ProjectInputs { rom;
+  configText; config; cTexts: ReadonlyMap<src/<module>.c, text>; profile? }`; `GeneratePlan = { ok: true; result:
+  GenerateResult; diagnostics } | { ok: false; diagnostics }`; `AnalyzeUpdateInputs { rom; configText; config; profile? }`;
+  `AnalyzeUpdatePlan = { ok: true; proposals; text; changed; diagnostics } | { ok: false; diagnostics }`. Three choices
+  beyond the roadmap's names: `GeneratePlan` is a union like the other two plans, because a ROM whose SHA-1 is not the
+  config's `[rom] sha1` is refused before any analysis and has no result; `ProjectInputs.profile?` mirrors
+  `GenerateInputs.profile?` (the dummy profile of `g2.second-profile`); `AgbccPin` is defined in
+  `core/scaffold/vars.ts`, since core/scaffold may not import core/workflow. `GenerateInputs` and `GenerateResult` stay
+  in `core/workflow/generate.ts` in their phase-3 form. The project's ROM is always `baserom.gba` (`BASEROM_PATH`, the
+  config's `[rom] path`, the only file an `.incbin` reads); `InitInputs.romFile` is the name the user gave, which
+  `init`'s shell copies to `baserom.gba` when it differs, keeping the original (g4.e2e-fixtures initialises
+  `<fixture>.gba`).
+- (d) **The scaffold contract** (`core/scaffold/vars.ts`). `ScaffoldVars { name; romFile: 'baserom.gba'; builtRom
+  (<name>.gba); sha1; sha1File (<name>.sha1); romliftVersion; agbcc: AgbccPin; title (the header's game title) }`, built by
+  `scaffoldVars`. `ScaffoldTemplate { target; source: string | null; executable }`, `ScaffoldManifest { schema: 1; files
+  }`, `ScaffoldTemplates { manifest; texts: ReadonlyMap<source, text> }`. Templates and manifest targets spell a value as
+  `@@<placeholder>@@`, one of `SCAFFOLD_PLACEHOLDERS` (`name`, `romFile`, `builtRom`, `sha1`, `sha1File`,
+  `romliftVersion`, `title`, `agbccUrl`, `agbccCommit`; `placeholderValues`): `@@` occurs in none of the file kinds
+  romlift ships, unlike `{{` (GitHub's `${{ … }}`). `decodeScaffoldManifest(json)` and `decodeAgbccPin(json)` return
+  `{ ok: true; value } | { ok: false; message }` and never throw. A null `source` is exactly the five targets romlift
+  renders itself (`ROMLIFT_RENDERED_TARGETS`): `@@sha1File@@` (`<sha1>  <name>.gba`, sha1sum format), `package.json`
+  (the exact romlift version), `.gitmodules` (`tools/agbcc` at the pin's URL), `include/macros.inc` (`DIALECT.macrosInc`)
+  and `include/include_asm.h` (`INCLUDE_ASM_HEADER`), so neither header can drift from the text the checks read.
+  `templates/MANIFEST.json` lists `.github/workflows/build.yml` (from `build.yml`), `.gitignore` (from `gitignore`, as
+  npm drops a packed `.gitignore`), `AGENTS.md`, `Makefile`, `README.md`, `setup.sh` (the only executable),
+  `mk/<id>.mk` from `compilers/<id>.mk` for each build compiler (`BuildCompiler.rule`, D47), and the five rendered
+  targets. `templates/agbcc.json` is `{ "url": "https://github.com/pret/agbcc", "commit":
+  "da598c1d918402c42c0c0d7128ba14567f3175e9" }`, the commit the synthetic fixtures were built with; it is read, never
+  copied.
+- (e) **The C-stub constants** (`foundation/asm/dialect.ts`, shared by the c-stub writer, the reconciler, the
+  text-layout check and the scaffold): `includeAsmStatement(module, name)` = `INCLUDE_ASM("asm/nonmatchings/<module>",
+  <name>);`, where `name` is the chunk file's base name (`chunkPaths`: `<Name>_<ADDR>` for a member of a case-folded
+  group), since the macro includes `<dir>/<name>.s`; `NONMATCHINGS_ROOT` (`asm/nonmatchings`); `INCLUDE_ASM_HEADER_PATH`
+  (`include/include_asm.h`); `INCLUDE_ASM_HEADER`, guarded, defining `INCLUDE_ASM(DIR, NAME) asm(".syntax
+  unified\n.include \"" DIR "/" #NAME ".s\"\n.syntax divided\n")` and including the macro file once per translation unit
+  with a file-scope `asm` (romlift's `.s` files are unified syntax, agbcc emits divided; Klonoa's decomp uses the same
+  form with agbcc and old_agbcc); `C_STUB_HEADER` (`#include "include_asm.h"` and a blank line), the lines every
+  generated `src/<module>.c` starts with, its INCLUDE_ASM statements following one per line.
+- (f) **The C build, frozen for the writers, the scaffold and the checks.** A C module `src/<m>.c` is preprocessed by
+  the host C compiler (`$(HOSTCC) -E -x c -nostdinc -undef -I include src/<m>.c`), compiled by
+  `tools/agbcc/bin/<compiler>` with `BUILD_COMPILERS[<compiler>].flags` plus the module's `cflags` into
+  `build/src/<m>.s`, and assembled (`arm-none-eabi-as -mcpu=arm7tdmi`) to `build/src/<m>.o`; asm and data units keep
+  `build/<m>.o` (`objectPath`). What agbcc appends or aligns at a unit's end is measured by `p4-c-modules` (D65 a's unit
+  alignment) and encoded once. The Makefile includes `modules.mk` (generated, the `modules-mk` writer) and every
+  `mk/<id>.mk`, whose C recipe reads the object's `CC1` and `CFLAGS`; an explicit rule the user adds for one object wins
+  over the pattern rule (D47). modules.mk holds exactly: `OBJS := <every unit object in link order>`, `C_OBJS := <the C
+  objects>`, and per C object the target-specific lines `build/src/<m>.o: CC1 := tools/agbcc/bin/<id>` and
+  `build/src/<m>.o: CFLAGS := <flags>` (each names `src/<m>.o`, as `g4.multi-compiler` reads it). The ldscript places
+  only `.text` of a C object and, per C module, exactly:
+
+  ```
+  .c_data_<m> (NOLOAD) : { *src/<m>.o(.rodata* .data* .bss* COMMON) }
+  ASSERT(SIZEOF(.c_data_<m>) == 0, "src/<m>.c defines data; see AGENTS.md (data ranges arrive in phase 5)")
+  ```
+
+  The leading `*` (architecture §6.6 wrote `src/<m>.o`) matches the object ld is given, `build/src/<m>.o`.
+- (g) **One more edge.** `core/verify` may import `core/reconcile` and `core/config/compilers.ts` (architecture §2,
+  `test/helpers/architecture.ts`): the text-layout check reads a C stub's INCLUDE_ASM statements to lay out a C unit, and
+  no regex runs over code (§6.6), so it must use the one C tokenizer and INCLUDE_ASM finder; it reads the module's build
+  compiler for the unit's measured layout. core/reconcile imports only foundation, so no cycle arises.
+- (h) **Codes.** The lead creates `core/config/codes.ts` and `core/reconcile/codes.ts` empty and unions them into
+  `core/diagnostic-codes.ts`; their owners add each code with its first raiser (D45). `src/shell/codes.ts` is not the
+  lead's in phase 4 (b).
+- (i) **Barrels.** Empty: `src/api/{config,config-files}.ts` (`p4-config`), `src/api/{scaffold,scaffold-files}.ts`
+  (`p4-scaffold`), `src/api/reconcile.ts` (`p4-c-modules`), `src/api/{workflow-one-shot,one-shot-files}.ts`
+  (`p4-workflows`); the `*-files.ts` ones in `romlift/node`, the others in `romlift`. The frozen types and values of (c)
+  to (e) are exported by the lead's `src/api/one-shot-types.ts` (`romlift`), as phase 3's `config-types.ts` was. The
+  command lists `cli/commands/lists/{one-shot,scaffold}.ts` start empty and pass to `p4-workflows`.
+- (j) **Every phase-4 threshold applies to the six tuning ROMs** (D60, as D62 h did for phase 3): the roadmap's "all
+  five tuning ROMs" reads as the six; `g4.e2e-real` requires six tuning datasets, and the other gates' comments say six.
+  This is stricter and loosens nothing. The g4 gate files' "expected interfaces" comments now name the frozen
+  interfaces; no assertion changed, and every g4 gate stays `pending` until `init` is exported (wave 3).
+- (k) **Owner questions** (phase-4.md): Q1, the scope of Q5 c (only `[functions]` entries with a `from` key are
+  validated in the confirm run; a hand-added entry without `from` no longer warns), default (a), accept; Q2,
+  correctness-r0-1 (sa2's `g2.speed` headroom), default (a), no change to the gate or `speed.json`; Q3, correctness-r0-2's
+  `env -S` launcher requirement as a known limitation (the phase-3 review's words, not the owner's), default (a), record
+  it with the launcher test. Q4 (raised by `p4-workflows` in wave 3: is deleting the last listed function a legal
+  edit, which `g4.toml-mutations` failed on) was withdrawn by fix round 1, which made the edit legal in the product
+  (D75 a). Fix round 1 adds Q5 (a project made by an unpublished romlift needs `ROMLIFT_CLI`, D75 o) and Q6 (the
+  `W_UNLISTED_FUNCTION` that `generate` still raises after `init` on tmc and the doubled ROM). The phase does not land
+  until Q1, Q2, Q3, Q5 and Q6 are answered. Q5 a (the alignment refusal, D65 a) stays a recorded release-1 limitation by the owner's
+  answer (D68 e).
+
+**Consequences.** Every wave-2 and wave-3 component codes against frozen types, paths and texts, and owns files no other
+component of its wave touches; the g4 gates stay `pending` until `init` lands; the C-stub texts, the C object paths and
+the ASSERT have one definition each.
+
+**Rejected.** `{{name}}` placeholders (they collide with GitHub Actions expressions in `build.yml`). Rendering
+`include/macros.inc` and `include/include_asm.h` from template files (two copies of a text the checks read). Exporting
+the frozen types from an owner's barrel (two components would edit one file). Validating hand-added entries by a TOML
+marker key (Q1's option c; it bloats `[functions]` against §6.5's layout).
+
+## D75. Phase-4 fix round 1
+
+**Context.** The review of phase 4's closing run at `10ff9ed` (phase-4.md, "Review", fix round 1) found two blockers:
+the legal TOML edits of a `c` module left a project `make` could not build while `generate` and project-mode `verify
+--link` reported success (correctness-1, correctness-2), and `g4.toml-mutations` failed on deleting the last listed
+function, which phase-4.md filed as owner question Q4 with no default (delivery-1). R3 and architecture §13 say every
+seeded legal edit keeps the link green and `generate` takes every border from the TOML; neither blocker is a gate
+change, so each is fixed in the product, and the gates stay as they are or get stricter.
+
+**Decision.**
+
+- (a) **A module start in the data region is legal at every word-aligned address** (architecture §6.2, "Legal
+  borders"): at or past the layout's data start no instruction lies, so no branch, PC-relative load or `adr` can cross
+  a border there, and ld word-aligns every object. `planModules` takes the data start beside the legal borders
+  (`BorderRule`, `isLegalStart`); `legalBorders` itself is unchanged, so `init`, the TOML patcher and every analysis
+  golden stay as they were. After the user deletes the last listed function, the confirm run's code ends at the
+  deleted entry and its data start moves down, but the `data` module keeps the start the TOML states: the bytes
+  between are the tail of the module before, an orphan chunk there. This is phase-4.md's Q4 option (c), taken because
+  it conforms to R3 (the TOML states the border) and leaves the gate unchanged; option (b) would have changed the
+  confirm analysis and the g2 gates' inputs for the same result. Q4 is withdrawn as an owner question.
+
+- (b) **`generate` reconciles the project's C files** (architecture §6.3 `c-stub` "scaffold at `init`, reconciled
+  after", §6.4 `reconciled`, §6.6). An existing `src/<module>.c` of a generated `c` module is no longer a scaffold
+  entry that `generate` keeps: `core/workflow/c-stubs.ts` runs `planIncludeAsm` over its text and the module's chunk
+  files, and the project's write stream carries a `reconciled` entry (the text's base sha1 and its edits), applied by
+  `planWrites` only while the file still has that sha1 (`E_STALE_EDIT` otherwise) and journalled like every edit.
+  `planIncludeAsm` adds a missing stub (phase 4's case) and now also removes a stub of the module's own directory whose
+  function is not wanted there (a rename, a deleted function, a function moved to another module by a moved or split
+  border; a move is that removal plus the insertion in the other module's file). Roadmap 5.A owns "the move and remove
+  cases"; they land in phase 4 because without them every legal TOML edit of a `c` module leaves a project `make`
+  cannot build (correctness-1), which R3 and `g4.toml-mutations` forbid. Phase 5 keeps the rest of 5.A (renames inside
+  C, the matchings split, `g5.reconciler`'s goldens). A stub of another directory, a definition, a comment and a string
+  are never removed. A tree written elsewhere (`verify`'s temporary directory, `generate --out`) gets the reconciled
+  text, so project-mode `verify --assemble/--link` links the C `make` compiles after `generate`, and refuses a unit that
+  holds decompiled C (no compiler there) instead of linking a fresh stub. The check pass still checks the stub the model
+  implies, so a C file with decompiled functions is not refused by `generate`.
+- (c) **The scaffold's Makefile rebuilds an object whose inputs changed within the second** (`templates/Makefile`).
+  The phase-4 Makefile recorded a source SHA-1 for C objects only; an asm unit rewritten by `generate` within the
+  second of the previous build kept its old object under GNU make 3.81 (macOS), which compares modification times to
+  the second, and the link then failed on a renamed symbol (measured on the composite fixture: `undefined reference to
+  Renamed` from `build/crt0.o`). Every object now records the SHA-1 of the files its dependency lists name (the
+  assembler's `.d`: its source and every chunk file it includes; a C unit's preprocessor `.c.d`), its source and
+  `modules.mk`, and an object whose record differs is removed with the ELF before make decides. The ROM is written by
+  the link alone (correctness-8: `objcopy` ran twice per link); the ROM rule only restores a ROM removed since.
+
+- (d) **Padding-only orphans, all of them** (Q5 b, D68 e; review delivery-2, correctness-4, architecture-3). Phase 4
+  folded a zero pad only into the function after it in the same module, so the pads at a module's end stayed orphan
+  files (25 on the tuning ROMs, 11 in `c` modules, each with its own `INCLUDE_ASM` stub). Such a pad is now the last
+  item of the function or orphan chunk before it in its module (`ChunkPlan.tailPad`), a padding item printed `.align
+  2, 0`: it is the alignment of the object's end, which a decompiled last function reproduces because ld aligns the
+  next object the same way. `test/local/padding-orphans.test.ts` now requires no zero-pad orphan anywhere on the six
+  tuning ROMs. The fold changes no byte. The model's `Chunk` and `romlift/model-json@1`'s chunk line carry the entry a
+  folded chunk opens past (`entry`, present only when it is not the span's start), so `chunkEntry` reads it instead
+  of searching the functions by name, and the printer decides from the item table alone whether the pad is printed
+  before the start macro (items.ts makes it data when a label lies in it); the fold rule lives in chunks.ts only. A
+  0x46C0 nop pad stays an orphan: no start macro emits it (they open with `.align 2, 0`, zeros), and agbcc's output for
+  the function before it does not hold it, so folding it either way would put into a function's file a byte its C
+  cannot produce. On the tuning ROMs those are 21 (fe7j), 21 (klonoa), 15 (pokeemerald), 15 (sa2), 15 (sa3) and 0
+  (tmc), every one in `c` modules; by the ELF maps, 15 on each ROM but tmc lie in libgcc's `_call_via_rX.o`, which
+  phase 6's signatures move into a library `asm` module (architecture §12, "Signatures arrive in phase 6"), and 6 each
+  in a hand-written assembly object (fe7j's `arm-call.o`, klonoa's `thunk.o`), which stays in a `c` module. Keeping
+  them as orphans is phase-4.md owner question Q7.
+  **Revision** (D78 b, correctness-a1-4): a module-end pad after a function of a `c` module is its own orphan again;
+  the claim that ld aligns the next object the same way was wrong (gas ends the decompiled C object with a nop).
+
+- (e) **The executable bit is part of the write plan** (review architecture-4). `FileEntry`'s scaffold member and the
+  `write` op carry `executable?: true`; `applyWrites` sets the mode on the temporary file before the rename
+  (`atomicWrite`'s `mode`), and `planWrites` gives an executable entry whose file exists without its executable bits a
+  `mode` op (`WritePlanInputs.executables`, read by the shell), journalled as `{op: "mode", path}`. The chmod after the
+  plan, outside the journal, which a crash could skip for good, is gone, and so is `isExecutableEntry`.
+
+- (f) **One path to the config `init` writes** (review architecture-2). `core/workflow/init-config.ts` holds
+  `initConfigOf(rom, options)`: the build name (`--name`, or the header's with `_build` on a collision), the discover
+  run, configFromDiscover with `--module-size`, serialisation and the parse back. `init`, `generateFromRom` (`verify
+  --rom`), `initModel` (`model --rom`) and the bench's "as init would write it" all call it; `discoveredConfig`,
+  `configAlone` and the old `initConfig` are gone, so no command checks a config `init` never writes. The scaffold's
+  rendering and drift (`projectScaffold`, `scaffoldDrift`) move to `core/workflow/scaffold-diff.ts`, the Myers line
+  diff to `foundation/util/line-diff.ts` (architecture-5), and the four copies of the default-profile lookup become
+  `discover.ts`'s `profileOrDefault` (architecture-6).
+- (g) **The project's file names and the default function spelling live in `foundation/util/project-files.ts`**
+  (`BASEROM_FILE`, `ROMLIFT_CONFIG_FILE`, `DECOMP_YAML_FILE`, `DECOMP_YAML_NAMES`, `defaultFunctionName`); core/config,
+  core/model, core/scaffold and the shell import them, `nonmatchingDir` uses `NONMATCHINGS_ROOT`, and core/emit's
+  `TextEdit` is core/reconcile's re-exported (architecture-7).
+- (h) **Codes as architecture §9.1 lists them** (architecture-8, architecture-9). `E_TOML_SYNTAX` is renamed
+  `E_TOML_PARSE`; `parseConfig` raises `E_UNKNOWN_COMPILER` for an unknown `[build] compiler` or module `compiler`
+  (it was `E_TOML_SCHEMA`); `E_ROM_SHA1_MISMATCH` and its check move from `foundation/rom` (which then held project
+  knowledge) to `core/config/rom-sha1.ts` (`romSha1Problems`). §9.1's table lists `E_DECOMP_YAML_INVALID`,
+  `E_PROJECT_NOT_FOUND` and `E_TOOLCHAIN_FAILED`, which phase 4 raises.
+- (i) **`[build] name` and `[rom] path` are held to the contract `init` and the scaffold assume** (correctness-6). The
+  schema accepts only a build name `init` accepts (letters, digits, `.`, `_`, `-`, a letter or digit first, at most 100
+  characters) and only `baserom.gba` as `[rom] path` (D74 c), which setup.sh, the Makefile and every `.incbin` name;
+  either edit is `E_TOML_SCHEMA` with its line.
+- (j) **`init`'s directory policy is core's** (architecture-1). `initDirVerdict(listing)` (absent, empty, the ROM plus
+  `.git` and dot-files, or a project; otherwise `E_DIR_NOT_EMPTY`), `replacedProblems(dir, wanted, current)` (an
+  existing project's romlift.toml, decomp.yaml or baserom.gba init would replace, compared by sha1) and
+  `wantsLockStep` live in `core/workflow/init.ts`; `E_DIR_NOT_EMPTY` moves to `core/workflow/codes.ts`. The shell only
+  lists the directory (`readInitDir`) and hashes files (`readDigests`), and the CLI sequences the calls.
+- (k) **generate.ts sheds what is not generate** (architecture-13). `ProjectWriteState`, `projectPlanInputs`,
+  `freshTreePlanInputs` and `planChangesNothing` move to `core/write-plan/project-plan.ts` (they take the retained
+  prefixes as input) and `retainedPrefixes` to `core/model/paths.ts`; the init equivalents move to init-config.ts (f).
+
+- (l) **c-unit.ts keeps one job** (architecture-10): the stub assembly agbcc emits and the chunk files a C stub
+  includes. The banner each compiler prints is `BuildCompiler.banner` (measured once, both compilers print `gcc
+  2.9-arm-000512`); the dead `BuildCompiler.rule` is gone, and a unit test holds `templates/MANIFEST.json` to one
+  `mk/<id>.mk` from `compilers/<id>.mk` per registered compiler; the C-data `ASSERT` lines live in
+  `foundation/asm/c-data-assert.ts`, which the ldscript writer and the ldscript check both import; `moduleCompile`
+  throws `RomliftInvariantError` for a compiler the schema would have refused instead of inventing a path.
+
+- (m) **`analyze --update --write` saves only over the text it read** (architecture-12). Under the project lock, the
+  command reads romlift.toml again and `staleConfigProblems` (core/workflow/analyze-update.ts) compares it with the
+  text the patch was planned from; a difference (a user edit or another `--write` during the analyses) is
+  `E_STALE_CONFIG` (core/workflow/codes.ts) and nothing is saved, as a reconciled file's stale edit is `E_STALE_EDIT`.
+
+- (n) **No index handle in the public API** (architecture-14, the carried architecture-r2-1). Phase 4 turned
+  `TextLayoutIndex` into an opaque handle backed by a module-level `WeakMap`, hidden mutable state in pure core whose
+  cloned handle threw. The handle, its registry and `textLayoutIndex` are gone: the index is built and dropped inside
+  `checkEntries`, romlift's one public entry of the text-layout check; `checkEntry(rom, model, entry)`, which builds an
+  index for one entry, stays in `core/verify/text-layout.ts` for tests and is not exported from `romlift`.
+  `g3.text-layout` and `g3.checks-fail`, which run the checks through `verify` and the mutation tests, name
+  `checkEntries` in their `needs` (the export whose absence makes a gate pending) instead of `checkEntry`; no
+  assertion changes.
+
+- (o) **The installed tarball and setup.sh's npm duty, gated** (delivery-3, delivery-4). `g4.e2e-real` runs the six
+  tuning ROMs a second time from the packed and installed package (`npx romlift init` below the install, setup.sh's
+  `ROMLIFT_CLI` the installed bin), as roadmap "Phase 4 exit" asks ("from the source tree and from the installed
+  tarball"). `g4.packed-e2e` runs its first fixture without `ROMLIFT_CLI`: the project's package.json pins romlift as
+  `file:<tarball>` (the one stand-in for a published version) and asm/ is removed, so setup.sh's duty 4 runs `npm
+  install` and duty 5 `npx romlift generate` from that install, and `make` must still end at the SHA-1.
+  `ROMLIFT_CLI` itself is recorded in architecture §6.3. That a project made by an unpublished romlift needs
+  `ROMLIFT_CLI` (or a hand edit of package.json) until romlift is on the registry is a limitation the owner has not
+  authorised: phase-4.md owner question Q5.
+
+- (p) **One commit trailer** (delivery-9). From phase 4 the orchestrator asks that every commit end with the single
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` line, and every phase-4 commit does; AGENTS.md and
+  roadmap.md said two lines (with `Claude-Session:`, which phases 1 to 3 carry). Both now state the one line, so the
+  instruction and the history agree.
+
+## D76. The owner's answers of 20 October 2026 to the phase-4 owner questions, and his scope decisions
+
+**Context.** After fix round 1 (D75) the whole closing list of phase 4 passed at `34865f5`, and the phase waited only
+for the owner: phase-4.md put Q1, Q2, Q3, Q5, Q6 and Q7 to him (Q4 was withdrawn by fix round 1, D75 a), each built
+with its default. Bruno Macabeus answered them on 20 October 2026; each chosen option is quoted as he gave it, and these
+are the only gate changes he authorised. The same day he took two scope decisions for the phases after this one, which
+phase 4's documents must follow.
+
+**Decision.**
+
+- (a) **Q1, the scope of phase-3 Q5 c: "Only entries with `from`" (option a).** The confirm run validates only the
+  `[functions]` entries that carry a `from` key (`Seed.validate`, set by `listedSeedsOf` exactly when the entry has
+  `from`, as `p4-confirm-listed` built it); an entry without `from` is taken without the valid.* rules. Consequence,
+  recorded as a release-1 limitation: a hand-added entry without `from` that fails validity no longer warns
+  `W_LISTED_INVALID`. Nothing changes in the code: the default was the answer. Q1's facts cited `g5.import-legacy`'s
+  expectation for a legacy entry; with (g) legacy import is dropped, so the `from` entries the confirm run validates
+  are the proposals of the sources phase 6 keeps (`sig:<library>@<version>`, `evidence:<id>`) and an entry a user
+  writes with `from`. Nothing in phase 4 depends on `g5.import-legacy`. (At the landing, `analyze --update`'s confirm
+  run still validated every listed entry discover no longer found, with or without `from`; D77 e applies this answer
+  there too, so the consequence above now holds without exception.)
+- (b) **Q2, sa2's `g2.speed` headroom: "Median of more runs" (option c, a gate change the owner authorises).**
+  `g2.speed` measures each tuning ROM's analysis over nine serial runs instead of five and takes the median
+  (`ANALYSIS_SPEED_RUNS` in `bench/src/speed.ts`); the limit (1.5 × baseline × calibration ratio) and
+  `bench/baseline/speed.json` are unchanged, and the calibration and the emission timings of `g3.speed-budget` stay the
+  median of five (the answer names each ROM's runs, nothing else). `bench speed --json` names its run counts (`runs:
+  {calibration: 5, analysis: 9, emission: 5}`), and the gate requires `runs.analysis` to be nine. (Two corrections by
+  D77 f and g: at the landing `g3.speed-budget`'s 3 s analysis budget also read the nine-run median, since it shares
+  `analysisCpuMs`, and `runs.analysis` was a constant, not a count of what was measured; since D77 the budget reads
+  the median of the first five runs and the count is measured, so only then does a bench that measured fewer fail.) Stated in the gate's source, architecture §8.4, §8.5 and §13, and roadmap.md. If sa2
+  still fails `g2.speed` at the landing run, that is a new owner question, not a retry.
+- (c) **Q3, the `env -S` launcher: "Known limitation" (option a).** The bin's need for an `env` that accepts `-S`
+  (BusyBox or Alpine, GNU coreutils before 8.30 cannot start it; `node dist/cli/main.js` runs uncapped) is a release-1
+  known limitation, with the unit test of the built launcher's first line that `p4-safety-minors` added.
+- (d) **Q5, `ROMLIFT_CLI` for an unpublished romlift: "Pre-release limitation" (option a).** Until romlift is published
+  to the npm registry, a project `init` makes needs `ROMLIFT_CLI` (or a hand edit of package.json) for setup.sh's duty
+  4, and every `init` ends with `W_LOCKFILE_DEFERRED`: a pre-release limitation. `ROMLIFT_CLI` is documented in the
+  scaffold's `AGENTS.md` and `README.md` (`templates/`) as the way until then. Nothing is published.
+- (e) **Q6, `W_UNLISTED_FUNCTION` after `init`: "Known limitation" (option a).** `generate` over `init`'s config raises
+  `W_UNLISTED_FUNCTION` on tmc (1, 0x080B1A28) and on the doubled pokeemerald ROM (161): a known limitation of the same
+  root as tmc's accepted confirm/discover differences (D61 e).
+- (f) **Q7, the 0x46C0 nop pads: "Keep as orphans" (option a).** A pad of one Thumb nop up to a word boundary stays its
+  own orphan file and, in a `c` module, its own `INCLUDE_ASM` stub (fe7j 21, klonoa 21, pokeemerald 15, sa2 15, sa3
+  15, tmc 0); byte-exact, and the libgcc ones leave the `c` modules with phase 6's signatures.
+- (g) **The owner's scope decisions: phase 5 skipped ("We don't need it. Skip phase 5") and "Keep rename and
+  objdiff".** Legacy import (`import-legacy`, `g5.import-legacy`, the evidence merge of legacy files), the Klonoa
+  migration tooling and the switch-over pull request are dropped; rename and the reconciler, the `expected/` and
+  `objdiff.json` writers, the C data ranges and the objdiff gate move into phase 6. The owner also dropped the gba-kit
+  trace integration from phase 6. Phase 6 records both decisions in its own decision and rewrites its plan (roadmap.md
+  phases 5 and 6, architecture §11 and §13's g5 rows); phase 4 does not rewrite them. In phase 4's documents every item
+  carried "to phase 5" that survives points to phase 6 instead (phase-4.md, roadmap.md "Carried from phase 4"), and the
+  `g5.*` gate files keep their ids until phase 6 renames or drops them; `--require 4` never counts them.
+- (h) **The minors of the review of fix round 1** (its architecture lens; the correctness lens and the landing agent
+  failed on a service error, not a finding). Fixed: architecture-r1-1 (`cDataSectionLine` and `cDataAssertLine` in
+  `core/model/c-data-assert.ts`, out of foundation; `foundation/util/project-files.ts` is a recorded exception to
+  "foundation holds no project knowledge": the project's file names and the default function name, which core/config,
+  core/model, core/scaffold and the shell share and no core module is upstream of all four, D75 g; architecture §2's
+  tree says so); architecture-r1-5 (`E_UNKNOWN_COMPILER` decided by the refinement's structured marker, `params:
+  {romliftCode}`, carried into `ConfigIssue.code`, never by the message; a unit test holds a compiler of the wrong type
+  to `E_TOML_SCHEMA`); architecture-r1-8 in part (`projectRomProblems` deleted, its callers call `romSha1Problems`);
+  architecture-r1-7 in part (`test/unit/util/line-diff.test.ts`, `test/unit/config/rom-sha1.test.ts`). Carried to
+  phase 6 (roadmap.md, "Carried from phase 4"): architecture-r1-2 (the aliases of `BASEROM_FILE` and the two default
+  name functions), r1-3 (one owner of the legal-start rule in core/layout), r1-4 (the stub banner from the module's
+  compiler), r1-6 (one agbcc pin check and one `readAgbccPin`), r1-7's remainder (the tests that stayed in
+  `read-inputs.test.ts` and a `c-stubs` unit test) and r1-8's remainder (`checkEntry`, which thirty text-layout tests
+  call; a one-entry `checkEntries` adds the stream-level diagnostics those tests do not expect). Each changes code
+  without a defect behind it, and phase 6 reworks the same modules (the reconciler, the C-data ranges).
+
+**Consequences.** Q1, Q3, Q6 and Q7 change no code; Q5 changes the scaffold's `README.md` and `AGENTS.md` templates
+and the scaffold golden; Q2 changes `bench speed` and `g2.speed` (more runs, the same limit). (Reworded by D77 k; the
+first wording said Q5 changed no code.) The landing procedure followed: `test/gates/phase.json` raised to `{ "landed": 4 }` at `55899d1`, the whole
+closing list of phase-4.md in a fresh git worktree with no local caches, and every command exited 0, `g2.speed` among
+them (sa2 731 of 790 ms over nine runs; phase-4.md, "The closing gate", the owner's answers): phase 4 passes its closing
+gate, and its merge waits for the phase pull request's CI.
+
+## D77. Fix round 2 of phase 4: the review of the landing run after the owner's answers
+
+**Context.** The review of the landing run at `6e5ccd1` (the first after the owner's answers, D76) raised twenty
+findings: three majors (correctness-a0-1, correctness-a0-2, architecture-a0-1) and seventeen minors. This round fixes
+all three majors and every minor but parts that are carried, and re-runs the whole closing list. Nothing here changes a
+gate's verdict rule beyond what the owner authorised: (f) restores what `g3.speed-budget` measured before D76 b, and
+(g) makes `g2.speed` check the nine runs D76 b says it checks.
+
+**Decision.**
+
+- (a) **The reconciliation refuses what its edits cannot fix** (correctness-a0-1, a0-7). Renaming or moving a function
+  whose C the user wrote used to make `generate` exit 0 and `make` fail (the new name's `INCLUDE_ASM` beside the old
+  name's definition: the function twice). Now `planIncludeAsm` raises `E_C_STALE_DEFINITION` (error) for a definition
+  whose name the module does not want, lying where a missing stub goes, and `E_C_STUB_UNPLACED` (error) for a wanted
+  name with no safe place (it was silently dropped); `reconcileStubs` raises `E_C_DEFINITION_MOVED` (error) for a
+  definition of a function the TOML now gives another module, and `W_C_FILE_UNUSED` (warning) for a `src/*.c` that is
+  the source of no module (a renamed `c` module, whose old file `make` silently stopped building). An error makes
+  `generate` write nothing (`writable`). A definition no module wants and no missing stub lands next to (a static
+  helper) is the user's and raises nothing; a stub the user writes by hand holds its name, which is the way past a
+  false `E_C_STALE_DEFINITION`. Rename and move of decompiled C stay manual until phase 6's rename command; the
+  scaffold's `AGENTS.md` says so. The last stub of a shared line now goes with the blanks before it.
+- (b) **No stub inside a preprocessor conditional** (correctness-a0-2). `scanC` records the outermost `#if`/`#ifdef`/
+  `#ifndef` … `#endif` regions; an anchor inside one moves to its outer edge (after the `#endif` line, or before the
+  opening directive and the comments that lead into it); an unclosed region leaves no safe place inside or after it.
+- (c) **A leading byte order mark** (correctness-a0-3) is no token: `tokenizeC` starts after it, with the first line
+  still at its start, and no edit moves the mark off offset 0.
+- (d) **`generate --out <dir>` writes the C files as generated files of that tree** (correctness-a0-4,
+  `outTreeEntries`), recorded in its manifest, so a second run into the same directory rewrites (or deletes) them as it
+  does `asm/`. `init`, the project and the fresh trees of `verify` and the bench are unchanged.
+- (e) **`analyze --update` follows D76 a** (architecture-a0-1, correctness-a0-6). Its confirm run validated every
+  listed entry discover no longer found, a second rule written nowhere; it now seeds through `listedSeedsOf` as
+  `generate` does (`updateSeeds` is gone), so only an entry with `from` is validated in every confirm run. This applies
+  the owner's answer ("the confirm run validates only [functions] entries that carry a `from` key") rather than
+  qualifying it, so it is not put to him. Architecture §4 "Two modes, one driver" says which entries are validated.
+- (f) **`g3.speed-budget` measures what it measured before D76 b** (gate-honesty-a0-1). Its 3 s analysis budget had
+  read `analysisCpuMs`, the nine-run median after D76 b, a change the owner's answer did not name. Each ROM now also
+  reports `budgetAnalysisCpuMs`, the median of the first five of the nine runs (exactly the warm-up and five serial runs
+  of before), which the gate reads. `g2.speed` and the ratchet are D76 b's.
+- (g) **The run counts are measured** (gate-honesty-a0-2). `medianTimes` returns its samples; each ROM reports
+  `analysisRuns`, `runs.analysis` is the fewest any ROM measured and `runs.calibration` the calibration's, and
+  `g2.speed` requires both the report's count and each ROM's to be nine.
+- (h) **The C stubs' project paths live in `foundation/util/project-files.ts`** (architecture-a0-2, a0-3), the
+  recorded exception of D76 h: `NONMATCHINGS_ROOT`, `nonmatchingDir`, `chunkFileOf` and `INCLUDE_ASM_HEADER_PATH`.
+  `foundation/asm/dialect.ts` keeps the dialect texts (the macro file's path stays with the dialect, whose `.include`
+  line is its own text). `includeAsmDir` is an alias of the one `nonmatchingDir`; `includedChunkFile`, `chunkPaths`
+  and `stubName` build on it; `ROMLIFT_RENDERED_TARGETS` takes the two headers' paths from the constants the
+  renderers are keyed by.
+- (i) **Stale "phase 5" text** (architecture-a0-7, gate-honesty-a0-3): the project-mode `verify` problem text ends
+  "(build decompiled C with make)"; the text-layout comment, AGENTS.md (two rows), the readability family summary and
+  the code comments that named phase 5 for work phase 6 now does point to phase 6 (D76 g). The C-data ASSERT text and
+  the scaffold's matching section stay carried (product text with goldens).
+- (j) **`init` checks its own files under the project lock** (architecture-a0-8): the command passes the digests init
+  writes; `writeInitProject` reads the files' digests inside the lock and refuses with `replacedProblems`'
+  `E_DIR_NOT_EMPTY` before writing anything. `refusedExitCode`, `VERIFY_CODES` and `opCounts` moved to
+  `cli/commands/analysis-records.ts`, so no command imports another's.
+- (k) **Records** (gate-honesty-a0-4, architecture-a0-4, a0-6, a0-9, a0-10): D76's consequences say what Q5 changed;
+  architecture §6.2 says who uses `legalBorders` (nobody in `src` yet) and records the `analyze --update` border
+  limitation; architecture §2 lists the phase-4 modules (`init-config.ts`, `c-stubs.ts`, `scaffold-diff.ts`,
+  `rom-sha1.ts`, `core/verify/c-stub.ts`, `project-plan.ts`, `write-project.ts`) and marks what D76 g dropped; §6.2
+  names `initConfigOf`; the private `discoveredConfig` is `configBeforeSerialising`; roadmap.md's phase 6 enters
+  after phase 4 and 6.C's gba-kit items are marked dropped; "Carried from phase 4" gains the `DECOMP_YAML_NAMES`
+  re-export, the `legalBorders` callers and the remaining comments.
+- (l) **`StubReconciliation.files` is a sorted array** (architecture-a0-5), so a GenerateResult survives a JSON round
+  trip as D66 e requires; the views build a local map.
+
+**Revision** (D78, the review of fix round 2): (a)'s rule for `E_C_STALE_DEFINITION` ("lying where a missing stub
+goes") is kept only when no chunk files are on disk; otherwise a definition of a function of the previous tree is
+stale wherever it lies (D78 a, correctness-a1-2, a1-3). (b) now also never edits a conditional region: its unwanted
+stubs are `E_C_CONDITIONAL_STUB` (D78 a, correctness-a1-1). (g)'s `runs.emission` was still the configured count; it
+is measured since D78 e. (j)'s two reasons were wrong (`generate` imported `verify`'s `verifyExitCode`; the shell
+hashes): D78 f.
+
+**Consequences.** The known limitations of phase-4.md gain the `analyze --update` border case and the manual rename of
+decompiled C; `test/unit/workflow/c-stubs.test.ts` (architecture-r1-7's remainder, in part) and planner, CLI, analyze
+and write-project tests hold the fixes. The closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The
+closing gate", fix round 2).
+
+## D78. Fix round 3 of phase 4: the review of fix round 2
+
+**Context.** The review of fix round 2's closing run at `1c07b13` raised twenty-one findings: five majors
+(correctness-a1-1 to a1-4, architecture-a1-1) and sixteen minors. Four of the majors are cases D77 a's reconciliation
+still got wrong (a NONMATCHING block whose `#else` stub it removed, a rename or deletion together with a border move
+that it let through, a static helper it refused, a case-folded pair it could never let through), and one is D75 d's
+module-end pad fold, which is wrong once the function before the pad is decompiled. This round fixes every major and
+every minor but the parts it carries or rejects with a reason (phase-4.md, "Review", fix round 3), and re-runs the
+whole closing list. No gate's verdict rule changes: (e) moves `g2.speed`'s verdict into a tested helper unchanged, and
+(g) removes two `g4.cli-contract` recipes of commands no registry holds.
+
+**Decision.**
+
+- (a) **The reconciliation keys on the previous tree, never edits conditional code, and tells a symbol from a stub
+  name** (correctness-a1-1, a1-2, a1-3, a1-5, architecture-a1-1, a1-12). This replaces D77 a's rule for
+  `E_C_STALE_DEFINITION` and D77 b's treatment of a conditional region.
+  - A wanted chunk is a pair (`WantedChunk`, from `core/model/c-unit.ts` `stubChunks`): its symbol, which a C
+    definition of it is called, and its stub name, the chunk file's base name an `INCLUDE_ASM` names; they differ
+    for a member of a case-folded group (`<Name>_<ADDR>`). A definition holds its chunk by symbol, a stub by stub
+    name, and a missing stub is inserted by stub name. `IncludeAsmWanted.chunks` replaces `names`.
+  - Inside an `#if`/`#ifdef`/`#ifndef` region nothing is edited. A stub there holds its chunk (the `#else` branch of
+    the NONMATCHING pattern is the default build's); a definition there holds nothing, so a chunk whose only C is
+    conditional gets its stub outside the region. An unwanted stub there is `E_C_CONDITIONAL_STUB` (new, error,
+    `core/reconcile`) instead of a removal, which left the default build without the function's code.
+  - The previous tree is the chunk files on disk (the reason first given here, "`asm/` is committed, so a fresh
+    clone has them", was the scaffold's unrecorded departure from R4; the owner's answer to Q9, D79 b, gitignores
+    `asm/`, so this rule holds from the second `generate` of a clone, and the first, setup.sh's duty 5, has no tree on
+    disk and uses the fallback rule below):
+    `readProject` lists `asm/nonmatchings/*/*.s` (`ProjectInputs.previousChunkFiles`, a new optional member of the
+    frozen type), `core/model/paths.ts` `chunkNamesOf` reads the names back (each base name, and `<Name>` for each
+    member of a case-folded group, a directory holding two or more `<Name>_<ADDR>` files of different names that
+    fold to one text, so `sub_<ADDR>` is never read as a group `sub`), and `reconcileStubs` passes the planner the
+    previous names no module has now. A definition of one is `E_C_STALE_DEFINITION` wherever it lies, a border move
+    included; a static helper, no function of any tree, raises nothing. Without chunk files on disk the planner
+    keeps D77 a's rule (stale only where a missing stub goes). The message names the stub whose slot it holds, if
+    any.
+  - `E_C_DEFINITION_MOVED`'s advice depends on the destination module's kind: a `c` module's source, else delete the
+    C or make that module `c`.
+- (b) **A zero pad that ends a `c` module after a function stays its own orphan** (correctness-a1-4). D75 d folded it
+  into the function as its last item, `.align 2, 0`, on the claim that "a decompiled function there ends its C
+  object, whose section ld aligns the same way". That is wrong: gas pads the end of the C object's `.text` to the
+  section's alignment with a Thumb nop (0x46C0), so the object already ends aligned and ld has nothing to fill, and
+  the ROM's zeros became `C0 46` (measured on klonoa: `make` failed after a module split behind a decompiled
+  `bx lr`). The pad is an orphan with its own `INCLUDE_ASM` again, as before D75 d, when the chunk before it is a
+  function of a `c` module; it still folds after any chunk of an `asm` module and after an orphan. The owner's answer
+  to phase-3 Q5 b (a pad before a function folds into it) is untouched; only D75 d's extension to module ends is
+  narrowed. Orphan files on the tuning ROMs: fe7j 28 → 32, klonoa 23, pokeemerald 18 → 23, sa2 15 → 16, sa3 15,
+  tmc 32 → 33 (the 11 pads D75 d counted in `c` modules); `test/local/padding-orphans.test.ts` requires every
+  zero-pad orphan left to be exactly such a pad. Nine fixtures' model and writer goldens change; no byte changes.
+- (c) **The C-data text names no phase** (correctness-a1-6, architecture-a1-10): the ASSERT says "src/<m>.c defines
+  data; see AGENTS.md (romlift does not place C data yet)" and the scaffold's `AGENTS.md` heading "Data defined in C
+  fails the link", since the owner skipped phase 5. `g4.c-data-fails-loud` matches only "src/<m>.c defines data; see
+  AGENTS.md", so its verdict is unchanged; its comment, the ldscript goldens and the scaffold golden follow.
+- (d) **Public names** (architecture-a1-4): `includeAsmDir`, `includedChunkFile`, `stubName` and `core/model/paths.ts`'s
+  `nonmatchingDir` re-export are deleted; `romlift` exports `nonmatchingDir` once (from
+  `foundation/util/project-files.ts`), `stubChunks` and `StubChunk`. `project-files.ts` gains `stubNameOf`
+  (`chunkFileOf`'s inverse), `INCLUDE_DIR` and `INCLUDE_ASM_HEADER_NAME`; `C_STUB_HEADER` is built from the name, and a
+  unit test holds the Makefile's `-I include` to `INCLUDE_DIR`. This completes D77 h.
+- (e) **Speed** (gate-honesty-a1-2, a1-3, architecture-a1-8): `runs.emission` is the fewest samples behind any
+  `generateCpuMs` or `initCpuMs` (0 when none was measured: the synthetic tier is no cartridge), not the configured
+  count D77 g left it at; every count goes through `fewest`, never `Math.min()` of nothing. `analysisRow` builds a
+  ROM's row, and a unit test holds `budgetAnalysisCpuMs` to the median of the first five of nine known samples and
+  `analysisCpuMs` to the median of all nine. `g2.speed`'s verdict is `test/gates/speed-verdict.ts`'s, unchanged, with
+  a unit test that a report or a ROM of five runs is rejected. No gate reads `runs.emission`.
+- (f) **CLI and shell** (architecture-a1-2, a1-3, a1-6, a1-7): D77 j said the shared helpers moved "so no command
+  imports another's"; `generate` still imported `verify`'s `verifyExitCode`. The module is now
+  `cli/commands/command-common.ts`, holds `verifyExitCode`, and is listed in architecture §2. D77 j also said the
+  command computes init's digests "since core never hashes"; `writeInitProject` is in the shell, which hashes, and
+  the optional parameter let a caller skip the check. It now computes them from its own `files` and the ROM (one
+  spelling of init's file set, `initTexts`) and returns `refused: true` when that check refused, which the command
+  prints alone instead of matching diagnostic codes. `initDirVerdict` drops its unread `project`; `TreeSource` takes
+  one `target: 'project' | 'out' | 'fresh'` instead of two exclusive booleans.
+- (g) **Records and tests** (gate-honesty-a1-1, a1-4, architecture-a1-5, a1-9, a1-10, a1-11, a1-13): phase-4.md records
+  the spread of the nine-run sa2 shares and where it comes from; roadmap.md's carry from phase 3 states D77 f; the
+  families test title points to phase 6; `g4.cli-contract` drops its recipes for `import-legacy` and `trace`, which
+  the owner dropped and no registry holds (a recipe of an absent command is never run, so no verdict changes). The
+  `g5.*` gate files keep `phase: 5` and their headers: D76 g leaves their ids, phases and fate to phase 6, and
+  `--require 4` does not count them. Architecture §6.2's "one path" sentence (D75 f) is limited to `init`, `verify
+  --rom`, `model --rom`, `bench speed`'s emission timings and `run --scaffold`'s init build; `explain --rom` and the
+  bench's printer, readability and objdiff models use `discoverModel` (D35: explain explains the discover run it
+  traced). The legal-border gate oracle (architecture-a1-5) joins r1-3's carry to phase 6. New tests: the planner
+  (conditional stubs, the previous tree, a case-folded pair), `reconcileStubs`, five `generate` CLI cases (the
+  NONMATCHING rename, a border move with a move, rename or deletion, a helper, a case-folded pair), the module-end
+  pad, `chunkNamesOf`, `command-common.ts`, `speed-verdict.ts`, `analysisRow`.
+
+**Consequences.** The scaffold's `AGENTS.md` says what `generate` does with conditional code; phase-4.md's known
+limitations name `E_C_CONDITIONAL_STUB` beside the manual rename of decompiled C. The closing list is re-run in a fresh
+worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 3).
+
+## D79. The owner's answers of 21 October 2026 to phase-4 Q8 and Q9
+
+**Context.** The review of fix round 3's closing run (round a2, at `2314ffe`) raised two findings that only the owner
+could settle, and phase-4.md put them to him as Q8 (gate-honesty-a2-1: D78 b keeps 11 zero pads as orphans, which
+loosened the padding-orphans assertion that held phase-3 Q5 b's fold, with no owner question) and Q9
+(architecture-a2-1: the scaffold commits the generated `asm/` and `data/`, against the plan's R4 and its scaffold
+table, with no decision recording it, and D78 a rested a rule on it). Bruno Macabeus answered both on 21 October 2026;
+each chosen option is quoted as he gave it. With D76's they are the only gate changes he authorised.
+
+**Decision.**
+
+- (a) **Q8, the zero pads that end a `c` module right after a function: "Keep as orphans".** The 11 pads D78 b keeps
+  as their own orphan files (fe7j 4, pokeemerald 5, sa2 1, tmc 1; klonoa and sa3 none), because folding one into the
+  function before it breaks the build once that function is decompiled (gas ends its C object with a 0x46C0 nop), stay
+  orphans: byte-exact, one stub line each. A known limitation authorised by the owner, like Q7's nop pads (D76 f).
+  `test/local/padding-orphans.test.ts` asserts exactly that rule: every zero-pad orphan left is such a pad, and their
+  number per ROM is the 11 above.
+- (b) **Q9, the generated tree in Git: "Gitignore, as R4 says".** The scaffold's `.gitignore` ignores the generated
+  roots, every path R4 and plan.md's scaffold table mark "In Git: No": `/asm/`, `/data/`, `/expected/`,
+  `/ldscript.txt`, `/symbols.ld`, `/modules.mk` and `/objdiff.json` (`GENERATED_ROOTS`, anchored at the project root).
+  A fresh clone or `git worktree` builds through setup.sh's duty 5, which runs `romlift generate` when `asm/` is
+  absent. The C reconciliation's rule that reads the previous tree on disk (D78 a) holds from the second `generate`
+  of a clone; the first has no chunk files on disk and uses the fallback rule (a definition the module no longer has
+  where a missing stub goes is `E_C_STALE_DEFINITION`). D78 a, `src/core/workflow/c-stubs.ts`, `include-asm.ts`,
+  architecture §1 (R4), §6.3 and §6.6 and the scaffold's `AGENTS.md` and `README.md` say so. `g4.worktree` assumed
+  nothing of a committed tree (its worktree ran setup.sh either way); it now requires that no generated root is
+  committed and that the worktree's `setup.sh` ran duty 5. The scaffold's render test, which required the roots not
+  to be ignored, requires each to be.
+
+**Consequences.** Q8 changes no product code; the padding-orphans test pins the counts. Q9 changes the `.gitignore`
+template, the scaffold golden, `g4.worktree` and the render test. correctness-a2-7 of the same review (a rename in a
+fresh clone left the old chunk file, unowned, forever, since a committed `asm/` came without the gitignored manifest)
+no longer arises: a clone has no `asm/`, and its first `generate` writes the whole tree under a new manifest.
+
+## D80. Fix round 4 of phase 4: the review of fix round 3
+
+**Context.** The review of fix round 3's closing run at `2314ffe` (round a2) raised eighteen findings: five majors and
+thirteen minors. Two majors were owner questions, answered as Q8 and Q9 (D79). The three others are cases the C
+reconciliation got wrong, each reproduced on klonoa by the review: a decompiled function renamed in C only had its
+`INCLUDE_ASM` inserted again (correctness-a2-1, a regression of D78 a), a conditional whose branches open braces
+differently made a definition swallow the file (correctness-a2-2), and a split inside an `#if` region put the new stub
+after the region, out of ROM order (correctness-a2-3); each left `generate` exit 0 and `make` failing. No fix changes a
+gate beyond D79's answers.
+
+**Decision.**
+
+- (a) **The reconciliation refuses what it cannot place exactly** (correctness-a2-1, a2-2, a2-3, a2-6).
+  - A wanted chunk whose stub file the previous tree held in this module's own directory
+    (`IncludeAsmWanted.priorStubs`, from `previousChunkFiles`; `previousStubs` since D81 d) and which the file neither includes nor defines had its
+    `INCLUDE_ASM` replaced by C; a definition of another name where its stub goes is `E_C_STALE_DEFINITION` ("where the
+    INCLUDE_ASM of X was, and module M still has X"). A chunk whose stub name is new to that directory (a TOML rename,
+    a border move) keeps D78 a's helper exemption. `IncludeAsmWanted.previous` is renamed `retired`.
+  - The scanner tracks every `#if`/`#ifdef`/`#ifndef` and requires each branch (at `#elif`, `#else` and `#endif`) to
+    leave the brace and parenthesis depth the conditional found; a definition that never closes, and a `{` at file
+    scope after a head that names no function (a K&R definition, an unreadable head), are unscannable too.
+    `planIncludeAsm` refuses such a file whole with `E_C_UNSCANNABLE` (new, error, `core/reconcile`), no edit, so
+    `generate` writes nothing. A definition's name skips `(*` declarator groups and GCC `__attribute__`/`asm` groups
+    (`void (*B(void))(void)`, `__attribute__((section(".iwram"))) void B(void)`), so neither reinserts its stub.
+  - A missing stub after a chunk held inside a region whose next held chunk lies in the same region has no safe place
+    (`E_C_STUB_UNPLACED`). The ROM order is checked again over the planned text: an insertion that lands before the
+    held chunk it was placed after, or after the one it was placed before, while the file held those two in order, is
+    `E_C_STUB_UNPLACED` and is not written; an order the file already broke stays `W_C_ORDER`. (That rescan is
+    removed by D82 c: no layout reached it.)
+- (b) **One predicate, every C file read, and the edit checked at its write** (architecture-a2-3, correctness-a2-4,
+  a2-5). `compiledDefinitions` (`core/reconcile/include-asm.ts`, a named definition outside every conditional) is what
+  the planner counts as held and what `decompStateOf` lists. `reconcileStubs` reads the `src/*.c` of no module too:
+  a function a module has, defined there, is `E_C_DEFINITION_MOVED` beside `W_C_FILE_UNUSED` (a `c` module merged into
+  another, or made `asm`, no longer drops its decompiled C silently). `applyWrites` hashes an edit's file right before
+  its write and stops with `E_STALE_EDIT` (the journal left) when a save landed since the plan.
+- (c) **Smaller fixes** (architecture-a2-4, a2-5, a2-7): `isChunkFile` in `foundation/util/project-files.ts` and
+  `isDirectory` in `shell/fs.ts` (absent only on ENOENT or ENOTDIR, any other failure `E_IO_READ`) for
+  `readChunkFiles`, with its unit tests; the planner's neighbours are `earlier`/`later`; `WantedChunk` and `StubChunk`
+  say that they mirror each other across the `core/reconcile` edge; `allDiagnostics` is `command-common.ts`'s, used by
+  `verifyExitCode` and `verify`.
+- (d) **Records** (gate-honesty-a2-2, a2-3, architecture-a2-2, a2-8): phase-4.md's Q7 and plan.md state D78 b's
+  module-end rule and Q8; the memory limitation names every form and peak measured over the budget; architecture.md
+  points the surviving phase-5 items to phase 6 and marks the dropped ones (D76 g); roadmap.md's r1-6 carry names
+  the three `readAgbccPin`. Carried to phase 6: architecture-a2-6 (init's own file set, spelled in the shell's
+  `initTexts`, to come from core's plan: it changes the frozen `InitPlan`, and no defect is behind it).
+
+**Consequences.** New tests: the planner (a C-only rename, the reviewer's and sa2's conditional shapes, a split inside
+a region, the named heads, `compiledDefinitions`), `reconcileStubs` (the module's own previous directory, a file of no
+module), three `generate` CLI cases (a C-only rename, an unbalanced conditional, a merged module), `decompStateOf`,
+`readChunkFiles` and `readProject`'s previous tree, and the stale edit at write. The closing list is re-run in a fresh
+worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 4).
+
+## D81. Fix round 5 of phase 4: the review of fix round 4
+
+**Context.** The review of fix round 4's closing run at `32390c3` (round b0) raised twelve findings: four on
+correctness (three majors, one minor) and eight on the architecture (minors). The majors were reproduced on klonoa: a
+file whose `#if` branches inside a function open braces differently (`#ifndef NONMATCHING do { #endif … } while (0);`,
+a common matching idiom) was refused whole by D80 a's `E_C_UNSCANNABLE` even when it needed no edit, so since asm/ is
+gitignored (D79 b) a committed project that builds could not be built from a clone (correctness-b0-1); a `c` module
+renamed with its source moved by hand kept the old directory's `INCLUDE_ASM` lines and `make` failed
+(correctness-b0-2); and an `[[overrides]]` entry without `runs_at` silently did nothing (correctness-b0-3). No fix
+changes what a gate requires; the two gate edits the review proposed are carried to phase 6 (below, c).
+
+**Decision.**
+
+- (a) **The scanner reads a conditional as the preprocessor would, and refuses only a file that needs an edit**
+  (correctness-b0-1, b0-2; architecture-b0-2).
+  - Each branch is scanned from the state its `#if` found (the current item, its depths and the open definition),
+    and the state the first branch reached stands after the `#endif`; the items every branch completes are kept (the
+    NONMATCHING pattern's `#else` stub still holds its chunk). Inside a body any branch shape scans (the do/while
+    idiom, tmc's per-version `if (…) {` branches, sa2's `screen_mask.c`); a branch that closes the body it opened in
+    is unscannable. At file scope the branches (the `#if`'s own state standing for an absent `#else`, unless an
+    `#elif` chain covers the builds) must end alike: the same depths, the same open definition, and both with or
+    without a parenthesis group in an unfinished head (`ASM_FUNC("…", void f(void))` with no `;` against a
+    definition is unscannable; a bare `END_NONMATCH` is not). Measured over the 1,739 `.c` files of sa2, sa3,
+    pokeemerald, fe7j, tmc, kleod and klonoa: 35 unscannable before, 2 after (both that `ASM_FUNC` shape in sa2).
+    Of the files scannable before, all but 10 scan to the same definitions and stubs: in 9 a definition now starts
+    at its own head rather than at a bare macro a conditional before it left unfinished (`#if COLLECT_RINGS_ROM
+    END_NONMATCH #endif`), which had put its start inside that conditional and so out of the compiled definitions
+    (such a leftover now ends with its region); the 10th is one of the 2 now unscannable.
+  - A definition whose head a region holds and whose body runs past the region's `#endif` (sa2's `light_bridge.c`:
+    a register pin in one head, the plain head in the other) is compiled in every build; the planner anchors after
+    its body.
+  - A file the scanner cannot split gets no edit. It needs one when a wanted chunk is neither named by a stub its
+    tokens spell at any depth nor defined as far as the scanner read, when a stub at any depth would go, or when an
+    unwanted stub lies in a region: `E_C_UNSCANNABLE`, as before. Otherwise `W_C_UNSCANNABLE` (new, warning,
+    `core/reconcile`), with the E_C_STALE_DEFINITION of a definition of a retired function, and the file builds as it
+    did; so `setup.sh`'s duty 5 in a clone no longer fails on a project whose C built.
+  - `compiledDefinitions` returns the scanner's verdict with the definitions (`{scannable, definitions,
+    unscannable?}`), so no caller can skip the precondition (D82 c: the planner reads its definitions and tests the
+    scanner's verdict itself, editing nothing in a file it cannot split): the planner decides as above, a C file of no module is
+    checked over what was read and warns `W_C_UNSCANNABLE` (`unscannableWarning`, a reconcile code raised through
+    its helper), and `decompStateOf` states its policy (the definitions as read: phase 4 emits nothing differently
+    for the DecompState).
+  - A stub of another `asm/nonmatchings/<m>` directory whose file the new tree does not write (`IncludeAsmWanted.tree`:
+    the tree's chunk files, and the directories of the `generated = false` modules, whose stubs stay the user's) is
+    unwanted like one of the module's own: removed outside a region, `E_C_CONDITIONAL_STUB` inside one. A `c` module
+    renamed with `git mv src/<old>.c src/<new>.c` keeps no stub of the old directory; the scaffold's `AGENTS.md` says
+    how to rename a `c` module.
+- (b) **One staleness rule** (architecture-b0-1): `staleEdit(op, sha1Now, when)` in `core/write-plan/plan-writes.ts`
+  is the rule `planWrites` applies at plan time and the shell's `applyWrites` calls over the sha1 it reads right
+  before an edit's write; the shell raises no core code itself. Architecture §6.4 steps 3 and 4 and §9.1 say so.
+  This amends D80 b's "the edit checked at its write": the check is the shell's read and core's verdict.
+- (c) **Two config defects get a diagnostic; their gate cases wait for phase 6** (correctness-b0-3, b0-4).
+  `E_FUNCTION_MISALIGNED` (new, error, `core/model`): a `[functions]` key that is odd for Thumb or not word-aligned
+  for ARM is refused naming the key (the pointer-value hint for an odd Thumb key), so `generate` exits 1 before the
+  check pass instead of 3 with `E_SELF_CHECK_TEXT` on a generated file. `W_OVERRIDE_IGNORED` (new, warning,
+  `core/model`): an `[[overrides]]` entry without `runs_at` that changes nothing (a data override always; a code
+  override that gives no listed entry its extent), a known limitation recorded in phase-4.md, until phase 6 applies
+  overrides to the analysis (roadmap.md, "Carried from phase 4"). Making `g4.toml-mutations`' add-override edit one
+  that changes the model, and adding an odd key to its illegal edits, change a gate the owner has not authorised in
+  phase 4 (his answers authorise only Q2's and Q9's): both are carried to phase 6 with the override semantics. The
+  gate's legal edit stays what its header says (a code override over a found function, which now warns) and passes.
+- (d) **Smaller fixes** (architecture-b0-3 to b0-7): `g4.worktree` reads the product's rule
+  (`cx.need('underGeneratedRoot')`) instead of its own list of the generated roots, which is the same list, so the
+  gate's verdict is unchanged (D82 e puts the gate's own R4 list back, united with the product's rule); the `romlift` reconcile barrel exports `compiledDefinitions`, `CompiledDefinitions`,
+  `CUnscannable`, `CConditional`, `WantedChunk` and `StubTree`, its ownership line names phase 6, and the phase-4
+  exports test covers it; `src/cli/index.md` lists the phase-4 commands and project mode, `src/core/index.md` and
+  `src/shell/index.md` list the phase-4 modules, and `analyze.ts` and `core/index.md` no longer name legacy import
+  as live; `isDirectory` and `readChunkFiles` have tests of a directory they cannot examine (mode 000, `E_IO_READ`);
+  `moduleChunkStubs` in `core/model/paths.ts` beside `chunkNamesOf` is the one reader of a module's chunk files on
+  disk, and `IncludeAsmWanted.priorStubs` is `previousStubs`. architecture-b0-8 needed nothing.
+
+**Consequences.** New tests: the planner (the do/while idiom, per-version branches, `screen_mask.c` and
+`light_bridge.c` shapes, a warning versus a refusal for an unscannable file, the stubs of a directory the tree no
+longer writes), `reconcileStubs` (an unscannable file of no module, a moved module), `decompStateOf`, `staleEdit`,
+the model (`E_FUNCTION_MISALIGNED`, `W_OVERRIDE_IGNORED`), five `generate` CLI cases (the idiom, then in a fresh
+clone; an unscannable file warned then refused; a moved module with and without decompiled C; an odd key with and
+without `from`; an ignored override), the shell's two mode-000 cases, and `test/local/decompiled-c.test.ts` on klonoa
+with agbcc (the idiom, a fresh clone through `./setup.sh`, a renamed module moved by hand, each to the SHA-1). The
+closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 5).
+
+## D82. Fix round 6 of phase 4: the review of fix round 5
+
+**Context.** The review of fix round 5's closing run at `3a1eea7` (round b1) raised seventeen findings: five on
+correctness (two majors, three minors), eight on the architecture (minors) and four on gate honesty (minors). The
+majors were reproduced on a composite project: since the generated tree is gitignored (Q9, D79 b), a `git pull` that
+changed `romlift.toml` left the old tree on disk, `make` failed in the assembler or the linker and `./setup.sh` could
+not repair it (correctness-b1-1); and a split that moved decompiled C to a new module sent the user to a file that did
+not exist, which, created with only the C, got `INCLUDE_ASM` lines and no `#include "include_asm.h"`, so it did not
+compile (correctness-b1-2). No fix changes what a gate requires; two gate files are restored to what their own text
+and the owner's Q9 answer say (gate-honesty-b1-1, b1-2), and one gate's note reports its counts by kind.
+
+**Decision.**
+
+- (a) **A generated tree older than `romlift.toml` stops `make`** (correctness-b1-1). `modules.mk` records the SHA-1
+  of the `romlift.toml` bytes it was generated from, `ROMLIFT_TOML_SHA1` (the shell hashes the file and passes it in,
+  `ProjectInputs.configSha1` and `EmitContext.configSha1`; `init` hashes the text it writes through its new `hash`
+  argument; outside a project, `verify --rom` and the bench, there is no such line, so their trees and digests are
+  unchanged). The scaffold's `Makefile` compares it with the file's SHA-1 before any build (`make clean` excepted) and
+  stops with "romlift.toml changed since romlift generate last ran (a pull, a checkout or an edit): run npx romlift
+  generate (or ./setup.sh), then make"; a C object's recorded SHA-1 leaves that line out, so a TOML edit does not
+  recompile every C unit. `setup.sh`'s duty 5 runs `romlift generate` when `asm/` is absent or when `modules.mk`
+  records another SHA-1 (or none). The scaffold's `AGENTS.md`, `README.md` and `.gitignore` say to run `npx romlift
+  generate` (or `./setup.sh`) after a pull or a checkout that changes `romlift.toml`. An existing project keeps its
+  `Makefile` (scaffold files are written once; `scaffold --diff` shows the new template).
+- (b) **The C reconciliation follows the C a user writes where romlift sends it** (correctness-b1-2 to b1-5).
+  - A file that gains a stub and holds neither an `INCLUDE_ASM` statement nor `#include "include_asm.h"` gains that
+    include (`C_STUB_HEADER`) above its first line of code, below the comments that open it.
+    `E_C_DEFINITION_MOVED` names the module's source path and says to create it with only the C.
+  - A `src/*.c` that a module's source `#include`s at file scope (outside every item; the quoted path resolved from
+    the file's directory) is part of that module: its compiled definitions hold their chunks at the `#include` line
+    (`IncludeAsmWanted.fragments`, `CDefinition.via`), a function of another module in it is `E_C_DEFINITION_MOVED`
+    naming it, a retired one `E_C_STALE_DEFINITION`, and it is no `W_C_FILE_UNUSED`. A quoted include of a file romlift
+    does not read whose path does not end in `.h` refuses every insertion into the including file
+    (`E_C_STUB_UNPLACED`), since that file may define the function; the scaffold's `AGENTS.md` says decompiled C goes in
+    `src/<module>.c` or a `src/*.c` it includes.
+  - A definition in every branch of a terminated conditional that has an `#else`, outside the conditionals nested in
+    those branches, is compiled in every build (`compiledDefinitions`; the first branch's counts), so pret's `#ifdef
+    NONMATCHING <C> #else NAKED <asm> #endif` holds its chunk and gets no second stub. A stub placed after such a
+    definition goes after the region's `#endif`.
+  - Every insertion takes the file's line terminator (`\r\n` when the first newline follows a carriage return).
+- (c) **Smaller fixes of the planner** (architecture-b1-4, b1-5, b1-7). Fix round 4's rescan of the planned text for
+  an insertion out of ROM order (`misplacedInsertions`) is removed: no test reached it, a 200,000-case fuzz never
+  produced it, and every insertion lands between the held chunks it was placed between; architecture §6.6 and D80 a's
+  clause no longer describe it. `heldOf` and the check of a file the scanner cannot split read
+  `compiledDefinitions(scan).definitions`; the docstring, §6.6 and D81 a now say the planner tests the scanner's
+  verdict itself (it edits nothing in a file it cannot split). `test/local/c-scan-corpus.test.ts` holds D81 a's
+  measurement: over the 1,729 `src/**/*.c` of the six tuning checkouts (D81 a's 1,739 counted the 10 of the
+  klonoa-empire-of-dreams working tree, which is no dataset checkout) the unscannable files are exactly sa2's two.
+- (d) **Config and layering** (architecture-b1-1 to b1-3, b1-6). `E_FUNCTION_MISALIGNED` moves from `core/model` to
+  `core/config` (`misalignedFunctionKeys` in `keys.ts`, raised by `parseConfig` after the schema, with the key's line),
+  so `analyze --update` and every other command that loads `romlift.toml` refuse a misaligned key, and the confirm run
+  never sees it beside a `W_LISTED_INVALID`; the predicate is `insnAligned(mode, addr)` with `insnUnit(mode)` in
+  `foundation/rom/span.ts`, read by the assembler layout, the instruction rows, `seed.ram-copy` and the config.
+  `valid.in-rom-unclaimed` keeps its Thumb-only test (no listed entry reaches it misaligned any more).
+  `W_OVERRIDE_IGNORED` is derived from what `placeEntries` reports it applied (`PlacedEntry.override`), not from the
+  override's kind, and is not raised for a range wholly outside the ROM (`W_OVERRIDE_OUTSIDE_ROM`'s). `staleEdit`
+  takes a closed union (`EditedFileState`: sha1, absent, unread), the planner reads the disk first (an absent file is
+  "absent"), the shell's write-time check reports a file removed since the plan, and `planWrites` has its docstring
+  back. The shell builds the chunk paths with `chunkFileOf(nonmatchingDir(…), stubNameOf(…))` and lists `src/` with
+  `isCSource` and `cSourceOf` (`foundation/util/project-files.ts`, beside `C_SOURCE_DIR`).
+- (e) **Gates and records** (gate-honesty-b1-1 to b1-4, architecture-b1-8). `g4.worktree` holds R4's list of
+  generated roots itself again (`R4_GENERATED`) and unites it with the product's `underGeneratedRoot`, so a product
+  that lost a root still fails and a root a later phase adds is covered; this amends D81 d. `g4.toml-mutations`'
+  snapshot of a refused `generate` leaves out only `.git` and `tools/agbcc` (the compiler checkout, which romlift never
+  writes and which is too large to hash per edit), no longer the whole `tools/`, and its header says so; its note
+  reports the legal edits by kind and that the add-override one is a no-op that warns (D81 c). The memory limitation
+  states the range the runs measured, and fix round 5's closing row states the no-op share of its legal edits.
+  roadmap.md "Carried from phase 4" lists the code whose only producers the owner dropped (`seed.evidence-hint`, the
+  `legacy` and `evidence:trace` proposal sources, the trace reader and format), and architecture §2 marks
+  `rename-tokens.ts` as phase 6's and the trace files as dropped.
+
+**Consequences.** New tests: the planner (the header, CRLF insertions, a definition in every branch, fragments read
+and unread), `reconcileStubs` (a fragment), the config (`E_FUNCTION_MISALIGNED` with lines), the model (an override
+wholly outside the ROM), `staleEdit` (the union, the absent-and-unread message), `modules.mk`'s stamp, the scaffold's
+`Makefile` and `setup.sh` duty 5 run against a stale and a current `modules.mk` (with `make`), the CLI (the stamp from
+`init` and after a TOML edit, a split behind decompiled C, a fragment, a misaligned key in `generate` and `analyze
+--update` with the full diagnostic list), `test/local/decompiled-c.test.ts` on klonoa with agbcc (a split at the
+decompiled function with its C pasted alone into the new file, and a Git clone that pulls two upstream renames,
+`make` stopping until `./setup.sh` or `romlift generate`, each to the SHA-1) and `test/local/c-scan-corpus.test.ts`.
+The closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 6).
+
+## D83. Fix round 7 of phase 4: the review of fix round 6
+
+**Context.** The review of fix round 6's closing run at `d615ceb` (round b2) raised sixteen findings: two majors
+(correctness-b2-1, architecture-b2-1) and fourteen minors. correctness-b2-1 was reproduced on klonoa: with an
+`INCLUDE_ASM` line moved from `src/main_3.c` into a `src/part.c` it `#include`s, `generate` exited 0 and inserted the
+stub again (make: `invalid offset`), and after a TOML rename of that function it left the fragment's stub naming a file
+no longer written (make: `can't open`); fix round 6 read a fragment's definitions but not its statements.
+architecture-b2-1: the scaffold's `Makefile` and `setup.sh` hash `romlift.toml` by name against `modules.mk`'s stamp
+(D82 a), while `decomp.yaml`'s `tools.romlift.config` could name any project path, so a relocated config stopped
+`make` after every `generate`. Each fix is the simplest rule that cannot break a user's build, with a test that
+reproduces the reviewer's case and then runs `make`. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **A fragment's `INCLUDE_ASM` lines are read; romlift never edits a fragment** (correctness-b2-1,
+  architecture-b2-4, b2-5). The planner (`IncludeAsmWanted.fragments`, now the texts of the `src/*.c` that are no
+  module's source) reads each fragment a module's file `#include`s at file scope, and each `src/*.c` that fragment
+  includes in turn: its compiled definitions and its `INCLUDE_ASM` statements (at any depth when the scanner cannot
+  split it) hold their chunks at the module file's `#include` line (`IncludeAsmStatement.via`, `fragmentLine`), so no
+  stub a fragment holds is inserted again, and two chunks one `#include` holds raise no `W_C_ORDER`. romlift never
+  edits a fragment: a stub in one that the module no longer wants, or that names a file of a directory the tree no
+  longer writes it in, is `E_C_FRAGMENT_STUB` (new, error, `core/reconcile`), naming the fragment and the line; a
+  missing stub whose ROM-order place lies between two chunks one `#include` holds is `E_C_STUB_UNPLACED` naming the
+  fragment; a fragment the scanner cannot split is `W_C_UNSCANNABLE` naming it, or `E_C_UNSCANNABLE` (no edit) when the
+  module's file needs one. Each error makes `generate` write nothing; `make` then stops on the stale-tree guard
+  (D82 a) until the user edits the fragment. An `#include` of another module's source (`IncludeAsmWanted.sources`) is no
+  fragment, since make compiles it on its own: it refuses every insertion as an unread file does, and the message says
+  which module's source it is (it had said romlift does not read the file).
+- (b) **The config is always `romlift.toml`** (architecture-b2-1). `readDecompYaml` refuses a `tools.romlift.config`
+  other than `romlift.toml` with `E_DECOMP_YAML_INVALID`, as the schema refuses a ROM path other than `baserom.gba`
+  (D74 c), so the one file the `Makefile` and `setup.sh` hash is the one romlift reads. Every command that loads the
+  project refuses such a `decomp.yaml` before anything is read or written, and `make` keeps building the tree it has.
+  The hand-written-`decomp.yaml` test that read `config/project.toml` now expects the refusal, and `saveConfig`'s test
+  saves at `romlift.toml`.
+- (c) **The C sources' spelling has one owner** (architecture-b2-7, b2-12). `C_SOURCE_DIR`, `isCSource` and
+  `cSourceOf` stay in `foundation/util/project-files.ts`, the recorded exception (D76 h), and every layer imports them
+  from there: `core/model/paths.ts`'s `isCSource` re-export is gone, `src/api/reconcile.ts` re-exports it from
+  foundation, and `c-data-assert.ts` spells the source with `cSourceOf`. Architecture §2's exception list and
+  `src/foundation/index.md` name every spelling the exception holds.
+- (d) **The stamp and the write** (correctness-b2-2, b2-3, architecture-b2-2, b2-3, b2-11). `planWrites` orders the
+  write of `modules.mk` after every other op, so a `generate` that stops part-way (E_IO_WRITE, the write-time
+  E_STALE_EDIT, a kill) leaves the old `ROMLIFT_TOML_SHA1` and `make` still asks for `romlift generate`. `loadConfig`
+  returns the SHA-1 of the bytes it decoded (`ProjectConfig.sha1`), which `readProject` passes as `configSha1`; the
+  second read of `romlift.toml`, and its absolute-path diagnostic, are gone. The scaffold render test builds the
+  stamp's spelling from `CONFIG_SHA1_VARIABLE` and writes `modules.mk` with `modulesMkText`, so a renamed constant fails
+  it. `applyWrites`' check before an edit reads through the disk snapshot's own `digestOf`, one absence rule (ENOENT
+  and ENOTDIR) for both; typing the snapshot as a closed union is carried to phase 6. A pull that changes the romlift
+  version `package.json` pins is not noticed by `make` or `setup.sh`: the scaffold's `AGENTS.md` and `README.md` say to
+  run `./setup.sh` and then `npx romlift generate`, a known limitation; recording the version in `modules.mk` is
+  carried to phase 6, with publication (Q5).
+- (e) **Overrides and alignment** (architecture-b2-6, b2-8). `PlacedEntry.override` is the analysis options' override
+  object `placeEntries` applied, and `W_OVERRIDE_IGNORED` matches each applied override to one `[[overrides]]` entry of
+  its kind, span and mode, so a data override, or a second code override, on the span of an applied one is reported.
+  `insnAligned`'s docstring names its two readers (the assembler layout and the config); routing the analysis' own
+  bit tests through it is carried to phase 6, and `test/unit/rom/span.test.ts` tests `insnUnit` and `insnAligned`.
+  This amends D82 d's "read by … `seed.ram-copy`" (it reads `insnUnit`).
+- (f) **Edits and records** (architecture-b2-10, b2-9, gate-honesty-b2-1). `TextEdit.reason` is `'add-stub' |
+  'remove-stub' | 'add-header'`, the include insertion's own reason; `'move-stub'` and `'rename'` are gone until phase
+  6's renames produce theirs (a joined insertion at one offset keeps its first reason). The split of
+  `include-asm.ts` (architecture-b2-9) is carried to phase 6 with `rename-tokens.ts`. The memory limitation is
+  rewritten from every measured run, the review's re-run of fix round 6's list included: `generate --json` at
+  1,541.8 MiB joins the forms over D72 b's budget, so neither one-shot command is held under it on the doubled ROM.
+
+**Consequences.** New tests: the planner (a fragment's stubs held, nested fragments, `E_C_FRAGMENT_STUB` for a renamed
+stub and a stale directory, `E_C_STUB_UNPLACED` inside a fragment for stubs and for definitions, insertions beside a
+fragment, an unscannable fragment, an include of another module's source, the header's reason), `reconcileStubs`
+(nested fragment, `E_C_FRAGMENT_STUB`), the CLI (a stub moved into `src/part.c`, `generate` keep-only; a TOML rename
+refused naming the fragment, nothing written; the fragment fixed by hand, exit 0; a `decomp.yaml` naming
+`cfg/romlift.toml` refused by `generate`, `analyze --update` and `model`, nothing written), `readDecompYaml` and
+`loadConfig` (the refusal, the SHA-1 of the bytes), the write plan (`modules.mk` last), the model (the same-span
+override cases), span.ts, and `test/local/decompiled-c.test.ts` on klonoa with agbcc: three stubs moved into a
+fragment, `generate` and `make` to the SHA-1, the middle one renamed in the TOML (`E_C_FRAGMENT_STUB` and
+`E_C_STUB_UNPLACED`, nothing written, `make` stopping on the stale tree), fixed in the fragment, `generate` and `make`
+to the SHA-1; then `decomp.yaml` naming `cfg/romlift.toml`, `generate` refused and `make` to the SHA-1. The closing
+list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 7).
+
+## D84. Fix round 8 of phase 4: the review of fix round 7
+
+**Context.** The review of fix round 7's closing run at `8b03b1f` (round c0) raised nine findings: one major
+(correctness-c0-1) and eight minors (corrected from "eight findings … seven minors" by D85 e; gate-honesty-c0-1 and
+correctness-c0-2 are one defect of the memory limitation, its count of forms, raised under two lenses). correctness-c0-1 was reproduced on klonoa: with a module's last `INCLUDE_ASM`
+lines moved into a `src/tail.c` its file `#include`s, a split that names the new module `tail` at the fragment's
+first function made `tail.c` that module's source while the old file still included it. `generate` exited 0 with no
+diagnostic, since D83 a refused an include of another module's source only when the file needed an insertion; `make`
+then compiled the fragment's chunks twice (in both objects) and the ROM was 2,724 bytes too large, and before that
+`tail.c` lacked the header that had come from the including file. Fix round 7 recorded architecture-b2-5 as fixed;
+only its insertion half was. Each fix is the simplest rule that cannot break a user's build, with a test that
+reproduces the reviewer's case and then runs `make`. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **An include of another module's source is always refused** (correctness-c0-1). `planIncludeAsm` raises
+  `E_C_MODULE_INCLUDED` (new, error, `core/reconcile`) for every file-scope `#include` of another module's source, in
+  the module's file or in a fragment it includes, whether or not the file needs an edit, naming the including file,
+  the line and the module, and saying make compiles that source on its own; `generate` writes nothing. The unread
+  includes that are no module's source keep D82 b's rule (they refuse only the insertions they might duplicate, with
+  `E_C_STUB_UNPLACED`). A file that `#include`s itself is no refusal. A file whose every `INCLUDE_ASM` statement the
+  plan removes, and that has no `#include` or `#define` that could define the macro, gains `#include "include_asm.h"`
+  with its new stubs: a fragment made a module's source, whose stubs served another directory under the including
+  file's header. A file that keeps a stub, or has such a directive, is left as D82 b left it. This corrects D83 a's
+  last sentence and the phase-4.md row of architecture-b2-5. (D85 a replaces "or has such a directive": a fragment
+  with an `#include` of its own, a `global.h` for its types, was left without the header and its new stubs did not
+  compile; such a file now gains the header unless it includes `include_asm.h` itself or `#define`s `INCLUDE_ASM`.)
+- (b) **A nested fragment is named through its chain** (correctness-c0-3). A fragment's statements and definitions
+  carry `chain`, the `#include` lines that reach them from the module's file, and every message about one
+  (`E_C_FRAGMENT_STUB`, `E_C_STUB_UNPLACED` inside a fragment, `E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`,
+  `W_C_UNSCANNABLE`, `E_C_UNSCANNABLE`, `W_C_ORDER`, `E_C_MODULE_INCLUDED`) names it as `src/b.c, which src/a.c
+  includes (line 3), which src/main.c includes (line 68)` (`fragmentPhrase`).
+- (c) **W_C_ORDER reads a fragment's order** (architecture-c0-3). A fragment's items carry `order`, the offsets of
+  the `#include` lines that reach them and then their own offset, and the warning compares the held chunks by it, so
+  stubs out of ROM order inside one fragment, or across a nested one, warn naming the fragment. This replaces D83 a's
+  "two chunks one `#include` holds raise no `W_C_ORDER`". (Across a nested fragment the message named neither file
+  until D85 c.)
+- (d) **An unscannable fragment's verdict follows what the file needs** (architecture-c0-1). The fragment is
+  `E_C_UNSCANNABLE` when the module's file needs an edit: one planned, one refused (a stub left unplaced), its own
+  `E_C_UNSCANNABLE`, or a stub that must go from a fragment or a conditional; otherwise `W_C_UNSCANNABLE`, whose text
+  now says the file "needs no INCLUDE_ASM line changed". This amends D83 a, which decided on "an edit was planned".
+- (e) **Fragments are read directly under `src/` only; records** (architecture-c0-2, c0-4, gate-honesty-c0-1,
+  correctness-c0-2). The shell reads only the `src/*.c` directly under `src/` (`readCTexts`), as before; the tests
+  that put a nested fragment under a subdirectory now use top-level paths, a CLI test asserts the refusal of a
+  subdirectory include, and `E_C_STUB_UNPLACED`'s advice, the scaffold's `AGENTS.md` and architecture §6.6 say
+  "directly under `src/`". Reading `src/**/*.c` was not chosen: it would make every file of a subdirectory that no
+  module includes a `W_C_FILE_UNUSED`. `src/foundation/index.md`, architecture §2 and roadmap.md no longer say the
+  project-files spellings are never re-exported: the internal layers import them from `project-files.ts`, the public
+  `api/` modules re-export some, and the aliases of architecture-r1-2 stay carried to phase 6. The memory limitation
+  counts its five forms.
+- (f) **The PoC's scaffold directory is per run** (architecture-c0-5). `export-poc` gives each PoC child a fresh
+  temporary directory as its working directory and `TMPDIR` (removed when the child exits), so the PoC's
+  `os.tmpdir()/romlift-bench/<name>` is no longer shared by two runs on one machine. The closing procedure still
+  requires an idle machine for the timed gates (phase-4.md).
+
+**Consequences.** New tests: the planner (`E_C_MODULE_INCLUDED` with and without an edit, from a fragment, no refusal
+for a file without such an include; the header for a file whose every stub is replaced, not with an `#include`; a
+nested fragment's `E_C_FRAGMENT_STUB` message and a definition's chain; `W_C_ORDER` inside a fragment, across a nested
+one and outside it; the unscannable fragment's two probe cases), the CLI (the reviewer's split named after a fragment
+on the composite fixture, refused and nothing written, then the `#include` removed and the new module's file with the
+header and its stubs; a fragment in `src/inner/` refused with the "directly under `src/`" advice, then moved and kept),
+`reconcileStubs` (the nested fragment at a top-level path), and `test/local/decompiled-c.test.ts` on klonoa with agbcc
+(step 9: boot's last stubs moved into `src/tail.c`, kept and built; the split named `tail` refused with
+`E_C_MODULE_INCLUDED`, nothing written; the `#include` removed, `generate` and `make` to the SHA-1). The closing list is
+re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 8).
+
+## D85. Fix round 9 of phase 4: the review of fix round 8
+
+**Context.** The review of fix round 8's closing run at `1392483` (round c1) raised twelve findings: two majors
+(correctness-c1-1 and architecture-c1-1, one defect raised under two lenses) and ten minors. The majors were reproduced
+on klonoa and on the composite fixture: a `src/*.c` fragment made a module's source by D84 a's flow, whose file had any
+`#include` or `#define` of its own (a `types.h` or `global.h` for its types, as decompiled C has), lost its stubs'
+header. D84 a took any such directive for one that might define `INCLUDE_ASM`, so `generate` exited 0 with no
+diagnostic and wrote the new module's stubs without `#include "include_asm.h"`; `make` failed with a syntax error at
+each `INCLUDE_ASM` line. Each fix is the simplest rule that cannot break a user's build, with a test that reproduces
+the reviewer's case and then runs `make`. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **A file whose every stub is replaced gains the header unless it provides the macro itself**
+  (correctness-c1-1, architecture-c1-1). `headerInsertion` adds `#include "include_asm.h"` to a file that gains a stub
+  and keeps no `INCLUDE_ASM` statement of its own unless the file itself includes `include_asm.h` or `#define`s
+  `INCLUDE_ASM`; another `#include` or `#define` no longer stops it. The generated header is guarded
+  (`GUARD_INCLUDE_ASM_H`), so a second include through a `global.h` that includes `include_asm.h` is harmless; it is
+  not harmless through a `global.h` that defines `INCLUDE_ASM` and includes `macros.inc` itself, under its own guard,
+  where the second `macros.inc` breaks the assembler (corrected by D86 a, which decides from what defines the macro;
+  this sentence first called every second include harmless, and the rule also reached a renamed module's source moved
+  with `git mv`, correctness-c2-1, architecture-c2-1). This replaces D84 a's "or has such a directive". The scaffold's
+  `AGENTS.md` says the new module's file gains the header unless it includes it itself.
+- (b) **An include of a module's source is refused even under a conditional** (correctness-c1-2): recorded, not
+  changed. `E_C_MODULE_INCLUDED` reads every file-scope quoted include, `#if 0` included; the refusal writes nothing and
+  names the line, and removing a dead line is the fix. Downgrading a conditional one to a warning would let a taken
+  `#ifdef` build a module's functions twice. A known limitation (phase-4.md), and the scaffold's `AGENTS.md` says
+  "even under `#if 0`".
+- (c) **W_C_ORDER names both files across nested fragments** (correctness-c1-3). Two chunks out of order in
+  different files of the include chain give `<file> holds X before Y, which comes first in ROM order, through its
+  includes: X is in <file or fragment chain>; Y is in <…>`, with the path of X's fragment; one fragment keeps D84 c's
+  message.
+- (d) **The planner's public contract** (architecture-c1-3). `IncludeAsmWanted.sources` is documented as read only
+  while includes are followed, with `path` and `fragments` both given (an empty `fragments` checks the includes
+  alone), and as covering an include under a conditional; `CIncludeLink` is exported from `api/reconcile.ts`. The
+  product path (`c-stubs.ts`) always passes both.
+- (e) **Records** (gate-honesty-c1-1, c1-2, correctness-c1-4, architecture-c1-2, c1-4, c1-5).
+  `core/config/decomp-yaml.ts` no longer re-exports `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE`: `shell/config/save.ts`,
+  `shell/project/write-project.ts` and the decomp-yaml unit test import them from `project-files.ts`, and
+  `api/config.ts` re-exports them from there, so D84 e's sentence (the internal layers import the spellings from
+  `project-files.ts`) holds; `src/foundation/index.md` and architecture §2 name `api/config.ts` among the public
+  re-exports, and roadmap.md's architecture-r1-2 no longer lists the decomp-yaml re-export. D84's Context counts nine
+  findings. The memory limitation no longer states a closed range: the peaks vary from run to run by about 60 MiB on
+  one machine, and it gives the largest measured (1,596.5 MiB, the readable `verify --assemble`, in the review's
+  re-run of fix round 8's list). roadmap.md's architecture-b2-9 gives `include-asm.ts`'s size and adds the
+  include-resolution helpers to the phase-6 split.
+
+**Consequences.** New tests: the planner (the header for a replaced file with `#include "global.h"` or `#define UNUSED
+1`, none with `#include "include_asm.h"` or `#define INCLUDE_ASM`; the nested `W_C_ORDER` message and the one across a
+fragment and the module's file; an include of a module's source under `#if 0` refused; `sources` without `fragments`
+not followed), the CLI (the fragment made a module with an `#include "global.h"`, then a `#define UNUSED 1`, prelude:
+refused, then the header and its stubs, idempotent), and `test/local/decompiled-c.test.ts` step 9 on klonoa with agbcc,
+run twice, the second time with `src/tail.c` starting with `#include "types.h"`, each through `make` to the SHA-1. The
+closing list is re-run in a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 9).
+
+## D86. Fix round 10 of phase 4: the review of fix round 9
+
+**Context.** The review of fix round 9's closing run at `5e73637` (round c2) raised six findings: one major
+(correctness-c2-1) and five minors. The major was reproduced by the reviewer on klonoa: D85 a's `headerInsertion` adds
+`#include "include_asm.h"` to every file whose stubs are all replaced and that does not include that header by name or
+`#define` `INCLUDE_ASM` itself. A `c` module renamed with `git mv`, as the scaffold's `AGENTS.md` describes, whose file
+gets `INCLUDE_ASM` from the user's own `include/global.h` (which defines the macro and includes `macros.inc` under its
+own guard, as `include_asm.h` does), gained the header; `generate` exited 0 with no diagnostic, and `make` failed in
+the assembler (`include/macros.inc:26: Error: Macro 'thumb_func_start_local' was already defined`). Fix round 8's code
+built the same tree. architecture-c2-1 is the same rule seen as a scope defect: it fires on a module rename, not only
+on the fragment made a module it was written for. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **Whether a file needs the header is decided from what defines the macro** (correctness-c2-1, architecture-c2-1).
+  A file that gains a stub and keeps no `INCLUDE_ASM` statement of its own gains `#include "include_asm.h"` only when
+  neither the file itself nor any header it reaches defines the macro: the planner follows the file's quoted includes
+  that resolve under `include/` (as the Makefile's `cpp -I include` finds them: from a header, its own directory
+  first, then `include/`), transitively and each header once, so a cycle ends, and adds nothing when one of them
+  `#define`s `INCLUDE_ASM` or includes `include_asm.h`. The shell reads every file under `include/`
+  (`readHeaderTexts`, `ProjectInputs.headerTexts`, `IncludeAsmWanted.headers`; `reconcileStubs` takes them as a fourth
+  argument). An include that resolves to no file read (above `include/`, a `src/*.h`, an angle include) defines
+  nothing as far as the planner knows. So the reviewer's rename keeps its `global.h` alone, and fix round 9's fragment
+  made a module whose `types.h` only declares types still gains the header (D85 a holds for it). The fragment-only
+  narrowing (the review's second option) was not taken: a renamed module whose `global.h` only declares types, and
+  whose stubs `include_asm.h` served through a line the rename does not remove, is no different from that fragment.
+  D85 a's "harmless" sentence, architecture §6.6 and the scaffold's `AGENTS.md` (the fragment paragraph and the rename
+  paragraph) say so.
+- (b) **Records** (gate-honesty-c2-1, correctness-c2-2, architecture-c2-2, architecture-c2-3). Fix round 9's section
+  of phase-4.md counts its minors as the table does: eight fixed, one recorded, one nothing new. roadmap.md "Carried
+  from phase 4": the a0-10 bullet says `write-project.ts` takes `SCAFFOLD_ROM_FILE` from `core/scaffold/vars.ts` and
+  the other two names from `project-files.ts` since fix round 9, and the b2-7/b2-12 bullet lists `api/config.ts`'s
+  re-export of `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE`.
+
+**Consequences.** New tests: the planner (the reviewer's rename with a `global.h` that defines the macro, directly,
+through a nested header from its own directory and from `include/`, and through `include_asm.h` by name: no header; a
+`global.h` of types alone, a cycle of headers none of which defines it, an include that resolves above `include/`, and
+no headers given: the header; fix round 9's fragment with `types.h`: the header), the CLI (a `c` module renamed with its
+source moved, whose `global.h` reaches a nested header that defines the macro: no header, idempotent; the same header
+of types alone: the header), and `test/local/decompiled-c.test.ts` step 10 on klonoa with agbcc (the reviewer's flow:
+`include/global.h` defining the macro and including `macros.inc`, `src/boot.c` including it, `make` to the SHA-1;
+module boot renamed boot2 and `git mv src/boot.c src/boot2.c`; `generate` exit 0 with no diagnostic and no header added;
+`make` to the SHA-1), with steps 5 and 9 (fix rounds 6, 8 and 9's cases) still building. The closing list is re-run in
+a fresh worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 10).
+
+## D87. Fix round 11 of phase 4: the review of fix round 10
+
+**Context.** The review of fix round 10's closing run at `625d710` (round d0) raised six findings: two majors
+(correctness-d0-1, architecture-d0-1) and four minors. The two majors are one defect raised under two lenses: D86 a's
+`macroProvided` followed only the module file's own quoted includes, never those of the `src/*.c` fragments the file
+`#include`s, though the planner reads those fragments (D83 a). A `c` module renamed with `git mv`, whose
+`src/<module>.c` starts with `#include "part.c"` and whose `part.c` includes a `global.h` that defines `INCLUDE_ASM`
+and includes `macros.inc`, gained `#include "include_asm.h"`; `generate` exited 0 with no diagnostic and `make` failed
+in the assembler (`include/macros.inc:1: Error: Macro 'arm_func_start' was already defined`), where fix round 8's
+code built the same tree. Three minors (gate-honesty-d0-1, correctness-d0-2, architecture-d0-2) are one record defect
+under three lenses: an angle include of a header under `include/` (`#include <global.h>`, which the scaffold's `cpp
+-nostdinc -I include` resolves there) was not followed, with the same failure, and phase-4.md said the scaffold's
+`AGENTS.md` stated that limitation when it did not. The fourth minor (architecture-d0-3) is the shell reader
+`readHeaderTexts`: a second directory walker that followed symbolic links, untested. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **The fragments' includes are followed** (correctness-d0-1, architecture-d0-1). `macroProvided` starts from the
+  module's file and every fragment `withFragments` read for it (`included`, transitively, each once): a fragment that
+  `#define`s `INCLUDE_ASM` or includes `include_asm.h` provides the macro, and its includes are followed into the
+  headers like the file's own. `planScanned` passes `included` to `headerInsertion`.
+- (b) **Includes resolve as the scaffold's cpp resolves them** (correctness-d0-2, architecture-d0-2, gate-honesty-d0-1),
+  the findings' code option rather than a recorded limitation: `#include "…"` from the including file's own directory
+  first, then from `include/`; `#include <…>` from `include/` alone (`includeSpelling`, `headerPath`). The shell reads
+  every `.h` under `src/` beside every file under `include/`, so a quoted `src/local.h` that defines the macro, or a
+  `src/global.h` that shadows `include/global.h`, is read as cpp reads it. What stays unevaluated is an `#if` around an
+  `#include`, an `#include` spelled with a macro and an include directory the user adds to `CPPFLAGS`; the scaffold's
+  `AGENTS.md` says so, with the consequence (`make` stops in the assembler on a second `macros.inc`) and the remedy
+  (delete the added line; romlift adds it only to a file with no `INCLUDE_ASM` line left of its own). phase-4.md's
+  limitation sentence is replaced by that one; D86 a's "a `src/*.h`, an angle include" exception no longer holds.
+- (c) **One directory walker** (architecture-d0-3). `readHeaderTexts` lists `include/` and `src/` with disk-state's
+  `filesUnder`, now exported, which uses `lstat` and never follows a symbolic link into a directory: a link to a file is
+  read as that file, a link to a directory or a dangling link is left out, so a link cycle ends. HEADER_DEPTH is gone.
+  Unit tests: no `include/` or `src/` gives an empty map; nested files keyed by project path, only `.h` under `src/`;
+  two links to `.` end, a link to a file is read; an unlistable directory or unreadable header is `E_IO_READ`;
+  `readProject` passes `headerTexts`, and none with `withoutC`; `reconcileStubs`' fourth argument and the fragments
+  (`c-stubs.test.ts`). `src/shell/index.md` names the headers among what read-inputs reads.
+  **Replaced by D88 a and b** (fix round 12): the `lstat` walk read nothing behind a symbolic link to a directory, a
+  regression against fix round 10 that broke the build of a module renamed with `git mv`; `readHeaderTexts` follows
+  such a link, a cycle ending by real path (not exactly as cpp does: the layouts of D89 a and D90 a), and the shell
+  keeps two link policies, each named.
+
+**Consequences.** New tests: the planner (the reviewers' fragment flow, two fragments deep, an angle include in the
+fragment, a fragment defining the macro or including `include_asm.h`: no header; a fragment whose `global.h` declares
+types: the header; `#include <global.h>` directly and nested, `<include_asm.h>`: no header; an angle include never finds
+`src/global.h`; a quoted include finds `src/local.h`, and `src/global.h` before `include/global.h`), the CLI (a `c`
+module renamed with its source moved, for each of the three layouts: no header, no diagnostic, idempotent), and
+`test/local/decompiled-c.test.ts` step 11 on klonoa with agbcc (the three layouts in turn, each built to the SHA-1, then
+the module renamed with `git mv`: `generate` exit 0, no diagnostic, no header, `make` to the SHA-1; at `625d710`'s code
+the step fails at "fragment: the stubs renamed, no header added"). The closing list is re-run in a fresh worktree with
+`landed` 4 (phase-4.md, "The closing gate", fix round 11).
+
+## D88. Fix round 12 of phase 4: the review of fix round 11
+
+**Context.** The review of fix round 11's closing run at `9085564` (round d1) raised six findings: three majors
+(gate-honesty-d1-1, correctness-d1-1, architecture-d1-1) and three minors. The three majors are one defect raised under
+three lenses: D87 c made `readHeaderTexts` list `include/` and `src/` with disk-state's `lstat` walk, which never
+follows a symbolic link into a directory. The headers behind a linked `include/` (listed as the bare entry `include`,
+then dropped by the `include/` prefix filter), a linked subdirectory such as `include/gba -> ../shared/gba`, or a
+linked directory under `src/` were no longer read, though the scaffold's `cpp -nostdinc -I include` follows those
+links. A `c` module renamed with `git mv` whose defining `global.h` sat behind such a link gained
+`#include "include_asm.h"`; `generate` exited 0 with no diagnostic and `make` stopped in the assembler
+(`include/macros.inc:1: Error: Macro 'arm_func_start' was already defined`), where fix round 10's code (`625d710`)
+built the same tree to the SHA-1. Only D87 c named the mechanism, and the read-inputs test asserted it as intended. The
+minors: phase-4.md's summary header still ended at D86 and fix round 10's run (gate-honesty-d1-2); the records said
+the shell has one walker with one link policy, while `readChunkFiles` and `readCTexts` follow links through `stat`
+(architecture-d1-2); and the rule "a `.h` is a header" was written in the shell and in core with no shared definition
+(architecture-d1-3). No gate changes what it requires.
+
+**Decision.**
+
+- (a) **`readHeaderTexts` follows a symbolic link to a directory** (gate-honesty-d1-1, correctness-d1-1,
+  architecture-d1-1), the findings' code option, not the recorded limitation, since the limitation would keep a
+  regression against fix round 10. disk-state's `filesUnder` takes `{ followLinks: true }`: it walks with `stat`, so a
+  link to a directory, `include/` or `src/` itself among them, is walked under its own project path (`include/gba/
+  macro.h`, as `#include "gba/macro.h"` names it), and a link to a file is read as that file. A cycle ends by real path
+  (`realpath`), not by a depth bound: a directory whose real path is the project directory's or that of a directory
+  the walk is already inside is not entered, as `find -L` ends one, so two links to `.`, a link to `..` and
+  `include -> .` all end, while a second, non-cyclic path to a directory (`include/alias -> real`) is listed under both
+  spellings, as cpp finds both. A dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out.
+  **Amended by D89 a** (fix round 13): this is not exactly as cpp follows links, and the records no longer say "like
+  cpp". A `..` in an include, in a header reached through a linked directory, is resolved against the link's path, not
+  its target (the planner's `resolveInclude` normalizes it lexically), and a link whose target is the project
+  directory, or a directory the walk is already inside (one of the link's own parent directories), is not entered
+  (`include -> .` reads nothing, while cpp reads the files there); D90 a corrected this sentence, which fix round 13
+  wrote as "a link back to the project or to a directory already walked", and added the third layout, a link to a
+  directory above the project, which is entered and read in full. When the
+  header that defines `INCLUDE_ASM` lies behind either layout, a `c` module renamed with `git mv` gains
+  `#include "include_asm.h"`, `generate` exits 0 and `make` stops in the assembler; the remedy is deleting the added
+  line, as for the unevaluated forms of D87 b. A cpp-exact resolution is carried to phase 6.
+- (b) **Two link policies, each named** (architecture-d1-2), the finding's second option. `filesUnder` is the
+  recursive walker of the disk snapshot and of `readHeaderTexts`; the snapshot keeps `lstat` (a link is one entry,
+  hashed through to its target), since it lists what romlift wrote, and `readHeaderTexts` follows links, since it
+  reads what cpp reads. `readCTexts` (`src/*.c`, one level) and `readChunkFiles` (`asm/nonmatchings/<module>/`, two
+  levels) keep their `stat`-based fixed-depth listing, which follows a link as make and cpp do; so every reader of the
+  build's inputs follows links, and only the snapshot does not. The comment in `disk-state.ts`, D87 c and phase-4.md
+  say so; nothing is carried.
+- (c) **One header predicate** (architecture-d1-3). `isHeaderPath` in `foundation/util/project-files.ts`, beside
+  `isCSource`, is the rule both sites use: the shell's `src/*.h` listing and the reconciler's choice not to report an
+  unread quoted `.h` include as an unread `src/*.c` fragment (`core/reconcile/include-asm.ts`).
+- (d) **Records** (gate-honesty-d1-2). phase-4.md's scope line runs to D88, and its Verdict paragraph has fix round 11's
+  run at `b42513e`. Corrected by D89 b: fix round 12's own closing run was interrupted during `npm test` and never
+  finished, so no run of fix round 12 is recorded; fix round 13's closing run, at its records commit, is the run that
+  covers fix round 12's code.
+
+**Consequences.** New tests: read-inputs (a linked `include/gba` outside the project, a second path `include/alias ->
+real`, a linked `src/sub`, a link to a file: read; two links to `.`, a link to `..`, a dangling link and a link loop:
+ended or left out; `include/` and `src/` themselves links outside the project: read; `include -> .`: nothing; fix
+round 11's test of the opposite policy is replaced), `isHeaderPath` (`paths.test.ts`), the CLI (a `c` module renamed
+with its source moved, whose defining header is behind a linked `include/` or a linked `include/gba`: no header, no
+diagnostic, idempotent; at `9085564`'s code it fails), and `test/local/decompiled-c.test.ts` step 12 on klonoa with
+agbcc (a linked `include/gba` holding a defining `macro.h` reached through `include/glue.h`, then a linked `include/`;
+each built to the SHA-1, then the module renamed with `git mv`: `generate` exit 0, no diagnostic, no header, `make` to
+the SHA-1; at `9085564`'s code the step fails at "linked include/gba: the stubs renamed, no header added"). The scaffold's
+`AGENTS.md` says romlift follows a symbolic link; architecture §6.6 and phase-4.md's known limitation say it too, with
+the two layouts D89 a records. Fix round 12's closing run was interrupted during `npm test` and is not recorded (D89
+b); the closing list was run next by fix round 13 (phase-4.md, "The closing gate", fix round 13).
+
+## D89. Fix round 13 of phase 4: the review of fix round 12
+
+**Context.** The review of fix round 12's records at `cc874b0` (round d2) raised six findings, all about records and
+none about the product: one major (gate-honesty-d2-1) and five minors. The major and two minors (correctness-d2-2,
+architecture-d2-2) are one defect under three lenses: fix round 12's closing run was interrupted during `npm test` and
+never finished (its summary ends at `npm test` with no exit line, its log says "Interrupted while running"), yet D88 d
+and phase-4.md's fix-round-12 section said the Verdict paragraph had that run and cited "The closing gate" for it,
+which had no fix-round-12 section. The other three minors (gate-honesty-d2-2, correctness-d2-1, architecture-d2-1)
+are one record defect under three lenses: D88 a and the scaffold's `AGENTS.md` said romlift follows a symbolic link
+"like cpp", which two layouts contradict, each ending with `generate` exit 0 and a `make` that stops in the assembler.
+The reviewers' own runs of the whole closing list at `cc874b0`, in fresh clones with `landed` 4, exited 0 at every
+command. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **The two link layouts are recorded, not changed** (gate-honesty-d2-2, correctness-d2-1, architecture-d2-1),
+  the findings' record option. D88 a (amended), the scaffold's `AGENTS.md` (`test/golden/scaffold/scaffold.txt`
+  regenerated), architecture §6.6 and phase-4.md's known limitations drop the "like cpp" claim and state that a `..`
+  in an include behind a linked directory is resolved against the link's path, not its target, and that a link back
+  to the project or to a directory already walked is not entered (corrected by D90 a: a link whose target is the
+  project directory or a directory the walk is already inside, one of the link's own parent directories; a second
+  path to a directory walked before is entered); the remedy is deleting the added
+  `#include "include_asm.h"` line. A cpp-exact resolution (resolving a quoted include from a followed header's real
+  directory, and reading through a link to the project or an ancestor) is carried to phase 6 (roadmap.md "Carried
+  from phase 4"). No code under `src/` changes; its comments that say links are followed "as cpp does" go with the
+  carried item (reworded by D90 b instead, with `src/shell/index.md` and two tests, which this sentence missed).
+- (b) **Only runs that exist are cited** (gate-honesty-d2-1, correctness-d2-2, architecture-d2-2). D88 d, D88's
+  consequences and phase-4.md's fix-round-12 section say that fix round 12's closing run was interrupted and is not
+  recorded. Fix round 13 runs the whole closing list at its records commit in a fresh worktree with `landed` 4, detached
+  in its own process group and waited on until every command had an exit line (corrected by D90 c, which fix round 13
+  wrote as "in the foreground to its last command"), commits the `bench/results.json` artifact and adds "Fix round 13's
+  closing run" and the Verdict sentence.
+
+**Consequences.** Records only: `templates/AGENTS.md` and its golden, `docs/` and `bench/results.json`. The closing
+list's result is in phase-4.md, "The closing gate", fix round 13.
+
+## D90. Fix round 14 of phase 4: the review of fix round 13
+
+**Context.** The review of fix round 13's closing run at `b189922` (round e0) raised seven findings: one major
+(correctness-e0-1) and six minors. They are three record defects. First (correctness-e0-1, gate-honesty-e0-1,
+architecture-e0-2): fix round 13 wrote, in seven places, that "a link back to the project or to a directory already
+walked is not entered", while `filesUnder` (`disk-state.ts`) refuses a directory only when its real path is the project
+directory's or one on the walk's current path (`inside`, built per branch), so a second, non-cyclic link to a directory
+walked before is entered, as D88 a's own sentence and the read-inputs test say; and a link from `include/` or `src/` to
+a directory above the project is entered and every file there read as text, a layout no record named. Second
+(gate-honesty-e0-2, correctness-e0-2, architecture-e0-1): "as cpp does" survived in `src/shell/index.md`, in D87 c's
+replacement note and in two tests, which D89 a's carry did not name. Third (correctness-e0-3, architecture-e0-3): fix
+round 13's closing run was started detached in its own process group (`nohup`), not "in the foreground", as its records
+said. The reviewers' runs found the run itself complete, every command exit 0. No gate changes what it requires.
+
+**Decision.**
+
+- (a) **The link rule says what the code does** (correctness-e0-1, gate-honesty-e0-1, architecture-e0-2), the findings'
+  record option; no behaviour changes. The scaffold's `AGENTS.md` (golden regenerated), architecture §6.6, phase-4.md's
+  known limitation, D88 a's amendment, D89 a, the fix-round-13 row and roadmap.md's carried item say: a link whose
+  target is the project directory, or a directory the walk is already inside (one of the link's own parent
+  directories), is not entered. They add the third layout: a link to a directory above the project is entered, all of
+  it but the project directory below it, and every file there is read as text. The tree is not wrong, since a header
+  no `#include` names never decides `INCLUDE_ASM`; the cost is the time and memory of reading it, and `E_IO_READ` on an
+  unreadable file. Seeding `inside` with the project's ancestors was not chosen: it would stop reading the headers an
+  `#include "up/other/x.h"` names through such a link, which cpp reads. A unit test asserts the recorded behaviour
+  (`include/up -> ../..` lists the files above the project and none of the project's). The carried item now asks phase 6
+  to read, through such links, only the files an `#include` names.
+- (b) **"As cpp does" is gone from the records and the code's comments** (gate-honesty-e0-2, correctness-e0-2,
+  architecture-e0-1), the findings' reword option rather than a longer carry: `src/shell/index.md`, the comments in
+  `disk-state.ts` and `read-inputs.ts`, D87 c's replacement note, the read-inputs test's name and comment and
+  `test/local/decompiled-c.test.ts`'s step list say links are followed, not exactly as cpp does (D89 a, D90 a). The
+  roadmap's carried item no longer lists comments to fix. Comments only: no code path changes.
+- (c) **The run is described as it ran** (correctness-e0-3, architecture-e0-3). phase-4.md's fix-round-13 closing run,
+  its gate-honesty-d2-1 row and D89 b say it ran detached in its own process group and was waited on until every
+  command had an exit line. Fix round 14's closing run is recorded with how it was launched.
+
+**Consequences.** One new unit test (read-inputs, the link above the project); comments in two `src/shell/project`
+files, `src/shell/index.md`, `templates/AGENTS.md` and its golden, `docs/`. The closing list is re-run in a fresh
+worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 14).
 
 ## Review findings index
 

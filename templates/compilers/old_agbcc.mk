@@ -1,0 +1,9 @@
+# mk/old_agbcc.mk: the recipe of a C unit built with old_agbcc (modules.mk: `build/src/<module>.o: CC1 := tools/agbcc/bin/old_agbcc`).
+# The host C preprocessor writes build/src/<module>.i (and its header dependencies), old_agbcc compiles it with the
+# object's CFLAGS (modules.mk) into build/src/<module>.s, and the assembler builds the object (and the dependencies
+# on the INCLUDE_ASM files). romlift init wrote this file once; edit it to change how every old_agbcc unit is built.
+define C_RECIPE_old_agbcc
+$(HOSTCC) $(CPPFLAGS) -MD -MP -MF $(@:.o=.c.d) -MT $@ -o $(@:.o=.i) $<
+$(CC1) $(CFLAGS) -o $(@:.o=.s) $(@:.o=.i)
+$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $(@:.o=.s)
+endef

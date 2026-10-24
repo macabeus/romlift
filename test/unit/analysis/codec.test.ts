@@ -84,7 +84,10 @@ const confirm: AnalysisResult = {
   mode: 'confirm',
   options: {
     mode: 'confirm',
-    seeds: [{ entry: A, mode: 'thumb', rule: 'seed.listed', name: 'Main', size: 0x40, label: false }],
+    seeds: [
+      { entry: A, mode: 'thumb', rule: 'seed.listed', name: 'Main', size: 0x40, label: false },
+      { entry: A + 0x40, mode: 'thumb', rule: 'seed.listed', name: 'Legacy', validate: true },
+    ],
     overrides: [{ span: { start: 0x0800_3000, end: 0x0800_3100 }, kind: 'code', mode: 'arm', runsAt: 0x0300_0000 }],
     trail: 'decisions',
     trailFilter: { start: A, end: A + 2 },
@@ -161,6 +164,26 @@ test('a malformed document is a diagnostic naming its first wrong member, never 
     assert.equal(d.diagnostics[0]?.severity, 'error');
     assert.ok(d.diagnostics[0]?.message.includes(where), `${d.diagnostics[0]?.message} names ${where}`);
   }
+});
+
+test('a seed\'s validate flag round-trips, stays absent when not set, and is only ever true', () => {
+  if (confirm.mode !== 'confirm') assert.fail('the confirm fixture');
+  const back = decoded(textOf(confirm));
+  assert.deepEqual(back.options.seeds.map((s) => [s.name, s.validate]), [
+    ['Main', undefined],
+    ['Legacy', true],
+  ]);
+  assert.equal(Object.hasOwn(back.options.seeds[0] ?? {}, 'validate'), false, 'a seed without validate decodes without the member');
+  const text = textOf(confirm);
+  assert.equal(text.split('"validate":true').length - 1, 1, 'only the validated seed carries the member');
+  // A result written before the member existed (no seed carries it) still decodes: the schema id is unchanged.
+  const json = JSON.parse(text) as { options: { seeds: Record<string, unknown>[] } };
+  const old = { ...json, options: { ...json.options, seeds: json.options.seeds.map(({ validate: _v, ...seed }) => seed) } };
+  assert.equal(decodeAnalysis(JSON.stringify(old)).ok, true);
+  const wrong = { ...json, options: { ...json.options, seeds: json.options.seeds.map((seed) => ({ ...seed, validate: false })) } };
+  const d = decodeAnalysis(JSON.stringify(wrong));
+  assert.equal(d.ok, false);
+  if (!d.ok) assert.ok(d.diagnostics[0]?.message.includes('$.options.seeds[0].validate'), d.diagnostics[0]?.message);
 });
 
 test('the encoding streams in chunks whose concatenation is the whole text', () => {

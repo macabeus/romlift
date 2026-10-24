@@ -1,33 +1,10 @@
-==> asm/main.s (generated, module) <==
-.syntax unified
-.include "include/macros.inc"
-.thumb
-.include "asm/nonmatchings/main/sub_080000F4.s"
-.include "asm/nonmatchings/main/unk_08000106.s"
-.include "asm/nonmatchings/main/sub_08000108.s"
-.include "asm/nonmatchings/main/unk_0800010E.s"
 ==> asm/asm_08000110.s (generated, module) <==
 .syntax unified
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/asm_08000110/sub_08000110.s"
-==> asm/main_2.s (generated, module) <==
-.syntax unified
-.include "include/macros.inc"
-.thumb
-.include "asm/nonmatchings/main_2/sub_08000138.s"
-.include "asm/nonmatchings/main_2/unk_0800013E.s"
-.include "asm/nonmatchings/main_2/sub_08000140.s"
-.include "asm/nonmatchings/main_2/unk_08000146.s"
 ==> asm/asm_08000148.s (generated, module) <==
 .syntax unified
 .include "include/macros.inc"
 .thumb
 .include "asm/nonmatchings/asm_08000148/sub_08000148.s"
-.include "asm/nonmatchings/asm_08000148/unk_08000162.s"
-==> asm/main_3.s (generated, module) <==
-.syntax unified
-.include "include/macros.inc"
-.thumb
-.include "asm/nonmatchings/main_3/sub_08000164.s"
-.include "asm/nonmatchings/main_3/unk_0800016A.s"

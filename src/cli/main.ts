@@ -49,13 +49,25 @@ export async function main(argv: readonly string[], io: CliIo, commands: readonl
 }
 
 /**
- * A reader that closes the pipe early (`romlift analyze rom.gba | head`) is not an error of romlift: on
- * EPIPE the process exits quietly with the code it has so far (0 while the command still runs).
+ * The error codes of a write to a reader that has gone: EPIPE on a pipe, and ENOTCONN, which macOS can report
+ * instead on a socket-pair stdout (Node's `spawn` with `stdio: 'pipe'`) closed by its reader (correctness-ci-1).
  */
-function exitQuietlyOnEpipe(stream: NodeJS.WriteStream): void {
-  stream.on('error', (error: NodeJS.ErrnoException) => {
-    if (error.code !== 'EPIPE') throw error;
-    process.exit();
+const CLOSED_READER_CODES: ReadonlySet<string> = new Set(['EPIPE', 'ENOTCONN']);
+
+/** The part of a stream exitQuietlyOnEpipe listens on. */
+export interface ErrorEmitter {
+  on(event: 'error', listener: (error: NodeJS.ErrnoException) => void): unknown;
+}
+
+/**
+ * A reader that closes the pipe early (`romlift analyze rom.gba | head`) is not an error of romlift: on
+ * EPIPE or ENOTCONN the process exits quietly with the code it has so far (0 while the command still runs).
+ * Any other error is thrown. `exit` is the process's own, replaced only by the unit test.
+ */
+export function exitQuietlyOnEpipe(stream: ErrorEmitter, exit: () => void = () => process.exit()): void {
+  stream.on('error', (error) => {
+    if (error.code === undefined || !CLOSED_READER_CODES.has(error.code)) throw error;
+    exit();
   });
 }
 

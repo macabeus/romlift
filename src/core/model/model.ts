@@ -101,6 +101,35 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
   return out;
 }
 
+/**
+ * W_OVERRIDE_IGNORED for every [[overrides]] entry without runs_at that nothing applied (fix round 5, correctness-b0-3,
+ * a known limitation until the analysis applies overrides): derived from what placeEntries reports it used (the
+ * override of an entry whose extent it gave, fix round 6, architecture-b1-2), never from the override's kind, so the
+ * day a layer applies data overrides it reports them and the warning follows. A range wholly outside the ROM is
+ * W_OVERRIDE_OUTSIDE_ROM's alone.
+ */
+function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly PlacedEntry[]): Diagnostic[] {
+  // Each override placeEntries applied (its own object, however many entries it gave an extent) answers for one
+  // [[overrides]] entry of its kind, span and mode (fix round 7, architecture-b2-6): a data override, or a second
+  // code override, on the span of an applied one is still ignored.
+  const unmatched: NonNullable<PlacedEntry['override']>[] = [];
+  for (const p of placed) if (p.override !== undefined && !unmatched.includes(p.override)) unmatched.push(p.override);
+  const out: Diagnostic[] = [];
+  for (const o of config.overrides) {
+    if (o.runsAt !== undefined) continue;
+    const span = { start: o.start, end: o.start + o.size };
+    if (span.end <= rom.base || span.start >= rom.end) continue;
+    const at = unmatched.findIndex((a) => a.kind === o.kind && a.mode === o.mode && a.span.start === span.start && a.span.end === span.end);
+    if (at >= 0) {
+      unmatched.splice(at, 1);
+      continue;
+    }
+    const why = o.kind === 'data' ? 'romlift does not apply a data override yet: the analysis still decodes and claims the range as it finds it' : 'it gives the extent only of a listed function the analysis did not find, and none lies in it; add the function to [functions] (with size) instead';
+    out.push(diagnostic(ModelCodes, 'W_OVERRIDE_IGNORED', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`, { span, addr: o.start }));
+  }
+  return out;
+}
+
 /** W_SYMBOL_UNPLACED for each [symbols] entry inside the ROM that no file can define. */
 function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
   return symbols.map((s) =>
@@ -116,7 +145,7 @@ function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
 /** The Model of `rom` under `config`, with the facts of `analysis` (a discover or confirm result). */
 export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftConfig): Model {
   const layout = codeLayout(rom, analysis);
-  const planned = planModules(rom, config, layout.borders);
+  const planned = planModules(rom, config, { borders: layout.borders, dataStart: layout.dataStart });
   const modules = planned.modules;
   const relocated = relocatedModules(modules);
 
@@ -165,6 +194,7 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
       items: built.ranges[i] ?? { first: 0, count: 0 },
       innerLabels: inner[i] ?? [],
       ...(relocatedChunk ? { runAt: c.span.start + offset } : {}),
+      ...(c.entry !== undefined && c.entry !== c.span.start ? { entry: c.entry } : {}),
     };
   });
   const finished = modules.map((m, i): Module => {
@@ -184,6 +214,6 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     labels: labelled.labels,
     symbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...moduleNameProblems(modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...moduleNameProblems(modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
   };
 }

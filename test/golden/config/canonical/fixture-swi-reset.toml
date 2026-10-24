@@ -1,0 +1,36 @@
+schema = 1
+
+[rom]
+path = "baserom.gba"
+sha1 = "65019637f2e820e4023d8dfc2a1f74d77e58ee1f"
+
+[build]
+name = "rlfx"
+compiler = "agbcc"
+
+[signatures]
+enabled = false
+
+[[modules]]
+name = "rom_header"
+start = 0x08000000
+kind = "asm"
+
+[[modules]]
+name = "crt0"
+start = 0x080000C0
+kind = "asm"
+
+[[modules]]
+name = "main"
+start = 0x080000F4
+kind = "c"
+
+[functions]
+0x08000000 = { name = "sub_08000000", mode = "arm" }
+0x080000C0 = { name = "sub_080000C0", mode = "arm", label = true }
+0x080000F4 = "sub_080000F4"
+0x0800010C = "sub_0800010C"
+0x08000118 = "sub_08000118"
+
+[symbols]

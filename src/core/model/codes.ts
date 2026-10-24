@@ -1,6 +1,7 @@
 // Diagnostic codes raised by core/model (architecture §9.1, D45, D62 e): the config's modules and overrides
 // checked against the ROM's legal borders, names checked per module, and the one exception the printer takes
-// for a border moved by hand (D15).
+// for a border moved by hand (D15). Fix round 5 adds W_OVERRIDE_IGNORED (D81 c; its E_FUNCTION_MISALIGNED moved to
+// core/config in fix round 6, D82).
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
 export const ModelCodes = defineCodes({
@@ -23,6 +24,10 @@ export const ModelCodes = defineCodes({
     meaning: 'two modules share a name, or names one on a case-insensitive file system, whatever their kinds, so both would build one object',
   },
   E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
+  W_OVERRIDE_IGNORED: {
+    severity: 'warning',
+    meaning: 'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override is not applied yet, and a code override only gives the extent of a listed entry the analysis did not find (fix round 5, D81 c; a known limitation)',
+  },
   W_FUNCTION_OUTSIDE_ROM: {
     severity: 'warning',
     meaning: 'a [functions] entry lies outside the ROM, so the model has no function for it',

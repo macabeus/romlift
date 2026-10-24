@@ -1,8 +1,14 @@
-# The rebuild check of the synthetic fixtures (architecture §8.1, D28): builds pret/agbcc at the
-# commit every fixture's build.mk records, rebuilds each fixture under bench/dataset/synthetic, and
-# compares the .gba bytes and the sorted (name, value, size, type) symbol list with the committed
-# build. The unit tests read the committed builds and need no toolchain; this job proves they are
+# The rebuild check of the synthetic fixtures (architecture §8.1, D28): builds pret/agbcc and its
+# old_agbcc at the commit every fixture's build.mk records, rebuilds each fixture under
+# bench/dataset/synthetic, and compares the .gba bytes and the sorted (name, value, size, type) symbol
+# list with the committed build. The unit tests read the committed builds and need no toolchain; this job proves they are
 # reproducible. A different `as --version` than the record is only a note; another agbcc commit fails.
+#
+# Phase 4 adds the end to end run (architecture §8.6, g4.e2e-fixtures): after the rebuild check, every fixture but
+# c-data (whose C array must fail the link, g4.c-data-fails-loud) goes through `romlift init <rom>` (with its
+# expect.json's init.args) in a directory that holds only its ROM, `./setup.sh` and `make`, from the source CLI, and
+# must end at its SHA-1 with romlift.toml as init wrote it. Each project gets a copy of the two compilers built above
+# in tools/agbcc, so setup.sh's agbcc duty finds them present and the job builds agbcc once.
 name: fixtures
 
 on:
@@ -37,14 +43,20 @@ jobs:
       - name: Install binutils (Homebrew)
         if: runner.os == 'macOS'
         run: brew install arm-none-eabi-binutils
-      - name: Build pret/agbcc at the pinned commit
+      # Both compilers from the one commit, in the order of pret/agbcc's build.sh (old_agbcc first, each
+      # after a clean, since they share the object files) and installed side by side as its install.sh does:
+      # the fixture build takes old_agbcc from beside agbcc (OLD_AGBCC_SRCS in a build.mk).
+      - name: Build pret/agbcc and old_agbcc at the pinned commit
         run: |
           git init -q "$RUNNER_TEMP/agbcc-src"
           git -C "$RUNNER_TEMP/agbcc-src" fetch -q --depth 1 https://github.com/pret/agbcc.git "$AGBCC_COMMIT"
           git -C "$RUNNER_TEMP/agbcc-src" checkout -q FETCH_HEAD
+          mkdir -p "$RUNNER_TEMP/agbcc/bin"
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
+          make -C "$RUNNER_TEMP/agbcc-src/gcc" old -j1
+          cp "$RUNNER_TEMP/agbcc-src/gcc/old_agbcc" "$RUNNER_TEMP/agbcc/bin/old_agbcc"
           make -C "$RUNNER_TEMP/agbcc-src/gcc" clean
           make -C "$RUNNER_TEMP/agbcc-src/gcc" -j1
-          mkdir -p "$RUNNER_TEMP/agbcc/bin"
           cp "$RUNNER_TEMP/agbcc-src/gcc/agbcc" "$RUNNER_TEMP/agbcc/bin/agbcc"
       - name: Install exactly the lock file
         run: npm ci --ignore-scripts
@@ -53,3 +65,65 @@ jobs:
           ROMLIFT_AGBCC: ${{ runner.temp }}/agbcc
           ROMLIFT_AGBCC_COMMIT: ${{ env.AGBCC_COMMIT }}
         run: npm run fixtures -- check --json
+      # ROMLIFT_CLI is the source CLI, so setup.sh skips its npm duty (an unpublished tree is not on the registry).
+      - name: init, setup.sh and make on every fixture but c-data, from the source CLI
+        timeout-minutes: 30
+        env:
+          AGBCC_BUILD: ${{ runner.temp }}/agbcc
+        run: |
+          set -eu
+          cli="$RUNNER_TEMP/romlift-cli/romlift"
+          mkdir -p "$RUNNER_TEMP/romlift-cli" "$RUNNER_TEMP/e2e"
+          printf '#!/bin/sh\nexec "%s" --conditions=source "%s" "$@"\n' "$(command -v node)" "$GITHUB_WORKSPACE/src/cli/main.ts" > "$cli"
+          chmod +x "$cli"
+          export ROMLIFT_CLI="$cli"
+
+          # The last NDJSON line of a --json run is {"type":"summary","exitCode":0}.
+          summary_ok() {
+            node -e '
+              const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n").filter((l) => l.trim() !== "");
+              const last = JSON.parse(lines.at(-1) ?? "null");
+              if (last?.type !== "summary" || last.exitCode !== 0) { console.error(lines.slice(-8).join("\n")); process.exit(1); }
+            ' "$1"
+          }
+
+          # init, setup.sh and make for one fixture; prints why it failed and returns 1.
+          build_one() {
+            name=$1
+            gba="bench/dataset/synthetic/$name/build/$name.gba"
+            dir="$RUNNER_TEMP/e2e/$name"
+            args=$(node -e 'const e = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write((e.init?.args ?? []).join(" "))' "bench/dataset/synthetic/$name/expect.json")
+            mkdir -p "$dir"
+            cp "$gba" "$dir/$name.gba"
+            # shellcheck disable=SC2086 # init.args are separate words
+            (cd "$dir" && "$cli" init "$name.gba" $args --json) > "$RUNNER_TEMP/e2e/$name.init.ndjson" || { echo "init exited $?"; tail -n 8 "$RUNNER_TEMP/e2e/$name.init.ndjson"; return 1; }
+            summary_ok "$RUNNER_TEMP/e2e/$name.init.ndjson" || { echo 'init printed no ok summary'; return 1; }
+            cp "$dir/romlift.toml" "$RUNNER_TEMP/e2e/$name.toml"
+            mkdir -p "$dir/tools"
+            cp -R "$AGBCC_BUILD" "$dir/tools/agbcc"
+            (cd "$dir" && ./setup.sh) || { echo "./setup.sh exited $?"; return 1; }
+            (cd "$dir" && make) || { echo "make exited $?"; return 1; }
+            cmp -s "$dir/romlift.toml" "$RUNNER_TEMP/e2e/$name.toml" || { echo 'setup.sh or make changed romlift.toml'; return 1; }
+            set -- "$dir"/*.sha1
+            [ "$#" -eq 1 ] && [ -f "$1" ] || { echo 'the project has no single <name>.sha1'; return 1; }
+            built=$(sed -E -n '1s/^[0-9a-f]{40} [ *]//p' "$1")
+            [ -n "$built" ] && cmp "$dir/$built" "$gba" || { echo "make did not build $built with the fixture's bytes"; return 1; }
+            echo "$name: $built reproduces $(cut -d ' ' -f 1 "$1")"
+          }
+
+          failed=''
+          count=0
+          for gba in bench/dataset/synthetic/*/build/*.gba; do
+            name=$(basename "$gba" .gba)
+            [ "$gba" = "bench/dataset/synthetic/$name/build/$name.gba" ] || continue
+            if [ "$name" = c-data ]; then
+              echo "c-data not built here: its C array must fail the link (g4.c-data-fails-loud)"
+              continue
+            fi
+            echo "::group::$name"
+            if build_one "$name"; then count=$((count + 1)); else failed="$failed $name"; echo "::error::$name: init, setup.sh and make did not reach the SHA-1"; fi
+            echo '::endgroup::'
+          done
+          [ "$count" -gt 0 ] || { echo '::error::no fixture was built'; exit 1; }
+          [ -z "$failed" ] || { echo "::error::failed:$failed"; exit 1; }
+          echo "$count fixtures reach their SHA-1 from init, setup.sh and make"

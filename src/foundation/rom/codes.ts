@@ -1,5 +1,5 @@
-// Diagnostic codes raised by foundation/rom (architecture §9.1). The SHA-1 mismatch code lands with
-// its first raiser in phase 4 (D45).
+// Diagnostic codes raised by foundation/rom (architecture §9.1). The SHA-1 mismatch of a project's ROM is core/config's
+// (rom-sha1.ts, D75 h): foundation holds no project knowledge.
 import { defineCodes } from '../diagnostics/diagnostic.ts';
 
 export const RomCodes = defineCodes({

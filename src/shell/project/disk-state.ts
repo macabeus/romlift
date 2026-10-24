@@ -3,7 +3,7 @@
 // Mechanical: the shell lists, reads and hashes; what the digests mean is planWrites'. Directories are
 // listed only through shell/fs.ts's listDir (architecture §2).
 import type { Stats } from 'node:fs';
-import { lstat, readFile } from 'node:fs/promises';
+import { lstat, readFile, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -39,8 +39,12 @@ async function readOptionalText(dir: string, path: string): Promise<IoResult<str
   }
 }
 
-/** The sha1 of a project file's bytes, or 'absent' when nothing is there. A directory is an E_IO_READ. */
-async function digestOf(dir: string, path: string): Promise<IoResult<string>> {
+/**
+ * The sha1 of a project file's bytes, or 'absent' when nothing is there (ENOENT, or ENOTDIR: a file where a directory
+ * of its path should be). A directory is an E_IO_READ. The one read-and-hash rule of the disk snapshot and of
+ * apply-writes' check right before an edit (fix round 7, architecture-b2-11).
+ */
+export async function digestOf(dir: string, path: string): Promise<IoResult<string>> {
   const file = onDisk(dir, path);
   try {
     return { ok: true, value: sha1Of(await readFile(file)) };
@@ -50,8 +54,36 @@ async function digestOf(dir: string, path: string): Promise<IoResult<string>> {
   }
 }
 
-/** Every file below the project directory `path` (no trailing '/'), as project paths; none when it is absent. */
-async function filesUnder(dir: string, path: string, out: string[]): Promise<IoResult<void>> {
+/** How filesUnder treats a symbolic link to a directory. */
+export interface FilesUnderOptions {
+  /**
+   * Follow it, as the Makefile's cpp and make do, though not exactly as cpp resolves includes (readHeaderTexts, fix
+   * round 12, correctness-d1-1; D89 a, D90 a): a link to a directory is walked under its own project path. A cycle ends
+   * where a directory's real path (realpath) is the project directory's or that of a directory the walk is already
+   * inside, as `find -L` ends one; a dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out. Default false:
+   * listed as one entry, never followed (the disk snapshot, which hashes what romlift wrote).
+   */
+  readonly followLinks?: boolean;
+}
+
+/**
+ * Every file below the project directory `path` (no trailing '/'), as project paths, in code-unit order; none when it
+ * is absent. The recursive walker of the shell, with two link policies chosen by the caller (fix round 12,
+ * architecture-d1-2): the disk snapshot lists a symbolic link as one entry, whatever it points at (lstat), and
+ * readHeaderTexts follows a link to a directory (`options.followLinks`; not exactly as cpp does, D89 a, D90 a). The
+ * shell's fixed-depth listings (readCTexts' `src/*.c`, readChunkFiles' `asm/nonmatchings/<module>/`) use stat, which
+ * follows a link as well.
+ */
+export async function filesUnder(dir: string, path: string, out: string[], options: FilesUnderOptions = {}): Promise<IoResult<void>> {
+  if (options.followLinks === true) {
+    let root: string;
+    try {
+      root = await realpath(dir);
+    } catch (error) {
+      return ioError('E_IO_READ', dir, `cannot resolve ${dir}: ${errorReason(error)}`);
+    }
+    return filesFollowing(dir, path, out, [root]);
+  }
   let stat: Stats;
   try {
     stat = await lstat(onDisk(dir, path));
@@ -67,6 +99,38 @@ async function filesUnder(dir: string, path: string, out: string[]): Promise<IoR
   if (!names.ok) return names;
   for (const name of names.value) {
     const below = await filesUnder(dir, `${path}/${name}`, out);
+    if (!below.ok) return below;
+  }
+  return { ok: true, value: undefined };
+}
+
+/** filesUnder following links: `inside` holds the real paths of the project directory and of the directories walked into. */
+async function filesFollowing(dir: string, path: string, out: string[], inside: readonly string[]): Promise<IoResult<void>> {
+  const file = onDisk(dir, path);
+  let found: Stats;
+  try {
+    found = await stat(file);
+  } catch (error) {
+    const code = errnoOf(error);
+    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP') return { ok: true, value: undefined };
+    return ioError('E_IO_READ', file, `cannot stat ${file}: ${errorReason(error)}`);
+  }
+  if (!found.isDirectory()) {
+    out.push(path);
+    return { ok: true, value: undefined };
+  }
+  let real: string;
+  try {
+    real = await realpath(file);
+  } catch (error) {
+    return ioError('E_IO_READ', file, `cannot resolve ${file}: ${errorReason(error)}`);
+  }
+  if (inside.includes(real)) return { ok: true, value: undefined };
+  const names = await listDir(file);
+  if (!names.ok) return names;
+  const deeper = [...inside, real];
+  for (const name of names.value) {
+    const below = await filesFollowing(dir, `${path}/${name}`, out, deeper);
     if (!below.ok) return below;
   }
   return { ok: true, value: undefined };
@@ -134,6 +198,19 @@ export async function readJournal(dir: string): Promise<IoResult<Journal | null>
   if (decoded.ok) return { ok: true, value: decoded.journal };
   const file = onDisk(dir, JOURNAL_PATH);
   return ioError('E_IO_READ', file, `${file} is not a romlift journal (${decoded.error})`);
+}
+
+/** Those of `paths` whose file exists with its owner's executable bit, for WritePlanInputs.executables. */
+export async function readExecutables(dir: string, paths: Iterable<string>): Promise<ReadonlySet<string>> {
+  const out = new Set<string>();
+  for (const path of paths) {
+    try {
+      if (((await stat(onDisk(dir, path))).mode & 0o100) !== 0) out.add(path);
+    } catch {
+      // Absent or unreadable: planWrites writes it, or the snapshot reports it.
+    }
+  }
+  return out;
 }
 
 /** The current text of each reconciled path, for WritePlanInputs.reconciledTexts; an absent file has none. */

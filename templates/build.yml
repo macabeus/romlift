@@ -1,0 +1,54 @@
+# .github/workflows/build.yml: builds @@builtRom@@ and checks its SHA-1 against @@sha1File@@ (written once by romlift init).
+#
+# The ROM is not in the repository and must never be committed. The build runs only where the ROM is available:
+# store a URL this workflow may download it from in the repository secret BASEROM_URL (a private location you
+# control). Without that secret the workflow passes with a notice and builds nothing.
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the ROM
+        id: rom
+        env:
+          BASEROM_URL: ${{ secrets.BASEROM_URL }}
+        run: |
+          if [ -z "$BASEROM_URL" ]; then
+            echo "::notice::No BASEROM_URL secret: the ROM is not in the repository, so nothing is built."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            curl -fsSL "$BASEROM_URL" -o @@romFile@@
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install the toolchain
+        if: steps.rom.outputs.available == 'true'
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi build-essential
+
+      - uses: actions/setup-node@v4
+        if: steps.rom.outputs.available == 'true'
+        with:
+          node-version: 24
+
+      - name: Cache agbcc
+        if: steps.rom.outputs.available == 'true'
+        uses: actions/cache@v4
+        with:
+          path: tools/agbcc/bin
+          key: agbcc-${{ runner.os }}-@@agbccCommit@@
+
+      - name: Set up
+        if: steps.rom.outputs.available == 'true'
+        run: ./setup.sh
+
+      - name: Build and compare
+        if: steps.rom.outputs.available == 'true'
+        run: make

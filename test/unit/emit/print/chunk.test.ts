@@ -2,12 +2,17 @@
 // of fixture.ts: each item kind, the start macros (2 mod 4, ARM, _local for module-scoped labels), ARM after
 // `bx pc`, the pool naming rule in place, a jump table, data notes, an orphan split by a global label, a
 // cross-module short branch printed raw, inner labels, the statistics, the raw printer, and the unit-level
-// round trip: every mnemonic line re-parses and re-assembles to its bytes at its address.
+// round trip: every mnemonic line re-parses and re-assembles to its bytes at its address. A function chunk that
+// folded the pad before its entry (core/model/chunks.ts) prints no `.align` of its own: its start macro emits it.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { printChunk } from '../../../../src/core/emit/print/chunk.ts';
 import { printRawRange } from '../../../../src/core/emit/print/raw.ts';
+import { emitTree } from '../../../../src/core/emit/emit-tree.ts';
+import { buildModel } from '../../../../src/core/model/model.ts';
+import { checkEntries } from '../../../../src/core/verify/text-layout.ts';
+import { verifyModel } from '../../../../src/core/verify/tiling.ts';
 import { itemAt } from '../../../../src/core/model/item-table.ts';
 import { resolverFor } from '../../../../src/core/model/resolver.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
@@ -16,6 +21,7 @@ import { parse } from '../../../../src/foundation/isa/parse.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import { codeItems, dataItem, label, modelOf, romWith } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
+import { analysisOf, BASE, configOf, fact, HEADER_END } from '../../layout/hand-made.ts';
 import { sampleModel, sampleRom } from './fixture.ts';
 
 const rom = sampleRom();
@@ -218,4 +224,48 @@ test('a multi-MiB data run inside a code chunk prints with both printers, no sta
     assert.ok(printed.lines.length > size / 16, how);
     assert.equal(printed.lines[0], '.thumb');
   }
+});
+
+// ---------------------------------------------------------------------------------------------------
+// A function chunk that folded the zero pad before its entry (phase-3.md Q5 b).
+
+/** A at 0x100 (Thumb, ending at 0x10A, its first instruction `a`), a 2-byte zero pad, B at 0x10C, data from 0x110: buildModel's model. */
+function folded(a: string): { readonly rom: Rom; readonly model: Model } {
+  const r = romWith(
+    [
+      { at: BASE + 0x100, bytes: thumbAt(BASE + 0x100)`${a}; bl _0800010C; pop {pc}` },
+      { at: BASE + 0x10c, bytes: thumbAt(BASE + 0x10c)`movs r0, #1; bx lr` },
+    ],
+    { size: 0x200 },
+  );
+  const analysis = analysisOf(r, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x10a }), fact({ entry: BASE + 0x10c, end: BASE + 0x110 })] });
+  const config = configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x110, kind: 'data', generated: true }], functions: [[BASE + 0x100, 'A'], [BASE + 0x10c, 'B']] });
+  return { rom: r, model: buildModel(r, analysis, config) };
+}
+
+/** The self-checks of the model and its tree with `printer`: the failing checks' details, empty when all pass. */
+function selfChecks(r: Rom, m: Model, printer: 'readable' | 'raw'): readonly string[] {
+  const reports = [verifyModel(r, m), checkEntries(r, m, emitTree(r, m, { decomp: { defined: [] }, printer }))];
+  return reports.flatMap((report) => report.checks.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`));
+}
+
+test('a folded pad: both printers put the start macro and label at the entry and print no .align, which the macro emits', () => {
+  const { rom: r, model: m } = folded('push {lr}; movs r0, #0');
+  const b = m.chunks.findIndex((c) => c.name === 'B');
+  assert.deepEqual(m.chunks[b]?.span, { start: BASE + 0x10a, end: BASE + 0x110 });
+  assert.deepEqual(printChunk(r, m, b).lines, ['.thumb', '\tthumb_func_start_local B', 'B: @ 0800010C', '\tmovs r0, #1', '\tbx lr', '\tthumb_func_end B']);
+  assert.deepEqual(printChunk(r, m, b, 'raw').lines, ['.thumb', '\tthumb_func_start_local B', 'B: @ 0800010C', '\t.2byte 0x2001, 0x4770', '\tthumb_func_end B']);
+  assert.equal(m.chunks.some((c) => c.kind === 'orphan' && c.span.start === BASE + 0x10a), false);
+  assert.deepEqual(selfChecks(r, m, 'readable'), []);
+  assert.deepEqual(selfChecks(r, m, 'raw'), []);
+});
+
+test('a label inside a folded pad: the pad prints before the start macro (readable: with its local label), so the macro aligns nothing', () => {
+  const { rom: r, model: m } = folded('push {lr}; beq _0800010A');
+  const b = m.chunks.findIndex((c) => c.name === 'B');
+  assert.deepEqual(printChunk(r, m, b).lines, ['.thumb', '_0800010A:', '\t.2byte 0x0000', '\tthumb_func_start_local B', 'B: @ 0800010C', '\tmovs r0, #1', '\tbx lr', '\tthumb_func_end B']);
+  assert.deepEqual(printChunk(r, m, b, 'raw').lines, ['.thumb', '\t.2byte 0x0000', '\tthumb_func_start_local B', 'B: @ 0800010C', '\t.2byte 0x2001, 0x4770', '\tthumb_func_end B']);
+  assert.ok(printChunk(r, m, m.chunks.findIndex((c) => c.name === 'A')).lines.includes('\tbeq _0800010A'));
+  assert.deepEqual(selfChecks(r, m, 'readable'), []);
+  assert.deepEqual(selfChecks(r, m, 'raw'), []);
 });

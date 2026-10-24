@@ -15,6 +15,7 @@ const OPS: readonly WriteOp[] = [
   { op: 'keep', path: 'asm/crt0.s', sha1: S2 },
   { op: 'edit', path: 'src/main.c', baseSha1: S1, resultSha1: S2, text: 'int x;\n' },
   { op: 'delete', path: 'asm/nonmatchings/main/Gone.s' },
+  { op: 'mode', path: 'setup.sh', executable: true },
 ];
 
 test('journalOf keeps every op that changes a file, in plan order', () => {
@@ -24,6 +25,7 @@ test('journalOf keeps every op that changes a file, in plan order', () => {
       { op: 'write', path: 'asm/main.s', resultSha1: S1 },
       { op: 'edit', path: 'src/main.c', baseSha1: S1, resultSha1: S2 },
       { op: 'delete', path: 'asm/nonmatchings/main/Gone.s' },
+      { op: 'mode', path: 'setup.sh' },
     ],
   });
 });
@@ -45,7 +47,7 @@ test('a malformed journal is an error value', () => {
     ['{"schema":0,"ops":[]}', /schema 0/],
     ['{"schema":1,"ops":[],"x":1}', /unknown member "x"/],
     ['{"schema":1,"ops":[1]}', /ops\[0\] is not an object/],
-    ['{"schema":1,"ops":[{"op":"keep","path":"a"}]}', /is not write, edit or delete/],
+    ['{"schema":1,"ops":[{"op":"keep","path":"a"}]}', /is not write, edit, delete or mode/],
     [`{"schema":1,"ops":[{"op":"write","path":"../a","resultSha1":"${S1}"}]}`, /not a project path/],
     ['{"schema":1,"ops":[{"op":"write","path":"a"}]}', /a write carries resultSha1 only/],
     [`{"schema":1,"ops":[{"op":"edit","path":"a","resultSha1":"${S1}"}]}`, /an edit carries baseSha1 and resultSha1/],

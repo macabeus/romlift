@@ -43,22 +43,18 @@ export const WRITER_IDS: readonly WriterId[] = [
   'objdiff',
 ];
 
-/** One edit of a reconciled file, in UTF-16 offsets of its base text. */
-export interface TextEdit {
-  readonly start: number;
-  readonly end: number;
-  readonly text: string;
-  readonly reason: 'add-stub' | 'remove-stub' | 'move-stub' | 'rename';
-}
+/** One edit of a reconciled file, in UTF-16 offsets of its base text: core/reconcile's (the one definition). */
+export type { TextEdit } from '../reconcile/text-edit.ts';
+import type { TextEdit } from '../reconcile/text-edit.ts';
 
 /** One file of the tree; `path` is relative to the project root, with '/' separators. */
 export type FileEntry =
   | { readonly ownership: 'generated'; readonly path: string; readonly text: string; readonly writer: WriterId }
-  | { readonly ownership: 'scaffold'; readonly path: string; readonly text: string; readonly writer: 'scaffold' | 'c-stub' }
+  | { readonly ownership: 'scaffold'; readonly path: string; readonly text: string; readonly writer: 'scaffold' | 'c-stub'; readonly executable?: true }
   | { readonly ownership: 'reconciled'; readonly path: string; readonly baseSha1: string; readonly edits: readonly TextEdit[] };
 
 /**
- * Names defined in src/*.c, derived by the workflow with the reconciler's tokenizer (phase 5 decides matchings).
+ * Names defined in src/*.c, derived by the workflow with the reconciler's tokenizer (phase 6 decides matchings, D76 g).
  * Plain data (D19, architecture §3): a list in code-unit order, which a reader turns into a set where it needs one.
  */
 export interface DecompState {
@@ -74,6 +70,13 @@ export interface EmitContext {
   readonly decomp: DecompState;
   /** Default DEFAULT_PRINTER ('readable'); `verify --printer raw` passes 'raw'. */
   readonly printer?: Printer;
+  /**
+   * The SHA-1 of the project's romlift.toml the tree is generated from (the shell's hash of its bytes; fix round 6,
+   * correctness-b1-1): modules.mk records it as ROMLIFT_TOML_SHA1, so the scaffold's Makefile and setup.sh tell a
+   * tree older than the TOML (a pull, a checkout) from a current one. Absent outside a project (`verify --rom`, the
+   * bench), where modules.mk has no such line.
+   */
+  readonly configSha1?: string;
 }
 
 /**

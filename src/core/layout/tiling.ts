@@ -1,6 +1,9 @@
 // Tiling the code region (the PoC's tile(), architecture §6.2): one function chunk per entry that starts one,
 // one orphan chunk for the bytes between, cut at given addresses. core/model/chunks.ts tiles with it exactly as
-// borders.ts's codeLayout does, so the model's chunks are the ones the borders were computed over.
+// borders.ts's codeLayout does, so the model's chunks are the ones the borders were computed over, except that the
+// model folds a padding-only orphan into the function after it: such a pad is shorter than a word and ends at a
+// word-aligned entry, so it never starts at a word boundary, and the legal borders (word-aligned chunk starts) are
+// the same either way.
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { PlacedEntry } from './entries.ts';

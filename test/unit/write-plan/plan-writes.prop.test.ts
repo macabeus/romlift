@@ -157,7 +157,7 @@ test('applyTextEdits equals splicing edits in from the end', () => {
     const text = 'abcdefghijklmnopqrstuvwxyz'.slice(0, r.below(27));
     const cuts = Array.from({ length: r.below(5) * 2 }, () => r.below(text.length + 1)).sort((a, b) => a - b);
     const edits = [];
-    for (let k = 0; k + 1 < cuts.length; k += 2) edits.push({ start: cuts[k] ?? 0, end: cuts[k + 1] ?? 0, text: `<${k}>`, reason: 'rename' as const });
+    for (let k = 0; k + 1 < cuts.length; k += 2) edits.push({ start: cuts[k] ?? 0, end: cuts[k + 1] ?? 0, text: `<${k}>`, reason: 'add-stub' as const });
     let expected = text;
     for (const e of [...edits].reverse()) expected = expected.slice(0, e.start) + e.text + expected.slice(e.end);
     const shuffled = edits.map((e) => ({ e, key: r.next() })).sort((a, b) => a.key - b.key).map((x) => x.e);

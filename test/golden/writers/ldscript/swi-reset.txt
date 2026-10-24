@@ -5,6 +5,8 @@ SECTIONS {
     .text : {
         build/rom_header.o(.text);
         build/crt0.o(.text);
-        build/main.o(.text);
+        build/src/main.o(.text);
     }
+    .c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }
+    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")
 }

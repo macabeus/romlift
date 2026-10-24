@@ -2,7 +2,7 @@
 // readdir in the shell, architecture §2), reading bytes, and writing a file atomically. Failures are
 // returned as E_IO_READ or E_IO_WRITE diagnostics, never thrown.
 import { randomBytes } from 'node:crypto';
-import { open, readdir, readFile, rename, rm } from 'node:fs/promises';
+import { open, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { closeSync, openSync, rmSync, writeSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -46,6 +46,20 @@ export async function listDir(path: string): Promise<IoResult<readonly string[]>
   }
 }
 
+/**
+ * Whether `path` is a directory: false when it is absent or a path component is no directory (ENOENT, ENOTDIR) or it
+ * is another kind of file; any other failure (a permission, an I/O error) is E_IO_READ, never read as absent.
+ */
+export async function isDirectory(path: string): Promise<IoResult<boolean>> {
+  try {
+    return { ok: true, value: (await stat(path)).isDirectory() };
+  } catch (error) {
+    const code = errnoOf(error);
+    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, value: false };
+    return failure('E_IO_READ', path, 'cannot examine', error);
+  }
+}
+
 /** The bytes of file `path`. */
 export async function readBytes(path: string): Promise<IoResult<Uint8Array>> {
   try {
@@ -69,6 +83,8 @@ export interface AtomicWriteOptions {
    * run rewrites; an existing file still goes through the temporary file.
    */
   readonly inPlaceWhenAbsent?: boolean;
+  /** The file's permission bits (e.g. 0o755 for an executable), set on the file before it takes `path`'s place; default the umask's. */
+  readonly mode?: number;
 }
 
 type Data = string | Uint8Array | Iterable<string>;
@@ -139,7 +155,7 @@ function writeAll(fd: number, data: string | Uint8Array): void {
  */
 export async function atomicWrite(path: string, data: Data, options: AtomicWriteOptions = {}): Promise<IoResult<void>> {
   const durable = options.durable !== false;
-  if (!durable && options.inPlaceWhenAbsent === true) {
+  if (!durable && options.inPlaceWhenAbsent === true && options.mode === undefined) {
     try {
       if (createInPlace(path, data)) return { ok: true, value: undefined };
     } catch (error) {
@@ -151,6 +167,7 @@ export async function atomicWrite(path: string, data: Data, options: AtomicWrite
     const handle = await open(temp, 'wx');
     try {
       await writeData(handle, data);
+      if (options.mode !== undefined) await handle.chmod(options.mode);
       if (durable) await handle.sync();
     } finally {
       await handle.close();

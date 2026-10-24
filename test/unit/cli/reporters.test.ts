@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Diagnostic } from '../../../src/api/rom.ts';
-import { writeLines } from '../../../src/cli/commands/analysis-records.ts';
+import { writeLines } from '../../../src/cli/commands/command-common.ts';
 import { ExitCode, isExitCode } from '../../../src/cli/exit-codes.ts';
 import type { CliIo } from '../../../src/cli/registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../../../src/cli/reporters/ndjson.ts';

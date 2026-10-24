@@ -56,6 +56,8 @@ function raised(): Diagnostic[] {
       }),
     ).diagnostics,
   );
+  // A Thumb pointer value pasted as a [functions] key (fix round 5).
+  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x103, 'Odd']] })).diagnostics);
   return out;
 }
 

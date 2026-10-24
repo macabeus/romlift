@@ -6,11 +6,12 @@
 // module on agbcc. As a control, the same C built with agbcc alone must not reach the SHA-1, so the fixture
 // really needs both compilers.
 //
-// Expected interfaces, for the phase-4 lead to align (as in g4.e2e-fixtures, plus):
+// Interfaces, frozen by D74 (as in g4.e2e-fixtures, plus):
 //   bench/dataset/synthetic/multi-compiler/expect.json   {"init"?: {"args": [string]},
 //     "compilers": {"<module>": {"compiler": "old_agbcc", "cflags": [string]}}}
 //   bench/dataset/synthetic/multi-compiler/overlay/src/<module>.c   decompiled C of both C modules
-//   modules.mk names each C object `src/<module>.o` on the line(s) that set its compiler and flags
+//   modules.mk names each C object `src/<module>.o` on the line(s) that set its compiler and flags: per C
+//   module `build/src/<module>.o: CC1 := tools/agbcc/bin/<compiler>` and `build/src/<module>.o: CFLAGS := <flags>`
 import { createHash } from 'node:crypto';
 import { copyFile, cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';

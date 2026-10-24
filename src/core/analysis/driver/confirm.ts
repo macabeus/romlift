@@ -1,6 +1,8 @@
 // Confirm mode (architecture §4.2, D8): the project's [functions] are the function set from round 0.
-// A listed entry that fails validity is kept (W_LISTED_INVALID); what discovery would accept beyond
-// the list is reported (W_UNLISTED_FUNCTION) and claims nothing. Extents are cut in view.ts
+// A listed entry whose seed asks for validation (`Seed.validate`, an entry another source proposed) and
+// fails validity is kept and reported (W_LISTED_INVALID); any other listed entry is taken without the
+// valid.* rules (phase-3.md Q5 c, D74). What discovery would accept beyond the list is reported
+// (W_UNLISTED_FUNCTION) and claims nothing. Extents are cut in view.ts
 // (extentEndOf): a listed size, else the reading cut at the next listed entry that is not a label.
 import { diagnostic } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
@@ -13,7 +15,7 @@ import type { AnalysisOptions, Candidate, OverrideFact, Seed } from '../types.ts
 import { whyInvalid } from './validity.ts';
 import type { DriverState } from './state.ts';
 
-/** A total order of seeds: entry, mode (Thumb first), rule, then name, size and label. */
+/** A total order of seeds: entry, mode (Thumb first), rule, then name, size, label and validate. */
 export function compareSeeds(a: Seed, b: Seed): number {
   if (a.entry !== b.entry) return a.entry - b.entry;
   if (a.mode !== b.mode) return a.mode === 'thumb' ? -1 : 1;
@@ -21,7 +23,8 @@ export function compareSeeds(a: Seed, b: Seed): number {
     compareCodeUnits(a.rule, b.rule) ||
     compareCodeUnits(a.name ?? '', b.name ?? '') ||
     (a.size ?? -1) - (b.size ?? -1) ||
-    Number(a.label === true) - Number(b.label === true)
+    Number(a.label === true) - Number(b.label === true) ||
+    Number(a.validate === true) - Number(b.validate === true)
   );
 }
 
@@ -44,6 +47,18 @@ export function listedSeeds(options: AnalysisOptions): ReadonlyMap<Addr, Seed> {
   return listed;
 }
 
+/**
+ * Whether `c` names a listed entry in the other mode (a veneer's ARM target at an entry listed as Thumb, say). The
+ * listed entry is a function from round 0 in its listed mode, so such a candidate meets an existing function, as in
+ * discover mode once the entry is taken: it is neither accepted nor reported. Taking it would replace the listed
+ * mode with the candidate's whenever the candidate is popped before the entry's own seed.
+ */
+export function isOtherModeOfListed(s: DriverState, c: Candidate): boolean {
+  if (s.options.mode !== 'confirm') return false;
+  const seed = s.listed.get(c.entry);
+  return seed !== undefined && seed.mode !== c.mode;
+}
+
 /** Whether accepting `c` would add a function the confirm run does not list. */
 export function isUnlisted(s: DriverState, c: Candidate): boolean {
   return s.options.mode === 'confirm' && !s.listed.has(c.entry);
@@ -63,9 +78,13 @@ export function recordUnlisted(s: DriverState, c: Candidate, origin: Origin): vo
   );
 }
 
-/** Before a listed Thumb entry is taken: its first validity failure, if any, is recorded and the entry kept. */
+/**
+ * Before a listed Thumb entry whose seed asks for validation is taken: its first validity failure, if any, is
+ * recorded and the entry kept. An entry without `validate` is not checked at all (whyInvalid is not called).
+ */
 export function checkListed(s: DriverState, c: Candidate): void {
   if (s.options.mode !== 'confirm' || c.mode !== 'thumb' || s.listedInvalid.has(c.entry)) return;
+  if (s.listed.get(c.entry)?.validate !== true) return;
   const failure = whyInvalid(s, c.entry);
   if (failure === undefined) return;
   const rejection = { at: c.entry, mode: c.mode, rule: failure.rule, reason: failure.reason, intrinsic: failure.intrinsic, round: s.round, detail: failure.detail, count: 1 };

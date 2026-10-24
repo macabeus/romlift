@@ -33,6 +33,7 @@ import { parse } from '../isa/parse.ts';
 import { specOf } from '../isa/rows.ts';
 import type { Assembled, FlowKind, SymbolResolver } from '../isa/types.ts';
 import type { Addr, Mode } from '../rom/span.ts';
+import { insnAligned, insnUnit } from '../rom/span.ts';
 import { hex } from '../util/hex.ts';
 import type { Expr, Statement } from './statements.ts';
 
@@ -213,11 +214,6 @@ function insnSize(text: string, mode: Mode, addr: Addr): number | undefined {
   return Math.max(...parsed.candidates.map((c) => specOf(c.specId).size));
 }
 
-/** Whether `addr` is aligned for an instruction of `mode`. */
-function insnAligned(mode: Mode, addr: Addr): boolean {
-  return addr % (mode === 'arm' ? 4 : 2) === 0;
-}
-
 /** Why an `.inst` directive cannot stand in `mode`, or undefined when it can. */
 function instRefusal(directive: string, mode: Mode): string | undefined {
   if (mode === 'arm' && directive !== '.inst') return `\`${directive}\` in ARM state (width suffixes are Thumb only)`;
@@ -277,7 +273,7 @@ function place(w: Walker, stmt: Statement, where: string, depth: number, stack: 
     case 'insn': {
       needAlign(w, w.mode === 'arm' ? 2 : 1);
       const found = sizeOf(w, stmt.text, w.mode, at);
-      size = found ?? (w.mode === 'arm' ? 4 : 2);
+      size = found ?? insnUnit(w.mode);
       if (found === undefined) fail(`unparsable ${w.mode} instruction \`${stmt.text}\``);
       else if (!insnAligned(w.mode, at)) fail(`${w.mode} instruction at an unaligned address`);
       break;

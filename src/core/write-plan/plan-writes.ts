@@ -6,7 +6,9 @@
 //               other content is overwritten only when romlift owns it (the manifest or the journal lists
 //               it) or it lies under a generated root; elsewhere E_PATH_NOT_OWNED and no op. A manifest
 //               path the tree no longer has is deleted; without a manifest nothing is deleted.
-//   scaffold    `write` only when absent, else `keep`; never in the manifest.
+//   scaffold    `write` only when absent (with its executable bits when the entry is executable), else `keep`, or a
+//               `mode` op when an executable entry's file lacks its executable bits (a crash between the write and
+//               the mode, or a checkout that lost them); never in the manifest.
 //   reconciled  `edit` only while the file still has its baseSha1 (and its text hashes to it), else
 //               E_STALE_EDIT and no op; an edit the journal shows done is a `keep`.
 //   retained    a path under a `retained` prefix (a generated = false module) gets no op at all, and the
@@ -33,6 +35,9 @@ import type { Journal, JournalOp } from './journal.ts';
 import { isProjectPath } from './manifest.ts';
 import type { Manifest, WriteOp, WritePlan, WritePlanInputs } from './types.ts';
 import { underGeneratedRoot } from './types.ts';
+
+/** The writer of the staleness stamp (modules.mk's ROMLIFT_TOML_SHA1, D82 a), whose write is the plan's last op. */
+const STAMP_WRITER: WriterId = 'modules-mk';
 
 type ManifestFile = Manifest['files'][string];
 
@@ -130,7 +135,7 @@ class Planner {
         this.generated(path, entry.text, entry.writer);
         return;
       case 'scaffold':
-        this.scaffold(path, entry.text, entry.writer);
+        this.scaffold(path, entry.text, entry.writer, entry.executable === true);
         return;
       case 'reconciled':
         this.reconciled(path, entry.baseSha1, entry.edits);
@@ -158,9 +163,10 @@ class Planner {
     this.files.set(path, { sha1, writer });
   }
 
-  scaffold(path: string, text: string, writer: WriterId): void {
+  scaffold(path: string, text: string, writer: WriterId, executable: boolean): void {
     const disk = this.diskOf(path);
-    if (disk === 'absent') this.ops.push({ op: 'write', path, text, sha1: this.inputs.hash(text), writer });
+    if (disk === 'absent') this.ops.push({ op: 'write', path, text, sha1: this.inputs.hash(text), writer, ...(executable ? { executable: true as const } : {}) });
+    else if (executable && !(this.inputs.executables?.has(path) ?? false)) this.ops.push({ op: 'mode', path, executable: true });
     else this.ops.push({ op: 'keep', path, sha1: disk });
   }
 
@@ -172,9 +178,11 @@ class Planner {
       return;
     }
     const text = this.inputs.reconciledTexts.get(path);
-    if (disk !== baseSha1 || text === undefined || this.inputs.hash(text) !== baseSha1) {
-      const now = disk === 'absent' ? 'is absent' : `has sha1 ${disk}`;
-      this.raise('E_STALE_EDIT', path, `${path} changed since its edits were planned: it ${now}, the edits expect ${baseSha1}`);
+    // The disk first: an absent file is absent whether or not its text was read.
+    const now: EditedFileState = disk === 'absent' ? { kind: 'absent' } : text === undefined || this.inputs.hash(text) !== baseSha1 ? { kind: 'unread' } : { kind: 'sha1', sha1: disk };
+    const stale = staleEdit({ path, baseSha1 }, now, 'planned');
+    if (stale !== undefined || text === undefined) {
+      if (stale !== undefined) this.diagnostics.push(stale);
       return;
     }
     const result = applyTextEdits(text, edits);
@@ -206,9 +214,12 @@ class Planner {
   }
 
   plan(): WritePlan {
-    // The deletes of case-renamed paths first, then every op by path.
-    const first = (op: WriteOp): number => (op.op === 'delete' && this.caseRenamed.has(op.path) ? 0 : 1);
-    const ops = [...this.ops].sort((a, b) => compareNumbers(first(a), first(b)) || compareCodeUnits(a.path, b.path));
+    // The deletes of case-renamed paths first, then every op by path, and the write of modules.mk last (fix round 7,
+    // correctness-b2-2): it records romlift.toml's SHA-1, the stamp the scaffold's Makefile and setup.sh trust as "the
+    // tree is current", so a run that stops part-way (E_IO_WRITE, the write-time E_STALE_EDIT, a kill) leaves the old
+    // stamp and make still asks for `romlift generate`.
+    const rank = (op: WriteOp): number => (op.op === 'delete' && this.caseRenamed.has(op.path) ? 0 : op.op === 'write' && op.writer === STAMP_WRITER ? 2 : 1);
+    const ops = [...this.ops].sort((a, b) => compareNumbers(rank(a), rank(b)) || compareCodeUnits(a.path, b.path));
     const files: Record<string, ManifestFile> = {};
     for (const path of sortedKeys(this.files)) {
       const file = this.files.get(path);
@@ -223,9 +234,30 @@ class Planner {
 }
 
 /**
+ * What an edited file is now, as the staleness rule reads it: its sha1, absent, or unread (the text the plan holds
+ * is not the one the edits were planned on).
+ */
+export type EditedFileState = { readonly kind: 'sha1'; readonly sha1: string } | { readonly kind: 'absent' } | { readonly kind: 'unread' };
+
+/**
+ * The one staleness rule of an edit (architecture §6.4, D80 b; fix round 5, architecture-b0-1): an edit is applied
+ * only to the text it was planned on, so a file whose state `now` is not the edit's base sha1 is E_STALE_EDIT.
+ * planWrites asks it at plan time (`when` 'planned'), and the shell's applyWrites again right before the write, over
+ * the sha1 it has just read ('written'), so a save that landed since the plan is never overwritten.
+ */
+export function staleEdit(op: { readonly path: string; readonly baseSha1: string }, now: EditedFileState, when: 'planned' | 'written'): Diagnostic<WritePlanCode> | undefined {
+  if (now.kind === 'sha1' && now.sha1 === op.baseSha1) return undefined;
+  const state = now.kind === 'absent' ? 'is absent' : now.kind === 'unread' ? 'is not the text its edits were planned on' : `has sha1 ${now.sha1}`;
+  const message =
+    when === 'planned'
+      ? `${op.path} changed since its edits were planned: it ${state}, the edits expect ${op.baseSha1}`
+      : `${op.path} changed while its edits were being written: it ${state}, the edits expect ${op.baseSha1}; it is left as it is, and the next run plans again`;
+  return diagnostic(WritePlanCodes, 'E_STALE_EDIT', message, { path: op.path });
+}
+
+/**
  * The write plan of one run (architecture §6.4 step 3): the ops sorted by path (the deletes of case-only renames
- * first), the manifest to write after
- * them (sorted by path), and the diagnostics. Reads `inputs.entries` once, as a stream. An error diagnostic
+ * first), the manifest to write after them (sorted by path), and the diagnostics. Reads `inputs.entries` once, as a stream. An error diagnostic
  * (E_PATH_NOT_OWNED, E_STALE_EDIT) means the plan must not be applied (`planHasErrors`). Throws only
  * RomliftInvariantError, for a broken caller contract: a tree path twice, a path that is not a project
  * path, a tree path missing from the disk snapshot, or overlapping text edits.

@@ -28,7 +28,7 @@ function tree(): readonly FileEntry[] {
   return [
     { ownership: 'generated', path: 'asm/main.s', text: '.include "asm/nonmatchings/main/New.s"\n', writer: 'module' },
     { ownership: 'generated', path: OUTSIDE, text: '@ generated\n', writer: 'objdiff' },
-    { ownership: 'reconciled', path: 'src/main.c', baseSha1: sha1Of(C_TEXT), edits: [{ start: at, end: at + 3, text: 'New', reason: 'rename' }] },
+    { ownership: 'reconciled', path: 'src/main.c', baseSha1: sha1Of(C_TEXT), edits: [{ start: at, end: at + 3, text: 'New', reason: 'add-stub' }] },
   ];
 }
 

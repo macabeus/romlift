@@ -9,10 +9,14 @@
 // `.align 2, 0`; agbcc's `.align 2, 0` before a literal pool, which no walk reaches). Every other byte is
 // data, noted `dead` (claim.dead-code-in-extent), `mixer-hole` (a hole kept inside an extent) or `unreached`
 // (any other byte inside an extent); the header and data chunks carry no notes, and data items are split
-// only at labels, so a data module is a few large items.
+// only at labels, so a data module is a few large items. A function chunk that folded the zero pad before its
+// entry (chunks.ts) opens with that pad as one padding item, which its start macro's `.align 2, 0` emits; a chunk
+// that took the pad at its module's end (ChunkPlan.tailPad) ends with it as one padding item, `.align 2, 0`. A label
+// inside either pad makes it data instead, which the printers place labels in.
 //
 // An instruction is an `insn` item when it prints as a mnemonic: its text, parsed and assembled at its run
-// address with the labels its module sees, gives back its bytes (foundation/isa roundtrip). Otherwise it is a
+// address with the labels its module sees (an adr only those that link to its target itself, resolver.ts
+// adrResolverFor), gives back its bytes (foundation/isa roundtrip). Otherwise it is a
 // `raw-insn` with the reason; a short Thumb branch into another module is raw with
 // 'cross-module-short-branch' and W_CROSS_MODULE_SHORT_BRANCH (D15; architecture §12 item 3's safe default). A
 // b or bl that would name a function label of the other state (a [functions] entry listed `arm` that Thumb code
@@ -34,7 +38,7 @@ import { ModelCodes } from './codes.ts';
 import { itemTableBuilder } from './item-table.ts';
 import { printingCache } from './printing-cache.ts';
 import { moduleIndexAt, relocatedModules } from './modules.ts';
-import { resolverFor } from './resolver.ts';
+import { adrResolverFor, resolverFor } from './resolver.ts';
 import type { DataNote, ItemRawReason, ItemTable, Label, Module } from './types.ts';
 import type { Segment, Segments } from './segments.ts';
 
@@ -88,6 +92,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   const cache = printingCache();
   const relocated = relocatedModules(inputs.modules);
   const resolvers = inputs.modules.map((m) => resolverFor({ labels: inputs.labels, modules: inputs.modules }, m.name));
+  // An adr names only a label that links to its target itself (resolver.ts adrResolverFor).
+  const adrResolvers = inputs.modules.map((m) => adrResolverFor({ labels: inputs.labels, modules: inputs.modules }, m.name));
   const functionLabels = new Map<Addr, Label[]>();
   for (const l of inputs.labels) {
     if (l.kind !== 'func') continue;
@@ -137,7 +143,8 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
   /** The instructions of [a, b) in `mode`, in chunk `c`. */
   const fillCode = (a: Addr, b: Addr, mode: Mode, c: ChunkPlan, offset: number): void => {
     const resolver = resolvers[c.module];
-    if (resolver === undefined) throw new RomliftInvariantError(`model: chunk ${c.name} names module ${c.module} of ${inputs.modules.length}`);
+    const adrResolver = adrResolvers[c.module];
+    if (resolver === undefined || adrResolver === undefined) throw new RomliftInvariantError(`model: chunk ${c.name} names module ${c.module} of ${inputs.modules.length}`);
     let at = a;
     while (at < b) {
       const room = b - at;
@@ -158,7 +165,7 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       while (refAt < inputs.refs.length && (inputs.refs[refAt]?.site ?? Infinity) < at) refAt++;
       const ref = inputs.refs[refAt];
       if (ref !== undefined && ref.site === at && ref.run === run && ref.size <= room && specOf(ref.specId).raw === undefined) {
-        const reason = refReason(ref, mode, c, resolver);
+        const reason = refReason(ref, mode, c, ref.kind === 'adr' ? adrResolver : resolver);
         if (reason === null) table.append({ kind: 'insn', start: at, length: ref.size, specId: ref.specId });
         else table.append({ kind: 'raw-insn', start: at, length: ref.size, specId: ref.specId, reason });
         at += ref.size;
@@ -167,7 +174,7 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       let insn = decode(mode, mode === 'thumb' ? (room >= 4 ? peek32(rom, at) : word) : word, run);
       if (insn.size > room) insn = decode('thumb', word, run);
       const length = insn.size;
-      const reason = itemReason(insn, c, resolver);
+      const reason = itemReason(insn, c, insn.flow.kind === 'adr' ? adrResolver : resolver);
       if (reason === null) table.append({ kind: 'insn', start: at, length, specId: insn.specId });
       else table.append({ kind: 'raw-insn', start: at, length, specId: insn.specId, reason });
       at += length;
@@ -267,19 +274,34 @@ export function buildItems(inputs: ItemsInputs): ItemsResult {
       fillData(start, end, false);
     } else {
       const noted = c.kind !== 'header';
-      let at = start;
-      segmentAt = firstEndingAbove(segments.concrete, segmentAt, start);
+      // A function chunk that folded the pad before its entry (chunks.ts) opens with it: one padding item, which
+      // its start macro emits, unless a label lies inside it, which only data the printer places can hold.
+      const from = c.entry !== undefined && c.entry > start ? c.entry : start;
+      if (from > start) {
+        const label = labelStarts[lowerBound(labelStarts, start, (x) => x)];
+        if (label === undefined || label >= from) table.append({ kind: 'padding', start, length: from - start });
+        else fillData(start, from, false);
+      }
+      let at = from;
+      // A pad taken at the module's end is the chunk's last item (chunks.ts foldPads).
+      const bodyEnd = c.tailPad !== undefined && c.tailPad > from && c.tailPad < end ? c.tailPad : end;
+      segmentAt = firstEndingAbove(segments.concrete, segmentAt, from);
       for (let k = segmentAt; k < segments.concrete.length; k++) {
         const s = segments.concrete[k];
-        if (s === undefined || s.start >= end) break;
-        const a = Math.max(s.start, start);
+        if (s === undefined || s.start >= bodyEnd) break;
+        const a = Math.max(s.start, from);
         if (a > at && noted && alignsTo(at, a, s)) table.append({ kind: 'padding', start: at, length: a - at });
         else if (a > at) fillData(at, a, noted);
-        const b = Math.min(s.end, end);
+        const b = Math.min(s.end, bodyEnd);
         fillSegment(s, a, b, c, offset);
         at = b;
       }
-      if (at < end) fillData(at, end, noted);
+      if (at < bodyEnd) fillData(at, bodyEnd, noted);
+      if (bodyEnd < end) {
+        const label = labelStarts[lowerBound(labelStarts, bodyEnd, (x) => x)];
+        if (label === undefined || label >= end) table.append({ kind: 'padding', start: bodyEnd, length: end - bodyEnd });
+        else fillData(bodyEnd, end, false);
+      }
     }
     ranges.push({ first, count: table.count - first });
   });

@@ -1,0 +1,53 @@
+# romlift.toml of a small project, as a user keeps it: notes, section comments, trailing comments.
+schema = 1
+
+[rom]
+path = "baserom.gba"
+sha1 = "963a50107f0fc692ddfe294c4fcaf305c0d30aaa"
+
+[build]
+name = "rlfx"
+compiler = "agbcc"            # the default build compiler of every module
+
+[signatures]
+enabled = false
+
+[[modules]]
+name = "rom_header"
+start = 0x08000000
+kind = "asm"
+
+[[modules]]                   # startup code
+name = "crt0"
+start = 0x080000C0
+kind = "asm"
+
+[[modules]]
+name = "main"
+start = 0x080000F4
+kind = "asm"
+
+[[modules]]
+name = "asm_08000104"
+start = 0x08000104
+kind = "asm"
+
+[[modules]]
+name = "data"
+start = 0x08000120
+kind = "data"
+
+[functions]                   # every entry is listed
+0x08000000 = { name = "sub_08000000", mode = "arm" }
+0x080000C0 = { name = "sub_080000C0", mode = "arm", label = true }
+# the game's main loop, found by hand
+0x080000F4 = "sub_080000F4"   # TODO: name it
+0x08000100 = "sub_08000100"
+0x08000104 = "sub_08000104"
+0x08000108 = "sub_08000108"
+0x0800010C = { name = "sub_0800010C", label = true }
+0x08000110 = { name = "sub_08000110", label = true }
+0x08000118 = { name = "IntrStub", mode = "arm", from = "evidence:map" }
+
+[symbols]                     # data and RAM
+0x03000000 = { name = "gMain", size = 0x40, from = "legacy" }

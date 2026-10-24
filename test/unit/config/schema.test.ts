@@ -56,6 +56,17 @@ test('an unknown build compiler is rejected, at the build and at a module', () =
   assert.ok(result.issues.every((i) => /registered build compiler/.test(i.message)));
 });
 
+test('an unknown compiler carries its code from the refinement, not from the message; a compiler of the wrong type does not', () => {
+  const unknown = validateConfig({ ...EXAMPLE, build: { name: 'x', compiler: 'gcc' } });
+  assert.ok(!unknown.ok);
+  if (unknown.ok) return;
+  assert.deepEqual(unknown.issues.map((i) => [i.path, i.code]), [['build.compiler', 'E_UNKNOWN_COMPILER']]);
+  const wrongType = validateConfig({ ...EXAMPLE, build: { name: 'x', compiler: 7 } });
+  assert.ok(!wrongType.ok);
+  if (wrongType.ok) return;
+  assert.deepEqual(wrongType.issues.map((i) => [i.path, i.code]), [['build.compiler', undefined]]);
+});
+
 test('shapes the schema refuses, all reported at once', () => {
   const result = validateConfig({
     ...EXAMPLE,

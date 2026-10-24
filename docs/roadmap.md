@@ -36,11 +36,11 @@ Every phase has the same shape (D43):
    `printer.yml` and `provenance.yml` run on it, records their results in the phase record, and merges;
    the merge carries the raised marker.
 
-**Every commit message** ends with:
+**Every commit message** ends with this line (from phase 4 on, by the orchestrator's instruction; phases 1 to 3 also
+carried a `Claude-Session:` line, D75 p):
 
 ```
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01JNLnM6KmzWvJDFNNgMvvvX
 ```
 
 **Common commands** used by every exit list below:
@@ -528,6 +528,29 @@ readable `verify` exit 3 is a phase-4 work item (D72 c); every phase-1 and phase
 Entry: phase 3 landed. Branch `phase/4-one-shot`. Seven components: 4.0, then 4.A–4.E in parallel, then
 4.I.
 
+### As executed (D74)
+
+Phase 4 runs as eleven components in three waves on the branch `phase-4`, each on its own flat branch
+`phase-4-<component>` and worktree (D56 h); sections 4.0–4.I and "Carried from phase 3" below still describe what the
+phase delivers. D74 records each deviation and why, and the contracts the lead froze (the workflow types, the scaffold
+manifest and placeholders, the C-stub texts, the C build pipeline and object paths, modules.mk's variables, the C-data
+ASSERT); [phase-4.md](phase-4.md) records the components, the measured numbers, the owner questions and the closing gate.
+Every threshold of the phase applies to the six tuning ROMs (D60; the "five" below reads as six, D74 j).
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p4-lead` | 1 | 4.0: `core/workflow/types.ts`, `core/scaffold/vars.ts`, `templates/MANIFEST.json`, the C-stub constants of `foundation/asm/dialect.ts`, the empty `core/{config,reconcile}/codes.ts`, the barrels (`src/api/{config,config-files,scaffold,scaffold-files,reconcile,workflow-one-shot,one-shot-files}.ts` empty, `src/api/one-shot-types.ts` with the frozen types), `cli/commands/lists/{one-shot,scaffold}.ts`, the `core/verify` edge (D74 g), the g4 gate files aligned, D74, phase-4.md; then 4.I after each wave |
+| `p4-emission-carried` | 1 | "Carried from phase 3": padding-only orphans folded into the next function (Q5 b), then the readable `adr` naming a function label (Q7) with its fixture |
+| `p4-confirm-listed` | 1 | "Carried from phase 3": the confirm run no longer re-validates the functions configFromDiscover listed (Q5 c, moved from 4.D; scope: owner question Q1) |
+| `p4-config` | 2 | 4.A, with `E_PROJECT_NOT_FOUND` in `src/shell/codes.ts` and `test/mutation/phase4/patch-planner.test.ts` |
+| `p4-scaffold` | 2 | 4.B without `scaffold --diff`'s command (moved to `p4-workflows`): the templates but `MANIFEST.json`, `renderScaffold`, `readTemplates` |
+| `p4-c-modules` | 2 | 4.C, plus configFromDiscover's kind flip to `c` (D62 c), the C units of the text-layout check and of `verify --assemble/--link`, `objectPath` for C modules |
+| `p4-fixtures` | 2 | 4.E's fixtures `composite`, `multi-compiler`, `c-data` and the old_agbcc support of the fixture build |
+| `p4-safety-minors` | 2 | 4.I's lock and journal mutation tests, and the carried minors architecture-r2-4, correctness-ci-1, correctness-r0-2, gate-honesty-r0-1 |
+| `p4-workflows` | 3 | 4.D, `scaffold --diff`, and the project mode of `model`, `verify` and `explain`; the shell codes it raises |
+| `p4-e2e` | 3 | 4.E's harness: `test/helpers/e2e.ts`, the TOML mutation property test, `packed.yml`, the fixtures workflow's init step |
+| `p4-bench-init` | 3 | 4.E's bench part: `bench run --scaffold` through `init`, `setup.sh` and `make`; `init` and `generate` in `bench large-rom --bin` |
+
 ### 4.0 Workflow and scaffold interfaces (lead)
 
 - **Owns:** `src/core/workflow/types.ts` (`InitInputs`, `InitPlan`, `GenerateInputs`, `GeneratePlan`,
@@ -646,7 +669,10 @@ The four minors of the review of phase 3's landing run (phase-3.md, "Review", th
 `ef2be76`) are carried here too: gate-honesty-r0-1 (`bench/src/families.ts`'s readability summary still says "objdiff
 score 0", which is `g5.objdiff` since D68 a; text only), correctness-r0-1 (sa2's `g2.speed` sits at about 90 to 100%
 of its limit at `main` itself; the owner is asked before phase 4's landing run whether to re-baseline or take the
-median of more runs), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
+median of more runs; answered on 20 October 2026, Q2 of phase-4.md, "Median of more runs", D76 b: `g2.speed` takes the
+median of nine serial runs per ROM instead of five, with the limits and `bench/baseline/speed.json` unchanged; and,
+by fix round 2 of phase 4, D77 f, `g3.speed-budget`'s 3 s analysis budget reads `budgetAnalysisCpuMs`, the median of
+the first five of those nine runs, the measurement it made before D76 b), and correctness-r0-2 (a unit test of the built launcher's first line, and the `env -S`
 requirement recorded as a known limitation); correctness-r0-3 was fixed in the record. The phase pull request's CI
 found one more (correctness-ci-1, phase-3.md, "The closing gate", the phase pull request's CI): `exitQuietlyOnEpipe`
 in `src/cli/main.ts` treats only EPIPE as a closed reader, and macOS can report ENOTCONN on a socket-pair stdout, which
@@ -674,9 +700,19 @@ installed tarball; `generate` right after `init` changes no file; the same holds
 every seeded legal TOML edit still links; the composite fixture's illegal border fails with
 `E_MODULE_BORDER`; every earlier gate still passes.
 
+The owner's answers of 21 October 2026 (phase-4.md Q8 and Q9, D79): the 11 zero pads that end a `c` module right
+after a function stay orphans ("Keep as orphans", a known limitation; `padding-orphans` pins the counts), and the
+scaffold's `.gitignore` ignores the generated roots ("Gitignore, as R4 says"): a fresh clone or worktree builds
+through setup.sh's duty 5, and `g4.worktree` requires that nothing generated is committed.
+
 ---
 
 ## Phase 5: Migration
+
+**Skipped by the owner** (20 October 2026: "We don't need it. Skip phase 5", and "Keep rename and objdiff", D76 g).
+Legacy import, the Klonoa migration tooling and the switch-over are dropped; rename and the reconciler, the `expected/`
+and `objdiff.json` writers, the C data ranges and the objdiff gate move into phase 6, which records both decisions and
+rewrites this plan. The sections below are the plan as written before that decision.
 
 Entry: phase 4 landed. Branch `phase/5-migration`. Six components: 5.0, then 5.A–5.D in parallel, then
 5.I, which also produces the Klonoa switch-over pull request.
@@ -778,8 +814,138 @@ links (`g5.objdiff`, D34, D68 a); every earlier gate still passes.
 
 ## Phase 6: Evidence
 
-Entry: phase 5 landed. Branch `phase/6-evidence`. Six components: 6.0, then 6.A–6.D in parallel, then 6.I.
-Signature files stay local and gitignored unless the owner decides otherwise (D40).
+Entry: phase 4 landed (phase 5 is skipped, D76 g). Branch `phase/6-evidence`. Six components: 6.0, then 6.A–6.D in parallel, then 6.I.
+Signature files stay local and gitignored unless the owner decides otherwise (D40). Since the owner skipped phase 5
+(D76 g), phase 6 takes rename and the reconciler, the `expected/` and `objdiff.json` writers, the C data ranges and the
+objdiff gate from phase 5, drops the gba-kit trace integration, records both decisions and rewrites this plan; its
+entry is phase 4 landed.
+
+### Carried from phase 4 (D76 g, h)
+
+Each changes code without a defect behind it, and phase 6 reworks the same modules. Nothing here depends on
+`g5.import-legacy`.
+
+- **correctness-r0-5's remainder** (from phase 3, carried again; phase-4.md, "The carried minors"): pool.ts calls
+  `moduleAt` once per address with labels; thread the relocated-module list through `wordText`, `labelForWord` and
+  their callers with the matchings split.
+- **The C-data ASSERT's text** (done in fix round 3, D78 c): the ldscript's message and the scaffold's `AGENTS.md`
+  name no phase ("romlift does not place C data yet"); phase 6's data ranges replace the ASSERT.
+- **architecture-r1-2**: delete the aliases of `BASEROM_FILE` (`BASEROM_PATH`, `SCAFFOLD_ROM_FILE`, `TARGET`; the
+  decomp-yaml re-export of `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE` is gone since fix round 9, D85 e) and import it and the file-name constants from `foundation/util/project-files.ts`; keep every
+  default spelling and its parser in one module and remove one of `functionName` and `defaultFunctionName`.
+- **architecture-r1-3**: core/layout owns the whole legal-start rule (for example `isLegalStart(layout, addr)` beside
+  `borders`), `core/model/modules.ts` and `describeBorders` use it, `planModules` takes only `BorderRule`, and
+  architecture §6.2's "legalBorders … all use it" sentence is updated.
+- **architecture-r1-4**: pass the module's compiler into `stubUnitAssembly`/`stubAssemblyText` and use
+  `buildCompilerOf(module.compiler).banner`, an invariant error when unknown, as `moduleCompile` does; or drop the
+  field and keep one documented constant without the `?? ''`.
+- **architecture-r1-6** (widened by architecture-a2-8): there are three `readAgbccPin`, the shell's public one
+  (`src/shell/project/templates.ts`, exported through `src/api/scaffold-files.ts`), `bench/src/scaffold.ts`'s and
+  `test/helpers/e2e.ts`'s; the bench and the e2e helper both call the shell's, and one pin-stamp check replaces
+  `agbccCacheCurrent` (bench) and e2e's `stalePrebuilt` (or one function with a stated policy for an unstamped
+  prebuilt).
+- **architecture-a2-6** (fix round 4, D80 d): which files `init` owns (romlift.toml, decomp.yaml, the ROM) is spelled
+  in the shell (`initTexts`, `initDigests` in `shell/project/write-project.ts`), not in core's plan as D75 j's split
+  says; `core/workflow/init.ts` should return them as `[path, text]` pairs in `InitPlan` and the shell only write and
+  hash them. It changes the frozen `InitPlan` (D74 c) with no defect behind it, and phase 6's rename reworks init's
+  plan.
+- **architecture-r1-7's remainder**: move `initDirVerdict`/`replacedProblems` tests to
+  `test/unit/workflow/init.test.ts` and the project-plan tests to `test/unit/write-plan/project-plan.test.ts`
+  (`test/unit/workflow/c-stubs.test.ts` landed in fix round 2, D77).
+- **architecture-r1-2, also**: `src/shell/project/locate.ts` re-exports `DECOMP_YAML_NAMES`, and
+  `shell/project/write-project.ts` takes `SCAFFOLD_ROM_FILE` from `core/scaffold/vars.ts`, the alias left to carry; the
+  other two names (`DECOMP_YAML_FILE`, `ROMLIFT_CONFIG_FILE`) it imports from `foundation/util/project-files.ts` since
+  fix round 9 (architecture-a0-10; fix round 10, architecture-c2-3).
+- **architecture-r1-3, also** (architecture-a0-4): `legalBorders` has no caller in `src`; the model uses `codeLayout`
+  with its own `isLegalStart` and data-start rule, and `analyze --update --write` never checks the patched config's
+  borders. Either it checks the patched config with `planModules` before it offers `--write`, or the limitation
+  recorded in phase-4.md stays (a newer discover's unlisted function whose extent covers a `c` module start is added,
+  and `generate` then refuses the patched TOML with `E_MODULE_BORDER`).
+- **architecture-r1-3, and the gate oracle** (architecture-a1-5): `g4.toml-mutations` and
+  `test/unit/workflow/toml-mutations.prop.test.ts` pick their legal moves and splits from `legalBorders(rom,
+  analysis)` over the discover run, while `generate` decides legality with `codeLayout` over the confirm run plus the
+  data-start clause of D75 a. With core/layout's single legal-start predicate, the gate and the property test use it
+  over the confirm run of init's config, and so also mutate a start in the data-start range D75 a made legal.
+- **The remaining "phase 5" comments**: code comments that name phase 5 for work phase 6 now does were pointed to
+  phase 6 in fix round 2 (D77 i), and the product text in fix round 3 (D78 c). The `g5.*` gate files keep their ids,
+  `phase: 5` and headers until phase 6 renames, renumbers or drops them (D76 g; `g4.cli-contract`'s recipes for the
+  dropped `import-legacy` and `trace` were removed in fix round 3, D78 g).
+- **architecture-a1-4** was fixed in fix round 3 (D78 f): `includeAsmDir`, `includedChunkFile`, `stubName` and
+  `core/model/paths.ts`'s `nonmatchingDir` re-export are gone; `stubNameOf` and `INCLUDE_DIR` live in
+  `foundation/util/project-files.ts`. `NONMATCHINGS_ROOT` stays exported once, from `api/one-shot-types.ts`.
+- **architecture-r1-8's remainder**: remove `checkEntry` from `core/verify/text-layout.ts` (thirty text-layout tests
+  call it; a one-entry `checkEntries` adds stream-level diagnostics, so the tests need a helper of their own).
+- **correctness-b0-3's remainder** (fix round 5, D81 c): `[[overrides]]` without `runs_at` are applied by no
+  analysis rule; phase 4 warns `W_OVERRIDE_IGNORED` for each one that changes nothing (a known limitation). Phase 6
+  makes a `data` override claim its span and suppress code there, and a `code` override seed `seed.override` at its
+  start (the rule exists; no seed of it is built), and, with the owner's leave since it changes a gate, makes
+  `g4.toml-mutations`' add-override edit one that changes the model (today it covers a found function exactly, a
+  no-op that now warns). Nothing here depends on `g5.import-legacy`.
+- **correctness-b0-4's gate case** (fix round 5, D81 c): `E_FUNCTION_MISALIGNED` is tested by unit and CLI tests;
+  adding an odd `[functions]` key to `g4.toml-mutations`' illegal edits changes a gate, which the owner has not
+  authorised in phase 4. Since fix round 6 the config raises it (D82 d).
+- **Code whose only producers the owner dropped** (fix round 6, architecture-b1-8; D76 g): the rule
+  `seed.evidence-hint` (`src/core/analysis/rules/seed/evidence-hint.ts`, ordered in `src/core/profile/agbcc.ts`, its
+  rule id in `analysis/types.ts` `Seed['rule']` and `codec.ts`) has no seed producer now that the trace integration
+  is dropped; the `ProposalSource` variants `{kind: 'legacy'}` and `{kind: 'evidence', id: 'trace'}`
+  (`src/core/proposals/types.ts`) and their `sourceKey` spellings (`legacy`, `evidence:trace`) have none now that legacy
+  import is dropped; `shell/evidence/read-trace.ts` and `foundation/formats/trace-json.ts` serve only the trace.
+  Phase 6's plan rewrite keeps each (a new producer) or deletes it with its tests, codec spelling and architecture
+  entries; `seed.override` is carried above with the override semantics.
+- **architecture-b2-9** (fix round 7, D83 f): `core/reconcile/include-asm.ts` (about 1,280 lines since fix round 11,
+  architecture-c1-4) holds the C scanner, the "C defines it" rule, include resolution and fragments, the header
+  insertion and the planner. Split the scanner and the definition rule (`scanC`, `conditionalsOf`,
+  `compiledDefinitions`, `CFileScan`, `CDefinition`) into `core/reconcile/c-scan.ts` beside `c-tokens.ts`, move the
+  include-resolution helpers (`withFragments`, `resolveInclude`, `fileScopeIncludes`, `includeSpelling`, `headerPath`, `macroProvided`,
+  `fragmentPhrase`, `CIncludeLink`, `orderKey`, `laterThan`) out of the planner with them, and update architecture §2's `core/reconcile` list. Carried: a pure
+  move of about 500 lines with every importer and test, no defect behind it, and phase 6's `rename-tokens.ts` adds the
+  next reader of the scanner, so the split lands with it.
+- **architecture-b2-8's remainder** (fix round 7, D83 e): the analysis keeps its own alignment bit tests
+  (`rules/valid/in-rom-unclaimed.ts`, `walk/thumb.ts`, `walk/arm.ts`, `rules/gap/arm-scan.ts`, `rules/seed/ram-copy.ts`,
+  `core/model/labels.ts`); route them through `insnAligned` (in-rom-unclaimed taking the entry's mode). Carried: it
+  changes analysis rules, whose goldens and `bench regression` must be re-measured, with no defect behind it; the
+  docstring now names only the two readers it has (D83 e amends D82 d).
+- **architecture-b2-11's remainder** (fix round 7, D83 d): the disk snapshot (`WritePlanInputs.disk`,
+  `ProjectWriteState`) is still typed `string | 'absent'`, which TypeScript widens to `string`; type it with a closed
+  union, as `EditedFileState` is. The absence rule itself is one since fix round 7 (`digestOf`, ENOENT and ENOTDIR,
+  read by the snapshot and by `applyWrites`' check). Carried: a type change across the write plan with no defect behind it.
+- **correctness-b2-3's remainder** (fix round 7, D83 d): `modules.mk` records only `romlift.toml`'s SHA-1, so a pull that
+  changes the romlift version `package.json` pins leaves a tree the old version generated, which neither `make` nor
+  `setup.sh` notices; the scaffold's `AGENTS.md` and `README.md` say to run `./setup.sh` and then `npx romlift
+  generate` (a known limitation, phase-4.md). With romlift published (Q5), record the version in `modules.mk`
+  (`ROMLIFT_VERSION`) and have duty 5 regenerate when it differs from the installed one.
+- **architecture-r1-2, also** (architecture-b2-7, b2-12): fix round 7 removed `core/model/paths.ts`'s `isCSource`
+  re-export; the internal layers import `C_SOURCE_DIR`, `isCSource` and `cSourceOf` from
+  `foundation/util/project-files.ts`, and only the public `api/` modules re-export project-files spellings
+  (`isCSource`, `nonmatchingDir`, `INCLUDE_ASM_HEADER_PATH`, `NONMATCHINGS_ROOT`; fix round 8, architecture-c0-4;
+  `DECOMP_YAML_FILE` and `ROMLIFT_CONFIG_FILE` from `api/config.ts` since fix round 9, recorded by fix round 10,
+  architecture-c2-3). The
+  other aliases of r1-2 stay carried as written above.
+- **A cpp-exact include resolution behind a symbolic link** (fix round 13, D89 a; gate-honesty-d2-2,
+  correctness-d2-1, architecture-d2-1): `readHeaderTexts` keys a followed file by its link spelling and the planner's
+  `resolveInclude` normalizes `..` lexically, so a `..` in an include behind a linked directory is resolved against the
+  link's path, not its target; `filesUnder` does not enter a link whose target is the project directory or a
+  directory the walk is already inside, one of the link's own parent directories (`include -> .` reads nothing); and
+  a link to a directory above the project is entered, all of it but the project directory below it, and every file
+  there is read (fix round 14, D90 a). Resolve a quoted include from a followed header's real directory (the shell
+  passes each header's real path too), read through a link to the project directory or to one of the walk's parent
+  directories the files an `#include` names, read only those through a link above the project, add the reviewers'
+  probes as CLI tests and drop the recorded limitation (phase-4.md, the scaffold's `AGENTS.md`). The comments and
+  index that said "as cpp does" were reworded by fix round 14 (D90 b). Carried: phase 4 records
+  it (the remedy, deleting the added `#include "include_asm.h"` line, already exists), and phase 6's rename reworks the
+  reconciler.
+- **gate-honesty-e1-1, architecture-e1-1** (the review of fix round 14's closing run, phase-4.md "Review"): D90 a's
+  third layout says every file behind a link under `include/` or `src/` to a directory above the project is read as
+  text; `readHeaderTexts` reads every file only through a link under `include/`, and through one under `src/` lists
+  every file and reads only the `.h` files (no `E_IO_READ` on an unreadable non-header there). Records only: say so
+  in phase-4.md's known limitation and architecture-e0-2 row, D90 a (an amendment note), architecture §6.6, the item
+  above, `templates/AGENTS.md` and the regenerated `test/golden/scaffold/scaffold.txt`, and add the `src/up -> ../..`
+  case to the read-inputs test. Carried: the scaffold's `AGENTS.md` is under the source digest, and the item above
+  rewrites the rule.
+- **gate-honesty-e1-2** (the same review): a FIFO or device file in a directory a followed link reaches blocks
+  `readFile`, so `generate` hangs with no diagnostic rather than refusing with `E_IO_READ`; D90 a lists only time,
+  memory and `E_IO_READ`. `filesFollowing` (`src/shell/project/disk-state.ts`) lists only regular files
+  (`isFile()`), with a unit test made with `mkfifo`. Carried: a code change after the closing run, with a rare trigger.
 
 ### 6.0 Signature and trace interfaces (lead)
 
@@ -792,7 +958,7 @@ Signature files stay local and gitignored unless the owner decides otherwise (D4
   `SignatureSpec`, `SignaturePlacement`; trace `EvidenceFact` kinds.
 - **Gated by:** typecheck.
 - **Ports from the PoC:** the schema-2 types of `signatures/build.ts`, as the starting point of schema 3.
-- **Depends on:** phase 5.
+- **Depends on:** phase 4 (phase 5 is skipped, D76 g).
 
 ### 6.A Signature builder and specs
 
@@ -819,6 +985,10 @@ Signature files stay local and gitignored unless the owner decides otherwise (D4
 - **Depends on:** 6.0; 6.A for built files.
 
 ### 6.C Trace and code run from RAM
+
+**Dropped in part by D76 g, pending phase 6's rewrite of this plan:** the owner dropped the gba-kit trace integration,
+so `src/shell/trace/gba-kit.ts`, `runTrace`, the CLI `trace` and the gba-kit pull request below are not built, and
+nothing in the plan waits on them; what reads a trace file and maps code run from RAM is phase 6's to re-plan.
 
 - **Owns:** `src/foundation/formats/trace-json.ts`, `src/shell/evidence/read-trace.ts`,
   `src/shell/trace/gba-kit.ts`, `src/cli/commands/trace.ts`, the non-identity `AddressMap` path in

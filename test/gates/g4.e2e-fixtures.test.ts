@@ -4,14 +4,15 @@
 // `make` leave romlift.toml as `init` wrote it; and the composite fixture's illegal border makes `generate`
 // fail with E_MODULE_BORDER and write nothing.
 //
-// Expected interfaces, for the phase-4 lead to align (architecture §2.1, §6.3, §6.5, §8.1):
+// Interfaces, frozen by D74 (architecture §2.1, §6.3, §6.5, §8.1):
 //   romlift init <rom> [<expect.json init.args>…] --json   run where the ROM is; exit 0
 //   romlift generate --json                                exit 0; exit 1 with the composite's illegal border
 //   NDJSON on stdout: {"type":"diagnostic","code":string,"severity":string,"message":string} (any number),
 //   then {"type":"summary","ok":boolean,"exitCode":number} (last line).
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set (default `npx romlift`) and then skips its npm
 //   duty, since an unpublished tree cannot come from the registry; the gate points it at the source CLI.
-//   <name>.sha1 (scaffold) holds `<sha1>  <file>` in sha1sum format, where <file> is the ROM `make` builds.
+//   <name>.sha1 (scaffold) holds `<sha1>  <file>` in sha1sum format, where <file> is the ROM `make` builds,
+//   `<name>.gba`; init copies the given ROM to baserom.gba (the config's [rom] path), keeping the original.
 //   bench/dataset/synthetic/<name>/expect.json may hold {"init": {"args": [string]}} (the composite:
 //   ["--module-size", "0x200"]); the composite's also holds {"illegalBorder": {"module": string,
 //   "start": "0x…"}}, the start the gate writes by hand into that [[modules]] block of romlift.toml.
