@@ -10,7 +10,7 @@ import type { BlSite, CompilerProfile, JumpTableMatch, Pipeline, ReadingSummary 
 /** The proof of concept's call order of every rule (§4.1): each analysis rule id in exactly one slot. */
 export const AGBCC_PIPELINE: Pipeline = {
   // run(): the cartridge entry, then the Thumb pointers of the startup code; then what the project lists.
-  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint'],
+  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override'],
   // pointerCandidates(): the pool list, then the data list filtered by it.
   harvest: ['seed.pool-pointer', 'seed.data-pointer'],
   // accept(): calls, then veneers, then ARM adr targets, in push order; then the entries of code copied to IWRAM (D60 e).

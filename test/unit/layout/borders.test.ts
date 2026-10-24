@@ -298,7 +298,7 @@ test('listedEntriesOf: discover lists every function, nested ones as labels; con
     seeds: [
       { entry: BASE + 0x108, mode: 'thumb', rule: 'seed.listed', label: true },
       { entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed', size: 0x10 },
-      { entry: BASE + 0x140, mode: 'thumb', rule: 'seed.evidence-hint' },
+      { entry: BASE + 0x140, mode: 'thumb', rule: 'seed.override' },
     ],
   });
   assert.deepEqual(listedEntriesOf(confirm, HEADER_END), [

@@ -85,7 +85,6 @@ const EXEMPT: readonly RuleId[] = [
   'region.data-after-code',
   'region.padding',
   'region.startup',
-  'seed.evidence-hint',
   'seed.listed',
   'seed.override',
   'valid.in-rom-unclaimed',

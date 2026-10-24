@@ -1,7 +1,7 @@
 // The order property of milestone M4 (architecture §4.4, D10): under the default tuning (the ascending
 // worklist, whose key (addr, modeRank, ruleRank, seq) is total), the order in which the seeds and the
 // TOML's overrides are given never changes the analysis. On every synthetic fixture, in discover mode
-// (evidence hints and overrides) and in confirm mode (the expected entries listed, some as labels, with
+// (override seeds and overrides) and in confirm mode (the expected entries listed, some as labels, with
 // sizes), seeded permutations of the seed and override lists give one canonical analysis digest.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -46,7 +46,7 @@ test('permuting the seeds and the overrides gives one analysis on every syntheti
     const bytes = new Uint8Array(readFileSync(f.rom));
     const rom = romFromBytes(bytes, sha1Of(bytes));
     const entries = readExpect(f).entries;
-    const hints: Seed[] = entries.map((e, i) => ({ entry: e.addr, mode: e.mode, rule: i % 2 === 0 ? 'seed.evidence-hint' : 'seed.override' }));
+    const hints: Seed[] = entries.map((e) => ({ entry: e.addr, mode: e.mode, rule: 'seed.override' }));
     const listed: Seed[] = entries.map((e, i) => ({
       entry: e.addr,
       mode: e.mode,

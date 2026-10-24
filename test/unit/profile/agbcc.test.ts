@@ -9,7 +9,7 @@ import { thumbAt } from '../../helpers/thumb.ts';
 
 /** Every analysis rule id of architecture §4.1, by family, with the rules the phase-2 milestones added (walk.inline-arm-switch, bl.target-beyond-callee) and the owner decision's tmc tuning added (seed.ram-copy, accept.prologue-and-calls-accepted, D60). */
 const SECTION_4_1 = {
-  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr', 'seed.ram-copy'],
+  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.pool-pointer', 'seed.data-pointer', 'seed.call', 'seed.veneer', 'seed.adr', 'seed.ram-copy'],
   walk: [
     'walk.pc-load-is-pool',
     'walk.table-by-register',
@@ -53,13 +53,13 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 test('every rule id of §4.1 sits in exactly one pipeline slot, and the pipeline names no other', () => {
   const expected = Object.values(SECTION_4_1).flat();
-  assert.equal(expected.length, 59);
+  assert.equal(expected.length, 58);
   const named = pipelineIds(AGBCC_PIPELINE);
   const counts = new Map<string, number>();
   for (const id of named) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const id of expected) assert.equal(counts.get(id), 1, `${id} in ${counts.get(id) ?? 0} slots`);
   assert.deepEqual([...counts.keys()].sort(byCodeUnit), [...expected].sort(byCodeUnit));
-  assert.equal(AGBCC_PIPELINE.seed.length + AGBCC_PIPELINE.harvest.length + AGBCC_PIPELINE.queue.length, 11);
+  assert.equal(AGBCC_PIPELINE.seed.length + AGBCC_PIPELINE.harvest.length + AGBCC_PIPELINE.queue.length, 10);
   assert.deepEqual(AGBCC_PIPELINE.passes, ['patient', 'impatient']);
 });
 

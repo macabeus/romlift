@@ -5,7 +5,6 @@ import type { FamilyRule } from '../../types.ts';
 import adr from './adr.ts';
 import call from './call.ts';
 import dataPointer from './data-pointer.ts';
-import evidenceHint from './evidence-hint.ts';
 import listed from './listed.ts';
 import override from './override.ts';
 import poolPointer from './pool-pointer.ts';
@@ -19,7 +18,6 @@ export const SEED_RULES = {
   'seed.startup-pointer': startupPointer,
   'seed.listed': listed,
   'seed.override': override,
-  'seed.evidence-hint': evidenceHint,
   'seed.pool-pointer': poolPointer,
   'seed.data-pointer': dataPointer,
   'seed.call': call,
