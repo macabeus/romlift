@@ -145,7 +145,7 @@ function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
 /** The Model of `rom` under `config`, with the facts of `analysis` (a discover or confirm result). */
 export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftConfig): Model {
   const layout = codeLayout(rom, analysis);
-  const planned = planModules(rom, config, { borders: layout.borders, dataStart: layout.dataStart });
+  const planned = planModules(rom, config, layout);
   const modules = planned.modules;
   const relocated = relocatedModules(modules);
 

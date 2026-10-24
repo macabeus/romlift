@@ -2,9 +2,12 @@
 // initialised project's romlift.toml keep the self-checks and the link green, and each illegal edit gives
 // its documented code and writes nothing. Per target (every committed fixture on the ci tier, plus the six
 // tuning ROMs on the real tier, D60, D62 h, D74), from the TOML `init` wrote:
-//   legal:   move a `c` module's start to another legal border between its neighbours; rename a function that
+//   legal:   move a `c` module's start to another legal start between its neighbours; rename a function that
 //            still has its default name; delete a listed function that starts no module; add a `code`
-//            override that covers one found function exactly; split a `c` module at a legal border inside it.
+//            override that covers one found function exactly; split a `c` module at a legal start inside it. A legal
+//            start is what generate accepts: core/layout's one predicate, isLegalStart, over the code layout of the
+//            confirm run of init's config, so a start in the data-start range D75 a made legal is a candidate too
+//            (architecture-r1-3, a1-5); the found functions of add-override are the discover run's.
 //            Each edit is applied alone to the original config and serialised; then `generate --json` and
 //            `verify --link --json` must exit 0 and the link must reproduce the ROM's SHA-1, and `make` (the user's
 //            build, from the project's own src/*.c, after `./setup.sh` once per target) must exit 0, which it does
@@ -18,9 +21,11 @@
 // Calls, frozen by D74 (architecture §3.3, §3.4, §6.2; parseConfig and serializeConfig are p4-config's):
 //   parseConfig(text) -> {ok: true, value: RomliftConfig, diagnostics} | {ok: false, diagnostics}
 //   serializeConfig(config) -> string (the canonical layout `init` writes)
-//   legalBorders(rom, analysis) -> sorted Addr[] (no profile: the borders rest on the ARM word, D63)
+//   codeLayout(rom, analysis) -> CodeLayout (a BorderRule: borders, dataStart, end; no profile, D63)
+//   isLegalStart(rule, addr) -> boolean; legalStartsBetween(rule, after, before) -> the legal starts strictly between, ascending
+//   confirmOptions(config) -> the confirm run's options generate uses
 //   romFromBytes, sha1Of, profileById('agbcc'), analyze(rom, profile, {mode: 'discover', seeds: [],
-//   overrides: [], trail: 'off'})
+//   overrides: [], trail: 'off'}) and analyze(rom, profile, confirmOptions(config))
 // CLI: generate --json and verify --link --json print NDJSON whose last line is
 //   {"type":"summary","ok":boolean,"exitCode":number,"sha1"?:string} (sha1 of the linked ROM with --link).
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set (the source CLI here); the first target builds agbcc through
@@ -75,8 +80,22 @@ interface AnalysisResult {
 type RomFromBytes = (bytes: Uint8Array, sha1: string) => Rom;
 type Sha1Of = (data: Uint8Array) => string;
 type ProfileById = (id: string) => object | undefined;
-type Analyze = (rom: Rom, profile: object, options: { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' }) => AnalysisResult;
-type LegalBorders = (rom: Rom, analysis: AnalysisResult) => readonly Addr[];
+type AnalysisOptions = { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' } | ConfirmOptions;
+/** The confirm options confirmOptions returns: opaque here, passed back to analyze. */
+interface ConfirmOptions {
+  readonly mode: 'confirm';
+}
+type Analyze = (rom: Rom, profile: object, options: AnalysisOptions) => AnalysisResult;
+type ConfirmOptionsOf = (config: RomliftConfig) => ConfirmOptions;
+/** What a module start is checked against (core/layout's BorderRule; a CodeLayout is one). */
+interface BorderRule {
+  readonly borders: readonly Addr[];
+  readonly dataStart: Addr;
+  readonly end: Addr;
+}
+type CodeLayoutOf = (rom: Rom, analysis: AnalysisResult) => BorderRule;
+type IsLegalStart = (rule: BorderRule, addr: Addr) => boolean;
+type LegalStartsBetween = (rule: BorderRule, after: Addr, before: Addr) => readonly Addr[];
 
 interface CliLine {
   readonly type: string;
@@ -97,7 +116,9 @@ interface Api {
 
 interface Facts {
   readonly config: RomliftConfig;
-  readonly borders: readonly Addr[];
+  /** The legal starts strictly between two addresses, by isLegalStart over the confirm run's layout. */
+  readonly legalBetween: (after: Addr, before: Addr) => readonly Addr[];
+  /** The discover run, whose found functions add-override covers. */
   readonly analysis: AnalysisResult;
   readonly end: Addr;
 }
@@ -140,14 +161,14 @@ function nameSeed(name: string): number {
 
 /** One legal edit of `kind`, or undefined when the config offers no place for it. */
 function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { readonly config: RomliftConfig; readonly what: string } | undefined {
-  const { config, borders } = facts;
+  const { config, legalBetween } = facts;
   const modules = config.modules;
   const starts = new Set(modules.map((m) => m.start));
   const nextStart = (i: number): Addr => modules[i + 1]?.start ?? facts.end;
   const cModules = modules.map((m, i) => ({ m, i })).filter(({ m, i }) => m.kind === 'c' && i > 0);
   switch (kind) {
     case 'move-start': {
-      const options = cModules.flatMap(({ m, i }) => borders.filter((b) => b > (modules[i - 1]?.start ?? 0) && b < nextStart(i) && b !== m.start).map((b) => ({ i, b })));
+      const options = cModules.flatMap(({ m, i }) => legalBetween(modules[i - 1]?.start ?? 0, nextStart(i)).filter((b) => b !== m.start).map((b) => ({ i, b })));
       const choice = pick(random, options);
       if (choice === undefined) return undefined;
       const moved = modules[choice.i];
@@ -179,7 +200,7 @@ function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { reado
       return { config: { ...config, overrides }, what: `code override over ${hex(fn.entry)}` };
     }
     case 'split-module': {
-      const options = cModules.flatMap(({ m, i }) => borders.filter((b) => b > m.start && b < nextStart(i) && !starts.has(b)).map((b) => ({ i, b })));
+      const options = cModules.flatMap(({ m, i }) => legalBetween(m.start, nextStart(i)).filter((b) => !starts.has(b)).map((b) => ({ i, b })));
       const choice = pick(random, options);
       if (choice === undefined) return undefined;
       const parent = modules[choice.i];
@@ -257,10 +278,13 @@ gate({
   tier: 'both',
   inputs: ['toolchain'],
   realInputs: ['roms'],
-  needs: ['init', 'generate', 'parseConfig', 'serializeConfig', 'legalBorders', 'romFromBytes', 'sha1Of', 'profileById', 'analyze'],
+  needs: ['init', 'generate', 'parseConfig', 'serializeConfig', 'codeLayout', 'isLegalStart', 'legalStartsBetween', 'confirmOptions', 'romFromBytes', 'sha1Of', 'profileById', 'analyze'],
   async run(cx) {
     const api: Api = { parse: cx.need<ParseConfig>('parseConfig'), serialize: cx.need<SerializeConfig>('serializeConfig') };
-    const legalBorders = cx.need<LegalBorders>('legalBorders');
+    const codeLayout = cx.need<CodeLayoutOf>('codeLayout');
+    const isLegalStart = cx.need<IsLegalStart>('isLegalStart');
+    const legalStartsBetween = cx.need<LegalStartsBetween>('legalStartsBetween');
+    const confirmOptions = cx.need<ConfirmOptionsOf>('confirmOptions');
     const romFromBytes = cx.need<RomFromBytes>('romFromBytes');
     const sha1Of = cx.need<Sha1Of>('sha1Of');
     const analyze = cx.need<Analyze>('analyze');
@@ -292,7 +316,16 @@ gate({
       const bytes = new Uint8Array(await readFile(target.rom));
       const rom = romFromBytes(bytes, sha1Of(bytes));
       const analysis = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
-      const facts: Facts = { config: parsed.value, borders: legalBorders(rom, analysis), analysis, end: rom.end };
+      // generate's rule: the code layout of the confirm run of init's config; legalStartsBetween is checked against
+      // the predicate it enumerates, so the candidates are exactly the starts isLegalStart allows.
+      const rule = codeLayout(rom, analyze(rom, profile, confirmOptions(parsed.value)));
+      const legalBetween = (after: Addr, before: Addr): readonly Addr[] => {
+        const starts = legalStartsBetween(rule, after, before);
+        const wrong = starts.find((a) => !isLegalStart(rule, a));
+        if (wrong !== undefined) throw new Error(`${target.name}: legalStartsBetween names ${hex(wrong)}, which isLegalStart refuses`);
+        return starts;
+      };
+      const facts: Facts = { config: parsed.value, legalBetween, analysis, end: rom.end };
       const random = prng(nameSeed(target.name));
       if (agbcc !== undefined) await cp(agbcc, path.join(dir, 'tools', 'agbcc'), { recursive: true });
       const setup = await cx.exec('./setup.sh', [], { cwd: dir, env });

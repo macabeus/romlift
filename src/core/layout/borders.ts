@@ -12,6 +12,12 @@
 // end. The data start is the analysis' code end rounded up to a word, past any word the code loads PC-relative
 // beyond it (D63). The references come from refs.ts, the assembly-only ranges from asm-only.ts.
 //
+// A module may also start anywhere in the data region (D75 a): at or past the data start no instruction lies, so no
+// branch, PC-relative load or adr can cross a word-aligned start there. isLegalStart is the whole rule, the code
+// region's borders and that data-start clause together, and every reader of a module start asks it: core/model's
+// E_MODULE_BORDER and its nearest-border message, `analyze --update`'s check of its patch, g4.toml-mutations and its
+// property test (architecture-r1-3).
+//
 // This file is core/model's one entry into core/layout (architecture §2): it re-exports what the model uses of
 // its sibling files.
 //
@@ -45,7 +51,20 @@ function headerEndOf(rom: Pick<Rom, 'base' | 'end'>): Addr {
 // ---------------------------------------------------------------------------------------------------
 // The layout.
 
-export interface CodeLayout {
+/**
+ * What a module start is checked against: the legal borders of the code region, where data starts and where the ROM
+ * ends. A CodeLayout is one; isLegalStart reads nothing else.
+ */
+export interface BorderRule {
+  /** The legal borders of the code region, ascending: the ROM base, the header's end, the chunk starts no reference crosses and the data start. */
+  readonly borders: readonly Addr[];
+  /** Every word-aligned address from here to the ROM end is a legal start too (D75 a). */
+  readonly dataStart: Addr;
+  /** The ROM end, where no module starts. */
+  readonly end: Addr;
+}
+
+export interface CodeLayout extends BorderRule {
   /** The first address past the cartridge header. */
   readonly headerEnd: Addr;
   /** The end of the startup region (crt0), between headerEnd and dataStart; headerEnd when there is none. */
@@ -60,8 +79,6 @@ export interface CodeLayout {
   readonly chunks: readonly TiledChunk[];
   /** The assembly-only ranges past the startup region. */
   readonly asmOnly: readonly Span[];
-  /** The legal borders, ascending. */
-  readonly borders: readonly Addr[];
 }
 
 /** The first index of `sorted` holding a value above `a`. */
@@ -107,14 +124,37 @@ export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
   const free = uncrossed(candidates, [...refs.shortBranches, ...pcRelative]);
   const inside = (a: Addr): boolean => asmOnly.some((r) => a > r.start && a < r.end);
   const borders = candidates.filter((a, i) => a % WORD === 0 && free[i] === true && !inside(a));
-  return { headerEnd, startupEnd, dataStart, chunks, asmOnly, borders };
+  return { headerEnd, startupEnd, dataStart, end: rom.end, chunks, asmOnly, borders };
+}
+
+/** Whether `a` is a word in the data region of `rule`: at or past the data start, before the ROM end (D75 a). */
+function inDataRegion(rule: BorderRule, a: Addr): boolean {
+  return a >= rule.dataStart && a < rule.end && a % WORD === 0;
 }
 
 /**
- * The legal module borders of an analysis, ascending: the ROM base, the header's end, the word-aligned chunk
- * starts of the code region and the data start, without those a short Thumb branch or a PC-relative load or
- * adr crosses (D63) or that fall strictly inside an assembly-only range. Exported; no module of src calls it yet (the model uses
- * codeLayout's borders with core/model/modules.ts isLegalStart, D77 k; one owner of the rule is carried to phase 6).
+ * Whether a module may start at `a`: one of the code region's legal borders, or any word from the data start to the
+ * ROM end (D75 a: that is how the TOML keeps its data border when the confirm run's code ends lower than discover's,
+ * after the user deleted the last listed function).
+ */
+export function isLegalStart(rule: BorderRule, a: Addr): boolean {
+  if (inDataRegion(rule, a)) return true;
+  const i = firstAbove(rule.borders, a);
+  return rule.borders[i - 1] === a;
+}
+
+/** The legal starts strictly inside (`after`, `before`), ascending: the borders there, then every word of the data region there. */
+export function legalStartsBetween(rule: BorderRule, after: Addr, before: Addr): readonly Addr[] {
+  const out = rule.borders.filter((b) => b > after && b < before && !inDataRegion(rule, b));
+  for (let a = alignUp(Math.max(after + 1, rule.dataStart)); a < Math.min(before, rule.end); a += WORD) out.push(a);
+  return out.sort(compareNumbers);
+}
+
+/**
+ * The legal module borders of an analysis below its data region, ascending, and the data start: the ROM base, the
+ * header's end, the word-aligned chunk starts of the code region and the data start, without those a short Thumb
+ * branch or a PC-relative load or adr crosses (D63) or that fall strictly inside an assembly-only range. These are
+ * the starts isLegalStart allows below the data start; past it every word is legal too, which no list holds.
  */
 export function legalBorders(rom: Rom, analysis: AnalysisResult): readonly Addr[] {
   return codeLayout(rom, analysis).borders;
@@ -126,4 +166,17 @@ export function nearestBorders(borders: readonly Addr[], a: Addr): { readonly be
   const atOrBelow = borders[i - 1];
   const below = atOrBelow === a ? borders[i - 2] : atOrBelow;
   return { below, above: borders[i] };
+}
+
+/** The nearest legal starts below and above `a` under `rule` (isLegalStart), either undefined when there is none. */
+export function nearestLegalStarts(rule: BorderRule, a: Addr): { readonly below: Addr | undefined; readonly above: Addr | undefined } {
+  const near = nearestBorders(rule.borders, a);
+  // The nearest words below and above `a`; the first word of the data region when `a` lies before it.
+  const wordBelow = alignUp(a) - WORD;
+  const firstData = alignUp(rule.dataStart);
+  const wordAbove = Math.max(alignUp(a + 1), firstData);
+  const dataBelow = inDataRegion(rule, wordBelow) ? wordBelow : undefined;
+  const dataAbove = inDataRegion(rule, wordAbove) ? wordAbove : undefined;
+  const pick = (x: Addr | undefined, y: Addr | undefined, f: (p: Addr, q: Addr) => Addr): Addr | undefined => (x === undefined ? y : y === undefined ? x : f(x, y));
+  return { below: pick(near.below, dataBelow, Math.max), above: pick(near.above, dataAbove, Math.min) };
 }

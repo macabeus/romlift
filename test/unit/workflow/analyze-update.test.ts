@@ -2,7 +2,8 @@
 // the text is unchanged; an entry deleted by hand comes back as a function proposal (source analysis, no `from`) that
 // planPatch inserts in place, keeping the user's comments; a listed entry with `from` is validated and, when it fails,
 // reported (W_LISTED_INVALID) and kept, one without `from` is taken as it is (D76 a, D77 e); another ROM is refused; a nested discovery is proposed as a label;
-// and unifiedDiff renders a patch in `diff -u` form.
+// a patch whose module starts generate would refuse is refused with E_MODULE_BORDER naming the proposal
+// (architecture-r1-3, a0-4); and unifiedDiff renders a patch in `diff -u` form.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -12,6 +13,9 @@ import { analyzeUpdate, staleConfigProblems, unlistedProposals } from '../../../
 import { unifiedDiff } from '../../../src/foundation/util/line-diff.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
+import type { RomliftConfig } from '../../../src/core/config/schema.ts';
+import { borderRefs } from '../../../src/core/layout/refs.ts';
+import { confirmModel } from '../../../src/core/workflow/generate.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
 
@@ -84,6 +88,57 @@ test('the confirm run validates only listed entries with `from` (D76 a, D77 e): 
   const quiet = analyzeUpdate({ rom, configText: serializeConfig(byHand), config: byHand });
   assert.ok(quiet.ok);
   assert.ok(!quiet.diagnostics.some((d) => d.code === 'W_LISTED_INVALID'), 'an entry without `from` is taken as it is, found or not');
+});
+
+/**
+ * A config on disk generate accepts, which a newer discover's proposal makes illegal: init's config without a found
+ * Thumb function F, with the target X of a short forward branch of F listed as a function of its own and a `c`
+ * module split at X. Without F listed, F's bytes are no code of the confirm run, so nothing crosses X; with F
+ * proposed back, F's branch crosses X.
+ */
+function coveredStart(rom: Rom): { readonly config: RomliftConfig; readonly f: number; readonly x: number } | undefined {
+  const discovered = discover(rom);
+  const init = configFromDiscover(rom, discovered);
+  const branches = borderRefs(rom, discovered).shortBranches;
+  for (const f of discovered.functions) {
+    if (f.mode !== 'thumb' || !init.functions.has(f.entry) || init.modules.some((m) => m.start === f.entry)) continue;
+    for (const b of branches) {
+      const x = b.target;
+      if (b.site < f.entry || x <= b.site + 2 || x >= f.extent.end || x % 4 !== 0 || init.functions.has(x) || init.modules.some((m) => m.start === x)) continue;
+      const functions = new Map(init.functions);
+      functions.delete(f.entry);
+      functions.set(x, { name: 'ListedByHand', mode: 'thumb', aliases: [] });
+      const i = init.modules.findIndex((m, k) => m.start < x && x < (init.modules[k + 1]?.start ?? rom.end));
+      const parent = init.modules[i];
+      if (parent === undefined) continue;
+      const modules = [...init.modules.slice(0, i + 1), { name: 'split_here', start: x, kind: 'c' as const, generated: true }, ...init.modules.slice(i + 1)];
+      const config = { ...init, functions, modules };
+      if (confirmModel({ rom, config }).model.diagnostics.some((d) => d.code === 'E_MODULE_BORDER')) continue;
+      return { config, f: f.entry, x };
+    }
+  }
+  return undefined;
+}
+
+test('a patch whose module starts generate would refuse is E_MODULE_BORDER naming the proposal, and nothing is offered (architecture-r1-3, a0-4)', () => {
+  const found = listSyntheticFixtures()
+    .map((fixture) => ({ fixture, rom: readFixtureRom(fixture) }))
+    .map(({ fixture, rom }) => ({ fixture, rom, case: coveredStart(rom) }))
+    .find((c) => c.case !== undefined);
+  assert.ok(found?.case !== undefined, 'some committed fixture has a short forward branch to a word to split at');
+  const { rom, case: { config, f, x } } = found;
+  const text = serializeConfig(config);
+  const plan = analyzeUpdate({ rom, configText: text, config });
+  assert.equal(plan.ok, false, `${found.fixture.name}: the patch adding ${f.toString(16)} is refused`);
+  const borders = plan.ok ? [] : plan.diagnostics.filter((d) => d.code === 'E_MODULE_BORDER');
+  assert.equal(borders.length, 1, plan.ok ? '' : plan.diagnostics.map((d) => d.message).join('; '));
+  assert.equal(borders[0]?.addr, x);
+  assert.match(borders[0]?.message ?? '', new RegExp(`proposed function 0x${f.toString(16).toUpperCase().padStart(8, '0')}, generate would refuse romlift.toml: module split_here starts at`));
+  assert.equal(borders[0]?.cites?.[0], f);
+  // The refusal is generate's: the TOML the patch would have written gives E_MODULE_BORDER at X.
+  const functions = new Map(config.functions);
+  functions.set(f, { name: `sub_${f.toString(16).toUpperCase().padStart(8, '0')}`, mode: 'thumb', aliases: [] });
+  assert.ok(confirmModel({ rom, config: { ...config, functions } }).model.diagnostics.some((d) => d.code === 'E_MODULE_BORDER' && d.addr === x));
 });
 
 test('unlistedProposals: found and not listed, with label = true for an entry inside another found extent', () => {
