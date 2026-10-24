@@ -39,12 +39,12 @@ kind = "data"
 
 [functions]                   # every entry is listed
 0x08000000 = { name = "sub_08000000", mode = "arm" }
-0x080000C0 = { name = "start", mode = "arm", label = true, from = "legacy" }
+0x080000C0 = { name = "start", mode = "arm", label = true, from = "sig:gate@0" }
 # the game's main loop, found by hand
 0x080000F4 = "sub_080000F4"   # TODO: name it
 0x08000104 = "sub_08000104"
 0x08000108 = "sub_08000108"
-0x0800010C = { name = "Stub_0C", label = true, from = "legacy" }
+0x0800010C = { name = "Stub_0C", label = true, from = "sig:gate@0" }
 0x08000110 = { name = "sub_08000110", label = true }
 
 [symbols]                     # data and RAM

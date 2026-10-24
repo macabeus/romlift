@@ -1,1 +1,1 @@
-[{ "kind": "function", "addr": "0x08000104", "mode": "thumb", "name": "VBlankIntr", "source": { "kind": "legacy" } }]
+[{ "kind": "function", "addr": "0x08000104", "mode": "thumb", "name": "VBlankIntr", "source": { "kind": "signature", "library": "gate", "version": "0", "rule": "sig.unique-fit" } }]

@@ -1,13 +1,16 @@
-// g5.reconciler (architecture §1 R9, §6.6, §13): C in, C out goldens of the reconciler: stubs added, removed
-// and moved, with comments and strings untouched. The goldens live under test/golden/reconcile/<case>/ as
+// g6.reconciler (architecture §1 R9, §6.6, §13; g5.reconciler until the owner skipped phase 5 and moved the
+// reconciler into phase 6, D92): C in, C out goldens of the reconciler: stubs added, removed and moved, with comments
+// and strings untouched. The goldens live under test/golden/reconcile/<case>/ as
 // input.c (the C in) and expected.c (the C out); at least one case name starts with each of `add`, `remove`
 // and `move`. The gate requires that the golden tests pass with UPDATE_GOLDEN unset, and checks every case
 // itself with the reconciler's tokenizer: the comment, string and character-literal tokens of expected.c are
 // exactly those of input.c, in the same order, so a reconciler edit never reaches into them.
 //
-// Calls, for the phase-5 lead to align (architecture §6.6):
+// Calls, aligned by the phase-6 lead (architecture §6.6, D93; both exported since phase 4, D74):
 //   tokenizeC(text) -> readonly {kind: 'comment'|'string'|'char'|'preprocessor'|'identifier'|'punct'|…,
 //     text: string, start: number, end: number}[]
+//   planIncludeAsm: the stub planner whose add, remove and move edits the goldens hold (p6-rename owns the
+//   golden cases with the reconciler's rename tokens, D93)
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult } from './gate.ts';
@@ -32,8 +35,8 @@ function untouchable(tokens: readonly CToken[]): readonly string[] {
 }
 
 gate({
-  id: 'g5.reconciler',
-  phase: 5,
+  id: 'g6.reconciler',
+  phase: 6,
   tier: 'ci',
   needs: ['tokenizeC', 'planIncludeAsm'],
   async run(cx) {

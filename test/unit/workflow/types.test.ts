@@ -55,7 +55,7 @@ test('every plan is ok with its data or a refusal with diagnostics only', () => 
   const refusedInit: InitPlan = { ok: false, diagnostics: refusal };
   const refusedGenerate: GeneratePlan = { ok: false, diagnostics: refusal };
   const refusedUpdate: AnalyzeUpdatePlan = { ok: false, diagnostics: refusal };
-  const proposal: Proposal = { kind: 'function', addr: 0x080000c0, mode: 'thumb', name: 'Renamed', source: { kind: 'legacy' } };
+  const proposal: Proposal = { kind: 'function', addr: 0x080000c0, mode: 'thumb', name: 'Renamed', source: { kind: 'signature', library: 'gate', version: '0', rule: 'sig.unique-fit' } };
   const update: AnalyzeUpdatePlan = { ok: true, proposals: [proposal], text: 'schema = 1\n', changed: false, diagnostics: [] };
   for (const plan of [refusedInit, refusedGenerate, refusedUpdate]) assert.deepEqual(Object.keys(plan).sort(), ['diagnostics', 'ok']);
   assert.equal(update.ok && update.proposals.length, 1);

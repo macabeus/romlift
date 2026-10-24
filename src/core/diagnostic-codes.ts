@@ -6,6 +6,7 @@ import { AnalysisCodes } from './analysis/codes.ts';
 import { ConfigCodes } from './config/codes.ts';
 import { ModelCodes } from './model/codes.ts';
 import { ReconcileCodes } from './reconcile/codes.ts';
+import { SignatureCodes } from './signatures/codes.ts';
 import { VerifyCodes } from './verify/codes.ts';
 import { WorkflowCodes } from './workflow/codes.ts';
 import { WritePlanCodes } from './write-plan/codes.ts';
@@ -16,6 +17,7 @@ export const ALL_CODES = {
   ...ConfigCodes,
   ...ModelCodes,
   ...ReconcileCodes,
+  ...SignatureCodes,
   ...VerifyCodes,
   ...WritePlanCodes,
   ...WorkflowCodes,

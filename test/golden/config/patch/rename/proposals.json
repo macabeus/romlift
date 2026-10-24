@@ -1,1 +1,1 @@
-[{ "kind": "function", "addr": "0x080000F4", "mode": "thumb", "name": "AgbMain", "source": { "kind": "legacy" } }]
+[{ "kind": "function", "addr": "0x080000F4", "mode": "thumb", "name": "AgbMain", "source": { "kind": "signature", "library": "gate", "version": "0", "rule": "sig.unique-fit" } }]

@@ -43,6 +43,7 @@ kind = "c"
 name = "eeprom"
 start = 0x0804E800
 kind = "c"
+data_start = 0x0804EF00       # its C data range (§6.6, phase 6)
 compiler = "old_agbcc"        # per-module build compiler and extra flags (D47)
 cflags = ["-O1"]
 
@@ -88,7 +89,6 @@ start = 0x0804F318
 size = 0x400
 kind = "code"
 runs_at = 0x03000388
-from = "evidence:trace"
 `;
 
 /** The same, in memory (test/unit/config/schema.test.ts's EXAMPLE). */
@@ -100,7 +100,7 @@ const ILLUSTRATIVE_CONFIG: RomliftConfig = {
   modules: [
     { name: 'crt0', start: 0x0800_00c0, kind: 'asm', generated: true },
     { name: 'main', start: 0x0800_043c, kind: 'c', generated: true },
-    { name: 'eeprom', start: 0x0804_e800, kind: 'c', generated: true, compiler: 'old_agbcc', cflags: ['-O1'] },
+    { name: 'eeprom', start: 0x0804_e800, kind: 'c', dataStart: 0x0804_ef00, generated: true, compiler: 'old_agbcc', cflags: ['-O1'] },
     { name: 'm4a', start: 0x0804_f000, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
     { name: 'm4a_ram', start: 0x0804_f318, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
     { name: 'm4a_2', start: 0x0804_f718, kind: 'asm', generated: true, library: 'm4a', version: '2001' },
@@ -117,7 +117,7 @@ const ILLUSTRATIVE_CONFIG: RomliftConfig = {
     [0x0300_5220, { name: 'gUnk_03005220', aliases: [] }],
     [0x0818_9e84, { name: 'gSpriteDataTable', size: 0x40, type: 'pointers', aliases: [] }],
   ]),
-  overrides: [{ start: 0x0804_f318, size: 0x400, kind: 'code', runsAt: 0x0300_0388, from: 'evidence:trace' }],
+  overrides: [{ start: 0x0804_f318, size: 0x400, kind: 'code', runsAt: 0x0300_0388 }],
 };
 
 const MINIMAL = 'schema = 1\n\n[rom]\npath = "baserom.gba"\nsha1 = "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b"\n\n[build]\nname = "x"\ncompiler = "agbcc"\n\n[signatures]\nenabled = false\n';
@@ -156,9 +156,10 @@ test("§6.5's illustrative file parses, comments and all, to its in-memory confi
 test('every key of schema 1 reads into its in-memory member', () => {
   const config = ok(`${MINIMAL.replace('enabled = false', 'enabled = true\nlibraries = ["m4a", "libgcc"]')}
 [[modules]]
-name = "legacy"
+name = "kept"
 start = 0x08000000
 kind = "c"
+data_start = 0x08000F00
 generated = false
 compiler = "old_agbcc"
 cflags = ["-O1", "-ftst"]
@@ -166,10 +167,10 @@ library = "agb"
 version = "1"
 
 [functions]
-0x08000000 = { name = "F", mode = "arm", size = 0x10, label = true, aliases = ["G", "H"], from = "legacy" }
+0x08000000 = { name = "F", mode = "arm", size = 0x10, label = true, aliases = ["G", "H"], from = "sig:gate@0" }
 
 [symbols]
-0x03000000 = { name = "gS", size = 0x4, type = "bytes", aliases = ["gT"], from = "evidence:map" }
+0x03000000 = { name = "gS", size = 0x4, type = "bytes", aliases = ["gT"], from = "sig:m4a@2001" }
 
 [[overrides]]
 start = 0x08000100
@@ -177,13 +178,23 @@ size = 0x20
 kind = "data"
 mode = "thumb"
 runs_at = 0x03000000
-from = "evidence:trace"
+from = "sig:m4a@2001"
 `);
   assert.deepEqual(config.signatures, { enabled: true, libraries: ['m4a', 'libgcc'] });
-  assert.deepEqual(config.modules, [{ name: 'legacy', start: 0x0800_0000, kind: 'c', generated: false, compiler: 'old_agbcc', cflags: ['-O1', '-ftst'], library: 'agb', version: '1' }]);
-  assert.deepEqual(config.functions.get(0x0800_0000), { name: 'F', mode: 'arm', size: 0x10, label: true, aliases: ['G', 'H'], from: 'legacy' });
-  assert.deepEqual(config.symbols.get(0x0300_0000), { name: 'gS', size: 4, type: 'bytes', aliases: ['gT'], from: 'evidence:map' });
-  assert.deepEqual(config.overrides, [{ start: 0x0800_0100, size: 0x20, kind: 'data', mode: 'thumb', runsAt: 0x0300_0000, from: 'evidence:trace' }]);
+  assert.deepEqual(config.modules, [{ name: 'kept', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0f00, generated: false, compiler: 'old_agbcc', cflags: ['-O1', '-ftst'], library: 'agb', version: '1' }]);
+  assert.deepEqual(config.functions.get(0x0800_0000), { name: 'F', mode: 'arm', size: 0x10, label: true, aliases: ['G', 'H'], from: 'sig:gate@0' });
+  assert.deepEqual(config.symbols.get(0x0300_0000), { name: 'gS', size: 4, type: 'bytes', aliases: ['gT'], from: 'sig:m4a@2001' });
+  assert.deepEqual(config.overrides, [{ start: 0x0800_0100, size: 0x20, kind: 'data', mode: 'thumb', runsAt: 0x0300_0000, from: 'sig:m4a@2001' }]);
+});
+
+test('data_start is a module address, syntax only, reported under its TOML spelling (phase 6, D92)', () => {
+  const module = (value: string): string => `${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "c"\ndata_start = ${value}\n`;
+  assert.deepEqual(ok(module('0x08000100')).modules, [{ name: 'm', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0100, generated: true }]);
+  // Below its module's start, or in an asm module: still syntax; whether the range is legal is the model's question.
+  assert.equal(ok(module('0x07000000')).modules[0]?.dataStart, 0x0700_0000);
+  assert.deepEqual(messages(module('"0x08000100"')), ['E_TOML_SCHEMA line 18: modules[0].data_start: Invalid input: expected number, received string']);
+  assert.deepEqual(messages(module('-4')), ['E_TOML_SCHEMA line 18: modules[0].data_start: Too small: expected number to be >=0']);
+  assert.match(messages(`${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "c"\ndataStart = 0x08000100\n`)[0] ?? '', /unknown key `dataStart` \(schema 1 has name, start, kind, data_start, generated/);
 });
 
 test('defaults: a bare name is a Thumb entry with no aliases, a module is generated, absent tables are empty', () => {
@@ -267,7 +278,7 @@ test('the address checks come first and are not doubled by smol-toml', () => {
 });
 
 test('a [functions] key no instruction of its mode starts at is E_FUNCTION_MISALIGNED, with its line (fix round 6, architecture-b1-1)', () => {
-  const text = `${MINIMAL}\n[functions]\n0x08000100 = "A"\n0x08000105 = "Odd"\n0x0800010A = { name = "Arm", mode = "arm" }\n0x08000111 = { name = "Legacy", from = "legacy" }\n0x08000114 = { name = "ArmOk", mode = "arm" }\n`;
+  const text = `${MINIMAL}\n[functions]\n0x08000100 = "A"\n0x08000105 = "Odd"\n0x0800010A = { name = "Arm", mode = "arm" }\n0x08000111 = { name = "Legacy", from = "sig:gate@0" }\n0x08000114 = { name = "ArmOk", mode = "arm" }\n`;
   assert.deepEqual(messages(text), [
     "E_FUNCTION_MISALIGNED line 16: the [functions] key 0x08000105 (Odd) is not a halfword-aligned Thumb instruction address; a Thumb function's pointer value has bit 0 set, its entry is 0x08000104",
     'E_FUNCTION_MISALIGNED line 17: the [functions] key 0x0800010A (Arm) is not a word-aligned ARM instruction address',

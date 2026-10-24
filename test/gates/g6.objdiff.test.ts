@@ -1,7 +1,9 @@
-// g5.objdiff (architecture §8.4 "objdiff", §13, D34, D68 a): moved from phase 3 (it was g3.objdiff) to phase 5, where
-// the `expected/` objects and objdiff targets are built, by the owner's answer to Q1 of phase-3.md ("Move gate to
-// phase 5"); it applies as D34 writes it unless the owner amends it then. Phase 3 recorded the classified counts
-// (bench/tools/objdiff-classes.ts) as its measurement. On every tuning ROM whose readable build links, every
+// g6.objdiff (architecture §8.4 "objdiff", §13, D34, D68 a, D92): moved from phase 3 (it was g3.objdiff) to phase 5,
+// where the `expected/` objects and objdiff targets are built, by the owner's answer to Q1 of phase-3.md ("Move gate to
+// phase 5"), then into phase 6 with those writers when the owner skipped phase 5 ("Keep rename and objdiff", D92); it
+// applies as D34 writes it unless the owner amends it. Its baseline is phase-3.md Q1's table, the differences the
+// committed classifier (bench/src/objdiff-classes.ts, bench/tools/objdiff-classes.ts) counted that D34 gates: fe7j
+// 200, klonoa 320, pokeemerald 13,788, sa2 1,374, sa3 564, tmc 895. The body below is unchanged. On every tuning ROM whose readable build links, every
 // function whose entry and extent agree with the ELF scores 0 under objdiff-cli (the pinned
 // bench/tools/objdiff.version): 100% match and no relocation difference. The reference side is the
 // project's own object (`objectsDir`); the base is the emitted function `.s`, assembled, with labels renamed
@@ -46,8 +48,8 @@ function tail(run: ExecResult, lines = 30): string {
 }
 
 gate({
-  id: 'g5.objdiff',
-  phase: 5,
+  id: 'g6.objdiff',
+  phase: 6,
   tier: 'real',
   inputs: ['roms', 'elfs', 'objects', 'toolchain'],
   needs: ['buildModel', 'emitTree', 'linkCheck'],

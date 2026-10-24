@@ -65,7 +65,7 @@ name = "sub_08000010"
 
 type Planner = (text: string, config: RomliftConfig, proposals: readonly Proposal[]) => ConfigPatchResult;
 
-const rename = (addr: number, name: string): Proposal => ({ kind: 'function', addr, mode: 'thumb', name, source: { kind: 'legacy' } });
+const rename = (addr: number, name: string): Proposal => ({ kind: 'function', addr, mode: 'thumb', name, source: { kind: 'signature', library: 'gate', version: '0', rule: 'sig.unique-fit' } });
 
 /** The planner with the re-parse comparison skipped: the mutant g4.checks-fail requires this test to catch. */
 const skipsComparison: Planner = (text, config, proposals) => {
@@ -108,7 +108,7 @@ test('a clean patch of the canonical file is accepted and saved, comments kept',
   const dir = await project(TOML);
   const result = await updateWrite(dir, [rename(0x0800_0010, 'Main')]);
   assert.ok(result.ok);
-  assert.equal(await readFile(join(dir, 'romlift.toml'), 'utf8'), TOML.replace('0x08000010 = "sub_08000010"', '0x08000010 = { name = "Main", from = "legacy" }'));
+  assert.equal(await readFile(join(dir, 'romlift.toml'), 'utf8'), TOML.replace('0x08000010 = "sub_08000010"', '0x08000010 = { name = "Main", from = "sig:gate@0" }'));
 });
 
 test('a hand-restructured table is E_TOML_PATCH_REFUSED and romlift.toml is left as it was', async () => {
@@ -120,7 +120,7 @@ test('a hand-restructured table is E_TOML_PATCH_REFUSED and romlift.toml is left
     result.ok ? [] : result.diagnostics.map((d) => [d.code, d.addr]),
     [['E_TOML_PATCH_REFUSED', 0x0800_0010]],
   );
-  assert.match(result.ok ? '' : (result.diagnostics[0]?.message ?? ''), /replace it with this line under \[functions\]: 0x08000010 = \{ name = "Main", from = "legacy" \}$/);
+  assert.match(result.ok ? '' : (result.diagnostics[0]?.message ?? ''), /replace it with this line under \[functions\]: 0x08000010 = \{ name = "Main", from = "sig:gate@0" \}$/);
   assert.deepEqual(await readFile(join(dir, 'romlift.toml')), before);
 });
 

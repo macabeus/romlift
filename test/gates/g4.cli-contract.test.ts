@@ -8,12 +8,17 @@
 //     parses as JSON, the last is {"type":"summary","ok":boolean,"exitCode":number} with exitCode equal to
 //     the process's and ok true exactly when it is 0, and the exit code is one the recipe below allows and
 //     never 70 (internal).
-// A command with no recipe here fails the gate, so a new command cannot skip the contract.
+// A command with no recipe here fails the gate, so a new command cannot skip the contract. Recipes of a command that
+// is not registered yet stay unused, and a recipe that needs an option (`option`) runs once the command's help lists
+// it: phase 6's commands (`signatures`, `rename`) and `init --no-signatures` land in later waves (D93).
 //
-// Interfaces, frozen by D74 (architecture §2.1, D33):
+// Interfaces, frozen by D74 and D93 (architecture §2.1, D33):
 //   exit codes 0 ok, 1 errors, 2 usage, 3 verifyFailed, 70 internal; NDJSON as in g4.e2e-fixtures.
-//   init's options are [dir], --name, --module-size and --json in phase 4 (--no-signatures is phase 6's, D74);
+//   init's options are [dir], --name, --module-size and --json in phase 4, and --no-signatures from phase 6 (D74, D93);
 //   init in a directory holding another file than the given ROM, .git and dot-files is E_DIR_NOT_EMPTY, exit 1.
+//   `signatures build <spec>` exits 1 when the spec does not exist; `signatures <rom>` exits 0 (no signature file
+//   built: W_SIGNATURES_ABSENT, a warning); `rename <old> <new>` exits 1 when <old> is unknown, 0 for a listed
+//   default name (phase 6, D92, D93).
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult, type GateContext } from './gate.ts';
@@ -31,6 +36,8 @@ interface Recipe {
   readonly args: (project: Project) => readonly string[];
   readonly place: Place;
   readonly exits: readonly number[];
+  /** The option this run needs; it runs once the command's help lists it (a later phase's option). */
+  readonly option?: string;
 }
 
 interface Project {
@@ -59,6 +66,7 @@ const RECIPES: Readonly<Record<string, readonly Recipe[]>> = {
   init: [
     { label: 'init <rom>', args: () => [ROM], place: 'bare', exits: [0] },
     { label: 'init <rom> in a non-empty directory', args: () => [ROM], place: 'empty', exits: [1] },
+    { label: 'init <rom> --no-signatures', args: () => [ROM, '--no-signatures'], place: 'bare', exits: [0], option: 'no-signatures' },
   ],
   generate: [
     { label: 'generate', args: () => [], place: 'project', exits: [0] },
@@ -66,10 +74,13 @@ const RECIPES: Readonly<Record<string, readonly Recipe[]>> = {
   ],
   scaffold: [{ label: 'scaffold --diff', args: () => ['--diff'], place: 'project', exits: [0] }],
   rename: [
-    { label: 'rename <unknown> <new>', args: () => ['RomliftGateUnknownName', 'RomliftGateNewName'], place: 'project', exits: [1] },
-    { label: 'rename <old> <new>', args: (p) => [p.defaultName, 'RomliftGateRenamed'], place: 'project', exits: [0] },
+    { label: 'rename <unknown> X', args: () => ['RomliftGateUnknownName', 'X'], place: 'project', exits: [1] },
+    { label: 'rename <default name> GateCli', args: (p) => [p.defaultName, 'GateCli'], place: 'project', exits: [0] },
   ],
-  signatures: [{ label: 'signatures <rom>', args: () => [ROM], place: 'bare', exits: [0] }],
+  signatures: [
+    { label: 'signatures build <missing spec>', args: () => ['build', 'romlift-gate-no-such-spec.json'], place: 'bare', exits: [1] },
+    { label: 'signatures <rom>', args: () => [ROM], place: 'bare', exits: [0] },
+  ],
 };
 
 function tail(run: ExecResult, lines = 20): string {
@@ -153,8 +164,9 @@ gate({
     let runs = 0;
     for (const command of commands) {
       const help = await romlift([command, '--help'], base);
+      const listed = options(help.stdout);
       if (help.code !== 0 || !help.stdout.startsWith(`Usage: romlift ${command}`)) problems.push(`${command} --help exited ${help.code} or printed no usage`);
-      else if (!options(help.stdout).includes('json')) problems.push(`${command} has no --json option`);
+      else if (!listed.includes('json')) problems.push(`${command} has no --json option`);
       const bad = await romlift([command, '--romlift-gate-no-such-option'], base);
       if (bad.code !== 2) problems.push(`${command} with an unknown option exited ${bad.code}, not 2`);
 
@@ -164,6 +176,7 @@ gate({
         continue;
       }
       for (const recipe of recipes) {
+        if (recipe.option !== undefined && !listed.includes(recipe.option)) continue;
         const cwd = recipe.place === 'project' ? project.dir : await place(recipe.place);
         const run = await romlift([command, ...recipe.args(project), '--json'], cwd);
         runs++;

@@ -25,6 +25,7 @@ kind = "c"
 name = "eeprom"
 start = 0x0804E800
 kind = "c"
+data_start = 0x0804EF00
 compiler = "old_agbcc"
 cflags = ["-O1"]
 
@@ -70,4 +71,3 @@ start = 0x0804F318
 size = 0x400
 kind = "code"
 runs_at = 0x03000388
-from = "evidence:trace"

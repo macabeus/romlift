@@ -6,8 +6,9 @@
 //
 // A [functions] entry is `0x08000470 = "Name"` when it is a Thumb entry with nothing else, else an inline table
 // with the keys in the fixed order name, mode (only `arm`), size, label (only `true`), aliases (only when there
-// are some), from; a [symbols] entry likewise (name, size, type, aliases, from). A module writes `generated =
-// false` only when false and compiler, cflags, library and version only when set. Address keys and address values
+// are some), from; a [symbols] entry likewise (name, size, type, aliases, from). A module writes name, start, kind,
+// then `data_start` only when set (phase 6, D92), `generated = false` only when false, and compiler, cflags, library
+// and version only when set. Address keys and address values
 // are `0x` and eight upper-case hex digits; sizes are upper-case hex without padding. parse.ts reads exactly this
 // back: serializeConfig(parseConfig(text).value) === text for every canonical text. Pure.
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -84,6 +85,7 @@ export function symbolLine(addr: Addr, symbol: SymbolConfig): string {
 /** One [[modules]] block, without a trailing blank line. */
 export function moduleLines(module: ModuleConfig): string[] {
   const lines = ['[[modules]]', `name = ${tomlString(module.name)}`, `start = ${tomlAddress(module.start)}`, `kind = ${tomlString(module.kind)}`];
+  if (module.dataStart !== undefined) lines.push(`data_start = ${tomlAddress(module.dataStart)}`);
   if (!module.generated) lines.push('generated = false');
   if (module.compiler !== undefined) lines.push(`compiler = ${tomlString(module.compiler)}`);
   if (module.cflags !== undefined) lines.push(`cflags = ${stringArray(module.cflags)}`);

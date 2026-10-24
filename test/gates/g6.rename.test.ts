@@ -1,5 +1,5 @@
-// g5.rename (architecture §2.1, §6.6, §13, D9): `rename <old> <new>` renames identifiers only, patches one
-// TOML line, and refuses what it cannot do. On an initialised fixture project, the gate adds by hand a C
+// g6.rename (architecture §2.1, §6.6, §13, D9; g5.rename until the owner skipped phase 5 and kept rename for phase 6,
+// D92): `rename <old> <new>` renames identifiers only, patches one TOML line, and refuses what it cannot do. On an initialised fixture project, the gate adds by hand a C
 // comment, a string and a declaration that name a default-named function, and a header in include/ that
 // declares it; then:
 //   - `rename <old> GateRenamed --json` exits 0; exactly one line of romlift.toml changes, it names
@@ -9,8 +9,11 @@
 //   - `rename GateRenamed <another listed name>` (the new name exists) and `rename <unknown> X` (the old one
 //     does not) exit 1 and change no file.
 //
-// Calls, for the phase-5 lead to align (architecture §6.6): tokenizeC(text) -> readonly {kind, text}[]
-//   with kinds 'comment', 'string', 'char', 'identifier', …; NDJSON as in g4.e2e-fixtures.
+// Calls, aligned by the phase-6 lead (architecture §2.1, §6.6, D93): tokenizeC(text) -> readonly {kind, text}[]
+//   with kinds 'comment', 'string', 'char', 'identifier', …; `planRename` (core/workflow/rename.ts, the pure plan:
+//   a one-line TOML patch and identifier-token edits) and `rename` (its file-backed run), both p6-rename's; the CLI
+//   `romlift rename <old> <new> [--json]` exits 0, or 1 when <new> exists or <old> is unknown; NDJSON as in
+//   g4.e2e-fixtures.
 import { createHash } from 'node:crypto';
 import { appendFile, copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -58,8 +61,8 @@ function view(tokens: readonly CToken[], from: string, to: string): { readonly k
 }
 
 gate({
-  id: 'g5.rename',
-  phase: 5,
+  id: 'g6.rename',
+  phase: 6,
   tier: 'ci',
   needs: ['rename', 'planRename', 'tokenizeC'],
   async run(cx: GateContext) {
