@@ -4,7 +4,8 @@
 //
 // - link: the linked image's SHA-1 against the ROM's, and where the two first differ when they do.
 // - assemble: each unit's object, its `.text` against the unit's ROM range byte for byte, except the fields
-//   its relocations leave to the linker (a cross-module `bl`, a pool word naming a label).
+//   its relocations leave to the linker (a cross-module `bl`, a pool word naming a label); for a C unit with a data
+//   range (phase 6, §6.6), its `.rodata` against the range the same way.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { parseElf, relocationsOf } from '../../foundation/formats/elf.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
@@ -71,19 +72,22 @@ export interface ObjectVerdict extends ModuleAssembly {
   readonly masked: number;
 }
 
-/** One unit's verdict: its object's `.text`, outside the relocated fields, against the ROM range. */
-export function compareObject(object: Uint8Array, unit: AssembleUnit, rom: Rom): ObjectVerdict {
-  const failed = (detail: string): ObjectVerdict => ({ module: unit.module, ok: false, detail, masked: 0 });
+/** How one section of an object compares with a ROM range: how many bytes its relocations masked, or the first problem. */
+type SectionComparison = { readonly ok: true; readonly masked: number } | { readonly ok: false; readonly detail: string };
+
+/** Section `name` of `object` against the ROM bytes of `span`, outside the fields its relocations leave to the linker. */
+function compareSection(object: Uint8Array, unit: AssembleUnit, rom: Rom, name: string, span: { readonly start: number; readonly end: number }, what: string): SectionComparison {
+  const failed = (detail: string): SectionComparison => ({ ok: false, detail });
   const elf = parseElf(object);
   if (!elf.ok) return failed(`${unit.object}: ${elf.error}`);
-  const text = elf.value.sections.find((s) => s.name === '.text');
-  const length = unit.span.end - unit.span.start;
-  const size = text?.size ?? 0;
-  if (text === undefined || size !== length) {
-    return failed(`${unit.object} has 0x${size.toString(16)} bytes of .text, the module spans 0x${length.toString(16)}`);
+  const section = elf.value.sections.find((s) => s.name === name);
+  const length = span.end - span.start;
+  const size = section?.size ?? 0;
+  if (section === undefined || size !== length) {
+    return failed(`${unit.object} has 0x${size.toString(16)} bytes of ${name}, ${what} spans 0x${length.toString(16)}`);
   }
-  if (text.offset + size > object.length) return failed(`${unit.object}: .text lies outside the file`);
-  const relocations = relocationsOf(object, elf.value, text);
+  if (section.offset + size > object.length) return failed(`${unit.object}: ${name} lies outside the file`);
+  const relocations = relocationsOf(object, elf.value, section);
   if (!relocations.ok) return failed(`${unit.object}: ${relocations.error}`);
   const mask = new Uint8Array(size);
   let masked = 0;
@@ -93,14 +97,25 @@ export function compareObject(object: Uint8Array, unit: AssembleUnit, rom: Rom):
       mask[i] = 1;
     }
   }
-  const base = unit.span.start - rom.base;
-  if (base < 0 || base + size > rom.bytes.length) return failed(`the module's span lies outside the ROM`);
+  const base = span.start - rom.base;
+  if (base < 0 || base + size > rom.bytes.length) return failed(`${what === 'the module' ? "the module's span" : what} lies outside the ROM`);
   for (let i = 0; i < size; i++) {
-    if (mask[i] === 0 && object[text.offset + i] !== rom.bytes[base + i]) {
-      return failed(`first difference at 0x${hex(unit.span.start + i)}`);
+    if (mask[i] === 0 && object[section.offset + i] !== rom.bytes[base + i]) {
+      return failed(`first difference at 0x${hex(span.start + i)}`);
     }
   }
-  return { module: unit.module, ok: true, detail: `equals 0x${hex(unit.span.start)}..0x${hex(unit.span.end)}`, masked };
+  return { ok: true, masked };
+}
+
+/** One unit's verdict: its object's `.text`, outside the relocated fields, against the ROM range; and a data range's `.rodata`. */
+export function compareObject(object: Uint8Array, unit: AssembleUnit, rom: Rom): ObjectVerdict {
+  const text = compareSection(object, unit, rom, '.text', unit.span, 'the module');
+  if (!text.ok) return { module: unit.module, ok: false, detail: text.detail, masked: 0 };
+  const range = unit.data?.span;
+  if (range === undefined) return { module: unit.module, ok: true, detail: `equals 0x${hex(unit.span.start)}..0x${hex(unit.span.end)}`, masked: text.masked };
+  const data = compareSection(object, unit, rom, '.rodata', range, 'its data range');
+  if (!data.ok) return { module: unit.module, ok: false, detail: data.detail, masked: 0 };
+  return { module: unit.module, ok: true, detail: `equals 0x${hex(unit.span.start)}..0x${hex(unit.span.end)} and its data range 0x${hex(range.start)}..0x${hex(range.end)}`, masked: text.masked + data.masked };
 }
 
 /** The `assemble` result of every unit's verdict (in unit order) and the toolchain's diagnostics. */

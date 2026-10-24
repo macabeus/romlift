@@ -12,7 +12,8 @@ was created by [romlift](https://github.com/macabeus/romlift) @@romliftVersion@@
 | `make` | builds `@@builtRom@@` and compares its SHA-1 with `@@sha1File@@`; exits 0 only on a match, the only verdict that counts |
 | `make rom` | builds `@@builtRom@@` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
-| `make clean` | removes `build/` and the built ROM |
+| `make expected` | assembles each C module's objdiff target, `expected/<module>.s`, into `expected/<module>.o` (no compiler) |
+| `make clean` | removes `build/`, the built ROM and the `expected/*.o` objects |
 
 `@@romFile@@` is the original ROM. It is never committed (`.gitignore`); bring your own copy.
 
@@ -25,8 +26,9 @@ generate`).
 
 ## What is generated and what is yours
 
-- **Tool-owned, never edit:** `asm/`, `data/`, `ldscript.txt`, `symbols.ld`, `modules.mk`. `romlift generate`
-  rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next run. They are not committed
+- **Tool-owned, never edit:** `asm/`, `data/`, `expected/`, `ldscript.txt`, `symbols.ld`, `modules.mk`,
+  `objdiff.json`. `romlift generate` rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next
+  run. They are not committed
   (`.gitignore`): `./setup.sh` generates them in a fresh clone or worktree, where `asm/` is absent. **After a `git
   pull` or a checkout that changes `romlift.toml`, run `npx romlift generate` (or `./setup.sh`) before `make`:**
   `modules.mk` records the SHA-1 of the `romlift.toml` it was generated from, and `make` stops with a message while
@@ -108,15 +110,47 @@ when they would have to change it refuses (`E_C_UNSCANNABLE`): change them yours
 Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler` in `romlift.toml`, default
 `[build] compiler`), with the flags `modules.mk` lists; `mk/<compiler>.mk` holds the recipe.
 
-## Data defined in C fails the link
+## Comparing a function with objdiff
 
-The linker script places only the code (`.text`) of a C object. A C file that defines data (a `const` array, a
-string table, an initialised or zero-initialised global) fails the link with:
+`romlift generate` writes, for each C module, `expected/<module>.s`: the whole module at its ROM offsets, every function
+under its name, as the original bytes. `make expected` assembles each into `expected/<module>.o`, the target object, and
+`objdiff.json` lists one unit per C module, in ROM order, with that target and the object `make` builds from
+`src/<module>.c`, `build/src/<module>.o`. Open the project in objdiff (or run `objdiff-cli`) after `make expected`: it
+runs `make build/src/<module>.o` itself before each diff (`build_base`), never `make expected` (`build_target` is
+false), so run `make expected` again after a `romlift generate` that changed `expected/`.
+
+## Data defined in C
+
+The linker script places the code (`.text`) of a C object. A C file that defines data (a `const` array, a string table,
+an initialised or zero-initialised global) fails the link with:
 
 ```
 src/<module>.c defines data; see AGENTS.md (romlift does not place C data yet)
 ```
 
-That is deliberate: romlift cannot yet place a C object's data at its address in the ROM. Keep the data in the
-generated `data/` files and refer to it by its symbol (`extern`), until a later romlift release's data ranges let a C
-array replace its slice of the ROM.
+unless its module declares a **data range**: the bytes from `data_start` to the next module's start (or the ROM's end)
+are then that C file's read-only data, and a `const` array defined there replaces its slice of the ROM. Declare it in
+`romlift.toml` on the `c` module whose C defines the data, then run `npx romlift generate`:
+
+```toml
+[[modules]]
+name = "main"
+start = 0x080000F4
+kind = "c"
+data_start = 0x0800014C
+```
+
+`data_start` must be word-aligned, lie past the module's start and in the data at the end of the code (`romlift
+generate` refuses an address where code lies, inside a module that runs from RAM, or overlapping another module's
+range, with `E_DATA_RANGE_INVALID`), and the range cuts only its own module or a `data` module: a `data` module starting
+at `data_start` is dropped, one that holds it ends there. The linker script then places `src/<module>.c`'s `.rodata` at
+`data_start` and checks that it is the range's exact size:
+
+```
+src/<module>.c's read-only data is not the <size> bytes of its data range [<data_start>, <end>); see AGENTS.md
+```
+
+So the C file must define every byte of the range, in ROM order, with nothing between: no generated file holds those
+bytes any more. Every label of the range that assembly still names (`gUnk_<ADDR>`, or its `[symbols]` name) must be a
+symbol of that C file, under the same name. Data the C file puts in RAM (initialised or zero-initialised globals) still
+fails the link with the first message: keep it in assembly and refer to it by its symbol (`extern`).

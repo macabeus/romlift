@@ -127,3 +127,22 @@ test('a ROM the model was not built from is a caller bug', () => {
   const other = romFromBytes(rom.bytes, 'f'.repeat(40));
   assert.throws(() => [...encodeModel(model, other)], RomliftInvariantError);
 });
+
+test('a module with a C data range prints dataStart in the header, and only that module (phase 6, D92)', () => {
+  const { rom } = fixtureModel('c-data');
+  const analysis = discover(rom);
+  const base = configFromDiscover(rom, analysis);
+  const config = { ...base, modules: base.modules.map((m) => (m.name === 'main' ? { ...m, dataStart: 0x0800_014c } : m)) };
+  const model = buildModel(rom, analysis, config);
+  const header = JSON.parse([...encodeModel(model, rom)][0] ?? '{}') as ModelJsonHeader;
+  assert.deepEqual(
+    header.modules.map((m) => [m.name, m.dataStart, m.span.end]),
+    [
+      ['rom_header', undefined, '0x080000C0'],
+      ['crt0', undefined, '0x080000F4'],
+      ['main', '0x0800014C', '0x0800014C'],
+    ],
+  );
+  const plain = JSON.parse([...encodeModel(buildModel(rom, analysis, base), rom)][0] ?? '{}') as ModelJsonHeader;
+  assert.ok(plain.modules.every((m) => !('dataStart' in m)), 'no module without a range has the key');
+});

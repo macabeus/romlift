@@ -4,6 +4,10 @@
 // own file: the modules checked against the legal borders (modules.ts), the chunks (chunks.ts), the labels and
 // their scopes (labels.ts), the names checked per module (names.ts), the symbols (symbols.ts), and the items
 // that tile the ROM (items.ts). Pure: content problems are diagnostics, never throws.
+//
+// A C data range (modules.ts, §6.6) is laid out as a `data` module of its own name (layoutModules): its chunks are data
+// chunks split at the [symbols] entries inside it, its labels data labels, global when anything references them (the
+// C object defines them), and they lie in Model.chunks in ROM order, naming the module, outside Module.chunks.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
@@ -22,7 +26,7 @@ import { planChunks } from './chunks.ts';
 import { buildItems } from './items.ts';
 import { segmentsOf } from './segments.ts';
 import { buildLabels, codeRefs } from './labels.ts';
-import { planModules, relocatedModules, runOffsetAt } from './modules.ts';
+import { modulePieces, planModules, relocatedModules, runOffsetAt } from './modules.ts';
 import { invalidNames, moduleNameProblems, nameCollisions, nameSourceOf } from './names.ts';
 import type { DefinedName } from './names.ts';
 import { modelSymbols, romSymbols } from './symbols.ts';
@@ -146,11 +150,27 @@ function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
   );
 }
 
+/**
+ * What the chunks, labels and items are laid out over: every module's span and every data range, in ROM order, a data
+ * range as a `data` module of its owner's name and no data range of its own; with each piece's module index.
+ */
+function layoutModules(modules: readonly Module[]): { readonly pieces: readonly Module[]; readonly owner: readonly number[] } {
+  const laid = modulePieces(modules).flatMap((p) => {
+    const m = modules[p.module];
+    if (m === undefined) return [];
+    const piece: Module = p.part === 'text' ? m : { name: m.name, span: p.span, kind: 'data', generated: m.generated, compiler: m.compiler, cflags: m.cflags, chunks: { first: 0, count: 0 } };
+    return [{ piece, owner: p.module }];
+  });
+  return { pieces: laid.map((l) => l.piece), owner: laid.map((l) => l.owner) };
+}
+
 /** The Model of `rom` under `config`, with the facts of `analysis` (a discover or confirm result). */
 export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftConfig): Model {
   const layout = codeLayout(rom, analysis);
   const planned = planModules(rom, config, layout);
-  const modules = planned.modules;
+  const { pieces, owner } = layoutModules(planned.modules);
+  // Everything below lays out over the pieces; the Model's modules are planned.modules (finished, below).
+  const modules = pieces;
   const relocated = relocatedModules(modules);
 
   const functions = new Map<Addr, FunctionConfig>(sortedEntries(config.functions).filter(([entry]) => contains(rom, entry)));
@@ -201,9 +221,11 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
       ...(c.entry !== undefined && c.entry !== c.span.start ? { entry: c.entry } : {}),
     };
   });
-  const finished = modules.map((m, i): Module => {
-    const first = chunkPlans.findIndex((c) => c.module === i);
-    const count = chunkPlans.filter((c) => c.module === i).length;
+  // A module's chunks are its text piece's; a data range's lie outside them (types.ts Module.dataRange).
+  const finished = planned.modules.map((m, i): Module => {
+    const piece = pieces.findIndex((p, k) => owner[k] === i && p.span.start === m.span.start);
+    const first = chunkPlans.findIndex((c) => c.module === piece);
+    const count = chunkPlans.filter((c) => c.module === piece).length;
     return { ...m, chunks: { first: first < 0 ? chunks.length : first, count } };
   });
 
@@ -211,13 +233,13 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     schema: 'romlift/model@1',
     rom: { sha1: rom.sha1, end: rom.end },
     build: { name: config.build.name },
-    functions: modelFunctions(placed, functions, analysis, modules, relocated),
+    functions: modelFunctions(placed, functions, analysis, planned.modules, relocated),
     chunks,
     modules: finished,
     items: built.items,
     labels: labelled.labels,
     symbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...moduleNameProblems(modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...moduleNameProblems(planned.modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
   };
 }

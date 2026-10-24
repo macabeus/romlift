@@ -10,7 +10,9 @@
 // back (core/verify/c-stub.ts stubAssemblyOf) into the assembly agbcc emits for it (core/model/c-unit.ts, measured
 // and proved by test/local/c-stub-agbcc.test.ts), which is written to `build/src/<module>.s` and assembled like an
 // asm unit, so `verify --assemble/--link` and the g3 gates still need only binutils. A C file that is not a
-// stub-only unit (a decompiled function, a declaration) is refused with its first problem.
+// stub-only unit (a decompiled function, a declaration) is refused with its first problem. A C unit with a data range
+// (BuildUnit.data, phase 6) gets core/model/c-data-assert.ts cDataStandIn appended: the range's ROM bytes as its
+// `.rodata`, which the ldscript places at the range, so the image still links to the ROM's SHA-1.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
@@ -20,6 +22,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { BuildUnit } from '../../core/model/paths.ts';
 import { BASEROM_FILE, isCSource } from '../../foundation/util/project-files.ts';
+import { cDataStandIn } from '../../core/model/c-data-assert.ts';
 import { cAssemblyPath, LDSCRIPT_PATH, MACROS_PATH } from '../../core/model/paths.ts';
 import { stubAssemblyOf } from '../../core/verify/c-stub.ts';
 import { assembleFailure, assembleVerdict, compareObject, linkFailure, linkVerdict, unassemblable } from '../../core/verify/toolchain.ts';
@@ -128,7 +131,7 @@ async function assemblySource(dir: string, unit: BuildUnit): Promise<BuildUnit |
     return diagnostic(ShellCodes, 'E_TOOLCHAIN_FAILED', message, { path: unit.source });
   }
   const source = cAssemblyPath(unit.module);
-  const written = await writeBuildFile(dir, source, assembly.text);
+  const written = await writeBuildFile(dir, source, unit.data === undefined ? assembly.text : `${assembly.text}${cDataStandIn(unit.data)}`);
   return written ?? { ...unit, source };
 }
 
