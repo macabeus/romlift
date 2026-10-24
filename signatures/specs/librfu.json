@@ -1,0 +1,17 @@
+{
+  "library": "librfu",
+  "versions": [
+    {
+      "id": "2004",
+      "idNote": "the wireless adapter library Pokémon Emerald links (librfu_stwi.o, librfu_intr.o, librfu_rfu.o, librfu_sio32id.o, with the version strings of librfu_rfu.o and librfu_sio32id.o); no other tuning reference links it, so the id is Emerald's release year (2004), the earliest known release that ships these bytes, not an SDK label",
+      "references": [
+        {
+          "dataset": "pokeemerald",
+          "objects": ["src/librfu_stwi.o", "src/librfu_intr.o", "src/librfu_rfu.o", "src/librfu_sio32id.o"],
+          "tables": ["llsf_struct", "version_string", "str_checkMbootLL", "Sio32ConnectionData", "Sio32IDLib_Var"]
+        }
+      ]
+    }
+  ],
+  "reviewedNames": {}
+}

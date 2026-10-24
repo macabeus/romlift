@@ -1,0 +1,28 @@
+{
+  "library": "m4a",
+  "versions": [
+    {
+      "id": "2001",
+      "idNote": "the revision Klonoa: Empire of Dreams (2001), Sonic Advance 2 and 3 and Fire Emblem 7 link: m4a0.o of 0xC1C bytes and m4a.o of 0x1598; the id is the earliest known release, not an SDK label",
+      "references": [
+        {
+          "dataset": "sa2",
+          "objects": ["src/lib/m4a/m4a0.o", "src/lib/m4a/m4a.o"],
+          "tables": ["gMPlayJumpTableTemplate", "gScaleTable", "gFreqTable", "gPcmSamplesPerVBlankTable", "gCgbScaleTable", "gCgbFreqTable", "gNoiseTable", "gCgb3Vol", "gClockTable", "gXcmdTable"]
+        }
+      ]
+    },
+    {
+      "id": "2004",
+      "idNote": "the revision Pokémon Emerald (2004) links: m4a_1.o of 0xF80 bytes and m4a.o of 0x1890; the id is the earliest known release, not an SDK label",
+      "references": [
+        {
+          "dataset": "pokeemerald",
+          "objects": ["src/m4a_1.o", "src/m4a.o"],
+          "tables": ["gMPlayJumpTableTemplate", "gScaleTable", "gFreqTable", "gPcmSamplesPerVBlankTable", "gCgbScaleTable", "gCgbFreqTable", "gNoiseTable", "gCgb3Vol", "gClockTable", "gXcmdTable"]
+        }
+      ]
+    }
+  ],
+  "reviewedNames": {}
+}

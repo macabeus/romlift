@@ -1,0 +1,16 @@
+{
+  "library": "libagbsyscall",
+  "versions": [
+    {
+      "id": "agb",
+      "idNote": "the BIOS call wrappers (swi n; bx lr) are the same in every SDK; four references merged so the union of wrappers is known",
+      "references": [
+        { "dataset": "pokeemerald", "objects": ["libagbsyscall.a(*)"] },
+        { "dataset": "sa2", "objects": ["libagbsyscall.a(*)"] },
+        { "dataset": "fe7j", "objects": ["asm/gba-syscall.o"] },
+        { "dataset": "klonoa", "objects": ["asm/libagbsyscall.o"] }
+      ]
+    }
+  ],
+  "reviewedNames": {}
+}
