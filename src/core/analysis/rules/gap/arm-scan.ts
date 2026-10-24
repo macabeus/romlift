@@ -8,6 +8,7 @@
 import { decode, isConditional } from '../../../../foundation/isa/decode.ts';
 import { contains, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../../foundation/rom/span.ts';
+import { insnAligned } from '../../../../foundation/rom/span.ts';
 import { toRun } from '../../address-map.ts';
 import { Claim } from '../../types.ts';
 import type { AnalysisView, Reading } from '../../types.ts';
@@ -17,7 +18,7 @@ import { defineRule } from '../define-rule.ts';
 /** The PoC's armCandidate(entry, hi). */
 function armReading(v: AnalysisView, entry: Addr, end: Addr): Reading | undefined {
   const { rom, profile } = v;
-  if ((entry & 3) !== 0 || !contains(rom, entry, 4)) return undefined;
+  if (!insnAligned('arm', entry) || !contains(rom, entry, 4)) return undefined;
   const first = decode('arm', u32(rom, entry), toRun(v.addresses, entry));
   const flow = first.flow.kind;
   if (flow === 'branch' || flow === 'invalid' || isConditional(first)) return undefined;

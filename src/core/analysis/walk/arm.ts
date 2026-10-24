@@ -11,6 +11,7 @@ import { decode, isConditional, rowFor } from '../../../foundation/isa/decode.ts
 import type { Insn } from '../../../foundation/isa/types.ts';
 import { contains, u32 } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
+import { insnAligned } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
 import { toRun } from '../address-map.ts';
 import { LIMITS } from '../limits.ts';
@@ -52,7 +53,7 @@ export function walkArm(env: WalkEnv, entry: Addr): Reading {
     runs.current = run;
     while (!rec.insns.has(pc)) {
       if (pc !== entry && view.isFunction(pc)) break;
-      if (!contains(rom, pc, 4) || (pc & 3) !== 0 || rec.pools.has(pc)) {
+      if (!contains(rom, pc, 4) || !insnAligned('arm', pc) || rec.pools.has(pc)) {
         rec.errors.push({ reason: 'not-code', at: pc });
         break;
       }

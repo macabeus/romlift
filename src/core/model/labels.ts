@@ -19,6 +19,7 @@ import type { Insn, SpecId } from '../../foundation/isa/types.ts';
 import { contains, peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { insnAligned } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { FunctionConfig } from '../config/schema.ts';
@@ -191,7 +192,7 @@ function insideAnItem(segments: Segments, refs: readonly CodeRef[]): (a: Addr) =
     if (s === undefined || a < s.start) return false;
     switch (s.kind) {
       case 'code':
-        return a % 2 !== 0 || (s.mode === 'arm' && (a - s.start) % 4 !== 0) || secondHalves.has(a);
+        return !insnAligned('thumb', a) || !insnAligned(s.mode, a - s.start) || secondHalves.has(a);
       case 'pool':
       case 'table':
         return a !== s.start;
@@ -283,7 +284,7 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
   const word = (site: Addr, value: number): void => {
     const matches = (l: Label): boolean => wordValueOf(l) === value;
     const at = preferredAt(index, value, matches);
-    reference(site, at >= 0 || (value & 1) === 0 ? at : preferredAt(index, value - 1, matches));
+    reference(site, at >= 0 || insnAligned('thumb', value) ? at : preferredAt(index, value - 1, matches));
   };
   for (const r of inputs.refs) {
     if (r.kind === 'short-branch' && loadModuleAt(modules, r.site) !== moduleIndexAt(modules, r.target, inputs.relocated)) continue;
