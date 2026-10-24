@@ -34,7 +34,8 @@ fixed the review of that run; its own closing run was interrupted during `npm te
 worktree with `landed` 4, exited 0 at every command, sa2 at 741 of 807 ms ("The closing gate"). Fix round 14 (D90)
 corrected the records the review of that run found wrong; its first closing run, at `4e17305`, was paused by the
 owner and is not recorded; the whole closing list at `76eacdb`, in a fresh worktree with `landed` 4, exited 0 at every
-command, sa2 at 725 of 816 ms ("The closing gate"). Nothing is merged to `main` or pushed; the merge waits for the phase pull request's
+command, sa2 at 725 of 816 ms ("The closing gate"). The review of that run raised three minors on the records of the
+link-above-the-project layout, carried into phase 6 ("Review"). The merge to `main` waits for the phase pull request's
 CI (AGENTS.md).
 
 ## Components
@@ -1618,3 +1619,25 @@ October. The resumed round checked that `4e17305` disposes of all seven findings
 finds only the corrected or quoted wording), and finished D90 b in `76eacdb`: `test/local/decompiled-c.test.ts`'s step
 list now says "not exactly as cpp does", which D90 b claimed it said, and the architecture-e0-1 row lists every line
 its grep finds. The whole closing list then ran at `76eacdb` ("Fix round 14's closing run"), every command exit 0.
+
+### The review of fix round 14's closing run at `d54c08f` (carried into phase 6)
+
+Three minors, no major, all on the link-above-the-project layout that D90 a recorded; none changes a build, a SHA-1 or
+a gate. Two (gate-honesty-e1-1, architecture-e1-1) are one record defect under two lenses: the record says every file
+behind a link under `include/` or `src/` to a directory above the project is read as text, while
+`readHeaderTexts` (`src/shell/project/read-inputs.ts:134`) reads every file only through a link under `include/`;
+through a link under `src/` it lists every file and reads only the `.h` files, so an unreadable non-header there is
+no `E_IO_READ`. The record states the cost wider than the behaviour and hides no risk. The third (gate-honesty-e1-2) is
+a consequence D90 a's list misses: a named pipe (FIFO) or device file in the linked directory blocks `readFile`, so
+`generate` hangs with no diagnostic instead of refusing with `E_IO_READ` (`filesFollowing` in
+`src/shell/project/disk-state.ts` keeps any non-directory, not only regular files). The owner authorised merging each
+phase pull request once its gate and CI pass, so the three are carried into phase 6 rather than fixed on the branch:
+the scaffold's `AGENTS.md` is in `templates/`, under the source digest, and changing it would leave the committed
+artifact (`198d8b3`) stale against the closing run at `76eacdb`. This section and roadmap.md's carry are docs only,
+outside the source digest. No gate changes.
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| gate-honesty-e1-1 | minor | **Carried into phase 6** (roadmap.md, "Carried from phase 4", the cpp-exact include resolution). Records only: say that through a link under `include/` every file is read, and through a link under `src/` every file is listed and only the `.h` files are read, in the known limitation above ("A link from `include/` or `src/` …"), the architecture-e0-2 row, D90 a (as an amendment note), architecture §6.6, `templates/AGENTS.md` and `test/golden/scaffold/scaffold.txt` (regenerated); add the `src/up -> ../..` case to the read-inputs test. Phase 6 rewrites the rule anyway when it reads only the files an `#include` names. |
+| architecture-e1-1 | minor | **Carried into phase 6**, the same records as gate-honesty-e1-1, and roadmap.md's carry; it also notes that the known limitation's "every `.h` under `src/`" already contradicts its "every file there is read as text". |
+| gate-honesty-e1-2 | minor | **Carried into phase 6**, the code option: `filesFollowing` lists only regular files (`isFile()`), so that a FIFO, socket or device file behind a followed link is skipped, with a unit test made with `mkfifo`; until then "a FIFO or device file there blocks `generate`" belongs in the known limitation and the scaffold's `AGENTS.md`. Before fix round 14 the trigger needed a FIFO inside `include/` (or a `.h` FIFO under `src/`); with a link above the project, any directory above it. |

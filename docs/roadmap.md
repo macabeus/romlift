@@ -934,6 +934,18 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   index that said "as cpp does" were reworded by fix round 14 (D90 b). Carried: phase 4 records
   it (the remedy, deleting the added `#include "include_asm.h"` line, already exists), and phase 6's rename reworks the
   reconciler.
+- **gate-honesty-e1-1, architecture-e1-1** (the review of fix round 14's closing run, phase-4.md "Review"): D90 a's
+  third layout says every file behind a link under `include/` or `src/` to a directory above the project is read as
+  text; `readHeaderTexts` reads every file only through a link under `include/`, and through one under `src/` lists
+  every file and reads only the `.h` files (no `E_IO_READ` on an unreadable non-header there). Records only: say so
+  in phase-4.md's known limitation and architecture-e0-2 row, D90 a (an amendment note), architecture §6.6, the item
+  above, `templates/AGENTS.md` and the regenerated `test/golden/scaffold/scaffold.txt`, and add the `src/up -> ../..`
+  case to the read-inputs test. Carried: the scaffold's `AGENTS.md` is under the source digest, and the item above
+  rewrites the rule.
+- **gate-honesty-e1-2** (the same review): a FIFO or device file in a directory a followed link reaches blocks
+  `readFile`, so `generate` hangs with no diagnostic rather than refusing with `E_IO_READ`; D90 a lists only time,
+  memory and `E_IO_READ`. `filesFollowing` (`src/shell/project/disk-state.ts`) lists only regular files
+  (`isFile()`), with a unit test made with `mkfifo`. Carried: a code change after the closing run, with a rare trigger.
 
 ### 6.0 Signature and trace interfaces (lead)
 
