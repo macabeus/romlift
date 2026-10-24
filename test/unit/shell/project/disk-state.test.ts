@@ -1,5 +1,6 @@
 // The disk snapshot for planWrites (architecture §6.4 step 3): every file under the generated roots plus
-// the given paths, hashed, 'absent' for a missing one, in code-unit order; the manifest and journal readers.
+// the given paths, hashed (`{kind: 'present', sha1}`), `{kind: 'absent'}` for a missing one, in code-unit order; the
+// manifest and journal readers.
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -46,15 +47,15 @@ test('readDiskState hashes every file under the generated roots and the given pa
   const state = await readDiskState(dir, ['src/main.c', 'include/macros.inc', 'asm/main.s']);
   assert.ok(state.ok);
   assert.deepEqual([...state.value], [
-    ['asm/main.s', sha1Of('a')],
-    ['asm/nonmatchings/main/B.s', sha1Of('b')],
-    ['asm/nonmatchings/main/a.s', sha1Of('c')],
-    ['data/main.s', sha1Of('d')],
-    ['expected/main.s', sha1Of('e')],
-    ['include/macros.inc', 'absent'],
-    ['ldscript.txt', sha1Of('l')],
-    ['src/main.c', sha1Of('c-file')],
-    ['symbols.ld', sha1Of('s')],
+    ['asm/main.s', { kind: 'present', sha1: sha1Of('a') }],
+    ['asm/nonmatchings/main/B.s', { kind: 'present', sha1: sha1Of('b') }],
+    ['asm/nonmatchings/main/a.s', { kind: 'present', sha1: sha1Of('c') }],
+    ['data/main.s', { kind: 'present', sha1: sha1Of('d') }],
+    ['expected/main.s', { kind: 'present', sha1: sha1Of('e') }],
+    ['include/macros.inc', { kind: 'absent' }],
+    ['ldscript.txt', { kind: 'present', sha1: sha1Of('l') }],
+    ['src/main.c', { kind: 'present', sha1: sha1Of('c-file') }],
+    ['symbols.ld', { kind: 'present', sha1: sha1Of('s') }],
   ]);
 });
 
@@ -62,7 +63,7 @@ test('readDiskState of an empty directory is the given paths, absent', async () 
   const dir = await project({});
   const state = await readDiskState(dir, ['asm/a.s', 'asm/a.s']);
   assert.ok(state.ok);
-  assert.deepEqual([...state.value], [['asm/a.s', 'absent']]);
+  assert.deepEqual([...state.value], [['asm/a.s', { kind: 'absent' }]]);
 });
 
 test('readDiskState reports a directory where a file is expected, and a path that leaves the project', async () => {

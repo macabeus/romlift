@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 import type { FileEntry } from '../../../src/core/emit/tree.ts';
 import { applyTextEdits, planHasErrors, planWrites } from '../../../src/core/write-plan/plan-writes.ts';
-import type { Manifest, WritePlan } from '../../../src/core/write-plan/types.ts';
+import type { DiskFileState, Manifest, WritePlan } from '../../../src/core/write-plan/types.ts';
 import { xorshift32 } from '../../helpers/prng.ts';
 
 function fakeHash(text: string): string {
@@ -89,11 +89,11 @@ function randomCase(r: Random): Case {
   };
 }
 
-function snapshot(disk: Disk, c: Pick<Case, 'entries' | 'manifest'>): ReadonlyMap<string, string> {
-  const out = new Map<string, string>();
-  for (const [path, text] of disk) out.set(path, fakeHash(text));
-  for (const entry of c.entries) if (!out.has(entry.path)) out.set(entry.path, 'absent');
-  for (const path of Object.keys(c.manifest?.files ?? {})) if (!out.has(path)) out.set(path, 'absent');
+function snapshot(disk: Disk, c: Pick<Case, 'entries' | 'manifest'>): ReadonlyMap<string, DiskFileState> {
+  const out = new Map<string, DiskFileState>();
+  for (const [path, text] of disk) out.set(path, { kind: 'present', sha1: fakeHash(text) });
+  for (const entry of c.entries) if (!out.has(entry.path)) out.set(entry.path, { kind: 'absent' });
+  for (const path of Object.keys(c.manifest?.files ?? {})) if (!out.has(path)) out.set(path, { kind: 'absent' });
   return out;
 }
 

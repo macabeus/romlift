@@ -13,6 +13,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { BASEROM_FILE, DECOMP_YAML_FILE, DECOMP_YAML_NAMES, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import { renderDecompYaml } from '../config/decomp-yaml.ts';
 import { ROMLIFT_DIR } from '../write-plan/types.ts';
+import type { DiskFileState } from '../write-plan/types.ts';
 import { WorkflowCodes } from './codes.ts';
 import { generate, writable } from './generate.ts';
 import { initConfigOf } from './init-config.ts';
@@ -81,13 +82,13 @@ export function initDirVerdict(listing: InitDirListing): { readonly ok: true } |
 /**
  * E_DIR_NOT_EMPTY for each file of an existing project that `init` would replace with other content: romlift.toml
  * (the user's config from then on), decomp.yaml or baserom.gba. `wanted` maps each of those project paths to the sha1
- * of what init would write there, `current` to the sha1 on disk or 'absent'; an absent or equal file is fine.
+ * of what init would write there, `current` to what is on disk; an absent (or unlisted) or equal file is fine.
  */
-export function replacedProblems(dir: string, wanted: ReadonlyMap<string, string>, current: ReadonlyMap<string, string | 'absent'>): readonly Diagnostic[] {
+export function replacedProblems(dir: string, wanted: ReadonlyMap<string, string>, current: ReadonlyMap<string, DiskFileState>): readonly Diagnostic[] {
   const problems: Diagnostic[] = [];
   for (const [path, sha1] of wanted) {
-    const now = current.get(path) ?? 'absent';
-    if (now === 'absent' || now === sha1) continue;
+    const now = current.get(path);
+    if (now === undefined || now.kind === 'absent' || now.sha1 === sha1) continue;
     const hint = path === ROMLIFT_CONFIG_FILE || path === DECOMP_YAML_FILE ? 'run `romlift generate` to regenerate the tree from it, or remove it to start over' : `it is another ROM; remove ${BASEROM_FILE} to start over`;
     problems.push(diagnostic(WorkflowCodes, 'E_DIR_NOT_EMPTY', `${dir} is a romlift project whose ${path} differs from what init would write: ${hint}`, { path }));
   }

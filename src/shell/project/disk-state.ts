@@ -1,5 +1,5 @@
 // The disk snapshot planWrites reads (architecture §6.4 step 3): the sha1 of every file under the generated
-// roots and of every given path ('absent' when there is none), and the project's manifest and journal.
+// roots and of every given path (absent when there is none), and the project's manifest and journal.
 // Mechanical: the shell lists, reads and hashes; what the digests mean is planWrites'. Directories are
 // listed only through shell/fs.ts's listDir (architecture §2).
 import type { Stats } from 'node:fs';
@@ -13,7 +13,7 @@ import { decodeJournal } from '../../core/write-plan/journal.ts';
 import type { Journal } from '../../core/write-plan/journal.ts';
 import { decodeManifest, isProjectPath } from '../../core/write-plan/manifest.ts';
 import { GENERATED_ROOTS, JOURNAL_PATH, MANIFEST_PATH } from '../../core/write-plan/types.ts';
-import type { Manifest } from '../../core/write-plan/types.ts';
+import type { DiskFileState, Manifest } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
 import { errnoOf, errorReason, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
@@ -40,16 +40,16 @@ async function readOptionalText(dir: string, path: string): Promise<IoResult<str
 }
 
 /**
- * The sha1 of a project file's bytes, or 'absent' when nothing is there (ENOENT, or ENOTDIR: a file where a directory
- * of its path should be). A directory is an E_IO_READ. The one read-and-hash rule of the disk snapshot and of
+ * What is at a project path: a file with the sha1 of its bytes, or absent when nothing is there (ENOENT, or ENOTDIR: a
+ * file where a directory of its path should be). A directory is an E_IO_READ. The one read-and-hash rule of the disk snapshot and of
  * apply-writes' check right before an edit (fix round 7, architecture-b2-11).
  */
-export async function digestOf(dir: string, path: string): Promise<IoResult<string>> {
+export async function digestOf(dir: string, path: string): Promise<IoResult<DiskFileState>> {
   const file = onDisk(dir, path);
   try {
-    return { ok: true, value: sha1Of(await readFile(file)) };
+    return { ok: true, value: { kind: 'present', sha1: sha1Of(await readFile(file)) } };
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: 'absent' };
+    if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: { kind: 'absent' } };
     return ioError('E_IO_READ', file, `cannot read ${file}: ${errorReason(error)}`);
   }
 }
@@ -148,12 +148,12 @@ async function oneFile(dir: string, a: string, b: string): Promise<boolean> {
 
 /**
  * The disk snapshot of `dir` for planWrites: the sha1 of every file under GENERATED_ROOTS and of every path
- * in `paths` (the tree's paths, and the manifest's), 'absent' for a path with no file. Keys in code-unit
+ * in `paths` (the tree's paths, and the manifest's), `{kind: 'absent'}` for a path with no file (digestOf). Keys in code-unit
  * order. A file the walk of the roots finds under another case than a path of `paths` that is the same file (a
  * case-insensitive file system) is listed once, under the spelling `paths` gives. A symbolic link is hashed
  * through to its target; a directory where a file is expected (a link to one included) is E_IO_READ.
  */
-export async function readDiskState(dir: string, paths: Iterable<string>): Promise<IoResult<ReadonlyMap<string, string | 'absent'>>> {
+export async function readDiskState(dir: string, paths: Iterable<string>): Promise<IoResult<ReadonlyMap<string, DiskFileState>>> {
   const wanted = new Set<string>();
   for (const path of paths) {
     if (!isProjectPath(path)) return ioError('E_IO_READ', path, `${JSON.stringify(path)} is not a project path`);
@@ -171,7 +171,7 @@ export async function readDiskState(dir: string, paths: Iterable<string>): Promi
       wanted.add(path);
     }
   }
-  const out = new Map<string, string | 'absent'>();
+  const out = new Map<string, DiskFileState>();
   for (const path of [...wanted].sort(compareCodeUnits)) {
     const digest = await digestOf(dir, path);
     if (!digest.ok) return digest;

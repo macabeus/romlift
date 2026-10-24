@@ -33,7 +33,7 @@ import { WritePlanCodes } from './codes.ts';
 import type { WritePlanCode } from './codes.ts';
 import type { Journal, JournalOp } from './journal.ts';
 import { isProjectPath } from './manifest.ts';
-import type { Manifest, WriteOp, WritePlan, WritePlanInputs } from './types.ts';
+import type { DiskFileState, Manifest, WriteOp, WritePlan, WritePlanInputs } from './types.ts';
 import { underGeneratedRoot } from './types.ts';
 
 /** The writer of the staleness stamp (modules.mk's ROMLIFT_TOML_SHA1, D82 a), whose write is the plan's last op. */
@@ -117,11 +117,11 @@ class Planner {
     return this.inputs.manifest?.files[path] !== undefined || this.journal.has(path);
   }
 
-  /** The disk's sha1 of a tree path; the snapshot must hold every tree path. */
-  diskOf(path: string): string {
-    const sha1 = this.inputs.disk.get(path);
-    if (sha1 === undefined) throw new RomliftInvariantError(`the disk snapshot has no entry for the tree path ${path}`);
-    return sha1;
+  /** What the disk holds at a tree path; the snapshot must hold every tree path. */
+  diskOf(path: string): DiskFileState {
+    const state = this.inputs.disk.get(path);
+    if (state === undefined) throw new RomliftInvariantError(`the disk snapshot has no entry for the tree path ${path}`);
+    return state;
   }
 
   entry(entry: FileEntry): void {
@@ -152,9 +152,9 @@ class Planner {
       // file too, whatever the snapshot read for it, so it is written again.
       for (const v of variants) this.caseRenamed.add(v);
       this.ops.push({ op: 'write', path, text, sha1, writer });
-    } else if (disk === sha1) {
+    } else if (disk.kind === 'present' && disk.sha1 === sha1) {
       this.ops.push({ op: 'keep', path, sha1 });
-    } else if (disk === 'absent' || this.owned(path) || underGeneratedRoot(path)) {
+    } else if (disk.kind === 'absent' || this.owned(path) || underGeneratedRoot(path)) {
       this.ops.push({ op: 'write', path, text, sha1, writer });
     } else {
       this.raise('E_PATH_NOT_OWNED', path, `${path} exists with other content and is not romlift's: it lies outside the generated roots and the manifest does not list it`);
@@ -165,21 +165,21 @@ class Planner {
 
   scaffold(path: string, text: string, writer: WriterId, executable: boolean): void {
     const disk = this.diskOf(path);
-    if (disk === 'absent') this.ops.push({ op: 'write', path, text, sha1: this.inputs.hash(text), writer, ...(executable ? { executable: true as const } : {}) });
+    if (disk.kind === 'absent') this.ops.push({ op: 'write', path, text, sha1: this.inputs.hash(text), writer, ...(executable ? { executable: true as const } : {}) });
     else if (executable && !(this.inputs.executables?.has(path) ?? false)) this.ops.push({ op: 'mode', path, executable: true });
-    else this.ops.push({ op: 'keep', path, sha1: disk });
+    else this.ops.push({ op: 'keep', path, sha1: disk.sha1 });
   }
 
   reconciled(path: string, baseSha1: string, edits: readonly TextEdit[]): void {
     const disk = this.diskOf(path);
     const done = this.journal.get(path);
-    if (done?.op === 'edit' && done.baseSha1 === baseSha1 && done.resultSha1 === disk) {
-      this.ops.push({ op: 'keep', path, sha1: disk });
+    if (done?.op === 'edit' && done.baseSha1 === baseSha1 && disk.kind === 'present' && done.resultSha1 === disk.sha1) {
+      this.ops.push({ op: 'keep', path, sha1: disk.sha1 });
       return;
     }
     const text = this.inputs.reconciledTexts.get(path);
     // The disk first: an absent file is absent whether or not its text was read.
-    const now: EditedFileState = disk === 'absent' ? { kind: 'absent' } : text === undefined || this.inputs.hash(text) !== baseSha1 ? { kind: 'unread' } : { kind: 'sha1', sha1: disk };
+    const now: EditedFileState = disk.kind === 'absent' ? { kind: 'absent' } : text === undefined || this.inputs.hash(text) !== baseSha1 ? { kind: 'unread' } : { kind: 'sha1', sha1: disk.sha1 };
     const stale = staleEdit({ path, baseSha1 }, now, 'planned');
     if (stale !== undefined || text === undefined) {
       if (stale !== undefined) this.diagnostics.push(stale);
@@ -202,11 +202,11 @@ class Planner {
     }
     for (const path of sortedKeys(deletable)) {
       if (this.seen.has(path) || underRetained(path, retained)) continue;
-      if (disk.get(path) !== 'absent') this.ops.push({ op: 'delete', path });
+      if (disk.get(path)?.kind !== 'absent') this.ops.push({ op: 'delete', path });
       else this.caseRenamed.delete(path);
     }
     for (const path of sortedKeys(disk)) {
-      if (disk.get(path) === 'absent' || !underGeneratedRoot(path) || this.seen.has(path) || deletable.has(path)) continue;
+      if (disk.get(path)?.kind === 'absent' || !underGeneratedRoot(path) || this.seen.has(path) || deletable.has(path)) continue;
       if (underRetained(path, retained) || this.owned(path)) continue;
       const why = manifest === null ? 'there is no manifest, so nothing is deleted' : 'the manifest does not list it';
       this.raise('W_UNOWNED_FILE', path, `${path} lies under a generated root but is not in the tree; ${why}, and it is left in place`);

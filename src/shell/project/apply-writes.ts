@@ -115,7 +115,7 @@ async function staleAtWrite(dir: string, op: Extract<WriteOp, { readonly op: 'ed
   // disk-state's digestOf: the snapshot's own rule for what is absent (architecture-b2-11).
   const now = await digestOf(dir, op.path);
   if (!now.ok) return undefined;
-  return staleEdit(op, now.value === 'absent' ? { kind: 'absent' } : { kind: 'sha1', sha1: now.value }, 'written');
+  return staleEdit(op, now.value.kind === 'absent' ? { kind: 'absent' } : { kind: 'sha1', sha1: now.value.sha1 }, 'written');
 }
 
 async function applyOp(dir: string, op: WriteOp, known: DiskKnown): Promise<Diagnostic | undefined> {

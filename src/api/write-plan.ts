@@ -1,4 +1,4 @@
-export type { Manifest, WriteOp, WritePlan, WritePlanInputs } from '../core/write-plan/types.ts';
+export type { DiskFileState, Manifest, WriteOp, WritePlan, WritePlanInputs } from '../core/write-plan/types.ts';
 export {
   GENERATED_ROOTS,
   JOURNAL_PATH,

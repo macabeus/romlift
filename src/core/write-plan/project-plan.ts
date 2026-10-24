@@ -6,14 +6,14 @@
 import type { FileEntry } from '../emit/tree.ts';
 import type { Journal } from './journal.ts';
 import { encodeManifest } from './manifest.ts';
-import type { Manifest, WritePlan, WritePlanInputs } from './types.ts';
+import type { DiskFileState, Manifest, WritePlan, WritePlanInputs } from './types.ts';
 
 /** What the shell read of the directory a tree is written into, for planWrites (§6.4 step 3). */
 export interface ProjectWriteState {
   readonly manifest: Manifest | null;
   readonly journal: Journal | null;
-  /** The sha1 of every tree path, manifest path and file under the generated roots, or 'absent'. */
-  readonly disk: ReadonlyMap<string, string | 'absent'>;
+  /** What is on disk at every tree path, manifest path and file under the generated roots (WritePlanInputs.disk). */
+  readonly disk: ReadonlyMap<string, DiskFileState>;
   readonly reconciledTexts: ReadonlyMap<string, string>;
   /** The tree paths of executable scaffold entries whose file has its executable bits (WritePlanInputs.executables). */
   readonly executables?: ReadonlySet<string>;
@@ -42,7 +42,7 @@ export function freshTreePlanInputs(entries: Iterable<FileEntry>, paths: readonl
   return {
     entries,
     manifest: null,
-    disk: new Map(paths.map((p) => [p, 'absent'] as const)),
+    disk: new Map<string, DiskFileState>(paths.map((p) => [p, { kind: 'absent' }])),
     reconciledTexts: new Map(),
     hash,
     retained,

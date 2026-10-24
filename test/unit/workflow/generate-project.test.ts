@@ -18,7 +18,7 @@ import type { ProjectWriteState } from '../../../src/core/write-plan/project-pla
 import { init } from '../../../src/core/workflow/init.ts';
 import type { ProjectInputs } from '../../../src/core/workflow/types.ts';
 import { planWrites } from '../../../src/core/write-plan/plan-writes.ts';
-import type { Manifest } from '../../../src/core/write-plan/types.ts';
+import type { DiskFileState, Manifest } from '../../../src/core/write-plan/types.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
 import { readScaffoldInputs } from '../../../src/shell/project/read-inputs.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
@@ -35,10 +35,10 @@ function afterInit(rom: Rom): { readonly project: ProjectInputs; readonly state:
   const plan = init({ rom, romFile: 'game.gba', options: {}, templates: SCAFFOLD.templates, romliftVersion: VERSION, agbcc: SCAFFOLD.agbcc });
   assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => `${d.code} ${d.message}`).join('; '));
   const entries: FileEntry[] = [...generatedEntries(rom, plan.result), ...plan.scaffold];
-  const fresh = planWrites({ entries, manifest: null, disk: new Map(entries.map((e) => [e.path, 'absent'] as const)), reconciledTexts: new Map(), hash, retained: [], romlift: VERSION });
+  const fresh = planWrites({ entries, manifest: null, disk: new Map(entries.map((e): [string, DiskFileState] => [e.path, { kind: 'absent' }])), reconciledTexts: new Map(), hash, retained: [], romlift: VERSION });
   const texts = new Map<string, string>();
   for (const op of fresh.ops) if (op.op === 'write') texts.set(op.path, op.text);
-  const disk = new Map<string, string | 'absent'>([...texts].map(([path, text]) => [path, hash(text)] as const));
+  const disk = new Map<string, DiskFileState>([...texts].map(([path, text]) => [path, { kind: 'present', sha1: hash(text) }]));
   const cTexts = new Map([...texts].filter(([path]) => path.startsWith('src/') && path.endsWith('.c')));
   const manifest: Manifest = fresh.manifest;
   return { project: { rom, configText: plan.tomlText, config: plan.config, cTexts }, state: { manifest, journal: null, disk, reconciledTexts: new Map() }, texts };
@@ -67,9 +67,9 @@ test('a C file the user changed is reconciled: its C is kept and the missing INC
   const { project, state, texts } = afterInit(rom);
   const mine = 'void Mine(void) {}\n';
   const disk = new Map(state.disk);
-  disk.set('src/main.c', hash(mine));
+  disk.set('src/main.c', { kind: 'present', sha1: hash(mine) });
   const firstAsm = [...disk.keys()].find((p) => p.startsWith('asm/')) ?? assert.fail('no asm path');
-  disk.set(firstAsm, 'absent');
+  disk.set(firstAsm, { kind: 'absent' });
   const plan = generateProject({ ...project, cTexts: new Map([['src/main.c', mine]]) });
   assert.ok(plan.ok);
   const writes = planWrites(projectPlanInputs(projectTreeEntries(rom, plan.result, hash), { ...state, disk, reconciledTexts: reconciledTextsOf(plan.result) }, hash, VERSION, retainedPrefixes(plan.result.model)));
@@ -93,7 +93,7 @@ test('a renamed function: generate replaces its INCLUDE_ASM line in src/<module>
   const plan = generateProject({ ...project, config: { ...project.config, functions }, cTexts: new Map([[path, base]]) });
   assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.code).join(', '));
   const known = new Map(state.disk);
-  for (const p of plan.result.paths) if (!known.has(p)) known.set(p, 'absent');
+  for (const p of plan.result.paths) if (!known.has(p)) known.set(p, { kind: 'absent' });
   const inputs = { ...state, disk: known, reconciledTexts: reconciledTextsOf(plan.result) };
   const writes = planWrites(projectPlanInputs(projectTreeEntries(rom, plan.result, hash), inputs, hash, VERSION, retainedPrefixes(plan.result.model)));
   const edit = writes.ops.find((op) => op.op === 'edit' && op.path === path);
@@ -101,7 +101,7 @@ test('a renamed function: generate replaces its INCLUDE_ASM line in src/<module>
   const resolved = [...generatedEntries(rom, plan.result)].find((e) => e.path === path);
   assert.equal(resolved !== undefined && 'text' in resolved ? resolved.text : '', edit?.op === 'edit' ? edit.text : 'no edit', 'a fresh tree gets the reconciled text');
   const disk = new Map(known);
-  disk.set(path, hash(`${base}// edited meanwhile\n`));
+  disk.set(path, { kind: 'present', sha1: hash(`${base}// edited meanwhile\n`) });
   const stale = planWrites(projectPlanInputs(projectTreeEntries(rom, plan.result, hash), { ...inputs, disk }, hash, VERSION, retainedPrefixes(plan.result.model)));
   assert.deepEqual(stale.diagnostics.map((d) => [d.code, d.path]), [['E_STALE_EDIT', path]]);
 });

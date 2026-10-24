@@ -330,7 +330,7 @@ const MUTANTS: readonly Mutant[] = [
     mutations: [
       {
         file: 'src/core/write-plan/plan-writes.ts',
-        from: "if (done?.op === 'edit' && done.baseSha1 === baseSha1 && done.resultSha1 === disk) {",
+        from: "if (done?.op === 'edit' && done.baseSha1 === baseSha1 && disk.kind === 'present' && done.resultSha1 === disk.sha1) {",
         to: 'if (false) {',
       },
     ],
