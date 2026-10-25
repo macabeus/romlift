@@ -11,7 +11,15 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
-**Verdict. NOT LANDED.** Waves 1 to 3 are merged on `phase-6`, the closing round fixed what failed in the code (the
+**Verdict after fix round 1 (D95): still NOT LANDED.** The review's 38 findings are fixed or recorded ("Review"); the
+closing list ran a third time in a fresh worktree at `e8043cc` (run 3 below) with the same four failing commands and
+the same failing gates: `g6.objdiff` on the real tier (gated differences unchanged, fe7j 19, klonoa 131, pokeemerald
+157, sa2 4, sa3 55, tmc 17), `g6.reconciler`, `g6.rename`, `g6.evidence-conflict` and `g1.provenance` on the ci tier,
+and `bench provenance` on the `g6.objdiff` record. Every other gate passes, `test:local` included (121 of 121). The
+phase waits for the owner's answers to Q1 to Q3, Q5, Q6 and Q8 to Q14; nothing is merged, pushed or opened as a pull
+request.
+
+**Verdict of the closing record. NOT LANDED.** Waves 1 to 3 are merged on `phase-6`, the closing round fixed what failed in the code (the
 signature matcher, the leave-one-out count, the objdiff family's map, one local test), `test/gates/phase.json` is at `{
 "landed": 6 }` on the branch only, and the closing list ran twice in fresh worktrees ("The closing gate"). It does not
 pass: `npm run bench -- gates --require 6 --tier real` fails `g6.objdiff` (Q6: D34 as written, the gated differences
@@ -44,9 +52,10 @@ a pass).
 - **Reconciler and `rename`** (6.E, phase 5's 5.A). `romlift rename <old> <new> [--json]`: a one-line TOML patch (its
   `from` dropped) and identifier tokens only in `src/` and `include/`, refusing an existing `<new>` or an unknown
   `<old>`; the `INCLUDE_ASM` planner's add, remove and move cases (`test/golden/reconcile/**`); the matchings split.
-- **objdiff targets and C data** (6.F, phase 5's 5.C). `expected/<module>.s` (every module's ROM range as an object
-  without relocations, `make expected`), `objdiff.json` (one unit per `c` module), and the `[[modules]]` key
-  `data_start`, whose range is the C object's `.rodata` in place of phase 4's C-data assertion.
+- **objdiff targets and C data** (6.F, phase 5's 5.C). `expected/<module>.s` and `expected/rom/<module>.s` (since fix
+  round 1 the module as its unit assembles it, with the ROM's bytes written over its `.text` by `make expected`, its
+  relocations kept, D95 a), `objdiff.json` (one unit per `c` module), and the `[[modules]]` key `data_start`, whose
+  range is the C object's `.rodata` in place of phase 4's C-data assertion.
 - **The carried minors** of phase 4 (roadmap "Carried from phase 4"), each with its component in the table below; the
   include resolution behind a symbolic link is cpp-exact.
 - **Commands** added: `signatures build <spec>`, `signatures <rom>`, `rename <old> <new>`, `init --no-signatures`, `bench
@@ -473,6 +482,83 @@ written (Q2, Q3, Q5) or one D34 gates as written (Q6, and with it `g1.provenance
 changed here. sa2's `g2.speed` at 97.7% of its limit is at the top of the spread phase 4 recorded (85.6% to 97.7%); the
 analysis did not change in this phase's closing round. `bench/results.json` is committed as run 2's artifact.
 
+### Run 3 (`e8043cc`, fix round 1, worktree `romlift-wt/phase-6-fix1`)
+
+After the review's fixes (D95). The first attempt at `080f589` stopped at `npm test` (2 of 2,836 failed: the explain CLI
+tests read the checkout's `signatures/`, empty in a fresh worktree before the build loop); fixed by `e8043cc` and the
+list run again from the start.
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (0 s) |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | pass |
+| `npm test` | 0 | 2,836 tests, 2,836 pass, 0 fail, 0 todo (41 s) |
+| `npm run fixtures -- check` | 0 | 54 of 54 fixtures agree (binutils 2.45.1) |
+| signature build loop | 0 | six files, 0 diagnostics (20 s) |
+| `npm run build && npm pack --pack-destination …` | 0 | `romlift-0.0.0.tgz`, 760 files, 608.4 kB |
+| packed-signature check (the full one-liner above) | 0 | no built signature file packed |
+| `npm run export-poc -- --mode raw` | 0 | (15 s) |
+| `npm run export-poc -- --mode scored` | 0 | (253 s) |
+| `npm run export-poc -- --mode parity` | 0 | (79 s) |
+| `npm run export-poc -- --mode queries` | 0 | (52 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 121 tests, 121 pass, 0 skipped (729 s); `listed-invalid-signatures` 17 warnings as pinned; `objdiff-json` klonoa 51 of 422 functions below 100%, all in Q12's class (3,276 words, 4 calls) |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (objdiff-cli 3.7.2) |
+| `npm run corpus` | 0 | ok (4.1 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows link (raw and readable) and build from `init` to the SHA-1, both sealed ROMs pass; objdiff gated differences fe7j 19, klonoa 131, pokeemerald 157, sa2 4, sa3 55, tmc 17 (unchanged); memory family peak RSS `init` 931.2 MiB, `generate` 984.3 MiB against the 1,536 MiB limit, heap cap 1,024 MiB (278 s) |
+| `npm run bench -- regression` | 0 | no regression against `89deb54` |
+| `npm run bench -- gates --require 6 --tier real` | **1** | 30 records: 28 pass, 1 historical (`g2.poc-parity`), **1 fail: `g6.objdiff`** (Q6). Among the passes: `g6.expected-bytes` (448 modules on 60 ROMs, the new targets), `g6.signatures-judged` (sizes now accounted: fe7j 20 = 15 equal + 5 unjudged, klonoa 17 = 15 + 2, tmc 5 = 0 + 5), `g6.ram-code-mapped`, `g6.signatures-loo`, `-heldout`, `-rebuild`, `g2.speed` (ratio 0.970; sa2 734 of 791 ms, klonoa 260 of 310), `g3.speed-budget` (pokeemerald `generate` 8,035 of 9,625 ms, `init` 10,598 of 14,438 ms), `g4.e2e-real` (3,375 s) |
+| `npm run bench -- gates --require 6 --tier ci` | **1** | 46 gates: 42 pass, **4 fail: `g1.provenance`** (the artifact's `g6.objdiff` record), **`g6.evidence-conflict`** (Q5), **`g6.reconciler`** (Q2), **`g6.rename`** (Q3). Among the passes: `g4.cli-contract` (10 commands, 17 `--json` runs, no recipe option missing), `g4.packed-e2e` (760 files), `g3.large-rom` (`init` 997.5 MiB), `g6.c-data-ranges`, `g6.explain-coverage`, `g6.no-heldout-references` (1,987 s) |
+| `npm run bench -- provenance` | **1** | source digest `8e3c9981…` ok (Node 24); **gate record: `g6.objdiff` is fail**; families live; 6 rows, no sealed row |
+
+`bench/results.json` is committed as run 3's artifact.
+
 ## Review
 
-None yet.
+### Fix round 1 (review of `1484ab0`, D95)
+
+38 findings (1 blocker, 16 major, 21 minor). Every one is fixed or recorded; none is rejected. Commits on `phase-6`:
+`a018847` (expected/, `__load_`), `648ba59` (rename), `bb37577` (the split, zod, the gate tightenings, the local test),
+`080f589` (documents), `e8043cc` (hermetic explain tests), then this record.
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| architecture-1 | major | Fixed (`bb37577`): `core/workflow/proposals.ts` holds `checkProposals` alone (185 lines); the signature layer and folding are `core/workflow/signature-layer.ts`; the library-module planning is `core/layout/module-proposals.ts`; `freeModuleName` lives beside `runsAtName`; §2 updated. |
+| architecture-2 | major | Fixed (`bb37577`): `planRunsAtBorders` and `planLibraryModules` build the resumed module once (`resumedModule`) and name through `runsAtName`/`freeModuleName`, which init's `inferModules` now uses for library names too (same output); `ModuleProposal` is exported once from `core/proposals/types.ts`. |
+| architecture-3 | major | Fixed (`bb37577`, D95 d): signature file and spec are zod schemas decoded with `safeParse` into the same results and refusal texts (`issues.ts`); `Refusal`, `refuse`, `decodeHelpers` deleted; the `zod` edge added to §2 and the checker. |
+| architecture-4 | major | Fixed (`bb37577`, D95 b): `signaturesOnRom`/`signaturesOver` own the analysis-error policy; the CLI and the bench call them; `loadSignatureFiles` is the one locator call of the four commands, `W_SIGNATURES_ABSENT` included; whether a run reports the notes is the workflow's (`signatureNotes`, `enabled` and `--no-signatures`). |
+| architecture-5 | major | Fixed (`648ba59`, D95 c): `readRenameTexts` lists every skipped file (link, not-utf8, binary) with its bytes; `planRename` warns `W_RENAME_SKIPPED` or refuses `E_RENAME_SKIPPED_FILE` when a skipped file names the old name; the link policy is documented in architecture §6.6. |
+| architecture-6 | minor | Fixed (`bb37577`): `isSealedDataset` and `isLibraryName` in `core/signatures/spec.ts` (the bench reads them via `romlift/internal`); `isRegularFile`, `readText`, `readJson` in `shell/fs.ts`, ENOENT/ENOTDIR only; `locate.ts` reports an unreadable entry as `W_SIGNATURE_FILE_SKIPPED` instead of dropping it. |
+| architecture-7 | minor | Fixed (`a018847`): one `incbinLine` in `foundation/asm/dialect.ts` (data writer, C-data stand-in, expected writer); the expected writer's `.inst` copy is gone with its byte printer. |
+| architecture-8 | minor | Fixed (`bb37577`): `insnUnit`, one `functionAt` (`core/analysis/types.ts`), `alignUp` (`foundation/util/align.ts`), `le32` (`foundation/util/bytes.ts`), `hexBytes`/`bytesOfHex` together in `foundation/util/hex.ts`. |
+| architecture-9 | minor | Fixed (`bb37577`): `loadSpaceImage` returns `RomBytes` (bytes and bounds, no sha1 or header); the byte readers and the table idiom take `RomBytes`. |
+| architecture-10 | minor | Fixed (`bb37577`): `placedEnd` deleted; `GatePhase` is `1 \| 2 \| 3 \| 4 \| 6` with a D92 comment. |
+| architecture-11 | minor | Fixed (`bb37577`): `analyze-update.test.ts` places a library region at a runs_at range's end and asserts the libfix module replaces `main_080001B4`; `test/unit/layout/module-proposals.test.ts` covers the planners. |
+| architecture-12 | minor | Fixed (`bb37577`): `parseSourceKey` beside `sourceKey`, a round-trip test, used by `explain.ts`. |
+| architecture-13 | minor | Fixed (`648ba59`): `renamedFunction`/`renamedSymbol` drop only `from` by rest spread. |
+| architecture-14 | minor | Fixed (`648ba59`): `C_KEYWORDS` and `directiveOf` in `c-tokens.ts`; `c-scan.ts` and `rename-tokens.ts` read directives through it (no regex over a code line; a directive's own name is never renamed). |
+| architecture-15 | minor | Fixed (`080f589`): §2 records the r1-2 aliases as removed in phase 6 and lists core/workflow's real contents. |
+| correctness-1 | major | Fixed (`648ba59`, D95 c): `rename` refuses a name the confirm model emits (`renameModelNames`); measured on sa1: `unk_0800032C`, `gUnk_0809B670` and `_08004808` each exit 1 with `E_RENAME_EXISTS` and change nothing; tests with a default orphan, a data symbol and a local label. |
+| correctness-2 | major | Fixed as far as the gates allow, the rest an owner question (`a018847`, D95 a, Q12): targets are the unit's own assembly with the ROM's bytes written over `.text`, relocations kept (`objcopy --update-section` drops them, measured); sa1 34 to 33 functions below 100%, klonoa 51; every remaining row is objdiff reading a relocated field as its addend, which no object holding the ROM's bytes can avoid. `test/local/objdiff-json` now runs klonoa and checks every differing row is in that class. |
+| correctness-3 | major | Owner question Q14 (pokeemerald's `_fpadd_parts_f` measured); the gate stands changed without authorisation until he answers. |
+| correctness-4 | major | Fixed in the gate (tightening: equal + differ + unjudged = proposed, unjudged reported per ROM), §8.4 documents the exemption, and the exemption is owner question Q13 with the counts. |
+| correctness-5 | major | Fixed (`a018847`): pool and data words name a runs_at load address as `__load_<module> + n`; the text-layout check resolves it; klonoa with the override links to its SHA-1 and prints `.4byte __load_ram_03000388 + 1`; the todo test is a test. |
+| correctness-6 | minor | Fixed (this record): run 2 counts corrected to 28 pass, 1 historical, 1 fail (real) and 46 gates, 42 pass, 4 fail (ci). |
+| correctness-7 | minor | Fixed (this record): RSS measured against the 1,536 MiB gate limit with the heap capped at 1,024 MiB, spread noted. |
+| correctness-8 | minor | Fixed (`bb37577`): a run range over the ROM's load space (the identity excepted) or over another run range is `E_OVERRIDE_INVALID`; model tests. |
+| correctness-9 | minor | Recorded: the ROM-called tail `sub_0804F6B6` stays inside the range because the RAM code loads the pool word after it PC-relatively (D63); `bench/overrides/klonoa.json`'s `source` and "Known limitations" record the two raw `bl` lines as the measured cost. |
+| correctness-10 | minor | Fixed (`bb37577`, D95 e): a recipe option missing from `--help` fails `g4.cli-contract`. |
+| correctness-11 | minor | Fixed in the documents (`080f589`): §6.6 states that a range may take the `data` modules after it and that `make` needs C for the whole range, and that `verify --link` does not judge a data range's C. |
+| delivery-1 | blocker | Agreed: the phase stays unmerged. The full closing list ran again after the fixes (below); it still fails on the gates that wait for the owner. |
+| delivery-2 | major | Fixed (this record, roadmap 6.I, AGENTS.md): Q5 says scenario (c) is the lead's own at `3becd96` and that option (a) corrects it; a gate the lead writes or restates is run against the fixtures before it is frozen. |
+| delivery-3 | major | Fixed (`bb37577`): `test/local/listed-invalid-signatures.test.ts` runs init with signatures on the six tuning ROMs and pins the set, which turned out to be 17, not 3 (Q10 updated); AGENTS.md's wording and listed-invalid's name and header corrected. |
+| delivery-4 | minor | Fixed (`080f589`): README lists `g1.provenance` and `bench provenance` as failing on the artifact's `g6.objdiff` record, and separates `g6.objdiff` from the three gates that cannot pass as written. |
+| delivery-5 | minor | Fixed: thirteen components in this record, roadmap "As executed", D93's amendment and "Deviations". |
+| delivery-6 | minor | Fixed: correctness-r0-5's remainder credited to `p6-objdiff` here and in roadmap's carried table. |
+| delivery-7 | minor | Fixed: the roadmap threshold marks tmc's floor pending Q9 and the name rule pending Q14; the cli-contract skip is removed (correctness-10). |
+| delivery-8 | minor | Fixed (`080f589`): AGENTS.md lists the phase-6 local suites and the five workflows. |
+| delivery-9 | minor | Fixed: the full packed-file one-liner is written in both closing lists. |
+| delivery-10 | minor | Fixed (`080f589`): plan.md's `import-legacy` row marked dropped (D92). |
+| delivery-11 | minor | Fixed (`080f589`): the scaffold's AGENTS.md and README document `npx romlift rename`, `from = "sig:…"` entries, `runs_at` overrides and the objdiff remainder; scaffold golden regenerated. |
+| delivery-12 | minor | Recorded in "Known limitations" (librfu ambiguity and m4a@2004 dropped warnings on klonoa). |
+| delivery-13 | minor | Fixed: Q6 gains option (c), the `tool` class as uncompared (klonoa 131 to 1). |
