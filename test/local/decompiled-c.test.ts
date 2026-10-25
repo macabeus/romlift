@@ -139,10 +139,10 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
   const prebuilt = prebuiltAgbcc();
   const env = { ROMLIFT_CLI: cli };
   const file = (p: string): string => path.join(dir, ...p.split('/'));
-  // `--no-signatures` (phase 6): this test is about the reconciler and keeps phase 4's config; with the signature layer
-  // init lists three m4a functions that warn W_LISTED_INVALID in every confirm run (phase-6.md, Q10), which would
-  // reach every `codes` assertion below.
-  const init = await run(cli, ['init', 'baserom.gba', '--no-signatures', '--json'], dir);
+  // init with the signature layer, as a user runs it: since Q10 (phase-6.md, D100) the m4a functions it lists raise no
+  // W_LISTED_INVALID in the confirm runs, so every `codes` assertion below holds as in phase 4 (fix round 1 had run
+  // `init --no-signatures` here until then).
+  const init = await run(cli, ['init', 'baserom.gba', '--json'], dir);
   assert.equal(init.code, 0, tail(init));
   for (const part of ['bin', 'include', 'lib']) if (prebuilt !== undefined && existsSync(path.join(prebuilt, part))) await cp(path.join(prebuilt, part), path.join(dir, 'tools', 'agbcc', part), { recursive: true });
   const setup = await run('./setup.sh', [], dir, env);

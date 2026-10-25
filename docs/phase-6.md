@@ -18,6 +18,12 @@ step applied his gate edits and records (Q1 to Q3, Q5, Q8, Q9, Q11, Q13, Q14): `
 tiers; it fixed seven of fix round 3's nine carried minors ("Review", fix round 4, step 1). The round's later steps
 apply Q10, Q12, Q6 with Q15, and Q16, then run the closing list.
 
+**Fix round 4, step 2 (D100): not landed yet.** Q10 applied as the owner chose (option (c)): the confirm run validates
+a listed extent per inner label's mode and takes a fall-through into the next listed function as an exit; no
+`W_LISTED_INVALID` on the six tuning ROMs after `init` with signatures (17 before), pinned by
+`test/local/listed-invalid-signatures`; `decompiled-c` runs `init` with signatures again ("Review", fix round 4,
+step 2).
+
 **Verdict after fix round 3 (D97): still NOT LANDED.** The review of fix round 2 (`b64f0b7`) raised 11 findings: one
 major (correctness-r2-1, a `runs_at` module named `text` or `c_data_<m>` broke the link), fixed in this round, and ten
 minors, nine carried and one an owner question (Q16) ("Review", fix round 3). The orchestrator asked to land the phase; it cannot: the fourteen owner
@@ -174,7 +180,7 @@ before it found, and the round fixed:
 - **`test/local/decompiled-c.test.ts`** (`8487bde`; Q10). Run 1's `test:local` failed there (113 of 114): `init` on
   klonoa lists three m4a functions with `from = "sig:m4a@2001"` that warn `W_LISTED_INVALID` in every confirm run, which
   reached the reconciler test's exact `codes` assertions. The test now runs `init --no-signatures`; the warnings are
-  Q10.
+  Q10 (answered; fix round 4, step 2 restored `init` with signatures there, D100).
 
 ## Deviations from the roadmap
 
@@ -200,7 +206,8 @@ before it found, and the round fixed:
 - **Matcher refinements beyond the PoC's step 2** (D94): the PoC's libraries never showed the cases; the new libraries
   (librfu, agb_flash) and the stricter judged gate (names on a reference, tables) did.
 - **Leave-one-out counted by counterpart** (D94 d, Q8): the bench's counting changed, not the gate file.
-- **`decompiled-c` runs `init --no-signatures`** (Q10).
+- **`decompiled-c` ran `init --no-signatures`** (Q10) from fix round 1 to fix round 4's second step, which restored
+  `init` with signatures there once Q10's rule left no `W_LISTED_INVALID` (D100).
 - **A thirteenth component, `p6-objdiff`** (wave 3, D93's amendment): unplanned in the roadmap's table; it took
   architecture-r2-2 and r2-3 from `p6-c-data-expected` and correctness-r0-5's remainder from `p6-rename`, and changed
   readable-printer files outside 6.F's Owns list (`src/core/emit/print/pool.ts`, `print/data.ts`,
@@ -330,6 +337,16 @@ Raised at the closing round:
   (b) `checkProposals` drops a signature function the valid.* rules refuse (`W_EVIDENCE_CONFLICT`), losing three true
   names; (c) the confirm run validates a listed extent per inner label's mode and accepts a fall-through into the next
   listed function.
+  **Answered on 25 October 2026 (D100), "Validate per mode"**: "option (c): the confirm run validates a listed extent
+  per inner label's mode (an ARM part folded in as an inner `label = true` of mode arm is checked as ARM) and accepts a
+  fall-through into the next listed function, so the 17 m4a entries no longer warn W_LISTED_INVALID after init;
+  test/local/listed-invalid-signatures.test.ts pins the empty set; restore phase 4's listed-invalid premise for init
+  with signatures if it now holds." Applied (fix round 4, step 2, `src/core/analysis/driver/listed-extent.ts`): the
+  entry is judged by its Thumb reading with the bytes its extent's ARM labels read counted as covered, each such
+  label not yet a function by the valid.* rules over its own ARM reading, and a last instruction that ends exactly at
+  the next listed function and flows on into it is the reading's exit; anything else still warns. Measured: no
+  `W_LISTED_INVALID` on the six tuning ROMs (17 before); the premise holds, so `test/local/decompiled-c` runs `init`
+  with signatures again and passes.
 - **Q11. `g4.toml-mutations`' edits** (correctness-b0-5, b0-4, carried). `p6-analysis-layout` built the product side
   (a `data` override claims its span, a `code` override seeds `seed.override`), but the gate's add-override edit still
   covers a found function exactly, a no-op that warns `W_OVERRIDE_IGNORED` (run 1: 273 legal edits, add-override 60 such
@@ -420,8 +437,8 @@ Raised at fix round 3 (the review of fix round 2, D97):
   does (a change to a frozen gate file); (b) accept the exemption and write it into §13 and D96 a.
 
 The owner answered every open question on 25 October 2026. Applied by fix round 4's first step (D98): Q1, Q2, Q3, Q5,
-Q8, Q9, Q11, Q13, Q14. Answered, applied by the round's later steps: Q6 and Q15, Q10, Q12, Q16. Q4 and Q7 need no
-answer.
+Q8, Q9, Q11, Q13, Q14; by its second step (D100): Q10. Answered, applied by the round's later steps: Q6 and Q15, Q12,
+Q16. Q4 and Q7 need no answer.
 
 ## Known limitations
 
@@ -445,8 +462,6 @@ answer.
 - **`verify --link` does not judge a C data range's C**: it links the range's ROM bytes as a stand-in `.rodata`, so a C
   file that leaves part of its range undefined passes it while `make` fails; a range whose `data_start` lies at or past
   its module's end takes the `data` modules after it (architecture §6.6, correctness-11).
-- **Signature-proposed functions the valid.* rules refuse warn `W_LISTED_INVALID`** in every confirm run (17 on the six
-  tuning ROMs, three on klonoa; Q10, until the owner answers; pinned by `test/local/listed-invalid-signatures`).
 - **objdiff-cli 3.7.2 cannot read one klonoa reference object** (`src/code_0804B254.o`, "Invalid instruction size 1"):
   its 130 functions are uncompared (`tool`, Q6).
 - **correctness-b2-3's remainder stays carried**: `modules.mk` records only `romlift.toml`'s SHA-1, not the romlift
@@ -763,3 +778,27 @@ signature files built, `bench/.local/agbcc` and `bench/.local/poc` copied in):
 
 Not run in this step: the full closing list (the round's last step runs it), `g6.objdiff` (Q6 and Q15), `g1.provenance`
 and `bench provenance` (they read the committed artifact, which the closing run regenerates).
+
+### Fix round 4, step 2 (Q10, D100)
+
+Q10 applied as the owner chose: `src/core/analysis/driver/listed-extent.ts` (`checkListed` calls its
+`whyListedInvalid`; `validity.ts firstInvalid` judges an ARM entry by every rule's `check`), its unit test beside the
+driver's, `test/local/listed-invalid-signatures` pinning the empty set, and `test/local/decompiled-c` running `init`
+with signatures again. Measured on the phase branch with the built signature files (rebuilt from the six specs into a
+scratch directory: byte-equal to `signatures/*.json`):
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 tests pass |
+| `npm test` | 0 | 2,855 tests, 2,855 pass (the new `listed-extent.test.ts`: 5) |
+| `ROMLIFT_REQUIRE_LOCAL=1` `test/local/listed-invalid-signatures` | 0 | no `W_LISTED_INVALID` on fe7j (134 signature-named functions), klonoa (120), pokeemerald (377), sa2 (147), sa3 (189), tmc (68); 17 before (15 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1` `test/local/listed-invalid` | 0 | 0 on each ROM, and the other diagnostics as phase 3; with every listed entry validated fe7j 2, klonoa 1, pokeemerald 3, sa2 1, sa3 1, tmc 21 (5, 4, 6, 4, 4, 24 before: three fewer on each ROM) |
+| `ROMLIFT_REQUIRE_LOCAL=1` `test/local/epoch-reuse` | 0 | 'epoch-reuse' equals 'epoch' on the six tuning ROMs |
+| `ROMLIFT_REQUIRE_LOCAL=1` `test/local/decompiled-c` (with signatures) | 0 | 1 of 1 to klonoa's SHA-1 (142 s) |
+| `g2.determinism`, `g3.self-check`, `g3.link` (ci) | 0 | 54 fixtures each |
+| `g4.e2e-fixtures`, `g4.generate-idempotent` (ci) | 0 | 53 fixtures built to their SHA-1; every fixture's generate keeps every file |
+| `g4.toml-mutations` (ci, real) | 0, 0 | ci 212 legal edits (add-override 23), 215 illegal, 54 ROMs (464 s); real 242 legal (add-override 29), 239 illegal, 60 ROMs (956 s) |
+| `g6.explain-coverage`, `g6.evidence-conflict`, `g6.reconciler` (ci) | 0 | 58 analysis and 5 sig rule ids in 213 goldens; 162 contradictions on 54 fixtures; 9 cases |
+| `g2.confirm-equals-discover`, `g4.e2e-real` (real) | 0, 0 | tmc's recorded limitation only; the six tuning ROMs to their SHA-1s (220 s) |
+

@@ -919,8 +919,12 @@ which they are dropped (their verdicts stay memoised) and re-walked when asked f
   function set, cut at the next listed entry that is not `label = true` (`ModelFunction.source.extent`
   says which). Only a listed entry with `from` (another source's proposal, §6.5) is validated
   (`Seed.validate`, which `listedSeedsOf` sets exactly when the entry has `from`; D68 e, the owner's answer
-  "Only entries with `from`", D76 a); one that fails validity is honoured (`W_LISTED_INVALID`, recorded in
-  `listedInvalid`). An entry without `from` is taken without the valid.* rules and never warns. `generate`,
+  "Only entries with `from`", D76 a), over its listed extent per inner label's mode: the entry by its Thumb
+  reading with the bytes its extent's ARM labels (`label = true`, `mode = "arm"`) read counted as covered, each such
+  label that is not yet a function by the valid.* rules over its own ARM reading, and a reading whose last
+  instruction falls through into the next listed function, starting exactly at the extent's end, taking that
+  fall-through as its exit (`core/analysis/driver/listed-extent.ts`; phase-6.md Q10, the owner's option (c), D100).
+  One that fails validity is honoured (`W_LISTED_INVALID`, recorded in `listedInvalid`). An entry without `from` is taken without the valid.* rules and never warns. `generate`,
   `model`, `verify`, `explain` and `analyze --update`'s confirm run all seed through `listedSeedsOf` (D77 e). Harvest and gap rules still run, but their acceptances become `UnlistedFinding`s and
   `W_UNLISTED_FUNCTION` diagnostics, and claim nothing. A `bl` to an unlisted target is decided by the
   same `bl.*` rules but never creates a function. So a tool upgrade cannot add or drop a split; it can

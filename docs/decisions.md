@@ -4540,6 +4540,57 @@ for a linked directory's files and a link to an edited directory). `g6.ram-code-
 `g6.expected-bytes` (225 modules on 54 ROMs), `g3.self-check`, `g3.link` and `g6.explain-coverage` pass on the ci tier
 at `10fe83a`.
 
+## D100. Phase-6 Q10, the owner's answer of 25 October 2026: the confirm run validates a listed extent per mode
+
+**Context.** With the signature layer `init` lists m4a functions with `from = "sig:m4a@<version>"`, which every
+confirm run validates (D76 a), and 17 of them on the six tuning ROMs warned `W_LISTED_INVALID` (phase-6.md Q10,
+pinned by `test/local/listed-invalid-signatures`): umul3232H32 and SoundMainRAM, Thumb entries that switch to ARM in
+place with their ARM code folded in as an inner `label = true` of mode `arm` (`valid.dense`: the Thumb walk leaves
+the ARM code unwalked, walk.inline-arm-switch, so it counted as holes), and ldrb_r3_r2, two bytes that fall through
+into chk_adr_r2 (`valid.returns-or-prologue`). Phase 4's `listed-invalid` premise (no `W_LISTED_INVALID` after
+`init`) held only without signatures, and `test/local/decompiled-c` ran `init --no-signatures`.
+
+**Decision.** In the owner's words (Bruno Macabeus, 25 October 2026), Q10, chosen "Validate per mode": "option (c):
+the confirm run validates a listed extent per inner label's mode (an ARM part folded in as an inner `label = true` of
+mode arm is checked as ARM) and accepts a fall-through into the next listed function, so the 17 m4a entries no longer
+warn W_LISTED_INVALID after init; test/local/listed-invalid-signatures.test.ts pins the empty set; restore phase 4's
+listed-invalid premise for init with signatures if it now holds."
+
+Applied in `src/core/analysis/driver/listed-extent.ts` (`checkListed` calls its `whyListedInvalid`):
+
+- (a) **Per mode.** The listed extent is `extentEndOf`'s (the listed size, else the reading cut at the next listed
+  entry that is not a label). The listed Thumb entry is judged by the validity slot over its Thumb reading with the
+  bytes the ARM readings of the extent's inner labels of mode `arm` cover (instructions, pools, tables) counted as
+  covered; each such label that is not a function yet is then judged as ARM, by the slot over its own ARM reading
+  (`validity.ts firstInvalid`, whose `checkEntry` path stays Thumb-only), its failure reported as "its arm label
+  <addr>: …". A label outside the extent is not judged with it. An extent with no such label and no fall-through is
+  judged exactly as before (`whyInvalid`'s reading).
+- (b) **Fall-through.** A reading falls through into the next listed function when its last instruction ends
+  exactly at the extent's end, that address is a listed entry that is not a label, and the instruction flows on
+  (decoded: an ordinary instruction, `adr`, `bl`, a conditional branch or a pool load not into pc, with no exit of the
+  reading at it). The judged reading then counts that fall-through as a tail exit (rule `seed.listed`), as a branch to
+  the next function would be. Anything else gains nothing and still warns: an extent ending before the next function
+  (a data override there, say), a label at the end, a last instruction that branches, returns or jumps.
+- (c) **The tests.** `test/local/listed-invalid-signatures` pins the empty set on the six tuning ROMs; phase 4's
+  premise now holds with signatures too, so `test/local/decompiled-c` runs `init` with the signature layer again (its
+  `--no-signatures` of fix round 1 removed). `test/unit/analysis/driver/listed-extent.test.ts` covers an ARM inner
+  label (no warning; 12 holes in 16 without the label), an ARM label whose code the rules refuse (warns, naming the
+  label), the labels judged, a fall-through (with and without a listed size) and three non-fall-throughs.
+
+Rejected: cutting the extent into parts at each label and judging each part's reading only up to the next cut.
+SoundMainRAM's Thumb entry branches (`beq`) to Thumb code after its first ARM run, so its Thumb reading spans the
+ARM parts; the parts' coverage has to be counted together (measured: the cut version still warned on SoundMainRAM,
+576 hole bytes in 926; the covered version leaves 2 in 932).
+
+**Consequences.** Measured with ROMLIFT_REQUIRE_LOCAL=1 and the built signature files (rebuilt from the specs: equal
+to the local ones): `listed-invalid-signatures` no `W_LISTED_INVALID` on fe7j (134 signature-named functions), klonoa
+(120), pokeemerald (377), sa2 (147), sa3 (189) and tmc (68), 17 before; `decompiled-c` with signatures passes (141.8
+s); `listed-invalid` (no signatures) still 0 on each ROM, and with every listed entry validated three fewer warnings
+per ROM than phase 3 measured (fe7j 2, klonoa 1, pokeemerald 3, sa2 1, sa3 1, tmc 21); `epoch-reuse` equal. `npm test`
+2,855 of 2,855. Gates passing after the change: ci `g2.determinism`, `g3.self-check`, `g3.link`, `g4.e2e-fixtures`,
+`g4.generate-idempotent`, `g4.toml-mutations`, `g6.explain-coverage`, `g6.evidence-conflict`, `g6.reconciler`; real
+`g2.confirm-equals-discover`, `g4.e2e-real`, `g4.toml-mutations` (phase-6.md "Review", fix round 4, step 2).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per
