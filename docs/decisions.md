@@ -4413,6 +4413,37 @@ object has exactly one `.text` instead. Linking each target at its module's addr
 module's symbols, which an `expected/` build does not have; Q12 option b offers it to the owner as a gate change).
 Reverting `objectWords` before the owner answers Q15.
 
+## D97. Phase-6 fix round 3: a runs_at module's section name, and the landing attempt
+
+**Context.** The review of `phase-6` at `b64f0b7` (fix round 2, D96) raised 11 findings (1 major, 10 minor;
+phase-6.md "Review", fix round 3). The major (correctness-r2-1): the ldscript writer emits a `runs_at` module as the
+output section `.<module>`, and nothing stopped that name from being another section the script emits. Measured by the
+review on Klonoa with `bench/overrides/klonoa.json`: a module named `text` duplicated the ROM's `.text`, `generate`
+exited 0 and the ROM no longer matched its SHA-1 (`__load_text` resolved to `0x08000000`); one named `c_data_main`
+made `generate` exit 3 (`E_SELF_CHECK_TEXT`). The orchestrator then asked to land the phase with the 10 minors carried.
+
+**Decision.**
+
+- (a) **A `runs_at` module's section may be no other section of the script** (correctness-r2-1). `names.ts
+  sectionNameCollisions` makes a `runs_at` module whose `.<module>` is `.text` (`modules.ts ROM_SECTION`), a `c`
+  module's `.c_data_<m>` or a data range's `.rodata_<m>` (`c-data-assert.ts cDataName`, `cRodataName`)
+  `E_NAME_COLLISION` (exit 1). A module name holds no `.`, so no `.text.<module>` section can be one. The writer and
+  the check build the section and `__load_` names with `runSectionOf` and `loadSymbolOf` (part of architecture-r2-2).
+  The emitted ldscript does not change, so no golden changes; §6.7 and the scaffold AGENTS.md state the rule.
+  Rejected: a reserved prefix for the RAM section (`.ram.<module>`), which would change every `runs_at` project's
+  ldscript and its check for a rule the model can state.
+- (b) **The phase still does not land.** Fourteen owner questions (Q1 to Q3, Q5, Q6, Q8 to Q16) are unanswered and the
+  gates that wait for them still fail (run 4), so no pull request is opened. Of the 10 minors, nine are recorded as
+  carried and one (architecture-r2-1, `g6.expected-bytes` judging no `runs_at` module) is Q16, since its fix changes a
+  frozen gate file.
+
+**Consequences.** Measured on Klonoa with its override (`init --no-signatures`, the override appended, `analyze
+--update --write`, `generate`): the module renamed `text` makes `generate` exit 1 with `E_NAME_COLLISION … would be
+ldscript.txt's section .text`, renamed `c_data_main_6` exit 1 with `… the data check section of c module main_6`; the
+unedited project generates and `verify --link` gives `a0a298d9…`. `npm test` 2,849 of 2,849; `test:local` ram-code,
+config-mutations and emission-real pass; `g6.ram-code-mapped` (ci and real), `g6.expected-bytes`, `g6.c-data-ranges`
+and `g4.c-data-fails-loud` (ci) pass.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

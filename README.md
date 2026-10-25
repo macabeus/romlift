@@ -74,10 +74,12 @@ passes every signature gate (the matcher refined at the closing round, D94) and 
 fails on the real tier as D34 writes it (passable in principle, phase-6.md Q6), and with it `g1.provenance` and `bench
 provenance`, which read the committed artifact's failing `g6.objdiff` record; `g6.reconciler`, `g6.rename` and
 `g6.evidence-conflict` fail on the ci tier because their gate files cannot pass as written (Q2, Q3, Q5). Those and the
-other owner questions of phase-6.md (Q1 to Q3, Q5, Q6, Q8 to Q15) wait for the owner's answers. Fix round 1 of the
+other owner questions of phase-6.md (Q1 to Q3, Q5, Q6, Q8 to Q16) wait for the owner's answers. Fix round 1 of the
 review (D95) changed no gate threshold, but its ROM overwrite of the objdiff targets left `g6.expected-bytes` able to
 catch only a wrong size; fix round 2 (D96) tightened that gate to judge each unit's object as assembled, and put the
-bench's `objectWords` rewrite, which changes what `g6.objdiff` measures, to the owner as Q15.
+bench's `objectWords` rewrite, which changes what `g6.objdiff` measures, to the owner as Q15. Fix round 3 (D97) refuses a `runs_at`
+module whose linker-script section is another section's name, and put `g6.expected-bytes`' `runs_at` exemption to the
+owner as Q16.
 
 | Phase | Delivers |
 | --- | --- |

@@ -11,6 +11,15 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
+**Verdict after fix round 3 (D97): still NOT LANDED.** The review of fix round 2 (`b64f0b7`) raised 11 findings: one
+major (correctness-r2-1, a `runs_at` module named `text` or `c_data_<m>` broke the link), fixed in this round, and ten
+minors, nine carried and one an owner question (Q16) ("Review", fix round 3). The orchestrator asked to land the phase; it cannot: the fourteen owner
+questions below (Q1 to Q3, Q5, Q6, Q8 to Q16) are unanswered, and the gates that wait on them fail as run 4 measured
+(`g6.objdiff` on the real tier; `g6.reconciler`, `g6.rename`, `g6.evidence-conflict` and `g1.provenance` on the ci
+tier; `bench provenance`). No gate file is changed, no pull request is opened, nothing is merged or tagged, and the
+branch is not pushed. The full closing list was not run again: the fix changes only the model's refusals (the emitted
+ldscript is unchanged, no golden moved), and the commands it touches were run (below, fix round 3).
+
 **Verdict after fix round 2 (D96): still NOT LANDED.** The review of fix round 1 raised 16 findings; 14 are fixed, one
 is owner question Q15 (the bench's `objectWords` rewrite inside `g6.objdiff`) and one is rejected with a measurement
 ("Review", fix round 2). The closing list ran a fourth time in a fresh worktree at `41b9eae` (run 4 below): every
@@ -359,7 +368,18 @@ Raised at fix round 2 (the review of fix round 1, D96):
   the printer, as phase-3.md Q1 option (a) says, and measure again (not measured: a printer rule with sizes in
   `[symbols]`). Until he answers, nothing is reverted and the committed counts are the first row's.
 
-Open, each blocking the landing: Q1, Q2, Q3, Q5, Q6, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15 (Q4 and Q7 need no answer).
+Raised at fix round 3 (the review of fix round 2, D97):
+
+- **Q16. `g6.expected-bytes` judges no `runs_at` module** (architecture-r2-1). The gate's only `runs_at` branch returns
+  before its symbol check (`if (placed.runsAt) return problems;`), and every target is a bare `init baserom.gba`, which
+  writes no `runs_at` override (D91), so no `runs_at` module's `expected/` object is judged on any fixture or tuning ROM
+  (448 modules on 60 ROMs in run 4, none `runs_at`). D96 a and architecture §13 say "every symbol where the model
+  places it", with no exception. Options: (a) a tightening: compare each symbol at the model address minus the chunk's
+  `runAt` and add the RAM-copy fixture with its hand-written override to the gate's targets, as `g6.ram-code-mapped`
+  does (a change to a frozen gate file); (b) accept the exemption and write it into §13 and D96 a.
+
+Open, each blocking the landing: Q1, Q2, Q3, Q5, Q6, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15, Q16 (Q4 and Q7 need no
+answer).
 
 ## Known limitations
 
@@ -652,3 +672,26 @@ with a measurement (architecture-r1-5's suggested command; its concern is addres
 | architecture-r1-6 | minor | Fixed (`95e9f5b`): `runsAtOverrides`/`runsAtSpans` exported from core/model/modules.ts and used by modules.ts, signature-layer.ts and analyze-update.ts; layout/align.ts's function is `alignWord`, re-exported through borders.ts; `peek32` and `u32` read through `le32`; spec.ts sorts with `compareCodeUnits`; the bench's `romSignatures` returns core's `RomSignatures` and refuses a run whose analysis or matcher reports an error. |
 | architecture-r1-7 | minor | Fixed (`95e9f5b`): the orphan doc comment in match.ts is deleted. |
 | architecture-r1-8 | minor | Fixed (`95e9f5b`): `core/signatures/zod-helpers.ts` holds `nonEmptyText`, `anyText`, `listOf`, `exactObject` for both schemas (`memberIdText` is schema.ts's own again); `core/signatures/sealing.ts` holds `isSealedDataset`, which the builder and `romlift/internal` read; §2 and core/index.md list both. |
+
+### Fix round 3 (review of `b64f0b7`, D97)
+
+11 findings (1 major, 10 minor). The major is fixed; nine minors are carried (each stays open and goes to the next
+round or phase with the phase) and one is owner question Q16. Measured after the fix, in the main checkout: `npm run typecheck` 0, `npm run lint` 0,
+`npm test` 2,849 of 2,849 (the scaffold golden regenerated for the template's new sentence);
+`ROMLIFT_REQUIRE_LOCAL=1` `test/local/{ram-code,config-mutations,emission-real}` 9 of 9; on the ci tier
+`g6.ram-code-mapped`, `g6.expected-bytes` (225 modules on 54 ROMs), `g6.c-data-ranges`, `g4.c-data-fails-loud` pass;
+on the real tier `g6.ram-code-mapped` passes (the RAM-copy fixture and Klonoa, `0x0804F318 -> 0x03000388`).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-r2-1 | major | Fixed (D97 a): `names.ts sectionNameCollisions` refuses a `runs_at` module whose section `.<module>` is `.text`, a `c` module's `.c_data_<m>` or a data range's `.rodata_<m>` (`E_NAME_COLLISION`, exit 1); the ldscript writer and check spell the section and `__load_` names through `runSectionOf`/`loadSymbolOf`, and `.c_data_<m>` through `cDataName`. Measured on Klonoa with its override: the module renamed `text` and `c_data_main_6` each make `generate` exit 1 (`E_NAME_COLLISION`); the unedited project's `verify --link` gives `a0a298d9…`. Model test over `text`, `c_data_main` (a `c` module `main`; none for an `asm` one), `rodata_data` (a data range; none without `data_start`) and a non-`runs_at` module named `text`. §6.7 and the scaffold AGENTS.md state the rule. |
+| architecture-r2-1 | minor | Owner question Q16: `g6.expected-bytes`' `runs_at` branch (line 183) returns before the symbol check and no target has a `runs_at` module; the fix (compare at `at - runAt`, add the RAM-copy fixture with its override to the targets) changes a frozen gate file. |
+| architecture-r2-2 | minor | Partly fixed: `ldscript.ts` and `link-scripts.ts`' message build the name with `loadSymbolOf`. Carried: `link-scripts.ts`' parsing regex, and one `linkerDefinedNames(modules)` for names.ts, rename.ts and text-layout.ts. |
+| architecture-r2-3 | minor | Carried: `runAddresses` through `runsAtOverrides`, `proposals.ts` through `runsAtSpans`, `DATA_ALIGN` and chunks.ts's `WORD` from `layout/align.ts`. |
+| architecture-r2-4 | minor | Carried: one `isAbsentError` in `shell/fs.ts` (ELOOP decided once) and `linkedFileBytes` as `isRegularFile` then `readBytes`. |
+| architecture-r2-5 | minor | Carried: `placeSignatures` made module-private and dropped from `api/proposals.ts`; `explain.test.ts` through `signaturesOver`. |
+| architecture-r2-6 | minor | Carried: `nameBase`'s positional `rewriteWords` replaced by an options object, with a unit case for the own spelling (Q15's second row). |
+| architecture-r2-7 | minor | Carried: the `.syntax mixed` refusal text, `bytes.ts`' header, and the frozen `g4.c-data-fails-loud` header that quotes the C-data assertion's old text (the gate file is not edited; its pattern still matches the new text). |
+| correctness-r2-2 | minor | Carried: `make expected` writes `expected/*.o`, `expected/rom/*.o` and `expected/rom/*.bin` under a generated root, so each later `generate` warns `W_UNOWNED_FILE` for each (sa1 69, Klonoa 81). |
+| correctness-r2-3 | minor | Carried: `rename` skips a symbolic link to a directory under `include/` with `W_RENAME_SKIPPED` without reading its files, so a file there that names `old` keeps it (exit 0). |
+
