@@ -4,7 +4,7 @@
 // listed only through shell/fs.ts's listDir (architecture §2).
 import type { Stats } from 'node:fs';
 import { lstat, readFile, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
@@ -57,11 +57,12 @@ export async function digestOf(dir: string, path: string): Promise<IoResult<Disk
 /** How filesUnder treats a symbolic link to a directory. */
 export interface FilesUnderOptions {
   /**
-   * Follow it, as the Makefile's cpp and make do, though not exactly as cpp resolves includes (readHeaderTexts, fix
-   * round 12, correctness-d1-1; D89 a, D90 a): a link to a directory is walked under its own project path. A cycle ends
-   * where a directory's real path (realpath) is the project directory's or that of a directory the walk is already
-   * inside, as `find -L` ends one; a dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out. Default false:
-   * listed as one entry, never followed (the disk snapshot, which hashes what romlift wrote).
+   * Follow it, as the Makefile's cpp and make do (readHeaderTexts, fix round 12, correctness-d1-1): a link to a
+   * directory is walked under its own project path. A directory is not entered when its real path (realpath) is the
+   * project directory's, that of a directory the walk is already inside, as `find -L` ends a cycle, or that of a
+   * directory above the project (phase 6, gate-honesty-e1-1: its every file was read): readHeaderTexts reads behind
+   * those only the files an `#include` names. A dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out.
+   * Default false: listed as one entry, never followed (the disk snapshot, which hashes what romlift wrote).
    */
   readonly followLinks?: boolean;
 }
@@ -70,7 +71,7 @@ export interface FilesUnderOptions {
  * Every file below the project directory `path` (no trailing '/'), as project paths, in code-unit order; none when it
  * is absent. The recursive walker of the shell, with two link policies chosen by the caller (fix round 12,
  * architecture-d1-2): the disk snapshot lists a symbolic link as one entry, whatever it points at (lstat), and
- * readHeaderTexts follows a link to a directory (`options.followLinks`; not exactly as cpp does, D89 a, D90 a). The
+ * readHeaderTexts follows a link to a directory (`options.followLinks`). The
  * shell's fixed-depth listings (readCTexts' `src/*.c`, readChunkFiles' `asm/nonmatchings/<module>/`) use stat, which
  * follows a link as well. Either way it lists only regular files, a link to one included (gate-honesty-e1-2): a FIFO,
  * a socket or a device, which readFile would block on (a FIFO with no writer) or read without end, is left out, found
@@ -124,9 +125,9 @@ async function snapshotEntry(file: string, entry: Stats): Promise<boolean> {
 }
 
 /**
- * filesUnder following links: `inside` holds the real paths of the project directory and of the directories walked
- * into. After the stat that follows links, a directory is walked, a regular file listed and anything else (a FIFO, a
- * socket, a device) left out (gate-honesty-e1-2).
+ * filesUnder following links: `inside` holds the real paths of the project directory (first) and of the directories
+ * walked into. After the stat that follows links, a directory is walked unless it is one of those or lies above the
+ * project directory, a regular file listed and anything else (a FIFO, a socket, a device) left out (gate-honesty-e1-2).
  */
 async function filesFollowing(dir: string, path: string, out: string[], inside: readonly string[]): Promise<IoResult<void>> {
   const file = onDisk(dir, path);
@@ -149,7 +150,7 @@ async function filesFollowing(dir: string, path: string, out: string[], inside: 
   } catch (error) {
     return ioError('E_IO_READ', file, `cannot resolve ${file}: ${errorReason(error)}`);
   }
-  if (inside.includes(real)) return { ok: true, value: undefined };
+  if (inside.includes(real) || isAbove(real, inside[0] ?? real)) return { ok: true, value: undefined };
   const names = await listDir(file);
   if (!names.ok) return names;
   const deeper = [...inside, real];
@@ -158,6 +159,12 @@ async function filesFollowing(dir: string, path: string, out: string[], inside: 
     if (!below.ok) return below;
   }
   return { ok: true, value: undefined };
+}
+
+/** Whether the real directory `real` holds the real directory `root` below it (a link from the project to above it). */
+function isAbove(real: string, root: string): boolean {
+  const down = relative(real, root);
+  return down !== '' && !isAbsolute(down) && down.split(sep)[0] !== '..';
 }
 
 /** Whether two project paths are one directory entry on disk (a case-insensitive file system's two spellings). */

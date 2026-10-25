@@ -5,11 +5,12 @@
 // what `init`'s directory holds. Mechanical: it reads, hashes and reports; every decision is a workflow's or
 // planWrites' (whether `init` may write in a directory is core/workflow/init.ts's). Each refusal is a diagnostic:
 // E_PROJECT_NOT_FOUND, E_IO_READ, E_DECOMP_YAML_INVALID, the config's parse codes.
-import { lstat, readFile, stat } from 'node:fs/promises';
-import { join, relative, resolve, sep } from 'node:path';
+import { lstat, readFile, realpath, stat } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { headerCandidates, includesOf } from '../../core/reconcile/c-scan.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, isHeaderPath, matchingDir, MATCHINGS_ROOT, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -115,18 +116,35 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
   return fromIo(await readReconciledTexts(dir, paths));
 }
 
+/** The headers the C reconciliation follows (ProjectInputs.headerTexts) and where they are (ProjectInputs.headerRealPaths). */
+export interface HeaderInputs {
+  /** Each header's text, by key, in code-unit order. */
+  readonly texts: ReadonlyMap<string, string>;
+  /** Each header's and C file's directory's real path with its name (c-scan.ts IncludeRealPaths), where it is not its key. */
+  readonly realPaths: ReadonlyMap<string, string>;
+}
+
 /**
- * Every file under the project's include/ and every `.h` under its src/, at any depth, keyed by project path (fix round
- * 10, correctness-c2-1; src/ since fix round 11, correctness-d0-2): the headers the C reconciliation follows, as the
- * scaffold's `cpp -nostdinc -I include` finds them, to learn whether a file's includes already define INCLUDE_ASM
- * (IncludeAsmWanted.headers). Listed by disk-state's filesUnder with `followLinks`, which follows a symbolic link, not
- * exactly as cpp does (fix round 12, correctness-d1-1; D89 a, D90 a): a link to a file is read as that file, a link to
- * a directory (include/ or src/ itself among them) is walked under its own project path, and a cycle ends at a
- * directory the walk is already inside or at the project directory; a dangling link is left out, and so is a FIFO, a
- * socket or a device, which reading would block on (only regular files are listed, gate-honesty-e1-2). Empty when
- * neither directory exists; any other failure to list or read is E_IO_READ.
+ * The headers the C reconciliation follows to learn whether a file's includes already define INCLUDE_ASM
+ * (IncludeAsmWanted.headers; fix round 10, correctness-c2-1), read as the scaffold's `cpp -nostdinc -I include` finds
+ * them (phase 6; roadmap "Carried from phase 4": D89 a, D90 a, gate-honesty-e1-1):
+ * - every file under the project's include/ and every `.h` under its src/, at any depth, keyed by project path (src/
+ *   since fix round 11, correctness-d0-2), listed by disk-state's filesUnder with `followLinks`: a link to a file is
+ *   read as that file, a link to a directory (include/ or src/ itself among them) is walked under its own project path
+ *   (fix round 12, correctness-d1-1), but not one to the project directory, to a directory the walk is inside or to
+ *   one above the project;
+ * - then every file an `#include` of a C file (`cTexts`) or of a header read names (c-scan.ts includesOf), transitively:
+ *   the first of its candidates (headerCandidates: a quoted include from the including file's real directory, then
+ *   include/; an angle one from include/) that is a regular file, keyed by that candidate. So behind a link the walk
+ *   does not enter (`include -> .`, `include/up -> ../..`, `src/up -> ../..`) exactly the files an `#include` names are
+ *   read, and a `..` behind a linked directory reaches the parent of its target, as cpp's.
+ * `realPaths` gives each header's, and each C file's, directory's real path with its own name where it differs from
+ * the key (relative to the project inside it, absolute outside). A dangling link, a missing candidate and a FIFO, a
+ * socket or a device, which reading would block on, are left out (only regular files are read, gate-honesty-e1-2).
+ * Empty when neither directory exists and no `#include` names a file; any other failure to list or read a header the
+ * walk lists or an `#include` names is E_IO_READ.
  */
-export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyMap<string, string>>> {
+export async function readHeaderTexts(dir: string, cTexts: ReadonlyMap<string, string> = new Map()): Promise<ReadResult<HeaderInputs>> {
   const headers: string[] = [];
   const listedHeaders = await filesUnder(dir, INCLUDE_DIR, headers, { followLinks: true });
   if (!listedHeaders.ok) return fromIo(listedHeaders);
@@ -134,17 +152,106 @@ export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyM
   const listedSources = await filesUnder(dir, C_SOURCE_DIR, sources, { followLinks: true });
   if (!listedSources.ok) return fromIo(listedSources);
   const paths = [...headers.filter((p) => p.startsWith(`${INCLUDE_DIR}/`)), ...sources.filter((p) => p.startsWith(`${C_SOURCE_DIR}/`) && isHeaderPath(p))];
-  const out = new Map<string, string>();
+  let root: string;
+  try {
+    root = await realpath(dir);
+  } catch (error) {
+    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${dir}: ${errorReason(error)}`, { path: dir })] };
+  }
+  const texts = new Map<string, string>();
+  const realPaths = new Map<string, string>();
+  const dirs = new Map<string, string>();
+  const place = async (key: string): Promise<ReadResult<void>> => {
+    const real = await realPathOf(keyOnDisk(dir, root, key), key, root, dirs);
+    if (!real.ok) return fromIo(real);
+    if (real.value !== key) realPaths.set(key, real.value);
+    return { ok: true, value: undefined };
+  };
   for (const path of paths.sort(compareCodeUnits)) {
     const file = join(dir, ...path.split('/'));
     try {
-      out.set(path, await readFile(file, 'utf8'));
+      texts.set(path, await readFile(file, 'utf8'));
     } catch (error) {
       if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'EISDIR') continue;
       return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })] };
     }
+    const placed = await place(path);
+    if (!placed.ok) return placed;
   }
-  return { ok: true, value: out };
+  const cPaths = [...cTexts.keys()].sort(compareCodeUnits);
+  for (const path of cPaths) {
+    const placed = await place(path);
+    if (!placed.ok) return placed;
+  }
+  // The files the #include lines name, each from the first candidate cpp would open (headerCandidates).
+  const pending = [...cPaths, ...texts.keys()];
+  for (let from = pending.shift(); from !== undefined; from = pending.shift()) {
+    for (const include of includesOf(texts.get(from) ?? cTexts.get(from) ?? '')) {
+      for (const candidate of headerCandidates(from, include.spelled, include.angle, realPaths)) {
+        if (texts.has(candidate)) break;
+        const read = cTexts.has(candidate) ? { ok: true as const, value: cTexts.get(candidate) } : await readNamed(keyOnDisk(dir, root, candidate), candidate);
+        if (!read.ok) return fromIo(read);
+        if (read.value === undefined) continue;
+        texts.set(candidate, read.value);
+        const placed = await place(candidate);
+        if (!placed.ok) return placed;
+        pending.push(candidate);
+        break;
+      }
+    }
+  }
+  const sorted = new Map([...texts].sort(([a], [b]) => compareCodeUnits(a, b)));
+  return { ok: true, value: { texts: sorted, realPaths: new Map([...realPaths].sort(([a], [b]) => compareCodeUnits(a, b))) } };
+}
+
+/**
+ * The path a header key names on disk, as cpp opens it: an absolute key as it is, any other under the project directory
+ * `dir`, joined as written (no `..` resolved before the system resolves it behind a link: headerCandidates keeps a
+ * `..` after a named directory); a key that leads above the project (`../x.h`) from the project's real path `root`.
+ */
+function keyOnDisk(dir: string, root: string, key: string): string {
+  if (isAbsolute(key)) return key;
+  return `${key.startsWith('../') ? root : dir}${sep}${key.split('/').join(sep)}`;
+}
+
+/**
+ * The text of the file at `file` an `#include` names (`key`), or undefined when there is none or it is no regular file
+ * (a directory, a FIFO, a socket, a device: cpp reads no directory, and a FIFO would block, gate-honesty-e1-2); a
+ * failure to examine or read it is E_IO_READ.
+ */
+async function readNamed(file: string, key: string): Promise<IoResult<string | undefined>> {
+  try {
+    if (!(await stat(file)).isFile()) return { ok: true, value: undefined };
+    return { ok: true, value: await readFile(file, 'utf8') };
+  } catch (error) {
+    const code = errnoOf(error);
+    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP' || code === 'ENAMETOOLONG') return { ok: true, value: undefined };
+    return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path: key }) };
+  }
+}
+
+/**
+ * Where the file at `file` (key `key`) is behind its symbolic links (c-scan.ts IncludeRealPaths): its directory's real
+ * path (realpath, cached in `dirs` by directory) with its own name, relative to the project's real path `root` inside
+ * it, absolute outside; the key itself when its directory is gone (a C file removed since it was read).
+ */
+async function realPathOf(file: string, key: string, root: string, dirs: Map<string, string>): Promise<IoResult<string>> {
+  const parent = dirname(file);
+  let real = dirs.get(parent);
+  if (real === undefined) {
+    try {
+      real = await realpath(parent);
+    } catch (error) {
+      if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: key };
+      return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${parent}: ${errorReason(error)}`, { path: key }) };
+    }
+    dirs.set(parent, real);
+  }
+  const name = basename(file);
+  const down = relative(root, real);
+  if (down === '') return { ok: true, value: name };
+  if (isAbsolute(down) || down.split(sep)[0] === '..') return { ok: true, value: `${real.split(sep).join('/')}/${name}` };
+  return { ok: true, value: `${down.split(sep).join('/')}/${name}` };
 }
 
 /**
@@ -233,7 +340,8 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
 /**
  * The project that holds `from` (a directory): located (decomp.yaml), its config loaded and parsed, its ROM read
  * (the config's `[rom] path` under the project, or `options.rom` resolved from `from`), and its C texts with the chunk
- * files on disk (readChunkFiles) and the headers under include/ and src/ (readHeaderTexts).
+ * files on disk (readChunkFiles) and the headers under include/ and src/ and those the C's includes name, with where
+ * each header and C file is behind its links (readHeaderTexts: headerTexts, headerRealPaths).
  */
 export async function readProject(from: string, options: ReadProjectOptions = {}): Promise<ReadResult<ReadProject>> {
   const located = await locateProject(from);
@@ -247,6 +355,7 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
   let cTexts: ReadonlyMap<string, string> = new Map();
   let previousChunkFiles: readonly string[] | undefined;
   let headerTexts: ReadonlyMap<string, string> | undefined;
+  let headerRealPaths: ReadonlyMap<string, string> | undefined;
   if (options.withoutC !== true) {
     const read = await readCTexts(dir);
     if (!read.ok) return read;
@@ -254,11 +363,12 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
     const chunks = await readChunkFiles(dir);
     if (!chunks.ok) return chunks;
     previousChunkFiles = chunks.value;
-    const headers = await readHeaderTexts(dir);
+    const headers = await readHeaderTexts(dir, cTexts);
     if (!headers.ok) return headers;
-    headerTexts = headers.value;
+    headerTexts = headers.value.texts;
+    headerRealPaths = headers.value.realPaths;
   }
-  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: loaded.value.sha1, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }), ...(headerTexts === undefined ? {} : { headerTexts }) };
+  const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: loaded.value.sha1, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }), ...(headerTexts === undefined ? {} : { headerTexts }), ...(headerRealPaths === undefined ? {} : { headerRealPaths }) };
   return { ok: true, value: { dir, config: loaded.value, romPath, inputs } };
 }
 

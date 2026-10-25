@@ -41,12 +41,19 @@
 //      builds, and each time the module renamed with `git mv` gains no header and `make` ends at the SHA-1 (fix round
 //      10's make failed in the assembler on all three);
 //  12. (fix round 12, correctness-d1-1, architecture-d1-1, gate-honesty-d1-1) the defining header behind a symbolic
-//      link to a directory, which cpp follows and readHeaderTexts follows too, not exactly as cpp does (D89 a, D90 a):
-//      first include/gba linked to a directory outside the project, holding a macro.h that defines INCLUDE_ASM and
-//      includes macros.inc, reached through include/glue.h; then include/ itself a link to a directory outside the
-//      project, global.h reached through it. Each builds, and each time the module renamed with `git mv` gains no
-//      header and `make` ends at the SHA-1 (fix round 11's make failed in the assembler on both, its lstat walk
-//      reading nothing behind a link to a directory).
+//      link to a directory, which cpp follows and readHeaderTexts follows too: first include/gba linked to a
+//      directory outside the project, holding a macro.h that defines INCLUDE_ASM and includes macros.inc, reached
+//      through include/glue.h; then include/ itself a link to a directory outside the project, global.h reached
+//      through it. Each builds, and each time the module renamed with `git mv` gains no header and `make` ends at the
+//      SHA-1 (fix round 11's make failed in the assembler on both, its lstat walk reading nothing behind a link to a
+//      directory);
+//  13. (phase 6, the cpp-exact resolution; roadmap "Carried from phase 4": D89 a, D90 a, gate-honesty-e1-1) the
+//      layouts phase 4 recorded: a `..` in a header behind the linked include/gba (gba/back.h includes "../defs.h",
+//      which cpp opens beside the link's target, while include/defs.h declares types alone); src/up -> ../.., the
+//      defining header reached as "up/<dir>-shared/defs.h", with an unreadable file above the project that no
+//      #include names; then include -> ., the headers at the project's top. Each builds, and each time the module
+//      renamed with `git mv` gains no header, `generate` raises no diagnostic and `make` ends at the SHA-1 (phase 4's
+//      code added the header on the first and the last, and raised E_IO_READ on the second).
 // Inputs: klonoa's ROM from its dataset; agbcc from ROMLIFT_AGBCC, else bench/.local/agbcc, else
 // $ROMLIFT_BENCH_ROOT/pokeemerald/tools/agbcc, else setup.sh builds it at the pin (network); binutils. A missing ROM
 // makes the test `unavailable`, or fails it when ROMLIFT_REQUIRE_LOCAL=1. test/local imports only the entry points and
@@ -488,5 +495,76 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
     module = next;
     tomlStep11 = nextToml;
     textNow = expected;
+  }
+
+  // 13. (phase 6, roadmap "Carried from phase 4": D89 a, D90 a, gate-honesty-e1-1) The layouts phase 4 recorded, each
+  //     resolved as cpp resolves it. include/ is still the link of step 12, to ${shared}/include.
+  const above = path.dirname(dir);
+  const locked = path.join(above, 'locked.h');
+  const exact = [
+    {
+      // "../defs.h" in include/gba/back.h is ${shared}/defs.h, beside the link's target; include/defs.h, the link's
+      // own path, declares types alone (phase 4 read it, and added the header).
+      name: 'a .. behind the linked include/gba',
+      include: '#include "gba/back.h"\n',
+      lay: async (): Promise<void> => {
+        await writeFile(path.join(shared, 'gba', 'back.h'), '#include "../defs.h"\n');
+        await writeFile(path.join(shared, 'defs.h'), globalText.replace(/GUARD_GLOBAL_H/g, 'GUARD_DEFS_H'));
+        await writeFile(file('include/defs.h'), 'typedef unsigned char u8_t;\n');
+      },
+    },
+    {
+      // src/up -> ../..: the defining header above the project, beside an unreadable file no #include names (phase 4
+      // walked all of it: E_IO_READ).
+      name: 'src/up -> ../..',
+      include: `#include "up/${path.basename(shared)}/defs.h"\n`,
+      lay: async (): Promise<void> => {
+        await symlink(path.join('..', '..'), file('src/up'));
+        await writeFile(locked, 'unrelated\n');
+        await chmod(locked, 0o000);
+      },
+    },
+    {
+      // include -> .: the headers at the project's top, which cpp -I include reads through the link (phase 4 entered
+      // nothing there, and added the header).
+      name: 'include -> .',
+      include: '#include "global.h"\n',
+      lay: async (): Promise<void> => {
+        await rm(file('src/up'));
+        await rm(file('include'));
+        await cp(path.join(shared, 'include'), dir, { recursive: true, verbatimSymlinks: true });
+        await symlink('.', file('include'));
+      },
+    },
+  ] as const;
+  try {
+    for (const [k, layout] of exact.entries()) {
+      await layout.lay();
+      const first = textNow.slice(0, textNow.indexOf('\n') + 1);
+      assert.ok(first.startsWith('#include '), `src/${module}.c starts with its include`);
+      const laidOut = `${layout.include}${textNow.slice(first.length)}`;
+      await writeFile(file(`src/${module}.c`), laidOut);
+      const kept = await generate();
+      assert.equal(kept.code, 0, kept.tail);
+      assert.deepEqual(kept.codes, [], kept.tail);
+      assert.equal(await readFile(file(`src/${module}.c`), 'utf8'), laidOut, `${layout.name}: nothing to change`);
+      await make();
+      const next = `boot${k + 8}`;
+      const nextToml = tomlStep11.replace(`[[modules]]\nname = "${module}"\n`, `[[modules]]\nname = "${next}"\n`);
+      assert.notEqual(nextToml, tomlStep11, `module ${module}`);
+      await writeFile(file('romlift.toml'), nextToml);
+      await git(dir, 'mv', `src/${module}.c`, `src/${next}.c`);
+      const renamed = await generate();
+      assert.equal(renamed.code, 0, renamed.tail);
+      assert.deepEqual(renamed.codes, [], renamed.tail);
+      const expected = laidOut.replaceAll(`asm/nonmatchings/${module}/`, `asm/nonmatchings/${next}/`).replaceAll(`"asm/nonmatchings/${module}"`, `"asm/nonmatchings/${next}"`);
+      assert.equal(await readFile(file(`src/${next}.c`), 'utf8'), expected, `${layout.name}: the stubs renamed, no header added`);
+      await make();
+      module = next;
+      tomlStep11 = nextToml;
+      textNow = expected;
+    }
+  } finally {
+    if (existsSync(locked)) await chmod(locked, 0o644);
   }
 });

@@ -43,7 +43,7 @@
 // writes with only the C E_C_DEFINITION_MOVED sent there; since fix round 10 (correctness-c2-1) what decides is what
 // defines the macro: the file's own lines, the src/*.c fragments it includes and the headers their includes reach,
 // quoted or angle, as `cpp -nostdinc -I include` finds them, transitively (IncludeAsmWanted.headers; fix round 11,
-// correctness-d0-1, d0-2), so a `global.h` that defines INCLUDE_ASM itself is never paired with a second definition
+// correctness-d0-1, d0-2), behind symbolic links too (IncludeAsmWanted.headerRealPaths, phase 6), so a `global.h` that defines INCLUDE_ASM itself is never paired with a second definition
 // that would include `macros.inc` twice. A src/*.c fragment the file `#include`s at file scope
 // (IncludeAsmWanted.fragments) defines its functions there, at the `#include` line; a quoted include of a file romlift
 // does not read that is no `.h` refuses every insertion (E_C_STUB_UNPLACED), since the fragment may define the
@@ -145,6 +145,15 @@ export interface IncludeAsmWanted {
    * such a file gains the header unless it or a fragment it includes provides the macro.
    */
   readonly headers?: ReadonlyMap<string, string>;
+  /**
+   * Where each header and C file is behind its symbolic links (c-scan.ts IncludeRealPaths; phase 6, roadmap "Carried
+   * from phase 4", D89 a, D90 a): a quoted include is resolved from the including file's real directory, as cpp opens
+   * it, so a `..` behind a linked directory leads to the parent of the link's target; a header that lies behind a link
+   * the shell does not walk into (one to the project directory, to a directory it is inside or to one above the
+   * project) is in `headers` under the key an `#include` names (headerCandidates). Undefined: every file is where its
+   * key says.
+   */
+  readonly headerRealPaths?: ReadonlyMap<string, string>;
 }
 
 /** The chunk files a run writes, and the directories it leaves to the user (IncludeAsmWanted.tree). */

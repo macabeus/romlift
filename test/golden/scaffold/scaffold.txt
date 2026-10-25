@@ -176,14 +176,13 @@ compiles it on its own, so its functions would be built twice, and `romlift gene
 the same step as you add the module to `romlift.toml`; `romlift generate` then gives the file the new module's
 `INCLUDE_ASM` lines and, unless the file gets `INCLUDE_ASM` from its own lines, from a `src/*.c` it includes or from a
 header either includes (one that `#define`s it or includes `include_asm.h`, at any depth), that header, which its old
-lines took from the file that included it. romlift finds a header as the Makefile's `cpp -nostdinc -I include` does:
-`#include "…"` in the including file's own directory first, then in `include/`; `#include <…>` in `include/` only.
-It follows a symbolic link, whether `include/` itself, a directory under it or under `src/` is the link, but not exactly
-as `cpp` does: a `..` in an include, in a header reached through a linked directory, is resolved against the link's
-path, not its target; a link whose target is the project directory, or a directory the walk is already inside (one of
-the link's own parent directories), is not entered; and a link to a directory above the project is entered, all of it
-but the project directory below it, so every file there is read (slow on a large directory, `E_IO_READ` on an unreadable
-file). It does not evaluate an `#if` around an `#include`, an `#include` spelled with a macro, or an include directory
+lines took from the file that included it. romlift finds a header as the Makefile's `cpp -nostdinc -I include` does,
+symbolic links included: `#include "…"` in the including file's own directory first (the directory the file was
+opened in, its links followed, so a `..` in a header behind a linked directory leads to the parent of the link's
+target), then in `include/`; `#include <…>` in `include/` only. It reads every file under `include/` and every `.h`
+under `src/`, through a linked `include/` or a linked directory under it or under `src/` too, and through a link to the
+project directory, to one of the link's own parent directories or to a directory above the project only the files an
+`#include` names. It does not evaluate an `#if` around an `#include`, an `#include` spelled with a macro, or an include directory
 you add to `CPPFLAGS`. When a header that romlift does not reach for one of these reasons defines `INCLUDE_ASM` and
 romlift adds `#include "include_asm.h"` anyway, `make` stops in the assembler (`Macro … was already defined`): delete
 that line (romlift adds it only to a file that has no `INCLUDE_ASM` line left of its own, as a rename leaves it).

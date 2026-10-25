@@ -100,10 +100,12 @@ export interface ProjectInputs {
    */
   readonly headerTexts?: ReadonlyMap<string, string>;
   /**
-   * A header's project spelling (a key of headerTexts, its path through any symbolic link) -> its real path relative
-   * to the project, or absolute outside it (phase 6, for the cpp-exact resolution of a quoted include from a followed
-   * header's real directory; roadmap "Carried from phase 4", D89 a, D90 a). Absent: every header is where its
-   * spelling says.
+   * A header's key (a key of headerTexts, its path through any symbolic link) or a C file's (a key of cTexts) -> the
+   * real path of its directory joined with its own name, relative to the project, or absolute outside it (phase 6, for
+   * the cpp-exact resolution of a quoted include from a followed header's real directory; roadmap "Carried from phase
+   * 4", D89 a, D90 a; core/reconcile/c-scan.ts IncludeRealPaths). The directory's, not the file's: cpp resolves a
+   * quoted include of a header that is itself a link to a file from the link's directory. Only where it differs from
+   * the key. Absent: every file is where its key says.
    */
   readonly headerRealPaths?: ReadonlyMap<string, string>;
   /** The analysis profile; default the discover profile (agbcc). */

@@ -167,3 +167,21 @@ test('readDiskState returns promptly over a FIFO under a generated root: neither
     release();
   }
 });
+
+// Phase 6 (gate-honesty-e1-1, roadmap "Carried from phase 4"): a followed walk enters no link to the project directory,
+// to a directory it is already inside or to a directory above the project; readHeaderTexts reads behind those only the
+// files an #include names. A link to a directory beside the project, or outside it, is walked.
+test('filesUnder following links enters no link to the project directory, to a directory it is inside or above the project', async () => {
+  const outer = await project({ 'other/x.h': 'x', 'proj/include/real/r.h': 'r', 'beside/b.h': 'b' });
+  const dir = join(outer, 'proj');
+  await symlink('.', join(dir, 'include', 'self'));
+  await symlink('..', join(dir, 'include', 'real', 'parent'));
+  await symlink(join('..', '..'), join(dir, 'include', 'up'));
+  await symlink('/', join(dir, 'include', 'root'));
+  await symlink(join('..', '..', 'beside'), join(dir, 'include', 'beside'));
+  await symlink('..', join(dir, 'include', 'project'));
+  const out: string[] = [];
+  const listed = await filesUnder(dir, 'include', out, { followLinks: true });
+  assert.ok(listed.ok);
+  assert.deepEqual(out, ['include/beside/b.h', 'include/real/r.h']);
+});

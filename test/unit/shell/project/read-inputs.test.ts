@@ -254,7 +254,8 @@ test('readChunkFiles: an asm/ or module directory it cannot examine or list is E
 test('readHeaderTexts: no include/ or src/ is an empty map; every file under include/ and every .h under src/, at any depth, by project path', async () => {
   const none = await readHeaderTexts(await dirWith({}));
   assert.ok(none.ok);
-  assert.deepEqual([...none.value], []);
+  assert.deepEqual([...none.value.texts], []);
+  assert.deepEqual([...none.value.realPaths], []);
   const dir = await dirWith({
     'include/global.h': '#include "gba/gba.h"\n',
     'include/gba/gba.h': '#define X 1\n',
@@ -268,17 +269,17 @@ test('readHeaderTexts: no include/ or src/ is an empty map; every file under inc
   });
   const read = await readHeaderTexts(dir);
   assert.ok(read.ok);
-  assert.deepEqual([...read.value.keys()], ['include/gba/deep/io_reg.h', 'include/gba/gba.h', 'include/global.h', 'include/macros.inc', 'src/local.h', 'src/sub/inner.h']);
-  assert.equal(read.value.get('include/global.h'), '#include "gba/gba.h"\n');
+  assert.deepEqual([...read.value.texts.keys()], ['include/gba/deep/io_reg.h', 'include/gba/gba.h', 'include/global.h', 'include/macros.inc', 'src/local.h', 'src/sub/inner.h']);
+  assert.equal(read.value.texts.get('include/global.h'), '#include "gba/gba.h"\n');
+  assert.deepEqual([...read.value.realPaths], [], 'no link: every file is where its key says');
   const file = await readHeaderTexts(await dirWith({ include: 'a file, not a directory' }));
   assert.ok(file.ok);
-  assert.deepEqual([...file.value], []);
+  assert.deepEqual([...file.value.texts], []);
 });
 
 // Fix round 12 (correctness-d1-1, architecture-d1-1, gate-honesty-d1-1): links are followed, as the scaffold's cpp
-// follows them, though not exactly as cpp resolves includes (D89 a, D90 a); fix round 11's lstat walk read nothing
-// behind a link to a directory, and a module renamed with git mv whose defining global.h sat behind one gained a second
-// include_asm.h.
+// follows them (cpp-exact since phase 6, below); fix round 11's lstat walk read nothing behind a link to a directory,
+// and a module renamed with git mv whose defining global.h sat behind one gained a second include_asm.h.
 
 test('readHeaderTexts follows a symbolic link into a directory: a linked subdirectory of include/ or src/, a second path to a directory, a link to a file; a cycle ends; a dangling link or a link loop is left out', async () => {
   const shared = await dirWith({ 'gba/macro.h': 'm', 'src/x.h': 'x', 'src/y.c': 'not a header' });
@@ -295,7 +296,7 @@ test('readHeaderTexts follows a symbolic link into a directory: a linked subdire
   await symlink(path.join(shared, 'src'), path.join(dir, 'src', 'sub'));
   const read = await readHeaderTexts(dir);
   assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-  assert.deepEqual([...read.value], [
+  assert.deepEqual([...read.value.texts], [
     ['include/alias/types.h', 't'],
     ['include/gba/macro.h', 'm'],
     ['include/global.h', 'g'],
@@ -312,12 +313,55 @@ test('readHeaderTexts follows include/ and src/ that are themselves links; one t
   await symlink(path.join(shared, 'src'), path.join(dir, 'src'));
   const read = await readHeaderTexts(dir);
   assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-  assert.deepEqual([...read.value], [['include/global.h', 'g'], ['include/sub/a.h', 'a'], ['src/local.h', 'l']]);
-  const self = await dirWith({ 'global.h': 'g' });
+  assert.deepEqual([...read.value.texts], [['include/global.h', 'g'], ['include/sub/a.h', 'a'], ['src/local.h', 'l']]);
+  const real = await realpath(shared);
+  assert.deepEqual([...read.value.realPaths], [
+    ['include/global.h', `${real}/include/global.h`],
+    ['include/sub/a.h', `${real}/include/sub/a.h`],
+    ['src/local.h', `${real}/src/local.h`],
+  ]);
+  const self = await dirWith({ 'global.h': 'g', 'macros.h': 'm', 'unnamed.h': 'u' });
   await symlink('.', path.join(self, 'include'));
   const selfRead = await readHeaderTexts(self);
   assert.ok(selfRead.ok);
-  assert.deepEqual([...selfRead.value], [], 'include -> . is the project directory: a cycle, walked no further');
+  assert.deepEqual([...selfRead.value.texts], [], 'include -> . is the project directory: not walked, and no #include names a file');
+});
+
+// Phase 6 (roadmap "Carried from phase 4": D89 a, D90 a, gate-honesty-d2-2, correctness-d2-1, architecture-d2-1,
+// gate-honesty-e1-1): the files an #include names are read as cpp -nostdinc -I include opens them, from the including
+// file's real directory, and behind a link the walk does not enter, exactly those.
+
+test('readHeaderTexts reads through include -> . exactly the files an #include names, from the real directory of each', async () => {
+  const self = await dirWith({ 'global.h': '#include "macros.h"\n', 'macros.h': 'm', 'unnamed.h': 'u' });
+  await symlink('.', path.join(self, 'include'));
+  const read = await readHeaderTexts(self, new Map([['src/main.c', '#include "global.h"\n']]));
+  assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+  // global.h through -I include, then "macros.h" from global.h's real directory, the project's top.
+  assert.deepEqual([...read.value.texts], [['include/global.h', '#include "macros.h"\n'], ['macros.h', 'm']]);
+  assert.deepEqual([...read.value.realPaths], [['include/global.h', 'global.h']]);
+});
+
+test('readHeaderTexts resolves a .. behind a linked directory from the link\'s target; a header linked as a file keeps its link\'s directory', async () => {
+  const shared = await dirWith({ 'gba/macro.h': '#include "../glue.h"\n', 'glue.h': 'shared glue', 'other/lf.h': '#include "sib.h"\n', 'other/sib.h': 'other sib' });
+  const dir = await dirWith({ 'include/glue.h': 'project glue', 'include/sib.h': 'include sib' });
+  await symlink(path.join(shared, 'gba'), path.join(dir, 'include', 'gba'));
+  await symlink(path.join(shared, 'other', 'lf.h'), path.join(dir, 'include', 'lf.h'));
+  const read = await readHeaderTexts(dir, new Map([['src/main.c', '#include "gba/macro.h"\n#include "lf.h"\n#include <gba/../glue.h>\n']]));
+  assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+  const real = await realpath(shared);
+  // As cc -E and arm-none-eabi-cpp read it: shared glue (twice) and include sib, never other/sib.h.
+  assert.deepEqual([...read.value.texts], [
+    [`${real}/glue.h`, 'shared glue'],
+    ['include/gba/../glue.h', 'shared glue'],
+    ['include/gba/macro.h', '#include "../glue.h"\n'],
+    ['include/glue.h', 'project glue'],
+    ['include/lf.h', '#include "sib.h"\n'],
+    ['include/sib.h', 'include sib'],
+  ]);
+  assert.deepEqual([...read.value.realPaths], [
+    ['include/gba/../glue.h', `${real}/glue.h`],
+    ['include/gba/macro.h', `${real}/gba/macro.h`],
+  ]);
 });
 
 test('readHeaderTexts returns promptly when a followed link reaches a FIFO: it is not listed, not read (gate-honesty-e1-2)', { skip: process.platform === 'win32' ? 'mkfifo is POSIX' : false }, async () => {
@@ -333,9 +377,9 @@ test('readHeaderTexts returns promptly when a followed link reaches a FIFO: it i
     timer = setTimeout(() => reject(new Error('readHeaderTexts did not return within 5 s: it read the FIFO')), 5000);
   });
   try {
-    const read = await Promise.race([readHeaderTexts(dir), timeout]);
+    const read = await Promise.race([readHeaderTexts(dir, new Map([['src/main.c', '#include "pipe.h"\n#include "gba/pipe.h"\n']])), timeout]);
     assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-    assert.deepEqual([...read.value], [
+    assert.deepEqual([...read.value.texts], [
       ['include/gba/macro.h', 'm'],
       ['include/global.h', 'g'],
     ]);
@@ -352,21 +396,48 @@ test('readHeaderTexts returns promptly when a followed link reaches a FIFO: it i
   }
 });
 
-// Fix round 14 (architecture-e0-2, D90 a): the recorded third layout. A link to a directory above the project is
-// entered and every file under it read, but for the project directory below it, where the walk is already inside.
-test('readHeaderTexts enters a link to a directory above the project, all of it but the project directory', async () => {
-  const outer = await dirWith({ 'other/x.h': 'x', 'blob.bin': 'b' });
+// Fix round 14 (architecture-e0-2, D90 a) recorded a third layout: a link to a directory above the project was entered
+// and every file under it read. Phase 6 (gate-honesty-e1-1): only the files an #include names are read through it.
+test('readHeaderTexts reads through a link above the project (include/up, src/up -> ../..) only the files an #include names', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  const outer = await dirWith({ 'other/x.h': 'x', 'other/y.h': 'y', 'other/z.h': 'z', 'blob.bin': 'b', 'locked.h': 'l' });
   const dir = path.join(outer, 'proj');
   await mkdir(path.join(dir, 'include'), { recursive: true });
-  await writeFile(path.join(dir, 'include', 'global.h'), 'g');
+  await mkdir(path.join(dir, 'src'), { recursive: true });
+  await writeFile(path.join(dir, 'include', 'global.h'), '#include "up/other/x.h"\n');
   await symlink(path.join('..', '..'), path.join(dir, 'include', 'up'));
-  const read = await readHeaderTexts(dir);
-  assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
-  assert.deepEqual([...read.value], [
-    ['include/global.h', 'g'],
-    ['include/up/blob.bin', 'b'],
-    ['include/up/other/x.h', 'x'],
-  ]);
+  await symlink(path.join('..', '..'), path.join(dir, 'src', 'up'));
+  // An unrelated file there that cannot be read is never opened: no E_IO_READ.
+  await chmod(path.join(outer, 'locked.h'), 0o000);
+  try {
+    const read = await readHeaderTexts(dir, new Map([['src/main.c', '#include "global.h"\n#include "up/other/y.h"\n']]));
+    assert.ok(read.ok, read.ok ? '' : read.diagnostics.map((d) => d.message).join('; '));
+    const real = await realpath(outer);
+    assert.deepEqual([...read.value.texts], [
+      ['include/global.h', '#include "up/other/x.h"\n'],
+      ['include/up/other/x.h', 'x'],
+      ['src/up/other/y.h', 'y'],
+    ]);
+    assert.deepEqual([...read.value.realPaths], [
+      ['include/up/other/x.h', `${real}/other/x.h`],
+      ['src/up/other/y.h', `${real}/other/y.h`],
+    ]);
+  } finally {
+    await chmod(path.join(outer, 'locked.h'), 0o644);
+  }
+});
+
+test('readHeaderTexts: a file an #include names that cannot be read is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  const outer = await dirWith({ 'locked.h': 'l' });
+  const dir = path.join(outer, 'proj');
+  await mkdir(path.join(dir, 'include'), { recursive: true });
+  await symlink(path.join('..', '..'), path.join(dir, 'include', 'up'));
+  await chmod(path.join(outer, 'locked.h'), 0o000);
+  try {
+    const read = await readHeaderTexts(dir, new Map([['src/main.c', '#include <up/locked.h>\n']]));
+    assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ' && d.path === 'include/up/locked.h'), read.ok ? 'read' : read.diagnostics.map((d) => d.message).join('; '));
+  } finally {
+    await chmod(path.join(outer, 'locked.h'), 0o644);
+  }
 });
 
 test('readHeaderTexts: an include/ or src/ directory it cannot list, or a header it cannot read, is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
@@ -394,7 +465,9 @@ test('readProject passes the headers as headerTexts, and none with withoutC', as
   const read = await readProject(dir);
   assert.ok(read.ok);
   assert.deepEqual([...(read.value.inputs.headerTexts ?? new Map()).keys()], ['include/global.h', 'src/local.h']);
+  assert.deepEqual([...(read.value.inputs.headerRealPaths ?? new Map())], [], 'no link');
   const withoutC = await readProject(dir, { withoutC: true });
   assert.ok(withoutC.ok);
   assert.equal(withoutC.value.inputs.headerTexts, undefined);
+  assert.equal(withoutC.value.inputs.headerRealPaths, undefined);
 });

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { compiledDefinitions, fragmentPhrase, headerPath, includeSpelling, laterThan, resolveInclude, scanC, withFragments } from '../../../src/core/reconcile/c-scan.ts';
+import { compiledDefinitions, fragmentPhrase, headerCandidates, headerPath, includesOf, includeSpelling, laterThan, macroProvided, resolveInclude, scanC, withFragments } from '../../../src/core/reconcile/c-scan.ts';
 
 test('scanC: statements, definitions, other code, directives, with offsets and lines', () => {
   const text = [
@@ -76,6 +76,41 @@ test('resolveInclude and headerPath: a quoted include from the including file\'s
   assert.deepEqual(includeSpelling('#include <gba/gba.h>'), { spelled: 'gba/gba.h', angle: true });
   assert.deepEqual(includeSpelling('#  include "global.h"'), { spelled: 'global.h', angle: false });
   assert.equal(includeSpelling('#define X 1'), undefined);
+});
+
+// Phase 6 (roadmap "Carried from phase 4": D89 a, D90 a): cpp-exact behind symbolic links. A quoted include is
+// resolved from the including file's real directory (headerRealPaths), as cc -E and arm-none-eabi-cpp open it.
+test('headerCandidates: from the including file\'s real directory, then include/; a .. after a named directory stays written', () => {
+  assert.deepEqual(headerCandidates('src/main.c', 'global.h', false), ['src/global.h', 'include/global.h']);
+  assert.deepEqual(headerCandidates('src/main.c', 'global.h', true), ['include/global.h']);
+  assert.deepEqual(headerCandidates('include/global.h', 'gba/gba.h', false), ['include/gba/gba.h'], 'one candidate when both are one');
+  assert.deepEqual(headerCandidates('src/main.c', '../include/x.h', false), ['include/x.h', 'include/../include/x.h']);
+  // A header behind include/gba -> /s/gba: "../glue.h" from the link's target, the system's own resolution.
+  const real = new Map([['include/gba/macro.h', '/s/gba/macro.h'], ['include/global.h', 'global.h']]);
+  assert.deepEqual(headerCandidates('include/gba/macro.h', '../glue.h', false, real), ['/s/glue.h', 'include/../glue.h']);
+  assert.deepEqual(headerCandidates('include/gba/macro.h', '../../../../x.h', false, real)[0], '/x.h', 'the root is its own parent');
+  // include -> .: global.h's real directory is the project's top; above it, a leading `..`.
+  assert.deepEqual(headerCandidates('include/global.h', 'macros.h', false, real), ['macros.h', 'include/macros.h']);
+  assert.deepEqual(headerCandidates('include/global.h', '../up.h', false, real), ['../up.h', 'include/../up.h']);
+  // A named directory may be a link: the `..` after it stays for the system to resolve.
+  assert.deepEqual(headerCandidates('src/main.c', 'gba/../glue.h', true), ['include/gba/../glue.h']);
+  assert.deepEqual(headerCandidates('src/main.c', './a//b.h', false), ['src/a/b.h', 'include/a/b.h']);
+  assert.deepEqual(headerCandidates('src/main.c', '/abs/x.h', false), ['/abs/x.h']);
+});
+
+test('headerPath and macroProvided read a header behind a linked directory from its real directory', () => {
+  const real = new Map([['include/gba/macro.h', '/s/gba/macro.h']]);
+  const headers = new Map([['include/gba/macro.h', '#include "../glue.h"\n'], ['include/glue.h', 'typedef int t;\n'], ['/s/glue.h', '#define INCLUDE_ASM(DIR, NAME)\n']]);
+  assert.equal(headerPath('include/gba/macro.h', '../glue.h', false, headers, real), '/s/glue.h');
+  assert.equal(headerPath('include/gba/macro.h', '../glue.h', false, headers), 'include/glue.h', 'without real paths, where the key says');
+  const scan = scanC('#include "gba/macro.h"\n');
+  assert.ok(macroProvided(scan, { path: 'src/main.c', headers, headerRealPaths: real }, []), 'the target\'s glue.h defines it');
+  assert.ok(!macroProvided(scan, { path: 'src/main.c', headers }, []), 'the link\'s path names include/glue.h, which does not');
+});
+
+test('includesOf: every #include line in text order, in a conditional too, never one in a comment or a literal', () => {
+  const text = '#include "a.h"\n/* #include "no.h" */\nconst char *s = "#include <no.h>";\n#if 0\n#include <b.h>\n#endif\n#define X 1\n';
+  assert.deepEqual(includesOf(text), [{ spelled: 'a.h', angle: false }, { spelled: 'b.h', angle: true }]);
 });
 
 test('laterThan and fragmentPhrase: the text order through the includes, and a fragment named through its chain', () => {

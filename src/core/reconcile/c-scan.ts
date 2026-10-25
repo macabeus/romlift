@@ -22,7 +22,8 @@
 // compiledDefinitions is the one rule for what a file defines for the default build (a definition outside every
 // conditional, or in every branch of one with an `#else`). withFragments adds what the src/*.c fragments a file
 // `#include`s at file scope hold, at the `#include` line; macroProvided says whether INCLUDE_ASM is defined by the
-// file, a fragment it includes or a header either reaches, as `cpp -nostdinc -I include` finds them (include-asm.ts's
+// file, a fragment it includes or a header either reaches, as `cpp -nostdinc -I include` finds them, behind symbolic
+// links too (headerCandidates: a quoted include from the including file's real directory, phase 6; include-asm.ts's
 // module comment says how the planner uses each).
 import { INCLUDE_ASM_HEADER_NAME, INCLUDE_ASM_HEADER_PATH, INCLUDE_DIR, isHeaderPath } from '../../foundation/util/project-files.ts';
 import { tokenizeC, isTrivia } from './c-tokens.ts';
@@ -154,7 +155,19 @@ export interface CIncludeInputs {
   readonly sources?: ReadonlyMap<string, string>;
   /** The text of every file under `include/` and of every `.h` under `src/`, by project path. */
   readonly headers?: ReadonlyMap<string, string>;
+  /** Where a header or a C file is behind its symbolic links, by its key (IncludeRealPaths); absent, where its key says. */
+  readonly headerRealPaths?: IncludeRealPaths;
 }
+
+/**
+ * A file's key (a key of the headers or of the C texts) -> its directory's real path joined with its own name: relative
+ * to the project inside it, absolute outside it (ProjectInputs.headerRealPaths, phase 6; roadmap "Carried from phase 4",
+ * D89 a, D90 a). The directory, not the file: a header that is itself a link to a file keeps its link's directory,
+ * since cpp resolves a quoted include from the directory it opened the file in, whose symbolic links the system then
+ * follows (a `..` behind a linked directory leads to the parent of the link's target). A key with no entry is where
+ * its spelling says.
+ */
+export type IncludeRealPaths = ReadonlyMap<string, string>;
 
 /** A held item's place in text order (include-asm.ts Held, CDefinition, IncludeAsmStatement): its offset, or the offsets that reach it through the includes. */
 export interface CTextOrder {
@@ -231,11 +244,29 @@ function quotedInclude(text: string): string | undefined {
  * line (fix round 11, correctness-d0-2: the scaffold's `cpp -nostdinc -I include` finds an angle include under
  * `include/`).
  */
-export function includeSpelling(text: string): { readonly spelled: string; readonly angle: boolean } | undefined {
+export function includeSpelling(text: string): IncludeSpelling | undefined {
   const quoted = includeOf(text, '"', '"');
   if (quoted !== undefined) return { spelled: quoted, angle: false };
   const angled = includeOf(text, '<', '>');
   return angled === undefined ? undefined : { spelled: angled, angle: true };
+}
+
+/** One `#include` line's spelling: the path between its quotes or angle brackets, and which of the two. */
+export interface IncludeSpelling {
+  readonly spelled: string;
+  readonly angle: boolean;
+}
+
+/**
+ * Every `#include "…"` and `#include <…>` line of `text`, in text order: each preprocessor line the scanner reads, inside
+ * a conditional or a body too (the include resolution evaluates no `#if`), never one in a comment or a literal. What
+ * macroProvided follows, and what the shell reads the headers of (shell/project/read-inputs.ts readHeaderTexts).
+ */
+export function includesOf(text: string): readonly IncludeSpelling[] {
+  return scanC(text).directives.flatMap((t) => {
+    const include = t.kind === 'preprocessor' ? includeSpelling(t.text) : undefined;
+    return include === undefined ? [] : [include];
+  });
 }
 
 /** The path between `open` and `close` right after the `include` of an `#include` line, or undefined. */
@@ -563,44 +594,92 @@ export function laterThan(a: CTextOrder, b: CTextOrder): boolean {
 }
 
 /** Whether a preprocessor line of `scan` includes `include_asm.h` or `#define`s INCLUDE_ASM. */
-function providesMacro(scan: CFileScan, from: string): boolean {
+function providesMacro(scan: CFileScan, from: string, realPaths: IncludeRealPaths | undefined): boolean {
   return scan.directives.some((t) => {
     if (t.kind !== 'preprocessor') return false;
     if (definedMacro(t.text) === INCLUDE_ASM_MACRO) return true;
     const include = includeSpelling(t.text);
     if (include === undefined) return false;
-    return (!include.angle && include.spelled === INCLUDE_ASM_HEADER_NAME) || headerPath(from, include.spelled, include.angle) === INCLUDE_ASM_HEADER_PATH;
+    return (!include.angle && include.spelled === INCLUDE_ASM_HEADER_NAME) || headerCandidates(from, include.spelled, include.angle, realPaths).includes(INCLUDE_ASM_HEADER_PATH);
   });
 }
 
+/** The directory part of a key or real path (`''` for one at the project's top, `/` for one at the root). */
+function directoryOf(path: string): string {
+  const slash = path.lastIndexOf('/');
+  return slash < 0 ? '' : slash === 0 ? '/' : path.slice(0, slash);
+}
+
 /**
- * The project path an `#include` of the file at `from` names, as the scaffold's `cpp -nostdinc -I include` finds it
- * (fix round 11, correctness-d0-2): a quoted include from the including file's own directory first, then from
- * `include/`; an angle include (`angle`) from `include/` alone. Undefined when none is a file of `headers` (without
- * `headers`: a quoted include from a header under `include/` its own-directory path, any other the `include/` one).
+ * `spelled` opened from directory `base` as cpp opens it, as a key: `base` is a real directory (no symbolic link in it),
+ * so a `..` that leads `spelled` takes `base`'s last name off (or, at the project's top, adds a `..`: the directory
+ * above the project), exactly as the system resolves it; once `spelled` has named a directory of its own, which may be
+ * a link, a later `..` stays written, and the shell opens the key as written, so the system resolves it (`gba/../x.h`).
+ * `.` and empty names are dropped.
  */
-export function headerPath(from: string, spelled: string, angle: boolean, headers?: ReadonlyMap<string, string>): string | undefined {
-  const own = angle ? undefined : resolveInclude(from, spelled);
-  if (own !== undefined && (headers === undefined ? from.startsWith(`${INCLUDE_DIR}/`) : headers.has(own))) return own;
-  const rooted = resolveInclude(`${INCLUDE_DIR}/.`, spelled);
-  return rooted !== undefined && (headers === undefined || headers.has(rooted)) ? rooted : undefined;
+function includeJoin(base: string, spelled: string): string {
+  const absolute = base.startsWith('/');
+  const parts = base.split('/').filter((name) => name !== '');
+  let named = false;
+  for (const name of spelled.split('/')) {
+    if (name === '' || name === '.') continue;
+    if (name !== '..') {
+      parts.push(name);
+      named = true;
+    } else if (named || parts.length === 0 || parts[parts.length - 1] === '..') {
+      if (named || !absolute) parts.push(name);
+    } else {
+      parts.pop();
+    }
+  }
+  return `${absolute ? '/' : ''}${parts.join('/')}`;
+}
+
+/**
+ * The keys an `#include` of the file keyed `from` names, in the order the scaffold's `cpp -nostdinc -I include` tries
+ * them (phase 6, cpp-exact behind symbolic links; roadmap "Carried from phase 4", D89 a, D90 a): an absolute include as
+ * written; a quoted include from the real directory of the including file first (`realPaths`, its directory's real path; a file with no entry is
+ * where its key says), then from `include/`, as the system finds it through a linked `include/`; an angle include from
+ * `include/` alone. The first that is a file is the one cpp reads; the shell reads it under that key
+ * (readHeaderTexts), so headerPath finds it.
+ */
+export function headerCandidates(from: string, spelled: string, angle: boolean, realPaths?: IncludeRealPaths): readonly string[] {
+  // An absolute include is opened as written, searched nowhere.
+  if (spelled.startsWith('/')) return [includeJoin('/', spelled)];
+  const rooted = includeJoin('', `${INCLUDE_DIR}/${spelled}`);
+  if (angle) return [rooted];
+  const own = includeJoin(directoryOf(realPaths?.get(from) ?? from), spelled);
+  return own === rooted ? [own] : [own, rooted];
+}
+
+/**
+ * The key an `#include` of the file keyed `from` names: the first of headerCandidates that is a file of `headers`, as
+ * cpp reads the first it finds (fix round 11, correctness-d0-2; phase 6, from the real directory of the including file,
+ * `realPaths`). Undefined when none is (without `headers`: from a file under `include/`, its own-directory key, from any
+ * other, the `include/` one).
+ */
+export function headerPath(from: string, spelled: string, angle: boolean, headers?: ReadonlyMap<string, string>, realPaths?: IncludeRealPaths): string | undefined {
+  const candidates = headerCandidates(from, spelled, angle, realPaths);
+  if (headers !== undefined) return candidates.find((c) => headers.has(c));
+  return !angle && (realPaths?.get(from) ?? from).startsWith(`${INCLUDE_DIR}/`) ? candidates[0] : candidates[candidates.length - 1];
 }
 
 /**
  * Whether INCLUDE_ASM comes from the file itself, from a src/*.c fragment it includes (`included`, withFragments'
  * list, transitively; fix round 11, correctness-d0-1) or from a header one of them includes (fix round 10,
  * correctness-c2-1): their own lines include `include_asm.h` or define the macro, or one of their includes that
- * resolves to a file of `wanted.headers` does (headerPath: quoted or angle, fix round 11, correctness-d0-2; followed
- * transitively, each header once, so an include cycle ends).
+ * resolves to a file of `wanted.headers` does (headerPath: quoted or angle, fix round 11, correctness-d0-2; from the
+ * including file's real directory, `wanted.headerRealPaths`, phase 6; followed transitively, each header once, so an
+ * include cycle ends).
  */
 export function macroProvided(scan: CFileScan, wanted: CIncludeInputs, included: readonly string[]): boolean {
-  const { headers, path, fragments } = wanted;
-  if (providesMacro(scan, path ?? '')) return true;
+  const { headers, path, fragments, headerRealPaths: realPaths } = wanted;
+  if (providesMacro(scan, path ?? '', realPaths)) return true;
   if (path === undefined) return false;
   const pending: { readonly from: string; readonly scan: CFileScan }[] = [{ from: path, scan }];
   for (const fragment of included) {
     const fragmentScan = scanC(fragments?.get(fragment) ?? '');
-    if (providesMacro(fragmentScan, fragment)) return true;
+    if (providesMacro(fragmentScan, fragment, realPaths)) return true;
     pending.push({ from: fragment, scan: fragmentScan });
   }
   if (headers === undefined) return false;
@@ -608,11 +687,11 @@ export function macroProvided(scan: CFileScan, wanted: CIncludeInputs, included:
   for (let next = pending.shift(); next !== undefined; next = pending.shift()) {
     for (const t of next.scan.directives) {
       const include = t.kind === 'preprocessor' ? includeSpelling(t.text) : undefined;
-      const found = include === undefined ? undefined : headerPath(next.from, include.spelled, include.angle, headers);
+      const found = include === undefined ? undefined : headerPath(next.from, include.spelled, include.angle, headers, realPaths);
       if (found === undefined || seen.has(found)) continue;
       seen.add(found);
       const header = scanC(headers.get(found) ?? '');
-      if (providesMacro(header, found)) return true;
+      if (providesMacro(header, found, realPaths)) return true;
       pending.push({ from: found, scan: header });
     }
   }
