@@ -5,6 +5,7 @@ import type { Diagnostic } from '../diagnostics/diagnostic.ts';
 import { RomCodes } from './codes.ts';
 import type { RomCode } from './codes.ts';
 import { parseHeader } from './header.ts';
+import { le32 } from '../util/bytes.ts';
 import { hex, hexAddr } from '../util/hex.ts';
 import type { Addr } from './span.ts';
 
@@ -136,14 +137,12 @@ export function peek16(rom: RomBytes, a: Addr): number {
   return (rom.bytes[k] ?? 0) | ((rom.bytes[k + 1] ?? 0) << 8);
 }
 
-/** The word at bus address `a` as peek16 reads it (unsigned). */
+/** The word at bus address `a` as peek16 reads it (unsigned): foundation/util/bytes.ts le32, a byte outside reading 0. */
 export function peek32(rom: RomBytes, a: Addr): number {
-  return (peek16(rom, a) | (peek16(rom, a + 2) << 16)) >>> 0;
+  return le32(rom.bytes, a - rom.base);
 }
 
-/** The little-endian word at bus address `a` (any alignment), as an unsigned number. */
+/** The little-endian word at bus address `a` (any alignment), as an unsigned number (le32 after u8's bounds check). */
 export function u32(rom: RomBytes, a: Addr): number {
-  const i = offsetOf(rom, a, 4);
-  const b = rom.bytes;
-  return ((b[i] ?? 0) | ((b[i + 1] ?? 0) << 8) | ((b[i + 2] ?? 0) << 16) | ((b[i + 3] ?? 0) << 24)) >>> 0;
+  return le32(rom.bytes, offsetOf(rom, a, 4));
 }

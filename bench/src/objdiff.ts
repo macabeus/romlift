@@ -512,8 +512,8 @@ export function baseBindings(defined: readonly { readonly name: string; readonly
  * label takes its binding (a function's start macro its `_local` form or not, a `.global` line dropped or added), so
  * `as` resolves a call inside the base exactly where it resolved it inside the reference object.
  */
-export function nameBase(source: string, labelOf: (name: string) => BaseLabel | undefined, names: ReadonlyMap<number, ObjectName>): string {
-  const text = objectWords(source, labelOf, names);
+export function nameBase(source: string, labelOf: (name: string) => BaseLabel | undefined, names: ReadonlyMap<number, ObjectName>, rewriteWords = true): string {
+  const text = rewriteWords ? objectWords(source, labelOf, names) : source;
   const tokens = new Set(text.match(IDENTIFIER) ?? []);
   const renames = baseRenames(tokens, labelOf, names);
   const renamed = renames.size === 0 ? text : text.replace(IDENTIFIER, (t) => renames.get(t) ?? t);
@@ -573,6 +573,11 @@ export interface ObjdiffInputs {
   readonly tools?: Binutils;
   /** Parallel tool runs; default the machine's available parallelism. */
   readonly concurrency?: number;
+  /**
+   * true: each base keeps romlift's own pool-word spelling (nameBase without objectWords), the measure of phase-6.md
+   * Q15's option (a) (fix round 2, delivery-r1-1); default false, the family as `p6-objdiff` measures it.
+   */
+  readonly ownSpelling?: boolean;
 }
 
 /** Runs `work` over `items` with at most `limit` in flight; results in the order of `items`. */
@@ -780,7 +785,7 @@ async function groupSource(group: Group, cx: Context): Promise<string> {
     const l = cx.labelByName.get(name);
     return l === undefined || l === null ? undefined : { addr: l.addr, value: wordValueOf(l), func: l.kind === 'func', defined: defined.has(name) };
   };
-  return nameBase(text, labelOf, names);
+  return nameBase(text, labelOf, names, cx.inputs.ownSpelling !== true);
 }
 
 /**

@@ -7,9 +7,12 @@
 // `parseSignatureSpec` validates with zod, like parseSignatureFile (D95 d), refuses unknown keys and never throws.
 import { z } from 'zod';
 
+import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { firstIssue } from './issues.ts';
-import { anyText, exactObject, isMemberId, listOf, nonEmptyText } from './schema.ts';
+import { isMemberId } from './schema.ts';
 import type { MemberId } from './schema.ts';
+import { anyText, exactObject, listOf, nonEmptyText } from './zod-helpers.ts';
+
 /** One reference of a version: a dataset, the objects whose FUNC symbols become function members, and named tables. */
 export interface SignatureSpecReference {
   /** A bench dataset name (bench/dataset/real/<dataset>.json). */
@@ -43,15 +46,6 @@ export function isLibraryName(name: string): boolean {
   return LIBRARY_NAME.test(name);
 }
 
-/**
- * Whether a dataset (its JSON fields as the bench records them: `heldout`, `revealed`) is sealed: held out and never
- * revealed (D25). A sealed dataset is never a signature reference (D32); the shell's builder and the bench read this
- * one definition (architecture-6).
- */
-export function isSealedDataset(fields: { readonly heldout?: unknown; readonly revealed?: unknown }): boolean {
-  return fields.heldout === true && (!Array.isArray(fields.revealed) || fields.revealed.length === 0);
-}
-
 const referenceSchema = exactObject({
   dataset: nonEmptyText,
   objects: listOf(nonEmptyText).min(1, { error: 'names no object' }),
@@ -67,7 +61,7 @@ const reviewedSchema = z
   })
   .transform((names) => {
     const out: Record<MemberId, { readonly name: string; readonly reason: string }> = {};
-    for (const key of Object.keys(names).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
+    for (const key of Object.keys(names).sort(compareCodeUnits)) {
       const entry = names[key];
       if (entry !== undefined && isMemberId(key)) out[key] = entry;
     }

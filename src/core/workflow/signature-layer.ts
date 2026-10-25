@@ -29,6 +29,7 @@ import { applyProposals } from '../config/patch.ts';
 import type { FunctionConfig, RomliftConfig } from '../config/schema.ts';
 import { codeLayout } from '../layout/borders.ts';
 import { planLibraryModules, regionsWithoutModule } from '../layout/module-proposals.ts';
+import { runsAtSpans } from '../model/modules.ts';
 import type { LibraryRegion, ModuleProposal, Proposal } from '../proposals/types.ts';
 import { matchSignatures } from '../signatures/match.ts';
 import { proposeFromSignatures } from '../signatures/propose.ts';
@@ -216,8 +217,7 @@ const NO_LEGAL_BORDER = 'no legal module border lies inside it';
  * starts of those a library module replaces.
  */
 export function libraryModuleProposals(rom: Rom, analysis: AnalysisResult, config: RomliftConfig, regions: readonly LibraryRegion[], proposed: readonly ModuleProposal[] = []): LibraryModules & { readonly replaces: readonly Addr[] } {
-  const runsAt = config.overrides.flatMap((o) => (o.runsAt === undefined ? [] : [{ start: o.start, end: o.start + o.size }]));
-  const plan = planLibraryModules(codeLayout(rom, analysis), config.modules, regions, runsAt, rom.end, proposed);
+  const plan = planLibraryModules(codeLayout(rom, analysis), config.modules, regions, runsAtSpans(config), rom.end, proposed);
   const notes = plan.dropped.map(({ region, why }) =>
     why.kind === 'no-legal-border'
       ? droppedRegion(region, NO_LEGAL_BORDER)

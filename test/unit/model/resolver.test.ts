@@ -8,7 +8,8 @@ import { test } from 'node:test';
 
 import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
 import { wordScope, wordText } from '../../../src/core/emit/print/pool.ts';
-import { adrResolverFor, compareLabels, isExactLabel, isNamedEntry, loadSymbolOf, loadWordOperand, moduleAt, resolverFor, resolverOver, sizedEntries, sizedEntryAt, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { adrResolverFor, compareLabels, isExactLabel, isNamedEntry, loadWordOperand, moduleAt, resolverFor, resolverOver, sizedEntries, sizedEntryAt, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { loadSymbolOf } from '../../../src/core/model/modules.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
 

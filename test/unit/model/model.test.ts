@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { Claim } from '../../../src/core/analysis/types.ts';
 import { itemAt } from '../../../src/core/model/item-table.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
+import { modelNamesOf } from '../../../src/core/workflow/rename.ts';
 import type { RomliftConfig } from '../../../src/core/config/schema.ts';
 import { analysisOf, BASE, configOf, fact, HEADER_END, romWith, thumbAt, tiles, words } from '../layout/hand-made.ts';
 
@@ -145,6 +146,23 @@ test('a runs_at range off the module borders is E_OVERRIDE_INVALID; the model is
   assert.deepEqual(model.diagnostics.map((d) => d.code), ['E_OVERRIDE_INVALID']);
   assert.ok(model.modules.every((m) => m.runAt === undefined));
   assert.ok(tiles(model.items, rom.base, rom.end));
+});
+
+// Fix round 2 (correctness-r1-2): the ldscript defines __load_<module> for every runs_at module, so no name of the
+// config may take it, and rename refuses it as a model name.
+test('a config name equal to a runs_at module\'s __load_<module> is E_NAME_COLLISION; rename counts it a model name', () => {
+  const { rom, analysis, config } = ramCode();
+  const base = config(0x0300_0000);
+  const named = buildModel(rom, analysis, { ...base, functions: new Map([...base.functions].map(([a, f]) => [a, { ...f, name: '__load_iwram' }])) });
+  assert.deepEqual(named.diagnostics.map((d) => d.code), ['E_NAME_COLLISION']);
+  assert.match(named.diagnostics[0]?.message ?? '', /the name __load_iwram at 0x03000000 is the symbol ldscript\.txt defines as the load address of runs_at module iwram/);
+  const symbol = buildModel(rom, analysis, { ...base, symbols: new Map([[0x0300_1000, { name: '__load_iwram', aliases: [] }]]) });
+  assert.ok(symbol.diagnostics.some((d) => d.code === 'E_NAME_COLLISION' && d.message.includes('__load_iwram')), JSON.stringify(symbol.diagnostics));
+  const identity = buildModel(rom, analysis, { ...config(BASE + 0x140), functions: new Map([...base.functions].map(([a, f]) => [a, { ...f, name: '__load_main' }])) });
+  assert.ok(!identity.diagnostics.some((d) => d.code === 'E_NAME_COLLISION'), 'a module that is not runs_at has no __load_ symbol');
+  const model = buildModel(rom, analysis, base);
+  assert.equal(modelNamesOf(model).get('__load_iwram'), BASE + 0x140);
+  assert.equal(modelNamesOf(model).get('__load_main'), undefined);
 });
 
 test('deterministic: the same model whatever order the config maps were filled in; diagnostics sorted by address', () => {

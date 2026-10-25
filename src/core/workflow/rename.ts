@@ -24,6 +24,7 @@ import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.t
 import { entriesNamed, planRenamePatch } from '../config/rename-patch.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import type { FileEntry } from '../emit/tree.ts';
+import { loadSymbolOf, relocatedModules } from '../model/modules.ts';
 import type { Model } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import { C_KEYWORDS } from '../reconcile/c-tokens.ts';
@@ -89,8 +90,9 @@ function projectNames(config: RomliftConfig): ReadonlySet<string> {
 }
 
 /**
- * Every name the model of a project emits (correctness-1, D95 c): each chunk's, label's, symbol's and module's, by name
- * -> the first address that carries it. A new name among them is one `generate` would refuse (E_NAME_COLLISION).
+ * Every name the model of a project emits (correctness-1, D95 c): each chunk's, label's, symbol's and module's, and the
+ * `__load_<module>` the linker script defines for each runs_at module (correctness-r1-2), by name -> the first address
+ * that carries it. A new name among them is one `generate` would refuse (E_NAME_COLLISION).
  */
 export function modelNamesOf(model: Pick<Model, 'chunks' | 'labels' | 'symbols' | 'modules'>): ReadonlyMap<string, Addr> {
   const uses: { readonly name: string; readonly addr: Addr }[] = [
@@ -98,6 +100,7 @@ export function modelNamesOf(model: Pick<Model, 'chunks' | 'labels' | 'symbols' 
     ...model.labels.map((l) => ({ name: l.name, addr: l.addr })),
     ...model.symbols.map((sym) => ({ name: sym.name, addr: sym.addr })),
     ...model.modules.map((m) => ({ name: m.name, addr: m.span.start })),
+    ...relocatedModules(model.modules).map((m) => ({ name: loadSymbolOf(m), addr: m.span.start })),
   ].sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
   const names = new Map<string, Addr>();
   for (const u of uses) if (!names.has(u.name)) names.set(u.name, u.addr);
@@ -150,7 +153,7 @@ export function renameProblems(config: RomliftConfig, from: string, to: string, 
   if (projectNames(config).has(to)) {
     out.push(diagnostic(WorkflowCodes, 'E_RENAME_EXISTS', `romlift.toml already has the name ${to} (a function, a symbol, an alias or a module); nothing was changed`));
   } else if (emitted !== undefined) {
-    out.push(diagnostic(WorkflowCodes, 'E_RENAME_EXISTS', `the project's model already names ${hexAddr(emitted)} ${to} (a default chunk, symbol or label name), so generate would refuse it twice in the tree; nothing was changed`, { addr: emitted }));
+    out.push(diagnostic(WorkflowCodes, 'E_RENAME_EXISTS', `the project's model already names ${hexAddr(emitted)} ${to} (a default chunk, symbol or label name, or the linker script's __load_<module> of a runs_at module), so generate would refuse it as a second definition; nothing was changed`, { addr: emitted }));
   }
   return out;
 }

@@ -62,11 +62,11 @@ import { pushAll } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
-import { dataRangeModuleAt, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
+import { dataRangeModuleAt, loadSymbolOf, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
 import { BASEROM_FILE, isCSource, matchingFileOf, nonmatchingFileOf } from '../../foundation/util/project-files.ts';
 import { chunkPathsOf, expectedRomSourcePath, expectedSourcePath, hasExpectedTarget, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { STUB_UNIT_MODE } from '../model/c-unit.ts';
-import { loadSymbolOf, wordValueOf } from '../model/resolver.ts';
+import { wordValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Label, Model, Module } from '../model/types.ts';
 import { readStub } from './c-stub.ts';
@@ -352,9 +352,13 @@ function moduleChunkFiles(model: Model, index: IndexData, module: Module): reado
   return order;
 }
 
-/** The layout's include resolver of a unit file: each of the module's chunk files stands for its chunk's ROM bytes. */
-function chunkBytes(order: readonly { readonly path: string; readonly span: Span }[]): (path: string) => readonly Statement[] | undefined {
-  const files = new Map(order.map((f) => [f.path, f.span] as const));
+/** The chunk files of `order` by path, each with its span. */
+function spansByPath(order: readonly { readonly path: string; readonly span: Span }[]): ReadonlyMap<string, Span> {
+  return new Map(order.map((f) => [f.path, f.span] as const));
+}
+
+/** The layout's include resolver of a unit file or an objdiff target: each path of `files` stands for its span's ROM bytes. */
+function chunkBytes(files: ReadonlyMap<string, Span>): (path: string) => readonly Statement[] | undefined {
   return (path) => {
     const span = files.get(path);
     return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_FILE, offset: span.start - ROM_BASE, length: span.end - span.start }];
@@ -383,6 +387,19 @@ function includeOrderError(path: string, got: readonly { readonly path: string; 
   return undefined;
 }
 
+/**
+ * The refusal of a file that includes a chunk file before the macro file: its chunk files use the macros without
+ * including them (asIncluded), so the module file defines them once, before the first chunk file; undefined when the
+ * macro file comes first or nothing is included.
+ */
+function macrosOrderError(entry: { readonly path: string; readonly text: string }, includes: readonly { readonly line: number }[], module: Module): Diagnostic | undefined {
+  const firstInclude = includes[0];
+  if (firstInclude === undefined) return undefined;
+  const macrosLine = macrosIncludeLine(entry.text);
+  if (macrosLine !== undefined && macrosLine <= firstInclude.line) return undefined;
+  return textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`);
+}
+
 /** The module at `m`, which the path index names. */
 function moduleAtIndex(model: Model, m: number): Module {
   const module = model.modules[m];
@@ -399,19 +416,15 @@ function checkSourceFile(rom: Rom, model: Model, index: IndexData, entry: { read
   const job: Job = {
     path: entry.path,
     statements: parsed.statements,
-    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(order) },
+    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(spansByPath(order)) },
     range: module.span,
     runOffset,
   };
 
   const includes = parsed.statements.filter((s): s is Statement & { readonly kind: 'include' } => s.kind === 'include');
   const lastLine = parsed.statements[parsed.statements.length - 1]?.line ?? 1;
-  const firstInclude = includes[0];
-  const macrosLine = macrosIncludeLine(entry.text);
-  if (firstInclude !== undefined && (macrosLine === undefined || macrosLine > firstInclude.line)) {
-    // Its chunk files use the macros without including them (asIncluded): the module file defines them once.
-    return { diagnostics: [textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`)], sectionAlign: 0 };
-  }
+  const macrosFirst = macrosOrderError(entry, includes, module);
+  if (macrosFirst !== undefined) return { diagnostics: [macrosFirst], sectionAlign: 0 };
   const misordered = includeOrderError(entry.path, includes, order, module, lastLine);
   if (misordered !== undefined) return { diagnostics: [misordered], sectionAlign: 0 };
   return compareLayout(rom, model, job, parsed.errors);
@@ -442,19 +455,11 @@ function checkStubFile(rom: Rom, model: Model, index: IndexData, entry: { readon
   const job: Job = {
     path: entry.path,
     statements,
-    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(order) },
+    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(spansByPath(order)) },
     range: module.span,
     runOffset,
   };
   return compareLayout(rom, model, job, []);
-}
-
-/** The include resolver of an objdiff target: each path of `files` stands for its span's ROM bytes. */
-function spanBytes(files: ReadonlyMap<string, Span>): (path: string) => readonly Statement[] | undefined {
-  return (path) => {
-    const span = files.get(path);
-    return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_FILE, offset: span.start - ROM_BASE, length: span.end - span.start }];
-  };
 }
 
 /**
@@ -473,20 +478,15 @@ function checkExpectedFile(rom: Rom, model: Model, index: IndexData, entry: { re
     files.set(f.path, f.span);
     if (module.kind === 'c') files.set(matchingFileOf(f.path), f.span);
   }
-  if (module.kind === 'c') {
-    const firstInclude = includes[0];
-    const macrosLine = macrosIncludeLine(entry.text);
-    if (firstInclude !== undefined && (macrosLine === undefined || macrosLine > firstInclude.line)) {
-      return { diagnostics: [textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`)], sectionAlign: 0 };
-    }
-  }
+  const macrosFirst = module.kind === 'c' ? macrosOrderError(entry, includes, module) : undefined;
+  if (macrosFirst !== undefined) return { diagnostics: [macrosFirst], sectionAlign: 0 };
   const got = includes.map((i) => ({ path: nonmatchingFileOf(i.path), line: i.line }));
   const misordered = includeOrderError(entry.path, got, order, module, lastLine);
   if (misordered !== undefined) return { diagnostics: [misordered], sectionAlign: 0 };
   const job: Job = {
     path: entry.path,
     statements: parsed.statements,
-    input: { start: module.span.start, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: spanBytes(files) },
+    input: { start: module.span.start, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(files) },
     range: module.span,
     runOffset: 0,
   };

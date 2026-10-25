@@ -27,7 +27,7 @@ import { buildItems } from './items.ts';
 import { segmentsOf } from './segments.ts';
 import { buildLabels, codeRefs } from './labels.ts';
 import { modulePieces, planModules, relocatedModules, runOffsetAt } from './modules.ts';
-import { invalidNames, moduleNameProblems, nameCollisions, nameSourceOf } from './names.ts';
+import { invalidNames, linkerNameCollisions, moduleNameProblems, nameCollisions, nameSourceOf } from './names.ts';
 import type { DefinedName } from './names.ts';
 import { modelSymbols, romSymbols } from './symbols.ts';
 import type { Chunk, Label, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
@@ -198,9 +198,10 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     const label = labelled.functions.get(entry);
     if (label !== undefined) for (const alias of f.aliases) defined.push({ name: alias, addr: label.addr, scope: label.scope });
   }
-  const collisions = nameCollisions(defined, modules);
   const named = [...sortedEntries(functions), ...sortedEntries(config.symbols)];
-  const invalid = invalidNames(named.flatMap(([addr, n]) => [n.name, ...n.aliases].map((name) => ({ name, addr }))));
+  const configNames = named.flatMap(([addr, n]) => [n.name, ...n.aliases].map((name) => ({ name, addr })));
+  const collisions = [...nameCollisions(defined, modules), ...linkerNameCollisions([...defined, ...configNames], modules)];
+  const invalid = invalidNames(configNames);
 
   const runOffsets = chunkPlans.map((c) => runOffsetAt(relocated, c.span.start));
   const built = buildItems({ rom, chunks: chunkPlans, modules, segments, labels: labelled.labels, labelStarts: labelled.starts, runOffsets, refs });

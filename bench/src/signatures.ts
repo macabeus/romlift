@@ -47,10 +47,10 @@ import {
   signaturesOver,
   type AnalysisResult,
   type ElfSymbol,
-  type LibraryRegion,
   type MemberId,
   type Proposal,
   type Rom,
+  type RomSignatures,
   type SignatureFile,
   type SignaturePlacement,
   type SignatureSpec,
@@ -382,17 +382,17 @@ const ofVersion = (placements: readonly SignaturePlacement[], library: string, v
 // ---------------------------------------------------------------------------------------------------
 // Running the matcher on a scored run.
 
-/** The settled placements, regions and proposals of the built files on a ROM's seedless discover run. */
-export interface RomSignatures {
-  readonly placements: readonly SignaturePlacement[];
-  readonly regions: readonly LibraryRegion[];
-  readonly proposals: readonly Proposal[];
-}
-
-/** Matches, settles and proposes the built files on `rom` over its discover run `analysis`. */
+/**
+ * Matches, settles and proposes the built files on `rom` over its discover run `analysis` (romlift's signaturesOver, its
+ * RomSignatures as it is). A run that cannot be judged is refused, never scored as finding nothing: an analysis with an
+ * error diagnostic (signaturesOver then places nothing) or an error of the matcher or the resolver (architecture-r1-6);
+ * their warnings stay in `diagnostics`.
+ */
 export function romSignatures(rom: Rom, analysis: AnalysisResult, files: readonly SignatureFile[]): RomSignatures {
   const found = signaturesOver(rom, analysis, files);
-  return { placements: found.placements, regions: found.regions, proposals: found.proposals };
+  const errors = [...analysis.diagnostics, ...found.diagnostics].filter((d) => d.severity === 'error');
+  if (errors.length > 0) throw new BenchError(`signatures: the run cannot be judged: ${errors.map((d) => `${d.code} ${d.message}`).join('; ')}`);
+  return found;
 }
 
 /** The judged member of one tuning ROM from its scored run (bench run's family and `bench signatures`). */

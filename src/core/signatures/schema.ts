@@ -12,6 +12,7 @@ import { z } from 'zod';
 
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import { firstIssue } from './issues.ts';
+import { anyText, exactObject, listOf, nonEmptyText } from './zod-helpers.ts';
 
 /** A member's object-qualified id, unique across a library's objects: `_fpadd_parts@dp-bit.o` (D31). */
 export type MemberId = `${string}@${string}.o`;
@@ -115,28 +116,13 @@ export function isMemberId(text: string): text is MemberId {
 // ---------------------------------------------------------------------------------------------------
 // The zod schema (the messages are the refusal texts, path first: `file.versions[0].functions[1].mask: …`).
 
-const NON_EMPTY = 'must be a non-empty string';
-
-/** A non-empty string. */
-export const nonEmptyText = z.string({ error: NON_EMPTY }).min(1, { error: NON_EMPTY });
-/** Any string. */
-export const anyText = z.string({ error: 'must be a string' });
-/** An array of `item`. */
-export function listOf<T extends z.ZodType>(item: T): z.ZodArray<T> {
-  return z.array(item, { error: 'must be an array' });
-}
-/** An object with exactly `shape`'s keys (unknown keys refused). */
-export function exactObject<T extends z.core.$ZodLooseShape>(shape: T): z.ZodObject<T, z.core.$strict> {
-  return z.strictObject(shape, { error: 'must be an object' });
-}
-
 function integerFrom(min: number): z.ZodNumber {
   const message = `must be an integer from ${min} to 0xFFFFFFFF`;
   return z.number({ error: message }).int({ error: message }).min(min, { error: message }).max(0xffff_ffff, { error: message });
 }
 
 /** A MemberId (`<symbol>@<object>.o`). */
-export const memberIdText = nonEmptyText.refine(isMemberId, { error: (issue) => `'${String(issue.input)}' is not a member id (<symbol>@<object>.o)` }).transform((id) => id as MemberId);
+const memberIdText = nonEmptyText.refine(isMemberId, { error: (issue) => `'${String(issue.input)}' is not a member id (<symbol>@<object>.o)` }).transform((id) => id as MemberId);
 
 const hexText = anyText.regex(HEX, { error: 'must be lower-case hex, two digits per byte' });
 

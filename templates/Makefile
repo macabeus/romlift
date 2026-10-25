@@ -119,20 +119,23 @@ build/src/%.s: ;
 -include $(OBJS:.o=.d) $(C_OBJS:.o=.c.d)
 
 # objdiff's targets (objdiff.json): expected/<module>.s is the module as its unit assembles it (a C module's chunk files
-# included in order), so its object has the build object's symbols and relocations; expected/rom/<module>.s is the
-# module's ROM range. The ROM's bytes are then written over the target's .text, its relocations kept, so the target
-# holds the ROM whatever has been decompiled. They are cheap, so every `make expected` builds them again (FORCE),
+# included in order), so its object, kept as build/expected/<module>.o, has the build object's symbols and relocations;
+# expected/rom/<module>.s is the module's ROM range. expected/<module>.o is that object with the ROM's bytes written
+# over its .text, its relocations kept, so the target holds the ROM whatever has been decompiled (objcopy
+# --update-section would drop the relocations). They are cheap, so every `make expected` builds them again (FORCE),
 # whatever the modification times say.
 expected: $(EXPECTED_OBJS)
 
 expected/%.o: expected/%.s expected/rom/%.s FORCE
-	$(AS) $(ASFLAGS) -o $@ $<
+	@mkdir -p $(dir build/expected/$*.o)
+	$(AS) $(ASFLAGS) -o build/expected/$*.o $<
 	$(AS) $(ASFLAGS) -o expected/rom/$*.o expected/rom/$*.s
 	$(OBJCOPY) -O binary -j .text expected/rom/$*.o expected/rom/$*.bin
-	@set -- $$($(READELF) -SW $@ | sed -e 's/^ *\[ *[0-9]*\] *//' | awk '$$1 == ".text" { print $$4, $$5 }'); \
+	@set -- $$($(READELF) -SW build/expected/$*.o | sed -e 's/^ *\[ *[0-9]*\] *//' | awk '$$1 == ".text" { print $$4, $$5 }'); \
+	if [ "$$#" -ne 2 ]; then echo "$@: build/expected/$*.o has $$(($$# / 2)) sections named .text, not one" >&2; exit 1; fi; \
 	off=$$((0x$$1)); size=$$((0x$$2)); rom=$$(($$(wc -c < expected/rom/$*.bin))); \
 	if [ "$$size" -ne "$$rom" ]; then echo "$@: .text holds $$size bytes, the module's ROM range $$rom" >&2; exit 1; fi; \
-	{ head -c $$off $@; cat expected/rom/$*.bin; tail -c +$$((off + size + 1)) $@; } > $@.tmp && mv $@.tmp $@
+	{ head -c $$off build/expected/$*.o; cat expected/rom/$*.bin; tail -c +$$((off + size + 1)) build/expected/$*.o; } > $@.tmp && mv $@.tmp $@
 
 FORCE:
 

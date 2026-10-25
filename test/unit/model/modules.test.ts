@@ -150,6 +150,21 @@ test('a run range inside the ROM, or over another run range, is E_OVERRIDE_INVAL
   assert.deepEqual(twice.modules.map((m) => m.runAt), [undefined, undefined, 0x0300_0000, undefined]);
 });
 
+// Fix round 2 (correctness-r1-3): a run range must keep its load start's word alignment and end inside 2^32.
+test('a run address off its load start\'s word alignment, or a run range past 0xFFFFFFFF, is E_OVERRIDE_INVALID', () => {
+  const modules = [['rom_header', BASE], ['main', HEADER_END], ['iwram', BASE + 0x200], ['ewram', BASE + 0x300]] as const;
+  const plan = (runsAt: number) => planModules(ROM, configOf({ modules, overrides: [{ start: BASE + 0x200, size: 0x100, kind: 'code', runsAt }] }), RULE);
+  const misaligned = plan(0x0300_0002);
+  assert.deepEqual(misaligned.diagnostics.map((d) => [d.code, d.addr]), [['E_OVERRIDE_INVALID', BASE + 0x200]]);
+  assert.match(misaligned.diagnostics[0]?.message ?? '', /runs at 0x03000002, which is not its load start 0x08000200 plus a multiple of 4/);
+  assert.ok(misaligned.modules.every((m) => m.runAt === undefined));
+  const wraps = plan(0xffff_ff80);
+  assert.deepEqual(wraps.diagnostics.map((d) => d.code), ['E_OVERRIDE_INVALID']);
+  assert.match(wraps.diagnostics[0]?.message ?? '', /runs at \[0xFFFFFF80, 0x100000080\), past the end of the 32-bit address space/);
+  assert.deepEqual(plan(0xffff_ff00).diagnostics, [], 'a range ending exactly at 2^32 is placed');
+  assert.deepEqual(plan(0x0300_0004).diagnostics, [], 'another word of the same alignment');
+});
+
 // C data ranges (architecture §6.6, phase 6, D92): a `c` module's data_start D starts [D, the next module start or the
 // ROM end); a data module at D is dropped, one holding D is clipped there, and every illegal data_start is
 // E_DATA_RANGE_INVALID, leaving the module without a range.

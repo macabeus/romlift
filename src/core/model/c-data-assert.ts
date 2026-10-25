@@ -35,7 +35,7 @@ export function cRamDataSectionLine(module: string): string {
 
 /** The assertion that C module `module` defines no data the link leaves unplaced. */
 export function cDataAssertLine(module: string): string {
-  return `ASSERT(SIZEOF(.c_data_${module}) == 0, "${cSourceOf(`${module}.c`)} defines data; see AGENTS.md (romlift does not place C data yet)")`;
+  return `ASSERT(SIZEOF(.c_data_${module}) == 0, "${cSourceOf(`${module}.c`)} defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")`;
 }
 
 /** The output section of C module `module`'s data range: its object's `.rodata`, linked and loaded at the range's start. */

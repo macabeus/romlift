@@ -191,7 +191,9 @@ test('errors are values with their line, and the other statements are kept', () 
   assert.equal(result.statements.length, 2);
 
   for (const [text, pattern] of [
-    ['.syntax divided', /unified/],
+    ['.syntax mixed', /unified/],
+    ['.syntax divided\n\tmovs r0, #0', /under `\.syntax divided`/],
+    ['.syntax divided\n.include "asm/x.s"', /under `\.syntax divided`/],
     ['.code 64', /16 and 32/],
     ['.align', /power/],
     ['.align 16', /power/],
@@ -210,6 +212,16 @@ test('errors are values with their line, and the other statements are kept', () 
   ] as const) {
     assert.match(failure(text).message, pattern, text);
   }
+});
+
+// Fix round 2 (architecture-r1-3): agbcc's stub assembly closes each INCLUDE_ASM with `.syntax divided`.
+test('`.syntax divided` is read as no bytes; `.syntax unified` lifts it before the next include or instruction', () => {
+  const result = parsed('\t.syntax unified\n.include "asm/a.s"\n.syntax divided\n\n\t.syntax unified\n.include "asm/b.s"\n.syntax divided\n');
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(
+    result.statements.map((st) => (st.kind === 'symbol' ? `${st.directive} ${st.args.join(',')}` : st.kind === 'include' ? st.path : st.kind)),
+    ['.syntax unified', 'asm/a.s', '.syntax divided', '.syntax unified', 'asm/b.s', '.syntax divided'],
+  );
 });
 
 test('macro errors: wrong argument count, recursion, a missing .endm', () => {

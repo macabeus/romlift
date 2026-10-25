@@ -24,7 +24,7 @@ import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { buildCompilerOf } from '../config/compilers.ts';
 import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
-import { isLegalStart, nearestLegalStarts } from '../layout/borders.ts';
+import { isLegalStart, nearestLegalStarts, WORD } from '../layout/borders.ts';
 import type { BorderRule } from '../layout/borders.ts';
 import { ModelCodes } from './codes.ts';
 import type { Module } from './types.ts';
@@ -76,12 +76,21 @@ function orderedModules(rom: Rom, config: RomliftConfig, rule: BorderRule, diagn
   return kept;
 }
 
+/** The first address past the 32-bit address space: a run range may end there, not beyond. */
+const ADDRESS_SPACE_END = 0x1_0000_0000;
+
+/** What a run address keeps of its load start's alignment: the word, the strictest alignment a range's code asks. */
+const RUN_ALIGN = WORD;
+
 /**
  * Every module spanning a runs_at override gets its run address. E_OVERRIDE_INVALID, and no run address, for an override
  * not bounded by module starts, one whose run range [runs_at, runs_at + size) overlaps the ROM's own load space
  * [base, end) without being its load range itself (ld would place the RAM section over the cartridge's; runs_at equal
  * to the start is the identity, which moves nothing), or one whose run range overlaps that of an earlier
- * override (in start order; two sections cannot run at one address) (correctness-8).
+ * override (in start order; two sections cannot run at one address) (correctness-8). Also refused (correctness-r1-3): a
+ * run range that ends past 2^32 (ld refuses a section whose addresses wrap around), and a run address whose distance
+ * from the load start is not a multiple of RUN_ALIGN, since the range's own alignments (a pool's `.align 2`) are laid
+ * out at the run address and would emit other bytes than the ROM holds.
  */
 function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonly start: Addr; readonly end: Addr }[], diagnostics: Diagnostic[]): (Addr | undefined)[] {
   const runAt: (Addr | undefined)[] = spans.map(() => undefined);
@@ -98,6 +107,14 @@ function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonl
     };
     if (!isBorder(o.start) || !isBorder(end)) {
       refuse('does not start and end on module borders; a range that runs from RAM is its own module');
+      continue;
+    }
+    if (run.end > ADDRESS_SPACE_END) {
+      refuse(`runs at [${hexAddr(run.start)}, 0x${run.end.toString(16).toUpperCase()}), past the end of the 32-bit address space; ld cannot place a section that wraps around`);
+      continue;
+    }
+    if ((run.start - span.start) % RUN_ALIGN !== 0) {
+      refuse(`runs at ${hexAddr(run.start)}, which is not its load start ${hexAddr(span.start)} plus a multiple of ${RUN_ALIGN}: every alignment inside the range (a pool's, a function's \`.align 2\`) would lay out other bytes at the run address`);
       continue;
     }
     if (run.start !== span.start && run.start < rom.end && rom.base < run.end) {
@@ -126,9 +143,14 @@ interface PlannedRange {
   readonly span: Span;
 }
 
+/** The config's overrides that carry runs_at, in the config's order: the one reading of "the runs_at ranges" (architecture-r1-6). */
+export function runsAtOverrides(config: Pick<RomliftConfig, 'overrides'>): readonly { readonly start: Addr; readonly size: number; readonly runsAt: Addr }[] {
+  return config.overrides.flatMap((o) => (o.runsAt === undefined ? [] : [{ start: o.start, size: o.size, runsAt: o.runsAt }]));
+}
+
 /** The runs_at ranges of the config's overrides, as load spans. */
-function runsAtSpans(config: RomliftConfig): readonly Span[] {
-  return config.overrides.flatMap((o) => (o.runsAt === undefined ? [] : [{ start: o.start, end: o.start + o.size }]));
+export function runsAtSpans(config: Pick<RomliftConfig, 'overrides'>): readonly Span[] {
+  return runsAtOverrides(config).map((o) => ({ start: o.start, end: o.start + o.size }));
 }
 
 function overlaps(a: Span, b: Span): boolean {
@@ -241,6 +263,14 @@ export function dataRangeModuleAt(modules: readonly Module[], a: Addr): number {
 /** The modules that run from RAM (a runAt), the only ones the address maps below look at. */
 export function relocatedModules(modules: readonly Module[]): readonly Module[] {
   return modules.filter((m) => m.runAt !== undefined);
+}
+
+/**
+ * The symbol the ldscript defines for a runs_at module: the load address of its first byte (§6.7). The model refuses it
+ * as a name of the config (names.ts linkerNameCollisions), since ld's script assignment would override the label.
+ */
+export function loadSymbolOf(module: Pick<Module, 'name'>): string {
+  return `__load_${module.name}`;
 }
 
 /** Run address minus load address of a module or chunk: runAt - span.start, 0 outside runs_at. */

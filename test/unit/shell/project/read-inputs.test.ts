@@ -228,6 +228,34 @@ test('readRenameTexts: every .c and .h under src/ and every file under include/,
   assert.ok(empty.ok && empty.value.texts.size === 0 && empty.value.skipped.length === 0);
 });
 
+// Fix round 2 (architecture-r1-1): a link whose target cannot be read is E_IO_READ, never a link to nothing; a
+// dangling link, a loop and a link to a directory are links to nothing.
+test('readRenameTexts: a link to an unreadable file is E_IO_READ; a dangling link, a link loop and a link to a directory are skipped without bytes', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  const dir = await dirWith({ 'src/main.c': 'int A;\n', 'secret/locked.h': 'int A;\n' });
+  await symlink(path.join(dir, 'nowhere.h'), path.join(dir, 'src', 'dangling.h'));
+  await symlink('loop.h', path.join(dir, 'src', 'loop.h'));
+  await symlink(path.join(dir, 'secret'), path.join(dir, 'include'));
+  const nothing = await readRenameTexts(dir);
+  assert.ok(nothing.ok);
+  assert.deepEqual(
+    nothing.value.skipped.map((f) => [f.path, f.reason, f.bytes === undefined]),
+    [
+      ['include', 'link', true],
+      ['src/dangling.h', 'link', true],
+      ['src/loop.h', 'link', true],
+    ],
+  );
+  await symlink(path.join(dir, 'secret', 'locked.h'), path.join(dir, 'src', 'locked.h'));
+  await chmod(path.join(dir, 'secret', 'locked.h'), 0o000);
+  try {
+    const read = await readRenameTexts(dir);
+    assert.equal(read.ok, false);
+    assert.ok(!read.ok && read.diagnostics.some((d) => d.code === 'E_IO_READ' && d.path === 'src/locked.h'), JSON.stringify(read));
+  } finally {
+    await chmod(path.join(dir, 'secret', 'locked.h'), 0o644);
+  }
+});
+
 test('readProject passes the chunk files on disk as previousChunkFiles, and none with withoutC', async () => {
   const { dir } = await project();
   const before = await readProject(dir);

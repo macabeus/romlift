@@ -47,8 +47,6 @@ export function versionKey(library: string, version: string): string {
   return `${library}@${version}`;
 }
 
-/** Bytes of a lower-case hex string (the validator has checked it). */
-
 /** The first offset, at halfword steps, whose four mask bytes are all 0xFF, or -1. */
 function anchorOf(mask: Uint8Array): number {
   for (let k = 0; k + 4 <= mask.length; k += 2) {

@@ -1,24 +1,26 @@
 // The `expected` writer (architecture §6.1 rung 3, §6.3, §6.8, D92, D95 a): objdiff's target of every generated module
 // with chunks, as two files. Scope: module; ownership generated.
 //
-//   expected/<module>.s       the module as its build unit assembles it: for a `c` module the preamble, then one
-//                             `.include` per chunk file in ROM order (each at the path the tree writes it, its
-//                             asm/matchings twin for a function the C defines, unit-text.ts writtenChunkPath), which
-//                             is what agbcc's output of the stub-only src/<module>.c assembles; for an asm or data
-//                             module one `.include` of its own source. Its object has the build object's symbols,
-//                             mapping symbols and relocations, at the same offsets.
+//   expected/<module>.s       the module as its build unit assembles it: for a `c` module agbcc's output of the
+//                             stub-only src/<module>.c (core/model/c-unit.ts stubAssemblyText, the one encoding of
+//                             that text) over the chunk files in ROM order, each at the path the tree writes it (its
+//                             asm/matchings twin for a function the C defines, unit-text.ts writtenChunkPath); for an
+//                             asm or data module one `.include` of its own source. Its object has the build
+//                             object's symbols, mapping symbols and relocations, at the same offsets.
 //   expected/rom/<module>.s   the module's ROM range as one `.incbin` of baserom.gba.
 //
-// `make expected` (the scaffold's Makefile) assembles both and writes the ROM range's bytes over the first object's
-// `.text`, keeping its relocations: expected/<module>.o's unlinked `.text` is the ROM range byte for byte
-// (g6.expected-bytes), and objdiff pairs every symbol and relocation of a C module's base object
+// `make expected` (the scaffold's Makefile) assembles both, keeps the first object as assembled at
+// build/expected/<module>.o and writes the ROM range's bytes over a copy's `.text`, keeping its relocations:
+// expected/<module>.o's unlinked `.text` is the ROM range byte for byte, while g6.expected-bytes judges the object as
+// assembled (equal to the ROM outside its relocated fields, every symbol where the model places it), and objdiff pairs every symbol and relocation of a C module's base object
 // (build/src/<module>.o) with the same symbol and relocation of its target, of the same type, so an untouched project
 // scores every function at 100% with objdiff.json's `functionRelocDiffs = none` (the objdiff writer), except where
 // objdiff reads a relocation's field as its addend and that addend moves the target (phase-6.md, "Known limitations").
 // A module's data range (§6.6) is not part of either file: its bytes are the C object's `.rodata`.
-import { DIALECT, incbinLine } from '../../../foundation/asm/dialect.ts';
+import { incbinLine } from '../../../foundation/asm/dialect.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { hex } from '../../../foundation/util/hex.ts';
+import { stubAssemblyText } from '../../model/c-unit.ts';
 import { expectedRomSourcePath, expectedSourcePath, hasExpectedTarget, moduleSource } from '../../model/paths.ts';
 import type { Model, Module } from '../../model/types.ts';
 import type { EmitContext, FileEntry, Writer } from '../tree.ts';
@@ -33,12 +35,12 @@ function heading(path: string, module: Module, what: string): string {
 export function expectedText(model: Model, cx: EmitContext, module: Module): string {
   const path = expectedSourcePath(module.name);
   if (module.kind !== 'c') return `${heading(path, module, "as its unit assembles it, objdiff's target")}\n.include "${moduleSource(model, module)}"\n`;
-  const lines = [heading(path, module, "as its C unit assembles while every function is INCLUDE_ASM, objdiff's target")];
+  const chunks: string[] = [];
   for (let c = module.chunks.first; c < module.chunks.first + module.chunks.count; c++) {
     const chunk = writtenChunkPath(model, cx, module, c);
-    if (chunk !== undefined) lines.push(`.include "${chunk}"`);
+    if (chunk !== undefined) chunks.push(chunk);
   }
-  return `${DIALECT.preamble('thumb')}${lines.join('\n')}\n`;
+  return `${heading(path, module, "as its C unit assembles while every function is INCLUDE_ASM, objdiff's target")}\n${stubAssemblyText(chunks, module.compiler)}`;
 }
 
 /** The text of expected/rom/<module>.s: the module's ROM range. */

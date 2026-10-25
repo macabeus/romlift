@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 
-import { atomicWrite, isDirectory, listDir, readBytes } from '../../../src/shell/fs.ts';
+import { atomicWrite, isDirectory, isRegularFile, listDir, readBytes, readJson } from '../../../src/shell/fs.ts';
 
 let dir = '';
 
@@ -130,5 +130,51 @@ test('isDirectory: absent and a file are false; a path it cannot examine is E_IO
     assert.ok(!locked.ok && locked.diagnostic.code === 'E_IO_READ');
   } finally {
     await chmod(join(dir, 'is-dir', 'locked'), 0o755);
+  }
+});
+
+// Fix round 2 (architecture-r1-4): isRegularFile and readJson, beside isDirectory.
+test('isRegularFile: a file and a link to one are true; absent, ENOTDIR and a directory false; a path it cannot examine is E_IO_READ', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  await mkdir(join(dir, 'is-file', 'locked'), { recursive: true });
+  await writeFile(join(dir, 'is-file', 'file'), 'x');
+  await writeFile(join(dir, 'is-file', 'locked', 'inner'), 'x');
+  await symlink(join(dir, 'is-file', 'file'), join(dir, 'is-file', 'link'));
+  assert.deepEqual(await isRegularFile(join(dir, 'is-file', 'file')), { ok: true, value: true });
+  assert.deepEqual(await isRegularFile(join(dir, 'is-file', 'link')), { ok: true, value: true });
+  assert.deepEqual(await isRegularFile(join(dir, 'is-file', 'absent')), { ok: true, value: false });
+  assert.deepEqual(await isRegularFile(join(dir, 'is-file', 'file', 'below')), { ok: true, value: false }, 'ENOTDIR');
+  assert.deepEqual(await isRegularFile(join(dir, 'is-file', 'locked')), { ok: true, value: false }, 'a directory');
+  await chmod(join(dir, 'is-file', 'locked'), 0o000);
+  try {
+    const locked = await isRegularFile(join(dir, 'is-file', 'locked', 'inner'));
+    assert.equal(locked.ok, false);
+    assert.ok(!locked.ok && locked.diagnostic.code === 'E_IO_READ', 'EACCES is never read as absent');
+  } finally {
+    await chmod(join(dir, 'is-file', 'locked'), 0o755);
+  }
+});
+
+test('readJson: the decoded value; E_IO_READ when unreadable; the caller\'s code when not JSON or refused by the decoder', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  const sub = join(dir, 'json');
+  await mkdir(sub);
+  const decode = (json: unknown): { readonly ok: true; readonly value: number } | { readonly ok: false; readonly error: string } =>
+    typeof json === 'object' && json !== null && typeof (json as { n?: unknown }).n === 'number' ? { ok: true, value: (json as { n: number }).n } : { ok: false, error: 'has no number n' };
+  await writeFile(join(sub, 'good.json'), '{"n": 7}');
+  await writeFile(join(sub, 'bad.json'), '{"n": ');
+  await writeFile(join(sub, 'other.json'), '{"m": 1}');
+  await writeFile(join(sub, 'locked.json'), '{"n": 1}');
+  assert.deepEqual(await readJson(join(sub, 'good.json'), decode, 'E_SIGNATURE_FILE_INVALID'), { ok: true, value: 7 });
+  const bad = await readJson(join(sub, 'bad.json'), decode, 'E_SIGNATURE_FILE_INVALID');
+  assert.ok(!bad.ok && bad.diagnostic.code === 'E_SIGNATURE_FILE_INVALID' && / is not JSON: /.test(bad.diagnostic.message), JSON.stringify(bad));
+  const other = await readJson(join(sub, 'other.json'), decode, 'E_SIGNATURE_SPEC_INVALID');
+  assert.ok(!other.ok && other.diagnostic.code === 'E_SIGNATURE_SPEC_INVALID' && other.diagnostic.message.endsWith('other.json: has no number n'), JSON.stringify(other));
+  const absent = await readJson(join(sub, 'absent.json'), decode, 'E_SIGNATURE_FILE_INVALID');
+  assert.ok(!absent.ok && absent.diagnostic.code === 'E_IO_READ');
+  await chmod(join(sub, 'locked.json'), 0o000);
+  try {
+    const locked = await readJson(join(sub, 'locked.json'), decode, 'E_SIGNATURE_FILE_INVALID');
+    assert.ok(!locked.ok && locked.diagnostic.code === 'E_IO_READ', 'EACCES');
+  } finally {
+    await chmod(join(sub, 'locked.json'), 0o644);
   }
 });

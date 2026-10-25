@@ -55,7 +55,7 @@ Frozen by the lead (D93); the parts marked with an owner land in waves 2 and 3.
 
 | Path | Responsibility |
 | --- | --- |
-| `signatures/schema.ts`, `signatures/spec.ts`, `signatures/issues.ts` | the schema-3 signature file, the placement and the rule ids; the committed spec; their zod validators (`parseSignatureFile`, `parseSignatureSpec`, D95 d) and the refusal text of their first issue; `isLibraryName`, `isSealedDataset` (the one sealing rule, D32) |
+| `signatures/schema.ts`, `signatures/spec.ts`, `signatures/issues.ts`, `signatures/zod-helpers.ts`, `signatures/sealing.ts` | the schema-3 signature file, the placement and the rule ids; the committed spec and `isLibraryName`; their zod validators (`parseSignatureFile`, `parseSignatureSpec`, D95 d), the zod building blocks both share and the refusal text of their first issue; `isSealedDataset` (the one sealing rule, D32, apart from the spec format) |
 | `signatures/codes.ts`, `signatures/rules/` | the signature codes (the matcher's four `W_SIGNATURE_*`; the builder's land with p6-signatures-build) and the five placement rules, one file each, with their registry (`SIGNATURE_RULES`, the metadata; `PLACEMENT_RULES`, the rules match.ts runs) and the state they share (`rules/state.ts`) |
 | `signatures/{extract,match,resolve,policy,propose}.ts` | the builder's pure part (p6-signatures-build), the matcher, overlap resolution, its policy and the proposals (p6-signatures-match) |
 | `config/` | adds the `[[modules]]` key `data_start` (`dataStart`), syntax only |

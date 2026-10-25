@@ -117,9 +117,9 @@ SECTIONS {
         build/data.o(.text);
     }
     .c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }
-    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")
+    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")
     .c_data_main_2 (NOLOAD) : { *src/main_2.o(.rodata* .data* .bss* COMMON) }
-    ASSERT(SIZEOF(.c_data_main_2) == 0, "src/main_2.c defines data; see AGENTS.md (romlift does not place C data yet)")
+    ASSERT(SIZEOF(.c_data_main_2) == 0, "src/main_2.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")
 }
 `,
   );
@@ -159,7 +159,7 @@ SECTIONS {
         build/end.o(.text);
     }
     .c_data_main (NOLOAD) : { *src/main.o(.data* .bss* COMMON) }
-    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")
+    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")
 }
 `,
   );

@@ -141,7 +141,7 @@ test('the ldscript places main\'s .rodata at its range, in ROM order, with its A
         build/tail.o(.text);
     }
     .c_data_main (NOLOAD) : { *src/main.o(.data* .bss* COMMON) }
-    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")
+    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")
 }
 `,
   );

@@ -10,8 +10,8 @@
 // the name of the function that holds the address and where that name comes from (phase 4: the TOML, with its
 // `from` key, or the default spelling the analysis gives); and the signature behind the address (phase 6): on a bare
 // ROM, when signature files are given, the settled placement that holds it (the matcher over that same discover
-// result, proposals.ts placeSignatures), with its sig.* rule. Inside a project (phase 4) explainProject runs the
-// analysis `generate` runs instead: the confirm run over the project's config, with the same trail window, and the
+// result through signature-layer.ts signaturesOver, whose analysis-error policy it shares), with its sig.* rule.
+// Inside a project (phase 4) explainProject runs the analysis `generate` runs instead: the confirm run over the project's config, with the same trail window, and the
 // model buildModel makes of it under that config, so it explains what `generate` emitted; its signature part is read
 // from the TOML's `from` key of the function or symbol holding the address (`sig:<library>@<version>`), never by
 // re-running the matcher (D35); another ROM than the config's is refused (E_ROM_SHA1_MISMATCH). An image that is not
@@ -38,7 +38,7 @@ import { trailKeeps } from '../provenance/trail.ts';
 import type { TrailEvent } from '../provenance/trail.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import type { SignatureFile, SignatureRuleId } from '../signatures/schema.ts';
-import { placeSignatures } from './signature-layer.ts';
+import { signaturesOver } from './signature-layer.ts';
 import { discover, profileOrDefault } from './discover.ts';
 import { confirmOptions, discoverModel } from './generate.ts';
 import { romSha1Problems } from '../config/rom-sha1.ts';
@@ -163,8 +163,7 @@ export function signatureFromConfig(model: Pick<Model, 'functions'>, config: Pic
 
 /** The signature part of `addr` on a bare ROM (phase 6): the settled placement of `files` that holds it, with its rule. */
 export function signatureFromPlacements(rom: Rom, result: AnalysisResult, files: readonly SignatureFile[], addr: Addr): { readonly signature?: ExplainSignature } {
-  if (files.length === 0) return {};
-  const placed = placeSignatures(rom, result, files).placements.find((p) => p.addr <= addr && addr < p.addr + p.size);
+  const placed = signaturesOver(rom, result, files).placements.find((p) => p.addr <= addr && addr < p.addr + p.size);
   return placed === undefined ? {} : { signature: { library: placed.library, version: placed.version, name: placed.name, rule: placed.rule } };
 }
 

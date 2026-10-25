@@ -56,7 +56,7 @@ import type { RomliftConfig } from '../config/schema.ts';
 import { codeLayout, coveredEntries } from '../layout/borders.ts';
 import { ModelCodes } from '../model/codes.ts';
 import type { ModelCode } from '../model/codes.ts';
-import { planModules } from '../model/modules.ts';
+import { planModules, runsAtOverrides } from '../model/modules.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { Proposal } from '../proposals/types.ts';
 import { discoverOptions, profileOrDefault } from './discover.ts';
@@ -143,8 +143,7 @@ function rangeRefusal(start: Addr, end: Addr, why: string): Diagnostic {
  * planRunsAtBorders), with E_OVERRIDE_INVALID for each range it refuses.
  */
 export function runsAtBorders(rom: Pick<Rom, 'base' | 'end'>, config: Pick<RomliftConfig, 'modules' | 'overrides'>): RunsAtBorders {
-  const overrides = config.overrides.flatMap((o) => (o.runsAt === undefined ? [] : [{ start: o.start, size: o.size, runsAt: o.runsAt }]));
-  const plan = planRunsAtBorders(rom, config.modules, overrides);
+  const plan = planRunsAtBorders(rom, config.modules, runsAtOverrides(config));
   const refusals = plan.refused.map(({ span, why }) =>
     rangeRefusal(span.start, span.end, why.kind === 'outside-rom' ? `it does not lie inside the ROM [${hexAddr(rom.base)}, ${hexAddr(rom.end)})` : `the c module ${why.module.name} starts inside it at ${hexAddr(why.module.start)}: a c module's code cannot run from RAM`),
   );

@@ -302,13 +302,22 @@ function isRenameText(path: string): boolean {
   return path.startsWith(`${C_SOURCE_DIR}/`) && (isCSource(path) || isHeaderPath(path));
 }
 
-/** The bytes behind a symbolic link to a regular file, or undefined (a link to a directory, a dangling link). */
+/**
+ * The bytes behind a symbolic link to a regular file, or undefined for a link to no file: one to a directory or another
+ * kind of file, a dangling link (ENOENT, ENOTDIR) or a loop (ELOOP), the rule of shell/fs.ts isRegularFile. Any other
+ * failure (EACCES, EIO) is thrown for readRenameTexts to report as E_IO_READ, never read as a link to nothing
+ * (architecture-r1-1): a target that cannot be read may name the old name.
+ */
 async function linkedFileBytes(file: string): Promise<Uint8Array | undefined> {
+  let isFile: boolean;
   try {
-    return (await stat(file)).isFile() ? await readFile(file) : undefined;
-  } catch {
-    return undefined;
+    isFile = (await stat(file)).isFile();
+  } catch (error) {
+    const code = errnoOf(error);
+    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP') return undefined;
+    throw error;
   }
+  return isFile ? await readFile(file) : undefined;
 }
 
 /**

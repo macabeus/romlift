@@ -4,7 +4,7 @@
 // staleConfigProblems, rename.ts staleRenameConfig), what the reconciliation of a project's C files cannot fix
 // (c-stubs.ts, D77 a), `rename`'s refusals (rename.ts planRename, renameJournalProblems; phase 6, D92), and the
 // signature layer of `init` and `analyze --update` (phase 6, architecture §7.3, §7.4): the proposal screen's
-// contradictions (proposals.ts checkProposals), the library regions no module could take (proposals.ts), and init's
+// contradictions (proposals.ts checkProposals), the library regions no module could take (signature-layer.ts), and init's
 // note that signatures are enabled but no built file was found (init.ts).
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
@@ -44,7 +44,7 @@ export const WorkflowCodes = defineCodes({
   },
   W_LIBRARY_MODULE_DROPPED: {
     severity: 'warning',
-    meaning: 'a library region the signatures placed in the code could take no module of its own: no legal border inside it, or a module of the config starts inside it; its functions keep their names, and no library module is proposed for it (proposals.ts)',
+    meaning: 'a library region the signatures placed in the code could take no module of its own: no legal border inside it, or a module of the config starts inside it; its functions keep their names, and no library module is proposed for it (signature-layer.ts)',
   },
   E_RENAME_SKIPPED_FILE: {
     severity: 'error',

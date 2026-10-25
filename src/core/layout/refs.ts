@@ -7,7 +7,7 @@ import { peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
-import { alignUp } from './align.ts';
+import { alignWord } from './align.ts';
 
 /** A short Thumb branch (b, bcc): its site and target. */
 export interface ShortBranch {
@@ -42,7 +42,7 @@ export function borderRefs(rom: Rom, analysis: Pick<AnalysisResult, 'functions'>
     for (const span of f.code) {
       const end = Math.min(span.end, rom.end);
       if (f.mode === 'arm') {
-        for (let a = alignUp(Math.max(span.start, rom.base)); a + 4 <= end; a += 4) pcRef(a, decode('arm', peek32(rom, a), a).flow);
+        for (let a = alignWord(Math.max(span.start, rom.base)); a + 4 <= end; a += 4) pcRef(a, decode('arm', peek32(rom, a), a).flow);
         continue;
       }
       for (let a = Math.max(span.start, rom.base); a + 2 <= end; a += 2) {

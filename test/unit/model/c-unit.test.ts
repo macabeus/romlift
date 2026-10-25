@@ -87,5 +87,5 @@ test('a C module compiles with its compiler\'s cc1 and the Model\'s flags', () =
 
 test('the C-data check lines are the frozen text (D74 f, architecture §6.6)', () => {
   assert.equal(cDataSectionLine('main'), '.c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }');
-  assert.equal(cDataAssertLine('main'), 'ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")');
+  assert.equal(cDataAssertLine('main'), 'ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")');
 });

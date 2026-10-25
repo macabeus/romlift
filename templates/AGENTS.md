@@ -157,7 +157,10 @@ runs_at = 0x03000388
 then run `npx romlift analyze --update --write` (it adds the module borders the range needs: a range that runs from RAM
 is a module of its own, `ram_<RUNADDR>`) and `npx romlift generate`. The linker script places that module at its run
 address, loaded at its ROM address, and defines `__load_<module>`, its load address, which the code that copies it
-names. `runs_at` must lie outside the ROM and away from every other range's run addresses.
+names. `runs_at` must lie outside the ROM and away from every other range's run addresses, keep its ROM start's word
+alignment (`runs_at` minus `start` a multiple of 4) and end inside the 32-bit address space; `romlift generate` refuses
+anything else with `E_OVERRIDE_INVALID`. No function or symbol may be named `__load_<module>`, the linker script's name
+for a range's load address.
 
 ## Data defined in C
 
@@ -165,7 +168,7 @@ The linker script places the code (`.text`) of a C object. A C file that defines
 an initialised or zero-initialised global) fails the link with:
 
 ```
-src/<module>.c defines data; see AGENTS.md (romlift does not place C data yet)
+src/<module>.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)
 ```
 
 unless its module declares a **data range**: the bytes from `data_start` to the next module's start (or the ROM's end)

@@ -24,7 +24,7 @@ import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
-import { moduleIndexAt, relocatedModules } from './modules.ts';
+import { loadSymbolOf, moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, LabelKind, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
 
 /** The label printed when several share an address: a function name first, then table, pool, local, data. */
@@ -215,11 +215,6 @@ export function adrResolverFor(model: Pick<Model, 'labels' | 'modules'>, module:
  */
 export function resolverOver(labels: readonly Label[], modules: readonly Module[], module: string): SymbolResolver {
   return resolverFromIndex(buildIndex(labels, modules), module);
-}
-
-/** The symbol the ldscript defines for a runs_at module: the load address of its first byte (§6.7). */
-export function loadSymbolOf(module: Pick<Module, 'name'>): string {
-  return `__load_${module.name}`;
 }
 
 /**

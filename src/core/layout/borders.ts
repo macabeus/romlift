@@ -29,7 +29,7 @@ import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
-import { alignUp, WORD } from './align.ts';
+import { alignWord, WORD } from './align.ts';
 import { asmOnlyRanges } from './asm-only.ts';
 import { factsByEntry, listedEntriesOf, placeEntries } from './entries.ts';
 import { borderRefs } from './refs.ts';
@@ -38,10 +38,10 @@ import { tileCode } from './tiling.ts';
 import type { TiledChunk } from './tiling.ts';
 
 // What core/model and core/workflow use of the sibling files, through this one entry.
-export { alignUp } from './align.ts';
 export { appliedOverrides, coveredEntries, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from './entries.ts';
 export type { ExtentSource, ListedEntry, PlacedEntry } from './entries.ts';
 export { tileCode } from './tiling.ts';
+export { alignWord, WORD } from './align.ts';
 
 /** The first address past the cartridge header. */
 function headerEndOf(rom: Pick<Rom, 'base' | 'end'>): Addr {
@@ -109,10 +109,10 @@ function uncrossed(candidates: readonly Addr[], branches: readonly ShortBranch[]
 /** The code layout of an analysis: its chunks, assembly-only ranges and legal borders. */
 export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
   const headerEnd = headerEndOf(rom);
-  const codeEnd = alignUp(Math.max(analysis.codeEnd, headerEnd));
+  const codeEnd = alignWord(Math.max(analysis.codeEnd, headerEnd));
   const refs = borderRefs(rom, analysis);
   const pcRelative = refs.pcRelative;
-  const dataStart = Math.min(rom.end, alignUp(pcRelative.reduce((end, r) => (r.site < codeEnd && r.target >= end ? r.target + 1 : end), codeEnd)));
+  const dataStart = Math.min(rom.end, alignWord(pcRelative.reduce((end, r) => (r.site < codeEnd && r.target >= end ? r.target + 1 : end), codeEnd)));
   const startupEnd = Math.min(dataStart, Math.max(headerEnd, analysis.startup.span.end));
   const placed = placeEntries(listedEntriesOf(analysis, headerEnd), analysis).filter((p) => !p.label);
   const chunks = tileCode(placed, headerEnd, dataStart, [startupEnd]);
@@ -146,7 +146,7 @@ export function isLegalStart(rule: BorderRule, a: Addr): boolean {
 /** The legal starts strictly inside (`after`, `before`), ascending: the borders there, then every word of the data region there. */
 export function legalStartsBetween(rule: BorderRule, after: Addr, before: Addr): readonly Addr[] {
   const out = rule.borders.filter((b) => b > after && b < before && !inDataRegion(rule, b));
-  for (let a = alignUp(Math.max(after + 1, rule.dataStart)); a < Math.min(before, rule.end); a += WORD) out.push(a);
+  for (let a = alignWord(Math.max(after + 1, rule.dataStart)); a < Math.min(before, rule.end); a += WORD) out.push(a);
   return out.sort(compareNumbers);
 }
 
@@ -172,9 +172,9 @@ export function nearestBorders(borders: readonly Addr[], a: Addr): { readonly be
 export function nearestLegalStarts(rule: BorderRule, a: Addr): { readonly below: Addr | undefined; readonly above: Addr | undefined } {
   const near = nearestBorders(rule.borders, a);
   // The nearest words below and above `a`; the first word of the data region when `a` lies before it.
-  const wordBelow = alignUp(a) - WORD;
-  const firstData = alignUp(rule.dataStart);
-  const wordAbove = Math.max(alignUp(a + 1), firstData);
+  const wordBelow = alignWord(a) - WORD;
+  const firstData = alignWord(rule.dataStart);
+  const wordAbove = Math.max(alignWord(a + 1), firstData);
   const dataBelow = inDataRegion(rule, wordBelow) ? wordBelow : undefined;
   const dataAbove = inDataRegion(rule, wordAbove) ? wordAbove : undefined;
   const pick = (x: Addr | undefined, y: Addr | undefined, f: (p: Addr, q: Addr) => Addr): Addr | undefined => (x === undefined ? y : y === undefined ? x : f(x, y));

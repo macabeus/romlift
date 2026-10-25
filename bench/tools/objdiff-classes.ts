@@ -1,10 +1,11 @@
-// `node --conditions=source bench/tools/objdiff-classes.ts [--only <rom>] [--json]`: the objdiff family of
+// `node --conditions=source bench/tools/objdiff-classes.ts [--only <rom>] [--own-spelling] [--json]`: the objdiff family of
 // `bench run --scaffold` on each tuning ROM (the seedless discover run, its readable bases, objdiff-cli against
 // the reference objects), every difference sorted into the classes of bench/src/objdiff-classes.ts, one row per
 // ROM: the count per class, the total D34 gates and what Q1's option (b) would still gate. The facts of
 // phase-3.md Q1 are this tool's output. It reads the ROMs, ELFs, maps and objects the datasets name, gives the
 // family each dataset's map (so each function's reference object is the one the map links at its entry, and the
-// archive members the map links are reference objects too), and writes nothing.
+// archive members the map links are reference objects too), and writes nothing. `--own-spelling` scores romlift's own
+// pool-word spelling, without the bench's objectWords rewrite (phase-6.md Q15 option a, delivery-r1-1).
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,7 +39,7 @@ async function datasetMap(benchRoot: string, path: string | undefined): Promise<
 }
 
 async function main(argv: readonly string[]): Promise<number> {
-  const args = parseArgs(argv, { options: ['only'], flags: ['json'] });
+  const args = parseArgs(argv, { options: ['only'], flags: ['json', 'own-spelling'] });
   const cx = contextFromEnv(process.env);
   const objdiff = await locateObjdiff(cx);
   if (objdiff === undefined) throw new BenchError('objdiff-cli not found (AGENTS.md, ROMLIFT_OBJDIFF)');
@@ -60,6 +61,7 @@ async function main(argv: readonly string[]): Promise<number> {
       objectsDir: objects.dir,
       objdiff: objdiff.bin,
       ...(objects.linked === undefined ? {} : { linkedObjects: objects.linked }),
+      ...(args.flags.has('own-spelling') ? { ownSpelling: true } : {}),
     });
     const classes = classCounts(compared.flatMap(objdiffDifferences), nameAddresses(symbols));
     rows.push({ rom: d.name, scored: compared.length, classes, ...gatedTotals(classes) });

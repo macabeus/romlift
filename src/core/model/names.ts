@@ -14,7 +14,7 @@ import { defaultFunctionName } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import { ModelCodes } from './codes.ts';
-import { moduleIndexAt, relocatedModules } from './modules.ts';
+import { loadSymbolOf, moduleIndexAt, relocatedModules } from './modules.ts';
 import type { Label, Module, NameSource } from './types.ts';
 
 /** The name of the cartridge header's chunk and label. */
@@ -70,6 +70,25 @@ export function nameCollisions(names: readonly DefinedName[], modules: readonly 
     const where = sorted.map((u) => `${hexAddr(u.addr)} (${moduleName(modules, u.module)}${u.scope === 'global' ? ', global' : ''})`).join(', ');
     const why = sameModule ? 'twice in one module' : 'in two modules, one of them referenced from another module';
     out.push(diagnostic(ModelCodes, 'E_NAME_COLLISION', `the name ${name} is used ${why}: ${where}`, { addr: sorted[0]?.addr ?? 0, cites: sorted.slice(0, 4).map((u) => u.addr) }));
+  }
+  return out;
+}
+
+/**
+ * E_NAME_COLLISION for every name of `names` (the config's functions, aliases and symbols, and the model's labels) that
+ * the linker script defines: a runs_at module's `__load_<module>` (§6.7). ld lets the script's assignment override the
+ * label, so the tree would link to other bytes; `generate` refuses it here, and `rename` refuses it as a model name
+ * (correctness-r1-2). Once per name, by name.
+ */
+export function linkerNameCollisions(names: readonly { readonly name: string; readonly addr: Addr }[], modules: readonly Module[]): Diagnostic[] {
+  const reserved = new Map(relocatedModules(modules).map((m) => [loadSymbolOf(m), m] as const));
+  const seen = new Set<string>();
+  const out: Diagnostic[] = [];
+  for (const n of [...names].sort((a, b) => compareCodeUnits(a.name, b.name) || compareNumbers(a.addr, b.addr))) {
+    const module = reserved.get(n.name);
+    if (module === undefined || seen.has(n.name)) continue;
+    seen.add(n.name);
+    out.push(diagnostic(ModelCodes, 'E_NAME_COLLISION', `the name ${n.name} at ${hexAddr(n.addr)} is the symbol ldscript.txt defines as the load address of runs_at module ${module.name} (${n.name} = LOADADDR(.${module.name}))`, { addr: n.addr, cites: [module.span.start] }));
   }
   return out;
 }

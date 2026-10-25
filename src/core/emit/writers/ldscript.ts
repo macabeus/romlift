@@ -16,7 +16,7 @@
 //       .rodata_<m> <start> : AT(<start>) { build/src/<m>.o(.rodata .rodata.*) }    a C data range, in ROM order (phase 6)
 //       ASSERT(SIZEOF(.rodata_<m>) == <size>, "src/<m>.c's read-only data is not the <size> bytes of its data range [a, b); see AGENTS.md")
 //       .c_data_<m> (NOLOAD) : { *src/<m>.o(.rodata* .data* .bss* COMMON) }     per C unit, in ROM order (D21, D74 f)
-//       ASSERT(SIZEOF(.c_data_<m>) == 0, "src/<m>.c defines data; see AGENTS.md (romlift does not place C data yet)")
+//       ASSERT(SIZEOF(.c_data_<m>) == 0, "src/<m>.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")
 //   }
 //
 // Every byte of the ROM is in exactly one unit or data range and they follow each other without a gap, so

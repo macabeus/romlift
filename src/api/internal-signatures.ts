@@ -5,4 +5,5 @@
 // sealing rule the signature builder applies too (architecture-6).
 export { SIGNATURE_RULES } from '../core/signatures/rules/index.ts';
 export { SIGNATURE_POLICY, SIGNATURE_RULE_ORDER } from '../core/signatures/policy.ts';
-export { isLibraryName, isSealedDataset } from '../core/signatures/spec.ts';
+export { isLibraryName } from '../core/signatures/spec.ts';
+export { isSealedDataset } from '../core/signatures/sealing.ts';

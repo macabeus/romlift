@@ -13,6 +13,7 @@ import { after, test } from 'node:test';
 
 import { emitTree } from '../../../../src/core/emit/emit-tree.ts';
 import type { EmitContext, FileEntry } from '../../../../src/core/emit/tree.ts';
+import { stubAssemblyText } from '../../../../src/core/model/c-unit.ts';
 import { expectedRomText, expectedText, expectedWriter } from '../../../../src/core/emit/writers/expected.ts';
 import { buildModel } from '../../../../src/core/model/model.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
@@ -78,7 +79,7 @@ test("a c module's target includes its chunk files in ROM order, a decompiled fu
   const text = expectedText(model, CX, main);
   const includes = text.split('\n').filter((l) => l.startsWith('.include "asm/'));
   assert.ok(includes.length > 0);
-  assert.ok(text.startsWith(DIALECT.preamble('thumb')));
+  assert.ok(text.endsWith(stubAssemblyText(includes.map((l) => l.slice('.include "'.length, -1)), main.compiler)), 'agbcc\'s stub assembly, c-unit.ts stubAssemblyText (architecture-r1-3)');
   assert.ok(includes.every((l) => l.startsWith('.include "asm/nonmatchings/main/')));
   const first = model.chunks[main.chunks.first];
   assert.ok(first !== undefined && first.kind === 'function');
@@ -107,9 +108,9 @@ test('a module that is not generated has no file; a misordered include and a wro
   assert.ok(target !== undefined && 'text' in target && romFile !== undefined && 'text' in romFile);
   const lines = target.text.split('\n');
   const at = lines.findIndex((l) => l.startsWith('.include "asm/'));
-  const next = lines[at + 1];
-  assert.ok(next?.startsWith('.include "asm/') === true, 'the c-data fixture has two chunk files in main');
-  const swapped = [...lines.slice(0, at), next, lines[at] ?? '', ...lines.slice(at + 2)];
+  const next = lines.findIndex((l, i) => i > at && l.startsWith('.include "asm/'));
+  assert.ok(at >= 0 && next > at, 'the c-data fixture has two chunk files in main');
+  const swapped = lines.map((l, i) => (i === at ? (lines[next] ?? '') : i === next ? (lines[at] ?? '') : l));
   const misordered = entryDiagnostics(rom, model, { ...target, text: swapped.join('\n') });
   assert.equal(misordered[0]?.code, 'E_SELF_CHECK_TEXT');
   assert.match(misordered[0]?.message ?? '', /where the module's chunk file in ROM order is/);
