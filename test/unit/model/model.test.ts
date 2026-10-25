@@ -8,7 +8,7 @@ import { Claim } from '../../../src/core/analysis/types.ts';
 import { itemAt } from '../../../src/core/model/item-table.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { modelNamesOf } from '../../../src/core/workflow/rename.ts';
-import type { RomliftConfig } from '../../../src/core/config/schema.ts';
+import type { ModuleConfig, RomliftConfig } from '../../../src/core/config/schema.ts';
 import { analysisOf, BASE, configOf, fact, HEADER_END, romWith, thumbAt, tiles, words } from '../layout/hand-made.ts';
 
 const ROM = romWith([], { size: 0x400 });
@@ -163,6 +163,25 @@ test('a config name equal to a runs_at module\'s __load_<module> is E_NAME_COLLI
   const model = buildModel(rom, analysis, base);
   assert.equal(modelNamesOf(model).get('__load_iwram'), BASE + 0x140);
   assert.equal(modelNamesOf(model).get('__load_main'), undefined);
+});
+
+// The review of fix round 2 (correctness-r2-1): a runs_at module's section `.<module>` may be no other section the
+// ldscript emits, or `__load_<module>` names the other one's load address (`text`) or the script does not parse
+// (`c_data_<m>`).
+test('a runs_at module whose section is .text, .c_data_<c module> or .rodata_<data range> is E_NAME_COLLISION', () => {
+  const { rom, analysis, config } = ramCode();
+  const base = config(0x0300_0000);
+  const named = (name: string, main: Partial<ModuleConfig> = {}, data: Partial<ModuleConfig> = {}): RomliftConfig => ({
+    ...base,
+    modules: base.modules.map((m) => (m.name === 'iwram' ? { ...m, name } : m.name === 'main' ? { ...m, ...main } : m.name === 'data' ? { ...m, ...data } : m)),
+  });
+  const refused = (c: RomliftConfig): string[] => buildModel(rom, analysis, c).diagnostics.filter((d) => d.code === 'E_NAME_COLLISION').map((d) => d.message);
+  assert.deepEqual(refused(named('text')), ['the runs_at module text at 0x08000140 would be ldscript.txt\'s section .text, which is the section of the ROM\'s first units; rename the module']);
+  assert.match(refused(named('c_data_main', { kind: 'c' })).join(), /section \.c_data_main, which is the data check section of c module main/);
+  assert.deepEqual(refused(named('c_data_main')), [], 'an asm module main has no check section');
+  assert.match(refused(named('rodata_data', {}, { kind: 'c', dataStart: BASE + 0x180 })).join(), /section \.rodata_data, which is the data range section of c module data/);
+  assert.deepEqual(refused(named('rodata_data', {}, { kind: 'c' })), [], 'a c module without data_start has no data range section');
+  assert.equal(refused({ ...named('text'), overrides: [] }).length, 0, 'a module that is not runs_at opens no section of its own name');
 });
 
 test('deterministic: the same model whatever order the config maps were filled in; diagnostics sorted by address', () => {

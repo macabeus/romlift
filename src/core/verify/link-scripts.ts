@@ -12,7 +12,7 @@ import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
 import { cDataAssertLine, cDataSectionLine, cRamDataSectionLine, cRodataAssertLine, cRodataSectionLine } from '../model/c-data-assert.ts';
-import { modulePieces } from '../model/modules.ts';
+import { loadSymbolOf, modulePieces } from '../model/modules.ts';
 import { isCSource } from '../../foundation/util/project-files.ts';
 import { buildUnits, SYMBOLS_PATH } from '../model/paths.ts';
 import { externalSymbols } from '../model/symbols.ts';
@@ -244,7 +244,7 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
       if (!got.first || got.vma !== module.runAt || got.lma !== at) {
         out.push(textError(path, got.line, at, `${unit.object} runs from ${hexAddr(module.runAt)} and must open its own section at ${hexAddr(module.runAt)} : AT(${hexAddr(at)})`));
       }
-      if (loads.get(module.name) !== got.section) out.push(textError(path, got.line, at, `no \`__load_${module.name} = LOADADDR(.${got.section});\` names where ${unit.object} is loaded`));
+      if (loads.get(module.name) !== got.section) out.push(textError(path, got.line, at, `no \`${loadSymbolOf(module)} = LOADADDR(.${got.section});\` names where ${unit.object} is loaded`));
     } else if (afterRange.has(k) && (!got.first || got.lma !== at || got.vma !== at)) {
       out.push(textError(path, got.line, at, `${unit.object} follows a data range and must open its own section at ${hexAddr(at)} : AT(${hexAddr(at)})`));
     } else if (got.first && got.lma !== undefined && (got.lma !== at || got.vma !== at)) {

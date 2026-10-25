@@ -23,19 +23,24 @@ import type { Label } from './types.ts';
 /** The object sections a data range places (`.rodata` and its subsections, as agbcc and gcc name them). */
 export const C_RODATA_SECTIONS = '.rodata .rodata.*';
 
+/** The name of C module `module`'s NOLOAD check section. */
+export function cDataName(module: string): string {
+  return `.c_data_${module}`;
+}
+
 /** The NOLOAD section that collects every section of C module `module`'s object but .text (D74 f). */
 export function cDataSectionLine(module: string): string {
-  return `.c_data_${module} (NOLOAD) : { *src/${module}.o(.rodata* .data* .bss* COMMON) }`;
+  return `${cDataName(module)} (NOLOAD) : { *src/${module}.o(.rodata* .data* .bss* COMMON) }`;
 }
 
 /** The NOLOAD section of a C module with a data range: its object's sections in RAM, which the link does not place. */
 export function cRamDataSectionLine(module: string): string {
-  return `.c_data_${module} (NOLOAD) : { *src/${module}.o(.data* .bss* COMMON) }`;
+  return `${cDataName(module)} (NOLOAD) : { *src/${module}.o(.data* .bss* COMMON) }`;
 }
 
 /** The assertion that C module `module` defines no data the link leaves unplaced. */
 export function cDataAssertLine(module: string): string {
-  return `ASSERT(SIZEOF(.c_data_${module}) == 0, "${cSourceOf(`${module}.c`)} defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")`;
+  return `ASSERT(SIZEOF(${cDataName(module)}) == 0, "${cSourceOf(`${module}.c`)} defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")`;
 }
 
 /** The output section of C module `module`'s data range: its object's `.rodata`, linked and loaded at the range's start. */

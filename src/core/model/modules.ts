@@ -273,6 +273,17 @@ export function loadSymbolOf(module: Pick<Module, 'name'>): string {
   return `__load_${module.name}`;
 }
 
+/** The output section the ldscript opens first, for the ROM's units from its start (§6.7). */
+export const ROM_SECTION = '.text';
+
+/**
+ * The output section the ldscript gives a runs_at module, linked at its run address and loaded in place (§6.7). The
+ * model refuses a module whose section is another one the script emits (names.ts sectionNameCollisions).
+ */
+export function runSectionOf(module: Pick<Module, 'name'>): string {
+  return `.${module.name}`;
+}
+
 /** Run address minus load address of a module or chunk: runAt - span.start, 0 outside runs_at. */
 export function runOffsetOf(placed: { readonly span: { readonly start: Addr }; readonly runAt?: Addr }): number {
   return placed.runAt === undefined ? 0 : placed.runAt - placed.span.start;

@@ -27,7 +27,7 @@ import { buildItems } from './items.ts';
 import { segmentsOf } from './segments.ts';
 import { buildLabels, codeRefs } from './labels.ts';
 import { modulePieces, planModules, relocatedModules, runOffsetAt } from './modules.ts';
-import { invalidNames, linkerNameCollisions, moduleNameProblems, nameCollisions, nameSourceOf } from './names.ts';
+import { invalidNames, linkerNameCollisions, moduleNameProblems, nameCollisions, nameSourceOf, sectionNameCollisions } from './names.ts';
 import type { DefinedName } from './names.ts';
 import { modelSymbols, romSymbols } from './symbols.ts';
 import type { Chunk, Label, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
@@ -241,6 +241,6 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     labels: labelled.labels,
     symbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...moduleNameProblems(planned.modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...moduleNameProblems(planned.modules), ...sectionNameCollisions(planned.modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
   };
 }

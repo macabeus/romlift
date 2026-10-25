@@ -1731,7 +1731,10 @@ the run range of another `runs_at` range (correctness-8: `ld` would refuse the o
 range ends past `0xFFFFFFFF` (`ld` refuses a section that wraps around), or one whose `runs_at` is not its start plus a
 multiple of 4 (the range's own `.align 2` would lay out other bytes at the run address; correctness-r1-3). No name of
 the config may be a `runs_at` module's `__load_<module>` (`E_NAME_COLLISION`, and `rename` refuses it, correctness-r1-2):
-`ld` lets the script's assignment override the label. The
+`ld` lets the script's assignment override the label. Nor may a `runs_at` module's own section `.<module>` be another
+section the script emits: the ROM's `.text`, a `c` module's `.c_data_<m>` or a data range's `.rodata_<m>`
+(`E_NAME_COLLISION`, names.ts sectionNameCollisions; correctness-r2-1: `ld` merges two output sections of one name, so
+a module named `text` linked to other bytes and one named `c_data_<m>` broke the script). The
 `ldscript` writer emits the module as `.<module> <runAt> : AT(<load>) { asm/<module>.o(.text) }` and defines `__load_<module> =
 LOADADDR(.<module>)`, so ROM code that copies the bytes names their source and code that calls them names
 their run address: a pool word or a data word holding a load address of the module (its end included) prints

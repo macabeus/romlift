@@ -34,7 +34,7 @@ import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
 import { cDataAssertLine, cDataSectionLine, cRamDataSectionLine, cRodataAssertLine, cRodataSectionLine } from '../../model/c-data-assert.ts';
 import { isCSource } from '../../../foundation/util/project-files.ts';
-import { modulePieces } from '../../model/modules.ts';
+import { loadSymbolOf, modulePieces, ROM_SECTION, runSectionOf } from '../../model/modules.ts';
 import { buildUnits, LDSCRIPT_PATH, SYMBOLS_PATH } from '../../model/paths.ts';
 import { externalSymbols } from '../../model/symbols.ts';
 import type { Model } from '../../model/types.ts';
@@ -66,14 +66,14 @@ export function ldscriptText(model: Pick<Model, 'modules' | 'chunks' | 'symbols'
     }
     if (module.runAt !== undefined) {
       close();
-      lines.push(`${INDENT}.${module.name} ${hexAddr(module.runAt)} : AT(${hexAddr(module.span.start)}) {`, `${INDENT}${INDENT}${object}(.text);`, `${INDENT}}`);
-      lines.push(`${INDENT}__load_${module.name} = LOADADDR(.${module.name});`);
+      lines.push(`${INDENT}${runSectionOf(module)} ${hexAddr(module.runAt)} : AT(${hexAddr(module.span.start)}) {`, `${INDENT}${INDENT}${object}(.text);`, `${INDENT}}`);
+      lines.push(`${INDENT}${loadSymbolOf(module)} = LOADADDR(${runSectionOf(module)});`);
       placed = true;
       continue;
     }
     if (!open) {
       const load = hexAddr(module.span.start);
-      lines.push(placed ? `${INDENT}.text.${module.name} ${load} : AT(${load}) {` : `${INDENT}.text : {`);
+      lines.push(placed ? `${INDENT}${ROM_SECTION}.${module.name} ${load} : AT(${load}) {` : `${INDENT}${ROM_SECTION} : {`);
       open = true;
     }
     lines.push(`${INDENT}${INDENT}${object}(.text);`);

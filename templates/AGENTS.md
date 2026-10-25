@@ -160,7 +160,9 @@ address, loaded at its ROM address, and defines `__load_<module>`, its load addr
 names. `runs_at` must lie outside the ROM and away from every other range's run addresses, keep its ROM start's word
 alignment (`runs_at` minus `start` a multiple of 4) and end inside the 32-bit address space; `romlift generate` refuses
 anything else with `E_OVERRIDE_INVALID`. No function or symbol may be named `__load_<module>`, the linker script's name
-for a range's load address.
+for a range's load address, and the range's module may not be named `text`, `c_data_<m>` for a C module `m`, or
+`rodata_<m>` for a C module with `data_start`: the linker script names the module's section `.<module>`, and those are
+its other sections' names (`E_NAME_COLLISION`).
 
 ## Data defined in C
 

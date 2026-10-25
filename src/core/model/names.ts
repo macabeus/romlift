@@ -14,7 +14,8 @@ import { defaultFunctionName } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import { ModelCodes } from './codes.ts';
-import { loadSymbolOf, moduleIndexAt, relocatedModules } from './modules.ts';
+import { cDataName, cRodataName } from './c-data-assert.ts';
+import { loadSymbolOf, moduleIndexAt, relocatedModules, ROM_SECTION, runSectionOf } from './modules.ts';
 import type { Label, Module, NameSource } from './types.ts';
 
 /** The name of the cartridge header's chunk and label. */
@@ -89,6 +90,31 @@ export function linkerNameCollisions(names: readonly { readonly name: string; re
     if (module === undefined || seen.has(n.name)) continue;
     seen.add(n.name);
     out.push(diagnostic(ModelCodes, 'E_NAME_COLLISION', `the name ${n.name} at ${hexAddr(n.addr)} is the symbol ldscript.txt defines as the load address of runs_at module ${module.name} (${n.name} = LOADADDR(.${module.name}))`, { addr: n.addr, cites: [module.span.start] }));
+  }
+  return out;
+}
+
+/**
+ * E_NAME_COLLISION for every runs_at module whose output section (modules.ts runSectionOf, `.<module>`) is another
+ * section ldscript.txt emits: the ROM's `.text`, a `c` module's check section `.c_data_<m>` or a data range's
+ * `.rodata_<m>` (c-data-assert.ts). ld would put both into one output section, so `__load_<module>` would name the
+ * other section's load address and the tree would link to other bytes, or the script would not parse
+ * (correctness-r2-1). A module name holds no `.`, so no `.text.<module>` section can be one. In ROM order.
+ */
+export function sectionNameCollisions(modules: readonly Pick<Module, 'name' | 'kind' | 'span' | 'runAt' | 'dataRange'>[]): Diagnostic[] {
+  const reserved = new Map<string, string>([[ROM_SECTION, 'the section of the ROM\'s first units']]);
+  for (const m of modules) {
+    if (m.kind !== 'c') continue;
+    reserved.set(cDataName(m.name), `the data check section of c module ${m.name}`);
+    if (m.dataRange !== undefined) reserved.set(cRodataName(m.name), `the data range section of c module ${m.name}`);
+  }
+  const out: Diagnostic[] = [];
+  for (const m of modules) {
+    if (m.runAt === undefined) continue;
+    const section = runSectionOf(m);
+    const other = reserved.get(section);
+    if (other === undefined) continue;
+    out.push(diagnostic(ModelCodes, 'E_NAME_COLLISION', `the runs_at module ${m.name} at ${hexAddr(m.span.start)} would be ldscript.txt's section ${section}, which is ${other}; rename the module`, { addr: m.span.start }));
   }
   return out;
 }
