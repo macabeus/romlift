@@ -156,8 +156,10 @@ romlift/
                                     runsAtName, asmOnlyName, mainName, freeModuleName), module-proposals.ts (the
                                     runs_at borders and library modules a project lacks, planRunsAtBorders,
                                     planLibraryModules; phase 6, D95 b)
-      signatures/                   schema.ts, spec.ts (frozen by D93; zod schemas since D95 d), issues.ts (their
-                                    refusal text), extract.ts, match.ts, resolve.ts, policy.ts, propose.ts, codes.ts
+      signatures/                   schema.ts, spec.ts (frozen by D93; zod schemas since D95 d), zod-helpers.ts (the
+                                    zod building blocks both share), issues.ts (their refusal text), sealing.ts
+                                    (isSealedDataset, D32), extract.ts, match.ts, resolve.ts, policy.ts, propose.ts,
+                                    codes.ts
         rules/                      index.ts + one file per sig.* placement rule
       config/                       schema.ts, keys.ts, parse.ts, serialize.ts, patch.ts, compilers.ts,
                                     decomp-yaml.ts, rom-sha1.ts (romSha1Problems, E_ROM_SHA1_MISMATCH), codes.ts
@@ -194,7 +196,8 @@ romlift/
     shell/                          the only code that touches files, processes, hashing or the environment
       codes.ts                      the shell's diagnostic codes
       hash.ts                       sha1/sha256 via node:crypto, incremental
-      fs.ts                         listDir (sorted by code unit), atomic write (temp and rename)
+      fs.ts                         listDir (sorted by code unit), isRegularFile, readText, readJson (ENOENT and
+                                    ENOTDIR read as absent, any other failure E_IO_READ), atomic write (temp and rename)
       rom.ts                        readRom: a ROM file read, hashed and wrapped (D59)
       project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts, disk-state.ts,
                                     fresh-tree.ts (writeFreshTree), write-project.ts (generate's and init's writes
@@ -333,7 +336,7 @@ with stdin closed and parses `--json` output line by line.
 | `generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]` (4) | `decomp.yaml` → TOML, ROM, `src/*.c` | generated tree; `INCLUDE_ASM` edits (4: add and remove, D75 b) | self-checks pass before any write; never writes the TOML; `--dry-run --json` prints the write plan |
 | `analyze --update [--write]` (4) | project | prints a TOML patch; `--write` applies it | the patch keeps comments and re-parses |
 | `scaffold --diff` (4) | project, templates | nothing | how scaffold files differ from the current templates |
-| `rename <old> <new>` (6, D92) | TOML, ROM, `src/`, `include/` | a one-line TOML patch; identifier tokens | refuses when `new` is a name of the TOML or of the project's model, `old` is unknown, or a file it cannot edit names `old`; warns of each file it leaves out (D95 c) |
+| `rename <old> <new>` (6, D92) | TOML, ROM, `src/`, `include/` | a one-line TOML patch; identifier tokens | refuses when `new` is a name of the TOML or of the project's model (a `runs_at` module's `__load_<module>` included, D96 c), `old` is unknown, or a file it cannot edit names `old`; warns of each file it leaves out (D95 c) |
 | `signatures build <spec> [--out <dir>]` / `signatures <rom>` (6) | reference checkouts / ROM | `signatures/<library>.json` (local, gitignored; `--out` another directory) / stdout | placements with their `sig.*` rule ids |
 
 `init`, `generate`, `analyze --update`, `rename` and `explain` are each one function in
@@ -1683,7 +1686,7 @@ it is empty:
 
 ```
 .c_data_<module> (NOLOAD) : { *src/<module>.o(.rodata* .data* .bss* COMMON) }
-ASSERT(SIZEOF(.c_data_<module>) == 0, "src/<module>.c defines data; see AGENTS.md (romlift does not place C data yet)")
+ASSERT(SIZEOF(.c_data_<module>) == 0, "src/<module>.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")
 ```
 
 The leading `*` matches the object ld is given, `build/src/<module>.o` (D74 f).
@@ -1707,11 +1710,12 @@ named `old` (the new name, its `from` removed: the name is now the user's, D9) a
 identifier tokens equal to `old` in `src/` and `include/` (never a comment, string or character literal), as
 `reconciled` entries; it refuses when `new` is already a name of the project or `old` names nothing (exit 1, no file
 changed, `g6.rename`). A name of the project is one the TOML lists (a function, symbol, alias or module) or one the
-project's model emits (a default chunk or symbol name such as `unk_…` or `gUnk_…`, a local label `_0800…`;
-`renameModelNames`, the confirm model of the project's ROM and TOML), which `generate` would refuse as
-`E_NAME_COLLISION` (correctness-1, D95 c). A file under `src/` or `include/` rename cannot edit (a symbolic link, file or
+project's model emits (a default chunk or symbol name such as `unk_…` or `gUnk_…`, a local label `_0800…`, or the
+linker script's `__load_<module>` of a `runs_at` module, correctness-r1-2; `renameModelNames`, the confirm model of the
+project's ROM and TOML), which `generate` would refuse as `E_NAME_COLLISION` (correctness-1, D95 c, D96 c). A file under `src/` or `include/` rename cannot edit (a symbolic link, file or
 directory, since an edit written through a temporary file would replace the link; a file that is not UTF-8 or holds a
-NUL) is listed by the shell, never skipped silently: `W_RENAME_SKIPPED` when it does not name `old`, and the refusal
+NUL) is listed by the shell, never skipped silently (a link whose target exists but cannot be read is `E_IO_READ`, never
+a link to nothing, architecture-r1-1): `W_RENAME_SKIPPED` when it does not name `old`, and the refusal
 `E_RENAME_SKIPPED_FILE` when its bytes hold `old` as an identifier (architecture-5). The `c` stubs then follow from
 `generate`.
 
@@ -1723,7 +1727,11 @@ targets; `FunctionFact.runAt`, `Chunk.runAt` and `Module.runAt` record it; label
 addresses. The range is its own `asm` module: `init` and `analyze --update` propose its two borders,
 and a `runs_at` range whose start and end are not module borders is `E_OVERRIDE_INVALID`, as is one whose run range
 `[runs_at, runs_at + size)` overlaps the ROM's own load space (but for the identity, `runs_at` equal to its start) or
-the run range of another `runs_at` range (correctness-8: `ld` would refuse the overlapping sections). The
+the run range of another `runs_at` range (correctness-8: `ld` would refuse the overlapping sections), one whose run
+range ends past `0xFFFFFFFF` (`ld` refuses a section that wraps around), or one whose `runs_at` is not its start plus a
+multiple of 4 (the range's own `.align 2` would lay out other bytes at the run address; correctness-r1-3). No name of
+the config may be a `runs_at` module's `__load_<module>` (`E_NAME_COLLISION`, and `rename` refuses it, correctness-r1-2):
+`ld` lets the script's assignment override the label. The
 `ldscript` writer emits the module as `.<module> <runAt> : AT(<load>) { asm/<module>.o(.text) }` and defines `__load_<module> =
 LOADADDR(.<module>)`, so ROM code that copies the bytes names their source and code that calls them names
 their run address: a pool word or a data word holding a load address of the module (its end included) prints
@@ -1738,10 +1746,11 @@ appends after `init` (D91 c): one module spans exactly the range with that `runA
 ### 6.8 `expected/` and `objdiff.json` (phase 6, D92)
 
 The `expected` writer emits two files for each generated module (D95 a): `expected/<module>.s`, the module as its
-build unit assembles it (a `c` module's chunk files included in ROM order, at their `asm/matchings` twin once the C
-defines the function, which is what agbcc's output of the stub-only C assembles; an asm or data module's own source
+build unit assembles it (for a `c` module agbcc's output of the stub-only C, `core/model/c-unit.ts` stubAssemblyText, over its chunk files in
+ROM order, each at its `asm/matchings` twin once the C defines the function; an asm or data module's own source
 included), and `expected/rom/<module>.s`, the module's ROM range as one `.incbin`. `make expected` assembles both
-without agbcc and writes the ROM range's bytes over the first object's `.text`, keeping its relocations, so
+without agbcc, keeps the first object as assembled at `build/expected/<module>.o`, and writes the ROM range's bytes over
+a copy's `.text`, keeping its relocations (`objcopy --update-section` drops them, measured with binutils 2.45.1), so
 `expected/<module>.o` has the base object's symbols, mapping symbols and relocations at the same offsets, while its
 unlinked `.text` is the ROM range. The `objdiff` writer emits `objdiff.json` (objdiff-cli 3.7.2), one unit per `c`
 module with its target and base objects (`build/src/<module>.o`, D74 f) and `options.functionRelocDiffs = "none"`:
@@ -1754,7 +1763,10 @@ generated files under the generated roots (§6.4).
 `g6.expected-bytes` judges `expected/<module>.s` by the ROM, never by another project's own `expected/` (Klonoa's `make
 expected` is best effort and marks wrong symbols in `.tainted` files): in a project `init` wrote, every `c` module has
 an `expected/<module>.s`, each is assembled, and its `.text` must equal its module's ROM range byte for byte, the
-symbols covering a first difference named. It runs on every fixture (ci) and every tuning ROM (real).
+symbols covering a first difference named. Since the ROM is written over that `.text`, the gate also judges the unit's
+object as assembled, `build/expected/<module>.o` (fix round 2, correctness-r1-1, a tightening): its `.text` equals the ROM
+range outside every relocated field, and every symbol it defines that the model places sits at the model's offset, so
+two chunk files swapped in `expected/<module>.s` fail it. It runs on every fixture (ci) and every tuning ROM (real).
 
 The design phase 5 had for migrating a legacy repository (the Klonoa switch-over pinned by commit, D52, and
 `import-legacy`'s counts at `693ccb7`, D51) was dropped by the owner (D92) and is not built; the Klonoa repository is
@@ -2444,6 +2456,6 @@ one is missing.
 | `g6.explain-coverage` | ci | every analysis and `sig.*` rule id appears in at least one explain golden, all built from fixtures; `SIGNATURE_RULES` holds exactly the five `SignatureRuleId`s |
 | `g6.reconciler` | ci | C in, C out goldens: add, remove, move stubs; comments and strings untouched (`g5.reconciler` until D92) |
 | `g6.rename` | ci | identifier-only renames; refusals (`g5.rename` until D92) |
-| `g6.expected-bytes` | ci and real | §6.8: every `expected/<module>.s` assembles to its module's ROM range (`g5.expected-bytes` until D92) |
+| `g6.expected-bytes` | ci and real | §6.8: every `expected/<module>.s` assembles to its module's ROM range: the target's `.text` equals it, and the unit's object as assembled (`build/expected/<module>.o`) equals it outside its relocated fields with every symbol where the model places it (fix round 2) (`g5.expected-bytes` until D92) |
 | `g6.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links, baseline phase-3.md Q1 (`g3.objdiff` until D68 a, `g5.objdiff` until D92) |
 | `g6.c-data-ranges` | ci | §6.6: with `data_start`, a C array replaces its slice of the ROM and the build still matches (`g5.c-data-ranges` until D92) |

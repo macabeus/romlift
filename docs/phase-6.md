@@ -305,7 +305,10 @@ Raised at fix round 1 (the review of the closing record, D95):
   (b) `expected/<module>.o` without the ROM's bytes (the unit's assembly as it is: objdiff 100% on every untouched
   function, measured on sa1 with the symbolic objects alone, 0 of 2,013 below), and `g6.expected-bytes` judges the
   target after relocation (linked at its module's address) instead of the unlinked `.text`: a gate change; (c) another
-  rule the owner names.
+  rule the owner names. Fix round 2 (correctness-r1-1, D96 a): because the ROM is written over the target's `.text`,
+  the gate's own comparison could no longer see the target's content (two includes of `expected/main.s` swapped passed
+  on sa1); the gate now also judges the unit's object as assembled, `build/expected/<module>.o`, outside its relocated
+  fields and by its symbols' offsets, a tightening that leaves option (a)'s targets and this question as they were.
 - **Q13. `g6.signatures-judged` leaves `unjudged` sizes out of its comparison.** The bench counts a proposed size as
   `unjudged` when the ELF has no size for the symbol, its size is 0, or the FUNC spans another FUNC (bench/src/signatures.ts),
   and the gate tested only `differ`; architecture §8.4 said every proposed size equals the ELF size. Measured in the
@@ -324,7 +327,26 @@ Raised at fix round 1 (the review of the closing record, D95):
   differ on its own reference); (b) restore the old rule, and the gate fails on pokeemerald until the spec's reviewed
   name goes (the PoC's ad hoc `_dp`/`_f` disambiguation, D31); (c) another rule.
 
-Open, each blocking the landing: Q1, Q2, Q3, Q5, Q6, Q8, Q9, Q10, Q11, Q12, Q13, Q14 (Q4 and Q7 need no answer).
+Raised at fix round 2 (the review of fix round 1, D96):
+
+- **Q15. `g6.objdiff` scores the bench's spelling of romlift's pool words, not romlift's own** (delivery-r1-1). The
+  bench's `objectWords` (`bench/src/objdiff.ts`, `p6-objdiff`, `1347bfb`) rewrites each pool word of a base before it is
+  assembled: a plain `.4byte 0x0300xxxx` that romlift emits, or a name at an address the reference object names nothing
+  at, becomes the reference object's data name at or below the word, `name + offset`. D34 allows only "the emitted
+  function .s, assembled, with labels renamed to the reference ELF's names by address"; phase-3.md Q1 option (a), which
+  the commit cites, puts `sym + addend` in the printer ("an emission rule, with sizes in [symbols]"), not in the bench;
+  and Q6 gave the owner counts measured with the rewrite. Measured at fix round 2 (`bench/tools/objdiff-classes.ts`, all
+  six, with the map; `--own-spelling` scores romlift's own spelling), gated (D34) fe7j, klonoa, pokeemerald, sa2, sa3,
+  tmc: with `objectWords` 19, 131, 157, 4, 55, 17 (under Q6 option b 3, 1, 6, 1, 54, 5); without it 21, 135, 201,
+  2,665, 1,664, 51 (under Q6 option b 7, 1, 44, 2,648, 1,642, 37). Without the rewrite sa2 and sa3 differ mostly in
+  `instruction-other` (2,648 and 1,638: pool words inside sized entries the reference relocates, `.word 0x30008c7 |
+  .word gStageData+0x27`), pokeemerald in `instruction-other` 33, `relocation-other` 11 and `symbol-addend` 10.
+  Options: (a) revert `objectWords` and gate romlift's own spelling (the second row); (b) accept the bench rewrite as an
+  amendment to D34 (the first row; the gate still fails without Q6's answer); (c) move the `sym + addend` spelling into
+  the printer, as phase-3.md Q1 option (a) says, and measure again (not measured: a printer rule with sizes in
+  `[symbols]`). Until he answers, nothing is reverted and the committed counts are the first row's.
+
+Open, each blocking the landing: Q1, Q2, Q3, Q5, Q6, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15 (Q4 and Q7 need no answer).
 
 ## Known limitations
 

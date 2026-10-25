@@ -4358,6 +4358,61 @@ case of `objdiff-json`. The phase still does not land: Q1 to Q3, Q5, Q6 and Q8 t
 have to predict every relocation GNU as emits). Ending Klonoa's `runs_at` range before its ROM-called tail (the RAM code
 loads a pool word there PC-relatively, D63). Leaving `isSealed` as the bench's own copy.
 
+## D96. Phase-6 fix round 2: the review of fix round 1
+
+**Context.** The review of `phase-6` at `ea1dbcb` (fix round 1, D95) raised 16 findings (3 major, 13 minor; their
+dispositions are phase-6.md "Review", fix round 2). Two of them say fix round 1 changed what a gate measures without
+the owner: `make expected` writes the ROM range over the target's `.text`, which `g6.expected-bytes` then compares with
+the same range, so the gate could only catch a wrong size (correctness-r1-1, measured: two chunk files swapped in
+`expected/main.s` of sa1 passed); and the bench's `objectWords` rewrites romlift's pool words as the reference object
+spells them before `g6.objdiff` scores them (delivery-r1-1). A third shows `rename` and the model accepting the name the
+linker script defines for a `runs_at` module (correctness-r1-2).
+
+**Decision.**
+
+- (a) **`g6.expected-bytes` judges the unit's object as assembled** (correctness-r1-1, a tightening). `make expected`
+  keeps `expected/<module>.s` as assembled at `build/expected/<module>.o` and writes the ROM over a copy
+  (`expected/<module>.o`, objdiff's target, unchanged). The gate keeps its comparison of the target's `.text` and adds
+  two on the kept object: its `.text` equals the ROM range at every byte outside a relocated field (`readelf -r`, each
+  ARM relocation type's field width; an unknown type fails), and every symbol it defines that the model places
+  (`model --json`'s chunk names, entries and inner labels) sits at the model's offset. Run against the committed
+  fixtures before it was frozen (225 modules on 54 ROMs pass); a scratch copy of the gate that swaps two includes of
+  c-data's `expected/main.s` fails with the byte at `0x080000F8` and both symbols out of place. Fix round 1's ROM
+  overwrite and Q12 stand as they were.
+- (b) **The `objectWords` method is the owner's** (delivery-r1-1). The bench's rewrite of pool words into the reference
+  object's spelling is a change to what D34 measures, which no owner words allow; it becomes phase-6.md Q15 with both
+  measurements (`bench/tools/objdiff-classes.ts --own-spelling` scores romlift's own spelling). Nothing is reverted
+  before he answers, so `g6.objdiff`'s committed counts stay the ones measured with the rewrite.
+- (c) **The linker script's names are the model's** (correctness-r1-2). A config name (function, alias, symbol) equal
+  to a `runs_at` module's `__load_<module>` is `E_NAME_COLLISION` (`names.ts linkerNameCollisions`), and `rename`
+  counts it among the model's names (`modelNamesOf`), so `rename SoundMain __load_ram_03000388` on Klonoa with its
+  override exits 1 with `E_RENAME_EXISTS` and a TOML edit to that name makes `generate` exit 1, where both reached an
+  exit-3 self-check failure before. `loadSymbolOf` moves to `core/model/modules.ts` beside `relocatedModules`.
+- (d) **Two more run ranges are refused** (correctness-r1-3): a `runs_at` that is not its start plus a multiple of 4,
+  and a run range that ends past `0xFFFFFFFF`, are `E_OVERRIDE_INVALID` in `planModules`, so `analyze --update` refuses
+  its patch and `generate` exits 1.
+- (e) **`expected/<module>.s` of a `c` module is `c-unit.ts stubAssemblyText`** (architecture-r1-3), the one encoding of
+  agbcc's output of a stub, over the written chunk paths. The statement parser (D49) reads `.syntax divided` as a
+  no-byte directive under which no instruction or include may follow until `.syntax unified`; the text-layout check
+  has one include resolver and one macro-order rule.
+- (f) **Smaller corrections.** A symbolic link whose target cannot be read is `E_IO_READ` for `rename`, never a link
+  to nothing (architecture-r1-1); `explain --rom` places through `signaturesOver` (architecture-r1-2); one
+  `runsAtOverrides`/`runsAtSpans`, `alignWord` for the word rule, `peek32`/`u32` through `le32`, `compareCodeUnits` in
+  the spec, the bench's `romSignatures` returning core's `RomSignatures` and refusing a run with an error
+  (architecture-r1-6); `zod-helpers.ts` and `sealing.ts` apart from the spec format (architecture-r1-8); the C-data
+  assertion's message names data ranges and still matches `g4.c-data-fails-loud` (correctness-r1-4).
+
+**Consequences.** The writer goldens of `expected` (159 files) and the scaffold golden (the Makefile's `expected` rule)
+are regenerated; `npm test` gains tests for each branch architecture-r1-4 lists. `g6.expected-bytes` is stricter and
+its file changed (the change is a tightening, recorded here and in phase-6.md). The phase still does not land: Q1 to
+Q3, Q5, Q6, Q8 to Q15 are open.
+
+**Rejected.** `objcopy --update-section .text=` for the ROM overwrite (architecture-r1-5): measured again with binutils
+2.45.1, it drops `.rel.text` (one relocation before, none after), which D95 a needs kept; the rule now checks that the
+object has exactly one `.text` instead. Linking each target at its module's address to judge it (it needs every other
+module's symbols, which an `expected/` build does not have; Q12 option b offers it to the owner as a gate change).
+Reverting `objectWords` before the owner answers Q15.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per
