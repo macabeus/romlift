@@ -25,7 +25,7 @@ import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import { moduleIndexAt, relocatedModules } from './modules.ts';
-import type { Label, LabelKind, Model, Module } from './types.ts';
+import type { Label, LabelKind, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
 
 /** The label printed when several share an address: a function name first, then table, pool, local, data. */
 export const LABEL_KIND_ORDER: readonly LabelKind[] = ['func', 'table', 'pool', 'local', 'data'];
@@ -57,6 +57,75 @@ export function moduleAt(model: Pick<Model, 'modules'>, addr: Addr): Module | un
  */
 export function wordValueOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>): number {
   return label.kind === 'func' && label.thumb ? (label.addr | 1) >>> 0 : label.addr >>> 0;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Named, sized entries: what a word inside one prints as (core/emit/print/pool.ts wordText).
+
+/** A named entry with a size: a [symbols] entry with `size`, or a function whose extent is the TOML's `size`. */
+export interface SizedEntry {
+  readonly addr: Addr;
+  readonly name: string;
+  readonly size: number;
+}
+
+/** The model's named entries, for naming a word (sizedEntries). */
+export interface SizedEntries {
+  /** The sized entries by address, then name. */
+  readonly sized: readonly SizedEntry[];
+  /** maxEnd[i]: the largest end of sized[0..i], so a search for the entry holding a word stops early. */
+  readonly maxEnd: readonly number[];
+  /** `<addr>:<name>` of every named entry: every function, every [symbols] entry. */
+  readonly named: ReadonlySet<string>;
+}
+
+const ENTRIES = new WeakMap<readonly ModelSymbol[], { readonly functions: readonly ModelFunction[]; readonly entries: SizedEntries }>();
+
+function buildEntries(symbols: readonly ModelSymbol[], functions: readonly ModelFunction[]): SizedEntries {
+  const sized: SizedEntry[] = [];
+  const named = new Set<string>();
+  for (const s of symbols) {
+    named.add(`${String(s.addr)}:${s.name}`);
+    if (s.size !== undefined && s.size > 0) sized.push({ addr: s.addr, name: s.name, size: s.size });
+  }
+  for (const f of functions) {
+    const at = f.runAt ?? f.entry;
+    named.add(`${String(at)}:${f.name}`);
+    if (f.source.extent === 'toml-size' && f.extent.end > f.extent.start) sized.push({ addr: at, name: f.name, size: f.extent.end - f.entry });
+  }
+  sized.sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
+  const maxEnd: number[] = [];
+  let reach = 0;
+  for (const e of sized) maxEnd.push((reach = Math.max(reach, e.addr + e.size)));
+  return { sized, maxEnd, named };
+}
+
+/** The named entries of a model, built once per model (cached by its symbols array, which a Model never changes). */
+export function sizedEntries(model: Pick<Model, 'symbols' | 'functions'>): SizedEntries {
+  const cached = ENTRIES.get(model.symbols);
+  if (cached !== undefined && cached.functions === model.functions) return cached.entries;
+  const entries = buildEntries(model.symbols, model.functions);
+  ENTRIES.set(model.symbols, { functions: model.functions, entries });
+  return entries;
+}
+
+/** Whether `label` is a named entry: a function's or a [symbols] entry's label at its own address. */
+export function isNamedEntry(entries: SizedEntries, label: Pick<Label, 'addr' | 'name'>): boolean {
+  return entries.named.has(`${String(label.addr)}:${label.name}`);
+}
+
+/**
+ * The innermost sized entry `word` lies inside: start < word < start + size, `start` the word `.4byte <name>` links to
+ * (the Thumb bit of a Thumb function counted by the caller, core/emit/print/pool.ts); undefined when none holds it.
+ */
+export function sizedEntryAt(entries: SizedEntries, word: number): SizedEntry | undefined {
+  const { sized, maxEnd } = entries;
+  for (let i = lowerBound(sized, word + 1, (e) => e.addr) - 1; i >= 0; i--) {
+    if ((maxEnd[i] ?? 0) <= word) return undefined;
+    const e = sized[i];
+    if (e !== undefined && word > e.addr && word < e.addr + e.size) return e;
+  }
+  return undefined;
 }
 
 /** Whether `label` links to its own address (wordValueOf): every label but a Thumb function's, which carries the Thumb bit. */

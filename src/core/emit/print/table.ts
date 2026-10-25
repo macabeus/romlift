@@ -5,13 +5,12 @@
 // an even one. A target without a visible label prints its stored value.
 import { hex } from '../../../foundation/util/hex.ts';
 import { wordValueOf } from '../../model/resolver.ts';
-import type { Model } from '../../model/types.ts';
-import { visibleLabelsAt } from './pool.ts';
+import { visibleLabelsAt, type WordScope } from './pool.ts';
 
-/** The operand of a table entry storing `target | thumbBit`, in module `module`. */
-export function tableEntryOperand(model: Pick<Model, 'labels' | 'modules'>, module: string, target: number, thumbBit: boolean): string {
+/** The operand of a table entry storing `target | thumbBit`, in the scope's module (pool.ts wordScope). */
+export function tableEntryOperand(scope: WordScope, target: number, thumbBit: boolean): string {
   const stored = (target | (thumbBit ? 1 : 0)) >>> 0;
-  const label = visibleLabelsAt(model, module, target)[0];
+  const label = visibleLabelsAt(scope, target)[0];
   if (label === undefined) return `0x${hex(stored)}`;
   const addend = stored - wordValueOf(label);
   if (addend === 0) return label.name;
@@ -19,6 +18,6 @@ export function tableEntryOperand(model: Pick<Model, 'labels' | 'modules'>, modu
 }
 
 /** A table entry's line. */
-export function tableEntryLine(model: Pick<Model, 'labels' | 'modules'>, module: string, target: number, thumbBit: boolean): string {
-  return `\t.4byte ${tableEntryOperand(model, module, target, thumbBit)}`;
+export function tableEntryLine(scope: WordScope, target: number, thumbBit: boolean): string {
+  return `\t.4byte ${tableEntryOperand(scope, target, thumbBit)}`;
 }

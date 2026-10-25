@@ -39,7 +39,7 @@ import type { EmitContext, PrintedChunk, Printer, PrintStats } from '../tree.ts'
 import { noteLines, paddingLines } from './data.ts';
 import type { InsnContext, PrintedInsn } from './insn.ts';
 import { printInsn, printRawInsn, printUndecodedInsn } from './insn.ts';
-import { poolLine, wordText } from './pool.ts';
+import { poolLine, wordScope, wordText, type WordScope } from './pool.ts';
 import { printRawRange } from './raw.ts';
 import type { RawLabel } from './raw.ts';
 import { tableEntryLine } from './table.ts';
@@ -196,6 +196,8 @@ interface BodyContext {
   /** Labels placed in the body (the chunk's own label excluded), in address order. */
   readonly labels: readonly Label[];
   readonly stats: StatsCounter;
+  /** How a word of the chunk's module prints (pool.ts), made once per chunk. */
+  readonly words: WordScope;
 }
 
 /** Splits [start, end) at the load addresses of the labels strictly inside it. */
@@ -240,7 +242,7 @@ function insnContext(cx: BodyContext): InsnContext {
     adrResolver: adrResolverFor(model, chunk.module),
     poolOperand(addr: Addr): string | undefined {
       const load = addr - runOffset;
-      return contains(rom, load, 4) && (load & 3) === 0 ? wordText(model, chunk.module, u32(rom, load)) : undefined;
+      return contains(rom, load, 4) && (load & 3) === 0 ? wordText(cx.words, u32(rom, load)) : undefined;
     },
   };
 }
@@ -275,7 +277,7 @@ function readableItems(cx: BodyContext, first: number, end: number, labels: read
     const here = labelsBefore(item.span.start);
     if (item.kind === 'pool') {
       for (const l of here) pushAll(out, labelLines(l, mode).slice(0, -1));
-      out.push(poolLine(here.map((l) => l.name), wordText(model, chunk.module, item.value)));
+      out.push(poolLine(here.map((l) => l.name), wordText(cx.words, item.value)));
       continue;
     }
     for (const l of here) pushAll(out, labelLines(l, mode));
@@ -286,7 +288,7 @@ function readableItems(cx: BodyContext, first: number, end: number, labels: read
     }
     switch (item.kind) {
       case 'table-entry':
-        out.push(tableEntryLine(model, chunk.module, item.target, item.thumbBit));
+        out.push(tableEntryLine(cx.words, item.target, item.thumbBit));
         break;
       case 'padding':
         pushAll(out, paddingLines(rom, item.span));
@@ -295,7 +297,7 @@ function readableItems(cx: BodyContext, first: number, end: number, labels: read
         const inner = labels.slice(next).map((l) => l.addr - runOffset).filter((a) => a > item.span.start && a < item.span.end);
         for (const piece of splitAt(item.span, inner)) {
           for (const l of labelsBefore(piece.start)) pushAll(out, labelLines(l, mode));
-          pushAll(out, noteLines(rom, piece, item.note));
+          pushAll(out, noteLines(rom, piece, item.note, chunk.kind === 'function' ? mode : undefined));
         }
         break;
       }
@@ -371,7 +373,7 @@ export function printChunk(rom: Rom, model: Model, chunk: number, how: Printer |
   // The opening defines the chunk's own name; a label of that name elsewhere would be a second definition.
   const labels = all.filter((l) => l !== head && !(l.name === c.name && l.addr === at));
   const stats = counter();
-  const cx: BodyContext = { rom, model, chunk: c, runOffset, labels, stats };
+  const cx: BodyContext = { rom, model, chunk: c, runOffset, labels, stats, words: wordScope(model, c.module) };
   const printer = printerOf(how);
   const lines: string[] = [];
   if (c.kind === 'header') {

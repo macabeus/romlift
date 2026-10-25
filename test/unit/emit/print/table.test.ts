@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { wordScope } from '../../../../src/core/emit/print/pool.ts';
 import { tableEntryLine, tableEntryOperand } from '../../../../src/core/emit/print/table.ts';
 import { dataItem, label, modelOf, romWith } from '../../../helpers/model.ts';
 
@@ -14,17 +15,17 @@ const model = modelOf(rom, {
 });
 
 test('a local target prints its label, + 1 with the Thumb bit', () => {
-  assert.equal(tableEntryLine(model, 'alpha', A + 0x10, false), '\t.4byte _0800ABCD');
-  assert.equal(tableEntryLine(model, 'alpha', A + 0x10, true), '\t.4byte _0800ABCD + 1');
+  assert.equal(tableEntryLine(wordScope(model, 'alpha'), A + 0x10, false), '\t.4byte _0800ABCD');
+  assert.equal(tableEntryLine(wordScope(model, 'alpha'), A + 0x10, true), '\t.4byte _0800ABCD + 1');
 });
 
 test('a Thumb function target already links with the Thumb bit', () => {
-  assert.equal(tableEntryOperand(model, 'alpha', A + 0x20, true), 'Case');
-  assert.equal(tableEntryOperand(model, 'alpha', A + 0x20, false), 'Case - 1');
-  assert.equal(tableEntryOperand(model, 'alpha', A + 0x30, true), 'ArmCase + 1');
+  assert.equal(tableEntryOperand(wordScope(model, 'alpha'), A + 0x20, true), 'Case');
+  assert.equal(tableEntryOperand(wordScope(model, 'alpha'), A + 0x20, false), 'Case - 1');
+  assert.equal(tableEntryOperand(wordScope(model, 'alpha'), A + 0x30, true), 'ArmCase + 1');
 });
 
 test('a target without a visible label prints the stored value', () => {
-  assert.equal(tableEntryOperand(model, 'alpha', A + 0x40, true), '0x08001041');
-  assert.equal(tableEntryOperand(model, 'alpha', A + 0x40, false), '0x08001040');
+  assert.equal(tableEntryOperand(wordScope(model, 'alpha'), A + 0x40, true), '0x08001041');
+  assert.equal(tableEntryOperand(wordScope(model, 'alpha'), A + 0x40, false), '0x08001040');
 });
