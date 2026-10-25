@@ -11,6 +11,13 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
+**Fix round 4, step 1 (D98, D99): not landed yet.** The owner answered every open question on 25 October 2026. This
+step applied his gate edits and records (Q1 to Q3, Q5, Q8, Q9, Q11, Q13, Q14): `g6.reconciler`, `g6.rename` and
+`g6.evidence-conflict` now pass on the ci tier, `g6.signatures-judged` holds tmc to the floor he set, and
+`g4.toml-mutations` makes an add-override edit that changes the model and refuses an odd `[functions]` key, on both
+tiers; it fixed seven of fix round 3's nine carried minors ("Review", fix round 4, step 1). The round's later steps
+apply Q10, Q12, Q6 with Q15, and Q16, then run the closing list.
+
 **Verdict after fix round 3 (D97): still NOT LANDED.** The review of fix round 2 (`b64f0b7`) raised 11 findings: one
 major (correctness-r2-1, a `runs_at` module named `text` or `c_data_<m>` broke the link), fixed in this round, and ten
 minors, nine carried and one an owner question (Q16) ("Review", fix round 3). The orchestrator asked to land the phase; it cannot: the fourteen owner
@@ -213,17 +220,25 @@ Raised at the wave-2 integration (the phase does not land until each is answered
   ("no module starts at 0x0800012C" while the model has that module). The component's commit `f534ddd` reads them with
   the gate's own `num()`; nothing is loosened, and with it the gate passes on the ci tier (56 s at the integration).
   Options: (a) accept the parse fix as is; (b) revert it and keep the gate failing until another fix is chosen.
+  **Answered on 25 October 2026 (D98 a), with Q2, Q3 and Q5, "Apply all four"**: "Q1 (a) keep f534ddd's parse fix of
+  g6.ram-code-mapped". Nothing to change: `f534ddd` stays; the gate passes on both tiers (fix round 4 below).
 - **Q2. `g6.reconciler` cannot pass any add, remove or move case.** It requires the comment, string and char tokens of
   `expected.c` to equal those of `input.c`, but every `INCLUDE_ASM` statement holds the string `"asm/nonmatchings/<m>"`,
   so adding or removing a stub always changes them. Measured on all nine goldens of `test/golden/reconcile/` ("comments
   or strings differ between input.c (4) and expected.c (5)", and so on); the golden runner, which skips that string,
   passes. Options: (a) the gate skips the string directly after `INCLUDE_ASM (`, as the golden runner does; (b) another
   rule the owner names. The gate file is not edited.
+  **Answered on 25 October 2026 (D98 a), "Apply all four"**: "Q2 (a) g6.reconciler skips the string directly after
+  `INCLUDE_ASM (`, as the golden runner does". Applied (`fb16a0f`): the gate passes (9 cases, 11 golden tests, 16
+  comment and string tokens untouched).
 - **Q3. `g6.rename` picks a function no C file names.** Its regex `/= "(sub_[0-9A-F]{8})"/g` also matches `name =
   "sub_…"` inside inline tables, so on the composite fixture it picks `sub_08000000` (the asm module `rom_header`):
   "no src/*.c names sub_08000000". With `/^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$/gm` in a scratch copy, `p6-rename`
   measured the gate passing (2.3 s). Options: (a) that regex; (b) another selection the owner names. The gate file is
   not edited.
+  **Answered on 25 October 2026 (D98 a), "Apply all four"**: "Q3 (a) g6.rename selects with
+  /^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$/gm". Applied (`fb16a0f`): the gate renames `sub_080000F4` on the composite
+  fixture and passes (3 s).
 - **Q4. `g4.cli-contract` fails until `signatures <rom>` lands.** `p6-signatures-build` registers `signatures`, so the
   frozen recipe `signatures <rom>` (exit 0 expected) now runs and exits 2 ("signatures <rom> needs the matcher");
   measured at the integration: "CLI contract: signatures <rom>: exit 2, expected 0". The matcher merged in wave 2, but
@@ -245,6 +260,10 @@ Raised at the wave-3 integration:
   scenario (c) of all 54 fixtures; scenarios (a) and (b) raise no problem. Measured on `phase-6-p6-proposals` alone and
   on the integration, identical. Options: (a) the gate picks a G whose entry lies outside F's extent (or covers only
   `[F.entry, F.entry + 4)`); (b) another rule the owner names. The gate file is not edited.
+  **Answered on 25 October 2026 (D98 a), "Apply all four"**: "Q5 (a) g6.evidence-conflict scenario (c) picks a G whose
+  entry lies outside F's extent (or covers only [F.entry, F.entry + 4)). The owner authorises these edits of the gate
+  files." Applied (`fb16a0f`) in the first form: G is the first found function whose entry lies outside F's extent;
+  162 contradictions on 54 fixtures pass.
 - **Q6. `g6.objdiff`'s remainder** (the candidate below, now measured by `p6-objdiff`): gated differences (every class
   but `unnamed-target`) on fe7j, klonoa, pokeemerald, sa2, sa3 and tmc are 19, 131, 157, 4, 55 and 17 (from 458, 353,
   14,137, 1,637, 1,220 and 3,019 on `phase-6` before wave 3), so the gate still fails on the real tier; the component
@@ -283,12 +302,19 @@ Raised at the closing round:
   whose counterpart is not placed. Measured: 0, 0, 0 on all seven runs; `looCounts`' unit test moved its added member to
   an unplaced address, and two cases cover counterparts. Options: (a) accept the count; (b) count by id and the phase
   does not land on this gate; (c) another count the owner names.
+  **Answered on 25 October 2026 (D98 b), with Q13 and Q14, "Accept all three"**: "option (a) each (the leave-one-out
+  counterpart count; …). Write each as the owner's rule." The counterpart count is the owner's rule (architecture
+  §8.4, roadmap thresholds); nothing else changes.
 - **Q9. `g6.signatures-judged` judges tmc with no floor.** The pinned PoC baseline has no signatures row for tmc
   (revealed after it was pinned, D60), so the gate as phase 1 wrote it had no floor for it; D93 h, not the owner's words,
   judges tmc by the ELF checks alone. Measured at the closing round: tmc libagbsyscall 13 functions, m4a 55 functions and
   10 tables; 68 placements (67 at an ELF `FUNC`, 1 at a listed untyped address, 0 wrong), 10 tables all `OBJECT`s of
   their size, 5 proposed sizes. Options: (a) accept no floor for tmc; (b) take these counts as tmc's floor; (c) another
   rule the owner names.
+  **Answered on 25 October 2026 (D98 c), "Measured counts as floor"**: "option (b): tmc's floor in
+  g6.signatures-judged is libagbsyscall 13 functions, m4a 55 functions and 10 tables, 68 placements with 0 wrong; tmc
+  may not drop below." Applied (`fb16a0f`, `OWNER_FLOORS`); measured on the real tier: tmc libagbsyscall 13, m4a 55
+  and 10, 68 placements, 0 wrong, at its floor.
 - **Q10. `W_LISTED_INVALID` on klonoa after `init`.** With the signature layer `init` lists on klonoa `umul3232H32`
   (`0x0804F284`) and `SoundMainRAM` (`0x0804F318`), Thumb entries that switch to ARM, their ARM part folded in as an
   inner `label = true` of mode `arm`, and `ldrb_r3_r2` (`0x0804F73C`), two bytes that fall through into `chk_adr_r2`;
@@ -310,6 +336,14 @@ Raised at the closing round:
   no-ops; 179 illegal edits), and no odd `[functions]` key is among its illegal edits. Each change is a gate change the
   owner has not authorised (D81 c). Options: (a) make the add-override edit one that changes the model and add the odd
   key; (b) keep the gate as it is.
+  **Answered on 25 October 2026 (D98 d), "Tighten"**: "option (a): g4.toml-mutations' add-override edit must be one that
+  changes the model, and an odd [functions] key joins its illegal edits. The owner authorises editing that frozen
+  phase-4 gate file." Applied (`fb16a0f`): the edit takes a found function no found function calls out of
+  `[functions]` and covers its extent with a code override the confirm run accepts through its seed (origin
+  `override`; a listed or called function's override is a no-op, measured), `generate` must warn no
+  `W_OVERRIDE_IGNORED`, and at least one target must take it; the first Thumb key plus one is an illegal edit
+  (`E_FUNCTION_MISALIGNED`). Measured (fix round 4 below): ci tier 212 legal edits (add-override 23 on 54 fixtures,
+  31 with no place) and 215 illegal; real tier 242 legal edits (add-override 29: the 23 fixtures and all six tuning ROMs) and 239 illegal, 60 ROMs.
 
 Raised at fix round 1 (the review of the closing record, D95):
 
@@ -339,6 +373,10 @@ Raised at fix round 1 (the review of the closing record, D95):
   gate require equal + differ + unjudged = proposed and report the unjudged count (correctness-4, a tightening), and
   wrote the exemption into §8.4; the exemption itself is not the owner's words. Options: (a) accept `unjudged`; (b) the
   gate fails on an unjudged size (tmc, fe7j and klonoa fail until the bench can judge them); (c) another rule.
+  **Answered on 25 October 2026 (D98 b), "Accept all three"**: "option (a) each (…; `unjudged` sizes accepted and
+  reported; …). Write each as the owner's rule." §8.4 and the roadmap now state it as the owner's rule; the gate is
+  unchanged (fe7j 20 = 15 equal + 5 unjudged, klonoa 17 = 15 + 2, pokeemerald 17 = 15 + 2, sa2 17 = 15 + 2, sa3 19 =
+  17 + 2, tmc 5 = 0 + 5).
 - **Q14. `g6.signatures-judged` compares member symbols, not display names, on a reference ROM.** Phase 4's gate text
   required "on a reference ROM, every name equal to that reference's symbol"; D93 h (the lead's, not the owner's words)
   compares the MemberId's symbol and only reports a reviewed display name. Measured case (correctness-3): on pokeemerald,
@@ -348,6 +386,9 @@ Raised at fix round 1 (the review of the closing record, D95):
   the gate stands changed without his authorisation. Options: (a) accept the member-symbol rule (a reviewed name may
   differ on its own reference); (b) restore the old rule, and the gate fails on pokeemerald until the spec's reviewed
   name goes (the PoC's ad hoc `_dp`/`_f` disambiguation, D31); (c) another rule.
+  **Answered on 25 October 2026 (D98 b), "Accept all three"**: "option (a) each (…; member symbols compared on a
+  reference ROM, the reviewed display name reported). Write each as the owner's rule." The gate stands as D93 h wrote
+  it, now the owner's rule (pokeemerald 397 reference symbols, 1 reviewed name reported).
 
 Raised at fix round 2 (the review of fix round 1, D96):
 
@@ -378,8 +419,9 @@ Raised at fix round 3 (the review of fix round 2, D97):
   `runAt` and add the RAM-copy fixture with its hand-written override to the gate's targets, as `g6.ram-code-mapped`
   does (a change to a frozen gate file); (b) accept the exemption and write it into §13 and D96 a.
 
-Open, each blocking the landing: Q1, Q2, Q3, Q5, Q6, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15, Q16 (Q4 and Q7 need no
-answer).
+The owner answered every open question on 25 October 2026. Applied by fix round 4's first step (D98): Q1, Q2, Q3, Q5,
+Q8, Q9, Q11, Q13, Q14. Answered, applied by the round's later steps: Q6 and Q15, Q10, Q12, Q16. Q4 and Q7 need no
+answer.
 
 ## Known limitations
 
@@ -686,12 +728,38 @@ on the real tier `g6.ram-code-mapped` passes (the RAM-copy fixture and Klonoa, `
 | --- | --- | --- |
 | correctness-r2-1 | major | Fixed (D97 a): `names.ts sectionNameCollisions` refuses a `runs_at` module whose section `.<module>` is `.text`, a `c` module's `.c_data_<m>` or a data range's `.rodata_<m>` (`E_NAME_COLLISION`, exit 1); the ldscript writer and check spell the section and `__load_` names through `runSectionOf`/`loadSymbolOf`, and `.c_data_<m>` through `cDataName`. Measured on Klonoa with its override: the module renamed `text` and `c_data_main_6` each make `generate` exit 1 (`E_NAME_COLLISION`); the unedited project's `verify --link` gives `a0a298d9…`. Model test over `text`, `c_data_main` (a `c` module `main`; none for an `asm` one), `rodata_data` (a data range; none without `data_start`) and a non-`runs_at` module named `text`. §6.7 and the scaffold AGENTS.md state the rule. |
 | architecture-r2-1 | minor | Owner question Q16: `g6.expected-bytes`' `runs_at` branch (line 183) returns before the symbol check and no target has a `runs_at` module; the fix (compare at `at - runAt`, add the RAM-copy fixture with its override to the targets) changes a frozen gate file. |
-| architecture-r2-2 | minor | Partly fixed: `ldscript.ts` and `link-scripts.ts`' message build the name with `loadSymbolOf`. Carried: `link-scripts.ts`' parsing regex, and one `linkerDefinedNames(modules)` for names.ts, rename.ts and text-layout.ts. |
-| architecture-r2-3 | minor | Carried: `runAddresses` through `runsAtOverrides`, `proposals.ts` through `runsAtSpans`, `DATA_ALIGN` and chunks.ts's `WORD` from `layout/align.ts`. |
-| architecture-r2-4 | minor | Carried: one `isAbsentError` in `shell/fs.ts` (ELOOP decided once) and `linkedFileBytes` as `isRegularFile` then `readBytes`. |
-| architecture-r2-5 | minor | Carried: `placeSignatures` made module-private and dropped from `api/proposals.ts`; `explain.test.ts` through `signaturesOver`. |
-| architecture-r2-6 | minor | Carried: `nameBase`'s positional `rewriteWords` replaced by an options object, with a unit case for the own spelling (Q15's second row). |
-| architecture-r2-7 | minor | Carried: the `.syntax mixed` refusal text, `bytes.ts`' header, and the frozen `g4.c-data-fails-loud` header that quotes the C-data assertion's old text (the gate file is not edited; its pattern still matches the new text). |
-| correctness-r2-2 | minor | Carried: `make expected` writes `expected/*.o`, `expected/rom/*.o` and `expected/rom/*.bin` under a generated root, so each later `generate` warns `W_UNOWNED_FILE` for each (sa1 69, Klonoa 81). |
-| correctness-r2-3 | minor | Carried: `rename` skips a symbolic link to a directory under `include/` with `W_RENAME_SKIPPED` without reading its files, so a file there that names `old` keeps it (exit 0). |
+| architecture-r2-2 | minor | Partly fixed: `ldscript.ts` and `link-scripts.ts`' message build the name with `loadSymbolOf`. Carried: `link-scripts.ts`' parsing regex, and one `linkerDefinedNames(modules)` for names.ts, rename.ts and text-layout.ts. **Fixed at fix round 4, step 1** (`10fe83a`, D99 a): `modules.ts linkerDefinedNames` read by names.ts, rename.ts, text-layout.ts and the ldscript check, whose `LOADADDR` pattern no longer spells the prefix and accepts only a name of that list. |
+| architecture-r2-3 | minor | Carried: `runAddresses` through `runsAtOverrides`, `proposals.ts` through `runsAtSpans`, `DATA_ALIGN` and chunks.ts's `WORD` from `layout/align.ts`. **Fixed at fix round 4, step 1** (`10fe83a`, D99 b), as written. |
+| architecture-r2-4 | minor | Carried: one `isAbsentError` in `shell/fs.ts` (ELOOP decided once) and `linkedFileBytes` as `isRegularFile` then `readBytes`. **Fixed at fix round 4, step 1** (`10fe83a`, D99 c): `isAbsentError` (ENOENT, ENOTDIR, ELOOP) at every shell site that read ENOENT with ENOTDIR; a link loop is now absent in `isDirectory`, `isRegularFile` and `digestOf` too. |
+| architecture-r2-5 | minor | Carried: `placeSignatures` made module-private and dropped from `api/proposals.ts`; `explain.test.ts` through `signaturesOver`. **Fixed at fix round 4, step 1** (`10fe83a`, D99 d), as written. |
+| architecture-r2-6 | minor | Carried: `nameBase`'s positional `rewriteWords` replaced by an options object, with a unit case for the own spelling (Q15's second row). **Moved to the step of fix round 4 that applies Q15** (D99 g), which removes the bench's rewrite and its parameter. |
+| architecture-r2-7 | minor | Carried: the `.syntax mixed` refusal text, `bytes.ts`' header, and the frozen `g4.c-data-fails-loud` header that quotes the C-data assertion's old text (the gate file is not edited; its pattern still matches the new text). **Fixed at fix round 4, step 1** (`10fe83a`, D99 e) but the gate header: the refusal names both dialects read, `bytes.ts`' header names its readers; `g4.c-data-fails-loud` is not among the gate files the owner authorised, so its comment stays. |
+| correctness-r2-2 | minor | Carried: `make expected` writes `expected/*.o`, `expected/rom/*.o` and `expected/rom/*.bin` under a generated root, so each later `generate` warns `W_UNOWNED_FILE` for each (sa1 69, Klonoa 81). **Moved to the step of fix round 4 that applies Q12** (D99 g), which changes what `make expected` writes. |
+| correctness-r2-3 | minor | Carried: `rename` skips a symbolic link to a directory under `include/` with `W_RENAME_SKIPPED` without reading its files, so a file there that names `old` keeps it (exit 0). **Fixed at fix round 4, step 1** (`10fe83a`, D99 f): every rename text behind the link is read and listed as skipped with its bytes, so `rename` refuses one that names `old` (`E_RENAME_SKIPPED_FILE`); a file rename edits by its own path is not listed; new read-inputs test. |
 
+### Fix round 4, step 1 (the owner's answers, D98, D99)
+
+The owner answered the open questions on 25 October 2026. This step applied the answers that are gate edits and
+records (Q1, Q2, Q3, Q5, Q8, Q9, Q11, Q13, Q14; each recorded under its question above) and fixed seven of fix round 3's
+nine carried minors (the table above; two moved to the steps of Q12 and Q15). Commits: `fb16a0f` (the gate edits),
+`10fe83a` (the minors), then the documents. Measured on `10fe83a` in a fresh worktree (`romlift-wt/phase-6-step1`, the
+signature files built, `bench/.local/agbcc` and `bench/.local/poc` copied in):
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 tests pass |
+| `npm test` | 0 | 2,850 tests, 2,850 pass |
+| `g6.reconciler` (ci) | 0 | 9 cases, 11 golden tests, 16 comment and string tokens untouched (1 s) |
+| `g6.rename` (ci) | 0 | `sub_080000F4` renamed on the composite fixture; both refusals change nothing (3 s) |
+| `g6.evidence-conflict` (ci) | 0 | 162 contradictions on 54 fixtures (0.4 s) |
+| `g4.toml-mutations` (ci) | 0 | 212 legal edits (move-start 42, rename 54, delete-function 51, add-override 23, split-module 42; add-override found no place on 31 fixtures), 215 illegal edits, 54 ROMs (467 s) |
+| `g4.toml-mutations` (real) | 0 | 242 legal edits (move-start 48, rename 60, delete-function 57, add-override 29, split-module 48; add-override on all six tuning ROMs), 239 illegal edits, 60 ROMs (977 s) |
+| `g6.signatures-judged` (real) | 0 | every PoC floor held; tmc libagbsyscall 13, m4a 55 and 10, 68 placements, 0 wrong (its owner floor); sizes fe7j 20 = 15 + 5 unjudged, klonoa 17 = 15 + 2, pokeemerald 17 = 15 + 2, sa2 17 = 15 + 2, sa3 19 = 17 + 2, tmc 5 = 0 + 5; pokeemerald 1 reviewed name reported (14 s); a scratch copy with tmc's m4a floor 56 and placements 69 fails: "tmc: m4a 55 functions < the owner's 56; tmc: 68 placements < the owner's 69" |
+| `g6.ram-code-mapped` (ci, real) | 0, 0 | the RAM-copy fixture (57 s); and Klonoa `0x0804F318 -> 0x03000388` (124 s) |
+| `g6.expected-bytes` (ci) | 0 | 225 modules on 54 ROMs (78 s) |
+| `g3.self-check`, `g3.link`, `g6.explain-coverage` (ci) | 0 | 54 fixtures; 54 linked; 58 analysis and 5 sig rule ids in 213 goldens |
+| `ROMLIFT_REQUIRE_LOCAL=1` `test/local/{ram-code,config-mutations,emission-real}` | 0 | 9 of 9 (48 s) |
+
+Not run in this step: the full closing list (the round's last step runs it), `g6.objdiff` (Q6 and Q15), `g1.provenance`
+and `bench provenance` (they read the committed artifact, which the closing run regenerates).

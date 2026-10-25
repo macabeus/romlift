@@ -10,10 +10,10 @@
 //   - every placement at an ELF FUNC or at a listed untyped address; every table an ELF OBJECT of that size or a label;
 //     every proposed `size` equal to the ELF size (the bench applies the 4-byte padding allowance), and every proposed
 //     size accounted for: equal, differ or `unjudged` (no ELF size, a zero ELF size, or a FUNC spanning another FUNC:
-//     nothing to compare with, reported per ROM; phase-6 fix round 1, correctness-4, an owner question, Q13); on a ROM that is
+//     nothing to compare with, reported per ROM; phase-6 fix round 1, correctness-4; the owner's rule, Q13, D98 b); on a ROM that is
 //     one of the specs' references, every placed member's symbol (its MemberId before '@') equal to that reference's
 //     own symbol at the placement. A display name the spec reviewed differs from the symbol on purpose: it is counted
-//     and reported, never gated.
+//     and reported, never gated (the owner's rule, Q14, D98 b).
 //
 // Expected output, aligned by the phase-6 lead (architecture §8.5, D93; bench/src/signatures.ts is p6-signatures-match's):
 //   npm run bench -- signatures --json   exit 0; the last stdout line is

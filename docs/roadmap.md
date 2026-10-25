@@ -863,8 +863,8 @@ import, which D92 dropped. Their components (D93):
 | architecture-r1-7's remainder, b2-9, b2-11, gate-honesty-e1-2 | `p6-reconcile-carried` |
 | the remaining "phase 5" comments (`g5.*` ids renamed or dropped by the lead, D92) | `p6-hygiene`, `p6-lead` |
 | architecture-a1-4 | done in phase 4 (D78 f) |
-| correctness-b0-5 (override semantics) | `p6-analysis-layout`; its `g4.toml-mutations` edit changes a gate: an owner question unless he authorises it |
-| correctness-b0-4's gate case (an odd `[functions]` key among `g4.toml-mutations`' illegal edits) | an owner question (a gate change he has not authorised, D81 c) |
+| correctness-b0-5 (override semantics) | `p6-analysis-layout`; its `g4.toml-mutations` edit, a gate change, done at fix round 4 with the owner's leave (phase-6.md Q11, D98 d) |
+| correctness-b0-4's gate case (an odd `[functions]` key among `g4.toml-mutations`' illegal edits) | done at fix round 4 with the owner's leave (Q11, D98 d) |
 | code whose only producers the owner dropped (`seed.evidence-hint`; the `legacy` and `evidence` sources; `read-trace.ts`, `trace-json.ts`) | `p6-analysis-layout` (the rule), `p6-lead` (the sources); the files never existed (D91 a) |
 | architecture-b2-8's remainder | `p6-analysis-layout` |
 | correctness-b2-3's remainder (`ROMLIFT_VERSION` in `modules.mk`) | stays carried: it waits for romlift's publication (D76 d) |
@@ -924,11 +924,13 @@ import, which D92 dropped. Their components (D93):
   analysis rule; phase 4 warns `W_OVERRIDE_IGNORED` for each one that changes nothing (a known limitation). Phase 6
   makes a `data` override claim its span and suppress code there, and a `code` override seed `seed.override` at its
   start (the rule exists; no seed of it is built), and, with the owner's leave since it changes a gate, makes
-  `g4.toml-mutations`' add-override edit one that changes the model (today it covers a found function exactly, a
-  no-op that now warns). Nothing here depends on `g5.import-legacy`.
+  `g4.toml-mutations`' add-override edit one that changes the model (until then it covered a found function
+  exactly, a no-op that warned). Nothing here depends on `g5.import-legacy`. Done: the owner authorised the gate edit
+  on 25 October 2026 (phase-6.md Q11, D98 d).
 - **correctness-b0-4's gate case** (fix round 5, D81 c): `E_FUNCTION_MISALIGNED` is tested by unit and CLI tests;
   adding an odd `[functions]` key to `g4.toml-mutations`' illegal edits changes a gate, which the owner has not
-  authorised in phase 4. Since fix round 6 the config raises it (D82 d).
+  authorised in phase 4. Since fix round 6 the config raises it (D82 d). Done at phase-6 fix round 4 with the owner's
+  leave (Q11, D98 d).
 - **Code whose only producers the owner dropped** (fix round 6, architecture-b1-8; D76 g): the rule
   `seed.evidence-hint` (`src/core/analysis/rules/seed/evidence-hint.ts`, ordered in `src/core/profile/agbcc.ts`, its
   rule id in `analysis/types.ts` `Seed['rule']` and `codec.ts`) has no seed producer now that the trace integration
@@ -1134,15 +1136,17 @@ Thresholds, one per gate of the phase (every earlier gate still passes):
 
 - `g6.signatures-judged`: per library, at least the PoC's placements on its five ROMs (klonoa m4a 94 functions and 10
   tables, libagbsyscall 6, libgcc 20; fe7j 18, 22, 94 and 10; pokeemerald 15, 67, 109 and 10; sa2 12, 24, 94 and 10; sa3
-  13, 65, 94 and 10), tmc's floor pending the owner (phase-6.md Q9; D93 h judges it with none, not the owner's words);
-  every placement at an ELF `FUNC` or a listed untyped address, every table an `OBJECT` of its size or a label, every
-  proposed `size` the ELF size and every proposed size accounted for (equal, differ or unjudged, Q13), on a reference ROM
-  every member's symbol that reference's own (D93 h's rule, pending Q14);
+  13, 65, 94 and 10), and tmc's floor the owner set (phase-6.md Q9, D98 c: libagbsyscall 13 functions, m4a 55
+  functions and 10 tables, 68 placements with 0 wrong); every placement at an ELF `FUNC` or a listed untyped address,
+  every table an `OBJECT` of its size or a label, every proposed `size` the ELF size and every proposed size accounted
+  for (equal, differ or unjudged; an unjudged size accepted and reported, the owner's rule, Q13), on a reference ROM
+  every member's symbol that reference's own, a reviewed display name reported (the owner's rule, Q14, D98 b);
 - `g6.signatures-rebuild`: two builds of each spec identical; the library fixture's file equals its golden; each real
   build equals the PoC's file converted to schema 3, apart from the reviewed names (every field but `builtWith`);
 - `g6.signatures-heldout`: on every sealed ROM, every placement at an ELF `FUNC` or classified untyped, every table an
   `OBJECT` or a label; counts only;
-- `g6.signatures-loo`: leave-one-reference-out adds and moves no placement and places every shared member;
+- `g6.signatures-loo`: leave-one-reference-out adds and moves no placement and places every shared member, a member
+  that leaving its reference out renames counted as its counterpart (the owner's rule, Q8, D94 d, D98 b);
 - `g6.no-heldout-references`: no spec names a sealed dataset;
 - `g6.ram-code-mapped`: the RAM-copy fixture and Klonoa (`0x0804F318 -> 0x03000388`, `bench/overrides/klonoa.json`) map
   to one module at their run address and link to their SHA-1;

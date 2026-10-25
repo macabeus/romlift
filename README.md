@@ -72,9 +72,12 @@ overrides (the owner dropped the gba-kit trace, D91); the full `explain`; and fr
 <new>`, the `expected/` and `objdiff.json` writers, C data ranges (`data_start`) and the objdiff gate. Its closing list
 passes every signature gate (the matcher refined at the closing round, D94) and the other gates but these: `g6.objdiff`
 fails on the real tier as D34 writes it (passable in principle, phase-6.md Q6), and with it `g1.provenance` and `bench
-provenance`, which read the committed artifact's failing `g6.objdiff` record; `g6.reconciler`, `g6.rename` and
-`g6.evidence-conflict` fail on the ci tier because their gate files cannot pass as written (Q2, Q3, Q5). Those and the
-other owner questions of phase-6.md (Q1 to Q3, Q5, Q6, Q8 to Q16) wait for the owner's answers. Fix round 1 of the
+provenance`, which read the committed artifact's failing `g6.objdiff` record. The owner answered every open question
+of phase-6.md on 25 October 2026; the first step of fix round 4 applied his gate edits (D98): `g6.reconciler`,
+`g6.rename` and `g6.evidence-conflict`, which could not pass as written (Q2, Q3, Q5), now pass on the ci tier,
+`g6.signatures-judged` holds tmc to the measured floor (Q9) and `g4.toml-mutations` makes an add-override edit that
+changes the model and refuses an odd `[functions]` key (Q11); the answers to Q6, Q10, Q12, Q15 and Q16 are the
+round's later steps. Fix round 1 of the
 review (D95) changed no gate threshold, but its ROM overwrite of the objdiff targets left `g6.expected-bytes` able to
 catch only a wrong size; fix round 2 (D96) tightened that gate to judge each unit's object as assembled, and put the
 bench's `objectWords` rewrite, which changes what `g6.objdiff` measures, to the owner as Q15. Fix round 3 (D97) refuses a `runs_at`

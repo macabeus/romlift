@@ -4444,6 +4444,102 @@ unedited project generates and `verify --link` gives `a0a298d9…`. `npm test` 2
 config-mutations and emission-real pass; `g6.ram-code-mapped` (ci and real), `g6.expected-bytes`, `g6.c-data-ranges`
 and `g4.c-data-fails-loud` (ci) pass.
 
+## D98. The owner's answers of 25 October 2026 to phase-6 Q1 to Q3, Q5, Q8, Q9, Q11, Q13 and Q14
+
+**Context.** Fix round 3 (D97) left fourteen owner questions open (phase-6.md "Owner questions"). Bruno Macabeus
+answered them on 25 October 2026. This decision records, verbatim with the option each chose, the answers applied in
+the first step of fix round 4: the gate edits and the records. The answers to Q6, Q10, Q12, Q15 and Q16 are applied
+by the later steps of the round and recorded there. Q4 and Q7 need no answer.
+
+**Decision.** In the owner's words:
+
+- (a) **Q1, Q2, Q3, Q5, chosen "Apply all four"**: "Q1 (a) keep f534ddd's parse fix of g6.ram-code-mapped; Q2 (a)
+  g6.reconciler skips the string directly after `INCLUDE_ASM (`, as the golden runner does; Q3 (a) g6.rename selects
+  with /^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$/gm; Q5 (a) g6.evidence-conflict scenario (c) picks a G whose entry lies
+  outside F's extent (or covers only [F.entry, F.entry + 4)). The owner authorises these edits of the gate files."
+  Applied (`fb16a0f`): `g6.ram-code-mapped` keeps `f534ddd` unchanged; `g6.reconciler` leaves out of the untouched
+  tokens exactly the string token whose two predecessors are `(` and `INCLUDE_ASM`, the golden runner's test;
+  `g6.rename` reads the `[functions]` lines with that regular expression; `g6.evidence-conflict` keeps F the first
+  found function and takes G the first found function whose entry lies outside F's extent (the first of Q5's two
+  forms; the data override still covers F's whole extent).
+- (b) **Q8, Q13, Q14, chosen "Accept all three"**: "option (a) each (the leave-one-out counterpart count; `unjudged`
+  sizes accepted and reported; member symbols compared on a reference ROM, the reviewed display name reported).
+  Write each as the owner's rule." The owner's rules, which replace D93 h's and D94 d's standing as the lead's:
+  - *Leave-one-out by counterpart* (Q8): `bench signatures --loo` counts a member that leaving its first reference
+    out renames (its id becomes the first remaining reference's) as its counterpart, the full build's member a
+    remaining reference links at the same address (D94 d).
+  - *Unjudged sizes* (Q13): a proposed size with nothing to compare (no ELF size, a zero ELF size, or a FUNC that
+    spans another FUNC) is `unjudged`, accepted and reported per ROM; equal + differ + unjudged = proposed, and no
+    size may differ.
+  - *Member symbols on a reference ROM* (Q14): on a ROM that is one of the specs' references, every placed member's
+    symbol (its `MemberId` before `@`) equals that reference's own symbol at the placement; a display name the spec
+    reviewed (pokeemerald's `_fpadd_parts_f`) is reported, never gated.
+  The gate files already apply these rules; architecture §8.4 and the roadmap's thresholds now cite them as the
+  owner's.
+- (c) **Q9, chosen "Measured counts as floor"**: "option (b): tmc's floor in g6.signatures-judged is libagbsyscall 13
+  functions, m4a 55 functions and 10 tables, 68 placements with 0 wrong; tmc may not drop below." Applied
+  (`fb16a0f`): `g6.signatures-judged`'s `OWNER_FLOORS` holds tmc's per-library floor and its 68 placements; a ROM
+  with a PoC row keeps the PoC's floor (checked against the pinned baseline as before), and a dataset with neither is
+  still judged by the ELF checks alone, with a note.
+- (d) **Q11, chosen "Tighten"**: "option (a): g4.toml-mutations' add-override edit must be one that changes the
+  model, and an odd [functions] key joins its illegal edits. The owner authorises editing that frozen phase-4 gate
+  file." Applied (`fb16a0f`). A code override that covers a function the config lists is a no-op (the listed seed
+  takes the entry first, `W_OVERRIDE_IGNORED`), and so is one at a function another found function calls (round 0
+  accepts each seed with its own worklist, so `seed.call` takes it before `seed.override`'s seed; measured on the
+  composite fixture at `0x080001C4`). So the edit takes a found function F out of `[functions]` (listed, no label, no
+  module start, no found function's call target, no override over it) and covers F's extent with a `code` override
+  in F's mode; the gate keeps the edit only when the confirm run of the edited config accepts F with origin
+  `override` (at most 32 candidates tried per target, in the target's seeded order), requires `generate` to warn no
+  `W_OVERRIDE_IGNORED`, and fails when no target takes such an edit. The illegal edits gain the first Thumb
+  `[functions]` key plus one (`E_FUNCTION_MISALIGNED`, correctness-b0-4's case). Rejected: a `data` override over a
+  found function (the callers' `bl` would name data, and a `c` module would hold data in its `.text`), and a code
+  override at a place no rule finds code (no general way to find one on a tuning ROM).
+
+**Consequences.** Run on `10fe83a` in a fresh worktree: on the ci tier `g6.reconciler` (9 cases, 11 golden tests, 16
+comment and string tokens untouched), `g6.rename` (`sub_080000F4` renamed on the composite fixture),
+`g6.evidence-conflict` (162 contradictions on 54 fixtures) and `g4.toml-mutations` (212 legal edits on 54 fixtures, add-override 23 of them, 215 illegal) pass; on the real tier
+`g6.signatures-judged` (tmc libagbsyscall 13, m4a 55 and 10, 68 placements, 0 wrong: at its floor) and
+`g4.toml-mutations` (242 legal edits on 60 ROMs, add-override 29 of them, all six tuning ROMs among them; 239 illegal) pass. The questions answered here are closed in phase-6.md.
+
+## D99. Phase-6 fix round 4, step 1: fix round 3's nine carried minors
+
+**Context.** Fix round 3 (D97) carried nine minors (phase-6.md "Review", fix round 3). The orchestrator asked to fix
+those that are cheap in the first step of fix round 4 and to record each disposition.
+
+**Decision.**
+
+- (a) **One list of the linker-defined names** (architecture-r2-2). `modules.ts linkerDefinedNames(modules)` lists
+  each runs_at module's `__load_<module>` with its load start; names.ts (`linkerNameCollisions`), rename.ts
+  (`modelNamesOf`), text-layout.ts and the ldscript check read it. The check's `LOADADDR` pattern no longer spells
+  the prefix: it reads `<symbol> = LOADADDR(.<section>);` and accepts it only for a name of that list, so a
+  `LOADADDR` line naming no runs_at module is now `unexpected` (it was ignored).
+- (b) **runs_at through its readers, one word** (architecture-r2-3). `runAddresses` reads `runsAtOverrides`,
+  `checkProposals`' module case `runsAtSpans`; `DATA_ALIGN` and chunks.ts's `WORD` are `layout/align.ts`'s `WORD`.
+- (c) **One reading of absence in the shell** (architecture-r2-4). `shell/fs.ts isAbsentError`: ENOENT, ENOTDIR and
+  ELOOP (a link loop is a link to nothing) read as absent, at every stat, lstat, realpath and digest site that read
+  ENOENT with ENOTDIR (`isDirectory`, `isRegularFile`, locate, disk-state, read-inputs, spelling); any other failure
+  stays E_IO_READ. A loop was E_IO_READ in `isDirectory`, `isRegularFile` and `digestOf` and is now absent there.
+  `linkedFileBytes` is `isRegularFile`, then `readBytes`.
+- (d) **`placeSignatures` is module-private** (architecture-r2-5), dropped from `api/proposals.ts`; the explain
+  goldens find a rule's placement through `signaturesOver`.
+- (e) **Texts** (architecture-r2-7): the `.syntax <other>` refusal names the two dialects read; `bytes.ts`' header
+  names its readers. Not done: the header comment of the frozen `g4.c-data-fails-loud`, which quotes the C-data
+  assertion's old text, since editing a gate file is not among the owner's authorised changes (its pattern still
+  matches the new text).
+- (f) **Files behind a symbolic link to a directory** (correctness-r2-3). `readRenameTexts` reads every rename text
+  below such a link (filesUnder following links, as cpp does) and lists each as skipped with its bytes, so
+  `planRename` refuses (`E_RENAME_SKIPPED_FILE`) one that names the old name; a file whose real path is one rename
+  edits through its own path is not listed; a link to nothing, or to a directory with no such file or one the walk
+  does not enter (above the project), stays one `W_RENAME_SKIPPED` without bytes.
+- (g) **Moved to the later steps of this round**: correctness-r2-2 (`make expected`'s objects under `expected/` warn
+  `W_UNOWNED_FILE`) to the step that applies Q12, which changes what `make expected` writes; architecture-r2-6
+  (`nameBase`'s positional `rewriteWords`) to the step that applies Q15, which removes the bench's rewrite.
+
+**Consequences.** `npm test` 2,850 of 2,850 (`readRenameTexts`' link test: a link to an empty directory; a new test
+for a linked directory's files and a link to an edited directory). `g6.ram-code-mapped` (ci and real),
+`g6.expected-bytes` (225 modules on 54 ROMs), `g3.self-check`, `g3.link` and `g6.explain-coverage` pass on the ci tier
+at `10fe83a`.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per
