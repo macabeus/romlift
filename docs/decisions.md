@@ -786,6 +786,15 @@ phase 5": the gate is `g5.objdiff`, judged in phase 5, where the `expected/` obj
 and applies there as this decision writes it unless the owner amends it then. Phase 3 records the classified counts
 as its measurement, and the committed classifier stays.
 
+**Revision (25 October 2026, the owner's answers to Q6 and Q15 of phase-6.md, D102).** The owner amended this decision:
+the base is romlift's own spelling (the printer spells a word inside a named, sized entry `sym + addend`; the bench
+renames labels by address and rewrites no word); the differences whose two sides are checked to link to the same word
+are reported, not gated (phase-3.md Q1 option (b)); a function objdiff-cli refuses to read (`tool`), like one no
+reference object defines (`missing-symbol`), is counted uncompared and reported (Q6 option (c)); and `g6.objdiff` holds
+the remaining gated count of each tuning ROM to a ceiling committed in `bench/baseline/objdiff-ceiling.json`, which may
+be lowered, never raised without the owner. "Score 0" and "any other difference fails" above are replaced by that
+ceiling. The fixture test that misnames one pool word still fails the verdict (two different words are gated).
+
 ## D35. `explain` re-runs the analysis the command would run, and is composed by layer
 
 **Context.** Storing a full trail costs memory on Emerald-size ROMs; replaying discover explains the wrong
@@ -4389,6 +4398,8 @@ linker script defines for a `runs_at` module (correctness-r1-2).
   object's spelling is a change to what D34 measures, which no owner words allow; it becomes phase-6.md Q15 with both
   measurements (`bench/tools/objdiff-classes.ts --own-spelling` scores romlift's own spelling). Nothing is reverted
   before he answers, so `g6.objdiff`'s committed counts stay the ones measured with the rewrite.
+  **Replaced by D102** (fix round 4, step 4): the owner chose Q15 option (c); `objectWords` and `--own-spelling` are
+  removed and romlift's own spelling is the only one scored.
 - (c) **The linker script's names are the model's** (correctness-r1-2). A config name (function, alias, symbol) equal
   to a `runs_at` module's `__load_<module>` is `E_NAME_COLLISION` (`names.ts linkerNameCollisions`), and `rename`
   counts it among the model's names (`modelNamesOf`), so `rename SoundMain __load_ram_03000388` on Klonoa with its
@@ -4539,7 +4550,8 @@ those that are cheap in the first step of fix round 4 and to record each disposi
   does not enter (above the project), stays one `W_RENAME_SKIPPED` without bytes.
 - (g) **Moved to the later steps of this round**: correctness-r2-2 (`make expected`'s objects under `expected/` warn
   `W_UNOWNED_FILE`) to the step that applies Q12, which changes what `make expected` writes; architecture-r2-6
-  (`nameBase`'s positional `rewriteWords`) to the step that applies Q15, which removes the bench's rewrite.
+  (`nameBase`'s positional `rewriteWords`) to the step that applies Q15, which removes the bench's rewrite (done by
+  D102 c: the parameter went with the rewrite).
 
 **Consequences.** `npm test` 2,850 of 2,850 (`readRenameTexts`' link test: a link to an empty directory; a new test
 for a linked directory's files and a link to an edited directory). `g6.ram-code-mapped` (ci and real),
@@ -4657,6 +4669,75 @@ targets (1 `runs_at`), real 452 modules on 61 targets (1 `runs_at`); a scratch c
 copy that links the `runs_at` module at its load address fails (both symbols of the range, and `main`'s pool word at
 `0x08000110`); a scratch copy on Klonoa with its override passes (27 modules, 1 `runs_at`). After `make expected`,
 `generate` warns no `W_UNOWNED_FILE` (sa1 0, Klonoa 0). Measured numbers: phase-6.md "Review", fix round 4, step 3.
+
+## D102. Phase-6 Q6 and Q15, the owner's answers of 25 October 2026: the printer spells `sym + addend`, and `g6.objdiff` gates on a ceiling
+
+**Context.** `g6.objdiff` (D34) gated every objdiff difference but `unnamed-target`, and the bench's `objectWords`
+(`bench/src/objdiff.ts`, `1347bfb`) rewrote romlift's pool words as each reference object spells them before scoring
+(phase-6.md Q15, D96 b). Measured at the start of this step (`bench/tools/objdiff-classes.ts`, all six tuning ROMs, the
+map given), gated fe7j, klonoa, pokeemerald, sa2, sa3, tmc: with the rewrite 19, 131, 157, 4, 55, 17; romlift's own
+spelling 21, 135, 201, 2,665, 1,664, 51, the two rows of Q15 unchanged. The readable printer already spelled a word
+inside a named, sized entry `name + offset` (`574849b`), but only when the entry's label was visible from the word's
+module, and it gave a Thumb function sized by the TOML an even word it cannot link to.
+
+**Decision.** In the owner's words (Bruno Macabeus, 25 October 2026), Q6 and Q15, chosen "Printer spells sym+addend,
+then ceiling": "(1) Q15 option (c): move the `sym + addend` spelling into romlift's printer, as phase-3.md Q1 option
+(a) says (an emission rule; sizes in [symbols] where needed), and remove the bench's objectWords rewrite, so g6.objdiff
+scores romlift's own spelling. (2) Amend D34 by phase-3.md Q1 option (b) (report, not gate, the differences whose two
+sides are checked to link to the same word) and by Q6 option (c) (a function objdiff-cli refuses to read, the `tool`
+class, is counted uncompared and reported, not gated). (3) g6.objdiff then gates on a ceiling: the gated count per
+tuning ROM measured after (1) and (2) on the final product, committed as a baseline file the gate reads; any count
+above its ceiling fails; the ceiling may be lowered, never raised, without the owner. Record every count, before and
+after, in phase-6.md." The owner authorised these changes of `g6.objdiff`.
+
+Applied:
+
+- (a) **One rule for what a word names** (the printer, core). `resolver.ts wordNameOf`: among the labels that link to
+  exactly the word, the first that is a named entry (a function, a `[symbols]` entry) names it; else the innermost
+  named, sized entry holding the word (a `[symbols]` entry with `size`, a function whose extent is the TOML's `size`)
+  names it `name + offset`, the offset from the word its label links to, when `.4byte name + offset` links to the word
+  (`linkedWordOf`, R_ARM_ABS32's (S + A) | T: a Thumb function's name never links to an even word, so an even word
+  inside a Thumb function is never spelled from it; `574849b` spelled it, one below the ROM's word, in a model with
+  TOML sizes); else a label that links to the word, never a local label; else nothing (`__load_<module> + n` or the
+  value, as before). `pool.ts wordText` prints it; `labels.ts` reads the same rule for the label scopes, so the
+  entry's label is global when the word lies in another module (the entry was invisible there before, and the word
+  printed by its own `gUnk_` label or as a value), a local label is never made global by a pool word (it never named
+  one), and a pool word a placed sized entry holds makes no `gUnk_<ADDR>` data label of its own. The rule is
+  deterministic (it reads the model's sorted labels and entries) and changes no byte: the sizes come from `[symbols]`
+  and `[functions]` `size` (the bench's `namedConfig` gives the ELF's; a user's TOML or a signature table's proposed
+  size gives them in a project).
+- (b) **The bench scores romlift's own spelling** (Q15). `objectWords`, `dataNameAt`, the `ownSpelling` input and
+  `bench/tools/objdiff-classes.ts --own-spelling` are removed; `nameBase` renames labels to the reference object's
+  names by address and binds them, as D34 says, and rewrites no word.
+- (c) **D34 amended** (phase-3.md Q1 option (b), Q6 option (c)). `objdiff-classes.ts isGated`: the classes
+  `resolved-call`, `static-callee`, `value-named`, `alias`, `symbol-addend` and `value-for-symbol` (checked to link to
+  the same word) and `missing-symbol` and `tool` (uncompared functions) are reported with `unnamed-target`; `unverified`,
+  `trailing-pad`, `relocation-other`, `instruction-other`, `assemble` and `score` are gated. `value-named` now also
+  reads the base's `name+0x<addend>` (`-0x` below): romlift's `name + offset` against the reference's constant is the
+  same word when the name plus the addend links to it (checked as every same-word class is; with the Thumb bit
+  R_ARM_ABS32 sets). Before, that shape fell to `instruction-other`; the bench's rewrite had turned most such words
+  back into the constant. The verdict (`objdiffVerdict`) classes every difference with the reference ELF's names, and
+  the row's `objdiff` member gains `classes` (`counts`, `gated`, `uncompared`, `gatedExamples`; absent in an artifact
+  written before).
+- (d) **The ceiling** (Q6 and Q15 (3)). `bench/baseline/objdiff-ceiling.json` (`romlift-bench/objdiff-ceiling@1`)
+  holds each tuning ROM's gated count measured on the final product of this step: fe7j 7, klonoa 1, pokeemerald 12,
+  sa2 1, sa3 4, tmc 25. `g6.objdiff` reads it and fails on a count above its ceiling or a ROM without one.
+  `bench/tools/objdiff-classes.ts --write-ceiling` writes a measured count only where it is lower
+  (`objdiff-ceiling.ts lowerCeilings`), so the tool never raises a ceiling; raising one is the owner's.
+
+**Consequences.** Every fixture and tuning ROM still links to its SHA-1 (`g3.link`, `g3.raw-link` and the init builds
+of `bench run --scaffold`, `g4.e2e-real`, `g6.expected-bytes`), and no golden changed: no committed fixture has a sized
+entry or a pool word naming another module's local label. Measured with `bench/tools/objdiff-classes.ts` (all six, the
+map given), gated under D34 as amended: fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25 (romlift's own
+spelling before this step, classed the same way: 7, 1, 12, 1, 8, 26); uncompared 0, 130, 2, 0, 0, 0; every class but
+`unnamed-target` (D34 as first written) 21, 135, 196, 2,664, 1,658, 50. What stays gated depends on what the
+reference's source chose and the ROM does not hold: a relocation against a symbol with a negative addend or one past
+its ELF size (`gClassData - 84` where romlift names `gCharacterData + 13072`, `gHUD + 52`), and the `.hword 0x0` the
+base adds after `MP2K_event_rept` (`ply_rept`). The per-class counts, before and after, are in phase-6.md, Q6 and Q15.
+
+**Rejected.** Keeping the plain value where the reference holds a constant (which spelling the source chose is not in
+the ROM; the printer follows the model's sizes, and the classifier checks the word); counting an `unnamed-target`
+under the ceiling (D34 reports it); a ceiling per class (the owner named a count per tuning ROM).
 
 ## Review findings index
 

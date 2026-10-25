@@ -1082,9 +1082,10 @@ pull request) is dropped by the owner (D91); what does not depend on a trace sta
   decoder with `foundation/formats/elf.ts`, the `R_ARM_*`/`SHT_*` constants in one place) and r2-3 (fixture tests for
   `objdiffDifferences`' `sectionBase` and `baseField` plumbing).
 - **Public API:** the two writers.
-- **Gated by:** `g6.expected-bytes` (fixtures and tuning ROMs), `g6.c-data-ranges`, `g6.objdiff` (D34 as written, the
-  owner's answer to phase-3 Q1, D68 a; baseline phase-3.md Q1: gated fe7j 200, klonoa 320, pokeemerald 13,788, sa2 1,374,
-  sa3 564, tmc 895).
+- **Gated by:** `g6.expected-bytes` (fixtures and tuning ROMs), `g6.c-data-ranges`, `g6.objdiff` (D34, the owner's answer
+  to phase-3 Q1, D68 a, as he amended it by his answers to phase-6 Q6 and Q15, D102; baseline phase-3.md Q1: gated fe7j
+  200, klonoa 320, pokeemerald 13,788, sa2 1,374, sa3 564, tmc 895; ceilings from D102: fe7j 7, klonoa 1, pokeemerald 12,
+  sa2 1, sa3 4, tmc 25).
 - **Ports from the PoC:** nothing.
 - **Depends on:** 6.0.
 
@@ -1157,8 +1158,10 @@ Thresholds, one per gate of the phase (every earlier gate still passes):
   module at its run address), equals its ROM range with every symbol where the model places it, on every fixture, the
   RAM-copy fixture with its hand-written `runs_at` override, and every tuning ROM (the owner's answers to Q12 and Q16,
   D101 b);
-- `g6.objdiff`: 0 differences other than `unnamed-target` on every agreeing function of every tuning ROM that links
-  (D34; whether the bench may rewrite romlift's pool words as the reference spells them is phase-6.md Q15);
+- `g6.objdiff`: on every agreeing function of every tuning ROM that links, scored in romlift's own spelling, the
+  differences D34 as amended gates (not the same-word classes, not an uncompared function, not `unnamed-target`) at or
+  below the ROM's ceiling in `bench/baseline/objdiff-ceiling.json`, which may be lowered, never raised without the owner
+  (the owner's answers to phase-6.md Q6 and Q15, D102);
 - `g6.c-data-ranges`: the c-data fixture's array from `build/src/<module>.o` at its ROM address, the build at the
   SHA-1;
 - `npm pack --dry-run` lists no built signature file.

@@ -218,6 +218,7 @@ romlift/
     src/                            cli.ts, run.ts, score.ts, parity.ts, classify.ts, seal.ts,
                                     dataset.ts, dataset-check.ts, vocabulary.ts, gates.ts, provenance.ts,
                                     digest.ts, regression.ts, ablate.ts, speed.ts, readability.ts, objdiff.ts,
+                                    objdiff-classes.ts, objdiff-ceiling.ts,
                                     large-rom.ts, large-rom-bin.ts, rss-probe.ts, live-heap.ts, signatures.ts,
                                     doctor-real.ts, report.ts, serve.ts
     tools/export-poc.ts             runs the PoC (read-only, outside the repo) to dump its runs (§4.5)
@@ -227,7 +228,8 @@ romlift/
     dataset/synthetic/<name>/       fixture sources, build.mk, expect.json, build/ (committed)
     baseline/                       poc-2026-10-16.json (the PoC's rows), poc-dump-rows.json (the pinned PoC
                                     rows of ROMs revealed later, D60), poc-digests.json, poc-source.json,
-                                    accepted-diffs.json, speed.json
+                                    accepted-diffs.json, speed.json, objdiff-ceiling.json (g6.objdiff's
+                                    ceilings, D102)
     overrides/                      klonoa.json: the hand-written [[overrides]] of a tuning ROM's RAM code, which
                                     g6.ram-code-mapped appends after init (D91 c)
     results.json                    the committed artifact; refreshed only by a phase lead (D43)
@@ -1205,8 +1207,14 @@ same corpus through the user's `as`. The same check on whole writer output (a Th
 - **Literal pools.** `ldr r0, _08001A3C @ =gFoo` with `_08001A3C: .4byte gFoo`. A value prints as a
   name only when the linker would produce the same word: a Thumb function name stands for its address
   plus one, so an odd word equal to that prints as `.4byte Func`, and an even word equal to a Thumb
-  function's address stays numeric (Emerald has 125 such words). Far pools are printed where they sit,
-  always in the module of the load that names them: `as` cannot assemble a PC-relative load of a symbol
+  function's address stays numeric (Emerald has 125 such words). A word inside a named, sized entry (a
+  `[symbols]` entry with `size`, a function whose extent is the TOML's `size`) prints `name + offset`, as the
+  compiler relocates `&sym.field` and `&array[i]`, unless a named entry links to exactly the word, and only when
+  `.4byte name + offset` links to it: R_ARM_ABS32 writes (S + A) | T, so an even word inside a Thumb function is never
+  spelled from that function (D102). The rule is one function, `core/model/resolver.ts wordNameOf`, which the printer
+  and the label scopes read: the entry's label is global when such a word lies in another module, a local label is
+  never named by a word, and a word an entry holds makes no `gUnk_` label of its own. Far pools are printed where they
+  sit, always in the module of the load that names them: `as` cannot assemble a PC-relative load of a symbol
   in another object, so no legal border separates the two (D63).
 - **Jump tables.** One `table-entry` item per word, printed `.4byte _0800ABCD` (with `+ 1` when the
   stored value carries the Thumb bit) to a `local` label.
@@ -2037,7 +2045,7 @@ message states the reason, as the working rule requires.
 | Determinism | two processes with a varied environment, identical analysis and tree digests; Linux and macOS, Node 22.18 and 24 agree | 2, 3 |
 | Speed | median CPU time of the analysis, over nine serial runs, ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`; nine since the owner's answer to Q2 of phase 4, D76 b); ≤ 3 s CPU analysis per tuning ROM (the median of the first five of those runs, the five it was measured over before D76 b, D77 f), `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
-| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g6.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a, and into phase 6 with the `expected/` writers when he skipped phase 5, D92; phase 3 records the classified counts) | 3, 6 |
+| Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff's gated differences at or below each tuning ROM's ceiling (below; `g6.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a, into phase 6 with the `expected/` writers when he skipped phase 5, D92, and amended by his answers to Q6 and Q15 of phase-6.md, D102; phase 3 records the classified counts) | 3, 6 |
 | Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=1024`, the owner's answer to Q7 of phase-3.md, D72, replacing Q6's 384) with peak RSS below 1,536 MiB, the budget set again from the recorded runs under that cap with a 25% margin (`g3.large-rom`, D68 b, D72 b); the six tuning ROMs and the code-dense doubled ROM are measured under the same cap and recorded; the bin's own commands complete on the synthetic ROM under the cap (`test/local/large-rom-bin.test.ts`, D70 b; not a gate) | 3 |
 | Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance), every proposed size is equal, differs or is `unjudged` (no ELF size, a zero ELF size, or a FUNC spanning another FUNC: nothing to compare with, accepted and reported per ROM, the owner's rule, phase-6.md Q13, D98 b); on a reference ROM every placed member's symbol (its `MemberId` before '@') equals that reference's own symbol, a reviewed display name being reported, not gated (the owner's rule, Q14, D98 b); the PoC's placements as a floor on its five ROMs, and on tmc the owner's floor, libagbsyscall 13 functions, m4a 55 functions and 10 tables, 68 placements with 0 wrong (Q9, D98 c); leave-one-reference-out adds or moves no placement, a member that leaving its reference out renames counting as its counterpart (the owner's rule, Q8, D94 d, D98 b); sealed held-out counts | 6 |
 
@@ -2048,18 +2056,22 @@ region, as the PoC does, because each project types its startup labels by its ow
 
 **objdiff** (`g6.objdiff`, D34; `g3.objdiff` until the owner's answer to Q1 of phase-3.md moved it to phase 5, where
 the `expected/` objects and objdiff targets are built, D68 a, and `g5.objdiff` until he skipped phase 5 and moved it
-into phase 6 with those writers, D92: it applies there as D34 writes it unless the owner amends it, and its baseline is
-phase-3.md Q1's table, the counts the committed classifier, `bench/src/objdiff-classes.ts`, sorts the differences
-into: gated fe7j 200, klonoa 320, pokeemerald 13,788, sa2 1,374, sa3 564, tmc 895). The oracle is objdiff-cli at the version pinned in
-`bench/tools/objdiff.version`, which is part of the source digest. For each tuning ROM whose readable
-build links, the target of each unit is the reference project's own relocatable object from its build
-directory (`objectsDir`, digest recorded), and the base is the emitted function `.s`, assembled, with its
-function and data labels renamed to the reference ELF's names by address. Only functions whose entry
-and extent agree with the ELF are scored; the others are already rows of the entries and extents
-families. Score 0 means 100.0% match with zero relocation differences. A relocation whose reference
-side targets a section symbol rather than a named symbol is counted as `unnamed-target` and reported,
-not gated; every other difference fails. A fixture test misnames one pool word and requires the gate to
-fail.
+into phase 6 with those writers, D92; amended by his answers to Q6 and Q15 of phase-6.md, D102). The oracle is
+objdiff-cli at the version pinned in `bench/tools/objdiff.version`, which is part of the source digest. For each tuning
+ROM whose readable build links, the target of each unit is the reference project's own relocatable object from its
+build directory (`objectsDir`, digest recorded), and the base is the emitted function `.s`, assembled, with its
+function and data labels renamed to the reference ELF's names by address and every word as romlift's printer spells
+it (§5: `name + offset` inside a named, sized entry; the bench gives the model the ELF's names and sizes and rewrites no
+word). Only functions whose entry and extent agree with the ELF are scored; the others are already rows of the entries
+and extents families. Each difference is sorted into a class (`bench/src/objdiff-classes.ts`); a class that says both
+sides link to the same word is given only when the word each side links to is checked. The same-word classes
+(`resolved-call`, `static-callee`, `value-named`, `alias`, `symbol-addend`, `value-for-symbol`, phase-3.md Q1 option (b)),
+the functions objdiff did not compare (`missing-symbol`, and `tool`, a reference object objdiff-cli refuses, Q6 option
+(c)) and `unnamed-target` (a relocation whose reference side targets a section symbol) are reported, not gated; every
+other difference is gated, and each tuning ROM's gated count must not exceed its ceiling in
+`bench/baseline/objdiff-ceiling.json` (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25, measured when the owner's
+answer was applied; a ceiling may be lowered, never raised without the owner). A fixture test misnames one pool word
+and requires the verdict to fail.
 
 **Held-out runs** (`bench/src/seal.ts` and `classify.ts` for the sealed counts of one ROM, `test/gates/held-out-verdict.ts` for the verdict across the sealed ROMs and the D60 waiver, D25, D53). A dataset with `heldout: true` and an
 empty `revealed` runs sealed: `bench run` stores and prints only counts and gate verdicts, never an
@@ -2466,5 +2478,5 @@ one is missing.
 | `g6.reconciler` | ci | C in, C out goldens: add, remove, move stubs; comments and strings untouched (`g5.reconciler` until D92) |
 | `g6.rename` | ci | identifier-only renames; refusals (`g5.rename` until D92) |
 | `g6.expected-bytes` | ci and real | §6.8: every `expected/<module>.s` assembles to a target that, linked at its module's address (a `runs_at` module at its run address), equals the module's ROM range byte for byte, with every symbol where the model places it; the RAM-copy fixture runs again with its hand-written `runs_at` override (Q12 option (b), Q16 option (a), D101 b) (`g5.expected-bytes` until D92) |
-| `g6.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links, baseline phase-3.md Q1 (`g3.objdiff` until D68 a, `g5.objdiff` until D92) |
+| `g6.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links: the gated differences (D34 as the owner amended it, D102) at or below the ROM's ceiling in `bench/baseline/objdiff-ceiling.json` (`g3.objdiff` until D68 a, `g5.objdiff` until D92) |
 | `g6.c-data-ranges` | ci | §6.6: with `data_start`, a C array replaces its slice of the ROM and the build still matches (`g5.c-data-ranges` until D92) |

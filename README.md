@@ -70,16 +70,19 @@ Phase 5 (Migration) was skipped by the owner and never lands (D92). Phase 6 (Evi
 --update`, screened for conflicts with the analysis and the config; code run from RAM through hand-written `runs_at`
 overrides (the owner dropped the gba-kit trace, D91); the full `explain`; and from phase 5 the reconciler, `rename <old>
 <new>`, the `expected/` and `objdiff.json` writers, C data ranges (`data_start`) and the objdiff gate. Its closing list
-passes every signature gate (the matcher refined at the closing round, D94) and the other gates but these: `g6.objdiff`
-fails on the real tier as D34 writes it (passable in principle, phase-6.md Q6), and with it `g1.provenance` and `bench
-provenance`, which read the committed artifact's failing `g6.objdiff` record. The owner answered every open question
+passed every signature gate (the matcher refined at the closing round, D94) and the other gates but these: `g6.objdiff`
+failed on the real tier as D34 then read (phase-6.md Q6), and with it `g1.provenance` and `bench provenance`, which
+read the committed artifact's failing `g6.objdiff` record until the closing run regenerates it. The owner answered every open question
 of phase-6.md on 25 October 2026; the first step of fix round 4 applied his gate edits (D98): `g6.reconciler`,
 `g6.rename` and `g6.evidence-conflict`, which could not pass as written (Q2, Q3, Q5), now pass on the ci tier,
 `g6.signatures-judged` holds tmc to the measured floor (Q9) and `g4.toml-mutations` makes an add-override edit that
 changes the model and refuses an odd `[functions]` key (Q11). Its second step applied Q10 (D100), and its third Q12
 and Q16 (D101): each objdiff target is now its unit's assembly as it is, so objdiff scores every function of an
 untouched project at 100%, and `g6.expected-bytes` judges each target linked at its module's address, `runs_at` modules
-included; the answers to Q6 and Q15 are the round's next step. Fix round 1 of the
+included. Its fourth step applied Q6 and Q15 (D102): the printer spells a word inside a named, sized entry `sym +
+addend` by one rule the label scopes share, the bench's `objectWords` rewrite is gone, D34 reports the same-word
+differences and the uncompared functions, and `g6.objdiff` passes on the real tier with each tuning ROM's gated count at
+its committed ceiling (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25). Fix round 1 of the
 review (D95) changed no gate threshold, but its ROM overwrite of the objdiff targets left `g6.expected-bytes` able to
 catch only a wrong size; fix round 2 (D96) tightened that gate to judge each unit's object as assembled, and put the
 bench's `objectWords` rewrite, which changes what `g6.objdiff` measures, to the owner as Q15. Fix round 3 (D97) refuses a `runs_at`

@@ -31,6 +31,13 @@ at its module's address and judges its bytes and symbols there, `runs_at` module
 its override joins its targets); `make expected` writes nothing under `expected/` (correctness-r2-2) ("Review", fix
 round 4, step 3).
 
+**Fix round 4, step 4 (D102): not landed yet.** Q6 and Q15 applied as the owner chose ("Printer spells sym+addend,
+then ceiling"): the printer spells a word inside a named, sized entry `sym + addend` by one rule the label scopes read
+(`resolver.ts wordNameOf`), the bench's `objectWords` rewrite and `--own-spelling` are gone, D34 reports the same-word
+differences and the uncompared functions (`missing-symbol`, `tool`), and `g6.objdiff` passes on the real tier with each
+tuning ROM's gated count at its ceiling in `bench/baseline/objdiff-ceiling.json`: fe7j 7, klonoa 1, pokeemerald 12,
+sa2 1, sa3 4, tmc 25 (Q6, "Review", fix round 4, step 4). The round's last step runs the closing list.
+
 **Verdict after fix round 3 (D97): still NOT LANDED.** The review of fix round 2 (`b64f0b7`) raised 11 findings: one
 major (correctness-r2-1, a `runs_at` module named `text` or `c_data_<m>` broke the link), fixed in this round, and ten
 minors, nine carried and one an owner question (Q16) ("Review", fix round 3). The orchestrator asked to land the phase; it cannot: the fourteen owner
@@ -298,6 +305,59 @@ Raised at the wave-3 integration:
   130: objdiff-cli 3.7.2 refuses kleod's reference object `src/code_0804B254.o`, "Invalid instruction size 1", so every
   function of it is uncompared). Which spelling the reference's source chose (a constant or a symbol) is not in the ROM;
   the `tool` class is objdiff-cli's.
+  **Answered on 25 October 2026 (D102), with Q15, "Printer spells sym+addend, then ceiling"**: "(1) Q15 option (c):
+  move the `sym + addend` spelling into romlift's printer, as phase-3.md Q1 option (a) says (an emission rule; sizes in
+  [symbols] where needed), and remove the bench's objectWords rewrite, so g6.objdiff scores romlift's own spelling. (2)
+  Amend D34 by phase-3.md Q1 option (b) (report, not gate, the differences whose two sides are checked to link to the
+  same word) and by Q6 option (c) (a function objdiff-cli refuses to read, the `tool` class, is counted uncompared and
+  reported, not gated). (3) g6.objdiff then gates on a ceiling: the gated count per tuning ROM measured after (1) and
+  (2) on the final product, committed as a baseline file the gate reads; any count above its ceiling fails; the ceiling
+  may be lowered, never raised, without the owner. Record every count, before and after, in phase-6.md." Applied (fix
+  round 4, step 4): the printer's one word rule, `resolver.ts wordNameOf`, which the label scopes read too (a word
+  inside a named, sized entry prints `name + offset` from any module, the entry's label global; never an even word
+  inside a Thumb function, which `.4byte F + n` cannot link to; no `gUnk_` label for such a word); `objectWords` and
+  `--own-spelling` removed; `objdiff-classes.ts isGated` (D34 as amended) and `value-named` reading the base's
+  `name+0x<addend>`; `bench/baseline/objdiff-ceiling.json`, which `g6.objdiff` reads. Every count, measured with
+  `bench/tools/objdiff-classes.ts` on all six tuning ROMs with the map, each cell "with `objectWords` (Q15's first row,
+  before) / romlift's own spelling (Q15's second row, before) / after" (the two before columns classed by the
+  classifier of that time, measured again at the start of this step on `77ae472`: the same totals as fix round 2's):
+
+  | Class | fe7j | klonoa | pokeemerald | sa2 | sa3 | tmc |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | `resolved-call` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `static-callee` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `value-named` | 9 / 9 / 9 | 0 / 0 / 0 | 7 / 2 / 41 | 2 / 11 / 2,658 | 0 / 16 / 1,650 | 0 / 0 / 11 |
+  | `alias` | 0 / 0 / 0 | 0 / 0 / 0 | 133 / 133 / 133 | 0 / 0 / 0 | 0 / 0 / 0 | 9 / 9 / 9 |
+  | `symbol-addend` | 4 / 5 / 5 | 0 / 0 / 0 | 0 / 10 / 0 | 0 / 1 / 0 | 0 / 2 / 0 | 0 / 0 / 0 |
+  | `value-for-symbol` | 3 / 0 / 0 | 0 / 4 / 4 | 9 / 10 / 8 | 1 / 5 / 5 | 1 / 4 / 4 | 3 / 5 / 5 |
+  | `unverified` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `trailing-pad` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `relocation-other` | 3 / 7 / 7 | 1 / 1 / 1 | 2 / 11 / 11 | 0 / 0 / 0 | 2 / 4 / 3 | 5 / 26 / 25 |
+  | `instruction-other` | 0 / 0 / 0 | 0 / 0 / 0 | 4 / 33 / 1 | 1 / 2,648 / 1 | 52 / 1,638 / 1 | 0 / 11 / 0 |
+  | `assemble` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `score` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `missing-symbol` | 0 / 0 / 0 | 0 / 0 / 0 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `tool` | 0 / 0 / 0 | 130 / 130 / 130 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `unnamed-target` | 77 / 77 / 55 | 65 / 65 / 0 | 3,182 / 3,287 / 2,608 | 158 / 158 / 127 | 138 / 138 / 81 | 448 / 448 / 315 |
+  | gated as D34 was first written (every class but `unnamed-target`) | 19 / 21 / 21 | 131 / 135 / 135 | 157 / 201 / 196 | 4 / 2,665 / 2,664 | 55 / 1,664 / 1,658 | 17 / 51 / 50 |
+  | gated as D34 is amended (D102; "under option (b)" before) | 3 / 7 / **7** | 1 / 1 / **1** | 6 / 44 / **12** | 1 / 2,648 / **1** | 54 / 1,642 / **4** | 5 / 37 / **25** |
+  | uncompared (`missing-symbol`, `tool`), reported | 0 / 0 / 0 | 130 / 130 / 130 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+
+  What moved: `value-named` takes romlift's `name + offset` against the reference's constant (sa2 2,647 and sa3 1,637
+  of the own spelling's `instruction-other`, `.word 0x3000004 | .word SoundMainRAM_Buffer+0x4`, checked to be one
+  word; before, the classifier read no addend there); the printer rule takes the words inside a sized entry of another
+  module (pokeemerald's `symbol-addend` 10 to 0: `gBattleAnimPaletteTable + 2152` where it printed `gUnk_08525CB4`) and
+  no longer spells an even word from a Thumb function (sa3's `instruction-other` 7 to 1 between the two halves of the
+  step, `.word 0x8000200 | .word sub_80001EC+0x13`, which links to `0x080001FF`; and `unnamed-target` klonoa 65 to 0,
+  pokeemerald 3,287 to 2,608, sa2 158 to 127, sa3 138 to 81, tmc 448 to 315, fe7j 77 to 55: words into a function's
+  jump table that `574849b` spelled `F + odd`, one below the ROM's word, in the bench's model with the ELF's sizes, and
+  that now name the table's label, which `as` relocates against the section as the reference does). Romlift's own
+  spelling under the new classifier and the old printer gave gated 7, 1, 12, 1, 8, 26. The ceilings are the after
+  column's gated row: fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25. What stays gated depends on the
+  reference's source, not on the ROM: relocations with a negative addend or past the symbol's ELF size (fe7j
+  `gClassData - 84` where romlift names `gCharacterData + 13072`, tmc `gHUD + 52` against `gUnk_0200AF34`, pokeemerald
+  `gPlayerParty - 100` against `gBattleScripting + 20`, klonoa `gUnk_080520E4 - 252` against `gVisionBgNbrTiles + 234`)
+  and the `.hword 0x0` the base keeps after `MP2K_event_rept` (sa2, sa3) and `ply_rept` (pokeemerald).
 - **Q7. `g6.signatures-judged` and `g6.signatures-loo` fail on the real tier** (reported by `p6-signatures-apply`, not
   re-measured at the integration): judged fails on names and tables, LOO on two runs; `g6.signatures-heldout` passes.
   The component places the fixes in the matcher, the builder or the specs; no gate change is proposed yet. Fixed at the
@@ -440,6 +500,11 @@ Raised at fix round 2 (the review of fix round 1, D96):
   amendment to D34 (the first row; the gate still fails without Q6's answer); (c) move the `sym + addend` spelling into
   the printer, as phase-3.md Q1 option (a) says, and measure again (not measured: a printer rule with sizes in
   `[symbols]`). Until he answers, nothing is reverted and the committed counts are the first row's.
+  **Answered on 25 October 2026 (D102), with Q6, "Printer spells sym+addend, then ceiling"**: "(1) Q15 option (c):
+  move the `sym + addend` spelling into romlift's printer, as phase-3.md Q1 option (a) says (an emission rule; sizes in
+  [symbols] where needed), and remove the bench's objectWords rewrite, so g6.objdiff scores romlift's own spelling."
+  The rest of the answer, what was applied and every count before and after are under Q6. `objectWords` and
+  `--own-spelling` are gone; the base is romlift's own spelling (the second row), scored against the ceilings.
 
 Raised at fix round 3 (the review of fix round 2, D97):
 
@@ -459,8 +524,8 @@ Raised at fix round 3 (the review of fix round 2, D97):
   targets, 1 `runs_at`; a scratch copy judging that module at its load address fails.
 
 The owner answered every open question on 25 October 2026. Applied by fix round 4's first step (D98): Q1, Q2, Q3, Q5,
-Q8, Q9, Q11, Q13, Q14; by its second step (D100): Q10; by its third step (D101): Q12, Q16. Answered, applied by the
-round's next step: Q6 and Q15. Q4 and Q7 need no answer.
+Q8, Q9, Q11, Q13, Q14; by its second step (D100): Q10; by its third step (D101): Q12, Q16; by its fourth step (D102):
+Q6 and Q15. Q4 and Q7 need no answer.
 
 ## Known limitations
 
@@ -483,7 +548,12 @@ round's next step: Q6 and Q15. Q4 and Q7 need no answer.
   file that leaves part of its range undefined passes it while `make` fails; a range whose `data_start` lies at or past
   its module's end takes the `data` modules after it (architecture §6.6, correctness-11).
 - **objdiff-cli 3.7.2 cannot read one klonoa reference object** (`src/code_0804B254.o`, "Invalid instruction size 1"):
-  its 130 functions are uncompared (`tool`, Q6).
+  its 130 functions are uncompared (`tool`), counted and reported, not gated (Q6 option (c), D102).
+- **`g6.objdiff` holds a remainder at its ceiling** (D102): fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25 gated
+  differences that depend on the reference's source (a relocation with a negative addend or past its symbol's ELF size,
+  where romlift names the symbol that holds the word) or on a pad the base keeps (`MP2K_event_rept`'s `.hword 0x0`);
+  the same-word differences (sa2 2,663, sa3 1,654, ...) are reported. A ceiling may be lowered, never raised without
+  the owner.
 - **correctness-b2-3's remainder stays carried**: `modules.mk` records only `romlift.toml`'s SHA-1, not the romlift
   version, until romlift is published (D76 d).
 - The release-1 limitations of phases 1 to 4 stand (phase-4.md, "Known limitations").
@@ -767,7 +837,7 @@ on the real tier `g6.ram-code-mapped` passes (the RAM-copy fixture and Klonoa, `
 | architecture-r2-3 | minor | Carried: `runAddresses` through `runsAtOverrides`, `proposals.ts` through `runsAtSpans`, `DATA_ALIGN` and chunks.ts's `WORD` from `layout/align.ts`. **Fixed at fix round 4, step 1** (`10fe83a`, D99 b), as written. |
 | architecture-r2-4 | minor | Carried: one `isAbsentError` in `shell/fs.ts` (ELOOP decided once) and `linkedFileBytes` as `isRegularFile` then `readBytes`. **Fixed at fix round 4, step 1** (`10fe83a`, D99 c): `isAbsentError` (ENOENT, ENOTDIR, ELOOP) at every shell site that read ENOENT with ENOTDIR; a link loop is now absent in `isDirectory`, `isRegularFile` and `digestOf` too. |
 | architecture-r2-5 | minor | Carried: `placeSignatures` made module-private and dropped from `api/proposals.ts`; `explain.test.ts` through `signaturesOver`. **Fixed at fix round 4, step 1** (`10fe83a`, D99 d), as written. |
-| architecture-r2-6 | minor | Carried: `nameBase`'s positional `rewriteWords` replaced by an options object, with a unit case for the own spelling (Q15's second row). **Moved to the step of fix round 4 that applies Q15** (D99 g), which removes the bench's rewrite and its parameter. |
+| architecture-r2-6 | minor | Carried: `nameBase`'s positional `rewriteWords` replaced by an options object, with a unit case for the own spelling (Q15's second row). **Moved to the step of fix round 4 that applies Q15** (D99 g), which removes the bench's rewrite and its parameter. Done there (D102 b): `nameBase` takes no such parameter, since the rewrite is gone. |
 | architecture-r2-7 | minor | Carried: the `.syntax mixed` refusal text, `bytes.ts`' header, and the frozen `g4.c-data-fails-loud` header that quotes the C-data assertion's old text (the gate file is not edited; its pattern still matches the new text). **Fixed at fix round 4, step 1** (`10fe83a`, D99 e) but the gate header: the refusal names both dialects read, `bytes.ts`' header names its readers; `g4.c-data-fails-loud` is not among the gate files the owner authorised, so its comment stays. |
 | correctness-r2-2 | minor | Carried: `make expected` writes `expected/*.o`, `expected/rom/*.o` and `expected/rom/*.bin` under a generated root, so each later `generate` warns `W_UNOWNED_FILE` for each (sa1 69, Klonoa 81). **Moved to the step of fix round 4 that applies Q12** (D99 g), which changes what `make expected` writes. **Fixed at fix round 4, step 3** (D101 c): the targets are `build/expected/<module>.o` and nothing else is written; `generate` after `make expected` warns none (sa1 0, Klonoa 0). |
 | correctness-r2-3 | minor | Carried: `rename` skips a symbolic link to a directory under `include/` with `W_RENAME_SKIPPED` without reading its files, so a file there that names `old` keeps it (exit 0). **Fixed at fix round 4, step 1** (`10fe83a`, D99 f): every rename text behind the link is read and listed as skipped with its bytes, so `rename` refuses one that names `old` (`E_RENAME_SKIPPED_FILE`); a file rename edits by its own path is not listed; new read-inputs test. |
@@ -852,3 +922,37 @@ README and the scaffold's `AGENTS.md`, `README.md` and `Makefile` follow. Measur
 
 Not run in this step: the full closing list (the round's last step runs it), `g6.objdiff` (Q6 and Q15, the next step),
 `g1.provenance` and `bench provenance` (they read the committed artifact, which the closing run regenerates).
+
+### Fix round 4, step 4 (Q6, Q15, D102)
+
+Q6 and Q15 applied as the owner chose (the answer and every count before and after, per class, are under Q6): the
+printer's one word rule (`src/core/model/resolver.ts wordNameOf`, `linkedWordOf`; `print/pool.ts wordText` and the
+label scopes and `gUnk_` candidates of `model/labels.ts` read it; `model.ts` builds the model's functions before the
+labels so both read one `sizedEntries`); the bench's `objectWords`, `dataNameAt`, `ownSpelling` and `--own-spelling`
+removed (`bench/src/objdiff.ts`, `bench/tools/objdiff-classes.ts`, carried architecture-r2-6 with them); D34 amended in
+the classifier (`bench/src/objdiff-classes.ts isGated`, `classTotals`, `value-named` with an addend) and in the
+verdict, whose row member gains `classes`; the ceiling file `bench/baseline/objdiff-ceiling.json` with its reader and
+lowering writer (`bench/src/objdiff-ceiling.ts`, `objdiff-classes.ts --write-ceiling`); `test/gates/g6.objdiff.test.ts`
+as the owner authorised; D34's revision, D96 b marked replaced, D102, architecture §5, §8.4 and §13, the roadmap,
+AGENTS.md and README follow. No golden changed (no committed fixture has a sized entry, or a pool word naming another
+module's local label), so none was regenerated. Commits: `644af21` (the code, the gate and the ceiling file), then the
+documents. Measured on the phase branch at `644af21`:
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 tests pass |
+| `npm test` | 0 | 2,859 tests, 2,859 pass (new: `wordNameOf` and `linkedWordOf` in `resolver.test.ts`, two label cases, two ceiling cases; the `objectWords` case removed) |
+| `node --conditions=source bench/tools/objdiff-classes.ts` (before, `77ae472`; with and without `--own-spelling`) | 0, 0 | gated fe7j, klonoa, pokeemerald, sa2, sa3, tmc 19, 131, 157, 4, 55, 17 and 21, 135, 201, 2,665, 1,664, 51 (Q15's two rows; 50 s each) |
+| `node --conditions=source bench/tools/objdiff-classes.ts --write-ceiling` (after) | 0 | gated (D34 as amended) 7, 1, 12, 1, 4, 25, written as the ceilings; uncompared 0, 130, 2, 0, 0, 0; same word 14, 4, 182, 2,663, 1,654, 25; every class but `unnamed-target` 21, 135, 196, 2,664, 1,658, 50 (50 s); a second run gives the same counts |
+| `g6.objdiff` (real) | 0 | fe7j 1,471 functions, gated 7 of ceiling 7; klonoa 485, 1 of 1, 130 uncompared; pokeemerald 15,850, 12 of 12, 2 uncompared; sa2 2,887, 1 of 1; sa3 4,305, 4 of 4; tmc 8,388, 25 of 25 (155 s) |
+| scratch ceiling file with tmc 24 (restored after) | 1 | "objdiff: tmc: 25 gated differences above its ceiling 24 (classes: 11 value-named, 9 alias, 5 value-for-symbol, 25 relocation-other, 315 unnamed-target); CreateRandomItemDrop relocation-other +0x680 R_ARM_ABS32: gObjectDroptables \| gAreaDroptables \| …" |
+| `npm run bench -- run --scaffold` | 1 | every tuning ROM: raw link SHA-1, readable link SHA-1, init build SHA-1 (init 0, setup.sh 0, make 0); both sealed ROMs' init builds SHA-1; exit 1 only because it does not write `bench/results.json` (the printer member's corpus is stale: `npm run corpus` first, which the closing run does) |
+| `g3.link`, `g3.raw-link`, `g3.self-check`, `g3.text-layout`, `g3.tree-determinism`, `g3.golden-writers`, `g4.e2e-fixtures`, `g4.generate-idempotent`, `g6.expected-bytes` (ci) | 0 | 9 pass: 54 fixtures linked by both printers, 8 writers × 54 fixtures equal their goldens, 53 fixtures built to their SHA-1, 229 expected modules on 55 targets (434 s) |
+| `g3.link`, `g3.raw-link`, `g3.self-check`, `g3.text-layout`, `g3.tree-determinism`, `g3.readability`, `g4.e2e-real`, `g6.expected-bytes` (real) | 0 | 8 pass on 60 ROMs: the readable printer links 6 of 6 tuning ROMs, `g4.e2e-real` the six to their SHA-1s, readability at its floors, 452 expected modules on 61 targets (619 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1` `test/local/{objdiff,objdiff-json,emission-real}` | 0 | 10 of 10: the misnamed pool word still fails the verdict (gated 1); sa1 0 of 2,013 and klonoa 0 of 422 functions below 100%; both printers' trees of the six tuning ROMs link (60 s) |
+| `npm run fixtures -- check` | 0 | 54 of 54 fixtures agree |
+
+Not run in this step: the full closing list (the round's last step runs it), `g1.provenance` and `bench provenance`
+(they read the committed artifact, which the closing run regenerates).
+
