@@ -69,7 +69,7 @@ export const DECODER_FLOW: RuleId = 'walk.decoder-flow';
 export interface FunctionFact {
   readonly entry: Addr;
   readonly mode: Mode;
-  /** Set only inside a runs_at range. */
+  /** The run address of `entry`, set only inside a runs_at range (the entry and every other address are load addresses, D46). */
   readonly runAt?: Addr;
   /** Code plus adjacent pools and tables (claim.adjacent-pools). */
   readonly extent: Span;
@@ -304,11 +304,11 @@ export interface AnalysisView {
   readonly addresses: AddressMap;
   readonly round: number;
   readonly epoch: number;
-  /** The run's seeds (the options' own, and a seed.override seed per code override without runs_at) and the options' overrides, for the seed rules (D56). */
+  /** The run's seeds (the options' own, and a seed.override seed per code override, runs_at or not) and the options' overrides, for the seed rules (D56). */
   readonly seeds: readonly Seed[];
   readonly overrides: readonly OverrideFact[];
   /**
-   * Whether `a` lies in a data override without runs_at: claimed data from round 0, which no walk enters (a path that
+   * Whether `a` lies in a data override (runs_at or not): claimed data from round 0, which no walk enters (a path that
    * reaches it ends there, as at the next function) and no claim overwrites (correctness-b0-3).
    */
   inDataOverride(a: Addr): boolean;

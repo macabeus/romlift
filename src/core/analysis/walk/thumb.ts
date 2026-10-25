@@ -14,7 +14,7 @@ import { LIMITS } from '../limits.ts';
 import { DECODER_FLOW } from '../types.ts';
 import type { Reading, WalkStep } from '../types.ts';
 import { walkArm } from './arm.ts';
-import { askWalk, asksWalk, toLoadInsn, walkCursor } from './cursor.ts';
+import { askWalk, asksWalk, externalTarget, toLoadInsn, walkCursor } from './cursor.ts';
 import { WalkRecord } from './record.ts';
 import type { MutableCursor, WalkCursor, WalkEnv } from './cursor.ts';
 
@@ -132,6 +132,7 @@ function follow(path: Path, insn: Insn, sp: number): boolean {
   const flow = insn.flow;
   switch (flow.kind) {
     case 'branch':
+      if (externalTarget(path.env.view, insn.addr, flow.target)) return externalExit(path, insn, sp);
       rec.branchTargets.push(flow.target);
       path.work.push([flow.target, sp]);
       return !flow.conditional;
@@ -147,9 +148,20 @@ function follow(path: Path, insn: Insn, sp: number): boolean {
   }
 }
 
+/** A branch from code that runs from a runs_at range to RAM outside every range: it leaves the function (§6.7). */
+function externalExit(path: Path, insn: Insn, sp: number): boolean {
+  const { rec } = path;
+  rec.returns += 1;
+  rec.balance.push(sp);
+  rec.exit(insn.addr, 'tail', DECODER_FLOW);
+  return !(insn.flow.kind === 'branch' && insn.flow.conditional);
+}
+
 /** The bl at `insn`, as the settle loop decided it; true when the path ends here. */
 function call(path: Path, insn: Insn, sp: number, target: Addr, far: ReadonlySet<Addr>, noret: ReadonlyMap<Addr, RuleId>): boolean {
   const { rec, env } = path;
+  // A call from a runs_at range to RAM outside every range returns like any call; it names no function here (§6.7).
+  if (externalTarget(env.view, insn.addr, target)) return false;
   if (!contains(env.view.rom, target)) {
     rec.errors.push({ reason: 'bl-out-of-rom', at: insn.addr });
     return true;

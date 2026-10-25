@@ -14,6 +14,12 @@
 // `-mcpu=arm7tdmi`, but with `-mthumb-interwork` it adds 1 to an ARM adr of a Thumb function defined before it.
 // A label whose value is the address itself assembles alike under every setting. labels.ts places a local label
 // at an adr target that has only Thumb function labels.
+//
+// A runs_at module (§6.7, D46) links at its run address, so its labels name run addresses; a word that holds one of its
+// load addresses (the copy's source: Klonoa's m4aSoundInit loads SoundMainRAM | 1, 0x0804F319, for its CpuCopy32) must
+// never print as one of those labels, which would link to the run address. No label lies at a load address of a
+// runs_at module, so such a word finds none and prints as its value; loadWordOperand names it through the ldscript's
+// `__load_<module>` symbol (LOADADDR of the module's section) instead, which links to the same bytes.
 import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
@@ -140,4 +146,24 @@ export function adrResolverFor(model: Pick<Model, 'labels' | 'modules'>, module:
  */
 export function resolverOver(labels: readonly Label[], modules: readonly Module[], module: string): SymbolResolver {
   return resolverFromIndex(buildIndex(labels, modules), module);
+}
+
+/** The symbol the ldscript defines for a runs_at module: the load address of its first byte (§6.7). */
+export function loadSymbolOf(module: Pick<Module, 'name'>): string {
+  return `__load_${module.name}`;
+}
+
+/**
+ * The operand of a `.4byte` holding `value` when it is a load address inside a runs_at module, the module's end
+ * included (a copy's end): `__load_<module>`, plus the offset when there is one (`__load_ram_03000388 + 1` for a Thumb
+ * pointer to its first byte). It links to `value` itself, wherever the module runs. Undefined for any other value.
+ */
+export function loadWordOperand(model: Pick<Model, 'modules'>, value: number): string | undefined {
+  const word = value >>> 0;
+  for (const m of relocatedModules(model.modules)) {
+    if (word < m.span.start || word > m.span.end) continue;
+    const offset = word - m.span.start;
+    return offset === 0 ? loadSymbolOf(m) : `${loadSymbolOf(m)} + ${offset}`;
+  }
+  return undefined;
 }

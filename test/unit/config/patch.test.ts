@@ -137,6 +137,23 @@ test('a CRLF file gets CRLF lines', () => {
   assert.equal(output, text.replace('0x08000010 = "A"\r\n', '0x08000010 = { name = "C", from = "sig:gate@0" }\r\n0x08000020 = { name = "B", mode = "arm", from = "sig:gate@0" }\r\n'));
 });
 
+test('a new module is inserted as its canonical block before the next module, or after the last one, keeping comments (§6.7)', () => {
+  const RANGE = { kind: 'layout', reason: 'runs-at' } as const;
+  const text = `${BASE}# the data\n[[modules]]\nname = "data"  # keep\nstart = 0x08000400\nkind = "data"\n\n[functions]\n0x08000010 = "A"\n`;
+  const ram: Proposal = { kind: 'module', name: 'ram_03000000', start: 0x0800_0100, moduleKind: 'asm', source: RANGE };
+  const resumed: Proposal = { kind: 'module', name: 'main_08000200', start: 0x0800_0200, moduleKind: 'asm', source: RANGE };
+  const tail: Proposal = { kind: 'module', name: 'tail', start: 0x0800_0500, moduleKind: 'data', library: { name: 'lib', version: '1' }, source: RANGE };
+  const output = patched(text, [resumed, ram, tail]);
+  const block = (name: string, start: string, kind: string, extra = ''): string => `[[modules]]\nname = "${name}"\nstart = ${start}\nkind = "${kind}"\n${extra}`;
+  assert.equal(
+    output,
+    `${BASE}${block('ram_03000000', '0x08000100', 'asm')}\n${block('main_08000200', '0x08000200', 'asm')}\n# the data\n[[modules]]\nname = "data"  # keep\nstart = 0x08000400\nkind = "data"\n\n${block('tail', '0x08000500', 'data', 'library = "lib"\nversion = "1"\n')}\n[functions]\n0x08000010 = "A"\n`,
+  );
+  const crlf = `${BASE}\n[functions]\n`.replace(/\n/g, '\r\n');
+  assert.equal(patched(crlf, [ram]), `${BASE}\n${block('ram_03000000', '0x08000100', 'asm')}\n[functions]\n`.replace(/\n/g, '\r\n'));
+  assert.equal(patched(BASE, [ram]), `${BASE}\n${block('ram_03000000', '0x08000100', 'asm')}`, 'after the last block at the end of the text');
+});
+
 test('`from` records a persisted source; the analysis leaves it as it was; aliases and size are kept', () => {
   const text = `${BASE}\n[functions]\n0x08000010 = { name = "A", size = 0x20, aliases = ["B"], from = "sig:gate@0" }\n`;
   const signature: Proposal = { kind: 'function', addr: 0x0800_0010, mode: 'thumb', name: 'm4aSoundMain', source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.test' as RuleId } };
@@ -179,9 +196,9 @@ test('the refusals: a block entry, a missing table, a multi-line value, dotted k
   assert.deepEqual(refusal(BASE, [{ kind: 'symbol', addr: 0x0300_0000, name: 'gA', source: SIGNATURE }]), [
     'E_TOML_PATCH_REFUSED romlift.toml has no [symbols] table to add 0x03000000 to; add the table with this line: 0x03000000 = { name = "gA", from = "sig:gate@0" }',
   ]);
-  const module: Proposal = { kind: 'module', name: 'm4a', start: 0x0800_0100, moduleKind: 'asm', library: { name: 'm4a', version: '2001' }, source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.x' as RuleId } };
+  const module: Proposal = { kind: 'module', name: 'm4a', start: 0x0800_0000, moduleKind: 'asm', library: { name: 'm4a', version: '2001' }, source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.x' as RuleId } };
   assert.deepEqual(refusal(`${BASE}\n[functions]\n`, [module]), [
-    'E_TOML_PATCH_REFUSED [[modules]] are blocks, which the planner does not edit; make the [[modules]] read, in link order:\n[[modules]]\nname = "main"\nstart = 0x08000000\nkind = "asm"\n\n[[modules]]\nname = "m4a"\nstart = 0x08000100\nkind = "asm"\nlibrary = "m4a"\nversion = "2001"',
+    'E_TOML_PATCH_REFUSED [[modules]] are blocks, which the planner edits only to insert a new module; make the [[modules]] read, in link order:\n[[modules]]\nname = "m4a"\nstart = 0x08000000\nkind = "asm"\nlibrary = "m4a"\nversion = "2001"',
   ]);
   const override: Proposal = { kind: 'override', span: { start: 0x0800_0100, end: 0x0800_0140 }, overrideKind: 'code', mode: 'arm', runsAt: 0x0300_0000, source: { kind: 'signature', library: 'm4a', version: '2001', rule: 'sig.unique-fit' } };
   assert.deepEqual(refusal(`${BASE}\n[functions]\n`, [override]), [

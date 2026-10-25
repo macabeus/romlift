@@ -34,5 +34,11 @@
       }
     }
   ],
-  "codeEnd": "0x0800012A"
+  "codeEnd": "0x0800012A",
+  "ramCopy": {
+    "start": "0x0800012C",
+    "size": "0xC",
+    "runAt": "0x03000000",
+    "mode": "arm"
+  }
 }

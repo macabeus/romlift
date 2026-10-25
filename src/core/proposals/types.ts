@@ -6,8 +6,11 @@
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import type { RuleId } from '../provenance/rule-id.ts';
 
-/** Why module inference (core/layout/infer-modules.ts) proposed a module. */
-export type LayoutReason = 'header' | 'startup' | 'asm-only' | 'module-size' | 'data';
+/**
+ * Why module inference (core/layout/infer-modules.ts) proposed a module, or, for 'runs-at', analyze --update: a border
+ * of a hand-written runs_at range, which is its own module (§6.7).
+ */
+export type LayoutReason = 'header' | 'startup' | 'asm-only' | 'module-size' | 'data' | 'runs-at';
 
 export type ProposalSource =
   | { readonly kind: 'signature'; readonly library: string; readonly version: string; readonly rule: RuleId }
