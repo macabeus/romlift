@@ -1,7 +1,10 @@
 // g6.evidence-conflict (architecture §7.3, §7.4, §13, D9, D91, D92): a proposal that contradicts the analysis or the
 // config gives W_EVIDENCE_CONFLICT and changes nothing. Library signatures are the one external source left once the
 // gba-kit trace (D91) and phase 5's legacy, ELF and map importers (D92) were dropped, so the gate screens signature
-// proposals through checkProposals. On every committed fixture with two found functions F and G, U is a signature
+// proposals through checkProposals. On every committed fixture with two found functions F and G, F the first found
+// function and G the first whose entry lies outside F's extent (the owner's answer to phase-6.md Q5, option (a), 25
+// October 2026, D98 a: on every fixture F is the cartridge entry, whose extent covers the ARM function after it, which
+// (c)'s data override would then cover too), U is a signature
 // function proposal at G that agrees with the analysis (G's entry and mode). Each contradiction is checked together
 // with U, one at a time:
 //   (a) against the analysis: a function proposal at F's entry in the other mode;
@@ -135,7 +138,8 @@ gate({
       const bytes = new Uint8Array(await readFile(fixture.rom));
       const sha1 = sha1Of(bytes);
       const analysis = analyze(romFromBytes(bytes, sha1), profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
-      const [f, g] = analysis.functions;
+      const [f] = analysis.functions;
+      const g = f === undefined ? undefined : analysis.functions.find((h) => h.entry < f.extent.start || h.entry >= f.extent.end);
       if (f === undefined || g === undefined) continue;
       const config = (functions: readonly string[], overrides: readonly string[]): object => {
         const parsed = parseConfig(configText(sha1, functions, overrides));
@@ -165,7 +169,7 @@ gate({
         if (JSON.stringify(screened.kept) !== JSON.stringify(alone.kept)) problems.push(`${label}: the contradiction changed the kept proposals`);
       }
     }
-    if (cases === 0) problems.push('no fixture has two found functions');
+    if (cases === 0) problems.push("no fixture has two found functions, the second outside the first one's extent");
     if (problems.length > 0) throw new Error(`proposal conflicts: ${problems.join(' | ')}`);
     cx.note(`${cases} contradictions on ${cx.fixtures.length} fixtures give W_EVIDENCE_CONFLICT and keep only what U alone keeps`);
   },

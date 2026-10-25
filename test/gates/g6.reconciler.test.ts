@@ -4,7 +4,9 @@
 // input.c (the C in) and expected.c (the C out); at least one case name starts with each of `add`, `remove`
 // and `move`. The gate requires that the golden tests pass with UPDATE_GOLDEN unset, and checks every case
 // itself with the reconciler's tokenizer: the comment, string and character-literal tokens of expected.c are
-// exactly those of input.c, in the same order, so a reconciler edit never reaches into them.
+// exactly those of input.c, in the same order, so a reconciler edit never reaches into them. The one string left out
+// is the one directly after `INCLUDE_ASM (` (the stub's directory, which an added or removed stub brings or takes with
+// it), as the golden runner leaves it out: the owner's answer to phase-6.md Q2, option (a), 25 October 2026 (D98 a).
 //
 // Calls, aligned by the phase-6 lead (architecture §6.6, D93; both exported since phase 4, D74):
 //   tokenizeC(text) -> readonly {kind: 'comment'|'string'|'char'|'preprocessor'|'identifier'|'punct'|…,
@@ -30,8 +32,13 @@ function tail(run: ExecResult, lines = 40): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
 
+/** The string directly after `INCLUDE_ASM (`, the stub's directory (Q2 option a, D98 a). */
+function isIncludeAsmDir(tokens: readonly CToken[], k: number): boolean {
+  return tokens[k]?.kind === 'string' && tokens[k - 1]?.text === '(' && tokens[k - 2]?.text === 'INCLUDE_ASM';
+}
+
 function untouchable(tokens: readonly CToken[]): readonly string[] {
-  return tokens.filter((t) => UNTOUCHABLE.has(t.kind)).map((t) => `${t.kind}:${t.text}`);
+  return tokens.filter((t, k) => UNTOUCHABLE.has(t.kind) && !isIncludeAsmDir(tokens, k)).map((t) => `${t.kind}:${t.text}`);
 }
 
 gate({

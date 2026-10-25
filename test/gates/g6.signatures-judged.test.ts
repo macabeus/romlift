@@ -4,8 +4,9 @@
 //     bench/baseline/poc-2026-10-16.json (`signatures.versions`, summed per library), for the five ROMs the PoC
 //     judged: klonoa m4a 94 functions and 10 tables, libagbsyscall 6, libgcc 20; fe7j libagbsyscall 18, libgcc 22,
 //     m4a 94 and 10; pokeemerald 15, 67, 109 and 10; sa2 12, 24, 94 and 10; sa3 13, 65, 94 and 10 (FLOORS below,
-//     which the baseline must agree with). tmc, revealed after the baseline was pinned (D60), has no PoC row: it is
-//     judged by the ELF checks below with no floor;
+//     which the baseline must agree with). tmc, revealed after the baseline was pinned (D60), has no PoC row: its floor
+//     is the owner's, the counts measured at the phase-6 closing round (phase-6.md Q9, option (b), 25 October 2026,
+//     D98 c): libagbsyscall 13 functions, m4a 55 functions and 10 tables, 68 placements with 0 wrong (OWNER_FLOORS);
 //   - every placement at an ELF FUNC or at a listed untyped address; every table an ELF OBJECT of that size or a label;
 //     every proposed `size` equal to the ELF size (the bench applies the 4-byte padding allowance), and every proposed
 //     size accounted for: equal, differ or `unjudged` (no ELF size, a zero ELF size, or a FUNC spanning another FUNC:
@@ -65,6 +66,11 @@ const FLOORS: Readonly<Record<string, Floor>> = {
   sa3: { libagbsyscall: { functions: 13, objects: 0 }, libgcc: { functions: 65, objects: 0 }, m4a: { functions: 94, objects: 10 } },
 };
 
+/** The owner's floors for a tuning ROM the PoC never judged (Q9 option b, D98 c): per library, and the placements. */
+const OWNER_FLOORS: Readonly<Record<string, { readonly libraries: Floor; readonly placements: number }>> = {
+  tmc: { libraries: { libagbsyscall: { functions: 13, objects: 0 }, m4a: { functions: 55, objects: 10 } }, placements: 68 },
+};
+
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
@@ -111,13 +117,17 @@ gate({
         continue;
       }
       const placed = perLibrary(rom.libraries);
-      const floor = FLOORS[dataset.name] === undefined ? undefined : floors.get(dataset.name);
-      if (floor === undefined) cx.note(`${dataset.name}: no PoC signatures row (not in the pinned baseline), judged by the ELF checks with no floor`);
+      const owner = OWNER_FLOORS[dataset.name];
+      const pocFloor = FLOORS[dataset.name] === undefined ? undefined : floors.get(dataset.name);
+      const floor = pocFloor ?? (owner === undefined ? undefined : new Map(Object.entries(owner.libraries)));
+      const whose = pocFloor === undefined ? "the owner's" : "the PoC's";
+      if (floor === undefined) cx.note(`${dataset.name}: neither a PoC signatures row nor an owner's floor, judged by the ELF checks with no floor`);
       for (const [library, want] of [...(floor ?? new Map())].sort((a, b) => byCodeUnit(a[0], b[0]))) {
         const have = placed.get(library) ?? { functions: 0, objects: 0 };
-        if (have.functions < want.functions) problems.push(`${dataset.name}: ${library} ${have.functions} functions < the PoC's ${want.functions}`);
-        if (have.objects < want.objects) problems.push(`${dataset.name}: ${library} ${have.objects} tables < the PoC's ${want.objects}`);
+        if (have.functions < want.functions) problems.push(`${dataset.name}: ${library} ${have.functions} functions < ${whose} ${want.functions}`);
+        if (have.objects < want.objects) problems.push(`${dataset.name}: ${library} ${have.objects} tables < ${whose} ${want.objects}`);
       }
+      if (owner !== undefined && rom.placements.total < owner.placements) problems.push(`${dataset.name}: ${rom.placements.total} placements < the owner's ${owner.placements}`);
       if (rom.placements.wrong > 0 || rom.placements.atElfFunc + rom.placements.atUntyped !== rom.placements.total) problems.push(`${dataset.name}: ${rom.placements.wrong} placements at neither an ELF FUNC nor a listed untyped address`);
       if (rom.tables.wrong > 0 || rom.tables.objectOfSize + rom.tables.label !== rom.tables.total) problems.push(`${dataset.name}: ${rom.tables.wrong} tables are neither an OBJECT of their size nor a label`);
       if (rom.sizes.differ > 0) problems.push(`${dataset.name}: ${rom.sizes.differ} proposed sizes differ from the ELF`);

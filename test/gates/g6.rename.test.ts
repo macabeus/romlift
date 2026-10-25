@@ -79,7 +79,9 @@ gate({
 
     const tomlPath = path.join(dir, 'romlift.toml');
     const toml = await readFile(tomlPath, 'utf8');
-    const names = [...toml.matchAll(/= "(sub_[0-9A-F]{8})"/g)].flatMap((m) => (m[1] === undefined ? [] : [m[1]]));
+    // A `[functions]` line `0x… = "sub_…"`, never a `name = "sub_…"` inside an inline table: the owner's answer to
+    // phase-6.md Q3, option (a), 25 October 2026 (D98 a).
+    const names = [...toml.matchAll(/^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$/gm)].flatMap((m) => (m[1] === undefined ? [] : [m[1]]));
     const [old, other] = names;
     if (old === undefined || other === undefined) throw new Error('the project lists fewer than two default-named functions');
     const cFiles = (await files(path.join(dir, 'src'))).filter((f) => f.endsWith('.c'));
