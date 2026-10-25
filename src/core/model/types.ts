@@ -93,10 +93,13 @@ export interface Chunk {
   readonly entry?: Addr;
 }
 
-/** A link unit (§6.2, §6.3). Module.dataStart (the C data range) lands with ModuleConfig's in phase 6 (D62, D76 g). */
+/** A link unit (§6.2, §6.3); a `c` module may own a C data range (§6.6, phase 6, D92). */
 export interface Module {
   readonly name: string;
-  /** Load addresses; modules tile the ROM in order. */
+  /**
+   * Load addresses: the module's text, everything its unit's `.text` holds. The spans and the data ranges tile the ROM
+   * in order (core/model/modules.ts modulePieces).
+   */
   readonly span: Span;
   readonly kind: 'asm' | 'c' | 'data';
   /** false: its files are never written nor deleted (WritePlanInputs.retained). */
@@ -106,7 +109,13 @@ export interface Module {
   readonly library?: { readonly name: string; readonly version: string };
   /** Set for a runs_at range: the run address of span.start (§6.7). */
   readonly runAt?: Addr;
-  /** Its chunks: indexes [first, first + count) of Model.chunks. */
+  /**
+   * A `c` module's C data range, [data_start, the next module start or the ROM end) (§6.6): its bytes are the C
+   * object's `.rodata`, which no generated file emits; not part of `span`. Its data chunks lie in Model.chunks in ROM
+   * order and name this module, outside `chunks`.
+   */
+  readonly dataRange?: Span;
+  /** Its chunks (of its span, not of its data range): indexes [first, first + count) of Model.chunks. */
   readonly chunks: { readonly first: number; readonly count: number };
 }
 
@@ -153,7 +162,7 @@ export interface Model {
   readonly build: { readonly name: string };
   /** Sorted by entry. */
   readonly functions: readonly ModelFunction[];
-  /** In ROM order; they tile the ROM. */
+  /** In ROM order; they tile the ROM (a data range's chunks included). */
   readonly chunks: readonly Chunk[];
   /** In ROM (link) order. */
   readonly modules: readonly Module[];
@@ -189,6 +198,8 @@ export interface ModelJsonModule {
   readonly cflags: readonly string[];
   readonly library?: { readonly name: string; readonly version: string };
   readonly runAt?: HexAddr;
+  /** Module.dataRange's start, the module's `data_start`; present only for a module with a data range. */
+  readonly dataStart?: HexAddr;
   readonly chunks: { readonly first: number; readonly count: number };
 }
 

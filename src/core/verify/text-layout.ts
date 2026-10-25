@@ -15,7 +15,10 @@
 //   symbols.ld defines); only a label a printer can place counts, one at an item's start or inside a data item
 //   (chunk.ts places no other), so a name the tree never defines is an undefined symbol here as for `as`. A
 //   [symbols] entry inside the ROM is defined only by its label, so one no printer can place resolves to nothing. A PC-relative load or
-//   `adr` may name only a label of its own module, the object `as` assembles it into (D63).
+//   `adr` may name only a label of its own module, the object `as` assembles it into (D63). A label in a C data range
+//   (§6.6, phase 6) is defined by that C module's object, as its `.rodata` (core/model/c-data-assert.ts cDataStandIn
+//   stands in for it in `verify --assemble/--link`), so it resolves like a label of that module; no generated file
+//   emits the range's bytes, so there is nothing of it to lay out.
 //   `.incbin "baserom.gba"` reads the ROM.
 // - A module's source (asm/rom_header.s, asm/crt0.s, asm/<module>.s, data/<module>.s; paths.ts
 //   moduleSource) is laid out from the module's start in ARM state (GNU as starts every file in ARM state).
@@ -27,6 +30,8 @@
 //   files in ROM order (every chunk of a C module has a file), and it is laid out as the assembly agbcc emits for
 //   it (core/model/c-unit.ts): from the module's start in Thumb state (`.code 16`), each statement's chunk file
 //   standing for that chunk's ROM bytes, nothing between or after them.
+// - A module's objdiff target, expected/<module>.s (the expected writer's, phase 6, D92), is laid out from the module's
+//   start in ARM state like a module source; it includes nothing and names no symbol but its own labels.
 // - Every laid-out file must reproduce its ROM range byte for byte, and every `.align` (and every pad of a
 //   switch to ARM state) that emits bytes must emit exactly the padding item at that address.
 // - Each build unit must start and end on a multiple of its section's alignment (the largest any of its files
@@ -53,9 +58,9 @@ import { pushAll } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
-import { moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
+import { dataRangeModuleAt, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
 import { BASEROM_FILE, isCSource } from '../../foundation/util/project-files.ts';
-import { chunkPathsOf, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
+import { chunkPathsOf, expectedSourcePath, hasExpectedTarget, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { STUB_UNIT_MODE } from '../model/c-unit.ts';
 import { wordValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
@@ -71,7 +76,7 @@ import { textError } from './text-error.ts';
 export const MAX_PER_ENTRY = 16;
 
 /** The writers whose files this check reads; an unknown path of one of them is an error. */
-const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>(['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'c-stub']);
+const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>(['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'c-stub', 'expected']);
 
 const INCLUDES: ReadonlyMap<string, string> = new Map([[MACROS_PATH, DIALECT.macrosInc]]);
 
@@ -82,6 +87,7 @@ type Target =
   | { readonly kind: 'chunk'; readonly module: number; readonly chunk: number }
   | { readonly kind: 'source'; readonly module: number }
   | { readonly kind: 'c-stub'; readonly module: number }
+  | { readonly kind: 'expected'; readonly module: number }
   | { readonly kind: 'ldscript' }
   | { readonly kind: 'symbols' };
 
@@ -109,8 +115,9 @@ interface IndexData {
  */
 function definable(model: Model, relocated: readonly Module[], label: Label): boolean {
   const module = model.modules[moduleIndexAt(model.modules, label.addr, relocated)];
-  if (module === undefined) return false;
-  const load = toLoad(module, label.addr);
+  if (module === undefined && dataRangeModuleAt(model.modules, label.addr) < 0) return false;
+  // A data range is never relocated: its labels hold load addresses.
+  const load = module === undefined ? label.addr : toLoad(module, label.addr);
   const i = findItem(model.items, load);
   return i >= 0 && (model.items.start[i] === load || model.items.kind[i] === ItemKind.data);
 }
@@ -136,6 +143,8 @@ function indexData(model: Model): IndexData {
       targets.set(path, { kind: 'chunk', module: m, chunk: c });
       expected.push({ path, addr: chunk.span.start });
     }
+    // An objdiff target is checked when the stream holds it; no unit's build needs it, so a stream may leave it out.
+    if (hasExpectedTarget(module)) targets.set(expectedSourcePath(module.name), { kind: 'expected', module: m });
   });
   expected.push({ path: LDSCRIPT_PATH, addr: ROM_BASE }, { path: SYMBOLS_PATH, addr: ROM_BASE });
   const relocated = relocatedModules(model.modules);
@@ -152,11 +161,17 @@ function indexData(model: Model): IndexData {
 // ---------------------------------------------------------------------------------------------------
 // Laying a file out.
 
+/** The module whose object defines a label at run address `addr`: the one whose span holds it, else whose data range does; -1 for none. */
+function objectModuleAt(model: Model, index: IndexData, addr: number): number {
+  const m = moduleIndexAt(model.modules, addr, index.relocated);
+  return m >= 0 ? m : dataRangeModuleAt(model.modules, addr);
+}
+
 /** The value of a name a file of module `m` does not define (what ld would give it), or undefined. */
 function resolveIn(model: Model, index: IndexData, m: number): (name: string) => number | undefined {
   return (name) => {
     const labels = index.labelsByName.get(name) ?? [];
-    const label = labels.find((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m) ?? labels.find((l) => l.scope === 'global');
+    const label = labels.find((l) => objectModuleAt(model, index, l.addr) === m) ?? labels.find((l) => l.scope === 'global');
     if (label !== undefined) return wordValueOf(label);
     return index.symbolsByName.get(name);
   };
@@ -164,7 +179,7 @@ function resolveIn(model: Model, index: IndexData, m: number): (name: string) =>
 
 /** Whether a name a file of module `m` does not define is a label of module `m` itself (one object). */
 function inModule(model: Model, index: IndexData, m: number): (name: string) => boolean {
-  return (name) => (index.labelsByName.get(name) ?? []).some((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m);
+  return (name) => (index.labelsByName.get(name) ?? []).some((l) => objectModuleAt(model, index, l.addr) === m);
 }
 
 function romIncbin(rom: Rom): (file: string, offset: number, length: number) => Uint8Array | undefined {
@@ -423,6 +438,20 @@ function checkStubFile(rom: Rom, model: Model, index: IndexData, entry: { readon
   return compareLayout(rom, model, job, []);
 }
 
+/** A module's objdiff target, expected/<module>.s: laid out from the module's load start, its bytes the module's. */
+function checkExpectedFile(rom: Rom, model: Model, index: IndexData, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
+  const module = moduleAtIndex(model, m);
+  const parsed = parse(entry.text);
+  const job: Job = {
+    path: entry.path,
+    statements: parsed.statements,
+    input: { start: module.span.start, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: () => undefined },
+    range: module.span,
+    runOffset: 0,
+  };
+  return compareLayout(rom, model, job, parsed.errors);
+}
+
 // ---------------------------------------------------------------------------------------------------
 // The check.
 
@@ -451,6 +480,9 @@ function checkOne(rom: Rom, model: Model, index: IndexData, entry: FileEntry): E
     case 'c-stub':
       file = checkStubFile(rom, model, index, entry, target.module);
       break;
+    case 'expected':
+      // Not a build unit's file: its alignment is no unit's.
+      return { diagnostics: checkExpectedFile(rom, model, index, entry, target.module).diagnostics.slice(0, MAX_PER_ENTRY) };
     case 'ldscript':
       return { diagnostics: checkLdscript(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
     case 'symbols':

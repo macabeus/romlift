@@ -1,7 +1,7 @@
 // Diagnostic codes raised by core/model (architecture §9.1, D45, D62 e): the config's modules and overrides
 // checked against the ROM's legal borders, names checked per module, and the one exception the printer takes
 // for a border moved by hand (D15). Fix round 5 adds W_OVERRIDE_IGNORED (D81 c; its E_FUNCTION_MISALIGNED moved to
-// core/config in fix round 6, D82).
+// core/config in fix round 6, D82). Phase 6 adds E_DATA_RANGE_INVALID with the C data ranges (architecture §6.6, D92).
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
 export const ModelCodes = defineCodes({
@@ -24,6 +24,11 @@ export const ModelCodes = defineCodes({
     meaning: 'two modules share a name, or names one on a case-insensitive file system, whatever their kinds, so both would build one object',
   },
   E_OVERRIDE_INVALID: { severity: 'error', meaning: 'a runs_at override range does not start and end on module borders (§6.7)' },
+  E_DATA_RANGE_INVALID: {
+    severity: 'error',
+    meaning:
+      'a [[modules]] data_start that cannot start a C data range (§6.6): on a module that is not kind = "c", not word-aligned, below the data start (code lies there) or at or past the ROM end, not past its module\'s start, inside a runs_at range, cutting a module that is neither its own nor a data module, or overlapping another module\'s range',
+  },
   W_OVERRIDE_IGNORED: {
     severity: 'warning',
     meaning: 'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override whose bytes the analysis did not claim, or a code override whose seed added no function (one already starts there) and that gives no listed entry its extent (fix round 5, D81 c; applied since phase 6, correctness-b0-3)',

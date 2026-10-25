@@ -247,3 +247,38 @@ test('a [symbols] entry inside an instruction gets no label and W_SYMBOL_UNPLACE
   assert.deepEqual(model.diagnostics.filter((d) => d.code === 'W_SYMBOL_UNPLACED').map((d) => d.addr), [BASE + 0x101]);
   assert.deepEqual(model.symbols.map((s) => s.name), ['gOdd', 'gAtPop']);
 });
+
+test('a C data range (phase 6, D92): its data chunks split at [symbols] entries name the module; an illegal data_start is E_DATA_RANGE_INVALID and changes no span', () => {
+  const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x120 })] });
+  const modules = (dataStart: number): RomliftConfig['modules'] => [
+    { name: 'rom_header', start: BASE, kind: 'asm', generated: true },
+    { name: 'main', start: HEADER_END, kind: 'c', generated: true, dataStart },
+    { name: 'data', start: BASE + 0x200, kind: 'data', generated: true },
+  ];
+  const config = configOf({ modules: modules(BASE + 0x300), functions: [[BASE + 0x100, 'Main']], symbols: [[BASE + 0x340, { name: 'gTable', aliases: [] }]] });
+  const model = buildModel(ROM, analysis, config);
+  assert.deepEqual(model.diagnostics.filter((d) => d.severity === 'error'), []);
+  assert.deepEqual(model.modules.map((m) => [m.name, m.span.start - BASE, m.span.end - BASE, m.dataRange === undefined ? null : m.dataRange.start - BASE]), [
+    ['rom_header', 0, 0xc0, null],
+    ['main', 0xc0, 0x200, 0x300],
+    ['data', 0x200, 0x300, null],
+  ]);
+  assert.deepEqual(
+    model.chunks.filter((c) => c.span.start >= BASE + 0x300).map((c) => [c.name, c.kind, c.module, c.span.start - BASE, c.span.end - BASE]),
+    [
+      ['gUnk_08000300', 'data', 'main', 0x300, 0x340],
+      ['gTable', 'data', 'main', 0x340, 0x400],
+    ],
+  );
+  assert.ok(tiles(model.items, BASE, ROM.end));
+  const main = model.modules[1];
+  assert.ok(main !== undefined && model.chunks.slice(main.chunks.first, main.chunks.first + main.chunks.count).every((c) => c.span.end <= BASE + 0x200), 'the range\'s chunks lie outside Module.chunks');
+
+  const refused = buildModel(ROM, analysis, configOf({ modules: modules(BASE + 0x302), functions: [[BASE + 0x100, 'Main']] }));
+  assert.deepEqual(refused.diagnostics.filter((d) => d.code === 'E_DATA_RANGE_INVALID').map((d) => d.addr), [BASE + 0x302]);
+  assert.deepEqual(refused.modules.map((m) => [m.name, m.span.end - BASE, m.dataRange]), [
+    ['rom_header', 0xc0, undefined],
+    ['main', 0x200, undefined],
+    ['data', 0x400, undefined],
+  ]);
+});

@@ -5,12 +5,23 @@
 // Whether a start is legal is core/layout's one rule (borders.ts isLegalStart, architecture-r1-3): the code region's
 // legal borders, and every word from the data start to the ROM end (D75 a). The bytes between a confirm run's lower
 // data start and a data border the TOML keeps are the tail of the module before, an orphan chunk there.
+//
+// A C data range (architecture §6.6, phase 6, D92): a `c` module's `data_start` D starts the range [D, the first module
+// start after D, or the ROM end), whose bytes belong to that module's C object (its `.rodata`): no generated file emits
+// them. D must be word-aligned, at or past the data start (only data lies there), inside the ROM and past its module's
+// start, outside every runs_at range, and the ranges of two modules must not overlap; else E_DATA_RANGE_INVALID and the
+// module gets no range. The range cuts the module whose span holds D at D: its own module, whose text span then ends
+// there, or a `data` module, clipped at the range start; a `data` module starting at D, wholly inside the range, is
+// dropped from the model; any other module there is E_DATA_RANGE_INVALID. By construction the range ends at a module
+// start or the ROM end. Module.span is then the module's text span, and the spans and the ranges (modulePieces) tile
+// the ROM.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import type { Addr } from '../../foundation/rom/span.ts';
+import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
+import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { buildCompilerOf } from '../config/compilers.ts';
 import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
 import { isLegalStart, nearestLegalStarts } from '../layout/borders.ts';
@@ -83,16 +94,88 @@ function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonl
   return runAt;
 }
 
+/** The word a data range starts on: `ld` places the C object's `.rodata` at its own alignment, which agbcc keeps at most 4. */
+const DATA_ALIGN = 4;
+
+/** A data range that passed its checks: the module it belongs to (an index of `kept`) and its span. */
+interface PlannedRange {
+  readonly owner: number;
+  readonly span: Span;
+}
+
+/** The runs_at ranges of the config's overrides, as load spans. */
+function runsAtSpans(config: RomliftConfig): readonly Span[] {
+  return config.overrides.flatMap((o) => (o.runsAt === undefined ? [] : [{ start: o.start, end: o.start + o.size }]));
+}
+
+function overlaps(a: Span, b: Span): boolean {
+  return a.start < b.end && b.start < a.end;
+}
+
+function rangeText(span: Span): string {
+  return `[${hexAddr(span.start)}, ${hexAddr(span.end)})`;
+}
+
+/**
+ * Why module `kept[i]`'s data_start cannot start the data range `span` (from the data_start to the next module start, the
+ * module comment above), or undefined when it can. `others` are the ranges already accepted, in config order.
+ */
+function rangeProblem(rom: Rom, kept: readonly ModuleConfig[], i: number, span: Span, rule: BorderRule, config: RomliftConfig, others: readonly PlannedRange[]): string | undefined {
+  const m = kept[i];
+  if (m === undefined) return 'it names no module';
+  const start = span.start;
+  if (m.kind !== 'c') return `data_start is legal only on a module of kind = "c", and ${m.name} is kind = "${m.kind}"`;
+  if (start % DATA_ALIGN !== 0) return 'it is not word-aligned';
+  if (start >= rom.end) return `it lies at or past the ROM end ${hexAddr(rom.end)}`;
+  if (start < rule.dataStart) return `it lies below the data start ${hexAddr(rule.dataStart)}, where code lies`;
+  if (start <= m.start) return `it does not lie past the module's start ${hexAddr(m.start)}`;
+  const runsAt = runsAtSpans(config).find((r) => overlaps(r, span));
+  if (runsAt !== undefined) return `its range ${rangeText(span)} overlaps the runs_at range ${rangeText(runsAt)}`;
+  const holder = kept.findIndex((k, j) => k.start <= start && start < (kept[j + 1]?.start ?? rom.end));
+  const cut = kept[holder];
+  if (cut !== undefined && holder !== i && cut.kind !== 'data' && cut.start < start) return `its range ${rangeText(span)} cuts module ${cut.name}, which is neither ${m.name} nor a data module`;
+  const covered = kept.find((k) => k.start === start);
+  if (covered !== undefined && covered.kind !== 'data') return `its range ${rangeText(span)} covers module ${covered.name}, which is not a data module`;
+  const other = others.find((r) => overlaps(r.span, span));
+  if (other !== undefined) return `its range ${rangeText(span)} overlaps module ${kept[other.owner]?.name ?? ''}'s data range ${rangeText(other.span)}`;
+  return undefined;
+}
+
+/** The data ranges of the kept modules that pass their checks, with E_DATA_RANGE_INVALID for every one that does not. */
+function dataRanges(rom: Rom, config: RomliftConfig, kept: readonly ModuleConfig[], rule: BorderRule, diagnostics: Diagnostic[]): readonly PlannedRange[] {
+  const out: PlannedRange[] = [];
+  kept.forEach((m, i) => {
+    if (m.dataStart === undefined) return;
+    const start = m.dataStart;
+    const end = kept.find((k) => k.start > start)?.start ?? rom.end;
+    const span = { start, end: Math.max(start, end) };
+    const problem = rangeProblem(rom, kept, i, span, rule, config, out);
+    if (problem === undefined) {
+      out.push({ owner: i, span });
+      return;
+    }
+    diagnostics.push(diagnostic(ModelCodes, 'E_DATA_RANGE_INVALID', `module ${m.name}'s data_start ${hexAddr(start)} cannot start a C data range: ${problem}`, { addr: start }));
+  });
+  return out;
+}
+
 /** The modules of `config` over `rom`, each start checked with core/layout's isLegalStart under `rule` (a CodeLayout is one). */
 export function planModules(rom: Rom, config: RomliftConfig, rule: BorderRule): ModulesPlan {
   const diagnostics: Diagnostic[] = [];
-  const kept = orderedModules(rom, config, rule, diagnostics);
-  const spans = kept.map((m, i) => ({ start: m.start, end: kept[i + 1]?.start ?? rom.end }));
+  const ordered = orderedModules(rom, config, rule, diagnostics);
+  const planned = dataRanges(rom, config, ordered, rule, diagnostics);
+  // A data module starting at a range's start lies wholly inside it, and is dropped.
+  const rangeOf = new Map(planned.map((r) => [r.owner, r.span] as const));
+  const keptIndexes = ordered.map((_, i) => i).filter((i) => !planned.some((r) => r.span.start === ordered[i]?.start));
+  const kept = keptIndexes.map((i) => ordered[i]).filter((m): m is ModuleConfig => m !== undefined);
+  const boundaries = [...kept.map((m) => m.start), ...planned.map((r) => r.span.start), rom.end].sort(compareNumbers);
+  const spans = kept.map((m) => ({ start: m.start, end: boundaries.find((b) => b > m.start) ?? rom.end }));
   const runAt = runAddresses(rom, config, spans, diagnostics);
   const modules = kept.map((m, i): Module => {
     const compilerId = m.compiler ?? config.build.compiler;
     const compiler = buildCompilerOf(compilerId);
     const run = runAt[i];
+    const dataRange = rangeOf.get(keptIndexes[i] ?? -1);
     return {
       name: m.name,
       span: spans[i] ?? { start: m.start, end: rom.end },
@@ -102,10 +185,34 @@ export function planModules(rom: Rom, config: RomliftConfig, rule: BorderRule): 
       cflags: [...(compiler?.flags ?? []), ...(m.cflags ?? [])],
       ...(m.library === undefined || m.version === undefined ? {} : { library: { name: m.library, version: m.version } }),
       ...(run === undefined ? {} : { runAt: run }),
+      ...(dataRange === undefined ? {} : { dataRange }),
       chunks: { first: 0, count: 0 },
     };
   });
   return { modules, diagnostics };
+}
+
+/** One piece of the ROM's tiling: a module's text span (`part: 'text'`) or its C data range (`part: 'data'`). */
+export interface ModulePiece {
+  /** The index of its module in the modules given. */
+  readonly module: number;
+  readonly part: 'text' | 'data';
+  readonly span: Span;
+}
+
+/** Every module's span and every data range, in ROM order: together they tile the ROM (planModules). */
+export function modulePieces(modules: readonly Module[]): readonly ModulePiece[] {
+  const pieces: ModulePiece[] = [];
+  modules.forEach((m, module) => {
+    pieces.push({ module, part: 'text', span: m.span });
+    if (m.dataRange !== undefined) pieces.push({ module, part: 'data', span: m.dataRange });
+  });
+  return pieces.sort((a, b) => compareNumbers(a.span.start, b.span.start) || compareNumbers(a.module, b.module));
+}
+
+/** The index of the module whose data range holds load address `a`, or -1. */
+export function dataRangeModuleAt(modules: readonly Module[], a: Addr): number {
+  return modules.findIndex((m) => m.dataRange !== undefined && a >= m.dataRange.start && a < m.dataRange.end);
 }
 
 /** The modules that run from RAM (a runAt), the only ones the address maps below look at. */

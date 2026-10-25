@@ -1,0 +1,11 @@
+==> objdiff.json (generated, objdiff) <==
+{
+  "$schema": "https://raw.githubusercontent.com/encounter/objdiff/main/config.schema.json",
+  "custom_make": "make",
+  "build_target": false,
+  "build_base": true,
+  "units": [],
+  "options": {
+    "functionRelocDiffs": "none"
+  }
+}

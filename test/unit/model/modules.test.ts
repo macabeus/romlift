@@ -5,7 +5,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
-import { loadAddressOf, loadModuleAt, moduleIndexAt, planModules, relocatedModules, runOffsetAt, runStartOf, toLoad } from '../../../src/core/model/modules.ts';
+import { dataRangeModuleAt, loadAddressOf, loadModuleAt, moduleIndexAt, modulePieces, planModules, relocatedModules, runOffsetAt, runStartOf, toLoad } from '../../../src/core/model/modules.ts';
+import type { ModuleConfig, RomliftConfig } from '../../../src/core/config/schema.ts';
+
+type RomliftConfigOverrides = RomliftConfig['overrides'];
 import { isLegalStart } from '../../../src/core/layout/borders.ts';
 import { BASE, configOf, HEADER_END, romWith } from '../layout/hand-made.ts';
 
@@ -133,4 +136,109 @@ test('a runs_at range that does not start and end on module borders is E_OVERRID
   assert.ok(modules.every((m) => m.runAt === undefined));
   const toEnd = planModules(ROM, configOf({ modules: [['rom_header', BASE], ['iwram', BASE + 0x200]], overrides: [{ start: BASE + 0x200, size: 0x200, kind: 'code', runsAt: 0x0300_0000 }] }), RULE);
   assert.deepEqual(toEnd.diagnostics, [], 'the ROM end is a border');
+});
+
+// C data ranges (architecture §6.6, phase 6, D92): a `c` module's data_start D starts [D, the next module start or the
+// ROM end); a data module at D is dropped, one holding D is clipped there, and every illegal data_start is
+// E_DATA_RANGE_INVALID, leaving the module without a range.
+
+/** The border rule of BORDERS with the data start at 0x300: the bytes from there are data. */
+const DATA_RULE = { borders: BORDERS, dataStart: BASE + 0x300, end: ROM.end };
+
+function cModule(name: string, start: number, dataStart?: number): ModuleConfig {
+  return { name, start, kind: 'c', generated: true, ...(dataStart === undefined ? {} : { dataStart }) };
+}
+
+function spans(modules: readonly { readonly name: string; readonly span: { readonly start: number; readonly end: number }; readonly dataRange?: { readonly start: number; readonly end: number } }[]) {
+  return modules.map((m) => [m.name, m.span.start - BASE, m.span.end - BASE, ...(m.dataRange === undefined ? [] : [m.dataRange.start - BASE, m.dataRange.end - BASE])]);
+}
+
+test('a data range at a data module\'s start drops that module; the C module\'s span is its text', () => {
+  const config = configOf({ modules: [['rom_header', BASE], cModule('main', HEADER_END, BASE + 0x300), { name: 'data', start: BASE + 0x300, kind: 'data', generated: true }] });
+  const { modules, diagnostics } = planModules(ROM, config, DATA_RULE);
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(spans(modules), [
+    ['rom_header', 0, 0xc0],
+    ['main', 0xc0, 0x300, 0x300, 0x400],
+  ]);
+  assert.deepEqual(
+    modulePieces(modules).map((p) => [p.module, p.part, p.span.start - BASE]),
+    [
+      [0, 'text', 0],
+      [1, 'text', 0xc0],
+      [1, 'data', 0x300],
+    ],
+  );
+  assert.equal(dataRangeModuleAt(modules, BASE + 0x3fc), 1);
+  assert.equal(dataRangeModuleAt(modules, BASE + 0x2fc), -1);
+  assert.equal(loadModuleAt(modules, BASE + 0x300), -1, 'a data range lies in no module span');
+});
+
+test('a data range inside a data module clips it at the range start; the range ends at the next module start', () => {
+  const clipped = planModules(ROM, configOf({ modules: [['rom_header', BASE], cModule('main', HEADER_END, BASE + 0x340), { name: 'data', start: BASE + 0x300, kind: 'data', generated: true }] }), DATA_RULE);
+  assert.deepEqual(clipped.diagnostics, []);
+  assert.deepEqual(spans(clipped.modules), [
+    ['rom_header', 0, 0xc0],
+    ['main', 0xc0, 0x300, 0x340, 0x400],
+    ['data', 0x300, 0x340],
+  ]);
+  assert.deepEqual(
+    modulePieces(clipped.modules).map((p) => [p.module, p.part]),
+    [
+      [0, 'text'],
+      [1, 'text'],
+      [2, 'text'],
+      [1, 'data'],
+    ],
+  );
+  const bounded = planModules(
+    ROM,
+    configOf({ modules: [['rom_header', BASE], cModule('main', HEADER_END, BASE + 0x300), { name: 'data', start: BASE + 0x300, kind: 'data', generated: true }, { name: 'tail', start: BASE + 0x380, kind: 'data', generated: true }] }),
+    DATA_RULE,
+  );
+  assert.deepEqual(bounded.diagnostics, []);
+  assert.deepEqual(spans(bounded.modules), [
+    ['rom_header', 0, 0xc0],
+    ['main', 0xc0, 0x300, 0x300, 0x380],
+    ['tail', 0x380, 0x400],
+  ]);
+  const own = planModules(ROM, configOf({ modules: [['rom_header', BASE], cModule('main', HEADER_END, BASE + 0x340)] }), DATA_RULE);
+  assert.deepEqual(own.diagnostics, []);
+  assert.deepEqual(spans(own.modules), [
+    ['rom_header', 0, 0xc0],
+    ['main', 0xc0, 0x340, 0x340, 0x400],
+  ], 'a range inside its own module ends that module\'s text');
+});
+
+test('every illegal data_start is E_DATA_RANGE_INVALID at its address, and the module gets no range', () => {
+  const data = (start: number): ModuleConfig => ({ name: 'data', start, kind: 'data', generated: true });
+  const cases: readonly { readonly why: string; readonly modules: readonly ModuleConfig[]; readonly overrides?: RomliftConfigOverrides; readonly message: RegExp; readonly at: number }[] = [
+    { why: 'an asm module', modules: [{ name: 'main', start: HEADER_END, kind: 'asm', generated: true, dataStart: BASE + 0x300 }, data(BASE + 0x300)], message: /legal only on a module of kind = "c", and main is kind = "asm"/, at: 0x300 },
+    { why: 'a data module', modules: [cModule('main', HEADER_END), { ...data(BASE + 0x300), dataStart: BASE + 0x340 }], message: /legal only on a module of kind = "c"/, at: 0x340 },
+    { why: 'not word-aligned', modules: [cModule('main', HEADER_END, BASE + 0x342), data(BASE + 0x300)], message: /not word-aligned/, at: 0x342 },
+    { why: 'below the data start', modules: [cModule('main', HEADER_END, BASE + 0x2fc), data(BASE + 0x300)], message: /below the data start 0x08000300, where code lies/, at: 0x2fc },
+    { why: 'at the ROM end', modules: [cModule('main', HEADER_END, BASE + 0x400)], message: /at or past the ROM end 0x08000400/, at: 0x400 },
+    { why: 'at its own start', modules: [cModule('main', HEADER_END), cModule('late', BASE + 0x300, BASE + 0x300)], message: /does not lie past the module's start 0x08000300/, at: 0x300 },
+    {
+      why: 'inside a runs_at range',
+      modules: [cModule('main', HEADER_END, BASE + 0x340), { name: 'ram', start: BASE + 0x300, kind: 'asm', generated: true }],
+      overrides: [{ start: BASE + 0x300, size: 0x100, kind: 'code', runsAt: 0x0300_0000 }],
+      message: /overlaps the runs_at range \[0x08000300, 0x08000400\)/,
+      at: 0x340,
+    },
+    { why: 'cutting an asm module', modules: [cModule('main', HEADER_END, BASE + 0x340), { name: 'tail', start: BASE + 0x300, kind: 'asm', generated: true }], message: /cuts module tail, which is neither main nor a data module/, at: 0x340 },
+    { why: 'covering an asm module', modules: [cModule('main', HEADER_END, BASE + 0x300), { name: 'tail', start: BASE + 0x300, kind: 'asm', generated: true }], message: /covers module tail, which is not a data module/, at: 0x300 },
+    { why: 'overlapping another range', modules: [cModule('main', HEADER_END, BASE + 0x340), cModule('other', BASE + 0x200, BASE + 0x380), data(BASE + 0x300)], message: /overlaps module main's data range \[0x08000340, 0x08000400\)/, at: 0x380 },
+  ];
+  for (const c of cases) {
+    const config = configOf({ modules: [['rom_header', BASE], ...c.modules], ...(c.overrides === undefined ? {} : { overrides: c.overrides }) });
+    const { modules, diagnostics } = planModules(ROM, config, DATA_RULE);
+    const ranged = diagnostics.filter((d) => d.code === 'E_DATA_RANGE_INVALID');
+    assert.equal(ranged.length, 1, `${c.why}: ${diagnostics.map((d) => d.message).join('; ')}`);
+    assert.equal(ranged[0]?.severity, 'error');
+    assert.equal(ranged[0]?.addr, BASE + c.at, c.why);
+    assert.match(ranged[0]?.message ?? '', c.message, c.why);
+    const failing = c.modules.find((m) => m.dataStart === BASE + c.at)?.name;
+    assert.equal(modules.find((m) => m.name === failing)?.dataRange, undefined, `${c.why}: no range`);
+  }
 });
