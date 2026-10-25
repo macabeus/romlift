@@ -438,6 +438,32 @@ test('the macro reached through a src/*.c fragment the file includes, an angle i
   assert.equal(planned(quoted('global.h'), { ...base, headers: new Map([['src/global.h', defining], ['include/global.h', types]]) }), quotedRenamed('global.h'));
 });
 
+// Phase 6 (roadmap "Carried from phase 4": D89 a, D90 a): behind symbolic links, a quoted include is resolved from the
+// including file's real directory (IncludeAsmWanted.headerRealPaths), as cpp opens it.
+test('the macro reached behind symbolic links: a quoted include from the including file\'s real directory (phase 6, D89 a, D90 a)', () => {
+  const tree = { files: new Set(['asm/nonmatchings/boot2/A.s', 'asm/nonmatchings/boot2/B.s']), userDirs: new Set<string>() };
+  const base: IncludeAsmWanted = { module: 'boot2', chunks: same(['A', 'B']), path: 'src/boot2.c', tree };
+  const defining = '#ifndef GUARD_GLOBAL_H\n#define GUARD_GLOBAL_H\n#define INCLUDE_ASM(DIR, NAME) asm(".include \\"" DIR "/" #NAME ".s\\"")\nasm(".include \\"include/macros.inc\\"\\n");\n#endif\n';
+  const types = 'typedef int s32;\n';
+  const text = `#include "gba/macro.h"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`;
+  const renamed = `#include "gba/macro.h"\n${stub('A', 'boot2')}\n${stub('B', 'boot2')}\n`;
+  // include/gba -> /s/gba: "../defs.h" in macro.h is /s/defs.h, not include/defs.h.
+  const headers = (target: string, link: string): ReadonlyMap<string, string> => new Map([['include/gba/macro.h', '#include "../defs.h"\n'], ['include/defs.h', link], ['/s/defs.h', target]]);
+  const linked = new Map([['include/gba/macro.h', '/s/gba/macro.h']]);
+  assert.equal(planned(text, { ...base, headers: headers(defining, types), headerRealPaths: linked }), renamed);
+  assert.equal(planned(text, { ...base, headers: headers(types, defining), headerRealPaths: linked }), `${C_STUB_HEADER}${renamed}`);
+  // A header that is itself a link to a file keeps its link's directory: "defs.h" in include/lf.h is include/defs.h.
+  const viaFile = `#include "lf.h"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`;
+  const fileHeaders = new Map([['include/lf.h', '#include "defs.h"\n'], ['include/defs.h', defining], ['/o/defs.h', types]]);
+  assert.equal(planned(viaFile, { ...base, headers: fileHeaders, headerRealPaths: new Map() }), viaFile.replaceAll('asm/nonmatchings/boot', 'asm/nonmatchings/boot2'));
+  // src/ itself a link to /p/src: "../include/global.h" from src/boot2.c is /p/include/global.h.
+  const up = `#include "../include/global.h"\n${stub('A', 'boot')}\n${stub('B', 'boot')}\n`;
+  const upRenamed = up.replaceAll('asm/nonmatchings/boot', 'asm/nonmatchings/boot2');
+  const srcLinked = new Map([['src/boot2.c', '/p/src/boot2.c']]);
+  assert.equal(planned(up, { ...base, headers: new Map([['/p/include/global.h', defining], ['include/global.h', types]]), headerRealPaths: srcLinked }), upRenamed);
+  assert.equal(planned(up, { ...base, headers: new Map([['/p/include/global.h', types], ['include/global.h', defining]]), headerRealPaths: srcLinked }), `${C_STUB_HEADER}${upRenamed}`);
+});
+
 test('a split of the first of two stubs one #if region holds is E_C_STUB_UNPLACED: the stub is never put behind the later one', () => {
   const text = `${stub('A')}\n#ifdef NONMATCHING\n#else\n${stub('B')}\n${stub('D')}\n#endif\n${stub('E')}\n`;
   const plan = planIncludeAsm(text, { module: 'main', chunks: same(['A', 'B', 'C', 'D', 'E']), path: 'src/main.c' });

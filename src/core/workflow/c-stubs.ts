@@ -104,9 +104,11 @@ function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'v
  * asm/nonmatchings, phase 6), or undefined (or empty) when there is none. `headerTexts`: every file under `include/` and
  * every `.h` under `src/` by project path, which the planner follows to learn whether the includes of a file or of
  * its fragments define INCLUDE_ASM (fix round 10, correctness-c2-1; fix round 11, correctness-d0-1, d0-2;
- * IncludeAsmWanted.headers); undefined, none is followed.
+ * IncludeAsmWanted.headers); undefined, none is followed. `headerRealPaths`: where each header and C file is behind
+ * its symbolic links (ProjectInputs.headerRealPaths, IncludeAsmWanted.headerRealPaths; phase 6, the cpp-exact include
+ * resolution, D89 a, D90 a); undefined, every file is where its key says.
  */
-export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>, previousChunkFiles?: readonly string[], headerTexts?: ReadonlyMap<string, string>): StubReconciliation {
+export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts: ReadonlyMap<string, string>, previousChunkFiles?: readonly string[], headerTexts?: ReadonlyMap<string, string>, headerRealPaths?: ReadonlyMap<string, string>): StubReconciliation {
   const files: ReconciledStub[] = [];
   const diagnostics: Diagnostic[] = [];
   const sources = new Set(model.modules.map((m) => moduleSource(model, m)));
@@ -137,7 +139,7 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
     if (!isCSource(path) || base === undefined) continue;
     tree ??= stubTree(model);
     const before = retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previous ?? [], module.name) };
-    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, sources: sourceModules, ...(headerTexts === undefined ? {} : { headers: headerTexts }), ...before });
+    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, sources: sourceModules, ...(headerTexts === undefined ? {} : { headers: headerTexts }), ...(headerRealPaths === undefined ? {} : { headerRealPaths }), ...before });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
     for (const fragment of plan.included) included.add(fragment);
