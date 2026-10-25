@@ -1,6 +1,6 @@
-// Diagnostic codes raised by core/signatures (architecture §7.2, §9.1, D45). The builder's (extract.ts,
-// p6-signatures-build) are below; W_SIGNATURE_CONSTANT and the other matcher codes land with their raiser,
-// p6-signatures-match (D93), since a code lands with its first raiser.
+// Diagnostic codes raised by core/signatures (architecture §7.2, §9.1, D45): the builder's (extract.ts,
+// p6-signatures-build), then the matcher's (match.ts, rules/) and the overlap resolution's (resolve.ts),
+// p6-signatures-match (D93); a code lands with its first raiser.
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
 export const SignatureCodes = defineCodes({
@@ -24,6 +24,22 @@ export const SignatureCodes = defineCodes({
     meaning: "a later reference links a member of an earlier one whose bytes differ where both masks keep them; the earlier reference's bytes are kept",
   },
   W_SIGNATURE_REVIEWED_UNUSED: { severity: 'warning', meaning: "a reviewed name's member id is no member of any version" },
+  W_SIGNATURE_CONSTANT: {
+    severity: 'warning',
+    meaning: 'a member both placed neighbours pin is placed although a word or two differ from the reference: the game constants it was given (sig.pinned-both-sides)',
+  },
+  W_SIGNATURE_POINTERS: {
+    severity: 'warning',
+    meaning: 'a pointer table fits but a word that names a placed function holds another address; it is not placed',
+  },
+  W_SIGNATURE_AMBIGUOUS: {
+    severity: 'warning',
+    meaning: 'a member fits at several places and no neighbour settles which; it is not placed',
+  },
+  W_SIGNATURE_DROPPED: {
+    severity: 'warning',
+    meaning: 'placements that overlap a version that placed more, or a region that interleaves with a larger one, are dropped',
+  },
 });
 
 export type SignatureCode = keyof typeof SignatureCodes;

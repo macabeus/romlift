@@ -1,7 +1,8 @@
 // The phase-6 surface the lead froze (D93), through the package entry points (D37, D43): the signature file and spec
 // types with their validators, the placement rule ids and the empty rule registry, the CheckProposals contract and
 // explain's signature part. The owners' functions (extractSignatures, buildSignatures, matchSignatures, planRename,
-// checkProposals, ...) are theirs and are not asserted here. The type-only part is checked by `npm run typecheck`:
+// checkProposals, ...) are theirs and are not asserted here, apart from the registry and codes p6-signatures-match
+// filled. The type-only part is checked by `npm run typecheck`:
 // each value below must be assignable to its frozen type.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -47,13 +48,16 @@ const SPEC: SignatureSpec = {
 test('romlift exports the frozen phase-6 values', () => {
   for (const name of ['parseSignatureFile', 'parseSignatureSpec', 'isMemberId', 'SIGNATURE_RULE_IDS', 'SignatureCodes']) assert.ok(name in romlift, name);
   assert.deepEqual(romlift.SIGNATURE_RULE_IDS, ['sig.unique-fit', 'sig.link-order-run', 'sig.neighbour-spacing', 'sig.pinned-both-sides', 'sig.short-member-window']);
-  // A code lands with its first raiser (D45): the builder's (p6-signatures-build) are the first.
-  for (const code of ['E_SIGNATURE_NAME_DUPLICATE', 'E_SIGNATURE_OBJECTS_UNMATCHED']) assert.ok(code in romlift.SignatureCodes, code);
+  // A code lands with its first raiser (D45): the builder's (p6-signatures-build), then the matcher's four
+  // (p6-signatures-match).
+  for (const code of ['E_SIGNATURE_NAME_DUPLICATE', 'E_SIGNATURE_OBJECTS_UNMATCHED', 'W_SIGNATURE_CONSTANT', 'W_SIGNATURE_POINTERS', 'W_SIGNATURE_AMBIGUOUS', 'W_SIGNATURE_DROPPED']) {
+    assert.ok(code in romlift.SignatureCodes, code);
+  }
 });
 
-test('romlift/internal exports the signature rule registry, empty until p6-signatures-match fills it', () => {
+test('romlift/internal exports the signature rule registry, filled by p6-signatures-match with the five rules', () => {
   assert.ok('SIGNATURE_RULES' in internal);
-  assert.deepEqual(internal.SIGNATURE_RULES, {});
+  assert.deepEqual(Object.keys(internal.SIGNATURE_RULES).sort(), [...romlift.SIGNATURE_RULE_IDS].sort());
 });
 
 test('the frozen file and spec round-trip through their validators', () => {

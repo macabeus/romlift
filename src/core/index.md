@@ -56,7 +56,7 @@ Frozen by the lead (D93); the parts marked with an owner land in waves 2 and 3.
 | Path | Responsibility |
 | --- | --- |
 | `signatures/schema.ts`, `signatures/spec.ts` | the schema-3 signature file, the placement and the rule ids; the committed spec; their hand-written validators (`parseSignatureFile`, `parseSignatureSpec`) |
-| `signatures/codes.ts`, `signatures/rules/index.ts` | the signature codes and the placement rules' registry (`SIGNATURE_RULES`), empty until p6-signatures-build and p6-signatures-match fill them |
+| `signatures/codes.ts`, `signatures/rules/` | the signature codes (the matcher's four `W_SIGNATURE_*`; the builder's land with p6-signatures-build) and the five placement rules, one file each, with their registry (`SIGNATURE_RULES`, the metadata; `PLACEMENT_RULES`, the rules match.ts runs) and the state they share (`rules/state.ts`) |
 | `signatures/{extract,match,resolve,policy,propose}.ts` | the builder's pure part (p6-signatures-build), the matcher, overlap resolution, its policy and the proposals (p6-signatures-match) |
 | `config/` | adds the `[[modules]]` key `data_start` (`dataStart`), syntax only |
 | `reconcile/c-scan.ts`, `reconcile/rename-tokens.ts` | the file-scope scanner and include resolution split out of the planner (p6-reconcile-carried); identifier-only renames (p6-rename) |
