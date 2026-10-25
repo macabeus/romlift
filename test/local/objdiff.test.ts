@@ -28,6 +28,7 @@ const benchRoot = process.env.ROMLIFT_OBJDIFF_BENCH_ROOT;
 const load = (file) => import(pathToFileURL(join(repo, file)).href);
 const cli = await load('bench/src/objdiff-cli.ts');
 const family = await load('bench/src/objdiff.ts');
+const classes = await load('bench/src/objdiff-classes.ts');
 const { assembleWithBinutils, findBinutils } = await import('romlift/node');
 const { DIALECT } = await import('romlift/isa');
 const print = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
@@ -50,7 +51,7 @@ try {
   }
   const diffed = await cli.diffObjects(found.bin, objects.reference, objects.base);
   if (!diffed.ok) throw new Error(diffed.error);
-  const verdict = (name) => family.objdiffVerdict([{ name, diff: diffed.value.functions.find((f) => f.name === name) }]);
+  const verdict = (name) => family.objdiffVerdict([{ name, diff: diffed.value.functions.find((f) => f.name === name) }], classes.nameAddresses([]));
   print({ version, pool: verdict('PoolFunc'), same: verdict('SameFunc') });
 } finally {
   rmSync(dir, { recursive: true, force: true });
@@ -61,6 +62,7 @@ interface Verdict {
   readonly scored: number;
   readonly differences: Readonly<Record<string, number>>;
   readonly examples: readonly { readonly function: string; readonly kind: string; readonly detail: string }[];
+  readonly classes: { readonly counts: Readonly<Record<string, number>>; readonly gated: number; readonly uncompared: number; readonly gatedExamples: readonly unknown[] };
   readonly pass: boolean;
 }
 
@@ -90,5 +92,6 @@ test('the pinned objdiff-cli fails the verdict on a misnamed pool word and passe
   assert.equal(line.pool.pass, false, 'a misnamed pool word must fail the objdiff verdict');
   assert.deepEqual(line.pool.differences, { relocation: 1 });
   assert.deepEqual(line.pool.examples.map((e) => [e.function, e.kind, e.detail]), [['PoolFunc', 'relocation', '+0x1c R_ARM_ABS32: gTarget | gOther']]);
-  assert.deepEqual(line.same, { scored: 1, differences: {}, examples: [], pass: true });
+  assert.equal(line.pool.classes.gated, 1, 'gated under D34 as amended (D102)');
+  assert.deepEqual(line.same, { scored: 1, differences: {}, examples: [], classes: { counts: {}, gated: 0, uncompared: 0, gatedExamples: [] }, pass: true });
 });

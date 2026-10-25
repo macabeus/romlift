@@ -4,15 +4,18 @@
 // romlift's default spelling, core/model/names.ts defaultSpellingAddress, when it has none), the relocation's addend read from the object that carries it, and the base's plain
 // value read from the base object (objdiff.ts DifferenceFacts). A difference that would fall in such a class but
 // whose facts are missing is `unverified`, which is gated under every option. Pure and bench-internal;
-// bench/tools/objdiff-classes.ts runs it over the tuning ROMs.
+// bench/tools/objdiff-classes.ts runs it over the tuning ROMs, and objdiff.ts's verdict counts with it what g6.objdiff
+// gates.
 //
 //   resolved-call     objdiff.ts's kind: a call or branch `as` resolved inside the reference object, which the
 //                     base relocates against the same function (objdiff.ts resolvedCall checks the offset)
 //   static-callee     `bl <offset> | bl <name>-0x4` (or `b`), where the reference's resolved target, its section's
 //                     linked start plus <offset>, is an address the ELF gives <name>: a callee the reference
 //                     object names otherwise (a static function the ELF names more than once, a local label)
-//   value-named       `.word <value> | .word <name>` where <name> links to <value> (its address, with the Thumb bit
-//                     of a Thumb function): the reference holds the plain constant, the base names it
+//   value-named       `.word <value> | .word <name>` or `.word <name>+0x<addend>` (`-0x` below it) where <name>
+//                     plus the addend links to <value> (with the Thumb bit of a Thumb function, as R_ARM_ABS32 sets
+//                     it): the reference holds the plain constant, the base names it (romlift's printer spells a word
+//                     inside a named, sized entry `name + offset`, core/emit/print/pool.ts)
 //   alias             a relocation `<a> | <b>` where <a> and <b> name one address and both sides, with their
 //                     addends, link to the same word
 //   symbol-addend     a relocation `<a> | <b>` where `<a> + addend` (the reference's) links to the word `<b> +
@@ -30,7 +33,9 @@
 //   and objdiff.ts's own missing-symbol, tool, assemble, score and unnamed-target.
 //
 // SAME_WORD lists the classes whose two sides are checked to link to the same word, the classes Q1's option (b)
-// reports rather than gates; NOT_COMPARED the functions objdiff could not compare at all.
+// reports rather than gates; NOT_COMPARED the functions objdiff could not compare at all. D34 as the owner amended it
+// on 25 October 2026 (D102: phase-3.md Q1 option (b) and phase-6.md Q6 option (c)) gates every other class but
+// unnamed-target (isGated), up to each tuning ROM's ceiling (bench/baseline/objdiff-ceiling.json, g6.objdiff).
 import { R_ARM, R_ARM_BRANCHES } from 'romlift';
 import { defaultSpellingAddress } from 'romlift/internal';
 
@@ -117,7 +122,7 @@ export function nameAddresses(symbols: readonly ElfName[]): NameAddresses {
 }
 
 const NAME = '[A-Za-z_.$][A-Za-z0-9_.$]*';
-const WORD_ROW = new RegExp(`arg-mismatch: \\.word (0x[0-9a-f]+) \\| \\.word (${NAME})$`);
+const WORD_ROW = new RegExp(`arg-mismatch: \\.word (0x[0-9a-f]+) \\| \\.word (${NAME})(?:([+-])0x([0-9a-f]+))?$`);
 const STATIC_CALL = new RegExp(`arg-mismatch: (?:bl|b) (0x[0-9a-f]+) \\| (?:bl|b) (${NAME})-0x[48]$`);
 const TRAILING_PAD = /delete: \.hword 0x0 \| \(none\)$/;
 const RELOCATION_ROW = new RegExp(`: (${NAME}) \\| (${NAME})$`);
@@ -171,7 +176,8 @@ function instructionClass(d: ObjdiffDifference, addressesOf: NameAddresses): Obj
   const word = WORD_ROW.exec(detail);
   if (word !== null) {
     const value = Number.parseInt(word[1] ?? '', 16);
-    return addressesOf(word[2] ?? '').some((x) => linkedWord(x, 0, R_ARM.ABS32) === value) ? 'value-named' : 'instruction-other';
+    const addend = word[4] === undefined ? 0 : Number.parseInt(word[4], 16) * (word[3] === '-' ? -1 : 1);
+    return addressesOf(word[2] ?? '').some((x) => linkedWord(x, addend, R_ARM.ABS32) === value) ? 'value-named' : 'instruction-other';
   }
   const call = STATIC_CALL.exec(detail);
   if (call !== null) {
@@ -216,14 +222,35 @@ export function classCounts(differences: readonly ObjdiffDifference[], addresses
   return out;
 }
 
-/** The differences D34 gates (every class but unnamed-target), and those still gated if the same-word classes were reported and the uncompared functions counted (Q1 option b). */
-export function gatedTotals(counts: Readonly<Record<ObjdiffClass, number>>): { readonly gated: number; readonly gatedUnderOptionB: number } {
+/** Whether D34, as the owner amended it (D102), gates a class: neither a same-word class, nor an uncompared function, nor unnamed-target. */
+export function isGated(c: ObjdiffClass): boolean {
+  return c !== 'unnamed-target' && !SAME_WORD.has(c) && !NOT_COMPARED.has(c);
+}
+
+/** The totals of a ROM's class counts. */
+export interface ClassTotals {
+  /** The differences D34 as amended gates (isGated), held to the ROM's ceiling by g6.objdiff. */
+  readonly gated: number;
+  /** The functions objdiff did not compare (NOT_COMPARED), counted and reported. */
+  readonly uncompared: number;
+  /** The differences checked to link to the same word (SAME_WORD), reported. */
+  readonly sameWord: number;
+  /** Every difference but unnamed-target: what D34 gated as first written, before D102. */
+  readonly beforeAmendment: number;
+}
+
+/** The totals of `counts` (classCounts). */
+export function classTotals(counts: Readonly<Record<ObjdiffClass, number>>): ClassTotals {
   let gated = 0;
-  let underB = 0;
+  let uncompared = 0;
+  let sameWord = 0;
+  let beforeAmendment = 0;
   for (const c of OBJDIFF_CLASSES) {
-    if (c === 'unnamed-target') continue;
-    gated += counts[c];
-    if (!SAME_WORD.has(c) && !NOT_COMPARED.has(c)) underB += counts[c];
+    const n = counts[c];
+    if (c !== 'unnamed-target') beforeAmendment += n;
+    if (isGated(c)) gated += n;
+    if (NOT_COMPARED.has(c)) uncompared += n;
+    if (SAME_WORD.has(c)) sameWord += n;
   }
-  return { gated, gatedUnderOptionB: underB };
+  return { gated, uncompared, sameWord, beforeAmendment };
 }

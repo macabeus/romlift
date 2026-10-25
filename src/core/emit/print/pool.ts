@@ -7,9 +7,10 @@
 // is a candidate only where the module can see it (global, or lying in the module).
 //
 // A word inside a named, sized entry (a [symbols] entry with a `size`, or a [functions] entry whose extent is the
-// TOML's `size`) prints as `name + offset`, the offset from the word `.4byte name` links to (resolver.ts
-// sizedEntryAt), unless a named entry (a function, or a [symbols] entry) is exactly at the word: what the compiler
-// emits for `&sym.field` or `&array[i]`, a relocation against the symbol with an addend. A load address of a runs_at
+// TOML's `size`) prints as `name + offset`, the offset from the word `.4byte name` links to, unless a named entry (a
+// function, or a [symbols] entry) links to exactly the word: what the compiler emits for `&sym.field` or `&array[i]`,
+// a relocation against the symbol with an addend (resolver.ts wordNameOf, the one rule; labels.ts makes the entry's
+// label global when the word lies in another module, so the entry is always visible here). A load address of a runs_at
 // module (§6.7), its end included, prints `__load_<module>` plus its offset (resolver.ts loadOperandIn), which the
 // ldscript defines: the copy's source, never the label that links to its run address. Anything else prints
 // `0xXXXXXXXX`.
@@ -20,7 +21,7 @@ import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
 import { moduleIndexAt, relocatedModules } from '../../model/modules.ts';
-import { compareLabels, isNamedEntry, loadOperandIn, sizedEntries, sizedEntryAt, wordValueOf, type SizedEntries } from '../../model/resolver.ts';
+import { compareLabels, loadOperandIn, sizedEntries, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from '../../model/resolver.ts';
 import type { Label, Model, Module } from '../../model/types.ts';
 
 /** What naming a word inside one module reads: the model's labels and modules, computed once for the module. */
@@ -54,32 +55,28 @@ export function visibleLabelsAt(scope: WordScope, addr: Addr): readonly Label[] 
   return out.filter((l) => l.scope === 'global' || own).sort(compareLabels);
 }
 
-/** The label `.4byte <name>` of which links to exactly `value`, visible in the scope's module, or undefined. */
-export function labelForWord(scope: WordScope, value: number): Label | undefined {
+/** The labels `.4byte <name>` of which links to exactly `value`, visible in the scope's module, preferred first. */
+function exactLabels(scope: WordScope, value: number): readonly Label[] {
   const word = value >>> 0;
   const candidates = (word & 1) === 1 ? [...visibleLabelsAt(scope, word - 1), ...visibleLabelsAt(scope, word)] : visibleLabelsAt(scope, word);
-  return candidates.find((l) => l.kind !== 'local' && wordValueOf(l) === word);
+  return candidates.filter((l) => l.kind !== 'local' && wordValueOf(l) === word);
 }
 
-/** `name + offset` for a word inside a named, sized entry whose label the module can see; undefined otherwise. */
-function insideEntryText(scope: WordScope, word: number): string | undefined {
-  const entry = sizedEntryAt(scope.entries, word);
-  if (entry === undefined) return undefined;
-  const label = visibleLabelsAt(scope, entry.addr).find((l) => l.name === entry.name && l.kind !== 'local');
-  if (label === undefined) return undefined;
-  const offset = word - wordValueOf(label);
-  return offset > 0 ? `${label.name} + ${offset}` : undefined;
+/** The label `.4byte <name>` of which links to exactly `value`, visible in the scope's module, or undefined. */
+export function labelForWord(scope: WordScope, value: number): Label | undefined {
+  return exactLabels(scope, value)[0];
 }
 
 /**
- * The operand of a `.4byte` holding `value`: a label's name or `name + offset` under the rule above, else a runs_at
- * module's `__load_<module> + offset`, else `0xXXXXXXXX`.
+ * The operand of a `.4byte` holding `value`: a label's name or `name + offset` under the rule above (resolver.ts
+ * wordNameOf), else a runs_at module's `__load_<module> + offset`, else `0xXXXXXXXX`.
  */
 export function wordText(scope: WordScope, value: number): string {
   const word = value >>> 0;
-  const exact = labelForWord(scope, word);
-  if (exact !== undefined && isNamedEntry(scope.entries, exact)) return exact.name;
-  return insideEntryText(scope, word) ?? exact?.name ?? loadOperandIn(scope.relocated, word) ?? `0x${hex(word)}`;
+  const entryLabel = (entry: SizedEntry): Label | undefined => visibleLabelsAt(scope, entry.addr).find((l) => l.name === entry.name && l.kind !== 'local');
+  const named = wordNameOf(scope.entries, word, exactLabels(scope, word), entryLabel);
+  if (named?.kind === 'inside') return `${named.label.name} + ${named.offset}`;
+  return named?.label.name ?? loadOperandIn(scope.relocated, word) ?? `0x${hex(word)}`;
 }
 
 /** A pool word's line: its labels on the same line, `_08001A3C: .4byte gFoo`. */

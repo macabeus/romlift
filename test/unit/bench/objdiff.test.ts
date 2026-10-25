@@ -1,7 +1,7 @@
 // bench/src/objdiff.ts, the base of one reference object (g6.objdiff, D34, phase-3.md Q1 option a): the facts each
 // difference carries from a recorded objdiff-cli run (test/fixtures/objdiff/facts, architecture-r2-3: sectionBase,
-// offset, the reference addend and the base field), how the base takes the reference object's names and bindings, how
-// a pool word is spelled as the object spells it, where an object's sections are linked, and the ELF sizes and
+// offset, the reference addend and the base field), how the base takes the reference object's names and bindings while
+// every word keeps romlift's own spelling (D102), where an object's sections are linked, and the ELF sizes and
 // definitions the base reads.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -15,12 +15,10 @@ import {
   arOf,
   baseBindings,
   baseRenames,
-  dataNameAt,
   globalDefinitions,
   linkedSpans,
   nameBase,
   objdiffDifferences,
-  objectWords,
   preferredNames,
   symbolSizes,
   type BaseLabel,
@@ -119,7 +117,7 @@ test('baseBindings: the object binds what it defines; a function it does not def
   ]);
 });
 
-test('nameBase: renames, binds a static function local and another object\'s global, and spells words as the object does', () => {
+test('nameBase: renames labels, binds a static function local and another object\'s global, and keeps every word as romlift spells it (D102)', () => {
   const text = [
     '.thumb',
     '\tthumb_func_start sub_08000100',
@@ -156,25 +154,12 @@ test('nameBase: renames, binds a static function local and another object\'s glo
       '\tbx lr',
       '\tthumb_func_end Other',
       '_08000210: .4byte gObject',
-      '\t.4byte 0x03000100',
-      '\t.4byte gOuter + 24',
-      '\t.4byte gObject + 4',
+      '\t.4byte gUnused',
+      '\t.4byte gInner + 8',
+      '\t.4byte 0x03000004',
       '',
     ].join('\n'),
   );
-});
-
-test('objectWords and dataNameAt: a word inside or at the end of a data name the object gives, within one memory region', () => {
-  const data = [name('gC', 0x0200_fff0, { size: 0x100 }), name('gA', 0x0300_0000, { size: 0x10 }), name('gB', 0x0300_0020)];
-  assert.equal(dataNameAt(data, 0x0300_0008)?.name, 'gA');
-  assert.equal(dataNameAt(data, 0x0300_0010)?.name, 'gA', 'the end of gA (one past its last element)');
-  assert.equal(dataNameAt(data, 0x0300_0014), undefined, 'past gA, before gB');
-  assert.equal(dataNameAt(data, 0x0300_0020)?.name, 'gB');
-  assert.equal(dataNameAt(data, 0x0300_0021), undefined, 'gB has no size');
-  assert.equal(dataNameAt(data, 0x0201_0000)?.name, 'gC');
-  assert.equal(dataNameAt([name('gC', 0x02ff_fff0, { size: 0x0100_0000 })], 0x0300_0000), undefined, 'another memory region');
-  const names = new Map(data.map((n) => [n.addr, n] as const));
-  assert.equal(objectWords('\t.4byte 0x0300000C\n\t.4byte 0x04000000\n\t.4byte gELF', labelOf, names), '\t.4byte gA + 12\n\t.4byte 0x04000000\n\t.4byte gELF');
 });
 
 test('preferredNames keeps the first name per address and drops a name defined at the BIOS addresses', () => {

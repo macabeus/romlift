@@ -7,7 +7,7 @@ import { parseCorpusSummary, type CorpusSummary } from 'romlift/internal';
 
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
 import { parseParityEvidence, type ParityEvidence } from './parity-evidence.ts';
-import type { ObjdiffExample, ObjdiffSummary } from './objdiff.ts';
+import type { ObjdiffClassSummary, ObjdiffExample, ObjdiffSummary } from './objdiff.ts';
 import { SHARE_NAMES, type ReadabilityMember, type Shares } from './readability.ts';
 import type { BaselineRows, BenchRow, ExtentRow, FalseRow, MissRow, PocSource, RowDiff, StaleException } from './row.ts';
 import type { InitBuildVerdict } from './scaffold.ts';
@@ -207,11 +207,23 @@ function objdiffExample(value: unknown, at: string): ObjdiffExample {
   return { function: str(r['function'], `${at}.function`), kind: str(r['kind'], `${at}.kind`), detail: str(r['detail'], `${at}.detail`) };
 }
 
+/** A record of counts by name, each a number. */
+function countsOf(value: unknown, at: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [name, count] of Object.entries(rec(value, at))) out[name] = num(count, `${at}.${name}`);
+  return out;
+}
+
+/** The objdiff member's classes (D102); absent in an artifact written before them. */
+function objdiffClasses(value: unknown, at: string): ObjdiffClassSummary {
+  const r = rec(value, at);
+  return { counts: countsOf(r['counts'], `${at}.counts`), gated: num(r['gated'], `${at}.gated`), uncompared: num(r['uncompared'], `${at}.uncompared`), gatedExamples: list(r['gatedExamples'], `${at}.gatedExamples`, objdiffExample) };
+}
+
 function objdiffField(value: unknown, at: string): ObjdiffSummary {
   const r = rec(value, at);
-  const differences: Record<string, number> = {};
-  for (const [kind, count] of Object.entries(rec(r['differences'], `${at}.differences`))) differences[kind] = num(count, `${at}.differences.${kind}`);
-  return { linked: bool(r['linked'], `${at}.linked`), scored: num(r['scored'], `${at}.scored`), differences, examples: list(r['examples'], `${at}.examples`, objdiffExample) };
+  const summary = { linked: bool(r['linked'], `${at}.linked`), scored: num(r['scored'], `${at}.scored`), differences: countsOf(r['differences'], `${at}.differences`), examples: list(r['examples'], `${at}.examples`, objdiffExample) };
+  return r['classes'] === undefined ? summary : { ...summary, classes: objdiffClasses(r['classes'], `${at}.classes`) };
 }
 
 function libraryPlacementsAt(value: unknown, at: string): LibraryPlacements {

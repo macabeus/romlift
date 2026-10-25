@@ -26,6 +26,7 @@ import { planChunks } from './chunks.ts';
 import { buildItems } from './items.ts';
 import { segmentsOf } from './segments.ts';
 import { buildLabels, codeRefs } from './labels.ts';
+import { sizedEntries } from './resolver.ts';
 import { modulePieces, planModules, relocatedModules, runOffsetAt } from './modules.ts';
 import { invalidNames, linkerNameCollisions, moduleNameProblems, nameCollisions, nameSourceOf, sectionNameCollisions } from './names.ts';
 import type { DefinedName } from './names.ts';
@@ -191,7 +192,8 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   });
   const segments = segmentsOf(rom, analysis, layout.headerEnd);
   const refs = codeRefs(rom, segments, relocated);
-  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols, segments, refs });
+  const modelFns = modelFunctions(placed, functions, analysis, planned.modules, relocated);
+  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols, entries: sizedEntries({ symbols, functions: modelFns }), segments, refs });
 
   const defined: DefinedName[] = [...labelled.labels];
   for (const [entry, f] of sortedEntries(functions)) {
@@ -234,7 +236,7 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     schema: 'romlift/model@1',
     rom: { sha1: rom.sha1, end: rom.end },
     build: { name: config.build.name },
-    functions: modelFunctions(placed, functions, analysis, planned.modules, relocated),
+    functions: modelFns,
     chunks,
     modules: finished,
     items: built.items,

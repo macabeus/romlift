@@ -73,6 +73,11 @@ test('a phase-3 row and artifact round-trip: readability, objdiff, the tree dige
   const text = resultsText(r);
   assert.deepEqual(parseResultsText(text, 'x'), { ...r, roms: [floored, phase3] });
   assert.deepEqual(Object.keys(JSON.parse(text) as object), ['meta', 'memory', 'gates', 'roms']);
+  // From D102 the member carries its classes; an artifact without them (written before) still reads.
+  const classes = { counts: { 'relocation-other': 1, 'unnamed-target': 2 }, gated: 1, uncompared: 0, gatedExamples: [{ function: 'f', kind: 'relocation-other', detail: '+0x4 R_ARM_ABS32: a | b' }] };
+  const classed = results([row({ readability: { ...shares, floor: null }, objdiff: { ...objdiff, classes }, treeDigest: 't'.repeat(64) })], { meta: m });
+  assert.deepEqual(parseResultsText(resultsText(classed), 'x'), classed);
+  assert.throws(() => parseResults({ meta: meta(), roms: [{ ...phase3, objdiff: { ...objdiff, classes: { ...classes, gated: 'one' } } }] }, 'x'), /objdiff\.classes\.gated: must be a number/);
   assert.throws(() => parseResults({ meta: meta(), roms: [{ ...phase3, objdiff: { ...objdiff, linked: 'yes' } }] }, 'x'), /objdiff\.linked: must be a boolean/);
   assert.throws(() => parseResults({ meta: meta(), roms: [{ ...phase3, readability: { ...shares } }] }, 'x'), /readability\.floor: must be an object/);
   assert.throws(() => parseResults({ meta: meta(), roms: [], memory: { ...memory, runs: [{ command: 'init' }] } }, 'x'), /memory\.runs\[0\]\.exitCode: must be a number/);

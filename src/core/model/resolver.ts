@@ -56,11 +56,20 @@ export function moduleAt(model: Pick<Model, 'modules'>, addr: Addr): Module | un
  * bit of a Thumb `func` symbol), the address otherwise. A pool word prints as a name only when it equals this.
  */
 export function wordValueOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>): number {
-  return label.kind === 'func' && label.thumb ? (label.addr | 1) >>> 0 : label.addr >>> 0;
+  return linkedWordOf(label, 0);
+}
+
+/**
+ * The value a `.4byte <label> + offset` links to: R_ARM_ABS32's (S + A) | T, the Thumb bit T set for a Thumb function
+ * whatever the addend, so no addend makes a Thumb function's name link to an even word.
+ */
+export function linkedWordOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>, offset: number): number {
+  return ((label.addr + offset) | (label.kind === 'func' && label.thumb ? 1 : 0)) >>> 0;
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Named, sized entries: what a word inside one prints as (core/emit/print/pool.ts wordText).
+// Named, sized entries: what a word inside one prints as (wordNameOf, read by core/emit/print/pool.ts wordText and the
+// label scopes of labels.ts).
 
 /** A named entry with a size: a [symbols] entry with `size`, or a function whose extent is the TOML's `size`. */
 export interface SizedEntry {
@@ -126,6 +135,29 @@ export function sizedEntryAt(entries: SizedEntries, word: number): SizedEntry | 
     if (e !== undefined && word > e.addr && word < e.addr + e.size) return e;
   }
   return undefined;
+}
+
+/** What a word names (wordNameOf): a label itself, or a sized entry's label with the offset from the word it links to. */
+export type WordName<L> = { readonly kind: 'label'; readonly label: L } | { readonly kind: 'inside'; readonly label: L; readonly offset: number };
+
+/**
+ * What a word names (architecture §5 "Literal pools"), the one rule the printer (core/emit/print/pool.ts wordText) and
+ * the label scopes (labels.ts) read. `exact` are the labels that link to exactly the word (wordValueOf), preferred
+ * first: the first of them that is a named entry (a function, a [symbols] entry) names it; else the innermost sized
+ * entry holding the word (sizedEntryAt) names it as `name + offset`, the offset from the word its label links to (what
+ * the compiler emits for `&sym.field` or `&array[i]`: a relocation against the symbol with an addend), when
+ * `entryLabel` gives that entry's label and `name + offset` links to the word (linkedWordOf: never an even word inside
+ * a Thumb function, which the linker would write with the Thumb bit); else the first of `exact`; else nothing.
+ */
+export function wordNameOf<L extends Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'>>(entries: SizedEntries, word: number, exact: readonly L[], entryLabel: (entry: SizedEntry) => L | undefined): WordName<L> | undefined {
+  const named = exact.find((l) => isNamedEntry(entries, l));
+  if (named !== undefined) return { kind: 'label', label: named };
+  const entry = sizedEntryAt(entries, word);
+  const label = entry === undefined ? undefined : entryLabel(entry);
+  const offset = label === undefined ? 0 : word - wordValueOf(label);
+  if (label !== undefined && offset > 0 && linkedWordOf(label, offset) === word) return { kind: 'inside', label, offset };
+  const first = exact[0];
+  return first === undefined ? undefined : { kind: 'label', label: first };
 }
 
 /** Whether `label` links to its own address (wordValueOf): every label but a Thumb function's, which carries the Thumb bit. */

@@ -6,11 +6,15 @@
 // ELF's names and sizes put in by address (namedConfig), and the base is assembled per reference object
 // (phase-3.md Q1 option a): every chunk the object's linked sections cover, the function writer's texts unchanged
 // under one preamble (objectSource), so a call `as` resolved inside the reference object resolves inside the base;
-// then named and bound as the object's own symbol table names and binds them (nameBase: its statics and aliases, the
-// externals its relocations name, a pool word spelled as the object spells it). One objdiff-cli run per object.
+// then its labels renamed and bound as the object's own symbol table names and binds them (nameBase: its statics and
+// aliases, the externals its relocations name). Every word keeps romlift's own spelling (the printer's, D102: the bench
+// rewrites none). One objdiff-cli run per object.
 //
-// Each difference has a kind; `unnamed-target` (a relocation whose reference side targets a section symbol)
-// is reported and not gated, every other kind fails g6.objdiff (g3.objdiff until the owner moved it to phase 5, D68 a, g5.objdiff until he skipped phase 5, D92):
+// Each difference has a kind, and a class (objdiff-classes.ts, which checks whether its two sides link to the same
+// word). D34 as the owner amended it (D102) gates only the classes that differ in a word, or are unverified, or that
+// objdiff scored apart (isGated), up to each tuning ROM's ceiling (g6.objdiff, g3.objdiff until the owner moved it to
+// phase 5, D68 a, g5.objdiff until he skipped phase 5, D92); the same-word classes, the uncompared functions and
+// `unnamed-target` (a relocation whose reference side targets a section symbol) are reported. The kinds:
 //   instruction         a row whose instruction differs
 //   resolved-call       a `bl` or `b` the reference's assembler resolved inside its object, which the base
 //                       relocates against the same target (the same call, counted apart)
@@ -51,6 +55,7 @@ import { DIALECT } from 'romlift/isa';
 import { assembleWithBinutils, findBinutils, type Binutils } from 'romlift/node';
 
 import { diffObjects, type FunctionDiff } from './objdiff-cli.ts';
+import { classCounts, classTotals, isGated, nameAddresses, OBJDIFF_CLASSES, objdiffClass, type NameAddresses } from './objdiff-classes.ts';
 import {
   indexObjectSymbols,
   inputAt,
@@ -112,7 +117,19 @@ export interface ObjdiffDifference {
   readonly facts: DifferenceFacts;
 }
 
-/** A tuning row's `objdiff` member (frozen by test/gates/g6.objdiff.test.ts). */
+/** The differences of a ROM by class (objdiff-classes.ts), and what D34 as the owner amended it gates (D102). */
+export interface ObjdiffClassSummary {
+  /** Per class that occurs, the number of differences, in OBJDIFF_CLASSES order. */
+  readonly counts: Readonly<Record<string, number>>;
+  /** The differences D34 as amended gates (objdiff-classes.ts isGated); g6.objdiff holds it to the ROM's ceiling. */
+  readonly gated: number;
+  /** The functions objdiff did not compare (missing-symbol, tool): counted and reported, not gated. */
+  readonly uncompared: number;
+  /** Up to EXAMPLES_PER_KIND gated differences per class, `kind` holding the class, by class, then function, then detail. */
+  readonly gatedExamples: readonly ObjdiffExample[];
+}
+
+/** A tuning row's `objdiff` member (read by test/gates/g6.objdiff.test.ts). */
 export interface ObjdiffSummary {
   /** The readable build reproduced the SHA-1. */
   readonly linked: boolean;
@@ -122,6 +139,8 @@ export interface ObjdiffSummary {
   readonly differences: Readonly<Record<string, number>>;
   /** Up to EXAMPLES_PER_KIND per kind, by kind, then function, then detail. */
   readonly examples: readonly ObjdiffExample[];
+  /** By class (D102); absent in an artifact written before fix round 4's step 4 of phase 6, and on a ROM not linked. */
+  readonly classes?: ObjdiffClassSummary;
 }
 
 /** One compared function: objdiff's result for it, or why there is none. */
@@ -204,27 +223,42 @@ export interface ObjdiffVerdict {
   readonly scored: number;
   readonly differences: Readonly<Record<string, number>>;
   readonly examples: readonly ObjdiffExample[];
-  /** No difference of a gated kind, and at least one function scored. */
+  readonly classes: ObjdiffClassSummary;
+  /** No difference D34 as amended gates (D102), and at least one function scored. */
   readonly pass: boolean;
 }
 
-/** The verdict over every compared function of a ROM; pure. */
-export function objdiffVerdict(compared: readonly ComparedFunction[]): ObjdiffVerdict {
-  const all = compared.flatMap(functionDifferences).sort(byExample);
+/** Up to EXAMPLES_PER_KIND of `sorted` per value of `key`, in the order given. */
+function capped(sorted: readonly ObjdiffExample[], key: (e: ObjdiffExample) => string): ObjdiffExample[] {
+  const out: ObjdiffExample[] = [];
+  const shown = new Map<string, number>();
+  for (const e of sorted) {
+    const n = shown.get(key(e)) ?? 0;
+    if (n >= EXAMPLES_PER_KIND) continue;
+    shown.set(key(e), n + 1);
+    out.push(e);
+  }
+  return out;
+}
+
+/** The verdict over every compared function of a ROM, each difference classed with the reference's names (`addressesOf`); pure. */
+export function objdiffVerdict(compared: readonly ComparedFunction[], addressesOf: NameAddresses): ObjdiffVerdict {
+  const found = compared.flatMap(objdiffDifferences);
+  const all = found.map((d) => d.example).sort(byExample);
   const counts = new Map<string, number>();
   for (const d of all) counts.set(d.kind, (counts.get(d.kind) ?? 0) + 1);
   const differences: Record<string, number> = {};
   for (const kind of [...counts.keys()].sort(compareCodeUnits)) differences[kind] = counts.get(kind) ?? 0;
-  const examples: ObjdiffExample[] = [];
-  const shown = new Map<string, number>();
-  for (const d of all) {
-    const n = shown.get(d.kind) ?? 0;
-    if (n >= EXAMPLES_PER_KIND) continue;
-    shown.set(d.kind, n + 1);
-    examples.push(d);
-  }
-  const gated = all.some((d) => d.kind !== REPORTED_ONLY);
-  return { scored: compared.length, differences, examples, pass: compared.length > 0 && !gated };
+  const perClass = classCounts(found, addressesOf);
+  const totals = classTotals(perClass);
+  const occurring: Record<string, number> = {};
+  for (const c of OBJDIFF_CLASSES) if (perClass[c] > 0) occurring[c] = perClass[c];
+  const gatedRows = found.flatMap((d) => {
+    const c = objdiffClass(d, addressesOf);
+    return isGated(c) ? [{ ...d.example, kind: c }] : [];
+  });
+  const classes: ObjdiffClassSummary = { counts: occurring, gated: totals.gated, uncompared: totals.uncompared, gatedExamples: capped(gatedRows.sort(byExample), (e) => e.kind) };
+  return { scored: compared.length, differences, examples: capped(all, (e) => e.kind), classes, pass: compared.length > 0 && totals.gated === 0 };
 }
 
 /** The member of a ROM whose readable build does not link: nothing is scored (g6.objdiff notes it). */
@@ -233,7 +267,7 @@ export function unlinkedSummary(): ObjdiffSummary {
 }
 
 export function linkedSummary(verdict: ObjdiffVerdict): ObjdiffSummary {
-  return { linked: true, scored: verdict.scored, differences: verdict.differences, examples: verdict.examples };
+  return { linked: true, scored: verdict.scored, differences: verdict.differences, examples: verdict.examples, classes: verdict.classes };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -414,56 +448,11 @@ const IDENTIFIER = /(?<![A-Za-z0-9_.$])[A-Za-z_.$][A-Za-z0-9_.$]*/g;
 const START_LINE = /^\t(arm_func_start|thumb_func_start|non_word_aligned_thumb_func_start)(_local)? (\S+)$/;
 const GLOBAL_LINE = /^\.global (\S+)$/;
 
-/** The object's data name `word` lies at or inside: the nearest one at or below it, the word within its size or at its end. */
-export function dataNameAt(data: readonly ObjectName[], word: number): ObjectName | undefined {
-  let lo = 0;
-  let hi = data.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if ((data[mid]?.addr ?? 0) <= word) lo = mid + 1;
-    else hi = mid;
-  }
-  const below = data[lo - 1];
-  if (below === undefined || regionOf(below.addr) !== regionOf(word)) return undefined;
-  return word <= below.addr + below.size ? below : undefined;
-}
-
-/** A pool word line (pool.ts poolLine): its labels, then a name and an addend, or a plain value. */
-const WORD_LINE = /^((?:\t|(?:\S+: )+))\.4byte (?:([A-Za-z_.$][A-Za-z0-9_.$]*)(?: ([+-]) (\d+))?|0x([0-9A-F]{8}))$/;
-
-/**
- * The text with each pool word the reference object would spell otherwise written as the object spells it. A word that
- * names a label the text does not define, at an address the object names nothing at, and a plain word, become the
- * object's data name at or below the word (dataNameAt: the compiler relocates `&sym.field` and `&array[n]` against the
- * symbol the C names, with the offset as addend), `name + offset`; with no such name, the plain value (the object
- * names nothing there: its code holds a C literal address, a NULL, a word that only looks like an address).
- */
-export function objectWords(text: string, labelOf: (name: string) => BaseLabel | undefined, names: ReadonlyMap<number, ObjectName>): string {
-  const data = [...names.values()].filter((n) => !n.func).sort((a, b) => a.addr - b.addr);
-  return text
-    .split('\n')
-    .map((line) => {
-      const m = WORD_LINE.exec(line);
-      if (m === null) return line;
-      let word: number;
-      if (m[5] !== undefined) word = Number.parseInt(m[5], 16);
-      else {
-        const label = labelOf(m[2] ?? '');
-        if (label === undefined || label.defined || names.has(label.addr)) return line;
-        word = (label.value + (m[4] === undefined ? 0 : Number(m[4]) * (m[3] === '-' ? -1 : 1))) >>> 0;
-      }
-      const named = dataNameAt(data, word);
-      const operand = named === undefined ? `0x${word.toString(16).toUpperCase().padStart(8, '0')}` : `${named.name}${word === named.addr ? '' : ` + ${word - named.addr}`}`;
-      return `${m[1] ?? ''}.4byte ${operand}`;
-    })
-    .join('\n');
-}
-
 /**
  * The renames that give the base the reference object's names: each label of the text at an address the object names
  * (`names`, its preferred name per address) takes that name, unless a token of the text that stays holds it for
  * another address, or an earlier address takes it (the label then keeps the model's name). A token is a label's name
- * only through `labelOf`; a token that is no label (a name objectWords wrote) holds nothing.
+ * only through `labelOf`; a token that is no label holds nothing.
  */
 export function baseRenames(tokens: ReadonlySet<string>, labelOf: (name: string) => BaseLabel | undefined, names: ReadonlyMap<number, ObjectName>): Map<string, string> {
   let wanted: { readonly from: string; readonly to: string; readonly addr: number }[] = [];
@@ -512,8 +501,7 @@ export function baseBindings(defined: readonly { readonly name: string; readonly
  * label takes its binding (a function's start macro its `_local` form or not, a `.global` line dropped or added), so
  * `as` resolves a call inside the base exactly where it resolved it inside the reference object.
  */
-export function nameBase(source: string, labelOf: (name: string) => BaseLabel | undefined, names: ReadonlyMap<number, ObjectName>, rewriteWords = true): string {
-  const text = rewriteWords ? objectWords(source, labelOf, names) : source;
+export function nameBase(text: string, labelOf: (name: string) => BaseLabel | undefined, names: ReadonlyMap<number, ObjectName>): string {
   const tokens = new Set(text.match(IDENTIFIER) ?? []);
   const renames = baseRenames(tokens, labelOf, names);
   const renamed = renames.size === 0 ? text : text.replace(IDENTIFIER, (t) => renames.get(t) ?? t);
@@ -573,11 +561,6 @@ export interface ObjdiffInputs {
   readonly tools?: Binutils;
   /** Parallel tool runs; default the machine's available parallelism. */
   readonly concurrency?: number;
-  /**
-   * true: each base keeps romlift's own pool-word spelling (nameBase without objectWords), the measure of phase-6.md
-   * Q15's option (a) (fix round 2, delivery-r1-1); default false, the family as `p6-objdiff` measures it.
-   */
-  readonly ownSpelling?: boolean;
 }
 
 /** Runs `work` over `items` with at most `limit` in flight; results in the order of `items`. */
@@ -785,7 +768,7 @@ async function groupSource(group: Group, cx: Context): Promise<string> {
     const l = cx.labelByName.get(name);
     return l === undefined || l === null ? undefined : { addr: l.addr, value: wordValueOf(l), func: l.kind === 'func', defined: defined.has(name) };
   };
-  return nameBase(text, labelOf, names, cx.inputs.ownSpelling !== true);
+  return nameBase(text, labelOf, names);
 }
 
 /**
@@ -1014,5 +997,5 @@ export async function compareFunctions(inputs: ObjdiffInputs): Promise<ComparedF
 
 /** The objdiff member of a ROM whose readable build linked. */
 export async function scoreObjdiff(inputs: ObjdiffInputs): Promise<ObjdiffSummary> {
-  return linkedSummary(objdiffVerdict(await compareFunctions(inputs)));
+  return linkedSummary(objdiffVerdict(await compareFunctions(inputs), nameAddresses(inputs.symbols)));
 }

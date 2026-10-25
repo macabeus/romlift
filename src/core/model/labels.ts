@@ -4,15 +4,18 @@
 // every jump table, a `local` label `_<ADDR>` at every branch, bl, adr and pool-load target and table target
 // that has no other label and that an item can start at (D63: never an odd address in code, the second
 // halfword of a bl, the inside of an ARM word or of a pool or table word, which the printer could not place,
-// so the instruction naming it fails the printing rule and prints raw), and a `data` label `gUnk_<ADDR>` where a pool word or a table points into a data
-// module. A label holds its run address (the load address outside runs_at).
+// so the instruction naming it fails the printing rule and prints raw), and a `data` label `gUnk_<ADDR>` where a table,
+// or a pool word that no named, sized entry holds (resolver.ts wordNameOf: such a word prints `name + offset`), points
+// into a data module. A label holds its run address (the load address outside runs_at).
 //
 // An adr target whose only labels are Thumb functions gets its local label too: an adr names a label that links to
 // the target itself (resolver.ts adrResolverFor), never a Thumb function's, which links to the target plus one
 // (the owner's answer to Q7 of phase 3, D72 c). Every other reference still names the function.
 //
 // Scope: a label is 'global' when something in another module references it (a call, a branch, an adr, a
-// pool load, a pool word naming it, its Thumb form included, a table entry), else 'module'. A short Thumb
+// pool load, a pool word naming it, its Thumb form included, a table entry), else 'module'. What a pool word names is
+// resolver.ts wordNameOf, the rule the printer reads: a named entry at the word, else the sized entry holding it (its
+// label, which `name + offset` names), else a label that links to the word; never a local label. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
 import { decode, isThumbBlPrefix, isThumbBlSuffix, thumbMayName } from '../../foundation/isa/decode.ts';
 import type { Insn, SpecId } from '../../foundation/isa/types.ts';
@@ -27,7 +30,7 @@ import type { ChunkPlan } from './chunks.ts';
 import type { Segments } from './segments.ts';
 import { loadAddressOf, loadModuleAt, moduleIndexAt, runOffsetAt } from './modules.ts';
 import { dataName, localName } from '../../foundation/util/project-files.ts';
-import { compareLabels, isExactLabel, wordValueOf } from './resolver.ts';
+import { compareLabels, isExactLabel, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from './resolver.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -120,6 +123,8 @@ export interface LabelInputs {
    * equal to its address prints as its name (§5: `ldr r0, _08001A3C @ =gFoo`).
    */
   readonly symbols: readonly ModelSymbol[];
+  /** The named, sized entries of the model (resolver.ts sizedEntries), which name the pool words inside them. */
+  readonly entries: SizedEntries;
   readonly segments: Segments;
   readonly refs: readonly CodeRef[];
 }
@@ -220,12 +225,20 @@ function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; 
     else add({ load: s.addr, name: s.name, kind: 'data', thumb: false });
   }
   const isData = (a: Addr): boolean => contains(rom, a) && modules[loadModuleAt(modules, a)]?.kind === 'data';
+  // A pool word a placed sized entry holds prints `name + offset` (wordNameOf), so it names no label of its own.
+  const unplacedEntries = new Set(unplaced.map((s) => `${String(s.addr)}:${s.name}`));
+  const entryLabel = (entry: SizedEntry): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'> | undefined => {
+    if (unplacedEntries.has(`${String(entry.addr)}:${entry.name}`)) return undefined;
+    const f = inputs.functions.get(entry.addr);
+    return f?.name === entry.name ? { addr: entry.addr, name: entry.name, kind: 'func', thumb: f.mode === 'thumb' } : { addr: entry.addr, name: entry.name, kind: 'data', thumb: false };
+  };
+  const heldByEntry = (a: Addr): boolean => wordNameOf(inputs.entries, a, [], entryLabel)?.kind === 'inside';
   const data: Addr[] = [];
   const targets: Addr[] = [];
   for (const s of segments.concrete) {
     if (s.kind === 'pool') {
       add({ load: s.start, name: localName(s.start), kind: 'pool', thumb: false });
-      if (isData(s.value)) data.push(s.value);
+      if (isData(s.value) && !heldByEntry(s.value)) data.push(s.value);
     } else if (s.kind === 'table') {
       if (s.first) add({ load: s.start, name: localName(s.start), kind: 'table', thumb: false });
       if (isData(s.target)) data.push(s.target);
@@ -261,6 +274,13 @@ function firstAt(labels: readonly Label[], addr: Addr): number {
   return lowerBound(labels, addr, (l) => l.addr);
 }
 
+/** The indexes in index.byAddr of the labels at run address `addr`, preferred first. */
+function labelsAt(index: LabelIndex, addr: Addr): number[] {
+  const out: number[] = [];
+  for (let i = firstAt(index.byAddr, addr); i < index.byAddr.length && index.byAddr[i]?.addr === addr; i++) out.push(i);
+  return out;
+}
+
 /** The index in index.byAddr of the preferred label at run address `addr` that `match` accepts, or -1. */
 function preferredAt(index: LabelIndex, addr: Addr, match: (l: Label) => boolean): number {
   for (let i = firstAt(index.byAddr, addr); i < index.byAddr.length; i++) {
@@ -281,10 +301,16 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
     if (loadModuleAt(modules, site) !== moduleIndexAt(modules, label.addr, inputs.relocated)) global[i] = true;
   };
   const exact = (site: Addr, run: Addr): void => reference(site, preferredAt(index, run, () => true));
+  const position = new Map(index.byAddr.map((l, i) => [l, i] as const));
   const word = (site: Addr, value: number): void => {
-    const matches = (l: Label): boolean => wordValueOf(l) === value;
-    const at = preferredAt(index, value, matches);
-    reference(site, at >= 0 || insnAligned('thumb', value) ? at : preferredAt(index, value - 1, matches));
+    const at = [...(insnAligned('thumb', value) ? [] : labelsAt(index, value - 1)), ...labelsAt(index, value)];
+    const linking = at.flatMap((i) => {
+      const l = index.byAddr[i];
+      return l !== undefined && l.kind !== 'local' && wordValueOf(l) === value ? [l] : [];
+    });
+    const entryLabel = (entry: SizedEntry): Label | undefined => index.byAddr[preferredAt(index, entry.addr, (l) => l.name === entry.name && l.kind !== 'local')];
+    const named = wordNameOf(inputs.entries, value, linking, entryLabel);
+    if (named !== undefined) reference(site, position.get(named.label) ?? -1);
   };
   for (const r of inputs.refs) {
     if (r.kind === 'short-branch' && loadModuleAt(modules, r.site) !== moduleIndexAt(modules, r.target, inputs.relocated)) continue;

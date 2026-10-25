@@ -1,11 +1,11 @@
 // bench/src/objdiff-classes.ts: each detail shape of objdiff.ts's differences goes to its class (the rows of
 // phase-3.md Q1); a same-word class is given only when the word each side links to is checked from the ELF's
-// addresses, the addends and the base's plain value, a missing fact is `unverified` (gated under option b), and
-// the totals D34 gates and option (b) would gate (architecture-r1-1).
+// addresses, the addends and the base's plain value, a missing fact is `unverified` (gated), and the totals: what D34
+// as amended gates (D102), the uncompared functions, the same-word differences and D34 before D102 (architecture-r1-1).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { classCounts, gatedTotals, nameAddresses, objdiffClass } from '../../../../bench/src/objdiff-classes.ts';
+import { classCounts, classTotals, isGated, nameAddresses, objdiffClass } from '../../../../bench/src/objdiff-classes.ts';
 import { pcRelativeChunkRange, type DifferenceFacts, type ObjdiffDifference, type ObjdiffKind } from '../../../../bench/src/objdiff.ts';
 import { codeItems, dataItem, modelOf, poolItem, romWith, words } from '../../../helpers/model.ts';
 import { thumbAt } from '../../../helpers/thumb.ts';
@@ -41,6 +41,12 @@ test('every detail shape goes to its class when its facts check out', () => {
     [ex('instruction', '+0x10 arg-mismatch: .word 0x8020f89 | .word MainCB'), 'value-named'],
     [ex('instruction', '+0x10 arg-mismatch: .word 0x8020f88 | .word MainCB'), 'instruction-other'],
     [ex('instruction', '+0x10 arg-mismatch: .word 0x8820048 | .word gUnk_08820046'), 'instruction-other'],
+    // romlift's `name + offset` against the reference's constant: the same word when the name plus the addend links to it.
+    [ex('instruction', '+0x484 arg-mismatch: .word 0x3000004 | .word gScreen+0x4'), 'value-named'],
+    [ex('instruction', '+0x484 arg-mismatch: .word 0x2fffffc | .word gScreen-0x4'), 'value-named'],
+    [ex('instruction', '+0x484 arg-mismatch: .word 0x3000008 | .word gScreen+0x4'), 'instruction-other'],
+    [ex('instruction', '+0x10 arg-mismatch: .word 0x8020f8d | .word MainCB+0x4'), 'value-named'],
+    [ex('instruction', '+0x10 arg-mismatch: .word 0x8020f8c | .word MainCB+0x3'), 'instruction-other'],
     [ex('instruction', '+0x9fe delete: .hword 0x0 | (none)'), 'trailing-pad'],
     [ex('instruction', '+0x232 replace: b 0x2a8 | .hword 0xe039'), 'instruction-other'],
     [ex('relocation', '+0x18 R_ARM_ABS32: gMenu | gChooseFileState', { relocationType: ABS32, referenceAddend: 0, baseAddend: 0 }), 'alias'],
@@ -79,7 +85,7 @@ test('a kind the classifier does not know is an error, never a silent class', ()
   assert.throws(() => objdiffClass(unknown, names), /no class for the kind new-kind/);
 });
 
-test('the totals: D34 gates every class but unnamed-target; option (b) leaves the classes that differ in a word, or are unverified, and are compared', () => {
+test('the totals: D34 as amended (D102) gates the classes that differ in a word, or are unverified, and are compared; before it, every class but unnamed-target', () => {
   const counts = classCounts(
     [
       ex('resolved-call', 'bl 0x7c | bl A-0x4 (A is at that offset of the reference object)'),
@@ -96,7 +102,11 @@ test('the totals: D34 gates every class but unnamed-target; option (b) leaves th
   assert.equal(counts['value-for-symbol'], 1);
   assert.equal(counts['unverified'], 1);
   assert.equal(counts['static-callee'], 0);
-  assert.deepEqual(gatedTotals(counts), { gated: 6, gatedUnderOptionB: 3 });
+  assert.deepEqual(classTotals(counts), { gated: 3, uncompared: 1, sameWord: 2, beforeAmendment: 6 });
+  assert.deepEqual(
+    (['resolved-call', 'value-named', 'value-for-symbol', 'missing-symbol', 'tool', 'unnamed-target', 'unverified', 'trailing-pad', 'relocation-other', 'instruction-other', 'assemble', 'score'] as const).filter(isGated),
+    ['unverified', 'trailing-pad', 'relocation-other', 'instruction-other', 'assemble', 'score'],
+  );
 });
 
 test("pcRelativeChunkRange: a function's base takes every chunk of its module up to the far pools it and they reach", () => {
