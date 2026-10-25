@@ -51,7 +51,7 @@ function objectWith(text: Uint8Array, rels: readonly (readonly [number, number])
 const ROM_BYTES = Uint8Array.from({ length: 16 }, (_, i) => i + 1);
 const rom = romFromBytes(ROM_BYTES, 'a'.repeat(40));
 
-test('relocationsOf reads every SHT_REL entry of a section with its type, symbol and field width', () => {
+test('relocationsOf reads every SHT_REL entry of a section with its type, symbol, field width and implicit addend', () => {
   const object = objectWith(new Uint8Array(8), [
     [0, 10], // R_ARM_THM_CALL: a word (the bl pair)
     [4, 102], // R_ARM_THM_JUMP11: a halfword
@@ -64,8 +64,8 @@ test('relocationsOf reads every SHT_REL entry of a section with its type, symbol
   const rels = relocationsOf(object, elf.value, text);
   assert.ok(rels.ok);
   assert.deepEqual(rels.value, [
-    { offset: 0, type: 10, symbol: 1, width: 4 },
-    { offset: 4, type: 102, symbol: 1, width: 2 },
+    { offset: 0, type: 10, symbol: 1, width: 4, addend: 0 },
+    { offset: 4, type: 102, symbol: 1, width: 2, addend: 0 },
     { offset: 6, type: 40, symbol: 1, width: 0 },
   ]);
   assert.deepEqual([0, 2, 5, 8, 11, 40, 102, 103].map(relocationWidth), [0, 4, 2, 1, 2, 0, 2, 2]);

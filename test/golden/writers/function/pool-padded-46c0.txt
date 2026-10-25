@@ -17,7 +17,7 @@ sub_08000104: @ 08000104
 	str r0, [r1]
 	movs r2, #0
 	bx lr
-	.2byte 0x46C0 @ dead
+	.inst.n 0x46C0 @ dead
 _08000110: .4byte 0x47702000
 _08000114: .4byte 0x02000000
 	thumb_func_end sub_08000104

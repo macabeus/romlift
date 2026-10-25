@@ -4,17 +4,43 @@
 // address stays numeric (the linker would set the Thumb bit); a value equal to an ARM function, a table, a
 // pool or a data label prints that name, and so does a RAM, I/O or absolute address the config's [symbols]
 // names (a global label symbols.ld defines). A local label (a branch target) never names a word, and a label
-// is a candidate only where the module can see it (global, or lying in the module). Anything else prints
+// is a candidate only where the module can see it (global, or lying in the module).
+//
+// A word inside a named, sized entry (a [symbols] entry with a `size`, or a [functions] entry whose extent is the
+// TOML's `size`) prints as `name + offset`, the offset from the word `.4byte name` links to (resolver.ts
+// sizedEntryAt), unless a named entry (a function, or a [symbols] entry) is exactly at the word: what the compiler
+// emits for `&sym.field` or `&array[i]`, a relocation against the symbol with an addend. Anything else prints
 // `0xXXXXXXXX`.
+//
+// Every helper takes a WordScope, made once per chunk for its module (correctness-r0-5): the relocated modules and
+// the sized entries are computed once, not per word.
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
-import { compareLabels, moduleAt, wordValueOf } from '../../model/resolver.ts';
-import type { Label, Model } from '../../model/types.ts';
+import { moduleIndexAt, relocatedModules } from '../../model/modules.ts';
+import { compareLabels, isNamedEntry, sizedEntries, sizedEntryAt, wordValueOf, type SizedEntries } from '../../model/resolver.ts';
+import type { Label, Model, Module } from '../../model/types.ts';
 
-/** The labels of the model at run address `addr` that module `module` can see, preferred first (compareLabels). */
-export function visibleLabelsAt(model: Pick<Model, 'labels' | 'modules'>, module: string, addr: Addr): readonly Label[] {
-  const labels = model.labels;
+/** What naming a word inside one module reads: the model's labels and modules, computed once for the module. */
+export interface WordScope {
+  readonly labels: readonly Label[];
+  readonly modules: readonly Module[];
+  /** The module the word is printed in. */
+  readonly module: string;
+  /** relocatedModules(modules), once. */
+  readonly relocated: readonly Module[];
+  /** The named, sized entries and the named entries (resolver.ts sizedEntries, cached per model). */
+  readonly entries: SizedEntries;
+}
+
+/** The WordScope of `module`. */
+export function wordScope(model: Pick<Model, 'labels' | 'modules' | 'symbols' | 'functions'>, module: string): WordScope {
+  return { labels: model.labels, modules: model.modules, module, relocated: relocatedModules(model.modules), entries: sizedEntries(model) };
+}
+
+/** The labels at run address `addr` that the scope's module can see, preferred first (compareLabels). */
+export function visibleLabelsAt(scope: WordScope, addr: Addr): readonly Label[] {
+  const labels = scope.labels;
   const out: Label[] = [];
   for (let i = lowerBound(labels, addr, (l) => l.addr); i < labels.length; i++) {
     const l = labels[i];
@@ -22,20 +48,33 @@ export function visibleLabelsAt(model: Pick<Model, 'labels' | 'modules'>, module
     out.push(l);
   }
   if (out.length === 0) return out;
-  const own = moduleAt(model, addr)?.name === module;
+  const own = scope.modules[moduleIndexAt(scope.modules, addr, scope.relocated)]?.name === scope.module;
   return out.filter((l) => l.scope === 'global' || own).sort(compareLabels);
 }
 
-/** The label `.4byte <name>` of which links to exactly `value`, visible in `module`, or undefined. */
-export function labelForWord(model: Pick<Model, 'labels' | 'modules'>, module: string, value: number): Label | undefined {
+/** The label `.4byte <name>` of which links to exactly `value`, visible in the scope's module, or undefined. */
+export function labelForWord(scope: WordScope, value: number): Label | undefined {
   const word = value >>> 0;
-  const candidates = (word & 1) === 1 ? [...visibleLabelsAt(model, module, word - 1), ...visibleLabelsAt(model, module, word)] : visibleLabelsAt(model, module, word);
+  const candidates = (word & 1) === 1 ? [...visibleLabelsAt(scope, word - 1), ...visibleLabelsAt(scope, word)] : visibleLabelsAt(scope, word);
   return candidates.find((l) => l.kind !== 'local' && wordValueOf(l) === word);
 }
 
-/** The operand of a `.4byte` holding `value`: a label's name under the rule above, else `0xXXXXXXXX`. */
-export function wordText(model: Pick<Model, 'labels' | 'modules'>, module: string, value: number): string {
-  return labelForWord(model, module, value)?.name ?? `0x${hex(value)}`;
+/** `name + offset` for a word inside a named, sized entry whose label the module can see; undefined otherwise. */
+function insideEntryText(scope: WordScope, word: number): string | undefined {
+  const entry = sizedEntryAt(scope.entries, word);
+  if (entry === undefined) return undefined;
+  const label = visibleLabelsAt(scope, entry.addr).find((l) => l.name === entry.name && l.kind !== 'local');
+  if (label === undefined) return undefined;
+  const offset = word - wordValueOf(label);
+  return offset > 0 ? `${label.name} + ${offset}` : undefined;
+}
+
+/** The operand of a `.4byte` holding `value`: a label's name or `name + offset` under the rule above, else `0xXXXXXXXX`. */
+export function wordText(scope: WordScope, value: number): string {
+  const word = value >>> 0;
+  const exact = labelForWord(scope, word);
+  if (exact !== undefined && isNamedEntry(scope.entries, exact)) return exact.name;
+  return insideEntryText(scope, word) ?? exact?.name ?? `0x${hex(word)}`;
 }
 
 /** A pool word's line: its labels on the same line, `_08001A3C: .4byte gFoo`. */

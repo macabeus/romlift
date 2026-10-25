@@ -31,6 +31,7 @@
 //
 // SAME_WORD lists the classes whose two sides are checked to link to the same word, the classes Q1's option (b)
 // reports rather than gates; NOT_COMPARED the functions objdiff could not compare at all.
+import { R_ARM, R_ARM_BRANCHES } from 'romlift';
 import { defaultSpellingAddress } from 'romlift/internal';
 
 import type { ObjdiffDifference } from './objdiff.ts';
@@ -122,15 +123,14 @@ const TRAILING_PAD = /delete: \.hword 0x0 \| \(none\)$/;
 const RELOCATION_ROW = new RegExp(`: (${NAME}) \\| (${NAME})$`);
 const MISSING_ROW = new RegExp(`: (${NAME}) \\| a plain value$`);
 
-const R_ARM_ABS32 = 2;
-const R_ARM_THM_CALL = 10;
-/** The branch relocations whose word is a target: the linked targets compare, the PC bias of both sides being one. */
-const BRANCH_TYPES: ReadonlySet<number> = new Set([1, 10, 28, 29, 102, 103]);
 
-/** The word `span + addend` links to under relocation `type`: R_ARM_ABS32 sets the Thumb bit of a Thumb function. */
+/**
+ * The word `span + addend` links to under relocation `type`: R_ARM_ABS32 sets the Thumb bit of a Thumb function; for a
+ * branch (R_ARM_BRANCHES) it is the target, the PC bias of both sides being one.
+ */
 function linkedWord(span: NamedSpan, addend: number, type: number): number | undefined {
-  if (type === R_ARM_ABS32) return ((span.addr + addend) | (span.thumb ? 1 : 0)) >>> 0;
-  if (BRANCH_TYPES.has(type)) return (span.addr + addend) >>> 0;
+  if (type === R_ARM.ABS32) return ((span.addr + addend) | (span.thumb ? 1 : 0)) >>> 0;
+  if (R_ARM_BRANCHES.has(type)) return (span.addr + addend) >>> 0;
   return undefined;
 }
 
@@ -138,7 +138,7 @@ function linkedWord(span: NamedSpan, addend: number, type: number): number | und
 function relocationClass(a: readonly NamedSpan[], b: readonly NamedSpan[], d: ObjdiffDifference): ObjdiffClass {
   const { relocationType: type, referenceAddend, baseAddend } = d.facts;
   if (type === undefined || referenceAddend === undefined || baseAddend === undefined || a.length === 0 || b.length === 0) return 'unverified';
-  if (!BRANCH_TYPES.has(type) && type !== R_ARM_ABS32) return 'unverified';
+  if (!R_ARM_BRANCHES.has(type) && type !== R_ARM.ABS32) return 'unverified';
   let alias = false;
   let inside = false;
   for (const x of a) {
@@ -155,8 +155,8 @@ function relocationClass(a: readonly NamedSpan[], b: readonly NamedSpan[], d: Ob
 function missingClass(symbol: readonly NamedSpan[], d: ObjdiffDifference): ObjdiffClass {
   const { relocationType: type, referenceAddend, baseField, sectionBase, offset } = d.facts;
   if (type === undefined || referenceAddend === undefined || baseField === undefined || symbol.length === 0) return 'unverified';
-  if (type === R_ARM_ABS32) return symbol.some((x) => linkedWord(x, referenceAddend, type) === baseField >>> 0) ? 'value-for-symbol' : 'relocation-other';
-  if (type === R_ARM_THM_CALL) {
+  if (type === R_ARM.ABS32) return symbol.some((x) => linkedWord(x, referenceAddend, type) === baseField >>> 0) ? 'value-for-symbol' : 'relocation-other';
+  if (type === R_ARM.THM_CALL) {
     // The reference's bl at P reaches S + A + 4, the base's plain bl P + 4 + its offset: one target when S + A = P + offset.
     if (sectionBase === undefined || offset === undefined) return 'unverified';
     const site = sectionBase + offset;
@@ -171,7 +171,7 @@ function instructionClass(d: ObjdiffDifference, addressesOf: NameAddresses): Obj
   const word = WORD_ROW.exec(detail);
   if (word !== null) {
     const value = Number.parseInt(word[1] ?? '', 16);
-    return addressesOf(word[2] ?? '').some((x) => linkedWord(x, 0, R_ARM_ABS32) === value) ? 'value-named' : 'instruction-other';
+    return addressesOf(word[2] ?? '').some((x) => linkedWord(x, 0, R_ARM.ABS32) === value) ? 'value-named' : 'instruction-other';
   }
   const call = STATIC_CALL.exec(detail);
   if (call !== null) {

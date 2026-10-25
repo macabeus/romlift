@@ -2,9 +2,14 @@
 // `bench run --scaffold` on each tuning ROM (the seedless discover run, its readable bases, objdiff-cli against
 // the reference objects), every difference sorted into the classes of bench/src/objdiff-classes.ts, one row per
 // ROM: the count per class, the total D34 gates and what Q1's option (b) would still gate. The facts of
-// phase-3.md Q1 are this tool's output. It reads the ROMs, ELFs, maps and objects the datasets name and
-// writes nothing.
+// phase-3.md Q1 are this tool's output. It reads the ROMs, ELFs, maps and objects the datasets name, gives the
+// family each dataset's map (so each function's reference object is the one the map links at its entry, and the
+// archive members the map links are reference objects too), and writes nothing.
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { parseGnuMap, type GnuMap } from 'romlift';
 
 import { analysisTuning, benchProfile, DEFAULT_RUN_TUNING, discoverOptions, readRealInputs, ROMLIFT_RUNNER } from '../src/analysis-run.ts';
 import { parseArgs, UsageError } from '../src/args.ts';
@@ -24,6 +29,14 @@ export interface ClassRow {
   readonly gatedUnderOptionB: number;
 }
 
+/** The dataset's reference map, parsed; undefined when it records none. */
+async function datasetMap(benchRoot: string, path: string | undefined): Promise<GnuMap | undefined> {
+  if (path === undefined) return undefined;
+  const parsed = parseGnuMap(await readFile(join(benchRoot, path), 'utf8'));
+  if (!parsed.ok) throw new BenchError(`${path}: ${parsed.error}`);
+  return parsed.value;
+}
+
 async function main(argv: readonly string[]): Promise<number> {
   const args = parseArgs(argv, { options: ['only'], flags: ['json'] });
   const cx = contextFromEnv(process.env);
@@ -37,7 +50,9 @@ async function main(argv: readonly string[]): Promise<number> {
     const analysis = ROMLIFT_RUNNER.analyze(inputs.rom, benchProfile(), discoverOptions(), analysisTuning(DEFAULT_RUN_TUNING));
     const objects = await referenceObjects(cx, d);
     const symbols = await elfSymbols(cx, d);
+    const map = await datasetMap(cx.benchRoot, d.map);
     const compared = await compareFunctions({
+      ...(map === undefined ? {} : { map }),
       rom: inputs.rom,
       analysis,
       truth: inputs.truth,

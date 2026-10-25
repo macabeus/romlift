@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
-import { wordText } from '../../../src/core/emit/print/pool.ts';
-import { adrResolverFor, compareLabels, isExactLabel, loadSymbolOf, loadWordOperand, moduleAt, resolverFor, resolverOver, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { wordScope, wordText } from '../../../src/core/emit/print/pool.ts';
+import { adrResolverFor, compareLabels, isExactLabel, isNamedEntry, loadSymbolOf, loadWordOperand, moduleAt, resolverFor, resolverOver, sizedEntries, sizedEntryAt, wordValueOf } from '../../../src/core/model/resolver.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
 
@@ -108,8 +108,8 @@ test('adrResolverFor names only a label that links to the address itself: never 
 test('a word holding a load address of a runs_at module: no label names it, loadWordOperand names it through __load_<module>', () => {
   const m = model([{ ...label('RamCode', RAM), kind: 'func', thumb: true }, label('Alpha', A)]);
   assert.equal(loadSymbolOf({ name: 'ram' }), '__load_ram');
-  assert.equal(wordText(m, 'alpha', 0x0800_3001), '0x08003001', 'never RamCode, which links to its run address');
-  assert.equal(wordText(m, 'ram', RAM + 1), 'RamCode', 'the run address prints the label');
+  assert.equal(wordText(wordScope(m, 'alpha'), 0x0800_3001), '0x08003001', 'never RamCode, which links to its run address');
+  assert.equal(wordText(wordScope(m, 'ram'), RAM + 1), 'RamCode', 'the run address prints the label');
   assert.equal(loadWordOperand(m, 0x0800_3000), '__load_ram');
   assert.equal(loadWordOperand(m, 0x0800_3001), '__load_ram + 1');
   assert.equal(loadWordOperand(m, 0x0800_4000), '__load_ram + 4096', 'the end of the copy');
@@ -119,5 +119,29 @@ test('a word holding a load address of a runs_at module: no label names it, load
 
 test('the pool printer names a load address of a runs_at module through __load_<module>', { todo: 'core/emit/print/pool.ts wordText (and the text-layout check, which must resolve __load_<module>) are not this component\'s: reported to the lead' }, () => {
   const m = model([{ ...label('RamCode', RAM), kind: 'func', thumb: true }]);
-  assert.equal(wordText(m, 'alpha', 0x0800_3001), '__load_ram + 1');
+  assert.equal(wordText(wordScope(m, 'alpha'), 0x0800_3001), '__load_ram + 1');
+});
+
+test('sizedEntries and sizedEntryAt: the innermost sized entry holding a word; every function and symbol a named entry', () => {
+  const symbols = [
+    { addr: 0x0300_0000, name: 'gOuter', size: 0x100 },
+    { addr: 0x0300_0010, name: 'gInner', size: 0x10 },
+    { addr: 0x0300_0200, name: 'gUnsized' },
+  ];
+  const functions = [
+    { entry: 0x0800_0100, extent: { start: 0x0800_0100, end: 0x0800_0110 }, mode: 'thumb' as const, name: 'Sized', aliases: [], source: { name: { kind: 'default' as const }, extent: 'toml-size' as const } },
+    { entry: 0x0800_0200, extent: { start: 0x0800_0200, end: 0x0800_0210 }, mode: 'thumb' as const, name: 'Found', aliases: [], source: { name: { kind: 'default' as const }, extent: 'analysis' as const } },
+  ];
+  const entries = sizedEntries({ symbols, functions });
+  assert.equal(sizedEntries({ symbols, functions }), entries, 'cached per model');
+  assert.equal(sizedEntryAt(entries, 0x0300_0014)?.name, 'gInner');
+  assert.equal(sizedEntryAt(entries, 0x0300_0024)?.name, 'gOuter');
+  assert.equal(sizedEntryAt(entries, 0x0300_0000), undefined, 'the start is the entry itself, not inside it');
+  assert.equal(sizedEntryAt(entries, 0x0300_0100), undefined);
+  assert.equal(sizedEntryAt(entries, 0x0300_0204), undefined, 'an unsized symbol holds nothing');
+  assert.equal(sizedEntryAt(entries, 0x0800_0104)?.name, 'Sized');
+  assert.equal(sizedEntryAt(entries, 0x0800_0204), undefined, 'an analysis extent is no TOML size');
+  assert.equal(isNamedEntry(entries, { addr: 0x0300_0200, name: 'gUnsized' }), true);
+  assert.equal(isNamedEntry(entries, { addr: 0x0800_0200, name: 'Found' }), true);
+  assert.equal(isNamedEntry(entries, { addr: 0x0800_0204, name: '_08000204' }), false);
 });

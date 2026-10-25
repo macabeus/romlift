@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { elfFunctions, parseElf } from '../../../src/foundation/formats/elf.ts';
+import { elfFunctions, implicitAddend, parseElf, R_ARM, R_ARM_BRANCHES, relocationsOf, SHT } from '../../../src/foundation/formats/elf.ts';
 import type { ElfFile } from '../../../src/foundation/formats/types.ts';
 
 const tinyElf = new Uint8Array(readFileSync(new URL('../../fixtures/formats/tiny.elf', import.meta.url)));
@@ -150,4 +150,95 @@ test('corrupt section and string offsets return ok:false', () => {
   const shoff = view(badName).getUint32(0x20, true);
   view(badName).setUint32(shoff + 40, 0x7fff_ffff, true);
   assert.equal(parseElf(badName).ok, false);
+});
+
+test('implicitAddend reads the addend each ARM REL type keeps in its field (architecture-r1-1, r2-2)', () => {
+  const view = (bytes: readonly number[]): DataView => new DataView(Uint8Array.from(bytes).buffer);
+  assert.equal(implicitAddend(R_ARM.ABS32, view([0x10, 0, 0, 0]), 0), 0x10, 'R_ARM_ABS32: the word');
+  assert.equal(implicitAddend(R_ARM.ABS32, view([0xfc, 0xff, 0xff, 0xff]), 0), -4);
+  // R_ARM_THM_CALL: `bl .` as GNU as leaves it for a relocation, 0xF7FF 0xFFFE, is -4.
+  assert.equal(implicitAddend(R_ARM.THM_CALL, view([0xff, 0xf7, 0xfe, 0xff]), 0), -4);
+  assert.equal(implicitAddend(R_ARM.THM_CALL, view([0x00, 0xf0, 0x04, 0xf8]), 0), 8);
+  assert.equal(implicitAddend(R_ARM.CALL, view([0xfe, 0xff, 0xff, 0xeb]), 0), -8, 'R_ARM_CALL: bl . in ARM state');
+  assert.equal(implicitAddend(R_ARM.THM_JUMP11, view([0xfe, 0xe7]), 0), -4, 'R_ARM_THM_JUMP11: b .');
+  assert.equal(implicitAddend(R_ARM.THM_JUMP8, view([0xfe, 0xd0]), 0), -4, 'R_ARM_THM_JUMP8: beq .');
+  assert.equal(implicitAddend(R_ARM.ABS16, view([0xff, 0xff]), 0), -1);
+  assert.equal(implicitAddend(R_ARM.ABS8, view([0x80]), 0), -128);
+  assert.equal(implicitAddend(R_ARM.V4BX, view([0, 0, 0, 0]), 0), undefined, 'R_ARM_V4BX changes no addend this reader knows');
+  assert.equal(implicitAddend(R_ARM.ABS32, view([0, 0]), 0), undefined, 'a field past the bytes');
+  assert.deepEqual([...R_ARM_BRANCHES].sort((a, b) => a - b), [1, 10, 28, 29, 102, 103]);
+  assert.deepEqual(SHT, { SYMTAB: 2, RELA: 4, NOBITS: 8, REL: 9 });
+});
+
+/** A relocatable ARM ELF32 with `.text` = `text`, a `.rel.text` of `rel` and a `.rela.text` of `rela` ([offset, type, addend]). */
+function relocatable(text: readonly number[], rel: readonly (readonly [number, number])[], rela: readonly (readonly [number, number, number])[]): Uint8Array {
+  const names = '\0.text\0.rel.text\0.rela.text\0.shstrtab\0';
+  const nameAt = (n: string): number => names.indexOf(n);
+  const textOff = 52;
+  const relOff = textOff + ((text.length + 3) & ~3);
+  const relaOff = relOff + rel.length * 8;
+  const strOff = relaOff + rela.length * 12;
+  const shOff = (strOff + names.length + 3) & ~3;
+  const bytes = new Uint8Array(shOff + 5 * 40);
+  const v = new DataView(bytes.buffer);
+  bytes.set([0x7f, 0x45, 0x4c, 0x46, 1, 1, 1], 0);
+  v.setUint16(16, 1, true);
+  v.setUint16(18, 40, true);
+  v.setUint32(32, shOff, true);
+  v.setUint16(40, 52, true);
+  v.setUint16(46, 40, true);
+  v.setUint16(48, 5, true);
+  v.setUint16(50, 4, true);
+  bytes.set(text, textOff);
+  rel.forEach(([offset, type], i) => {
+    v.setUint32(relOff + 8 * i, offset, true);
+    v.setUint32(relOff + 8 * i + 4, (1 << 8) | type, true);
+  });
+  rela.forEach(([offset, type, addend], i) => {
+    v.setUint32(relaOff + 12 * i, offset, true);
+    v.setUint32(relaOff + 12 * i + 4, (2 << 8) | type, true);
+    v.setInt32(relaOff + 12 * i + 8, addend, true);
+  });
+  for (let i = 0; i < names.length; i++) bytes[strOff + i] = names.charCodeAt(i);
+  const section = (i: number, name: number, type: number, offset: number, size: number, info = 0, entsize = 0): void => {
+    const o = shOff + 40 * i;
+    v.setUint32(o, name, true);
+    v.setUint32(o + 4, type, true);
+    v.setUint32(o + 16, offset, true);
+    v.setUint32(o + 20, size, true);
+    v.setUint32(o + 28, info, true);
+    v.setUint32(o + 36, entsize, true);
+  };
+  section(1, nameAt('.text'), 1, textOff, text.length);
+  section(2, nameAt('.rel.text'), SHT.REL, relOff, rel.length * 8, 1, 8);
+  section(3, nameAt('.rela.text'), SHT.RELA, relaOff, rela.length * 12, 1, 12);
+  section(4, nameAt('.shstrtab'), 3, strOff, names.length);
+  return bytes;
+}
+
+test('relocationsOf reads REL and RELA entries alike: a REL addend from its field, a RELA one from its entry', () => {
+  const object = relocatable(
+    [0x10, 0, 0, 0, 0xff, 0xf7, 0xfe, 0xff, 0, 0, 0, 0],
+    [
+      [0, R_ARM.ABS32],
+      [4, R_ARM.THM_CALL],
+      [10, R_ARM.ABS32],
+    ],
+    [[8, R_ARM.ABS32, -8]],
+  );
+  const elf = parsed(object);
+  const text = elf.sections[1];
+  assert.ok(text !== undefined);
+  const rels = relocationsOf(object, elf, text);
+  assert.ok(rels.ok);
+  assert.deepEqual(rels.value, [
+    { offset: 0, type: R_ARM.ABS32, symbol: 1, width: 4, addend: 0x10 },
+    { offset: 4, type: R_ARM.THM_CALL, symbol: 1, width: 4, addend: -4 },
+    { offset: 10, type: R_ARM.ABS32, symbol: 1, width: 4 },
+    { offset: 8, type: R_ARM.ABS32, symbol: 2, width: 4, addend: -8 },
+  ], 'a REL field past the section has no addend');
+  const broken = relocatable([0, 0, 0, 0], [], [[0, R_ARM.ABS32, 0]]);
+  new DataView(broken.buffer).setUint32(new DataView(broken.buffer).getUint32(32, true) + 3 * 40 + 36, 8, true);
+  const refused = relocationsOf(broken, parsed(broken), parsed(broken).sections[1] ?? text);
+  assert.equal(refused.ok, false, 'a RELA entry size below 12 bytes');
 });

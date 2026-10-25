@@ -1,6 +1,8 @@
-// ELF32 little-endian ARM reader (System V gABI, ARM ELF): section headers and every SHT_SYMTAB
-// symbol. Ported from the PoC's elf.ts and truth.ts. Every read is bounds-checked, so a truncated or
-// corrupt file is an ok:false result, never an exception or a read past the buffer.
+// ELF32 little-endian ARM reader (System V gABI, ARM ELF): section headers, every SHT_SYMTAB symbol, and the
+// SHT_REL and SHT_RELA relocations of a section with their addends (the one REL/RELA addend decoder, with the
+// SHT_* and R_ARM_* numbers romlift reads in one place, architecture-r2-2). Ported from the PoC's elf.ts and
+// truth.ts. Every read is bounds-checked, so a truncated or corrupt file is an ok:false result, never an exception
+// or a read past the buffer.
 import type { Span } from '../rom/span.ts';
 import type {
   ElfFile,
@@ -17,9 +19,32 @@ const EM_ARM = 40;
 const ELF_HEADER_SIZE = 52;
 const SECTION_HEADER_SIZE = 40;
 const SYMBOL_SIZE = 16;
-const SHT_SYMTAB = 2;
-const SHT_REL = 9;
+
+/** The section types the readers know (System V gABI, sh_type). */
+export const SHT = { SYMTAB: 2, RELA: 4, NOBITS: 8, REL: 9 } as const;
+
+/** The ARM relocation types romlift reads (ELF for the Arm Architecture, table 4-8). */
+export const R_ARM = {
+  NONE: 0,
+  PC24: 1,
+  ABS32: 2,
+  REL32: 3,
+  ABS16: 5,
+  ABS8: 8,
+  THM_CALL: 10,
+  THM_PC8: 11,
+  CALL: 28,
+  JUMP24: 29,
+  V4BX: 40,
+  THM_JUMP11: 102,
+  THM_JUMP8: 103,
+} as const;
+
+/** The R_ARM_* types whose field is a branch offset: the target is the symbol plus the addend, from the place. */
+export const R_ARM_BRANCHES: ReadonlySet<number> = new Set([R_ARM.PC24, R_ARM.THM_CALL, R_ARM.CALL, R_ARM.JUMP24, R_ARM.THM_JUMP11, R_ARM.THM_JUMP8]);
+
 const REL_SIZE = 8;
+const RELA_SIZE = 12;
 const SHN_UNDEF = 0;
 const SHN_LORESERVE = 0xff00;
 const SHN_XINDEX = 0xffff;
@@ -142,7 +167,7 @@ function sectionNames(r: Reader, raw: readonly RawSection[]): ElfSection[] {
 function readSymbols(r: Reader, sections: readonly ElfSection[]): ElfSymbol[] {
   const symbols: ElfSymbol[] = [];
   for (const table of sections) {
-    if (table.type !== SHT_SYMTAB) continue;
+    if (table.type !== SHT.SYMTAB) continue;
     const entsize = table.entsize === 0 ? SYMBOL_SIZE : table.entsize;
     if (entsize < SYMBOL_SIZE) throw new Malformed(`symbol table ${table.name}: entry size ${entsize} is below ${SYMBOL_SIZE}`);
     r.need(table.offset, table.size, `symbol table ${table.name}`);
@@ -218,15 +243,15 @@ export function elfFunctions(elf: ElfFile, within: Span, order: ElfFunctionOrder
 }
 
 /** R_ARM_* types that change no byte of their section (ARM ELF, 4.6.1.2): R_ARM_NONE and R_ARM_V4BX. */
-const NO_FIELD: ReadonlySet<number> = new Set([0, 40]);
+const NO_FIELD: ReadonlySet<number> = new Set([R_ARM.NONE, R_ARM.V4BX]);
 
 /** The bytes the field of an R_ARM_* type covers, where it is not a word (ARM ELF, table 4-8). */
 const FIELD_BYTES: Readonly<Record<number, number>> = {
-  5: 2, // R_ARM_ABS16
-  8: 1, // R_ARM_ABS8
-  11: 2, // R_ARM_THM_PC8
-  102: 2, // R_ARM_THM_JUMP11
-  103: 2, // R_ARM_THM_JUMP8
+  [R_ARM.ABS16]: 2,
+  [R_ARM.ABS8]: 1,
+  [R_ARM.THM_PC8]: 2,
+  [R_ARM.THM_JUMP11]: 2,
+  [R_ARM.THM_JUMP8]: 2,
 };
 
 /** The width of an R_ARM_* type's field in bytes: 0 for one that changes no byte, a word unless listed. */
@@ -235,20 +260,62 @@ export function relocationWidth(type: number): number {
 }
 
 /**
- * Every SHT_REL relocation of `bytes` (the file `elf` was parsed from) that applies to `section`, in file order;
- * ok:false when a relocation section lies outside the file or its entry size is below 8 bytes.
+ * The implicit addend of an ARM REL relocation of `type` whose field starts at byte `at` of `view` (ELF for the
+ * Arm Architecture, "Addends and PC-bias compensation"): the signed word of R_ARM_ABS32 and R_ARM_REL32, the
+ * halfword and byte of R_ARM_ABS16 and R_ARM_ABS8, the branch offset of R_ARM_THM_CALL (a Thumb bl pair, 23
+ * bits), R_ARM_PC24, R_ARM_CALL and R_ARM_JUMP24 (24 bits, words), R_ARM_THM_JUMP11 and R_ARM_THM_JUMP8; undefined
+ * for any other type, and when the field does not fit the view.
+ */
+export function implicitAddend(type: number, view: DataView, at: number): number | undefined {
+  const width = relocationWidth(type);
+  if (at < 0 || width === 0 || at + width > view.byteLength) return undefined;
+  switch (type) {
+    case R_ARM.ABS32:
+    case R_ARM.REL32:
+      return view.getInt32(at, true);
+    case R_ARM.ABS16:
+      return view.getInt16(at, true);
+    case R_ARM.ABS8:
+      return view.getInt8(at);
+    case R_ARM.THM_CALL: {
+      const offset = ((view.getUint16(at, true) & 0x7ff) << 12) | ((view.getUint16(at + 2, true) & 0x7ff) << 1);
+      return (offset << 9) >> 9;
+    }
+    case R_ARM.PC24:
+    case R_ARM.CALL:
+    case R_ARM.JUMP24:
+      return ((view.getUint32(at, true) & 0xff_ffff) << 8) >> 6;
+    case R_ARM.THM_JUMP11:
+      return ((view.getUint16(at, true) & 0x7ff) << 21) >> 20;
+    case R_ARM.THM_JUMP8:
+      return ((view.getUint16(at, true) & 0xff) << 24) >> 23;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Every SHT_REL and SHT_RELA relocation of `bytes` (the file `elf` was parsed from) that applies to `section`, in file
+ * order, each with its addend: a RELA entry's own, a REL entry's implicit one read from the field it relocates
+ * (implicitAddend; absent for a type it does not decode, a NOBITS section or a field outside the section's bytes).
+ * ok:false when a relocation section lies outside the file or its entry size is below its entry's 8 or 12 bytes.
  */
 export function relocationsOf(bytes: Uint8Array, elf: ElfFile, section: ElfSection): ParseResult<readonly ElfRelocation[]> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const inFile = section.type !== SHT.NOBITS && section.offset + section.size <= bytes.length;
+  const fieldView = inFile ? new DataView(bytes.buffer, bytes.byteOffset + section.offset, section.size) : undefined;
   const out: ElfRelocation[] = [];
   for (const rel of elf.sections) {
-    if (rel.type !== SHT_REL || rel.info !== section.index) continue;
-    const size = rel.entsize === 0 ? REL_SIZE : rel.entsize;
-    if (size < REL_SIZE || rel.offset + rel.size > bytes.length) return { ok: false, error: `ELF: relocation section ${rel.name} is malformed` };
-    for (let at = rel.offset; at + REL_SIZE <= rel.offset + rel.size; at += size) {
+    if ((rel.type !== SHT.REL && rel.type !== SHT.RELA) || rel.info !== section.index) continue;
+    const min = rel.type === SHT.RELA ? RELA_SIZE : REL_SIZE;
+    const size = rel.entsize === 0 ? min : rel.entsize;
+    if (size < min || rel.offset + rel.size > bytes.length) return { ok: false, error: `ELF: relocation section ${rel.name} is malformed` };
+    for (let at = rel.offset; at + min <= rel.offset + rel.size; at += size) {
+      const offset = view.getUint32(at, true);
       const info = view.getUint32(at + 4, true);
       const type = info & 0xff;
-      out.push({ offset: view.getUint32(at, true), type, symbol: info >>> 8, width: relocationWidth(type) });
+      const addend = rel.type === SHT.RELA ? view.getInt32(at + 8, true) : fieldView === undefined ? undefined : implicitAddend(type, fieldView, offset);
+      out.push({ offset, type, symbol: info >>> 8, width: relocationWidth(type), ...(addend === undefined ? {} : { addend }) });
     }
   }
   return { ok: true, value: out };

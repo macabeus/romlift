@@ -8,10 +8,10 @@
 import { access, constants, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
-import { compareCodeUnits, parseElf, type ElfSymbol, type ParseResult } from 'romlift';
+import { compareCodeUnits, implicitAddend, parseElf, SHT, type ElfSymbol, type ParseResult } from 'romlift';
 import { findExecutable as findOnPath } from 'romlift/node';
 
-import { implicitAddend, objectRelocations, type ObjectRelocation } from './objects.ts';
+import { objectRelocations, type ObjectRelocation } from './objects.ts';
 import { runProcess } from './process.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -139,8 +139,6 @@ export async function diffObjects(bin: string, reference: string, base: string):
   return parseObjdiffDiff(json, left.value, right.value);
 }
 
-const SHT_NOBITS = 8;
-
 /** What the parser reads of an object: its symbols, its relocations (with their addends) and its section contents. */
 export function objectFacts(bytes: Uint8Array): ParseResult<ReferenceObject> {
   const elf = parseElf(bytes);
@@ -149,7 +147,7 @@ export function objectFacts(bytes: Uint8Array): ParseResult<ReferenceObject> {
   if (!relocations.ok) return relocations;
   const contents = new Map<string, Uint8Array>();
   for (const section of elf.value.sections) {
-    if (section.type === SHT_NOBITS || section.size === 0 || section.offset + section.size > bytes.length || contents.has(section.name)) continue;
+    if (section.type === SHT.NOBITS || section.size === 0 || section.offset + section.size > bytes.length || contents.has(section.name)) continue;
     contents.set(section.name, bytes.subarray(section.offset, section.offset + section.size));
   }
   return { ok: true, value: { symbols: elf.value.symbols, relocations: relocations.value, contents } };
