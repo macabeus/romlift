@@ -108,7 +108,7 @@ test('adrResolverFor names only a label that links to the address itself: never 
 test('a word holding a load address of a runs_at module: no label names it, loadWordOperand names it through __load_<module>', () => {
   const m = model([{ ...label('RamCode', RAM), kind: 'func', thumb: true }, label('Alpha', A)]);
   assert.equal(loadSymbolOf({ name: 'ram' }), '__load_ram');
-  assert.equal(wordText(wordScope(m, 'alpha'), 0x0800_3001), '0x08003001', 'never RamCode, which links to its run address');
+  assert.equal(wordText(wordScope(m, 'alpha'), 0x0800_3001), '__load_ram + 1', 'never RamCode, which links to its run address');
   assert.equal(wordText(wordScope(m, 'ram'), RAM + 1), 'RamCode', 'the run address prints the label');
   assert.equal(loadWordOperand(m, 0x0800_3000), '__load_ram');
   assert.equal(loadWordOperand(m, 0x0800_3001), '__load_ram + 1');
@@ -117,9 +117,11 @@ test('a word holding a load address of a runs_at module: no label names it, load
   assert.equal(loadWordOperand(m, A), undefined, 'a module that runs where it is loaded');
 });
 
-test('the pool printer names a load address of a runs_at module through __load_<module>', { todo: 'core/emit/print/pool.ts wordText (and the text-layout check, which must resolve __load_<module>) are not this component\'s: reported to the lead' }, () => {
+test('the pool printer names a load address of a runs_at module through __load_<module> (correctness-5)', () => {
   const m = model([{ ...label('RamCode', RAM), kind: 'func', thumb: true }]);
   assert.equal(wordText(wordScope(m, 'alpha'), 0x0800_3001), '__load_ram + 1');
+  assert.equal(wordText(wordScope(m, 'alpha'), 0x0800_3000), '__load_ram');
+  assert.equal(wordText(wordScope(m, 'ram'), RAM + 1), 'RamCode', 'the run address still prints the label');
 });
 
 test('sizedEntries and sizedEntryAt: the innermost sized entry holding a word; every function and symbol a named entry', () => {

@@ -43,9 +43,17 @@ export function cObjectPath(module: string): string {
   return `build/src/${module}.o`;
 }
 
-/** The objdiff target of module `module` (phase 6, D92): the expected writer's source, the whole module at its exact offsets. */
+/**
+ * The objdiff target of module `module` (phase 6, D92, D95 a): the expected writer's source, the module as its build unit
+ * assembles it (the same symbols and relocations as the build's object).
+ */
 export function expectedSourcePath(module: string): string {
   return `expected/${module}.s`;
+}
+
+/** The module's ROM range as the expected writer's second file, whose bytes `make expected` writes over the target's `.text`. */
+export function expectedRomSourcePath(module: string): string {
+  return `expected/rom/${module}.s`;
 }
 
 /**

@@ -13,10 +13,10 @@
 //   unit with a data range they append cDataStandIn: the range's ROM bytes as `.rodata`, `.incbin` of baserom.gba as the
 //   stub assembly stands in for the C code, with every label of the range defined global at its address, as the C object
 //   must define them.
-import { ROM_BASE } from '../../foundation/rom/rom.ts';
+import { incbinLine } from '../../foundation/asm/dialect.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
-import { BASEROM_FILE, cSourceOf } from '../../foundation/util/project-files.ts';
+import { cSourceOf } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { Label } from './types.ts';
 
@@ -74,7 +74,7 @@ export function cDataRangeOf(range: Span, labels: readonly Pick<Label, 'addr' | 
 /** `.incbin` of the ROM's bytes [from, to), or nothing when the slice is empty. */
 function romSlice(from: Addr, to: Addr): readonly string[] {
   if (to <= from) return [];
-  return [`\t.incbin "${BASEROM_FILE}", 0x${(from - ROM_BASE).toString(16).toUpperCase()}, 0x${(to - from).toString(16).toUpperCase()}`];
+  return [incbinLine(from, to)];
 }
 
 /** The assembly that stands in for a C object's `.rodata` over `range`: the ROM's bytes, with the range's labels global. */

@@ -228,8 +228,13 @@ export function loadSymbolOf(module: Pick<Module, 'name'>): string {
  * pointer to its first byte). It links to `value` itself, wherever the module runs. Undefined for any other value.
  */
 export function loadWordOperand(model: Pick<Model, 'modules'>, value: number): string | undefined {
+  return loadOperandIn(relocatedModules(model.modules), value);
+}
+
+/** loadWordOperand over `relocated` (relocatedModules of the model's modules, computed once by the caller). */
+export function loadOperandIn(relocated: readonly Pick<Module, 'name' | 'span'>[], value: number): string | undefined {
   const word = value >>> 0;
-  for (const m of relocatedModules(model.modules)) {
+  for (const m of relocated) {
     if (word < m.span.start || word > m.span.end) continue;
     const offset = word - m.span.start;
     return offset === 0 ? loadSymbolOf(m) : `${loadSymbolOf(m)} + ${offset}`;

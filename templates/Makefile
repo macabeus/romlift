@@ -2,7 +2,7 @@
 #
 #   make            build @@builtRom@@ and compare its SHA-1 with @@sha1File@@ (exit 0 only on a match)
 #   make rom        build @@builtRom@@ without the comparison
-#   make expected   assemble each C module's objdiff target, expected/<module>.s, into expected/<module>.o
+#   make expected   build each module's objdiff target, expected/<module>.o (objdiff.json lists the C modules')
 #   make clean      remove everything the build wrote
 #
 # romlift init wrote this file once and never overwrites it; `npx romlift scaffold --diff` shows how it differs
@@ -26,6 +26,7 @@ PREFIX   ?= arm-none-eabi-
 AS       := $(PREFIX)as
 LD       := $(PREFIX)ld
 OBJCOPY  := $(PREFIX)objcopy
+READELF  := $(PREFIX)readelf
 HOSTCC   ?= cc
 
 # The assembler arguments of every unit (romlift's dialect); `-I .` resolves the .include and .incbin paths.
@@ -117,15 +118,23 @@ build/src/%.s: ;
 
 -include $(OBJS:.o=.d) $(C_OBJS:.o=.c.d)
 
-# objdiff's targets (objdiff.json): each C module whole at its ROM offsets, expected/<module>.s, assembled with the same
-# assembler flags and no compiler. They are cheap, so every `make expected` assembles them again (FORCE), whatever the
-# modification times say.
+# objdiff's targets (objdiff.json): expected/<module>.s is the module as its unit assembles it (a C module's chunk files
+# included in order), so its object has the build object's symbols and relocations; expected/rom/<module>.s is the
+# module's ROM range. The ROM's bytes are then written over the target's .text, its relocations kept, so the target
+# holds the ROM whatever has been decompiled. They are cheap, so every `make expected` builds them again (FORCE),
+# whatever the modification times say.
 expected: $(EXPECTED_OBJS)
 
-expected/%.o: expected/%.s FORCE
+expected/%.o: expected/%.s expected/rom/%.s FORCE
 	$(AS) $(ASFLAGS) -o $@ $<
+	$(AS) $(ASFLAGS) -o expected/rom/$*.o expected/rom/$*.s
+	$(OBJCOPY) -O binary -j .text expected/rom/$*.o expected/rom/$*.bin
+	@set -- $$($(READELF) -SW $@ | sed -e 's/^ *\[ *[0-9]*\] *//' | awk '$$1 == ".text" { print $$4, $$5 }'); \
+	off=$$((0x$$1)); size=$$((0x$$2)); rom=$$(($$(wc -c < expected/rom/$*.bin))); \
+	if [ "$$size" -ne "$$rom" ]; then echo "$@: .text holds $$size bytes, the module's ROM range $$rom" >&2; exit 1; fi; \
+	{ head -c $$off $@; cat expected/rom/$*.bin; tail -c +$$((off + size + 1)) $@; } > $@.tmp && mv $@.tmp $@
 
 FORCE:
 
 clean:
-	rm -rf build $(ROM) $(ELF) $(MAP) $(EXPECTED_OBJS)
+	rm -rf build $(ROM) $(ELF) $(MAP) $(EXPECTED_OBJS) $(EXPECTED_OBJS:expected/%.o=expected/rom/%.o) $(EXPECTED_OBJS:expected/%.o=expected/rom/%.bin)

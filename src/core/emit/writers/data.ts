@@ -5,22 +5,21 @@
 // data chunk; `.incbin "baserom.gba", 0xOFFSET, 0xLENGTH` slices of the ROM between them (OFFSET from
 // 0x08000000); each table-entry item (a `type = "pointers"` symbol's words, as buildModel records them) as
 // `.4byte Name` when a label visible in the module links to exactly its value (a Thumb function's name
-// carries the Thumb bit, resolver.ts wordValueOf), else as the number; each padding item as `.align 2, 0`.
+// carries the Thumb bit, resolver.ts wordValueOf), else a runs_at module's load address as `__load_<module> + offset`
+// (resolver.ts loadOperandIn), else as the number; each padding item as `.align 2, 0`.
 // A label is `.global` unless it is module-scoped and its name is shared with another label of the model
 // (the static-function case of §6.2), where a second global definition would break the link; a Thumb
 // function label is preceded by `.thumb_func`, so ld gives `.4byte Name` the Thumb bit wordValueOf promises.
-import { DIALECT } from '../../../foundation/asm/dialect.ts';
+import { DIALECT, incbinLine } from '../../../foundation/asm/dialect.ts';
 import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
-import { ROM_BASE } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex, hexAddr } from '../../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../../foundation/util/sorted.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
-import { BASEROM_FILE } from '../../../foundation/util/project-files.ts';
 import { moduleSource } from '../../model/paths.ts';
 import { moduleIndexAt, relocatedModules, runOffsetOf, runStartOf } from '../../model/modules.ts';
-import { compareLabels, wordValueOf } from '../../model/resolver.ts';
+import { compareLabels, loadOperandIn, wordValueOf } from '../../model/resolver.ts';
 import { ItemKind } from '../../model/types.ts';
 import type { Label, Model, Module } from '../../model/types.ts';
 import type { FileEntry, Writer } from '../tree.ts';
@@ -114,10 +113,6 @@ function wordName(model: Model, index: number, word: number, relocated: readonly
   return symbol?.addr === target ? symbol.name : undefined;
 }
 
-function incbin(from: Addr, to: Addr): string {
-  return `\t.incbin "${BASEROM_FILE}", 0x${hex(from - ROM_BASE, 1)}, 0x${hex(to - from, 1)}`;
-}
-
 /** The text of a data module's file. */
 function dataText(model: Model, index: number): string {
   const module = moduleOf(model, index);
@@ -129,11 +124,11 @@ function dataText(model: Model, index: number): string {
   /** Writes the bytes [pending, to) as slices split at every label, and the labels up to `to` (inclusive). */
   const advance = (to: Addr, inclusive: boolean): void => {
     for (let m = marks[next]; m !== undefined && (m.at < to || (inclusive && m.at === to)); m = marks[++next]) {
-      if (m.at > pending) lines.push(incbin(pending, m.at));
+      if (m.at > pending) lines.push(incbinLine(pending, m.at));
       pending = Math.max(pending, m.at);
       lines.push('', ...(m.global ? [`\t.global ${m.name}`] : []), ...(m.thumbFunc ? ['\t.thumb_func'] : []), `${m.name}: @ ${hexAddr(m.at + runOffsetOf(module))}`);
     }
-    if (to > pending) lines.push(incbin(pending, to));
+    if (to > pending) lines.push(incbinLine(pending, to));
     pending = Math.max(pending, to);
   };
   const markInside = (start: Addr, end: Addr): boolean => {
@@ -157,7 +152,7 @@ function dataText(model: Model, index: number): string {
       advance(start, true);
       if (table) {
         const word = items.aux[i] ?? 0;
-        lines.push(`\t.4byte ${wordName(model, index, word, relocated) ?? `0x${hex(word)}`}`);
+        lines.push(`\t.4byte ${wordName(model, index, word, relocated) ?? loadOperandIn(relocated, word) ?? `0x${hex(word)}`}`);
       } else {
         lines.push('\t.align 2, 0');
       }
