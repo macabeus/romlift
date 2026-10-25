@@ -47,7 +47,8 @@ const SPEC: SignatureSpec = {
 test('romlift exports the frozen phase-6 values', () => {
   for (const name of ['parseSignatureFile', 'parseSignatureSpec', 'isMemberId', 'SIGNATURE_RULE_IDS', 'SignatureCodes']) assert.ok(name in romlift, name);
   assert.deepEqual(romlift.SIGNATURE_RULE_IDS, ['sig.unique-fit', 'sig.link-order-run', 'sig.neighbour-spacing', 'sig.pinned-both-sides', 'sig.short-member-window']);
-  assert.deepEqual(Object.keys(romlift.SignatureCodes), [], 'a code lands with its first raiser (D45)');
+  // A code lands with its first raiser (D45): the builder's (p6-signatures-build) are the first.
+  for (const code of ['E_SIGNATURE_NAME_DUPLICATE', 'E_SIGNATURE_OBJECTS_UNMATCHED']) assert.ok(code in romlift.SignatureCodes, code);
 });
 
 test('romlift/internal exports the signature rule registry, empty until p6-signatures-match fills it', () => {

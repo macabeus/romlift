@@ -1,0 +1,136 @@
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0x08000000                        . = 0x8000000
+
+.text           0x08000000      0x27c
+ *crt0.o(.text)
+ .text          0x08000000       0xf4 build/crt0.o
+                0x08000000                _start
+                0x080000c0                start_vector
+ *(.text)
+ .text          0x080000f4       0xc0 build/game.o
+                0x080000f4                main
+                0x08000154                GameShift
+                0x0800015c                GameReturnZero
+                0x08000160                GameFiller
+ .text          0x080001b4       0x28 build/fix_math.o
+                0x080001b4                FixMulShift
+                0x080001d0                FixClamp
+ .text          0x080001dc       0x58 build/fix_mem.o
+                0x080001dc                FixFillWords
+                0x080001f8                FixScale
+                0x0800021c                FixCopyHalves
+ .text          0x08000234       0x10 build/fix_stub.o
+                0x08000234                FixSwiDiv
+                0x08000238                FixSwiSqrt
+                0x0800023c                FixSwiCpuSet
+                0x08000240                FixSwiHalt
+ .text          0x08000244       0x18 build/fix_util.o
+                0x08000244                FixAbs
+                0x08000254                FixReturnZero
+                0x08000258                FixReturnOne
+ .text          0x0800025c        0x8 build/fix_short.o
+                0x0800025c                FixShort
+ .text          0x08000264        0x8 build/game_tail.o
+                0x08000264                GameTail
+ .text          0x0800026c        0x0 build/fix_data.o
+ *(.rodata)
+ .rodata        0x0800026c       0x10 build/fix_data.o
+                0x0800026c                gFixTable
+ *(.rodata.*)
+ *(.data)
+ .data          0x0800027c        0x0 build/crt0.o
+ .data          0x0800027c        0x0 build/game.o
+ .data          0x0800027c        0x0 build/fix_math.o
+ .data          0x0800027c        0x0 build/fix_mem.o
+ .data          0x0800027c        0x0 build/fix_stub.o
+ .data          0x0800027c        0x0 build/fix_util.o
+ .data          0x0800027c        0x0 build/fix_short.o
+ .data          0x0800027c        0x0 build/game_tail.o
+ .data          0x0800027c        0x0 build/fix_data.o
+                0x0800027c                        . = ALIGN (0x4)
+                0x0800027c                        __iwram_lma = .
+
+.glue_7         0x0800027c        0x0
+ .glue_7        0x0800027c        0x0 linker stubs
+
+.glue_7t        0x0800027c        0x0
+ .glue_7t       0x0800027c        0x0 linker stubs
+
+.vfp11_veneer   0x0800027c        0x0
+ .vfp11_veneer  0x0800027c        0x0 linker stubs
+
+.v4_bx          0x0800027c        0x0
+ .v4_bx         0x0800027c        0x0 linker stubs
+
+.iplt           0x0800027c        0x0
+ .iplt          0x0800027c        0x0 build/crt0.o
+
+.igot.plt       0x0800027c        0x0
+ .igot.plt      0x0800027c        0x0 build/crt0.o
+
+.rel.dyn        0x0800027c        0x0
+ .rel.iplt      0x0800027c        0x0 build/crt0.o
+
+.iwram          0x03000000        0x0 load address 0x0800027c
+                0x03000000                        __iwram_start = .
+ *(.iwram)
+                0x03000000                        . = ALIGN (0x4)
+                0x03000000                        __iwram_end = .
+
+.bss            0x02000000        0x0
+ *(.bss)
+ .bss           0x02000000        0x0 build/crt0.o
+ .bss           0x02000000        0x0 build/game.o
+ .bss           0x02000000        0x0 build/fix_math.o
+ .bss           0x02000000        0x0 build/fix_mem.o
+ .bss           0x02000000        0x0 build/fix_stub.o
+ .bss           0x02000000        0x0 build/fix_util.o
+ .bss           0x02000000        0x0 build/fix_short.o
+ .bss           0x02000000        0x0 build/game_tail.o
+ .bss           0x02000000        0x0 build/fix_data.o
+ *(COMMON)
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+LOAD build/crt0.o
+LOAD build/game.o
+LOAD build/fix_math.o
+LOAD build/fix_mem.o
+LOAD build/fix_stub.o
+LOAD build/fix_util.o
+LOAD build/fix_short.o
+LOAD build/game_tail.o
+LOAD build/fix_data.o
+OUTPUT(build/library-game.elf elf32-littlearm)
+LOAD linker stubs
+
+.ARM.attributes
+                0x00000000       0x20
+ .ARM.attributes
+                0x00000000       0x20 build/crt0.o
+ .ARM.attributes
+                0x00000020       0x20 build/game.o
+ .ARM.attributes
+                0x00000040       0x20 build/fix_math.o
+ .ARM.attributes
+                0x00000060       0x20 build/fix_mem.o
+ .ARM.attributes
+                0x00000080       0x20 build/fix_stub.o
+ .ARM.attributes
+                0x000000a0       0x20 build/fix_util.o
+ .ARM.attributes
+                0x000000c0       0x20 build/fix_short.o
+ .ARM.attributes
+                0x000000e0       0x20 build/game_tail.o
+ .ARM.attributes
+                0x00000100       0x20 build/fix_data.o

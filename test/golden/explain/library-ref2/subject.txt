@@ -1,0 +1,49 @@
+0x08000158
+  claim: code
+  owner: 0x08000158 (origin call)
+  provenance:
+    seed.call round 0 cites 0x0800010A
+  chunk: sub_08000158 (function) in module main
+  item: insn 0x08000158..0x0800015A: .inst.n 0x2001 @ movs r0, #1
+  name: sub_08000158 (analysis)
+  proposals (6):
+    0x08000114 seed.call round 0 cites 0x080000FA: thumb
+    0x0800013C seed.call round 0 cites 0x080000FE: thumb
+    0x08000144 seed.call round 0 cites 0x08000102: thumb
+    0x08000154 seed.call round 0 cites 0x08000106: thumb
+    0x08000158 seed.call round 0 cites 0x0800010A: thumb
+    0x08000130 seed.call round 0 cites 0x08000124: thumb
+  accepts (6):
+    0x08000114 seed.call round 0 cites 0x080000FA
+    0x08000130 seed.call round 0 cites 0x08000124
+    0x0800013C seed.call round 0 cites 0x080000FE
+    0x08000144 seed.call round 0 cites 0x08000102
+    0x08000154 seed.call round 0 cites 0x08000106
+    0x08000158 seed.call round 0 cites 0x0800010A
+  rejections: none
+  verdicts (6):
+    0x080000FA bl.near-is-call round 0 cites 0x080000FA, 0x08000114: call
+    0x080000FE bl.near-is-call round 0 cites 0x080000FE, 0x0800013C: call
+    0x08000102 bl.near-is-call round 0 cites 0x08000102, 0x08000144: call
+    0x08000106 bl.near-is-call round 0 cites 0x08000106, 0x08000154: call
+    0x0800010A bl.near-is-call round 0 cites 0x0800010A, 0x08000158: call
+    0x08000124 bl.near-is-call round 0 cites 0x08000124, 0x08000130: call
+  waits: none
+  claims (6):
+    0x08000114 claim.dead-code-in-extent round 0 cites 0x08000114: 1 edits
+    0x08000130 claim.dead-code-in-extent round 0 cites 0x08000130: 1 edits
+    0x0800013C claim.dead-code-in-extent round 0 cites 0x0800013C: 1 edits
+    0x08000144 claim.dead-code-in-extent round 0 cites 0x08000144: 1 edits
+    0x08000154 claim.dead-code-in-extent round 0 cites 0x08000154: 1 edits
+    0x08000158 claim.dead-code-in-extent round 0 cites 0x08000158: 1 edits
+  rules (3):
+    bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
+      rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
+      recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
+    claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
+      rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
+      recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    seed.call: the targets of the calls of an accepted function are functions
+      rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
+      recovers: the call graph below every accepted function
+explain: ok (exit 0)

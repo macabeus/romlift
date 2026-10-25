@@ -1,0 +1,11 @@
+{
+  "library": "siirtc",
+  "versions": [
+    {
+      "id": "2004",
+      "idNote": "the Seiko S-3511 real-time clock library Pokémon Emerald links (src/siirtc.o, 0x8C8 bytes, with its AgbLibRtcVersion string); no other tuning reference links it, so the id is Emerald's release year (2004), the earliest known release that ships these bytes, not an SDK label",
+      "references": [{ "dataset": "pokeemerald", "objects": ["src/siirtc.o"], "tables": ["AgbLibRtcVersion"] }]
+    }
+  ],
+  "reviewedNames": {}
+}

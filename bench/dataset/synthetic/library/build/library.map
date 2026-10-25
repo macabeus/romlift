@@ -1,0 +1,119 @@
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0x08000000                        . = 0x8000000
+
+.text           0x08000000      0x1f8
+ *crt0.o(.text)
+ .text          0x08000000       0xf4 build/crt0.o
+                0x08000000                _start
+                0x080000c0                start_vector
+ *(.text)
+ .text          0x080000f4       0x4c build/main.o
+                0x080000f4                main
+ .text          0x08000140       0x28 build/fix_math.o
+                0x08000140                FixMulShift
+                0x0800015c                FixClamp
+ .text          0x08000168       0x58 build/fix_mem.o
+                0x08000168                FixFillWords
+                0x08000184                FixScale
+                0x080001a8                FixCopyHalves
+ .text          0x080001c0       0x10 build/fix_stub.o
+                0x080001c0                FixSwiDiv
+                0x080001c4                FixSwiSqrt
+                0x080001c8                FixSwiCpuSet
+                0x080001cc                FixSwiHalt
+ .text          0x080001d0       0x18 build/fix_util.o
+                0x080001d0                FixAbs
+                0x080001e0                FixReturnZero
+                0x080001e4                FixReturnOne
+ .text          0x080001e8        0x0 build/fix_data.o
+ *(.rodata)
+ .rodata        0x080001e8       0x10 build/fix_data.o
+                0x080001e8                gFixTable
+ *(.rodata.*)
+ *(.data)
+ .data          0x080001f8        0x0 build/crt0.o
+ .data          0x080001f8        0x0 build/main.o
+ .data          0x080001f8        0x0 build/fix_math.o
+ .data          0x080001f8        0x0 build/fix_mem.o
+ .data          0x080001f8        0x0 build/fix_stub.o
+ .data          0x080001f8        0x0 build/fix_util.o
+ .data          0x080001f8        0x0 build/fix_data.o
+                0x080001f8                        . = ALIGN (0x4)
+                0x080001f8                        __iwram_lma = .
+
+.glue_7         0x080001f8        0x0
+ .glue_7        0x080001f8        0x0 linker stubs
+
+.glue_7t        0x080001f8        0x0
+ .glue_7t       0x080001f8        0x0 linker stubs
+
+.vfp11_veneer   0x080001f8        0x0
+ .vfp11_veneer  0x080001f8        0x0 linker stubs
+
+.v4_bx          0x080001f8        0x0
+ .v4_bx         0x080001f8        0x0 linker stubs
+
+.iplt           0x080001f8        0x0
+ .iplt          0x080001f8        0x0 build/crt0.o
+
+.igot.plt       0x080001f8        0x0
+ .igot.plt      0x080001f8        0x0 build/crt0.o
+
+.rel.dyn        0x080001f8        0x0
+ .rel.iplt      0x080001f8        0x0 build/crt0.o
+
+.iwram          0x03000000        0x0 load address 0x080001f8
+                0x03000000                        __iwram_start = .
+ *(.iwram)
+                0x03000000                        . = ALIGN (0x4)
+                0x03000000                        __iwram_end = .
+
+.bss            0x02000000        0x0
+ *(.bss)
+ .bss           0x02000000        0x0 build/crt0.o
+ .bss           0x02000000        0x0 build/main.o
+ .bss           0x02000000        0x0 build/fix_math.o
+ .bss           0x02000000        0x0 build/fix_mem.o
+ .bss           0x02000000        0x0 build/fix_stub.o
+ .bss           0x02000000        0x0 build/fix_util.o
+ .bss           0x02000000        0x0 build/fix_data.o
+ *(COMMON)
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+LOAD build/crt0.o
+LOAD build/main.o
+LOAD build/fix_math.o
+LOAD build/fix_mem.o
+LOAD build/fix_stub.o
+LOAD build/fix_util.o
+LOAD build/fix_data.o
+OUTPUT(build/library.elf elf32-littlearm)
+LOAD linker stubs
+
+.ARM.attributes
+                0x00000000       0x20
+ .ARM.attributes
+                0x00000000       0x20 build/crt0.o
+ .ARM.attributes
+                0x00000020       0x20 build/main.o
+ .ARM.attributes
+                0x00000040       0x20 build/fix_math.o
+ .ARM.attributes
+                0x00000060       0x20 build/fix_mem.o
+ .ARM.attributes
+                0x00000080       0x20 build/fix_stub.o
+ .ARM.attributes
+                0x000000a0       0x20 build/fix_util.o
+ .ARM.attributes
+                0x000000c0       0x20 build/fix_data.o

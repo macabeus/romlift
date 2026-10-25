@@ -1,0 +1,99 @@
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0x08000000                        . = 0x8000000
+
+.text           0x08000000      0x15c
+ *crt0.o(.text)
+ .text          0x08000000       0xf4 build/crt0.o
+                0x08000000                _start
+                0x080000c0                start_vector
+ *(.text)
+ .text          0x080000f4       0x20 build/main.o
+                0x080000f4                main
+ .text          0x08000114       0x28 build/fix_math.o
+                0x08000114                FixMulShift
+                0x08000130                FixClamp
+ .text          0x0800013c        0x8 build/fix_short.o
+                0x0800013c                FixShort
+ .text          0x08000144       0x18 build/fix_util.o
+                0x08000144                FixAbs
+                0x08000154                FixReturnZero
+                0x08000158                FixReturnOne
+ *(.rodata)
+ *(.rodata.*)
+ *(.data)
+ .data          0x0800015c        0x0 build/crt0.o
+ .data          0x0800015c        0x0 build/main.o
+ .data          0x0800015c        0x0 build/fix_math.o
+ .data          0x0800015c        0x0 build/fix_short.o
+ .data          0x0800015c        0x0 build/fix_util.o
+                0x0800015c                        . = ALIGN (0x4)
+                0x0800015c                        __iwram_lma = .
+
+.glue_7         0x0800015c        0x0
+ .glue_7        0x0800015c        0x0 linker stubs
+
+.glue_7t        0x0800015c        0x0
+ .glue_7t       0x0800015c        0x0 linker stubs
+
+.vfp11_veneer   0x0800015c        0x0
+ .vfp11_veneer  0x0800015c        0x0 linker stubs
+
+.v4_bx          0x0800015c        0x0
+ .v4_bx         0x0800015c        0x0 linker stubs
+
+.iplt           0x0800015c        0x0
+ .iplt          0x0800015c        0x0 build/crt0.o
+
+.igot.plt       0x0800015c        0x0
+ .igot.plt      0x0800015c        0x0 build/crt0.o
+
+.rel.dyn        0x0800015c        0x0
+ .rel.iplt      0x0800015c        0x0 build/crt0.o
+
+.iwram          0x03000000        0x0 load address 0x0800015c
+                0x03000000                        __iwram_start = .
+ *(.iwram)
+                0x03000000                        . = ALIGN (0x4)
+                0x03000000                        __iwram_end = .
+
+.bss            0x02000000        0x0
+ *(.bss)
+ .bss           0x02000000        0x0 build/crt0.o
+ .bss           0x02000000        0x0 build/main.o
+ .bss           0x02000000        0x0 build/fix_math.o
+ .bss           0x02000000        0x0 build/fix_short.o
+ .bss           0x02000000        0x0 build/fix_util.o
+ *(COMMON)
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+LOAD build/crt0.o
+LOAD build/main.o
+LOAD build/fix_math.o
+LOAD build/fix_short.o
+LOAD build/fix_util.o
+OUTPUT(build/library-ref2.elf elf32-littlearm)
+LOAD linker stubs
+
+.ARM.attributes
+                0x00000000       0x20
+ .ARM.attributes
+                0x00000000       0x20 build/crt0.o
+ .ARM.attributes
+                0x00000020       0x20 build/main.o
+ .ARM.attributes
+                0x00000040       0x20 build/fix_math.o
+ .ARM.attributes
+                0x00000060       0x20 build/fix_short.o
+ .ARM.attributes
+                0x00000080       0x20 build/fix_util.o
