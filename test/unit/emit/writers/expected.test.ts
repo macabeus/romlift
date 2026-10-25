@@ -1,10 +1,9 @@
-// The `expected` writer (architecture §6.3, §6.8, roadmap 6.F, D92, D95 a): two files per generated module with chunks.
-// expected/<module>.s is the module as its build unit assembles it (a `c` module's chunk files included in ROM order,
-// at the paths the tree writes them, an asm or data module's own source included), so its object has the build
-// object's symbols and relocations; expected/rom/<module>.s is the module's ROM range, which `make expected` writes over
-// the first object's `.text`. The text-layout check lays both out to the ROM range; a misordered include or a wrong
-// range fails it. With binutils, each symbolic object of two fixtures has a `.text` exactly as long as its ROM range
-// (so `make expected` can write the ROM's bytes over it), and each ROM object equals its range.
+// The `expected` writer (architecture §6.3, §6.8, roadmap 6.F, D92, D101 a): one file per generated module with chunks,
+// expected/<module>.s, the module as its build unit assembles it (a `c` module's chunk files included in ROM order, at
+// the paths the tree writes them, an asm or data module's own source included), so its object, which `make expected`
+// assembles as it is, has the build object's symbols, relocations and bytes. The text-layout check lays it out to the
+// ROM range; a misordered include fails it. With binutils, each object of two fixtures has a `.text` exactly as long
+// as its ROM range.
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -14,7 +13,7 @@ import { after, test } from 'node:test';
 import { emitTree } from '../../../../src/core/emit/emit-tree.ts';
 import type { EmitContext, FileEntry } from '../../../../src/core/emit/tree.ts';
 import { stubAssemblyText } from '../../../../src/core/model/c-unit.ts';
-import { expectedRomText, expectedText, expectedWriter } from '../../../../src/core/emit/writers/expected.ts';
+import { expectedText, expectedWriter } from '../../../../src/core/emit/writers/expected.ts';
 import { buildModel } from '../../../../src/core/model/model.ts';
 import type { Model } from '../../../../src/core/model/types.ts';
 import { profileById } from '../../../../src/core/profile/registry.ts';
@@ -55,13 +54,13 @@ function textOf(entry: FileEntry | undefined): string {
   return entry.text;
 }
 
-test('two generated files per module with chunks, laid out by the text-layout check to its ROM range', () => {
+test('one generated file per module with chunks, laid out by the text-layout check to its ROM range', () => {
   for (const name of ['composite', 'c-data', 'code-copied-to-ram']) {
     const { rom, model } = fixtureModel(name);
     const entries = entriesOf(rom, model);
     assert.deepEqual(
       entries.map((e) => e.path),
-      model.modules.flatMap((m) => [`expected/${m.name}.s`, `expected/rom/${m.name}.s`]),
+      model.modules.map((m) => `expected/${m.name}.s`),
       name,
     );
     for (const e of entries) {
@@ -90,22 +89,21 @@ test("a c module's target includes its chunk files in ROM order, a decompiled fu
   assert.deepEqual(entryDiagnostics(rom, model, entry), []);
 });
 
-test("an asm or data module's target includes its own source; the ROM file is one .incbin of the module's range", () => {
+test("an asm or data module's target includes its own source", () => {
   const { model } = fixtureModel('c-data');
   const data = model.modules.find((m) => m.kind === 'data');
   assert.ok(data !== undefined);
   assert.match(expectedText(model, CX, data), /\n\.include "data\/data\.s"\n$/);
-  const span = data.span;
-  assert.match(expectedRomText(data), new RegExp(`\\n\\t\\.incbin "baserom\\.gba", 0x${(span.start - 0x0800_0000).toString(16).toUpperCase()}, 0x${(span.end - span.start).toString(16).toUpperCase()}\\n$`));
 });
 
-test('a module that is not generated has no file; a misordered include and a wrong range fail the text-layout check', () => {
+test('a module that is not generated has no file; a misordered include fails the text-layout check', () => {
   const { rom, model } = fixtureModel('c-data');
   const main = model.modules.findIndex((m) => m.name === 'main');
   const retained: Model = { ...model, modules: model.modules.map((m, i) => (i === main ? { ...m, generated: false } : m)) };
   assert.deepEqual([...expectedWriter.emit(rom, retained, CX, main)], []);
-  const [target, romFile] = [...expectedWriter.emit(rom, model, CX, main)];
-  assert.ok(target !== undefined && 'text' in target && romFile !== undefined && 'text' in romFile);
+  const [target, ...rest] = [...expectedWriter.emit(rom, model, CX, main)];
+  assert.ok(target !== undefined && 'text' in target);
+  assert.deepEqual(rest, [], 'one file per module');
   const lines = target.text.split('\n');
   const at = lines.findIndex((l) => l.startsWith('.include "asm/'));
   const next = lines.findIndex((l, i) => i > at && l.startsWith('.include "asm/'));
@@ -114,14 +112,10 @@ test('a module that is not generated has no file; a misordered include and a wro
   const misordered = entryDiagnostics(rom, model, { ...target, text: swapped.join('\n') });
   assert.equal(misordered[0]?.code, 'E_SELF_CHECK_TEXT');
   assert.match(misordered[0]?.message ?? '', /where the module's chunk file in ROM order is/);
-  const shorter = romFile.text.replace(/, 0x([0-9A-F]+)\n$/, (_, n: string) => `, 0x${(Number.parseInt(n, 16) - 2).toString(16).toUpperCase()}\n`);
-  const found = entryDiagnostics(rom, model, { ...romFile, text: shorter });
-  assert.equal(found[0]?.code, 'E_SELF_CHECK_TEXT');
-  assert.match(found[0]?.message ?? '', /the file lays out \d+ bytes, but its range/);
 });
 
 for (const name of ['composite', 'c-data']) {
-  test(`${name}: each target's .text is as long as its ROM range, and each ROM object equals that range`, { skip }, async () => {
+  test(`${name}: each target assembles to a .text as long as its ROM range`, { skip }, async () => {
     if ('code' in tools) return;
     const { rom, model } = fixtureModel(name);
     const dir = await mkdtemp(join(tmpdir(), 'romlift-expected-'));
@@ -143,13 +137,10 @@ for (const name of ['composite', 'c-data']) {
       return bytes.subarray(section.offset, section.offset + section.size);
     };
     for (const module of model.modules) {
-      for (const source of [`expected/${module.name}.s`, `expected/rom/${module.name}.s`]) {
-        const ran = await runTool(tools.as, [...DIALECT.asArgs, '-I', '.', '-o', source.replace(/\.s$/, '.o'), source], dir);
-        assert.equal(ran.code, 0, `${name}: ${source}: ${ran.stderr}`);
-      }
-      const range = rom.bytes.subarray(module.span.start - rom.base, module.span.end - rom.base);
-      assert.equal((await textOfObject(`expected/${module.name}.o`)).length, range.length, `${name}: ${module.name}`);
-      assert.deepEqual([...(await textOfObject(`expected/rom/${module.name}.o`))], [...range], `${name}: ${module.name}`);
+      const source = `expected/${module.name}.s`;
+      const ran = await runTool(tools.as, [...DIALECT.asArgs, '-I', '.', '-o', `${module.name}.o`, source], dir);
+      assert.equal(ran.code, 0, `${name}: ${source}: ${ran.stderr}`);
+      assert.equal((await textOfObject(`${module.name}.o`)).length, module.span.end - module.span.start, `${name}: ${module.name}`);
     }
   });
 }

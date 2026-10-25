@@ -1,16 +1,14 @@
-// The `objdiff` writer (architecture §6.1 rung 3, §6.3, §6.8, D92): objdiff.json, the project file of objdiff-cli
+// The `objdiff` writer (architecture §6.1 rung 3, §6.3, §6.8, D92, D101 a): objdiff.json, the project file of objdiff-cli
 // (pinned at bench/tools/objdiff.version, 3.7.2; the field names are its config.schema.json's). Scope: global; ownership
 // generated. One unit per generated `c` module (a C unit, its source src/<module>.c), in ROM order: its target is
-// expected/<module>.o (`make expected`, the expected writer's source assembled) and its base build/src/<module>.o (the
-// C object `make` builds, D74 f). An asm or data module has an expected/ file too (g6.expected-bytes judges every
-// module), but no unit: nothing in it is decompiled, and its base, the same disassembly, would only show objdiff's
-// reading of the relocations `as` leaves in it (an ARM `b` to a global label reads as another branch destination). `build_base` lets
-// objdiff run `make build/src/<module>.o` before it diffs; `build_target` is false, since the target is `make
-// expected`'s. The target is the ROM's bytes with no relocation (the expected writer), so `options` sets objdiff's
-// `functionRelocDiffs` to `none`, which matches a constant or a branch destination of the target with a relocation of
-// the base, as `objdiff-cli report` always does; without it the objdiff window would mark every call and pool word of
-// a decompiled function as a difference. The text is deterministic: the key order written below, two-space indent, a
-// final newline.
+// build/expected/<module>.o (`make expected`, the expected writer's source assembled as it is) and its base
+// build/src/<module>.o (the C object `make` builds, D74 f). An asm or data module has an expected/ file too
+// (g6.expected-bytes judges every module), but no unit: nothing in it is decompiled. `build_base` lets objdiff run
+// `make build/src/<module>.o` before it diffs; `build_target` is false, since the target is `make expected`'s. The
+// target holds the same symbols and relocations as an untouched base, so an untouched project scores every function at
+// 100%; `options` sets objdiff's `functionRelocDiffs` to `none`, as `objdiff-cli report` always does, so the objdiff
+// window scores as the report does (a relocation compared by its type, not by what it names). The text is
+// deterministic: the key order written below, two-space indent, a final newline.
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import { isCSource } from '../../../foundation/util/project-files.ts';
 import { buildUnits, expectedObjectPath, hasExpectedTarget, OBJDIFF_JSON_PATH } from '../../model/paths.ts';

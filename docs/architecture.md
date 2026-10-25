@@ -1365,7 +1365,7 @@ module by module in ROM order, so no whole tree is ever held in memory (§9.4).
 | `modules-mk` | `modules.mk` (per-module compiler, `cc1` path and flags as target-specific variables) | generated | 4 |
 | `c-stub` | `src/<module>.c` (the reconciler's stub planner run on an empty file plus the template header) | scaffold at `init`, reconciled after | 4, 6 |
 | `scaffold` | `Makefile`, `setup.sh`, `include/**`, `AGENTS.md`, `.github/workflows/build.yml`, `.gitignore`, `README.md`, `<name>.sha1`, `package.json`, `.gitmodules` | scaffold | 4 |
-| `expected` | `expected/<module>.s` (the module as its unit assembles it) and `expected/rom/<module>.s` (its ROM range), §6.8 | generated | 6 (D92, D95 a) |
+| `expected` | `expected/<module>.s` (the module as its unit assembles it), §6.8 | generated | 6 (D92, D95 a, D101 a) |
 | `objdiff` | `objdiff.json` | generated | 6 (D92) |
 
 `romlift.toml` and `decomp.yaml` are not tree entries: `init` creates them through `shell/config`, and
@@ -1753,28 +1753,29 @@ appends after `init` (D91 c): one module spans exactly the range with that `runA
 
 ### 6.8 `expected/` and `objdiff.json` (phase 6, D92)
 
-The `expected` writer emits two files for each generated module (D95 a): `expected/<module>.s`, the module as its
-build unit assembles it (for a `c` module agbcc's output of the stub-only C, `core/model/c-unit.ts` stubAssemblyText, over its chunk files in
-ROM order, each at its `asm/matchings` twin once the C defines the function; an asm or data module's own source
-included), and `expected/rom/<module>.s`, the module's ROM range as one `.incbin`. `make expected` assembles both
-without agbcc, keeps the first object as assembled at `build/expected/<module>.o`, and writes the ROM range's bytes over
-a copy's `.text`, keeping its relocations (`objcopy --update-section` drops them, measured with binutils 2.45.1), so
-`expected/<module>.o` has the base object's symbols, mapping symbols and relocations at the same offsets, while its
-unlinked `.text` is the ROM range. The `objdiff` writer emits `objdiff.json` (objdiff-cli 3.7.2), one unit per `c`
-module with its target and base objects (`build/src/<module>.o`, D74 f) and `options.functionRelocDiffs = "none"`:
-objdiff then compares a relocation by its type only, and an untouched project scores every function at 100% except
-where objdiff reads a relocated field as its implicit addend (ARM REL) and that addend moves the target: a base
-jump-table word or a `bl` to the function right after resolves inside the function, the target's field (the ROM's
-bytes) outside it (klonoa: 51 of 422 functions, 3,276 words and 4 calls; phase-6.md Q12, an owner question). Both are
-generated files under the generated roots (§6.4).
+The `expected` writer emits one file for each generated module with chunks: `expected/<module>.s`, the module as its
+build unit assembles it while every function is `INCLUDE_ASM` (for a `c` module agbcc's output of the stub-only C,
+`core/model/c-unit.ts` stubAssemblyText, over its chunk files in ROM order, each at its `asm/matchings` twin once the C
+defines the function; an asm or data module's own source included). `make expected` assembles it without agbcc, as it
+is, into `build/expected/<module>.o`, objdiff's target: the base object's symbols, mapping symbols, relocations and bytes
+while nothing is decompiled, whatever has been decompiled since (the owner's answer to phase-6.md Q12, option (b), D101
+a; fix round 1's targets wrote the ROM's bytes over that `.text`, D95 a, which objdiff read as moved branch targets). The
+objects live under `build/`, never under the generated root `expected/`, so `generate` finds no file there it did not
+write (D101 c). The `objdiff` writer emits `objdiff.json` (objdiff-cli 3.7.2), one unit per `c` module with its target
+and base objects (`build/src/<module>.o`, D74 f) and `options.functionRelocDiffs = "none"`, as `objdiff-cli report`
+scores. An untouched project scores every function at 100% (measured on sa1 and klonoa, `test/local/objdiff-json`).
+`expected/` and `objdiff.json` are generated files under the generated roots (§6.4).
 
 `g6.expected-bytes` judges `expected/<module>.s` by the ROM, never by another project's own `expected/` (Klonoa's `make
 expected` is best effort and marks wrong symbols in `.tainted` files): in a project `init` wrote, every `c` module has
-an `expected/<module>.s`, each is assembled, and its `.text` must equal its module's ROM range byte for byte, the
-symbols covering a first difference named. Since the ROM is written over that `.text`, the gate also judges the unit's
-object as assembled, `build/expected/<module>.o` (fix round 2, correctness-r1-1, a tightening): its `.text` equals the ROM
-range outside every relocated field, and every symbol it defines that the model places sits at the model's offset, so
-two chunk files swapped in `expected/<module>.s` fail it. It runs on every fixture (ci) and every tuning ROM (real).
+an `expected/<module>.s`; `make expected` assembles each, and the gate links every target at its module's address (a
+`runs_at` module at its run address, loaded at its load address, with its `__load_<module>`; the project's `symbols.ld`
+for the RAM symbols). Each linked target must equal its module's ROM range byte for byte, the symbols covering a first
+difference named, and every symbol it defines that the model places must sit at the model's address (for a `runs_at`
+module the run address: the model address minus the chunk's `runAt` is its offset), so two chunk files swapped in
+`expected/<module>.s` fail it (the owner's answers to Q12, option (b), and Q16, option (a), D101 b). It runs on every
+fixture, and on each fixture whose `expect.json` has `ramCopy` again with that range as a hand-written `runs_at`
+override (ci), and on every tuning ROM (real).
 
 The design phase 5 had for migrating a legacy repository (the Klonoa switch-over pinned by commit, D52, and
 `import-legacy`'s counts at `693ccb7`, D51) was dropped by the owner (D92) and is not built; the Klonoa repository is
@@ -2464,6 +2465,6 @@ one is missing.
 | `g6.explain-coverage` | ci | every analysis and `sig.*` rule id appears in at least one explain golden, all built from fixtures; `SIGNATURE_RULES` holds exactly the five `SignatureRuleId`s |
 | `g6.reconciler` | ci | C in, C out goldens: add, remove, move stubs; comments and strings untouched (`g5.reconciler` until D92) |
 | `g6.rename` | ci | identifier-only renames; refusals (`g5.rename` until D92) |
-| `g6.expected-bytes` | ci and real | §6.8: every `expected/<module>.s` assembles to its module's ROM range: the target's `.text` equals it, and the unit's object as assembled (`build/expected/<module>.o`) equals it outside its relocated fields with every symbol where the model places it (fix round 2) (`g5.expected-bytes` until D92) |
+| `g6.expected-bytes` | ci and real | §6.8: every `expected/<module>.s` assembles to a target that, linked at its module's address (a `runs_at` module at its run address), equals the module's ROM range byte for byte, with every symbol where the model places it; the RAM-copy fixture runs again with its hand-written `runs_at` override (Q12 option (b), Q16 option (a), D101 b) (`g5.expected-bytes` until D92) |
 | `g6.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links, baseline phase-3.md Q1 (`g3.objdiff` until D68 a, `g5.objdiff` until D92) |
 | `g6.c-data-ranges` | ci | §6.6: with `data_start`, a C array replaces its slice of the ROM and the build still matches (`g5.c-data-ranges` until D92) |

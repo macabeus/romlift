@@ -7,8 +7,8 @@ OBJS := \
 C_OBJS := \
 	build/src/main.o
 EXPECTED_OBJS := \
-	expected/rom_header.o \
-	expected/crt0.o \
-	expected/main.o
+	build/expected/rom_header.o \
+	build/expected/crt0.o \
+	build/expected/main.o
 build/src/main.o: CC1 := tools/agbcc/bin/agbcc
 build/src/main.o: CFLAGS := -mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm

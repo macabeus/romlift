@@ -1153,9 +1153,10 @@ Thresholds, one per gate of the phase (every earlier gate still passes):
 - `g6.evidence-conflict`: each contradiction gives `W_EVIDENCE_CONFLICT` and leaves the kept proposals unchanged;
 - `g6.explain-coverage`: every analysis and `sig.*` rule id in an explain golden built from fixtures;
 - `g6.reconciler`, `g6.rename`: the C-in, C-out goldens and identifier-only renames with their refusals;
-- `g6.expected-bytes`: every `expected/<module>.s` equals its ROM range, on every fixture and tuning ROM: the target's
-  `.text`, and the unit's object as assembled outside its relocated fields, every symbol where the model places it (fix
-  round 2, D96 a);
+- `g6.expected-bytes`: every `expected/<module>.s`, assembled as it is and linked at its module's address (a `runs_at`
+  module at its run address), equals its ROM range with every symbol where the model places it, on every fixture, the
+  RAM-copy fixture with its hand-written `runs_at` override, and every tuning ROM (the owner's answers to Q12 and Q16,
+  D101 b);
 - `g6.objdiff`: 0 differences other than `unnamed-target` on every agreeing function of every tuning ROM that links
   (D34; whether the bench may rewrite romlift's pool words as the reference spells them is phase-6.md Q15);
 - `g6.c-data-ranges`: the c-data fixture's array from `build/src/<module>.o` at its ROM address, the build at the

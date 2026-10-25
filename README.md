@@ -76,8 +76,10 @@ provenance`, which read the committed artifact's failing `g6.objdiff` record. Th
 of phase-6.md on 25 October 2026; the first step of fix round 4 applied his gate edits (D98): `g6.reconciler`,
 `g6.rename` and `g6.evidence-conflict`, which could not pass as written (Q2, Q3, Q5), now pass on the ci tier,
 `g6.signatures-judged` holds tmc to the measured floor (Q9) and `g4.toml-mutations` makes an add-override edit that
-changes the model and refuses an odd `[functions]` key (Q11); the answers to Q6, Q10, Q12, Q15 and Q16 are the
-round's later steps. Fix round 1 of the
+changes the model and refuses an odd `[functions]` key (Q11). Its second step applied Q10 (D100), and its third Q12
+and Q16 (D101): each objdiff target is now its unit's assembly as it is, so objdiff scores every function of an
+untouched project at 100%, and `g6.expected-bytes` judges each target linked at its module's address, `runs_at` modules
+included; the answers to Q6 and Q15 are the round's next step. Fix round 1 of the
 review (D95) changed no gate threshold, but its ROM overwrite of the objdiff targets left `g6.expected-bytes` able to
 catch only a wrong size; fix round 2 (D96) tightened that gate to judge each unit's object as assembled, and put the
 bench's `objectWords` rewrite, which changes what `g6.objdiff` measures, to the owner as Q15. Fix round 3 (D97) refuses a `runs_at`

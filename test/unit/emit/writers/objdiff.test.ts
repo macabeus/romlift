@@ -1,7 +1,8 @@
-// The `objdiff` writer (architecture §6.3, §6.8, roadmap 6.F, D92): objdiff.json for objdiff-cli 3.7.2 (its
+// The `objdiff` writer (architecture §6.3, §6.8, roadmap 6.F, D92, D101): objdiff.json for objdiff-cli 3.7.2 (its
 // config.schema.json's field names): `$schema`, `custom_make`, `build_target` false, `build_base` true, one unit per
-// generated C module in ROM order (target expected/<module>.o, base build/src/<module>.o, its source src/<module>.c),
-// and `options.functionRelocDiffs = none`, since the target has no relocation; deterministic JSON with a final newline.
+// generated C module in ROM order (target build/expected/<module>.o, base build/src/<module>.o, its source
+// src/<module>.c), and `options.functionRelocDiffs = none`, as objdiff-cli's report scores; deterministic JSON with a
+// final newline.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -42,7 +43,7 @@ test('one unit per generated C module, in ROM order, and the fixed project keys'
   "units": [
     {
       "name": "main",
-      "target_path": "expected/main.o",
+      "target_path": "build/expected/main.o",
       "base_path": "build/src/main.o",
       "metadata": {
         "source_path": "src/main.c"
@@ -50,7 +51,7 @@ test('one unit per generated C module, in ROM order, and the fixed project keys'
     },
     {
       "name": "other",
-      "target_path": "expected/other.o",
+      "target_path": "build/expected/other.o",
       "base_path": "build/src/other.o",
       "metadata": {
         "source_path": "src/other.c"

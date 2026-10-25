@@ -4,7 +4,7 @@
 //   ROMLIFT_TOML_SHA1 := <romlift.toml's SHA-1>                in a project only (EmitContext.configSha1, D82)
 //   OBJS := <every build unit's object, in link order>       (core/model/paths.ts buildUnits)
 //   C_OBJS := <the C units' objects, in link order>           (build/src/<module>.o)
-//   EXPECTED_OBJS := <each generated module's objdiff target, in link order>  (expected/<module>.o, `make expected`; D92)
+//   EXPECTED_OBJS := <each generated module's objdiff target, in link order>  (build/expected/<module>.o, `make expected`; D92, D101 c)
 //   build/src/<module>.o: CC1 := <the module's compiler's cc1>              per C module, in link order
 //   build/src/<module>.o: CFLAGS := <its default flags, then the module's cflags>
 //

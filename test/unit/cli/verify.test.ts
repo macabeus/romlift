@@ -256,8 +256,7 @@ test('a [symbols] entry in RAM names every pool word equal to its address, which
   for (const printer of PRINTERS) {
     const result = generate({ rom, config, decomp: { defined: [] }, printer });
     assert.ok(result.report.ok, `${printer}: ${result.report.checks.map((c) => c.detail).join('; ')}`);
-    // expected/ prints every word as the ROM's value, the objdiff target's bytes (phase 6): not the printers' naming.
-    const texts = [...generatedEntries(rom, result)].filter((e) => !e.path.startsWith('expected/')).map((e) => ('text' in e ? e.text : ''));
+    const texts = [...generatedEntries(rom, result)].map((e) => ('text' in e ? e.text : ''));
     const all = texts.join('\n');
     assert.match(all, /gEwramStart = 0x02000000;\ngIrqStackTop = 0x03007FA0;/);
     if (printer === 'readable') {

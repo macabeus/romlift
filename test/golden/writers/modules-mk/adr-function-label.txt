@@ -7,7 +7,7 @@ OBJS := \
 	build/data.o
 C_OBJS :=
 EXPECTED_OBJS := \
-	expected/rom_header.o \
-	expected/crt0.o \
-	expected/asm_080000F4.o \
-	expected/data.o
+	build/expected/rom_header.o \
+	build/expected/crt0.o \
+	build/expected/asm_080000F4.o \
+	build/expected/data.o

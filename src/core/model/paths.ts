@@ -44,16 +44,11 @@ export function cObjectPath(module: string): string {
 }
 
 /**
- * The objdiff target of module `module` (phase 6, D92, D95 a): the expected writer's source, the module as its build unit
- * assembles it (the same symbols and relocations as the build's object).
+ * The objdiff target of module `module` (phase 6, D92, D101 a): the expected writer's source, the module as its build
+ * unit assembles it (the build object's symbols, relocations and bytes while nothing is decompiled).
  */
 export function expectedSourcePath(module: string): string {
   return `expected/${module}.s`;
-}
-
-/** The module's ROM range as the expected writer's second file, whose bytes `make expected` writes over the target's `.text`. */
-export function expectedRomSourcePath(module: string): string {
-  return `expected/rom/${module}.s`;
 }
 
 /**
@@ -64,9 +59,12 @@ export function hasExpectedTarget(module: Module | undefined): module is Module 
   return module !== undefined && module.generated && module.chunks.count > 0;
 }
 
-/** The object `make expected` assembles expectedSourcePath(module) into, objdiff's target object. */
+/**
+ * The object `make expected` assembles expectedSourcePath(module) into, objdiff's target object: under `build/`, which
+ * `make` owns, never under the generated root `expected/`, which `generate` owns (D101 c).
+ */
 export function expectedObjectPath(module: string): string {
-  return `expected/${module}.o`;
+  return `build/expected/${module}.o`;
 }
 
 /** The assembly agbcc writes for C module `module`, which `as` assembles to cObjectPath(module). */

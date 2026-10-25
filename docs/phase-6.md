@@ -24,6 +24,13 @@ a listed extent per inner label's mode and takes a fall-through into the next li
 `test/local/listed-invalid-signatures`; `decompiled-c` runs `init` with signatures again ("Review", fix round 4,
 step 2).
 
+**Fix round 4, step 3 (D101): not landed yet.** Q12 and Q16 applied as the owner chose (options (b) and (a)): each
+objdiff target is its unit's assembly as it is, at `build/expected/<module>.o`, so objdiff scores every function of an
+untouched sa1 (2,013) and klonoa (422) project at 100% (33 and 51 below before); `g6.expected-bytes` links every target
+at its module's address and judges its bytes and symbols there, `runs_at` modules included (the RAM-copy fixture with
+its override joins its targets); `make expected` writes nothing under `expected/` (correctness-r2-2) ("Review", fix
+round 4, step 3).
+
 **Verdict after fix round 3 (D97): still NOT LANDED.** The review of fix round 2 (`b64f0b7`) raised 11 findings: one
 major (correctness-r2-1, a `runs_at` module named `text` or `c_data_<m>` broke the link), fixed in this round, and ten
 minors, nine carried and one an owner question (Q16) ("Review", fix round 3). The orchestrator asked to land the phase; it cannot: the fourteen owner
@@ -87,10 +94,10 @@ a pass).
 - **Reconciler and `rename`** (6.E, phase 5's 5.A). `romlift rename <old> <new> [--json]`: a one-line TOML patch (its
   `from` dropped) and identifier tokens only in `src/` and `include/`, refusing an existing `<new>` or an unknown
   `<old>`; the `INCLUDE_ASM` planner's add, remove and move cases (`test/golden/reconcile/**`); the matchings split.
-- **objdiff targets and C data** (6.F, phase 5's 5.C). `expected/<module>.s` and `expected/rom/<module>.s` (since fix
-  round 1 the module as its unit assembles it, with the ROM's bytes written over its `.text` by `make expected`, its
-  relocations kept, D95 a), `objdiff.json` (one unit per `c` module), and the `[[modules]]` key `data_start`, whose
-  range is the C object's `.rodata` in place of phase 4's C-data assertion.
+- **objdiff targets and C data** (6.F, phase 5's 5.C). `expected/<module>.s` (since fix round 1 the module as its unit
+  assembles it, D95 a; since fix round 4, step 3 assembled as it is into `build/expected/<module>.o`, with no ROM bytes
+  written over it, D101), `objdiff.json` (one unit per `c` module), and the `[[modules]]` key `data_start`, whose range
+  is the C object's `.rodata` in place of phase 4's C-data assertion.
 - **The carried minors** of phase 4 (roadmap "Carried from phase 4"), each with its component in the table below; the
   include resolution behind a symbolic link is cpp-exact.
 - **Commands** added: `signatures build <spec>`, `signatures <rom>`, `rename <old> <new>`, `init --no-signatures`, `bench
@@ -382,6 +389,14 @@ Raised at fix round 1 (the review of the closing record, D95):
   the gate's own comparison could no longer see the target's content (two includes of `expected/main.s` swapped passed
   on sa1); the gate now also judges the unit's object as assembled, `build/expected/<module>.o`, outside its relocated
   fields and by its symbols' offsets, a tightening that leaves option (a)'s targets and this question as they were.
+  **Answered on 25 October 2026 (D101), "Symbolic targets"**: "option (b): expected/<module>.o is the unit's assembly
+  as it is, without the ROM's bytes written over .text, so objdiff shows 100% on every untouched function;
+  g6.expected-bytes judges the target after relocation, linked at its module's address, against the ROM range, and
+  keeps the symbol-offset check. Measure objdiff on an untouched project (sa1 and klonoa at least) and record the counts
+  below 100% (expected 0)." Applied (fix round 4, step 3): `make expected` assembles `expected/<module>.s` as it is into
+  `build/expected/<module>.o` (no `expected/rom/`); the gate links every target at its module's address and compares
+  its bytes with the ROM range and its symbols with the model's places. Measured with objdiff-cli 3.7.2 on untouched
+  projects (`test/local/objdiff-json`): sa1 0 of 2,013 functions below 100% (33 before), klonoa 0 of 422 (51 before).
 - **Q13. `g6.signatures-judged` leaves `unjudged` sizes out of its comparison.** The bench counts a proposed size as
   `unjudged` when the ELF has no size for the symbol, its size is 0, or the FUNC spans another FUNC (bench/src/signatures.ts),
   and the gate tested only `differ`; architecture §8.4 said every proposed size equals the ELF size. Measured in the
@@ -435,10 +450,17 @@ Raised at fix round 3 (the review of fix round 2, D97):
   places it", with no exception. Options: (a) a tightening: compare each symbol at the model address minus the chunk's
   `runAt` and add the RAM-copy fixture with its hand-written override to the gate's targets, as `g6.ram-code-mapped`
   does (a change to a frozen gate file); (b) accept the exemption and write it into §13 and D96 a.
+  **Answered on 25 October 2026 (D101), "Tighten"**: "option (a): g6.expected-bytes judges runs_at modules (each symbol
+  at the model address minus the chunk's runAt, or the equivalent under Q12's linked judgment) and its targets include
+  the RAM-copy fixture with its hand-written runs_at override, as g6.ram-code-mapped does." Applied (fix round 4, step
+  3), under Q12's linked judgment: a `runs_at` target links at its run address, loaded at its load address with its
+  `__load_<module>`, and each symbol must link at the model's run address; code-copied-to-ram runs a second time with
+  its `ramCopy` as an `[[overrides]]` entry (`analyze --update --write`, `generate`). Measured: ci 229 modules on 55
+  targets, 1 `runs_at`; a scratch copy judging that module at its load address fails.
 
 The owner answered every open question on 25 October 2026. Applied by fix round 4's first step (D98): Q1, Q2, Q3, Q5,
-Q8, Q9, Q11, Q13, Q14; by its second step (D100): Q10. Answered, applied by the round's later steps: Q6 and Q15, Q12,
-Q16. Q4 and Q7 need no answer.
+Q8, Q9, Q11, Q13, Q14; by its second step (D100): Q10; by its third step (D101): Q12, Q16. Answered, applied by the
+round's next step: Q6 and Q15. Q4 and Q7 need no answer.
 
 ## Known limitations
 
@@ -452,8 +474,6 @@ Q16. Q4 and Q7 need no answer.
   (no-roundtrip)`, twice in klonoa's SoundMain), since no label links to a load address of a relocated module and a
   `bl` takes no `__load_` expression; klonoa's range keeps that ROM-called tail because the RAM code loads a pool word
   there (D63; bench/overrides/klonoa.json's `source`, correctness-9).
-- **objdiff on an untouched project** scores every function at 100% but the class of Q12 (klonoa 51 of 422, sa1 33 of
-  2,013): a base jump-table word or a call to the function right after, whose relocated field objdiff reads as an addend.
 - **The signature layer warns about libraries a game does not link**: every klonoa `init` reports `W_SIGNATURE_AMBIGUOUS`
   for librfu@2004 (`Callback_Dummy_ID` fits at 3 places, `rfu_setMSCCallback` at 2) and `W_SIGNATURE_DROPPED` for
   m4a@2004 (96 of its 96 placements overlap the version that placed more). They are warnings of the matcher's resolution
@@ -749,7 +769,7 @@ on the real tier `g6.ram-code-mapped` passes (the RAM-copy fixture and Klonoa, `
 | architecture-r2-5 | minor | Carried: `placeSignatures` made module-private and dropped from `api/proposals.ts`; `explain.test.ts` through `signaturesOver`. **Fixed at fix round 4, step 1** (`10fe83a`, D99 d), as written. |
 | architecture-r2-6 | minor | Carried: `nameBase`'s positional `rewriteWords` replaced by an options object, with a unit case for the own spelling (Q15's second row). **Moved to the step of fix round 4 that applies Q15** (D99 g), which removes the bench's rewrite and its parameter. |
 | architecture-r2-7 | minor | Carried: the `.syntax mixed` refusal text, `bytes.ts`' header, and the frozen `g4.c-data-fails-loud` header that quotes the C-data assertion's old text (the gate file is not edited; its pattern still matches the new text). **Fixed at fix round 4, step 1** (`10fe83a`, D99 e) but the gate header: the refusal names both dialects read, `bytes.ts`' header names its readers; `g4.c-data-fails-loud` is not among the gate files the owner authorised, so its comment stays. |
-| correctness-r2-2 | minor | Carried: `make expected` writes `expected/*.o`, `expected/rom/*.o` and `expected/rom/*.bin` under a generated root, so each later `generate` warns `W_UNOWNED_FILE` for each (sa1 69, Klonoa 81). **Moved to the step of fix round 4 that applies Q12** (D99 g), which changes what `make expected` writes. |
+| correctness-r2-2 | minor | Carried: `make expected` writes `expected/*.o`, `expected/rom/*.o` and `expected/rom/*.bin` under a generated root, so each later `generate` warns `W_UNOWNED_FILE` for each (sa1 69, Klonoa 81). **Moved to the step of fix round 4 that applies Q12** (D99 g), which changes what `make expected` writes. **Fixed at fix round 4, step 3** (D101 c): the targets are `build/expected/<module>.o` and nothing else is written; `generate` after `make expected` warns none (sa1 0, Klonoa 0). |
 | correctness-r2-3 | minor | Carried: `rename` skips a symbolic link to a directory under `include/` with `W_RENAME_SKIPPED` without reading its files, so a file there that names `old` keeps it (exit 0). **Fixed at fix round 4, step 1** (`10fe83a`, D99 f): every rename text behind the link is read and listed as skipped with its bytes, so `rename` refuses one that names `old` (`E_RENAME_SKIPPED_FILE`); a file rename edits by its own path is not listed; new read-inputs test. |
 
 ### Fix round 4, step 1 (the owner's answers, D98, D99)
@@ -802,3 +822,33 @@ scratch directory: byte-equal to `signatures/*.json`):
 | `g6.explain-coverage`, `g6.evidence-conflict`, `g6.reconciler` (ci) | 0 | 58 analysis and 5 sig rule ids in 213 goldens; 162 contradictions on 54 fixtures; 9 cases |
 | `g2.confirm-equals-discover`, `g4.e2e-real` (real) | 0, 0 | tmc's recorded limitation only; the six tuning ROMs to their SHA-1s (220 s) |
 
+
+### Fix round 4, step 3 (Q12, Q16, D101)
+
+Q12 and Q16 applied as the owner chose, with fix round 3's carried correctness-r2-2: the `expected` writer emits only
+`expected/<module>.s`; the scaffold's `make expected` assembles it as it is into `build/expected/<module>.o` (no
+`expected/rom/`, no ROM bytes written over `.text`, no `READELF`); `modules.mk`'s `EXPECTED_OBJS` and `objdiff.json`'s
+`target_path` name that object; the text-layout check drops the ROM file and lays a `runs_at` module's target out at
+its run address; `g6.expected-bytes` links every target at its module's address with its own linker script and judges
+the linked bytes and every placed symbol, and runs code-copied-to-ram a second time with its `ramCopy` as a
+hand-written `runs_at` override; `test/local/objdiff-json` requires every function at 100% on untouched sa1 and klonoa
+projects; architecture §6.1, §6.8 and §13, the roadmap's threshold, D95 a and D96 a (each marked replaced by D101),
+README and the scaffold's `AGENTS.md`, `README.md` and `Makefile` follow. Measured on the phase branch:
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 tests pass |
+| `npm test` | 0 | 2,854 tests, 2,854 pass (the text-layout test of `expected/rom/<module>.s` removed) |
+| `ROMLIFT_REQUIRE_LOCAL=1` `test/local/objdiff-json` | 0 | 3 of 3: c-data every unit at 100%; sa1 0 of 2,013 functions in 14 units below 100% (33 before); klonoa 0 of 422 in 12 units (51 before) (15 s) |
+| `g6.expected-bytes` (ci) | 0 | 229 modules on 55 targets, 1 `runs_at` (68 s) |
+| `g6.expected-bytes` (real) | 0 | 452 modules on 61 targets, 1 `runs_at` (131 s) |
+| scratch copy of `g6.expected-bytes`, c-data with the `sub_080000F8` and `sub_0800010C` includes of `expected/main.s` swapped (correctness-r1-1) | 1 | "c-data: main: build/expected/main.o linked at 0x080000F4 differs from the ROM at 0x080000F8 (sub_0800010C) \| c-data: main: sub_080000F8 links at 0x0800011C, where the model places it at 0x080000F8 \| c-data: main: sub_0800010C links at 0x080000F8, where the model places it at 0x0800010C" |
+| scratch copy linking the `runs_at` module at its load address (Q16's check) | 1 | "code-copied-to-ram+runs_at: data: gUnk_0800012C links at 0x0800012C, where the model places it at 0x03000000 \| … sub_0800012C links at 0x0800012C, where the model places it at 0x03000000 \| … main: build/expected/main.o linked at 0x080000F4 differs from the ROM at 0x08000110 (sub_080000F4)" |
+| scratch copy on Klonoa with `bench/overrides/klonoa.json`'s override (measured, not a gate target) | 0 | 27 modules, 1 `runs_at` (`0x0804F318 -> 0x03000388`) |
+| `init`, `make expected`, `generate --json` (correctness-r2-2) | 0 | `W_UNOWNED_FILE` sa1 0 (69 before), Klonoa 0 (81 before); `build/expected/` holds 23 and 25 objects |
+| `g3.checks-fail`, `g3.golden-writers`, `g3.link`, `g3.raw-link`, `g3.self-check`, `g3.text-layout`, `g3.tree-determinism`, `g4.c-data-fails-loud`, `g4.checks-fail`, `g4.cli-contract`, `g4.e2e-fixtures`, `g4.generate-idempotent`, `g4.packed-e2e`, `g4.worktree`, `g6.c-data-ranges`, `g6.ram-code-mapped` (ci) | 0 | 16 pass (988 s) |
+| `g3.link`, `g3.raw-link`, `g3.self-check`, `g3.text-layout`, `g3.tree-determinism`, `g4.generate-idempotent`, `g4.worktree`, `g6.ram-code-mapped`, `g4.e2e-real` (real) | 0 | 9 pass on 60 ROMs (the six tuning ROMs to their SHA-1s in `g4.e2e-real`, 210 s; Klonoa's override in `g6.ram-code-mapped`) (1,117 s) |
+
+Not run in this step: the full closing list (the round's last step runs it), `g6.objdiff` (Q6 and Q15, the next step),
+`g1.provenance` and `bench provenance` (they read the committed artifact, which the closing run regenerates).

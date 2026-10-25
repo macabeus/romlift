@@ -12,9 +12,9 @@ was created by [romlift](https://github.com/macabeus/romlift) @@romliftVersion@@
 | `make` | builds `@@builtRom@@` and compares its SHA-1 with `@@sha1File@@`; exits 0 only on a match, the only verdict that counts |
 | `make rom` | builds `@@builtRom@@` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
-| `make expected` | builds each module's objdiff target, `expected/<module>.o` (no compiler; `objdiff.json` lists the C modules') |
+| `make expected` | builds each module's objdiff target, `build/expected/<module>.o` (no compiler; `objdiff.json` lists the C modules') |
 | `npx romlift rename <old> <new>` | renames a function or symbol in `romlift.toml` and in the C of `src/` and `include/` together |
-| `make clean` | removes `build/`, the built ROM and the `expected/` objects |
+| `make clean` | removes `build/` (the objdiff targets with it) and the built ROM |
 
 `@@romFile@@` is the original ROM. It is never committed (`.gitignore`); bring your own copy.
 
@@ -128,16 +128,14 @@ Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler
 
 ## Comparing a function with objdiff
 
-`romlift generate` writes, for each module, `expected/<module>.s` (the module as its build unit assembles it: a C
-module's generated `.s` files, every function as `INCLUDE_ASM` would include it) and `expected/rom/<module>.s` (its
-bytes in the ROM). `make expected` assembles both and writes the ROM's bytes over the first object, keeping its symbols
-and relocations: `expected/<module>.o` is the target object, whatever you have decompiled, and
-`objdiff.json` lists one unit per C module, in ROM order, with that target and the object `make` builds from
-`src/<module>.c`, `build/src/<module>.o`. Open the project in objdiff (or run `objdiff-cli`) after `make expected`: it
-runs `make build/src/<module>.o` itself before each diff (`build_base`), never `make expected` (`build_target` is
-false), so run `make expected` again after a `romlift generate` that changed `expected/`. Before you change anything,
-objdiff scores every function at 100% but those with a jump table or a call to the function right after them, where it
-reads the original bytes of a relocated word as an offset (a few in most projects); compare those by eye.
+`romlift generate` writes, for each module, `expected/<module>.s`: the module as its build unit assembles it while
+every function is `INCLUDE_ASM` (a C module's generated `.s` files, each included as `INCLUDE_ASM` would include it).
+`make expected` assembles it as it is into `build/expected/<module>.o`, the target object: the symbols, relocations and
+bytes `build/src/<module>.o` had before you decompiled anything. `objdiff.json` lists one unit per C module, in ROM order,
+with that target and the object `make` builds from `src/<module>.c`, `build/src/<module>.o`. Open the project in objdiff
+(or run `objdiff-cli`) after `make expected`: it runs `make build/src/<module>.o` itself before each diff
+(`build_base`), never `make expected` (`build_target` is false), so run `make expected` again after a `romlift
+generate` that changed `expected/`. Before you change anything, objdiff scores every function at 100%.
 
 ## Code that runs from RAM
 

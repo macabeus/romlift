@@ -444,18 +444,16 @@ test('a folded pad: the function file lays out from the pad, its start macro emi
   assert.equal(twice[0]?.code, 'E_SELF_CHECK_TEXT');
 });
 
-// Fix round 2 (architecture-r1-4): the objdiff targets, expected/<module>.s and expected/rom/<module>.s (D95 a), each
-// refusal of checkExpectedFile and checkExpectedRomFile on the C fixture.
+// Fix round 2 (architecture-r1-4): the objdiff target, expected/<module>.s (D95 a, D101 a), each refusal of
+// checkExpectedFile on the C fixture.
 
-/** The expected writer's two files of module main of the C fixture. */
-function expectedFiles(): { readonly model: Model; readonly unit: FileEntry; readonly rom: FileEntry } {
+/** The expected writer's file of module main of the C fixture. */
+function expectedFiles(): { readonly model: Model; readonly unit: FileEntry } {
   const { model: c } = cFixture();
   const main = c.modules.findIndex((m) => m.name === 'main');
-  const files = [...expectedWriter.emit(rom, c, CX, main)];
-  const unit = files.find((f) => f.path === 'expected/main.s');
-  const romFile = files.find((f) => f.path === 'expected/rom/main.s');
-  assert.ok(unit !== undefined && romFile !== undefined);
-  return { model: c, unit, rom: romFile };
+  const unit = [...expectedWriter.emit(rom, c, CX, main)].find((f) => f.path === 'expected/main.s');
+  assert.ok(unit !== undefined);
+  return { model: c, unit };
 }
 
 function checkExpected(file: FileEntry, text: string, m: Model): readonly string[] {
@@ -487,15 +485,4 @@ test('expected/<module>.s of an asm or data module includes only its own source'
   assert.ok(file !== undefined && 'text' in file);
   assert.deepEqual(checkExpected(file, file.text, model), []);
   assert.match(checkExpected(file, file.text.replace('"asm/crt0.s"', '"asm/main.s"'), model).join('\n'), /includes "asm\/main\.s" where the module's chunk file in ROM order is "asm\/crt0\.s"/);
-});
-
-test('expected/rom/<module>.s is the module\'s ROM range: another offset, length or an include is refused', () => {
-  const { model: c, rom: file } = expectedFiles();
-  const text = 'text' in file ? file.text : '';
-  assert.deepEqual(checkExpected(file, text, c), []);
-  const shifted = text.replace(/\.incbin "baserom\.gba", 0x([0-9A-F]+),/, (_, off: string) => `.incbin "baserom.gba", 0x${(Number.parseInt(off, 16) + 2).toString(16).toUpperCase()},`);
-  assert.notDeepEqual(checkExpected(file, shifted, c), [], 'the bytes of another offset');
-  const short = text.replace(/, 0x([0-9A-F]+)\n$/, (_, len: string) => `, 0x${(Number.parseInt(len, 16) - 2).toString(16).toUpperCase()}\n`);
-  assert.notDeepEqual(checkExpected(file, short, c), [], 'a range two bytes short');
-  assert.notDeepEqual(checkExpected(file, `${text}.include "asm/nonmatchings/main/Func.s"\n`, c), [], 'an include, which a ROM range resolves to nothing');
 });
