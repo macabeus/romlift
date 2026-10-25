@@ -25,6 +25,7 @@ import { baselineText, diffResults, formatDiff, moved } from './report.ts';
 import { BENCH_RUN_SCHEMA, benchRun, largeRomProcess, revealDataset, summaryText, type BenchRunReport, type RunOptions } from './run.ts';
 import type { EmissionFamilies } from './scaffold.ts';
 import { serve } from './serve.ts';
+import { benchSignatures, benchSignaturesLoo } from './signatures.ts';
 import { benchSpeed, speedPasses } from './speed.ts';
 
 export interface BenchIo {
@@ -150,6 +151,19 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
         );
       }
       return outcome.report.failed.length === 0 ? 0 : 1;
+    },
+  },
+  signatures: {
+    summary:
+      'signatures [--only <rom>] [--loo] [--json]  the signatures family after a seedless discover run, from the locally built signatures/*.json: ' +
+      'each tuning ROM judged against its ELF, sealed ROMs by counts only; --loo rebuilds each multi-reference version without each reference and matches it there',
+    args: { options: ['only'], flags: ['json', 'loo'] },
+    async run(cx, args, io, deps) {
+      const only = args.options['only'];
+      const options = { ...(only === undefined ? {} : { only }), runner: deps.runner, log: io.out };
+      const report = args.flags.has('loo') ? await benchSignaturesLoo(cx, options) : await benchSignatures(cx, options);
+      if (args.flags.has('json')) json(io, report);
+      return 0;
     },
   },
   'large-rom': {

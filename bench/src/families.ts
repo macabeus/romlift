@@ -23,7 +23,11 @@ export const FAMILIES = {
   speed: { liveFrom: 2, scope: 'rom', summary: 'CPU time within the ratchet and the budget' },
   readability: { liveFrom: 3, scope: 'rom', summary: 'readability shares only increase (objdiff: g6.objdiff, D92)' },
   memory: { liveFrom: 3, scope: 'global', summary: 'each command\'s exit code, peak RSS and heap cap on the 32 MiB synthetic ROM, recorded; g3.large-rom judges them (exit 0 under the 1,024 MiB cap, below 1,536 MiB)' },
-  signatures: { liveFrom: 6, scope: 'rom', summary: 'every placement at an ELF FUNC or a listed untyped address' },
+  signatures: {
+    liveFrom: 6,
+    scope: 'rom',
+    summary: "every placement at an ELF FUNC or a listed untyped address, every table an OBJECT of its size or a label, every proposed size and every reference's symbol the ELF's; the PoC's placements as a floor (g6.signatures-judged)",
+  },
 } as const satisfies Record<string, FamilySpec>;
 
 export type Family = keyof typeof FAMILIES;
@@ -65,6 +69,23 @@ export interface Phase3Evidence {
  */
 export function phase3RomFamilies(e: Phase3Evidence): Family[] {
   return [...phase2RomFamilies(e), 'readability' as const].sort(compareCodeUnits);
+}
+
+/** What one phase-6 `bench run` of a tuning ROM measured besides the phase-3 evidence. */
+export interface Phase6Evidence extends Phase3Evidence {
+  /** Built signature files were found and judged on the ROM's scored run (signatures.ts); the row holds the member. */
+  readonly signatures: boolean;
+}
+
+/**
+ * The per-ROM families a phase-6 `bench run` records for one tuning ROM, in name order: the phase-3 families, and
+ * `signatures` when the run judged the locally built signature files (none are built: the family did not run, and
+ * the provenance check at landed 6 says so).
+ */
+export function phase6RomFamilies(e: Phase6Evidence): Family[] {
+  const families = phase3RomFamilies(e);
+  if (e.signatures) families.push('signatures');
+  return families.sort(compareCodeUnits);
 }
 
 export function familySpec(family: Family): FamilySpec {
