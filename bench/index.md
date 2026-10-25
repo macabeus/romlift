@@ -54,3 +54,23 @@ times, and each ROM's readability, link and objdiff times, go to `timings.json`.
 `readability` for every tuning ROM and `scaffold` only from romlift's own raw link; `meta.toolchain.objdiff`
 is the objdiff-cli version of a `--scaffold` run. `bench regression` fails on a readability share lower than
 the base artifact's (a base without the family is not compared).
+
+## Phase 6: the signatures family
+
+`src/signatures.ts` judges library signatures after the seedless discover run (D24), from the locally built
+`signatures/*.json` (gitignored, D40; built by the exit list's loop over `signatures/specs/*.json`, and refused
+with that loop named when there are none). It matches, settles and proposes through romlift's entry points
+(`matchSignatures`, `resolvePlacements`, `proposeFromSignatures`, D37) and judges every function placement at an
+ELF `FUNC` or a dataset `untyped` row, every table an ELF `OBJECT` of its size or a label (no `OBJECT` there, another
+symbol that is not a mapping symbol), every proposed `size` the ELF's with the 4-byte padding allowance (a FUNC whose
+size runs over another FUNC's start, or an unsized one, gives no size), and, on a ROM a placed version names as a
+reference, every member symbol (the `MemberId` before '@') the ELF's own at the placement.
+
+| Command | Does |
+| --- | --- |
+| `signatures [--only <rom>] [--json]` | each tuning ROM judged (`romlift/bench-signatures@1` `roms[]`: `libraries`, `placements`, `tables`, `sizes`, `names`, with one line per failing placement, table, size or name), each sealed ROM counted (`sealed[]`: `placements {total, atElfFunc, untyped, wrong}` by the §8.4 classifiers, `tables {total, object, label, wrong}`; counts only, `assertCountsOnly`) |
+| `signatures --loo [--only <reference>] [--json]` | per multi-reference version of the specs and per reference R: the version rebuilt in memory without R, matched on R's ROM beside the other built files, against the full build there (`romlift/bench-signatures-loo@1` `runs[]`: `added`, `moved`, `missingShared`, by member id) |
+
+`bench run` records the family on every tuning ROM when signature files are built: the row's `signatures` member
+(the judged counts), `signatures` in `meta.families` (live from phase 6), and their digest as
+`meta.inputs.signaturesDigest`, so a rebuilt file clears a kept gate record.

@@ -51,6 +51,9 @@ test('a bad option or value is a usage error: exit 2 with the message and the us
     [['explain', 'klonoa'], 'explain needs a ROM name and an address'],
     [['explain', 'klonoa', 'zz'], 'zz is not an address (0x... or decimal)'],
     [['adopt'], 'adopt needs a dataset name'],
+    [['signatures', 'klonoa'], 'unexpected argument klonoa'],
+    [['signatures', '--only'], '--only needs a value'],
+    [['signatures', '--bogus'], 'unknown option --bogus'],
   ];
   for (const [argv, message] of cases) {
     const io = capture();
