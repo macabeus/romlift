@@ -15,7 +15,7 @@ import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.t
 import type { FunctionConfig } from '../config/schema.ts';
 import { ModelCodes } from './codes.ts';
 import { cDataName, cRodataName } from './c-data-assert.ts';
-import { loadSymbolOf, moduleIndexAt, relocatedModules, ROM_SECTION, runSectionOf } from './modules.ts';
+import { linkerDefinedNames, moduleIndexAt, relocatedModules, ROM_SECTION, runSectionOf } from './modules.ts';
 import type { Label, Module, NameSource } from './types.ts';
 
 /** The name of the cartridge header's chunk and label. */
@@ -82,7 +82,7 @@ export function nameCollisions(names: readonly DefinedName[], modules: readonly 
  * (correctness-r1-2). Once per name, by name.
  */
 export function linkerNameCollisions(names: readonly { readonly name: string; readonly addr: Addr }[], modules: readonly Module[]): Diagnostic[] {
-  const reserved = new Map(relocatedModules(modules).map((m) => [loadSymbolOf(m), m] as const));
+  const reserved = new Map(linkerDefinedNames(modules).map((d) => [d.name, d.module] as const));
   const seen = new Set<string>();
   const out: Diagnostic[] = [];
   for (const n of [...names].sort((a, b) => compareCodeUnits(a.name, b.name) || compareNumbers(a.addr, b.addr))) {

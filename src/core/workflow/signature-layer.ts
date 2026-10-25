@@ -55,7 +55,7 @@ export interface RomSignatures {
 const NOTHING: RomSignatures = { placements: [], regions: [], proposals: [], diagnostics: [] };
 
 /** The settled placements of `files` on `rom` (matchSignatures over the discover result, then resolvePlacements). */
-export function placeSignatures(rom: Rom, analysis: AnalysisResult, files: readonly SignatureFile[]): ReturnType<typeof resolvePlacements> {
+function placeSignatures(rom: Rom, analysis: AnalysisResult, files: readonly SignatureFile[]): ReturnType<typeof resolvePlacements> {
   return resolvePlacements(rom, matchSignatures(rom, analysis, files));
 }
 

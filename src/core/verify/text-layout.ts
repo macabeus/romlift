@@ -62,7 +62,7 @@ import { pushAll } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
-import { dataRangeModuleAt, loadSymbolOf, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
+import { dataRangeModuleAt, linkerDefinedNames, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
 import { BASEROM_FILE, isCSource, matchingFileOf, nonmatchingFileOf } from '../../foundation/util/project-files.ts';
 import { chunkPathsOf, expectedRomSourcePath, expectedSourcePath, hasExpectedTarget, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { STUB_UNIT_MODE } from '../model/c-unit.ts';
@@ -165,7 +165,7 @@ function indexData(model: Model): IndexData {
     if (list === undefined) labelsByName.set(label.name, [label]);
     else list.push(label);
   }
-  const loadSymbols = new Map(relocated.map((m) => [loadSymbolOf(m), m.span.start] as const));
+  const loadSymbols = new Map(linkerDefinedNames(model.modules).map((d) => [d.name, d.addr] as const));
   return { targets, chunkPaths: paths, expected, relocated, labelsByName, symbolsByName: externalSymbolValues(model), loadSymbols, memo: layoutMemo() };
 }
 

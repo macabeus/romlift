@@ -12,7 +12,7 @@ import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
 import { cDataAssertLine, cDataSectionLine, cRamDataSectionLine, cRodataAssertLine, cRodataSectionLine } from '../model/c-data-assert.ts';
-import { loadSymbolOf, modulePieces } from '../model/modules.ts';
+import { linkerDefinedNames, loadSymbolOf, modulePieces } from '../model/modules.ts';
 import { isCSource } from '../../foundation/util/project-files.ts';
 import { buildUnits, SYMBOLS_PATH } from '../model/paths.ts';
 import { externalSymbols } from '../model/symbols.ts';
@@ -44,7 +44,8 @@ interface ScriptObject {
 const SECTION_AT = /^\.([A-Za-z0-9_.$]+)\s+(0x[0-9A-Fa-f]+)\s*:\s*AT\(\s*(0x[0-9A-Fa-f]+)\s*\)\s*\{$/;
 const SECTION = /^\.([A-Za-z0-9_.$]+)\s*:\s*\{$/;
 const OBJECT = /^(\S+)\(\.text\);?$/;
-const LOAD_SYMBOL = /^__load_([A-Za-z0-9_.$]+)\s*=\s*LOADADDR\(\s*\.([A-Za-z0-9_.$]+)\s*\);$/;
+/** `<symbol> = LOADADDR(.<section>);`: the symbol is one of modules.ts linkerDefinedNames, never spelt here (architecture-r2-2). */
+const LOAD_SYMBOL = /^([A-Za-z_.$][A-Za-z0-9_.$]*)\s*=\s*LOADADDR\(\s*\.([A-Za-z0-9_.$]+)\s*\);$/;
 const START = /^\.\s*=\s*(0x[0-9A-Fa-f]+)\s*;$/;
 const ASSIGNMENT = /^([A-Za-z_.$][A-Za-z0-9_.$]*)\s*=\s*(0x[0-9A-Fa-f]+)\s*;$/;
 
@@ -142,7 +143,9 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
   const cData: CDataLine[] = [];
   const rodata: RodataLine[] = [];
   let pendingAssert: RodataLine | undefined;
+  /** The script's load symbols by name, each with the section it names. */
   const loads = new Map<string, string>();
+  const loadNames = new Set(linkerDefinedNames(model.modules).map((d) => d.name));
   let includesSymbols = false;
   let start: Addr | undefined;
   let inSections = false;
@@ -200,7 +203,7 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
     else if (plain !== null) {
       if (start === undefined) err(`section .${plain[1] ?? ''} has no address and no \`. = ${hexAddr(ROM_BASE)};\` precedes it`);
       section = { name: plain[1] ?? '', count: 0 };
-    } else if (loadSymbol !== null) loads.set(loadSymbol[1] ?? '', loadSymbol[2] ?? '');
+    } else if (loadSymbol !== null && loadNames.has(loadSymbol[1] ?? '')) loads.set(loadSymbol[1] ?? '', loadSymbol[2] ?? '');
     else if (startAt !== null) {
       start = parseHexAddr(startAt[1] ?? '');
       if (start !== ROM_BASE) err(`the link starts at ${startAt[1] ?? ''}, not ${hexAddr(ROM_BASE)}`);
@@ -244,7 +247,7 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
       if (!got.first || got.vma !== module.runAt || got.lma !== at) {
         out.push(textError(path, got.line, at, `${unit.object} runs from ${hexAddr(module.runAt)} and must open its own section at ${hexAddr(module.runAt)} : AT(${hexAddr(at)})`));
       }
-      if (loads.get(module.name) !== got.section) out.push(textError(path, got.line, at, `no \`${loadSymbolOf(module)} = LOADADDR(.${got.section});\` names where ${unit.object} is loaded`));
+      if (loads.get(loadSymbolOf(module)) !== got.section) out.push(textError(path, got.line, at, `no \`${loadSymbolOf(module)} = LOADADDR(.${got.section});\` names where ${unit.object} is loaded`));
     } else if (afterRange.has(k) && (!got.first || got.lma !== at || got.vma !== at)) {
       out.push(textError(path, got.line, at, `${unit.object} follows a data range and must open its own section at ${hexAddr(at)} : AT(${hexAddr(at)})`));
     } else if (got.first && got.lma !== undefined && (got.lma !== at || got.vma !== at)) {

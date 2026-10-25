@@ -21,7 +21,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import type { Journal } from '../../core/write-plan/journal.ts';
 import { ShellCodes } from '../codes.ts';
-import { errnoOf, errorReason, listDir } from '../fs.ts';
+import { errorReason, isAbsentError, listDir } from '../fs.ts';
 
 /** One directory's entries, by name and by folded name, as one applyWrites call has listed them. */
 interface Listing {
@@ -47,7 +47,7 @@ async function statOf(path: string): Promise<Stats | undefined> {
   try {
     return await lstat(path);
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return undefined;
+    if (isAbsentError(error)) return undefined;
     throw error;
   }
 }

@@ -266,7 +266,7 @@ function readDirective(r: Reader, directive: string, rest: string, line: number,
       return push({ kind: 'include', line, path });
     }
     case '.syntax':
-      if (rest !== 'unified' && rest !== 'divided') return err(`\`.syntax ${rest}\`: only unified syntax is supported`);
+      if (rest !== 'unified' && rest !== 'divided') return err(`\`.syntax ${rest}\`: only \`.syntax unified\` and \`.syntax divided\` (agbcc's, after each INCLUDE_ASM include) are read`);
       r.divided = rest === 'divided';
       return push({ kind: 'symbol', line, directive, args: [rest] });
     case '.text':

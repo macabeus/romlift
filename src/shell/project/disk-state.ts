@@ -15,7 +15,7 @@ import { decodeManifest, isProjectPath } from '../../core/write-plan/manifest.ts
 import { GENERATED_ROOTS, JOURNAL_PATH, MANIFEST_PATH } from '../../core/write-plan/types.ts';
 import type { DiskFileState, Manifest } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
-import { errnoOf, errorReason, listDir } from '../fs.ts';
+import { errnoOf, errorReason, isAbsentError, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { sha1Of } from '../hash.ts';
 
@@ -49,7 +49,7 @@ export async function digestOf(dir: string, path: string): Promise<IoResult<Disk
   try {
     return { ok: true, value: { kind: 'present', sha1: sha1Of(await readFile(file)) } };
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: { kind: 'absent' } };
+    if (isAbsentError(error)) return { ok: true, value: { kind: 'absent' } };
     return ioError('E_IO_READ', file, `cannot read ${file}: ${errorReason(error)}`);
   }
 }
@@ -92,7 +92,7 @@ export async function filesUnder(dir: string, path: string, out: string[], optio
   try {
     entry = await lstat(onDisk(dir, path));
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: undefined };
+    if (isAbsentError(error)) return { ok: true, value: undefined };
     return ioError('E_IO_READ', onDisk(dir, path), `cannot stat ${onDisk(dir, path)}: ${errorReason(error)}`);
   }
   if (!entry.isDirectory()) {
@@ -135,8 +135,7 @@ async function filesFollowing(dir: string, path: string, out: string[], inside: 
   try {
     found = await stat(file);
   } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP') return { ok: true, value: undefined };
+    if (isAbsentError(error)) return { ok: true, value: undefined };
     return ioError('E_IO_READ', file, `cannot stat ${file}: ${errorReason(error)}`);
   }
   if (found.isFile()) {

@@ -10,7 +10,6 @@ export {
   isDefaultName,
   librariesOf,
   libraryModuleProposals,
-  placeSignatures,
   signatureLayer,
   signaturesOnRom,
   signaturesOver,

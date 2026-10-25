@@ -23,6 +23,16 @@ export function errnoOf(error: unknown): string | undefined {
   return error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
 }
 
+/**
+ * Whether a failure to reach `path` means nothing is there: it is absent (ENOENT), a component of its path is no
+ * directory (ENOTDIR), or a symbolic link on it loops (ELOOP, a link to nothing). The one reading of absence in the
+ * shell (architecture-r2-4); any other failure (a permission, an I/O error) is E_IO_READ, never read as absent.
+ */
+export function isAbsentError(error: unknown): boolean {
+  const code = errnoOf(error);
+  return code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP';
+}
+
 /** The error's message, led by its code once (Node's own message often starts with it): what every shell diagnostic quotes. */
 export function errorReason(error: unknown): string {
   if (error instanceof Error) {
@@ -47,29 +57,27 @@ export async function listDir(path: string): Promise<IoResult<readonly string[]>
 }
 
 /**
- * Whether `path` is a directory: false when it is absent or a path component is no directory (ENOENT, ENOTDIR) or it
- * is another kind of file; any other failure (a permission, an I/O error) is E_IO_READ, never read as absent.
+ * Whether `path` is a directory: false when nothing is there (isAbsentError) or it is another kind of file; any other
+ * failure (a permission, an I/O error) is E_IO_READ, never read as absent.
  */
 export async function isDirectory(path: string): Promise<IoResult<boolean>> {
   try {
     return { ok: true, value: (await stat(path)).isDirectory() };
   } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, value: false };
+    if (isAbsentError(error)) return { ok: true, value: false };
     return failure('E_IO_READ', path, 'cannot examine', error);
   }
 }
 
 /**
- * Whether `path` is a regular file (a link to one counts): false when it is absent or a path component is no directory
- * (ENOENT, ENOTDIR) or it is another kind of file; any other failure is E_IO_READ, never read as absent (architecture-6).
+ * Whether `path` is a regular file (a link to one counts): false when nothing is there (isAbsentError) or it is
+ * another kind of file; any other failure is E_IO_READ, never read as absent (architecture-6).
  */
 export async function isRegularFile(path: string): Promise<IoResult<boolean>> {
   try {
     return { ok: true, value: (await stat(path)).isFile() };
   } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, value: false };
+    if (isAbsentError(error)) return { ok: true, value: false };
     return failure('E_IO_READ', path, 'cannot examine', error);
   }
 }

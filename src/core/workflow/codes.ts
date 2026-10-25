@@ -52,7 +52,7 @@ export const WorkflowCodes = defineCodes({
   },
   W_RENAME_SKIPPED: {
     severity: 'warning',
-    meaning: 'a file under src/ or include/ that rename does not edit (a symbolic link, a file that is not UTF-8 text or holds a NUL), which does not name the old name, or a link to a directory whose files rename does not read (rename.ts, D95 c)',
+    meaning: 'a file under src/ or include/ that rename does not edit (a symbolic link, a file that is not UTF-8 text or holds a NUL), which does not name the old name, or a link to nothing or to a directory through which no file is read that rename does not edit by its own path (each file behind a link to a directory is read since correctness-r2-3; rename.ts, D95 c)',
   },
   E_RENAME_INTERRUPTED: {
     severity: 'error',

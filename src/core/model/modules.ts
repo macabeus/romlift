@@ -95,10 +95,9 @@ const RUN_ALIGN = WORD;
 function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonly start: Addr; readonly end: Addr }[], diagnostics: Diagnostic[]): (Addr | undefined)[] {
   const runAt: (Addr | undefined)[] = spans.map(() => undefined);
   const isBorder = (a: Addr): boolean => a === rom.end || spans.some((s) => s.start === a);
-  const ranged = config.overrides.filter((o) => o.runsAt !== undefined).sort((a, b) => compareNumbers(a.start, b.start));
+  const ranged = [...runsAtOverrides(config)].sort((a, b) => compareNumbers(a.start, b.start));
   const running: Span[] = [];
   for (const o of ranged) {
-    if (o.runsAt === undefined) continue;
     const end = o.start + o.size;
     const span = { start: o.start, end };
     const run = { start: o.runsAt, end: o.runsAt + o.size };
@@ -128,14 +127,11 @@ function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonl
     }
     running.push(run);
     spans.forEach((s, i) => {
-      if (s.start >= o.start && s.start < end && runAt[i] === undefined && o.runsAt !== undefined) runAt[i] = o.runsAt + (s.start - o.start);
+      if (s.start >= o.start && s.start < end && runAt[i] === undefined) runAt[i] = o.runsAt + (s.start - o.start);
     });
   }
   return runAt;
 }
-
-/** The word a data range starts on: `ld` places the C object's `.rodata` at its own alignment, which agbcc keeps at most 4. */
-const DATA_ALIGN = 4;
 
 /** A data range that passed its checks: the module it belongs to (an index of `kept`) and its span. */
 interface PlannedRange {
@@ -170,7 +166,8 @@ function rangeProblem(rom: Rom, kept: readonly ModuleConfig[], i: number, span: 
   if (m === undefined) return 'it names no module';
   const start = span.start;
   if (m.kind !== 'c') return `data_start is legal only on a module of kind = "c", and ${m.name} is kind = "${m.kind}"`;
-  if (start % DATA_ALIGN !== 0) return 'it is not word-aligned';
+  // ld places the C object's `.rodata` at its own alignment, which agbcc keeps at most a word (layout/align.ts WORD).
+  if (start % WORD !== 0) return 'it is not word-aligned';
   if (start >= rom.end) return `it lies at or past the ROM end ${hexAddr(rom.end)}`;
   if (start < rule.dataStart) return `it lies below the data start ${hexAddr(rule.dataStart)}, where code lies`;
   if (start <= m.start) return `it does not lie past the module's start ${hexAddr(m.start)}`;
@@ -271,6 +268,15 @@ export function relocatedModules(modules: readonly Module[]): readonly Module[] 
  */
 export function loadSymbolOf(module: Pick<Module, 'name'>): string {
   return `__load_${module.name}`;
+}
+
+/**
+ * Every name the linker script defines, with the address it names and its module: each runs_at module's
+ * `__load_<module>` at its load start (§6.7). The one list names.ts, rename.ts and text-layout.ts read
+ * (architecture-r2-2).
+ */
+export function linkerDefinedNames(modules: readonly Module[]): readonly { readonly name: string; readonly addr: Addr; readonly module: Module }[] {
+  return relocatedModules(modules).map((m) => ({ name: loadSymbolOf(m), addr: m.span.start, module: m }));
 }
 
 /** The output section the ldscript opens first, for the ROM's units from its start (§6.7). */

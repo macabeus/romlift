@@ -11,7 +11,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ShellCodes } from '../codes.ts';
 import type { ShellCode } from '../codes.ts';
 import { DECOMP_YAML_NAMES } from '../../foundation/util/project-files.ts';
-import { errnoOf, errorReason } from '../fs.ts';
+import { errorReason, isAbsentError } from '../fs.ts';
 
 /** A located project: its root directory and its decomp.yaml, both absolute. */
 export interface ProjectLocation {
@@ -26,8 +26,7 @@ async function isFile(path: string): Promise<{ readonly ok: true; readonly file:
   try {
     return { ok: true, file: (await stat(path)).isFile() };
   } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, file: false };
+    if (isAbsentError(error)) return { ok: true, file: false };
     return { ok: false, reason: errorReason(error) };
   }
 }

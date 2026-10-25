@@ -196,8 +196,9 @@ romlift/
     shell/                          the only code that touches files, processes, hashing or the environment
       codes.ts                      the shell's diagnostic codes
       hash.ts                       sha1/sha256 via node:crypto, incremental
-      fs.ts                         listDir (sorted by code unit), isRegularFile, readText, readJson (ENOENT and
-                                    ENOTDIR read as absent, any other failure E_IO_READ), atomic write (temp and rename)
+      fs.ts                         listDir (sorted by code unit), isRegularFile, readText, readJson; isAbsentError,
+                                    the shell's one reading of absence (ENOENT, ENOTDIR and ELOOP read as absent, any
+                                    other failure E_IO_READ; architecture-r2-4); atomic write (temp and rename)
       rom.ts                        readRom: a ROM file read, hashed and wrapped (D59)
       project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts, disk-state.ts,
                                     fresh-tree.ts (writeFreshTree), write-project.ts (generate's and init's writes

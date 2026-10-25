@@ -229,12 +229,13 @@ test('readRenameTexts: every .c and .h under src/ and every file under include/,
 });
 
 // Fix round 2 (architecture-r1-1): a link whose target cannot be read is E_IO_READ, never a link to nothing; a
-// dangling link, a loop and a link to a directory are links to nothing.
-test('readRenameTexts: a link to an unreadable file is E_IO_READ; a dangling link, a link loop and a link to a directory are skipped without bytes', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
-  const dir = await dirWith({ 'src/main.c': 'int A;\n', 'secret/locked.h': 'int A;\n' });
+// dangling link and a loop are links to nothing, and so is a link to a directory with no file (correctness-r2-3).
+test('readRenameTexts: a link to an unreadable file is E_IO_READ; a dangling link, a link loop and a link to an empty directory are skipped without bytes', { skip: process.getuid?.() === 0 ? 'root reads through mode 000' : false }, async () => {
+  const dir = await dirWith({ 'src/main.c': 'int A;\n', 'secret/locked.h': 'int A;\n', 'empty/.keep': '' });
+  await rm(path.join(dir, 'empty', '.keep'));
   await symlink(path.join(dir, 'nowhere.h'), path.join(dir, 'src', 'dangling.h'));
   await symlink('loop.h', path.join(dir, 'src', 'loop.h'));
-  await symlink(path.join(dir, 'secret'), path.join(dir, 'include'));
+  await symlink(path.join(dir, 'empty'), path.join(dir, 'include'));
   const nothing = await readRenameTexts(dir);
   assert.ok(nothing.ok);
   assert.deepEqual(
@@ -254,6 +255,24 @@ test('readRenameTexts: a link to an unreadable file is E_IO_READ; a dangling lin
   } finally {
     await chmod(path.join(dir, 'secret', 'locked.h'), 0o644);
   }
+});
+
+// Fix round 4 (correctness-r2-3): the files behind a link to a directory are read and listed as skipped with their
+// bytes, so planRename refuses one that names the old name; a file rename edits through its own path is not listed.
+test('readRenameTexts: a link to a directory lists each file below it with its bytes, but not one rename edits through its own path', async () => {
+  const dir = await dirWith({ 'src/main.c': 'int A;\n', 'include/real/own.h': 'int A;\n', 'outside/sub/ext.h': 'void A(void);\n' });
+  await symlink(path.join(dir, 'outside'), path.join(dir, 'include', 'ext'));
+  await symlink(path.join(dir, 'include', 'real'), path.join(dir, 'include', 'alias'));
+  const read = await readRenameTexts(dir);
+  assert.ok(read.ok);
+  assert.deepEqual([...read.value.texts.keys()], ['include/real/own.h', 'src/main.c']);
+  assert.deepEqual(
+    read.value.skipped.map((f) => [f.path, f.reason, f.bytes === undefined ? undefined : Buffer.from(f.bytes).toString('utf8')]),
+    [
+      ['include/alias', 'link', undefined],
+      ['include/ext/sub/ext.h', 'link', 'void A(void);\n'],
+    ],
+  );
 });
 
 test('readProject passes the chunk files on disk as previousChunkFiles, and none with withoutC', async () => {

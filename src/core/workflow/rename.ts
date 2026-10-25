@@ -24,7 +24,7 @@ import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.t
 import { entriesNamed, planRenamePatch } from '../config/rename-patch.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import type { FileEntry } from '../emit/tree.ts';
-import { loadSymbolOf, relocatedModules } from '../model/modules.ts';
+import { linkerDefinedNames } from '../model/modules.ts';
 import type { Model } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import { C_KEYWORDS } from '../reconcile/c-tokens.ts';
@@ -100,7 +100,7 @@ export function modelNamesOf(model: Pick<Model, 'chunks' | 'labels' | 'symbols' 
     ...model.labels.map((l) => ({ name: l.name, addr: l.addr })),
     ...model.symbols.map((sym) => ({ name: sym.name, addr: sym.addr })),
     ...model.modules.map((m) => ({ name: m.name, addr: m.span.start })),
-    ...relocatedModules(model.modules).map((m) => ({ name: loadSymbolOf(m), addr: m.span.start })),
+    ...linkerDefinedNames(model.modules).map((d) => ({ name: d.name, addr: d.addr })),
   ].sort((a, b) => compareNumbers(a.addr, b.addr) || compareCodeUnits(a.name, b.name));
   const names = new Map<string, Addr>();
   for (const u of uses) if (!names.has(u.name)) names.set(u.name, u.addr);
@@ -132,7 +132,7 @@ export function skippedFileProblems(skipped: readonly RenameSkipped[], from: str
     if (f.bytes !== undefined && namesIdentifier(f.bytes, from)) {
       return diagnostic(WorkflowCodes, 'E_RENAME_SKIPPED_FILE', `${f.path} names ${from}, but rename does not edit it (${SKIP_TEXT[f.reason]}): rename it there by hand first, or rename again once it no longer names ${from}; nothing was changed`, { path: f.path });
     }
-    const what = f.bytes === undefined && f.reason === 'link' ? 'a symbolic link to a directory or to nothing, whose files rename does not read' : SKIP_TEXT[f.reason];
+    const what = f.bytes === undefined && f.reason === 'link' ? 'a symbolic link to nothing, or to a directory through which rename reads no file it does not edit by its own path' : SKIP_TEXT[f.reason];
     return diagnostic(WorkflowCodes, 'W_RENAME_SKIPPED', `${f.path} is not edited (${what})${f.bytes === undefined ? '' : `; it does not name ${from}`}`, { path: f.path });
   });
 }

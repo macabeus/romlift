@@ -35,7 +35,7 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import { explain, explainOutcome, explainProject } from '../../../src/core/workflow/explain.ts';
 import type { ExplainReport } from '../../../src/core/workflow/explain.ts';
 import { init } from '../../../src/core/workflow/init.ts';
-import { placeSignatures } from '../../../src/core/workflow/signature-layer.ts';
+import { signaturesOver } from '../../../src/core/workflow/signature-layer.ts';
 import { canonicalJson } from '../../../src/foundation/formats/canonical-json.ts';
 import type { JsonValue } from '../../../src/foundation/formats/types.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
@@ -202,7 +202,7 @@ function project(fixtureName: string, name: string, at: string, overrides: (r: A
 /** The address of the first placement of `rule` on library-game. */
 async function placedBy(rule: SignatureRuleId): Promise<number> {
   const rom = romOf(LIBRARY_GAME);
-  const placed = placeSignatures(rom, discover(rom), [await libfix()]).placements.find((p) => p.rule === rule);
+  const placed = signaturesOver(rom, discover(rom), [await libfix()]).placements.find((p) => p.rule === rule);
   if (placed === undefined) throw new Error(`${rule} places no member of libfix on library-game: adjust the fixture`);
   return placed.addr;
 }

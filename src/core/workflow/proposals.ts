@@ -20,6 +20,7 @@ import { sortedEntries } from '../../foundation/util/sorted.ts';
 import { Claim, claimName, functionAt } from '../analysis/types.ts';
 import type { AnalysisResult, ClaimKind, ClaimRun } from '../analysis/types.ts';
 import type { RomliftConfig } from '../config/schema.ts';
+import { runsAtSpans } from '../model/modules.ts';
 import type { Proposal, ProposalSource } from '../proposals/types.ts';
 import { WorkflowCodes } from './codes.ts';
 import type { CheckProposalsContext, ProposalCheck } from './types.ts';
@@ -132,11 +133,9 @@ function againstConfig(p: Proposal, config: RomliftConfig): readonly Contradicti
       if (o.kind === 'code' && overlaps(p.addr, end, span)) out.push({ text: `a code override of romlift.toml covers [${hexAddr(span.start)}, ${hexAddr(span.end)})`, at: o.start, span });
     }
   } else if (p.kind === 'module') {
-    for (const o of config.overrides) {
-      if (o.runsAt === undefined) continue;
-      const span = { start: o.start, end: o.start + o.size };
+    for (const span of runsAtSpans(config)) {
       if (p.start > span.start && p.start < span.end) {
-        out.push({ text: `it would cut the runs_at range [${hexAddr(span.start)}, ${hexAddr(span.end)}) of romlift.toml, which is its own module`, at: o.start, span });
+        out.push({ text: `it would cut the runs_at range [${hexAddr(span.start)}, ${hexAddr(span.end)}) of romlift.toml, which is its own module`, at: span.start, span });
       }
     }
   }

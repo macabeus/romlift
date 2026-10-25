@@ -23,7 +23,7 @@ import type { RenameSkipped } from '../../core/workflow/rename.ts';
 import { ShellCodes } from '../codes.ts';
 import { loadConfig } from '../config/load.ts';
 import type { ProjectConfig } from '../config/load.ts';
-import { errnoOf, errorReason, isDirectory, listDir } from '../fs.ts';
+import { errnoOf, errorReason, isAbsentError, isDirectory, isRegularFile, listDir, readBytes } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { readRom } from '../rom.ts';
 import { filesUnder, readDiskState, readJournal, readManifest, readReconciledTexts } from './disk-state.ts';
@@ -108,7 +108,7 @@ export async function readCTexts(dir: string): Promise<ReadResult<ReadonlyMap<st
   try {
     if (!(await stat(src)).isDirectory()) return { ok: true, value: new Map() };
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: new Map() };
+    if (isAbsentError(error)) return { ok: true, value: new Map() };
     return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${src}: ${errorReason(error)}`, { path: src })] };
   }
   const names = await listDir(src);
@@ -225,8 +225,7 @@ async function readNamed(file: string, key: string): Promise<IoResult<string | u
     if (!(await stat(file)).isFile()) return { ok: true, value: undefined };
     return { ok: true, value: await readFile(file, 'utf8') };
   } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP' || code === 'ENAMETOOLONG') return { ok: true, value: undefined };
+    if (isAbsentError(error) || errnoOf(error) === 'ENAMETOOLONG') return { ok: true, value: undefined };
     return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path: key }) };
   }
 }
@@ -243,7 +242,7 @@ async function realPathOf(file: string, key: string, root: string, dirs: Map<str
     try {
       real = await realpath(parent);
     } catch (error) {
-      if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: key };
+      if (isAbsentError(error)) return { ok: true, value: key };
       return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${parent}: ${errorReason(error)}`, { path: key }) };
     }
     dirs.set(parent, real);
@@ -303,21 +302,50 @@ function isRenameText(path: string): boolean {
 }
 
 /**
- * The bytes behind a symbolic link to a regular file, or undefined for a link to no file: one to a directory or another
- * kind of file, a dangling link (ENOENT, ENOTDIR) or a loop (ELOOP), the rule of shell/fs.ts isRegularFile. Any other
- * failure (EACCES, EIO) is thrown for readRenameTexts to report as E_IO_READ, never read as a link to nothing
- * (architecture-r1-1): a target that cannot be read may name the old name.
+ * The bytes behind a symbolic link to a regular file, or undefined for a link to no file (shell/fs.ts isRegularFile: one
+ * to a directory or another kind of file, a dangling link or a loop). Any other failure (EACCES, EIO) is E_IO_READ,
+ * never read as a link to nothing (architecture-r1-1): a target that cannot be read may name the old name.
  */
-async function linkedFileBytes(file: string): Promise<Uint8Array | undefined> {
-  let isFile: boolean;
-  try {
-    isFile = (await stat(file)).isFile();
-  } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP') return undefined;
-    throw error;
+async function linkedFileBytes(file: string): Promise<IoResult<Uint8Array | undefined>> {
+  const regular = await isRegularFile(file);
+  if (!regular.ok) return regular;
+  return regular.value ? readBytes(file) : { ok: true, value: undefined };
+}
+
+/**
+ * What rename skips at the symbolic link `path` (correctness-r2-3): a link to a file, with its bytes (only for a name
+ * rename reads); a link to a directory, every rename text below it (filesUnder following links, as cpp does), with its
+ * bytes, unless its real path is one of `edited` (a file rename edits through its own path); the link alone, without
+ * bytes, for a link to nothing or a directory with no such file (one filesUnder does not enter, above the project).
+ */
+async function skippedAtLink(dir: string, path: string, edited: ReadonlySet<string>): Promise<IoResult<readonly RenameSkipped[]>> {
+  const file = join(dir, ...path.split('/'));
+  const linked = await linkedFileBytes(file);
+  if (!linked.ok) return { ok: false, diagnostic: { ...linked.diagnostic, path } };
+  if (linked.value !== undefined) return { ok: true, value: isRenameText(path) ? [{ path, reason: 'link', bytes: linked.value }] : [] };
+  const isDir = await isDirectory(file);
+  if (!isDir.ok) return { ok: false, diagnostic: { ...isDir.diagnostic, path } };
+  const below: string[] = [];
+  if (isDir.value) {
+    const walked = await filesUnder(dir, path, below, { followLinks: true });
+    if (!walked.ok) return walked;
   }
-  return isFile ? await readFile(file) : undefined;
+  const out: RenameSkipped[] = [];
+  for (const inner of below) {
+    const innerFile = join(dir, ...inner.split('/'));
+    let real: string;
+    try {
+      real = await realpath(innerFile);
+    } catch (error) {
+      if (isAbsentError(error)) continue;
+      return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${innerFile}: ${errorReason(error)}`, { path: inner }) };
+    }
+    if (!isRenameText(inner) || edited.has(real)) continue;
+    const bytes = await readBytes(innerFile);
+    if (!bytes.ok) return { ok: false, diagnostic: { ...bytes.diagnostic, path: inner } };
+    out.push({ path: inner, reason: 'link', bytes: bytes.value });
+  }
+  return { ok: true, value: out.length > 0 ? out : [{ path, reason: 'link' }] };
 }
 
 /**
@@ -338,13 +366,20 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
   const texts = new Map<string, string>();
   const sha1s = new Map<string, string>();
   const skipped: RenameSkipped[] = [];
+  const links: string[] = [];
+  const edited = new Set<string>();
+  let root: string;
+  try {
+    root = await realpath(dir);
+  } catch (error) {
+    return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${dir}: ${errorReason(error)}`, { path: '.' })] };
+  }
   for (const path of [...listed].sort(compareCodeUnits)) {
     const file = join(dir, ...path.split('/'));
     let bytes: Uint8Array;
     try {
       if ((await lstat(file)).isSymbolicLink()) {
-        const linked = await linkedFileBytes(file);
-        if (linked === undefined || isRenameText(path)) skipped.push({ path, reason: 'link', ...(linked === undefined ? {} : { bytes: linked }) });
+        links.push(path);
         continue;
       }
       if (!isRenameText(path)) continue;
@@ -353,6 +388,7 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
       if (errnoOf(error) === 'ENOENT') continue;
       return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })] };
     }
+    edited.add(join(root, ...path.split('/')));
     let text: string;
     try {
       text = RENAME_UTF8.decode(bytes);
@@ -367,6 +403,12 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
     texts.set(path, text);
     sha1s.set(path, sha1Of(bytes));
   }
+  for (const path of links) {
+    const atLink = await skippedAtLink(dir, path, edited);
+    if (!atLink.ok) return fromIo(atLink);
+    skipped.push(...atLink.value);
+  }
+  skipped.sort((a, b) => compareCodeUnits(a.path, b.path));
   return { ok: true, value: { texts, sha1s, skipped } };
 }
 
