@@ -536,6 +536,12 @@ table yields `E_TOML_PATCH_REFUSED` with the entries to paste.
 **Consequences.** Comments and hand formatting survive; an unusual layout costs a manual paste, never a
 corrupted file.
 
+**Revision (phase 6, p6-ram-code, merged in wave 2).** `analyze --update` proposes the module borders of a hand-written
+`runs_at` range (layout reason `runs-at`), so `planPatch` now inserts a new `[[modules]]` block in canonical lines,
+before the next module's block (above that block's comment lines) or after the last one. Changing, moving or dropping
+a listed module is still refused with `E_TOML_PATCH_REFUSED` ("edits only to insert a new module"); the refusal rule
+of this decision is otherwise unchanged.
+
 **Rejected.** Re-serialising the whole file (loses comments). A full comment-preserving TOML library
 (none is mature enough to depend on).
 

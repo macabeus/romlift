@@ -627,7 +627,7 @@ export const BUILD_COMPILERS: Readonly<Record<BuildCompilerId, BuildCompiler>>;
 export type ProposalSource =
   | { readonly kind: 'signature'; readonly library: string; readonly version: string; readonly rule: RuleId }
   | { readonly kind: 'analysis'; readonly rule: RuleId }
-  | { readonly kind: 'layout'; readonly reason: 'header' | 'startup' | 'asm-only' | 'module-size' | 'data' };  // inferModules (D62 d)
+  | { readonly kind: 'layout'; readonly reason: 'header' | 'startup' | 'asm-only' | 'module-size' | 'data' | 'runs-at' };  // inferModules (D62 d); 'runs-at': the borders of a runs_at range (§6.7, phase 6)
 export type Proposal =
   | { readonly kind: 'function'; readonly addr: Addr; readonly mode: Mode; readonly name?: string;
       readonly size?: number; readonly label?: boolean; readonly source: ProposalSource }
@@ -1563,7 +1563,10 @@ runs_at = 0x03000388
 - `serialize.ts` writes the canonical layout `init` produces. `patch.ts` is the only `planPatch(text,
   config, proposals)`: it plans line-level edits of single-line entries against that layout, keeps
   comments, re-parses the result and compares it with the intended config; if a table was restructured by
-  hand it returns `E_TOML_PATCH_REFUSED` with the entries to paste instead of guessing (D23).
+  hand it returns `E_TOML_PATCH_REFUSED` with the entries to paste instead of guessing (D23). From phase 6 it also
+  inserts a new `[[modules]]` block in canonical lines (before the next module's block and its comment lines, or after
+  the last one), which the borders of a `runs_at` range need; changing, moving or dropping a listed module is still
+  refused (D23, revision of phase 6).
 - There is no `[analysis]` table: rules cannot be disabled per project (D22).
 - `decomp.yaml` carries `tools.romlift: { config: romlift.toml }` (a strict object) and `tools.asmlift`,
   rendered by `core/config/decomp-yaml.ts` and validated through `@match-kit/decomp-yaml` before `init`
@@ -1708,10 +1711,12 @@ appends after `init` (D91 c): one module spans exactly the range with that `runA
 
 ### 6.8 `expected/` and `objdiff.json` (phase 6, D92)
 
-The `expected` writer emits `expected/<module>.s` for each module: the whole module at its exact offsets, so `make
-expected` assembles it without agbcc into `expected/<module>.o`, the target objdiff compares a decompiled function's
-object with. The `objdiff` writer emits `objdiff.json`, one unit per module with its target and base objects
-(`build/src/<module>.o` for a `c` module, D74 f). Both are generated files under the generated roots (§6.4).
+The `expected` writer emits `expected/<module>.s` for each generated module: the whole module at its exact offsets,
+every item as its own bytes (`.inst*`, `.4byte`, `.byte`, `.incbin`) with global, typed, sized function labels, so
+`make expected` assembles it without agbcc into an `expected/<module>.o` with no relocation, the target objdiff
+compares a decompiled function's object with. The `objdiff` writer emits `objdiff.json` (objdiff-cli 3.7.2), one unit
+per `c` module with its target and base objects (`build/src/<module>.o`, D74 f) and `options.functionRelocDiffs =
+"none"`, since the target carries no relocation. Both are generated files under the generated roots (§6.4).
 
 `g6.expected-bytes` judges `expected/<module>.s` by the ROM, never by another project's own `expected/` (Klonoa's `make
 expected` is best effort and marks wrong symbols in `.tainted` files): in a project `init` wrote, every `c` module has
