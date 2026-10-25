@@ -11,9 +11,47 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
-**Verdict.** Pending: waves 1 to 3 are merged on `phase-6`; the fix rounds and the owner questions below remain. The phase lands only when every command of "The closing gate" exits 0
-at `landed` 6 in a fresh worktree, every owner question below is answered, and the phase pull request's CI ran (a job
-GitHub refuses to start is not a pass).
+**Verdict. NOT LANDED.** Waves 1 to 3 are merged on `phase-6`, the closing round fixed what failed in the code (the
+signature matcher, the leave-one-out count, the objdiff family's map, one local test), `test/gates/phase.json` is at `{
+"landed": 6 }` on the branch only, and the closing list ran twice in fresh worktrees ("The closing gate"). It does not
+pass: `npm run bench -- gates --require 6 --tier real` fails `g6.objdiff` (Q6: D34 as written, the gated differences
+fe7j 19, klonoa 131, pokeemerald 157, sa2 4, sa3 55, tmc 17), `--tier ci` fails `g6.reconciler` (Q2), `g6.rename` (Q3),
+`g6.evidence-conflict` (Q5) and `g1.provenance` (the committed artifact records `g6.objdiff` failing), and `bench
+provenance` fails on that gate record. Each of those is a gate the owner has not changed in his own words, so the phase
+waits for his answers to Q1 to Q3, Q5, Q6 and Q8 to Q11 below. Nothing is merged to `main`, no pull request is opened
+and nothing is pushed: the phase lands only when every command of "The closing gate" exits 0 at `landed` 6 in a fresh
+worktree, every owner question is answered, and the phase pull request's CI ran (a job GitHub refuses to start is not
+a pass).
+
+## What the phase delivered
+
+- **Library signatures** (roadmap 6.A, 6.B; architecture §7). Specs in `signatures/specs/` for six libraries (m4a with
+  versions 2001 and 2004, libagbsyscall, libgcc, agb_flash, siirtc, librfu; every reference a tuning dataset, D32);
+  `romlift signatures build <spec> [--out <dir>] [--json]` builds the gitignored `signatures/<library>.json` (schema 3,
+  members keyed `name@object.o`, D31, D40) from each reference's ROM, ELF, map and discover analysis; `romlift
+  signatures <rom> [--json]` prints the settled placements with their `sig.*` rule ids (`sig.unique-fit`,
+  `sig.link-order-run`, `sig.neighbour-spacing`, `sig.pinned-both-sides`, `sig.short-member-window`) and the library
+  regions; `npm run bench -- signatures [--only <rom>] [--loo] [--json]` (`romlift/bench-signatures@1`,
+  `romlift/bench-signatures-loo@1`) and the `signatures` family of `bench run`.
+- **Proposals** (6.D). `init` (unless `--no-signatures`) and `analyze --update` fold signature proposals into the config:
+  names, sizes, `from = "sig:<library>@<version>"`, inner entries as `label = true`, tables as `[symbols]`, library
+  `[[modules]]` cut at legal borders and around `runs_at` ranges; `checkProposals` screens a proposal that contradicts
+  the analysis or the config (`W_EVIDENCE_CONFLICT`, the proposal dropped, nothing else changed); `explain` reports the
+  signature part (`test/golden/explain/sig/**`).
+- **Code run from RAM** (6.C, without the trace, D91). A hand-written `[[overrides]]` entry with `runs_at` gives the
+  non-identity address map, run-space walk targets and the ldscript's `AT(<load>)` with `__load_<module>`; Klonoa's
+  `0x0804F318 -> 0x03000388` (`bench/overrides/klonoa.json`) and the RAM-copy fixture link to their SHA-1s.
+- **Reconciler and `rename`** (6.E, phase 5's 5.A). `romlift rename <old> <new> [--json]`: a one-line TOML patch (its
+  `from` dropped) and identifier tokens only in `src/` and `include/`, refusing an existing `<new>` or an unknown
+  `<old>`; the `INCLUDE_ASM` planner's add, remove and move cases (`test/golden/reconcile/**`); the matchings split.
+- **objdiff targets and C data** (6.F, phase 5's 5.C). `expected/<module>.s` (every module's ROM range as an object
+  without relocations, `make expected`), `objdiff.json` (one unit per `c` module), and the `[[modules]]` key
+  `data_start`, whose range is the C object's `.rodata` in place of phase 4's C-data assertion.
+- **The carried minors** of phase 4 (roadmap "Carried from phase 4"), each with its component in the table below; the
+  include resolution behind a symbolic link is cpp-exact.
+- **Commands** added: `signatures build <spec>`, `signatures <rom>`, `rename <old> <new>`, `init --no-signatures`, `bench
+  signatures [--loo]`. **Formats** added: signature file schema 3, signature spec, `expected/<module>.s`, `objdiff.json`,
+  `data_start`, the two bench signature schemas.
 
 ## Components
 
@@ -74,6 +112,31 @@ The branch of `p6-analysis-layout` is spelled `phase-6-analysis-layout`, as it w
   and `test/mutation/phase4/patch-planner.test.ts` (each used a dropped source; now a signature source,
   `from = "sig:gate@0"`).
 
+## The closing round
+
+Run 1 of the closing list (fresh worktree `romlift-wt/phase-6-closing` at `87bfced`, `landed` 6) and the measurements
+before it found, and the round fixed:
+
+- **The signature matcher** (`5ad8605`, D94; Q7). `bench signatures` failed names and tables, `--loo` two runs. Causes
+  measured: on pokeemerald eight 20-byte librfu wrappers differing only in a masked pool word all placed at
+  `0x082E4A00` by `sig.link-order-run`, each "run" reaching `rfu_CB_pollConnectParent` by skipping the links between them
+  inside `librfu_rfu.o`; on sa2 `Mod.o` (6 bytes) ends off a word and the next object starts on the next word, so sa2's
+  own chain broke and Fire Emblem 7's 8-byte `DivRem` took the address; `sSetupInfos` (agb_flash, every byte masked)
+  placed by spacing alone inside another object on sa2 and sa3. The rules now never place a member over a placed member
+  of the version, place a fully masked member only where a pointer names a placed function, weigh every chain's runs
+  together, skip a link only of an object other than the ones on both sides of the gap, and let a new object start at
+  the next word. Five new rule tests fail on the old matcher. Leave-one-out now reads a member renamed by leaving its
+  first reference out as its counterpart (Q8). Result: every judged check passes with every PoC floor held; leave-one-out
+  0, 0, 0 on all seven runs.
+- **The objdiff family's map** (`af483f9`). `bench run --scaffold`, whose numbers `g6.objdiff` reads, never passed the
+  dataset's map to the family (`p6-objdiff` passed it only from `bench/tools/objdiff-classes.ts`), so run 1 counted every
+  libgcc and libagbsyscall archive member as `missing-symbol` (fe7j 26, klonoa 21, pokeemerald 455, sa2 127, sa3 237,
+  tmc 1). With the map the family counts what the classes tool counts.
+- **`test/local/decompiled-c.test.ts`** (`8487bde`; Q10). Run 1's `test:local` failed there (113 of 114): `init` on
+  klonoa lists three m4a functions with `from = "sig:m4a@2001"` that warn `W_LISTED_INVALID` in every confirm run, which
+  reached the reconciler test's exact `codes` assertions. The test now runs `init --no-signatures`; the warnings are
+  Q10.
+
 ## Deviations from the roadmap
 
 - **The gba-kit trace is dropped (D91).** No `romlift trace`, no `@gba-kit/gba-node` peer dependency, no
@@ -92,6 +155,13 @@ The branch of `p6-analysis-layout` is spelled `phase-6-analysis-layout`, as it w
   `phase-6`.
 - **Architecture §7.1's reference and link-order shapes changed** (D93 b): a reference names its bench dataset (`{dataset,
   commit, romSha1}`, not `project`), and a link-order member carries its address in that reference (`{id, addr}`).
+- **The closing list is the orchestrator's** (roadmap "Phase 6 exit" updated to it): phase 4's list (with `npm run
+  lint`, the four `export-poc` modes, `npm run corpus` and `bench provenance`) plus the signature build loop and a check
+  that `npm pack --dry-run --json` lists no built signature file.
+- **Matcher refinements beyond the PoC's step 2** (D94): the PoC's libraries never showed the cases; the new libraries
+  (librfu, agb_flash) and the stricter judged gate (names on a reference, tables) did.
+- **Leave-one-out counted by counterpart** (D94 d, Q8): the bench's counting changed, not the gate file.
+- **`decompiled-c` runs `init --no-signatures`** (Q10).
 - **`docs/benchmark-roms.md` unchanged.** The orchestrator asked to correct it where it still says tmc has no ELF.
   Checked on 24 October 2026: its tuning table gives tmc's ELF (`tmc/tmc.elf`) and map (`tmc/build/USA/tmc.map`), its
   held-out section says all three held-out builds (`pokefirered`, `pokeruby`, `tmc`) reproduce their SHA-1 files, both
@@ -141,20 +211,61 @@ Raised at the wave-3 integration:
   reports that most of the rest needs the reference's C source. Its method spells each pool word as the reference
   object spells it (`objectWords`), which the lead reviews as a method question. Options: (a) keep D34 as written, and
   the phase does not land; (b) amend D34 as phase-3.md Q1 option b.
+  Measured again at the closing round (`bench/tools/objdiff-classes.ts`, all six, the map given; run 2's `bench run
+  --scaffold` with the map gives the same family): gated 19, 131, 157, 4, 55, 17; under option (b) 3, 1, 6, 1, 54, 5.
+  What remains, by class: `value-named` (the reference holds a plain constant where romlift names the address, `.word
+  0x30000c8 | .word sTalkText`: fe7j 9, pokeemerald 7, sa2 2), `alias` (pokeemerald 133, tmc 9), `symbol-addend` (fe7j
+  4), `value-for-symbol` (the reference relocates `gOamMallocBuffer - 8` where romlift writes the value: fe7j 3,
+  pokeemerald 9, sa2 1, sa3 1, tmc 3), `relocation-other` (fe7j 3, klonoa 1, pokeemerald 2, sa3 2, tmc 5),
+  `instruction-other` (pokeemerald 4, sa2 1, sa3 52: the base's `.hword 0x0` of `MP2K_event_rept` and sa3's pool words
+  inside sized entries, `.word 0x30008c7 | .word gStageData+0x27`), `missing-symbol` (pokeemerald 2) and `tool` (klonoa
+  130: objdiff-cli 3.7.2 refuses kleod's reference object `src/code_0804B254.o`, "Invalid instruction size 1", so every
+  function of it is uncompared). Which spelling the reference's source chose (a constant or a symbol) is not in the ROM;
+  the `tool` class is objdiff-cli's.
 - **Q7. `g6.signatures-judged` and `g6.signatures-loo` fail on the real tier** (reported by `p6-signatures-apply`, not
   re-measured at the integration): judged fails on names and tables, LOO on two runs; `g6.signatures-heldout` passes.
-  The component places the fixes in the matcher, the builder or the specs; no gate change is proposed yet.
+  The component places the fixes in the matcher, the builder or the specs; no gate change is proposed yet. Fixed at the
+  closing round in the matcher (D94 a to c; "The closing round"): both gates pass on the real tier, so Q7 needs no
+  answer; the leave-one-out count it also needed is Q8.
 
-Candidates still open (written up with their measured facts and options when they arise):
+Raised at the closing round:
 
-- **`g6.signatures-judged` on tmc.** The pinned PoC baseline has no signatures row for tmc (revealed after it was pinned,
-  D60), so the gate as phase 1 wrote it fails on tmc for want of a floor; as aligned by D93 h it judges tmc by the ELF
-  checks with no floor. That restatement is not in the owner's words: it is written up at integration with the measured
-  tmc placements, unless the owner's decision covers it.
-- **`g4.toml-mutations`' edits** (correctness-b0-5's add-override edit that changes the model, correctness-b0-4's odd
-  `[functions]` key among the illegal edits): each changes a gate the owner has not authorised (D81 c); p6-analysis-layout
-  builds the product side, and the gate edits wait for his word.
-- **Any other gate change** a component finds it needs.
+- **Q8. `bench signatures --loo` counts a renamed member as its counterpart.** The gate file is unchanged; the bench's
+  count of what it reads changed (D94 d). Before: a member keyed by id, so leaving a reference R out, which renames a
+  member R shared (Emerald's `BgAffineSet@BgAffineSet.o` becomes Fire Emblem 7's `BgAffineSet@gba-syscall.o`, the first
+  remaining reference's id), counted one added and one missing member at the same address: without pokeemerald 4 added
+  and 4 missing, without fe7j 2 and 1, without sa2 1 and 0 (measured after the matcher fix). After: each rebuilt member
+  maps to the full build's member a remaining reference links at the same address; `moved` is a member at another
+  address, `added` a placement where the full build placed no member of the version, `missingShared` a shared member
+  whose counterpart is not placed. Measured: 0, 0, 0 on all seven runs; `looCounts`' unit test moved its added member to
+  an unplaced address, and two cases cover counterparts. Options: (a) accept the count; (b) count by id and the phase
+  does not land on this gate; (c) another count the owner names.
+- **Q9. `g6.signatures-judged` judges tmc with no floor.** The pinned PoC baseline has no signatures row for tmc
+  (revealed after it was pinned, D60), so the gate as phase 1 wrote it had no floor for it; D93 h, not the owner's words,
+  judges tmc by the ELF checks alone. Measured at the closing round: tmc libagbsyscall 13 functions, m4a 55 functions and
+  10 tables; 68 placements (67 at an ELF `FUNC`, 1 at a listed untyped address, 0 wrong), 10 tables all `OBJECT`s of
+  their size, 5 proposed sizes. Options: (a) accept no floor for tmc; (b) take these counts as tmc's floor; (c) another
+  rule the owner names.
+- **Q10. `W_LISTED_INVALID` on klonoa after `init`.** With the signature layer `init` lists on klonoa `umul3232H32`
+  (`0x0804F284`) and `SoundMainRAM` (`0x0804F318`), Thumb entries that switch to ARM, their ARM part folded in as an
+  inner `label = true` of mode `arm`, and `ldrb_r3_r2` (`0x0804F73C`), two bytes that fall through into `chk_adr_r2`;
+  each is an ELF `FUNC` of that size, and each carries `from = "sig:m4a@2001"`, so every confirm run validates it (D76 a)
+  and warns: "fails valid.dense: not dense: holes inside its extent (12 bytes in 16)", "(578 bytes in 932)", "fails
+  valid.returns-or-prologue: no return and no push {.., lr}". Present since the wave-3 merge of `p6-proposals` (the same
+  three on `61dd414`); not a gate (`g4.e2e-real` builds klonoa to its SHA-1, the warnings are warnings), but phase 4's
+  `test/local/listed-invalid` premise (no `W_LISTED_INVALID` after `init`) holds only without signatures, and
+  `decompiled-c` now runs `init --no-signatures`. Options: (a) a recorded limitation (the warnings are D76 a's design);
+  (b) `checkProposals` drops a signature function the valid.* rules refuse (`W_EVIDENCE_CONFLICT`), losing three true
+  names; (c) the confirm run validates a listed extent per inner label's mode and accepts a fall-through into the next
+  listed function.
+- **Q11. `g4.toml-mutations`' edits** (correctness-b0-5, b0-4, carried). `p6-analysis-layout` built the product side
+  (a `data` override claims its span, a `code` override seeds `seed.override`), but the gate's add-override edit still
+  covers a found function exactly, a no-op that warns `W_OVERRIDE_IGNORED` (run 1: 273 legal edits, add-override 60 such
+  no-ops; 179 illegal edits), and no odd `[functions]` key is among its illegal edits. Each change is a gate change the
+  owner has not authorised (D81 c). Options: (a) make the add-override edit one that changes the model and add the odd
+  key; (b) keep the gate as it is.
+
+Open, each blocking the landing: Q1, Q2, Q3, Q5, Q6, Q8, Q9, Q10, Q11 (Q4 and Q7 need no answer).
 
 ## Known limitations
 
@@ -162,6 +273,13 @@ Candidates still open (written up with their measured facts and options when the
   `[[overrides]]` entry, and the analysis, the model and the ldscript honour it.
 - **No import path for an existing decomp's function list** (D92): `import-legacy` is not built; a project starts from
   `init`.
+- **A load address of a `runs_at` module prints as a number** in a pool word, not as `__load_<module> + n`
+  (`test/unit/model/resolver.test.ts` keeps it as a todo: `core/emit/print/pool.ts` and the text-layout check would
+  both need the symbol). The tree links to the SHA-1 either way (`g6.ram-code-mapped`).
+- **Signature-proposed functions the valid.* rules refuse warn `W_LISTED_INVALID`** in every confirm run (three on
+  klonoa; Q10, until the owner answers).
+- **objdiff-cli 3.7.2 cannot read one klonoa reference object** (`src/code_0804B254.o`, "Invalid instruction size 1"):
+  its 130 functions are uncompared (`tool`, Q6).
 - **correctness-b2-3's remainder stays carried**: `modules.mk` records only `romlift.toml`'s SHA-1, not the romlift
   version, until romlift is published (D76 d).
 - The release-1 limitations of phases 1 to 4 stand (phase-4.md, "Known limitations").
@@ -229,21 +347,68 @@ The list, run in this order in a fresh worktree at `landed` 6, the real tier bef
 ```
 npm ci
 npm run typecheck
+npm run lint
 npm test
 npm run fixtures -- check
-for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s"; done
-npm run build && npm pack --dry-run
-npm run test:local
+for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || exit 1; done
+npm run build && npm pack --pack-destination "$(mktemp -d)"
+npm pack --dry-run --json | node -e '…'   # exits 1 when a signatures/*.json outside signatures/specs/ is packed
+npm run export-poc -- --mode raw
+npm run export-poc -- --mode scored
+npm run export-poc -- --mode parity
+npm run export-poc -- --mode queries
+ROMLIFT_REQUIRE_LOCAL=1 npm run test:local
 npm run bench -- doctor-real
+npm run corpus
 npm run bench -- run --scaffold
 npm run bench -- regression
 npm run bench -- gates --require 6 --tier real
 npm run bench -- gates --require 6 --tier ci
+npm run bench -- provenance
 ```
 
-Then the phase pull request: `ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml` and `packed.yml` must run.
+Then the phase pull request: `ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml` and `packed.yml` must run. Not
+opened: the list does not pass. This is the orchestrator's list (roadmap "Phase 6 exit" now reads the same). Both runs
+used `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler`,
+`ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc` and a fresh worktree with `bench/.local/poc` and
+`bench/.local/agbcc` copied in.
 
-Not run yet.
+### Run 1 (`87bfced`, worktree `romlift-wt/phase-6-closing`)
+
+Every command exited 0 but four: `test:local` 1 (113 of 114; `decompiled-c`, fixed by `8487bde`), `gates --tier real` 1
+(27 pass, 1 historical, 1 fail: `g6.objdiff`, its counts inflated by the missing map, fixed by `af483f9`), `gates --tier
+ci` 1 (40 pass, 4 fail: `g1.provenance`, `g6.evidence-conflict`, `g6.reconciler`, `g6.rename`) and `bench provenance` 1
+(gate record: `g6.objdiff` is fail). Run 2 measures the sources after those fixes.
+
+### Run 2 (`8487bde`, worktree `romlift-wt/phase-6-closing-2`)
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | 8 packages (1 s) |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 tests pass |
+| `npm test` | 0 | 2,825 tests, 2,824 pass, 0 fail, 1 todo (the `__load_<module>` pool-printer case, a known limitation) (40 s) |
+| `npm run fixtures -- check` | 0 | 54 of 54 fixtures agree (binutils 2.45.1) |
+| signature build loop | 0 | six files: agb_flash 22 functions and 5 tables, libagbsyscall 22, libgcc 69, librfu 148 and 5, m4a 203 and 20 (2 versions), siirtc 16 and 1; 0 diagnostics (19 s) |
+| `npm run build && npm pack --pack-destination …` | 0 | `romlift-0.0.0.tgz`, 750 files, 597.5 kB |
+| packed-signature check | 0 | no built signature file in `npm pack --dry-run --json` |
+| `npm run export-poc -- --mode raw` | 0 | 54 fixtures dumped (15 s) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (248 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` unchanged (79 s) |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, parity equal to the committed digests (52 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 114 tests, 114 pass, 0 skipped (723 s) |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (objdiff-cli 3.7.2) |
+| `npm run corpus` | 0 | ok (4 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1, the init build (init, setup.sh, make) to the SHA-1 on all six; both sealed ROMs pass (init build SHA-1); objdiff gated differences (every class but `unnamed-target`) fe7j 19, klonoa 131, pokeemerald 157, sa2 4, sa3 55, tmc 17; memory family `init` 1,022.7 MiB, `generate` 974.1 MiB peak RSS under the 1,024 MiB cap (272 s) |
+| `npm run bench -- regression` | 0 | no regression against `89deb54` |
+| `npm run bench -- gates --require 6 --tier real` | **1** | 27 pass, 1 historical (`g2.poc-parity`), **1 fail: `g6.objdiff`** (Q6). Among the passes: `g6.signatures-judged` (every PoC floor held: fe7j libagbsyscall 18, libgcc 22, m4a 94 and 10; klonoa 6, 20, 94 and 10; pokeemerald 15, 67, 109 and 10, with agb_flash 22 and 4, librfu 148 and 5, siirtc 16 and 1; sa2 12, 24, 94 and 10, agb_flash 17 and 1; sa3 13, 65, 94 and 10, agb_flash 17 and 1; tmc libagbsyscall 13, m4a 55 and 10, no floor, Q9), `g6.signatures-loo` (7 runs, 0 added, moved or lost), `g6.signatures-heldout` (pokefirered 353 placements and 18 tables, pokeruby 226 and 15, none wrong), `g6.signatures-rebuild` (libagbsyscall, libgcc, m4a equal the PoC's converted files), `g6.expected-bytes` (448 modules on 60 ROMs), `g6.ram-code-mapped` (the RAM-copy fixture and Klonoa), `g2.speed` (ratio 0.960; sa2 765 of 783 ms, 97.7%; klonoa 259 of 306, tmc 1,505 of 1,784, sa3 1,173 of 1,492, pokeemerald 2,381 of 4,219, fe7j 1,186 of 12,692), `g3.speed-budget` (pokeemerald `generate` 8,946 of 9,611 ms, `init` 11,370 of 14,417 ms), `g4.e2e-real` (six tuning ROMs from the source tree and the tarball, sealed 2 of 2), `g4.toml-mutations` (273 legal edits, add-override 60 no-ops warning `W_OVERRIDE_IGNORED`, 179 illegal) (3,414 s) |
+| `npm run bench -- gates --require 6 --tier ci` | **1** | 40 pass, **4 fail: `g1.provenance`** (the artifact records `g6.objdiff` failing), **`g6.evidence-conflict`** (Q5: scenario (c) on all 54 fixtures), **`g6.reconciler`** (Q2: all nine cases), **`g6.rename`** (Q3: "no src/*.c names sub_08000000"). Among the passes: `g4.cli-contract` (10 commands, 17 `--json` runs), `g4.packed-e2e` (750 files, no built signature file), `g3.large-rom` (`init` 1,019.8 MiB, `generate` 1,021.5 MiB), `g6.c-data-ranges`, `g6.explain-coverage` (58 analysis and 5 sig rule ids in 213 goldens), `g6.no-heldout-references` (6 specs, 12 references) (1,938 s) |
+| `npm run bench -- provenance` | **1** | source digest `393eefba…` ok (Node 24); **gate record: `g6.objdiff` is fail**; families live; 6 rows, no sealed row |
+
+Four commands exit 1, so **phase 6 does not pass its closing gate**. Every failing gate is one whose file cannot pass as
+written (Q2, Q3, Q5) or one D34 gates as written (Q6, and with it `g1.provenance` and `bench provenance`); none is
+changed here. sa2's `g2.speed` at 97.7% of its limit is at the top of the spread phase 4 recorded (85.6% to 97.7%); the
+analysis did not change in this phase's closing round. `bench/results.json` is committed as run 2's artifact.
 
 ## Review
 

@@ -64,12 +64,15 @@ it and keeps the `INCLUDE_ASM` lines of `src/*.c` in line with it, so every seed
 `analyze --update` proposes TOML patches that keep comments. Every gate of phases 1 to 4 passes on both tiers.
 The commands are `doctor`, `analyze`, `explain`, `model`, `verify`, `init`, `generate` and `scaffold`.
 
-Phase 5 (Migration) was skipped by the owner and never lands (D92). Phase 6 (Evidence) is in progress
-([docs/phase-6.md](docs/phase-6.md)): library signatures (`signatures build <spec>`, `signatures <rom>`) that propose
-names, sizes and library modules to `init` (`--no-signatures` skips them) and `analyze --update`, screened for conflicts
-with the analysis and the config; code run from RAM through hand-written `runs_at` overrides (the owner dropped the
-gba-kit trace, D91); the full `explain`; and from phase 5 the reconciler, `rename <old> <new>`, the `expected/` and
-`objdiff.json` writers, C data ranges (`data_start`) and the objdiff gate.
+Phase 5 (Migration) was skipped by the owner and never lands (D92). Phase 6 (Evidence) is built on the branch
+`phase-6` but has not landed ([docs/phase-6.md](docs/phase-6.md)): library signatures (`signatures build <spec>`,
+`signatures <rom>`) that propose names, sizes and library modules to `init` (`--no-signatures` skips them) and `analyze
+--update`, screened for conflicts with the analysis and the config; code run from RAM through hand-written `runs_at`
+overrides (the owner dropped the gba-kit trace, D91); the full `explain`; and from phase 5 the reconciler, `rename <old>
+<new>`, the `expected/` and `objdiff.json` writers, C data ranges (`data_start`) and the objdiff gate. Its closing list
+passes every signature gate (the matcher refined at the closing round, D94) and every earlier gate, but fails
+`g6.objdiff` (D34 as written), `g6.reconciler`, `g6.rename` and `g6.evidence-conflict`, whose gate files cannot pass as
+written; those and the other owner questions of phase-6.md wait for the owner's answers.
 
 | Phase | Delivers |
 | --- | --- |
@@ -86,13 +89,13 @@ gba-kit trace, D91); the full `explain`; and from phase 5 the reconciler, `renam
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D93 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D94 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
 | [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q8 with the owner's answers, the review fix rounds, and known limitations |
 | [docs/phase-4.md](docs/phase-4.md) | the record of phase 4: components in three waves, what the phase delivered (commands, scaffold, C stubs, formats), the closing round and the closing gate run, deviations, the owner questions Q1 to Q9 with the owner's answers, the review fix rounds, and known limitations |
-| [docs/phase-6.md](docs/phase-6.md) | the record of phase 6 (phase 5 was skipped, D92): components in three waves, deviations, owner questions, known limitations, measured numbers and the closing gate |
+| [docs/phase-6.md](docs/phase-6.md) | the record of phase 6 (phase 5 was skipped, D92; not landed): what it delivered (signatures, proposals, code run from RAM, the reconciler and `rename`, objdiff targets, C data ranges), components in three waves, the closing round, deviations, the owner questions Q1 to Q11, known limitations, measured numbers and the closing gate runs |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

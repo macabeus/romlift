@@ -1103,19 +1103,28 @@ pull request) is dropped by the owner (D91); what does not depend on a trace sta
 ```
 npm ci
 npm run typecheck
+npm run lint
 npm test
 npm run fixtures -- check
-for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s"; done
-npm run build && npm pack --dry-run               # lists no built signature file
-npm run test:local
+for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || exit 1; done
+npm run build && npm pack --pack-destination "$(mktemp -d)"
+npm pack --dry-run --json | node -e '…'          # fails when a built signature file is packed (phase-6.md)
+npm run export-poc -- --mode raw
+npm run export-poc -- --mode scored
+npm run export-poc -- --mode parity
+npm run export-poc -- --mode queries
+ROMLIFT_REQUIRE_LOCAL=1 npm run test:local
 npm run bench -- doctor-real
+npm run corpus
 npm run bench -- run --scaffold
 npm run bench -- regression
 npm run bench -- gates --require 6 --tier real
 npm run bench -- gates --require 6 --tier ci
+npm run bench -- provenance
 ```
 
-The signature build runs from source, not `npx romlift signatures build`: romlift is unpublished (D76 d) and npx would
+The list is the one the closing run executed (phase-6.md, "The closing gate"): phase 4's list with the signature build
+loop and the packed-file check. The signature build runs from source, not `npx romlift signatures build`: romlift is unpublished (D76 d) and npx would
 query the registry (D93 i).
 
 Thresholds, one per gate of the phase (every earlier gate still passes):

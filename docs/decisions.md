@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -4237,6 +4237,54 @@ wave touches; the g6 gates stay `pending` or `fail` until their exports and writ
 **Rejected.** Freezing the matcher's internal shapes (candidate, fit) now: they are p6-signatures-match's. A zod schema for
 signature files (forbidden in core/signatures). Keeping the `phase-6/<component>` branch spelling (Git refuses it beside
 `phase-6`).
+
+## D94. Phase-6 closing round: four matcher refinements, and leave-one-out counted by counterpart
+
+**Context.** The wave-3 integration recorded that `g6.signatures-judged` and `g6.signatures-loo` fail on the real tier
+(phase-6.md Q7). Measured at the closing round (`bench signatures`, `bench signatures --loo`, the built files of the six
+specs): on pokeemerald eight 20-byte librfu wrappers that differ only in a masked pool word were all placed at
+`0x082E4A00` by `sig.link-order-run`, each "run" reaching `rfu_CB_pollConnectParent` by skipping the links between them
+inside `librfu_rfu.o`, and the resolver kept `rfu_REQ_RFUStatus` there (`rfu_REQ_pollConnectParent` in the ELF); on sa2
+`Mod.o` (6 bytes) ends off a word and the next object starts on the next word, so sa2's own chain broke there and Fire
+Emblem 7's `DivRem@gba-syscall.o` (8 bytes, its padding counted) took the address; on sa2 and sa3 `sSetupInfos` (agb_flash,
+every byte masked, no word naming a function) was placed by spacing alone inside another object. Leave-one-out failed
+only on member ids: a member a left-out reference shared is renamed in the rebuilt version (Emerald's
+`BgAffineSet@BgAffineSet.o` becomes Fire Emblem 7's `BgAffineSet@gba-syscall.o`, the first remaining reference's id), and
+the bench counted the rename as one added and one missing member at the same address.
+
+**Decision.**
+
+- (a) **No member over a placed member.** Within one library version no rule places a member over the bytes of another
+  placed member (`overlapsPlaced`, core/signatures/rules/state.ts): a library's members are linked side by side.
+- (b) **A fully masked member needs a pointer.** A member whose every byte is masked fits anywhere, so
+  `sig.neighbour-spacing` and `sig.link-order-run` place it only where one of its words names a placed function of the
+  version and holds its address (`evidenced`). m4a's pointer tables (`gMPlayJumpTableTemplate`, `gXcmdTable`) are proved
+  by their functions; `sSetupInfos`, whose words name tables, is not placed by spacing.
+- (c) **Runs.** `sig.link-order-run` weighs the runs of every chain of the version together (the `chains` sweep, which
+  replaces the per-chain `chain` sweep: `ChainRule.place(state)` reads `state.chains`), ties in chain then link order;
+  skips a link only when the skipped member's object is neither the object before nor the one after the gap (an object
+  is linked whole); and lets the next member start at the next word where one object ends and another begins (the
+  linker's section padding). The PoC's step 2 had none of these; its libraries (m4a, libagbsyscall, libgcc) never showed
+  the cases, and every PoC floor of `g6.signatures-judged` still holds.
+- (d) **Leave-one-out by counterpart.** `bench signatures --loo` maps each member of the rebuilt version to the full
+  build's member that a remaining reference links at the same address (`counterparts`), counts `moved` for a member at
+  another address than the full build placed it, `added` for a placement at an address where the full build placed no
+  member of the version, and `missingShared` for a shared member whose counterpart is not placed. The gate file is
+  unchanged; this is how its words ("adds no placement, moves none, and still places every member that another
+  reference of the version also has") are counted. It changes what the gate reads, so phase-6.md puts it to the owner
+  (Q8).
+
+**Consequences.** `bench signatures`: every judged check passes on the six tuning ROMs (no wrong placement, table or
+size, no name differing from a reference's own) with every PoC floor held; the sealed ROMs pass by counts; leave-one-out
+reports 0 added, 0 moved and 0 missing on all seven runs. librfu's two stray placements on fe7j and sa3 (ROMs that do not
+link librfu) are gone. Five rule tests fail on the old matcher and pass on the new one; the explain goldens are unchanged;
+`looCounts`' unit test moves its added member to an address the full build left unplaced, and two cases cover the
+counterparts.
+
+**Rejected.** Preferring, on a reference ROM, that reference's own chain (the matcher would need to know which ROM it
+matches). Trimming a trailing zero halfword from unsized members in the builder so `DivRem` and `Mod` merge
+(`g6.signatures-rebuild` compares the real builds with the PoC's converted files). Counting leave-one-out by member id
+alone (a renamed member is counted as one added and one missing member, against the gate's words).
 
 ## Review findings index
 
