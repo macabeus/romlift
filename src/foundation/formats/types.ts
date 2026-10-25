@@ -32,6 +32,8 @@ export interface ElfRelocation {
   readonly symbol: number;
   /** The bytes the relocation's field covers in the section (0 for a type that changes no byte). */
   readonly width: number;
+  /** A RELA entry's addend, or a REL entry's implicit one (elf.ts implicitAddend); absent when it cannot be read. */
+  readonly addend?: number;
 }
 
 export interface ElfSymbol {

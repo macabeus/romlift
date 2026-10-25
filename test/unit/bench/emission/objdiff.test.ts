@@ -145,6 +145,28 @@ test('namedConfig: functions take the ELF FUNC name, data outside every extent a
     [0x0300_0000, 'gRam'],
     [0x0800_01d0, 'sNoType'],
   ]);
+  assert.deepEqual([...named.symbols].map(([, s]) => s.size), [4, 4, 4], 'each symbol takes the ELF size');
+  assert.deepEqual([...named.functions].map(([, f]) => f.size), [4, 4, undefined], 'each function the ELF size of its FUNC symbol');
+});
+
+test('namedConfig: an unsized symbol is sized up to the next of its section; a symbol at the BIOS addresses is left out', () => {
+  const rom = romFromBytes(new Uint8Array(0x200), 'f'.repeat(40));
+  const config: RomliftConfig = {
+    schema: 1,
+    rom: { path: 'baserom.gba', sha1: 'f'.repeat(40) },
+    build: { name: 'rom', compiler: 'agbcc' },
+    signatures: { enabled: false },
+    modules: [],
+    functions: new Map(),
+    symbols: new Map(),
+    overrides: [],
+  };
+  const ram = (name: string, addr: number, size: number, sectionIndex = 2): ElfSymbol => ({ ...symbol(name, addr, 'notype', 'global', '.bss'), size, sectionIndex });
+  const named = namedConfig(config, rom, [ram('gHUD', 0x0200_af00, 0), ram('gNext', 0x0200_af34, 0), ram('_pseudo', 0, 0x100, 3)], []);
+  assert.deepEqual([...named.symbols].map(([a, s]) => [a, s.name, s.size]), [
+    [0x0200_af00, 'gHUD', 0x34],
+    [0x0200_af34, 'gNext', undefined],
+  ]);
 });
 
 test('symbolIndex: a stale copy makes every name ambiguous; only the linked objects define names when the map is given', async () => {

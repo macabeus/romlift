@@ -8,13 +8,16 @@
 // the same digest.
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 
 import {
   compareCodeUnits,
   parseElf,
+  relocationsOf,
+  SHT,
   sortedKeys,
   type ElfFile,
+  type ElfSection,
   type ElfSymbol,
   type ElfSymbolBind,
   type ElfSymbolType,
@@ -163,66 +166,12 @@ export interface ObjectRelocation {
   readonly type: number;
   readonly symbol: RelocationSymbol;
   /**
-   * The addend: a RELA entry's own, a REL entry's implicit one read from the field it relocates (implicitAddend);
-   * undefined for a REL type implicitAddend does not decode or a field outside the section's bytes.
+   * The addend: a RELA entry's own, a REL entry's implicit one read from the field it relocates (romlift's
+   * implicitAddend); undefined for a REL type implicitAddend does not decode or a field outside the section's bytes.
    */
   readonly addend: number | undefined;
 }
 
-const SHT_RELA = 4;
-const SHT_NOBITS = 8;
-
-/**
- * The implicit addend of an ARM REL relocation of `type` whose field starts at byte `at` of `view` (ELF for the
- * Arm Architecture, "Addends and PC-bias compensation"): the signed word of R_ARM_ABS32 and R_ARM_REL32, the
- * halfword and byte of R_ARM_ABS16 and R_ARM_ABS8, the branch offset of R_ARM_THM_CALL (a Thumb bl pair, 23
- * bits), R_ARM_PC24, R_ARM_CALL and R_ARM_JUMP24 (24 bits, words), R_ARM_THM_JUMP11 and R_ARM_THM_JUMP8; undefined
- * for any other type.
- */
-export function implicitAddend(type: number, view: DataView, at: number): number | undefined {
-  switch (type) {
-    case 2:
-    case 3:
-      return view.getInt32(at, true);
-    case 5:
-      return view.getInt16(at, true);
-    case 8:
-      return view.getInt8(at);
-    case 10: {
-      const offset = ((view.getUint16(at, true) & 0x7ff) << 12) | ((view.getUint16(at + 2, true) & 0x7ff) << 1);
-      return (offset << 9) >> 9;
-    }
-    case 1:
-    case 28:
-    case 29:
-      return ((view.getUint32(at, true) & 0xff_ffff) << 8) >> 6;
-    case 102:
-      return ((view.getUint16(at, true) & 0x7ff) << 21) >> 20;
-    case 103:
-      return ((view.getUint16(at, true) & 0xff) << 24) >> 23;
-    default:
-      return undefined;
-  }
-}
-
-/** The width in bytes of the field implicitAddend reads for each type it decodes. */
-const FIELD_WIDTH: ReadonlyMap<number, number> = new Map([
-  [1, 4],
-  [2, 4],
-  [3, 4],
-  [5, 2],
-  [8, 1],
-  [10, 4],
-  [28, 4],
-  [29, 4],
-  [102, 2],
-  [103, 2],
-]);
-
-function fieldWidth(type: number): number {
-  return FIELD_WIDTH.get(type) ?? 0;
-}
-const SHT_REL = 9;
 const SYMBOL_SIZE = 16;
 const SYMBOL_TYPES: readonly ElfSymbolType[] = ['notype', 'object', 'func', 'section', 'file'];
 const SYMBOL_BINDS: readonly ElfSymbolBind[] = ['local', 'global', 'weak'];
@@ -254,9 +203,13 @@ function relocationSymbol(bytes: Uint8Array, view: DataView, elf: ElfFile, symta
   return { name, type, bind, defined: shndx !== 0 };
 }
 
+/** Whether a section is a REL or RELA table. */
+const isRelocationTable = (s: Pick<ElfSection, 'type'>): boolean => s.type === SHT.REL || s.type === SHT.RELA;
+
 /**
- * The relocations of a relocatable ARM ELF32 object, by section and offset, each with the symbol it
- * refers to. ok:false when the file is not an ARM ELF32 object or a table is out of bounds.
+ * The relocations of a relocatable ARM ELF32 object, by section and offset, each with the symbol it refers to and its
+ * addend, read by romlift's relocationsOf (the one REL/RELA decoder, architecture-r2-2). ok:false when the file is
+ * not an ARM ELF32 object or a table is out of bounds.
  */
 export function objectRelocations(bytes: Uint8Array): ParseResult<readonly ObjectRelocation[]> {
   const parsed = parseElf(bytes);
@@ -265,27 +218,18 @@ export function objectRelocations(bytes: Uint8Array): ParseResult<readonly Objec
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const out: ObjectRelocation[] = [];
   try {
+    const targets = new Map<number, number>();
     for (const table of elf.sections) {
-      if (table.type !== SHT_REL && table.type !== SHT_RELA) continue;
-      const target = elf.sections[table.info];
-      if (target === undefined) throw new Malformed(`${table.name}: target section ${table.info} is out of range`);
-      const entsize = table.entsize === 0 ? (table.type === SHT_REL ? 8 : 12) : table.entsize;
-      if (table.offset + table.size > bytes.length) throw new Malformed(`${table.name} is outside the file`);
-      for (let at = table.offset; at + entsize <= table.offset + table.size; at += entsize) {
-        const info = view.getUint32(at + 4, true);
-        const offset = view.getUint32(at, true);
-        const type = info & 0xff;
-        const field = target.offset + offset;
-        const inside = target.type !== SHT_NOBITS && fieldWidth(type) > 0 && offset + fieldWidth(type) <= target.size && field + fieldWidth(type) <= bytes.length;
-        const addend = table.type === SHT_RELA ? (entsize >= 12 ? view.getInt32(at + 8, true) : undefined) : inside ? implicitAddend(type, view, field) : undefined;
-        out.push({
-          section: target.name,
-          offset,
-          type,
-          symbol: relocationSymbol(bytes, view, elf, table.link, info >>> 8),
-          addend,
-        });
-      }
+      if (!isRelocationTable(table)) continue;
+      if (elf.sections[table.info] === undefined) throw new Malformed(`${table.name}: target section ${table.info} is out of range`);
+      if (!targets.has(table.info)) targets.set(table.info, table.link);
+    }
+    for (const [index, symtab] of [...targets].sort((a, b) => a[0] - b[0])) {
+      const target = elf.sections[index];
+      if (target === undefined) continue;
+      const entries = relocationsOf(bytes, elf, target);
+      if (!entries.ok) return { ok: false, error: `ELF relocations: ${entries.error}` };
+      for (const r of entries.value) out.push({ section: target.name, offset: r.offset, type: r.type, symbol: relocationSymbol(bytes, view, elf, symtab, r.symbol), addend: r.addend });
     }
   } catch (error) {
     if (error instanceof Malformed) return { ok: false, error: `ELF relocations: ${error.message}` };
@@ -353,4 +297,128 @@ export function linkedSectionMismatches(linked: LinkedObject, elf: ElfFile): str
     if (size !== want) problems.push(`${linked.file} ${name} is 0x${size.toString(16)} bytes, the map links 0x${want.toString(16)}`);
   }
   return problems;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Where the map links each object's sections, and the archive members
+
+/** One input section the map links from a reference object or an archive member: [start, end) of the image. */
+export interface LinkedInput {
+  /** The object's key: its path as ld printed it (normalized), or `archive(member)` for an archive member. */
+  readonly object: string;
+  readonly section: string;
+  readonly start: number;
+  readonly end: number;
+}
+
+/** The key of an archive member as the objdiff family names it: `archive(member)`, the way ld prints it. */
+export function memberKey(archive: string, member: string): string {
+  return `${posix.normalize(archive)}(${member})`;
+}
+
+/** The archive and member of a key memberKey made; undefined for an object's path. */
+export function parseMemberKey(key: string): { readonly archive: string; readonly member: string } | undefined {
+  const m = /^(.*\.a)\(([^()]+)\)$/.exec(key);
+  return m === null ? undefined : { archive: m[1] ?? '', member: m[2] ?? '' };
+}
+
+/**
+ * Every non-empty input section the map links from an object (`*.o`) or an archive member, in address order (then
+ * key, then section); pure. A section linked at no address of its own (a discarded or empty one) is left out.
+ */
+export function linkedInputs(map: GnuMap): LinkedInput[] {
+  const out: LinkedInput[] = [];
+  for (const section of map.sections) {
+    for (const input of section.inputs) {
+      if (input.size === 0) continue;
+      if (input.member === undefined && !input.file.endsWith('.o')) continue;
+      const object = input.member === undefined ? posix.normalize(input.file) : memberKey(input.file, input.member);
+      out.push({ object, section: input.section, start: input.address, end: input.address + input.size });
+    }
+  }
+  return out.sort((a, b) => a.start - b.start || compareCodeUnits(a.object, b.object) || compareCodeUnits(a.section, b.section));
+}
+
+/**
+ * The linked input holding `addr`, or undefined; `inputs` in linkedInputs' order. Inputs do not overlap, so it is the
+ * last one starting at or before `addr`, when it reaches that far.
+ */
+export function inputAt(inputs: readonly LinkedInput[], addr: number): LinkedInput | undefined {
+  let lo = 0;
+  let hi = inputs.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((inputs[mid]?.start ?? 0) <= addr) lo = mid + 1;
+    else hi = mid;
+  }
+  const input = inputs[lo - 1];
+  return input !== undefined && addr < input.end ? input : undefined;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// The names a reference object gives addresses
+
+/** A name a reference object gives an address: one of its own symbols, or an external name its relocations use. */
+export interface ObjectName {
+  readonly name: string;
+  readonly addr: number;
+  /** How the object binds it: an external name is global. */
+  readonly bind: 'local' | 'global';
+  /** Whether the object defines it (else it is an external its relocations name). */
+  readonly defined: boolean;
+  readonly func: boolean;
+  /** Its size: the ELF's for a global or external name, the object's own for a local one; 0 when unknown. */
+  readonly size: number;
+}
+
+/** Where the ELF defines a name: its address and size. */
+export interface Definition {
+  readonly addr: number;
+  readonly size: number;
+}
+
+/** What objectNames reads of an object. */
+export interface NamedObject {
+  readonly symbols: readonly ElfSymbol[];
+  readonly relocations: readonly Pick<ObjectRelocation, 'symbol'>[];
+}
+
+const NAME_RANK = (n: ObjectName): number => (n.defined ? 0 : 4) + (n.func ? 0 : 2) + (n.bind === 'global' ? 0 : 1);
+
+/** How many of the object's relocations refer to each name. */
+function useCounts(relocations: readonly Pick<ObjectRelocation, 'symbol'>[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of relocations) out.set(r.symbol.name, (out.get(r.symbol.name) ?? 0) + 1);
+  return out;
+}
+
+/**
+ * The names `object` gives addresses, preferred first at each address (a defined function, global before local, then
+ * a defined object or label, then an external name; then the name its relocations use most, then by name); pure. A global symbol it defines stands where
+ * `definitionOf` puts it (the ELF's definition, which a linker script may place apart from its section); a local one
+ * at its section's linked start (`sectionStart`) plus its value (a function's without the Thumb bit). Every other
+ * name a relocation refers to (an external, a common symbol) stands where `definitionOf` puts it.
+ */
+export function objectNames(object: NamedObject, sectionStart: (section: string) => number | undefined, definitionOf: (name: string) => Definition | undefined): ObjectName[] {
+  const out: ObjectName[] = [];
+  const seen = new Set<string>();
+  for (const s of object.symbols) {
+    if (!isIndexedSymbol(s) || s.sectionName === undefined || seen.has(s.name)) continue;
+    const start = sectionStart(s.sectionName);
+    const own = start === undefined ? undefined : { addr: start + s.addr, size: s.size };
+    const at = s.bind === 'local' ? own : (definitionOf(s.name) ?? own);
+    if (at === undefined) continue;
+    seen.add(s.name);
+    out.push({ name: s.name, addr: at.addr, bind: s.bind === 'local' ? 'local' : 'global', defined: true, func: s.type === 'func', size: at.size });
+  }
+  for (const r of object.relocations) {
+    const s = r.symbol;
+    if (s.type === 'section' || s.name === '' || s.name.startsWith('$') || s.name.startsWith('.L') || seen.has(s.name)) continue;
+    seen.add(s.name);
+    const at = definitionOf(s.name);
+    if (at !== undefined) out.push({ name: s.name, addr: at.addr, bind: 'global', defined: false, func: s.type === 'func', size: at.size });
+  }
+  const uses = useCounts(object.relocations);
+  const used = (n: ObjectName): number => uses.get(n.name) ?? 0;
+  return out.sort((a, b) => a.addr - b.addr || NAME_RANK(a) - NAME_RANK(b) || used(b) - used(a) || compareCodeUnits(a.name, b.name));
 }

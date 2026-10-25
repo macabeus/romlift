@@ -25,6 +25,7 @@ import {
   type AgbccPin,
   type AnalysisResult,
   type ElfSymbol,
+  type GnuMap,
   type Model,
   type Printer,
   type PrintStats,
@@ -67,6 +68,8 @@ export interface ScaffoldInput {
   readonly objectsDir: string;
   /** The objects the reference map links, relative to objectsDir (objdiff.ts ObjdiffInputs.linkedObjects). */
   readonly linkedObjects?: ReadonlySet<string>;
+  /** The reference map (objdiff.ts ObjdiffInputs.map): reference objects by address, archive members among them. */
+  readonly map?: GnuMap;
   /** The objdiff-cli binary. */
   readonly objdiff: string;
 }
@@ -387,6 +390,7 @@ export const ROMLIFT_FAMILIES: EmissionFamilies = {
             objectsDir: input.objectsDir,
             objdiff: input.objdiff,
             ...(input.linkedObjects === undefined ? {} : { linkedObjects: input.linkedObjects }),
+            ...(input.map === undefined ? {} : { map: input.map }),
           })
         : unlinkedSummary();
     return { raw, readable, objdiff, timings: { rawLinkMs, readableLinkMs, objdiffMs: since(started) } };
