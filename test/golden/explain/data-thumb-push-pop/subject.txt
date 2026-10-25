@@ -45,13 +45,14 @@
     0x08000114 bl.near-is-call round 4 cites 0x08000114, 0x0800011A: call
   waits (1):
     0x0800013C gap.tiled-hole round 2 cites 0x0800013C, 0x08000150: no proposer takes it yet: its end is not anchored
-  claims (5):
+  claims (6):
     0x08000120 claim.dead-code-in-extent round 0 cites 0x08000120: 1 edits
     0x08000134 claim.dead-code-in-extent round 0 cites 0x08000134: 1 edits
     0x08000154 claim.dead-code-in-extent round 0 cites 0x08000154: 1 edits
     0x08000168 claim.dead-code-in-extent round 0 cites 0x08000168: 1 edits
     0x0800017C claim.dead-code-in-extent round 0 cites 0x0800017C: 1 edits
-  rules (9):
+    0x08000182 region.data-after-code round 4 cites 0x08000182: data to 0x08000184
+  rules (10):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
@@ -61,6 +62,9 @@
     gap.tiled-hole: a gap's head reads as a function failing at most density or stack balance, with at least gapScan.minInsns instructions, its code inside the gap
       rests on: hand-written mixers keep ARM blocks and tables inside a Thumb function, so their extent has holes and their paths may not balance the stack
       recovers: SoundMainRAM and other mixers on all five tuning ROMs
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

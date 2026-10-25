@@ -1,7 +1,8 @@
 // `romlift analyze <rom> [--json] [--disable <rule>...]` (architecture §2.1): in process through `main`
 // (NDJSON line by line, the text table, usage and IO errors, --disable) and as two child processes with
 // stdin closed from different working directories, project paths, time zones and locales, whose stdout
-// must be byte-identical and free of the path (g2.determinism's run).
+// must be byte-identical and free of the path (g2.determinism's run). `analyze --update` inside a project, and from
+// phase 6 with the signature files $ROMLIFT_SIGNATURES names.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,7 +17,7 @@ import { main } from '../../../src/cli/main.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
-import { listSyntheticFixtures } from '../../helpers/fixtures.ts';
+import { listSyntheticFixtures, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
 import { capturingIo } from './fake.ts';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -231,4 +232,54 @@ test('analyze --update: --write alone, a ROM argument or --disable is a usage er
   const out = await inProject(['analyze', '--update', '--json'], TMP);
   assert.equal(out.code, ExitCode.errors);
   assert.equal(parseLines(out.stdout)[0]?.['code'], 'E_PROJECT_NOT_FOUND');
+});
+
+// Phase 6: the signature proposals of analyze --update, located from $ROMLIFT_SIGNATURES (a temporary directory).
+
+test('analyze --update with a signature directory: default names renamed with from, the library module proposed; --write saves them', async () => {
+  const game = listSyntheticFixtures().find((f) => f.name === 'library-game') ?? assert.fail('library-game');
+  const dir = join(TMP, `sig-${Math.random().toString(16).slice(2)}`);
+  const none = join(TMP, `none-${Math.random().toString(16).slice(2)}`);
+  const signatures = join(TMP, `libfix-${Math.random().toString(16).slice(2)}`);
+  for (const d of [dir, none, signatures]) mkdirSync(d, { recursive: true });
+  copyFileSync(game.rom, join(dir, 'baserom.gba'));
+  copyFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), join(signatures, 'libfix.json'));
+  const withEnv = async (argv: readonly string[], env: string) => {
+    const io = { ...capturingIo(), cwd: dir, env: { ROMLIFT_SIGNATURES: env } };
+    const code = await main(argv, io);
+    return { code, stdout: io.out.join('') };
+  };
+  assert.equal((await withEnv(['init', 'baserom.gba'], none)).code, ExitCode.ok);
+  const out = await withEnv(['analyze', '--update', '--json'], signatures);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  const proposals = parseLines(out.stdout).filter((l) => l.type === 'proposal');
+  assert.deepEqual(
+    proposals.find((p) => p['addr'] === '0x08000244'),
+    { type: 'proposal', kind: 'function', addr: '0x08000244', mode: 'thumb', name: 'FixAbs', source: 'signature', rule: 'sig.unique-fit', from: 'sig:libfix@1.0' },
+  );
+  assert.deepEqual(proposals.find((p) => p['kind'] === 'symbol'), {
+    type: 'proposal',
+    kind: 'symbol',
+    addr: '0x08000274',
+    name: 'gFixTable',
+    size: 16,
+    symbolType: 'pointers',
+    source: 'signature',
+    rule: 'sig.short-member-window',
+    from: 'sig:libfix@1.0',
+  });
+  assert.deepEqual(
+    proposals.filter((p) => p['kind'] === 'module').map((p) => [p['name'], p['library']]),
+    [
+      ['libfix', 'libfix@1.0'],
+      ['main_08000264', undefined],
+    ],
+  );
+  const text = await withEnv(['analyze', '--update'], signatures);
+  assert.match(text.stdout, /^function 0x08000244 thumb FixAbs, from sig:libfix@1\.0 \(sig\.unique-fit\)$/m);
+  assert.match(text.stdout, /^module 0x080001B4 libfix, library libfix@1\.0$/m);
+  assert.equal((await withEnv(['analyze', '--update', '--write'], signatures)).code, ExitCode.ok);
+  assert.match(readFileSync(join(dir, 'romlift.toml'), 'utf8'), /^0x08000244 = \{ name = "FixAbs", from = "sig:libfix@1\.0" \}$/m);
+  const again = await withEnv(['analyze', '--update', '--json'], signatures);
+  assert.equal(parseLines(again.stdout).find((l) => l.type === 'patch')?.['changed'], false);
 });

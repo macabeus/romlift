@@ -9,7 +9,8 @@
 #   fix_util.o   FixAbs: sig.unique-fit; FixReturnZero, FixReturnOne: sig.neighbour-spacing
 #   fix_short.o  FixShort, after FixReturnOne (library-ref2 links it between fix_math.o and fix_util.o):
 #                sig.short-member-window
-#   game_tail.s  GameTail, a neighbour no reference has
+#   game_tail.s  GameTail, a neighbour no reference has; it loads a Thumb pointer into its own code, which
+#                valid.in-rom-unclaimed rejects (the explain golden of that rule)
 #   fix_data.o   gFixTable, after the code
 # Built with a GNU map (MAP := yes). Startup: _start and start_vector (common/crt0.s); expect.json lists them too.
 NAME := library-game

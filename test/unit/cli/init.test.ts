@@ -1,4 +1,4 @@
-// `romlift init <rom> [dir] [--name] [--module-size] [--json]` (architecture §2.1, §6.3 to §6.5) on temporary
+// `romlift init <rom> [dir] [--name] [--module-size] [--no-signatures] [--json]` (architecture §2.1, §6.3 to §6.5, §7.3) on temporary
 // directories: the project it writes (the ROM copied to baserom.gba with the original kept, romlift.toml, decomp.yaml,
 // the scaffold with setup.sh executable, src/*.c, the tree and its manifest), the lock step deferred without npm, a
 // second run in the project changing nothing, the directory rule (E_DIR_NOT_EMPTY, nothing written), a changed TOML
@@ -13,7 +13,7 @@ import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
 import { parseModuleSize } from '../../../src/cli/commands/init.ts';
 import { parseConfig } from '../../../src/core/config/parse.ts';
-import { listSyntheticFixtures } from '../../helpers/fixtures.ts';
+import { listSyntheticFixtures, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
 import { capturingIo } from './fake.ts';
 
 const TMP = await mkdtemp(path.join(tmpdir(), 'romlift-cli-init-'));
@@ -146,4 +146,61 @@ test('parseModuleSize: 0x… or decimal, a positive multiple of 4 up to 32 MiB',
   assert.equal(parseModuleSize('0x200'), 0x200);
   assert.equal(parseModuleSize('4096'), 4096);
   for (const bad of ['0', '0x0', '6', '0x201', 'x200', '-4', '0x4000000', '']) assert.equal(parseModuleSize(bad), undefined, bad);
+});
+
+// ---------------------------------------------------------------------------------------------------
+// Signatures (phase 6, architecture §7.3, D93): located from $ROMLIFT_SIGNATURES (here a temporary directory, so no
+// file built on this machine reaches the test), W_SIGNATURES_ABSENT when it holds none, --no-signatures.
+
+const GAME = listSyntheticFixtures().find((f) => f.name === 'library-game') ?? assert.fail('library-game');
+const NO_SIGNATURES = path.join(TMP, 'no-signatures');
+const WITH_LIBFIX = path.join(TMP, 'with-libfix');
+await mkdir(NO_SIGNATURES, { recursive: true });
+await mkdir(WITH_LIBFIX, { recursive: true });
+await copyFile(path.join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), path.join(WITH_LIBFIX, 'libfix.json'));
+
+async function runWith(cwd: string, argv: readonly string[], signatures: string): Promise<{ readonly code: ExitCode; readonly stdout: string }> {
+  const io = { ...capturingIo(), cwd, env: { ROMLIFT_SIGNATURES: signatures } };
+  const code = await main(argv, io);
+  return { code, stdout: io.out.join('') };
+}
+
+async function gameDir(): Promise<string> {
+  const dir = path.join(TMP, `g${fresh++}`);
+  await mkdir(dir, { recursive: true });
+  await copyFile(GAME.rom, path.join(dir, 'game.gba'));
+  return dir;
+}
+
+test('init with a signature directory: the libraries it places are named, with from, a library module and [signatures] libraries', async () => {
+  const dir = await gameDir();
+  const out = await runWith(dir, ['init', 'game.gba', '--json'], WITH_LIBFIX);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  assert.ok(!lines(out.stdout).some((l) => l['code'] === 'W_SIGNATURES_ABSENT'));
+  assert.ok(lines(out.stdout).some((l) => l['code'] === 'W_SIGNATURE_CONSTANT'));
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  assert.match(toml, /\[signatures\]\nenabled = true\nlibraries = \["libfix"\]\n/);
+  assert.match(toml, /^0x08000244 = \{ name = "FixAbs", from = "sig:libfix@1\.0" \}$/m);
+  assert.match(toml, /name = "libfix"\nstart = 0x080001B4\nkind = "asm"\nlibrary = "libfix"\nversion = "1\.0"/);
+  assert.ok((await stat(path.join(dir, 'asm', 'nonmatchings', 'libfix', 'FixAbs.s'))).isFile(), 'the tree names the library function');
+});
+
+test('init with no built signature file: W_SIGNATURES_ABSENT, a warning, and the project is written; --no-signatures: enabled = false', async () => {
+  const dir = await gameDir();
+  const out = await runWith(dir, ['init', 'game.gba', '--json'], NO_SIGNATURES);
+  assert.equal(out.code, ExitCode.ok, out.stdout);
+  const absent = lines(out.stdout).find((l) => l['code'] === 'W_SIGNATURES_ABSENT');
+  assert.equal(absent?.['severity'], 'warning');
+  const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+  assert.match(toml, /\[signatures\]\nenabled = true\n\n/);
+  assert.doesNotMatch(toml, /from = /);
+  const off = await gameDir();
+  const quiet = await runWith(off, ['init', 'game.gba', '--no-signatures', '--json'], WITH_LIBFIX);
+  assert.equal(quiet.code, ExitCode.ok, quiet.stdout);
+  assert.ok(!lines(quiet.stdout).some((l) => typeof l['code'] === 'string' && String(l['code']).startsWith('W_SIGNATURE')));
+  const offToml = await readFile(path.join(off, 'romlift.toml'), 'utf8');
+  assert.match(offToml, /\[signatures\]\nenabled = false\n/);
+  assert.doesNotMatch(offToml, /from = /);
+  const help = await run(off, ['init', '--help']);
+  assert.match(help.stdout, /--no-signatures/);
 });

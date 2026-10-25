@@ -2,7 +2,10 @@
 // (init.ts initDirVerdict and replacedProblems, D75 j), which the shell only lists and hashes, the refusal of `analyze
 // --update --write` and of `rename` to save over a config that changed since it was read (analyze-update.ts
 // staleConfigProblems, rename.ts staleRenameConfig), what the reconciliation of a project's C files cannot fix
-// (c-stubs.ts, D77 a), and `rename`'s refusals (rename.ts planRename, renameJournalProblems; phase 6, D92).
+// (c-stubs.ts, D77 a), `rename`'s refusals (rename.ts planRename, renameJournalProblems; phase 6, D92), and the
+// signature layer of `init` and `analyze --update` (phase 6, architecture §7.3, §7.4): the proposal screen's
+// contradictions (proposals.ts checkProposals), the library regions no module could take (proposals.ts), and init's
+// note that signatures are enabled but no built file was found (init.ts).
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
 export const WorkflowCodes = defineCodes({
@@ -33,6 +36,19 @@ export const WorkflowCodes = defineCodes({
   E_RENAME_INVALID: {
     severity: 'error',
     meaning: 'rename was given a new name that is not a C identifier (a letter or _, then letters, digits and _, not a C keyword) or not an assembler symbol name; nothing is changed (rename.ts)',
+  },
+  W_EVIDENCE_CONFLICT: {
+    severity: 'warning',
+    meaning:
+      'a proposal contradicts the analysis (a function where it found one of the other mode or claims the bytes as a pool, table or data; a table over found code), the config (a listed function of the other mode, a data override under a function, a code override under a table, a module border inside a runs_at range, a name taken at another address) or an earlier proposal (its name); the proposal is dropped and nothing else changes (proposals.ts)',
+  },
+  W_LIBRARY_MODULE_DROPPED: {
+    severity: 'warning',
+    meaning: 'a library region the signatures placed in the code could take no module of its own: no legal border inside it, or a module of the config starts inside it; its functions keep their names, and no library module is proposed for it (proposals.ts)',
+  },
+  W_SIGNATURES_ABSENT: {
+    severity: 'warning',
+    meaning: 'init runs with [signatures] enabled but no built signature file was found (signatures/ or $ROMLIFT_SIGNATURES; `romlift signatures build` writes them); init proceeds without library names (init.ts)',
   },
   E_RENAME_INTERRUPTED: {
     severity: 'error',

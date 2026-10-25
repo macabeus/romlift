@@ -43,7 +43,7 @@
     0x08000118 walk.pc-load-is-pool round 4 cites 0x08000118: pool
     0x08000114 walk.pc-load-is-pool round 4 cites 0x08000114: pool
   waits: none
-  claims (12):
+  claims (13):
     0x0800011C claim.far-pools round 0 cites 0x0800011C: 1 edits
     0x0800011C claim.dead-code-in-extent round 0 cites 0x0800011C: 1 edits
     0x08000120 claim.far-pools round 0 cites 0x08000120: 1 edits
@@ -56,7 +56,8 @@
     0x08000118 claim.dead-code-in-extent round 4 cites 0x08000118: 1 edits
     0x08000114 claim.far-pools round 4 cites 0x08000114: 1 edits
     0x08000114 claim.dead-code-in-extent round 4 cites 0x08000114: 1 edits
-  rules (10):
+    0x08000144 region.data-after-code round 8 cites 0x08000144: data to 0x0800014C
+  rules (11):
     accept.tiles-after-accepted: a valid candidate that starts where claimed bytes end, give or take padding, is a function
       rests on: the linker lays compiled functions out back to back, each aligned with zero or nop padding
       recovers: functions referenced only by pointers whose neighbour below is already known
@@ -72,6 +73,9 @@
     gap.end-anchor: the highest valid reading below the gap end that ends at it (fillSlack) or is anchored there, a prologue (or `push {.., lr}` on 2 mod 4) preferred, within backwardWindow; a load-and-jump stub that ends at an accepted stub of the same shape counts below minInsns
       rests on: functions tile the ROM, so the code just before an accepted function ends exactly where it starts; a veneer array is a run of two-instruction `ldr rN, [pc, #k]; bx rN` stubs laid end to end, so a stub ending exactly at the next stub of the array is code; hand-written Thumb may start on 2 mod 4, where `push {.., lr}` opens it as it opens a compiled function on a word
       recovers: unreferenced functions at the end of a gap that the forward chain cannot reach past data (hand-written ones on 2 mod 4 too), and the unreferenced head of a veneer array that follows data
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

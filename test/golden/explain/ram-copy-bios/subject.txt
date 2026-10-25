@@ -38,7 +38,7 @@
     0x08000138 walk.pc-load-is-pool round 0 cites 0x08000138: pool
     0x0800013C walk.pc-load-is-pool round 0 cites 0x0800013C: pool
   waits: none
-  claims (10):
+  claims (11):
     0x08000130 claim.dead-code-in-extent round 0 cites 0x08000130: 1 edits
     0x08000134 claim.dead-code-in-extent round 0 cites 0x08000134: 1 edits
     0x08000138 claim.adjacent-pools round 0 cites 0x08000138: 1 edits
@@ -49,7 +49,8 @@
     0x0800016C claim.dead-code-in-extent round 0 cites 0x0800016C: 1 edits
     0x08000148 claim.dead-code-in-extent round 2 cites 0x08000148: 1 edits
     0x08000160 claim.dead-code-in-extent round 2 cites 0x08000160: 1 edits
-  rules (8):
+    0x0800017C region.data-after-code round 6 cites 0x0800017C: data to 0x080001A8
+  rules (9):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
@@ -62,6 +63,9 @@
     gap.arm-scan: an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference
       rests on: hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps
       recovers: heap, OAM and map routines in ARM that no accepted code refers to
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

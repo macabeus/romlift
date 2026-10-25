@@ -249,7 +249,10 @@ sub_0800025C: @ 0800025C
 	thumb_func_start_local sub_08000264
 sub_08000264: @ 08000264
 	movs r0, #9
+	ldr r2, _08000270 @ =0x08000269
 	adds r0, r0, r1
 	lsls r0, r0, #1
 	bx lr
+	.align 2, 0
+_08000270: .4byte 0x08000269
 	thumb_func_end sub_08000264

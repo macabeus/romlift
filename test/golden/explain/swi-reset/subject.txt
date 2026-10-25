@@ -19,11 +19,12 @@
     0x0800010C walk.pc-load-is-pool round 1 cites 0x0800010C: pool
     0x08000112 walk.swi-before-noncode round 1 cites 0x0800010C, 0x08000112: end-path
   waits: none
-  claims (3):
+  claims (4):
     0x08000118 claim.dead-code-in-extent round 0 cites 0x08000118: 1 edits
     0x0800010C claim.adjacent-pools round 1 cites 0x0800010C: 1 edits
     0x0800010C claim.dead-code-in-extent round 1 cites 0x0800010C: 1 edits
-  rules (8):
+    0x0800011E region.data-after-code round 7 cites 0x0800011E: data to 0x08000120
+  rules (9):
     accept.tiles-after-accepted: a valid candidate that starts where claimed bytes end, give or take padding, is a function
       rests on: the linker lays compiled functions out back to back, each aligned with zero or nop padding
       recovers: functions referenced only by pointers whose neighbour below is already known
@@ -36,6 +37,9 @@
     claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
       rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

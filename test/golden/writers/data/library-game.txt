@@ -3,8 +3,8 @@
 .include "include/macros.inc"
 .thumb
 
-@ data module data: 0x0800026C..0x0800027C, 16 bytes
+@ data module data: 0x08000274..0x08000284, 16 bytes
 
-	.global gUnk_0800026C
-gUnk_0800026C: @ 0x0800026C
-	.incbin "baserom.gba", 0x26C, 0x10
+	.global gUnk_08000274
+gUnk_08000274: @ 0x08000274
+	.incbin "baserom.gba", 0x274, 0x10

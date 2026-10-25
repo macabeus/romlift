@@ -199,7 +199,8 @@ test('initConfigOf, initModel and generateFromRom: the config configFromDiscover
   const init = initConfigOf(rom);
   assert.ok(init.ok);
   const built = configFromDiscover(rom, found);
-  assert.deepEqual(init.config, { ...built, build: { ...built.build, name: init.config.build.name } });
+  // init's config enables the signature layer (phase 6), which configFromDiscover leaves off; no file, so no library.
+  assert.deepEqual(init.config, { ...built, build: { ...built.build, name: init.config.build.name }, signatures: { enabled: true } });
   const sized = initConfigOf(rom, { moduleSize: 0x40, name: 'named' });
   assert.ok(sized.ok);
   assert.equal(sized.config.build.name, 'named');

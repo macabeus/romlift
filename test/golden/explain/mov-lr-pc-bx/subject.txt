@@ -20,11 +20,12 @@
     0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000128: call
     0x08000110 walk.mov-lr-pc-bx-is-call round 2 cites 0x08000100, 0x08000110: continue
   waits: none
-  claims (3):
+  claims (4):
     0x08000128 claim.dead-code-in-extent round 0 cites 0x08000128: 1 edits
     0x08000100 claim.dead-code-in-extent round 2 cites 0x08000100: 1 edits
     0x08000120 claim.dead-code-in-extent round 2 cites 0x08000120: 1 edits
-  rules (7):
+    0x0800012E region.data-after-code round 6 cites 0x0800012E: data to 0x08000130
+  rules (8):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
@@ -34,6 +35,9 @@
     gap.arm-scan: an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference
       rests on: hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps
       recovers: heap, OAM and map routines in ARM that no accepted code refers to
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
     seed.adr: word-aligned ROM addresses above its entry that an ARM function names with adr, unclaimed and read as ARM code, are ARM functions
       rests on: hand-written ARM startup code stores handler addresses computed with adr (the interrupt vector); an adr onto claimed words (code, its own extent included, a pool or a table) is a label or data, and one onto words that do not decode names data
       recovers: the interrupt entry and the ARM helpers the startup code installs

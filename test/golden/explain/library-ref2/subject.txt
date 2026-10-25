@@ -29,20 +29,27 @@
     0x0800010A bl.near-is-call round 0 cites 0x0800010A, 0x08000158: call
     0x08000124 bl.near-is-call round 0 cites 0x08000124, 0x08000130: call
   waits: none
-  claims (6):
+  claims (10):
     0x08000114 claim.dead-code-in-extent round 0 cites 0x08000114: 1 edits
     0x08000130 claim.dead-code-in-extent round 0 cites 0x08000130: 1 edits
     0x0800013C claim.dead-code-in-extent round 0 cites 0x0800013C: 1 edits
     0x08000144 claim.dead-code-in-extent round 0 cites 0x08000144: 1 edits
     0x08000154 claim.dead-code-in-extent round 0 cites 0x08000154: 1 edits
     0x08000158 claim.dead-code-in-extent round 0 cites 0x08000158: 1 edits
-  rules (3):
+    0x08000112 region.padding round 4 cites 0x08000112: padding to 0x08000114
+    0x0800012E region.padding round 4 cites 0x0800012E: padding to 0x08000130
+    0x08000142 region.padding round 4 cites 0x08000142: padding to 0x08000144
+    0x08000152 region.padding round 4 cites 0x08000152: padding to 0x08000154
+  rules (4):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
     claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
       rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    region.padding: free padding bytes that align the claimed item after them, between claimed bytes below the code end, are claimed as padding
+      rests on: agbcc and as emit .align 2, 0 before every function and literal pool, so the only free bytes between code are the zeros of an alignment
+      recovers: alignment zeros emitted as data slices between functions instead of .align
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

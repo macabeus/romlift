@@ -29,7 +29,7 @@
     0x0800013C walk.pc-load-is-pool round 0 cites 0x0800013C: pool
     0x08000140 walk.pc-load-is-pool round 0 cites 0x08000140: pool
   waits: none
-  claims (8):
+  claims (9):
     0x0800011C claim.dead-code-in-extent round 0 cites 0x0800011C: 1 edits
     0x0800013C claim.adjacent-pools round 0 cites 0x0800013C: 1 edits
     0x0800013C claim.dead-code-in-extent round 0 cites 0x0800013C: 1 edits
@@ -38,7 +38,8 @@
     0x08000158 claim.dead-code-in-extent round 0 cites 0x08000158: 1 edits
     0x08000164 claim.dead-code-in-extent round 0 cites 0x08000164: 1 edits
     0x0800014C claim.dead-code-in-extent round 2 cites 0x0800014C: 1 edits
-  rules (8):
+    0x08000174 region.data-after-code round 6 cites 0x08000174: data to 0x0800017C
+  rules (9):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
@@ -51,6 +52,9 @@
     gap.arm-scan: an ARM function at the cursor or up to armFrontPoolWords words ahead of its own pools and tables, unreached by any reference
       rests on: hand-written ARM keeps literal pools before its code and dispatches through branch tables, and is entered through RAM copies or computed jumps
       recovers: heap, OAM and map routines in ARM that no accepted code refers to
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function
