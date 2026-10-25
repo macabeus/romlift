@@ -8,7 +8,7 @@
 // literals inside it stay as they are. Two kinds of directive body are text, not code, and are left alone: the
 // header name of `#include <Old.h>` (`#include_next`, `#import` too; a quoted one is a string anyway), and the message
 // of `#error` and `#warning`. Pure; never throws.
-import { tokenizeC } from './c-tokens.ts';
+import { directiveOf, tokenizeC } from './c-tokens.ts';
 import type { CToken } from './c-tokens.ts';
 import type { TextEdit } from './text-edit.ts';
 
@@ -18,15 +18,12 @@ const HEADER_DIRECTIVES: ReadonlySet<string> = new Set(['include', 'include_next
 /** The directives whose body is a message. */
 const MESSAGE_DIRECTIVES: ReadonlySet<string> = new Set(['error', 'warning']);
 
-/** The tokens of a directive's body to read as code: its tokens past the `#`, at their offsets in the whole text. */
+/** The tokens of a directive's body to read as code: its tokens after the name (c-tokens.ts directiveOf), at their offsets in the whole text. */
 function directiveTokens(directive: CToken): readonly CToken[] {
-  const body = directive.text.slice(1);
-  const inner = tokenizeC(body).map((t) => ({ ...t, start: t.start + directive.start + 1, end: t.end + directive.start + 1 }));
-  const name = inner[0];
-  if (name === undefined || name.kind !== 'identifier') return inner;
-  if (MESSAGE_DIRECTIVES.has(name.text)) return [];
-  if (HEADER_DIRECTIVES.has(name.text) && inner[1]?.text === '<') return [];
-  return inner;
+  const { name, body } = directiveOf(directive);
+  if (MESSAGE_DIRECTIVES.has(name)) return [];
+  if (HEADER_DIRECTIVES.has(name) && body[0]?.text === '<') return [];
+  return body;
 }
 
 /** Every identifier token of `text` equal to `name`, directive bodies included, in text order. */

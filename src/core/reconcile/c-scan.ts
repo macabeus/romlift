@@ -26,7 +26,7 @@
 // links too (headerCandidates: a quoted include from the including file's real directory, phase 6; include-asm.ts's
 // module comment says how the planner uses each).
 import { INCLUDE_ASM_HEADER_NAME, INCLUDE_ASM_HEADER_PATH, INCLUDE_DIR, isHeaderPath } from '../../foundation/util/project-files.ts';
-import { tokenizeC, isTrivia } from './c-tokens.ts';
+import { directiveOf, tokenizeC, isTrivia } from './c-tokens.ts';
 import type { CToken } from './c-tokens.ts';
 
 /** The macro every stub calls (include/include_asm.h, foundation/asm/dialect.ts INCLUDE_ASM_HEADER). */
@@ -175,23 +175,16 @@ export interface CTextOrder {
   readonly order?: readonly number[];
 }
 
-/** The directive name of a preprocessor line (`#  ifdef X` -> `ifdef`); '' for a null directive. */
+/** The directive name of a preprocessor line (`#  ifdef X` -> `ifdef`); '' for a null directive (c-tokens.ts directiveOf). */
 function directiveName(text: string): string {
-  let k = 1;
-  while (text[k] === ' ' || text[k] === '\t') k++;
-  let name = '';
-  for (; k < text.length; k++) {
-    const ch = text[k] ?? '';
-    if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_')) break;
-    name += ch;
-  }
-  return name;
+  return directiveOf({ text, start: 0 }).name;
 }
 
 /** The macro a `#define` line names (`#define INCLUDE_ASM(DIR, NAME) …` -> `INCLUDE_ASM`); undefined for another directive. */
 function definedMacro(text: string): string | undefined {
-  if (directiveName(text) !== 'define') return undefined;
-  return /^#[ \t]*define[ \t]+([A-Za-z_][A-Za-z0-9_]*)/.exec(text)?.[1];
+  const directive = directiveOf({ text, start: 0 });
+  const macro = directive.body[0];
+  return directive.name === 'define' && macro?.kind === 'identifier' ? macro.text : undefined;
 }
 
 /**

@@ -51,25 +51,19 @@ function respelled(name: string, from: string, to: string): string {
   return name === from ? to : name;
 }
 
-/** `fn` with `from` (its name or an alias) spelled `to`, and no `from` key. */
+/**
+ * `fn` with `from` (its name or an alias) spelled `to`, and no `from` key; every other key kept as it is, so a key
+ * FunctionConfig gains later survives a rename (architecture-13).
+ */
 function renamedFunction(fn: FunctionConfig, from: string, to: string): FunctionConfig {
-  return {
-    name: respelled(fn.name, from, to),
-    mode: fn.mode,
-    ...(fn.size === undefined ? {} : { size: fn.size }),
-    ...(fn.label === undefined ? {} : { label: fn.label }),
-    aliases: fn.aliases.map((a) => respelled(a, from, to)),
-  };
+  const { from: _source, ...rest } = fn;
+  return { ...rest, name: respelled(fn.name, from, to), aliases: fn.aliases.map((a) => respelled(a, from, to)) };
 }
 
-/** `symbol` with `from` (its name or an alias) spelled `to`, and no `from` key. */
+/** `symbol` with `from` (its name or an alias) spelled `to`, and no `from` key; every other key kept as it is. */
 function renamedSymbol(symbol: SymbolConfig, from: string, to: string): SymbolConfig {
-  return {
-    name: respelled(symbol.name, from, to),
-    ...(symbol.size === undefined ? {} : { size: symbol.size }),
-    ...(symbol.type === undefined ? {} : { type: symbol.type }),
-    aliases: symbol.aliases.map((a) => respelled(a, from, to)),
-  };
+  const { from: _source, ...rest } = symbol;
+  return { ...rest, name: respelled(symbol.name, from, to), aliases: symbol.aliases.map((a) => respelled(a, from, to)) };
 }
 
 function refused(message: string, addr?: Addr): Diagnostic<ConfigCode> {

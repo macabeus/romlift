@@ -198,7 +198,7 @@ test('readChunkFiles lists asm/matchings too, the decompiled functions\' chunk f
   assert.deepEqual(read.value, ['asm/matchings/main/Decompiled.s', 'asm/nonmatchings/main/sub_08000100.s']);
 });
 
-test('readRenameTexts: every .c and .h under src/ and every file under include/, with the sha1 of its bytes; no link, no binary', async () => {
+test('readRenameTexts: every .c and .h under src/ and every file under include/, with the sha1 of its bytes; a link and a binary listed as skipped', async () => {
   const dir = await dirWith({
     'src/main.c': '\ufeffint A;\r\n',
     'src/deep/part.c': 'int B;\n',
@@ -215,8 +215,17 @@ test('readRenameTexts: every .c and .h under src/ and every file under include/,
   assert.deepEqual([...read.value.texts.keys()], ['include/global.h', 'include/macros.inc', 'src/deep/part.c', 'src/deep/part.h', 'src/main.c']);
   assert.equal(read.value.texts.get('src/main.c'), '\ufeffint A;\r\n', 'the byte order mark is kept');
   assert.equal(read.value.sha1s.get('src/main.c'), sha1Of('\ufeffint A;\r\n'));
+  assert.deepEqual(
+    read.value.skipped.map((f) => [f.path, f.reason, f.bytes === undefined ? undefined : Buffer.from(f.bytes).toString('latin1')]),
+    [
+      ['include/blob.bin', 'binary', 'a\u0000b'],
+      ['include/latin1.h', 'not-utf8', 'c\u00e9\n'],
+      ['src/link.c', 'link', '\ufeffint A;\r\n'.replace('\ufeff', '\u00ef\u00bb\u00bf')],
+    ],
+    'nothing left out silently (architecture-5)',
+  );
   const empty = await readRenameTexts(await dirWith({}));
-  assert.ok(empty.ok && empty.value.texts.size === 0);
+  assert.ok(empty.ok && empty.value.texts.size === 0 && empty.value.skipped.length === 0);
 });
 
 test('readProject passes the chunk files on disk as previousChunkFiles, and none with withoutC', async () => {

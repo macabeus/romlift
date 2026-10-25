@@ -1,6 +1,7 @@
 // `romlift rename <old> <new>` on disk (architecture §2.1, §6.4, §6.6, D17, D92): the shell half of
 // core/workflow/rename.ts. Under the project lock it reads romlift.toml (loadConfig), the C texts with the sha1 of their
-// bytes (readRenameTexts: src/**/*.c, src/**/*.h, include/**), and the write state (manifest, journal, disk); then
+// bytes and the files it leaves out (readRenameTexts: src/**/*.c, src/**/*.h, include/**), the project's ROM (whose
+// model's names a new name may not take, renameModelNames, D95 c), and the write state (manifest, journal, disk); then
 // planRename decides, the identifier edits go through planEdits and applyWrites (an `edit` op over its base sha1, hashed
 // again right before its write: E_STALE_EDIT, the journal before the first op), and last romlift.toml is saved
 // (saveConfig) after the check that it is still the text the plan was made from (E_STALE_CONFIG). It never runs
@@ -8,13 +9,15 @@
 // E_RENAME_INTERRUPTED, a stale edit or config found before any write) changes no file. Mechanical: every decision is
 // the workflow's or planEdits'.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import { planRename, renameJournalProblems, staleRenameConfig } from '../../core/workflow/rename.ts';
+import { planRename, renameJournalProblems, renameModelNames, staleRenameConfig } from '../../core/workflow/rename.ts';
 import type { RenameEdit } from '../../core/workflow/rename.ts';
 import { planEdits, planHasErrors } from '../../core/write-plan/plan-writes.ts';
 import type { WriteOp } from '../../core/write-plan/types.ts';
 import { loadConfig } from '../config/load.ts';
 import { saveConfig } from '../config/save.ts';
 import { sha1Of } from '../hash.ts';
+import { readRom } from '../rom.ts';
+import { join } from 'node:path';
 import { applyWrites } from './apply-writes.ts';
 import { locateProject } from './locate.ts';
 import { withProjectLock } from './lock.ts';
@@ -48,7 +51,11 @@ async function renameLocked(dir: string, from: string, to: string): Promise<Rena
   const configPath = loaded.value.project.config;
   const read = await readRenameTexts(dir);
   if (!read.ok) return refusal(read.diagnostics, configPath);
-  const plan = planRename({ configText: loaded.value.text, config: loaded.value.value, from, to, texts: read.value.texts, sha1s: read.value.sha1s });
+  const rom = await readRom(join(dir, ...loaded.value.value.rom.path.split('/')));
+  if (!rom.ok) return refusal([rom.diagnostic], configPath);
+  const names = renameModelNames({ rom: rom.value, config: loaded.value.value });
+  if (!names.ok) return refusal(names.diagnostics, configPath);
+  const plan = planRename({ configText: loaded.value.text, config: loaded.value.value, from, to, texts: read.value.texts, sha1s: read.value.sha1s, skipped: read.value.skipped, modelNames: names.names });
   if (!plan.ok) return refusal(plan.diagnostics, configPath);
   const state = await readWriteState(dir, plan.edits.map((e) => e.path));
   if (!state.ok) return refusal(state.diagnostics, configPath);

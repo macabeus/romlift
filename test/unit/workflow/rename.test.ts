@@ -49,8 +49,16 @@ const TEXTS: ReadonlyMap<string, string> = new Map([
   ['src/other.c', 'int unrelated;\n'],
 ]);
 
+/** Names a project's model emits that romlift.toml does not list: a default orphan, a default data symbol, a local label. */
+const MODEL_NAMES: ReadonlyMap<string, number> = new Map([
+  ['unk_0800032C', 0x0800_032c],
+  ['gUnk_0809B670', 0x0809_b670],
+  ['_08004808', 0x0800_4808],
+  ['sub_08000100', 0x0800_0100],
+]);
+
 function inputs(from: string, to: string, texts: ReadonlyMap<string, string> = TEXTS): RenameInputs {
-  return { configText: TOML, config: config(), from, to, texts, sha1s: new Map([...texts.keys()].map((p) => [p, `sha1-of-${p}`] as const)) };
+  return { configText: TOML, config: config(), from, to, texts, sha1s: new Map([...texts.keys()].map((p) => [p, `sha1-of-${p}`] as const)), modelNames: MODEL_NAMES };
 }
 
 function codes(plan: ReturnType<typeof planRename>): readonly string[] {
@@ -94,6 +102,39 @@ test('refusals: an invalid new name, an unknown old one, a name the project has;
   assert.deepEqual(codes(planRename(inputs('NoSuchName', 'main'))), ['E_RENAME_UNKNOWN', 'E_RENAME_EXISTS'], 'every refusal at once');
   assert.deepEqual(renameProblems(config(), 'sub_08000100', 'InitGame'), []);
   assert.ok(isRenameTarget('_x9') && isRenameTarget('Foo_Bar') && !isRenameTarget('$x'));
+});
+
+test('a name the project\'s model emits is refused (correctness-1): a default orphan, a default data symbol, a local label', () => {
+  for (const emitted of ['unk_0800032C', 'gUnk_0809B670', '_08004808']) {
+    const plan = planRename(inputs('sub_08000100', emitted));
+    assert.equal(plan.ok, false, emitted);
+    assert.deepEqual(codes(plan), ['E_RENAME_EXISTS'], emitted);
+    assert.match(plan.diagnostics[0]?.message ?? '', /the project's model already names 0x[0-9A-F]{8} /);
+  }
+  assert.deepEqual(renameProblems(config(), 'sub_08000100', 'unk_0800032C'), [], 'without the model names, only the TOML is read');
+});
+
+test('a file rename does not edit (a link, not UTF-8, binary) warns, or refuses when it names the old name (architecture-5)', () => {
+  const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
+  const clean = planRename({
+    ...inputs('sub_08000100', 'InitGame'),
+    skipped: [
+      { path: 'include/linked.h', reason: 'link', bytes: bytes('int other;\n') },
+      { path: 'include/gba', reason: 'link' },
+      { path: 'include/blob.bin', reason: 'binary', bytes: bytes('sub_08000100x\0') },
+    ],
+  });
+  assert.ok(clean.ok);
+  assert.deepEqual(clean.diagnostics.map((d) => [d.code, d.path]), [
+    ['W_RENAME_SKIPPED', 'include/linked.h'],
+    ['W_RENAME_SKIPPED', 'include/gba'],
+    ['W_RENAME_SKIPPED', 'include/blob.bin'],
+  ], 'a longer token is not the name');
+  for (const reason of ['link', 'not-utf8', 'binary'] as const) {
+    const refused = planRename({ ...inputs('sub_08000100', 'InitGame'), skipped: [{ path: 'src/x.h', reason, bytes: bytes('void sub_08000100(void);\n') }] });
+    assert.equal(refused.ok, false, reason);
+    assert.deepEqual(codes(refused), ['E_RENAME_SKIPPED_FILE'], reason);
+  }
 });
 
 test('a TOML entry one line cannot hold is refused with E_TOML_PATCH_REFUSED and plans no edit', () => {

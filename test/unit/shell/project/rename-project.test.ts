@@ -55,13 +55,14 @@ test('a rename edits src/ and include/ identifiers and one TOML line, under the 
   await mkdir(path.join(dir, 'src', 'sub'), { recursive: true });
   await writeFile(path.join(dir, 'src', 'sub', 'helper.h'), `/* ${name} */\nvoid ${name}(void);\n`);
   await writeFile(path.join(dir, 'include', 'game.h'), `#define CALL_IT ${name}()\nextern const char *gName; // "${name}"\n`);
-  await writeFile(path.join(dir, 'include', 'blob.bin'), Buffer.from([0, 1, 2, ...Buffer.from(name), 0]));
-  await writeFile(path.join(TMP, `outside-${fresh}.c`), `void ${name}(void);\n`);
+  await writeFile(path.join(dir, 'include', 'blob.bin'), Buffer.from([0, 1, 2, ...Buffer.from(`${name}x`), 0]));
+  await writeFile(path.join(TMP, `outside-${fresh}.c`), `void other(void);\n`);
   await symlink(path.join(TMP, `outside-${fresh}.c`), path.join(dir, 'src', 'linked.c'));
   const before = await snapshot(dir);
 
   const outcome = await renameInProject(path.join(dir, 'src'), name, 'GameInit');
   assert.ok(outcome.ok, outcome.diagnostics.map((d) => `${d.code} ${d.message}`).join('\n'));
+  assert.deepEqual(outcome.diagnostics.map((d) => [d.code, d.path]), [['W_RENAME_SKIPPED', 'include/blob.bin'], ['W_RENAME_SKIPPED', 'src/linked.c']], 'what rename leaves out is said (architecture-5)');
   assert.ok(outcome.applied && outcome.tomlWritten);
   assert.deepEqual(outcome.edits.map((e) => [e.path, e.edits.length]), [['include/game.h', 1], ['src/main.c', 1], ['src/sub/helper.h', 1]]);
   assert.deepEqual(outcome.ops.map((op) => `${op.op} ${op.path}`), ['edit include/game.h', 'edit src/main.c', 'edit src/sub/helper.h']);
@@ -73,7 +74,7 @@ test('a rename edits src/ and include/ identifiers and one TOML line, under the 
   assert.ok((await readFile(path.join(dir, 'src', 'main.c'), 'utf8')).includes('INCLUDE_ASM("asm/nonmatchings/main", GameInit);'));
   assert.equal(await readFile(path.join(dir, 'src', 'sub', 'helper.h'), 'utf8'), `/* ${name} */\nvoid GameInit(void);\n`);
   assert.equal(await readFile(path.join(dir, 'include', 'game.h'), 'utf8'), `#define CALL_IT GameInit()\nextern const char *gName; // "${name}"\n`);
-  assert.equal(await readFile(path.join(TMP, `outside-${fresh}.c`), 'utf8'), `void ${name}(void);\n`, 'a linked file is never edited');
+  assert.equal(await readFile(path.join(TMP, `outside-${fresh}.c`), 'utf8'), `void other(void);\n`, 'a linked file is never edited');
   const now = await snapshot(dir);
   assert.equal(now.get('src/linked.c'), 'link', 'the link is still a link');
   assert.equal(now.get('include/blob.bin'), before.get('include/blob.bin'), 'a binary is never edited');
@@ -89,6 +90,29 @@ test('a rename edits src/ and include/ identifiers and one TOML line, under the 
   const asm = await snapshot(dir, 'asm');
   assert.ok(asm.has('asm/nonmatchings/main/GameInit.s'));
   assert.ok(!asm.has(`asm/nonmatchings/main/${name}.s`));
+});
+
+test('a name the model emits that romlift.toml lacks (a local label) and a link that names the old name are refused, changing no file', async () => {
+  const { dir, name } = await project();
+  const chunks = await snapshot(dir, 'asm/nonmatchings');
+  let local: string | undefined;
+  for (const file of [...chunks.keys()].sort()) {
+    local = /^(_[0-9A-F]{8}):/m.exec(await readFile(path.join(dir, file), 'utf8'))?.[1];
+    if (local !== undefined) break;
+  }
+  assert.ok(local !== undefined, 'the composite has a local label');
+  const before = await snapshot(dir);
+  const emitted = await renameInProject(dir, name, local);
+  assert.equal(emitted.ok, false);
+  assert.deepEqual(emitted.diagnostics.map((d) => d.code), ['E_RENAME_EXISTS']);
+  assert.deepEqual(await snapshot(dir), before);
+  await writeFile(path.join(TMP, `named-${fresh}.h`), `void ${name}(void);\n`);
+  await symlink(path.join(TMP, `named-${fresh}.h`), path.join(dir, 'include', 'named.h'));
+  const linked = await snapshot(dir);
+  const refused = await renameInProject(dir, name, 'GameInit');
+  assert.equal(refused.ok, false);
+  assert.deepEqual(refused.diagnostics.map((d) => [d.code, d.path]), [['E_RENAME_SKIPPED_FILE', 'include/named.h']]);
+  assert.deepEqual(await snapshot(dir), linked);
 });
 
 test('refusals change no file: an unknown old name, an existing new name, an invalid new name, no project', async () => {

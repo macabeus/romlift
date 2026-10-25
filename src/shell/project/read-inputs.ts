@@ -19,6 +19,7 @@ import type { ProjectInputs } from '../../core/workflow/types.ts';
 import type { ProjectWriteState } from '../../core/write-plan/project-plan.ts';
 import type { DiskFileState } from '../../core/write-plan/types.ts';
 import type { InitDirListing } from '../../core/workflow/init.ts';
+import type { RenameSkipped } from '../../core/workflow/rename.ts';
 import { ShellCodes } from '../codes.ts';
 import { loadConfig } from '../config/load.ts';
 import type { ProjectConfig } from '../config/load.ts';
@@ -284,10 +285,12 @@ export async function readChunkFiles(dir: string): Promise<ReadResult<readonly s
   return { ok: true, value: out };
 }
 
-/** What `rename` edits: every text it may rename identifiers in, and the sha1 of each one's bytes, by project path. */
+/** What `rename` edits: every text it may rename identifiers in, the sha1 of each one's bytes, and what it left out. */
 export interface RenameTexts {
   readonly texts: ReadonlyMap<string, string>;
   readonly sha1s: ReadonlyMap<string, string>;
+  /** The files under src/ and include/ it does not edit, with why and, for a file, its bytes (planRename decides). */
+  readonly skipped: readonly RenameSkipped[];
 }
 
 /** UTF-8, refusing a byte sequence that is not, and keeping a leading byte order mark (its bytes are hashed). */
@@ -299,12 +302,23 @@ function isRenameText(path: string): boolean {
   return path.startsWith(`${C_SOURCE_DIR}/`) && (isCSource(path) || isHeaderPath(path));
 }
 
+/** The bytes behind a symbolic link to a regular file, or undefined (a link to a directory, a dangling link). */
+async function linkedFileBytes(file: string): Promise<Uint8Array | undefined> {
+  try {
+    return (await stat(file)).isFile() ? await readFile(file) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * The texts `rename` reads (architecture §6.6, phase 6, D92): every `.c` and `.h` under the project's src/ and every
- * file under include/, at any depth, with the sha1 of each one's bytes (RenameTexts). A symbolic link is left out, file
- * or directory, since an edit written through a temporary file and a rename would replace the link with a file; so is
- * a file that is not UTF-8 text or holds a NUL (a binary under include/), which an edit could not write back as it was.
- * Empty when neither directory exists; any other failure to list or read is E_IO_READ.
+ * The texts `rename` reads (architecture §6.6, phase 6, D92, D95 c): every `.c` and `.h` under the project's src/ and
+ * every file under include/, at any depth, with the sha1 of each one's bytes (RenameTexts). What it does not edit it
+ * lists in `skipped`, never silently: a symbolic link (file or directory, under src/ or include/), since an edit
+ * written through a temporary file and a rename would replace the link with a file (the link's target's bytes when it
+ * is a file), and a file that is not UTF-8 text or holds a NUL (a binary under include/), which an edit could not write
+ * back as it was (its bytes). planRename warns of each, or refuses when one names the old name. Empty when neither
+ * directory exists; any other failure to list or read is E_IO_READ.
  */
 export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTexts>> {
   const listed: string[] = [];
@@ -314,11 +328,17 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
   }
   const texts = new Map<string, string>();
   const sha1s = new Map<string, string>();
-  for (const path of listed.filter(isRenameText).sort(compareCodeUnits)) {
+  const skipped: RenameSkipped[] = [];
+  for (const path of [...listed].sort(compareCodeUnits)) {
     const file = join(dir, ...path.split('/'));
     let bytes: Uint8Array;
     try {
-      if ((await lstat(file)).isSymbolicLink()) continue;
+      if ((await lstat(file)).isSymbolicLink()) {
+        const linked = await linkedFileBytes(file);
+        if (linked === undefined || isRenameText(path)) skipped.push({ path, reason: 'link', ...(linked === undefined ? {} : { bytes: linked }) });
+        continue;
+      }
+      if (!isRenameText(path)) continue;
       bytes = await readFile(file);
     } catch (error) {
       if (errnoOf(error) === 'ENOENT') continue;
@@ -328,13 +348,17 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
     try {
       text = RENAME_UTF8.decode(bytes);
     } catch {
+      skipped.push({ path, reason: 'not-utf8', bytes });
       continue;
     }
-    if (text.includes('\0')) continue;
+    if (text.includes('\0')) {
+      skipped.push({ path, reason: 'binary', bytes });
+      continue;
+    }
     texts.set(path, text);
     sha1s.set(path, sha1Of(bytes));
   }
-  return { ok: true, value: { texts, sha1s } };
+  return { ok: true, value: { texts, sha1s, skipped } };
 }
 
 /**

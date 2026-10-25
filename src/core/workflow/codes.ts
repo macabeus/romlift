@@ -46,6 +46,14 @@ export const WorkflowCodes = defineCodes({
     severity: 'warning',
     meaning: 'a library region the signatures placed in the code could take no module of its own: no legal border inside it, or a module of the config starts inside it; its functions keep their names, and no library module is proposed for it (proposals.ts)',
   },
+  E_RENAME_SKIPPED_FILE: {
+    severity: 'error',
+    meaning: "a file under src/ or include/ that rename does not edit (a symbolic link, a file that is not UTF-8 text or holds a NUL) names the old name as an identifier's bytes, so the rename would leave it behind; nothing is changed (rename.ts, D95 c)",
+  },
+  W_RENAME_SKIPPED: {
+    severity: 'warning',
+    meaning: 'a file under src/ or include/ that rename does not edit (a symbolic link, a file that is not UTF-8 text or holds a NUL), which does not name the old name, or a link to a directory whose files rename does not read (rename.ts, D95 c)',
+  },
   E_RENAME_INTERRUPTED: {
     severity: 'error',
     meaning: "the project holds the journal of an interrupted write (.romlift/journal.json), which the next generate finishes; rename changes nothing until it has (rename.ts)",
