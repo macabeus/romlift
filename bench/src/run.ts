@@ -42,7 +42,7 @@ import { arch, cpus, platform } from 'node:os';
 import { join, posix } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
-import { compareCodeUnits, hexAddr, parseElf, parseGnuMap, type ElfSymbol, type SignatureFile } from 'romlift';
+import { compareCodeUnits, hexAddr, parseElf, parseGnuMap, type ElfSymbol, type GnuMap, type SignatureFile } from 'romlift';
 
 import { acceptedFor, readAcceptedDiffs, type AcceptedDiffs } from './accepted-diffs.ts';
 import { analyzeDataset, analysisTuning, benchProfile, discoverOptions, isDefaultTuning, readRealInputs, sealedInput, type AnalysisRunner, type DatasetAnalysis, type RealInputs, type RunTuning, DEFAULT_RUN_TUNING } from './analysis-run.ts';
@@ -238,10 +238,14 @@ export async function elfSymbols(cx: BenchContext, d: Dataset): Promise<readonly
 
 /**
  * The reference objects of a tuning dataset, refused when the dataset records none or their digest differs
- * (D50), with the objects its map links when it records a map (doctor-real's `<rom>.objects-linked` checks
- * they are the linked ones).
+ * (D50), with the objects its map links and the map itself when it records one (doctor-real's
+ * `<rom>.objects-linked` checks they are the linked ones; the objdiff family reads each function's object from the
+ * map, as bench/tools/objdiff-classes.ts does).
  */
-export async function referenceObjects(cx: BenchContext, d: Dataset): Promise<{ readonly dir: string; readonly digest: string; readonly linked?: ReadonlySet<string> }> {
+export async function referenceObjects(
+  cx: BenchContext,
+  d: Dataset,
+): Promise<{ readonly dir: string; readonly digest: string; readonly linked?: ReadonlySet<string>; readonly map?: GnuMap }> {
   if (d.objectsDir === undefined || d.objectsDigest === undefined) throw new BenchError(`${d.name}: the dataset records no objectsDir and objectsDigest, which --scaffold's objdiff family needs`);
   const dir = join(cx.benchRoot, d.objectsDir);
   const digest = await objectsDigest(dir).catch((error: unknown) => {
@@ -251,7 +255,7 @@ export async function referenceObjects(cx: BenchContext, d: Dataset): Promise<{ 
   if (d.map === undefined) return { dir, digest };
   const map = parseGnuMap(await readText(join(cx.benchRoot, d.map)));
   if (!map.ok) throw new BenchError(`${d.name}: ${d.map}: ${map.error}`);
-  return { dir, digest, linked: new Set(mapObjects(map.value).objects.map((o) => posix.normalize(o.file))) };
+  return { dir, digest, linked: new Set(mapObjects(map.value).objects.map((o) => posix.normalize(o.file))), map: map.value };
 }
 
 /** One tuning ROM's emission families: the readability shares always, the scaffold and objdiff with a tool. */
@@ -273,6 +277,7 @@ async function emissionOf(cx: BenchContext, inputs: RealInputs, analysis: Datase
     objectsDir: objects.dir,
     objdiff: run.objdiff,
     ...(objects.linked === undefined ? {} : { linkedObjects: objects.linked }),
+    ...(objects.map === undefined ? {} : { map: objects.map }),
   });
   Object.assign(timings, built.timings, { scaffoldMs: Math.round(performance.now() - started) });
   const init = await emission.initBuild({ cx, rom: inputs.rom, withhold: false });
