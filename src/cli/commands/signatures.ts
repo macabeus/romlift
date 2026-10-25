@@ -7,8 +7,9 @@
 //
 // `romlift signatures <rom> [--signatures <dir>] [--json]` (architecture §2.1, §7.2, roadmap 6.B): where the built
 // signature files place their members on a ROM. The shell reads the ROM and locates the files (`--signatures <dir>`,
-// else `$ROMLIFT_SIGNATURES`, else the package's signatures/, shell/signatures/locate.ts); the discover analysis, the
-// matcher and the overlap resolution are the core's (matchSignatures, resolvePlacements). --json: one
+// else `$ROMLIFT_SIGNATURES`, else the package's signatures/, shell/signatures/locate.ts loadSignatureFiles); the
+// discover analysis, the matcher and the overlap resolution are the workflow's (signature-layer.ts signaturesOnRom,
+// which also owns the policy for an analysis error, architecture-4). --json: one
 // {"type":"placement","library","version","member","name","kind","addr","size","mode"?,"rule","constants"?} line per
 // settled placement in address order (addr a hexAddr string; each constant {offset, reference, rom}, the word values
 // as hexAddr strings), one {"type":"region","library","version","start","end"} line per library region, the
@@ -20,13 +21,12 @@ import type { LibraryRegion } from '../../api/config-types.ts';
 import { readRom } from '../../api/files.ts';
 import { hexAddr } from '../../api/rom.ts';
 import type { Diagnostic } from '../../api/rom.ts';
-import { matchSignatures, resolvePlacements } from '../../api/signatures-match.ts';
 import type { ResolvedSignatures } from '../../api/signatures-match.ts';
 import type { SignatureFile, SignaturePlacement } from '../../api/signatures-types.ts';
-import { discover } from '../../core/workflow/discover.ts';
+import { signaturesOnRom } from '../../core/workflow/signature-layer.ts';
 import { buildSignatures, signaturesRepoOf, writeSignatureFile } from '../../shell/signatures/build-from-references.ts';
-import { locateSignatures, signaturesAbsent, SIGNATURES_ENV } from '../../shell/signatures/locate.ts';
-import { packageRoot, resolveFrom } from '../../shell/project/read-inputs.ts';
+import { loadSignatureFiles } from '../../shell/signatures/locate.ts';
+import { resolveFrom } from '../../shell/project/read-inputs.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
 import type { CliIo, CommandSpec } from '../registry.ts';
@@ -147,18 +147,12 @@ async function runMatch(io: CliIo, romArg: string, dirArg: string | undefined, j
     printDiagnosticsOnly(io, json, COMMAND, [loaded.diagnostic], matchSummary(0, undefined, [loaded.diagnostic], ExitCode.errors));
     return ExitCode.errors;
   }
-  const env = dirArg === undefined ? io.env : { ...io.env, [SIGNATURES_ENV]: dirArg };
-  const located = await locateSignatures({ packageRoot: packageRoot(), env, cwd: io.cwd });
-  const absent = signaturesAbsent(located);
-  const rom = loaded.value;
-  const analysis = discover(rom);
-  const analysed = analysis.diagnostics.some((d) => d.severity === 'error');
-  const resolved = located.files.length === 0 || analysed ? undefined : resolvePlacements(rom, matchSignatures(rom, analysis, located.files));
-  const diagnostics: readonly Diagnostic[] = [...located.diagnostics, ...(absent === undefined ? [] : [absent]), ...analysis.diagnostics, ...(resolved?.diagnostics ?? [])];
+  const located = await loadSignatureFiles(io, dirArg === undefined ? {} : { dir: dirArg });
+  const found = signaturesOnRom(loaded.value, located.files);
+  const diagnostics: readonly Diagnostic[] = [...located.diagnostics, ...found.diagnostics];
   const exitCode = exitCodeOf(diagnostics);
-  const summary = matchSummary(located.files.length, resolved, diagnostics, exitCode);
-  const placements = resolved?.placements ?? [];
-  const regions = resolved?.regions ?? [];
+  const summary = matchSummary(located.files.length, found, diagnostics, exitCode);
+  const { placements, regions } = found;
   if (json) {
     await writeLines(io, [
       ...placements.map((p) => recordLine('placement', placementRecord(p))),

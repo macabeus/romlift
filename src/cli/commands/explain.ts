@@ -24,8 +24,8 @@ import type { Addr, Diagnostic } from '../../api/rom.ts';
 import { explainOutcome, explainProject } from '../../core/workflow/explain.ts';
 import type { ExplainChunk, ExplainName, ExplainOutcome, ExplainReport } from '../../core/workflow/explain.ts';
 import type { ExplainSignature } from '../../core/workflow/explain.ts';
-import { packageRoot, readProject, resolveFrom } from '../../shell/project/read-inputs.ts';
-import { locateSignatures, SIGNATURES_ENV } from '../../shell/signatures/locate.ts';
+import { readProject, resolveFrom } from '../../shell/project/read-inputs.ts';
+import { loadSignatureFiles } from '../../shell/signatures/locate.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
 import type { CliIo, CommandSpec } from '../registry.ts';
@@ -204,8 +204,7 @@ async function explainAt(io: CliIo, romPath: string | undefined, addr: Addr, sig
   }
   const loaded = await readRom(resolveFrom(io.cwd, romPath));
   if (!loaded.ok) return { refused: [loaded.diagnostic] };
-  const env = signatures === undefined ? io.env : { ...io.env, [SIGNATURES_ENV]: signatures };
-  const located = await locateSignatures({ packageRoot: packageRoot(), env, cwd: io.cwd });
+  const located = await loadSignatureFiles(io, signatures === undefined ? {} : { dir: signatures });
   const outcome = explainOutcome(loaded.value, addr, { signatureFiles: located.files });
   return { report: outcome.report, diagnostics: [...located.diagnostics, ...outcome.diagnostics] };
 }

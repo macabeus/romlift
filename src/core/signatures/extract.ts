@@ -27,6 +27,7 @@
 // Pure: no I/O, never throws for content; the shell reads the files (shell/signatures/build-from-references.ts) and
 // writes the canonical text signatureFileText gives.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
+import { hexBytes } from '../../foundation/util/hex.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { canonicalJson } from '../../foundation/formats/canonical-json.ts';
 import type { ElfSymbol, GnuMap, JsonValue } from '../../foundation/formats/types.ts';
@@ -251,15 +252,6 @@ export function maskMember(rom: Rom, insns: ReadonlyMap<Addr, InsnAt>, start: Ad
     } else a += 2;
   }
   return { bytes, mask };
-}
-
-const HEX_DIGITS: readonly string[] = Array.from({ length: 256 }, (_, b) => b.toString(16).padStart(2, '0'));
-
-/** Lower-case hex, two digits per byte. */
-export function hexBytes(bytes: Uint8Array): string {
-  let out = '';
-  for (const b of bytes) out += HEX_DIGITS[b] ?? '';
-  return out;
 }
 
 // ---------------------------------------------------------------------------------------------------

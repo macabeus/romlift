@@ -15,13 +15,11 @@ import { hex } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
-import type { LayoutReason, LibraryRegion, Proposal, ProposalSource } from '../proposals/types.ts';
+import type { LayoutReason, LibraryRegion, ModuleProposal, Proposal, ProposalSource } from '../proposals/types.ts';
 import { codeLayout, isLegalStart } from './borders.ts';
 import type { CodeLayout } from './borders.ts';
 import { DEFAULT_MODULE_SIZE } from './types.ts';
 import type { InferModulesOptions, RunsAtRange } from './types.ts';
-
-type ModuleProposal = Extract<Proposal, { readonly kind: 'module' }>;
 
 /** A fixed range of the code region: a runs_at range, a library, or assembly-only code. */
 interface FixedRange {
@@ -178,6 +176,17 @@ export function runsAtName(runAt: Addr): string {
   return `ram_${hex(runAt)}`;
 }
 
+/**
+ * `base`, or `base_2`, `base_3`, … : the first name not in `taken`, which it then holds. The one rule for a library's
+ * module name (init's inference and analyze --update, module-proposals.ts) and for a name a proposal finds taken.
+ */
+export function freeModuleName(base: string, taken: Set<string>): string {
+  let name = base;
+  for (let n = 2; taken.has(name); n++) name = `${base}_${n}`;
+  taken.add(name);
+  return name;
+}
+
 /** The name of the n-th agbcc-shaped module (1-based): main, main_2, main_3, ... */
 export function mainName(n: number): string {
   return n === 1 ? 'main' : `main_${n}`;
@@ -220,7 +229,7 @@ export function inferModules(rom: Rom, analysis: AnalysisResult, options: InferM
   if (at < regionEnd) pieces.push({ span: { start: at, end: regionEnd } });
 
   let mains = 0;
-  const libraryNames = new Map<string, number>();
+  const libraryNames = new Set<string>();
   for (const [i, piece] of pieces.entries()) {
     const { start, end } = piece.span;
     if (piece.fixed !== undefined) {
@@ -230,10 +239,7 @@ export function inferModules(rom: Rom, analysis: AnalysisResult, options: InferM
       } else if (library === undefined) {
         out.push({ kind: 'module', name: asmOnlyName(start), start, moduleKind: 'asm', source: layoutSource('asm-only') });
       } else {
-        const seen = (libraryNames.get(library.name) ?? 0) + 1;
-        libraryNames.set(library.name, seen);
-        const name = seen === 1 ? library.name : `${library.name}_${seen}`;
-        out.push({ kind: 'module', name, start, moduleKind: 'asm', library, source: layoutSource('asm-only') });
+        out.push({ kind: 'module', name: freeModuleName(library.name, libraryNames), start, moduleKind: 'asm', library, source: layoutSource('asm-only') });
       }
       continue;
     }

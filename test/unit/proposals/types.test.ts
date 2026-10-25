@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { sourceKey } from '../../../src/core/proposals/types.ts';
+import { parseSourceKey, sourceKey } from '../../../src/core/proposals/types.ts';
 import type { ProposalSource } from '../../../src/core/proposals/types.ts';
 
 test('a signature source is spelled sig:<library>@<version>', () => {
@@ -20,4 +20,12 @@ test('the analysis and module inference are never persisted', () => {
 test('the source kinds are exactly signature, analysis and layout', () => {
   const kinds: Record<ProposalSource['kind'], true> = { signature: true, analysis: true, layout: true };
   assert.deepEqual(Object.keys(kinds).sort(), ['analysis', 'layout', 'signature']);
+});
+
+test('parseSourceKey reads back what sourceKey spells, and nothing else (architecture-12)', () => {
+  for (const [library, version] of [['m4a', '2001'], ['libagbsyscall', 'agb'], ['lib', 'v1@beta']] as const) {
+    const key = sourceKey({ kind: 'signature', library, version, rule: 'sig.unique-fit' });
+    assert.deepEqual(parseSourceKey(key), { library, version });
+  }
+  for (const other of [undefined, '', 'sig:', 'sig:m4a', 'sig:@2001', 'sig:m4a@', 'elf:m4a@2001', 'm4a@2001']) assert.equal(parseSourceKey(other), undefined, String(other));
 });

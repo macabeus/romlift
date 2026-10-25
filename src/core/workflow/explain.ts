@@ -32,12 +32,13 @@ import { runOffsetOf } from '../model/modules.ts';
 import { buildModel } from '../model/model.ts';
 import type { ChunkKind, Item, Model, NameSource } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
+import { parseSourceKey } from '../proposals/types.ts';
 import type { RuleMeta } from '../provenance/rule-id.ts';
 import { trailKeeps } from '../provenance/trail.ts';
 import type { TrailEvent } from '../provenance/trail.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import type { SignatureFile, SignatureRuleId } from '../signatures/schema.ts';
-import { placeSignatures } from './proposals.ts';
+import { placeSignatures } from './signature-layer.ts';
 import { discover, profileOrDefault } from './discover.ts';
 import { confirmOptions, discoverModel } from './generate.ts';
 import { romSha1Problems } from '../config/rom-sha1.ts';
@@ -136,11 +137,8 @@ export function namePart(model: Pick<Model, 'functions'>, addr: Addr): { readonl
 
 /** The signature named by a `from` key, `sig:<library>@<version>`, for an entry called `name`; undefined for any other key. */
 export function signatureOfKey(from: string | undefined, name: string): ExplainSignature | undefined {
-  if (from === undefined || !from.startsWith('sig:')) return undefined;
-  const key = from.slice('sig:'.length);
-  const at = key.indexOf('@');
-  if (at <= 0 || at === key.length - 1) return undefined;
-  return { library: key.slice(0, at), version: key.slice(at + 1), name };
+  const parsed = parseSourceKey(from);
+  return parsed === undefined ? undefined : { ...parsed, name };
 }
 
 /**

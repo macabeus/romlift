@@ -12,7 +12,7 @@
 //   `synthetic` (a fixture has no checkout of its own; its bytes are committed).
 // The repository is the nearest ancestor of the spec's directory that holds `bench/dataset` (two levels above
 // `signatures/specs/<library>.json`), else the package root.
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -22,11 +22,11 @@ import { parseGnuMap } from '../../foundation/formats/gnu-map.ts';
 import { extractSignatures, mapPlacements, signatureFileText } from '../../core/signatures/extract.ts';
 import type { ReferenceInput } from '../../core/signatures/extract.ts';
 import type { SignatureFile } from '../../core/signatures/schema.ts';
-import { parseSignatureSpec } from '../../core/signatures/spec.ts';
+import { isLibraryName, isSealedDataset, parseSignatureSpec } from '../../core/signatures/spec.ts';
 import type { SignatureSpec } from '../../core/signatures/spec.ts';
 import { discover } from '../../core/workflow/discover.ts';
 import { ShellCodes } from '../codes.ts';
-import { atomicWrite, errnoOf, errorReason, isDirectory, readBytes } from '../fs.ts';
+import { atomicWrite, errorReason, isDirectory, isRegularFile, readBytes, readJson, readText } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { packageRoot, packageVersion } from '../project/read-inputs.ts';
 import { readRom } from '../rom.ts';
@@ -61,7 +61,6 @@ interface ResolvedReference {
 export const SYNTHETIC_COMMIT = 'synthetic';
 
 const DATASET_NAME = /^[a-z0-9][a-z0-9._-]*$/;
-const LIBRARY_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 
 function refusal(diagnostics: readonly Diagnostic[]): BuildSignaturesResult {
   const first = diagnostics.find((d) => d.severity === 'error') ?? diagnostics[0];
@@ -78,36 +77,14 @@ export async function signaturesRepoOf(specPath: string): Promise<string> {
   }
 }
 
-/** Whether `path` is a regular file: false when it is absent (ENOENT, ENOTDIR); another failure is E_IO_READ. */
-async function isFile(path: string): Promise<IoResult<boolean>> {
-  try {
-    return { ok: true, value: (await stat(path)).isFile() };
-  } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, value: false };
-    return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${path}: ${errorReason(error)}`, { path }) };
-  }
-}
-
-/** The text of a file as UTF-8. */
-async function readText(path: string): Promise<IoResult<string>> {
-  const read = await readBytes(path);
-  return read.ok ? { ok: true, value: new TextDecoder('utf-8').decode(read.value) } : read;
-}
-
 /** The spec at `path`, validated. */
 export async function readSignatureSpec(path: string): Promise<IoResult<SignatureSpec>> {
-  const text = await readText(path);
-  if (!text.ok) return text;
-  let json: unknown;
-  try {
-    json = JSON.parse(text.value);
-  } catch (error) {
-    return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_SPEC_INVALID', `${path} is not JSON: ${errorReason(error)}`, { path }) };
-  }
-  const parsed = parseSignatureSpec(json);
-  if (!parsed.ok) return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_SPEC_INVALID', `${path}: ${parsed.error}`, { path }) };
-  return { ok: true, value: parsed.value };
+  return readJson(path, parseSignatureSpec, 'E_SIGNATURE_SPEC_INVALID');
+}
+
+/** A dataset file's fields: any JSON object. */
+function datasetFields(json: unknown): { readonly ok: true; readonly value: Readonly<Record<string, unknown>> } | { readonly ok: false; readonly error: string } {
+  return typeof json === 'object' && json !== null && !Array.isArray(json) ? { ok: true, value: json as Readonly<Record<string, unknown>> } : { ok: false, error: 'is not a dataset object' };
 }
 
 function stringField(json: Readonly<Record<string, unknown>>, key: string): string | undefined {
@@ -119,7 +96,7 @@ function stringField(json: Readonly<Record<string, unknown>>, key: string): stri
 async function resolveReference(repo: string, benchRoot: string, dataset: string): Promise<IoResult<ResolvedReference>> {
   if (!DATASET_NAME.test(dataset)) return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_DATASET_UNKNOWN', `'${dataset}' is no dataset name`) };
   const file = join(repo, 'bench', 'dataset', 'real', `${dataset}.json`);
-  const real = await isFile(file);
+  const real = await isRegularFile(file);
   if (!real.ok) return real;
   if (!real.value) {
     const fixture = join(repo, 'bench', 'dataset', 'synthetic', dataset, 'build');
@@ -131,20 +108,10 @@ async function resolveReference(repo: string, benchRoot: string, dataset: string
     const at = (ext: string): string => join(fixture, `${dataset}.${ext}`);
     return { ok: true, value: { dataset, rom: at('gba'), elf: at('elf'), map: at('map'), commit: SYNTHETIC_COMMIT } };
   }
-  const text = await readText(file);
-  if (!text.ok) return text;
-  let json: unknown;
-  try {
-    json = JSON.parse(text.value);
-  } catch (error) {
-    return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_DATASET_INVALID', `${file} is not JSON: ${errorReason(error)}`, { path: file }) };
-  }
-  if (typeof json !== 'object' || json === null || Array.isArray(json)) {
-    return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_DATASET_INVALID', `${file} is not a dataset object`, { path: file }) };
-  }
-  const fields = json as Readonly<Record<string, unknown>>;
-  const revealed = fields['revealed'];
-  if (fields['heldout'] === true && (!Array.isArray(revealed) || revealed.length === 0)) {
+  const read = await readJson(file, datasetFields, 'E_SIGNATURE_DATASET_INVALID');
+  if (!read.ok) return read;
+  const fields = read.value;
+  if (isSealedDataset(fields)) {
     return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_DATASET_SEALED', `${dataset} is a sealed held-out dataset; it is never a signature reference (D32)`, { path: file }) };
   }
   const rom = stringField(fields, 'rom');
@@ -202,7 +169,7 @@ export async function buildSignatures(input: BuildSignaturesInput, options: Buil
     if (!read.ok) return refusal([read.diagnostic]);
     spec = read.value;
   }
-  if (!LIBRARY_NAME.test(spec.library)) {
+  if (!isLibraryName(spec.library)) {
     return refusal([diagnostic(ShellCodes, 'E_SIGNATURE_SPEC_INVALID', `${input.specPath}: library '${spec.library}' is no file name`, { path: input.specPath })]);
   }
   const repo = await signaturesRepoOf(input.specPath);

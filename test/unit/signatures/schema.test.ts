@@ -1,4 +1,4 @@
-// parseSignatureFile and parseSignatureSpec (architecture §7.1, D31, D93): the hand-written validators of the frozen
+// parseSignatureFile and parseSignatureSpec (architecture §7.1, D31, D93, D95 d): the zod validators of the frozen
 // schema-3 signature file and of a spec. Each accepts exactly its shape, refuses anything else with the path of the
 // offending member, and never throws.
 import assert from 'node:assert/strict';

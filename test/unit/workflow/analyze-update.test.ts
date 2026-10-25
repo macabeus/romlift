@@ -317,6 +317,25 @@ test('signatures: default names are renamed with from, the table added, the miss
   assert.deepEqual(again.proposals, []);
 });
 
+test('signatures: a library module starting where a runs_at range ends replaces the resumed module the range proposed there (architecture-11)', () => {
+  const { rom, text } = gameProject();
+  const ranged = `${text}\n[[overrides]]\nstart = 0x08000160\nsize = 0x54\nkind = "code"\nmode = "thumb"\nruns_at = 0x03000000\n`;
+  const parsed = parseConfig(ranged);
+  assert.ok(parsed.ok);
+  const borders = runsAtBorders(rom, parsed.value);
+  assert.deepEqual(borders.proposals.map((p) => [p.name, p.start]), [['ram_03000000', 0x0800_0160], ['main_080001B4', 0x0800_01b4]], 'alone, the range resumes main at its end');
+  const plan = update(rom, ranged);
+  assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => `${d.code} ${d.message}`).join('; '));
+  const modules = plan.proposals.flatMap((p) => (p.kind === 'module' ? [[p.name, p.start, p.library?.name]] : []));
+  assert.deepEqual(modules, [
+    ['ram_03000000', 0x0800_0160, undefined],
+    ['libfix', 0x0800_01b4, 'libfix'],
+    ['main_08000264', 0x0800_0264, undefined],
+  ]);
+  assert.match(plan.text, /\[\[modules\]\]\nname = "libfix"\nstart = 0x080001B4\n/);
+  assert.ok(!plan.text.includes('main_080001B4'), 'the resumed module the library replaced is not in the patch');
+});
+
 test('signatures: an entry the user named keeps its name, and [signatures] enabled = false proposes nothing from the files', () => {
   const { rom, text } = gameProject();
   const named = text.replace('0x08000244 = "sub_08000244"', '0x08000244 = "MyAbs"');

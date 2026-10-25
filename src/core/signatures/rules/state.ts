@@ -4,6 +4,7 @@
 // the rules over it; a rule changes the state only through `placeMember`. Internal to core/signatures: the public
 // result is the SignaturePlacement of schema.ts.
 import { peek32 } from '../../../foundation/rom/rom.ts';
+import { le32 } from '../../../foundation/util/bytes.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../foundation/rom/span.ts';
 import type { RuleMeta } from '../../provenance/rule-id.ts';
@@ -102,16 +103,6 @@ export interface ChainMemberRule extends RuleBase {
 
 export type SignatureRule = MemberRule | ChainRule | ChainMemberRule;
 
-/** The little-endian word at `offset` of `bytes`, unsigned. */
-export function wordOf(bytes: Uint8Array, offset: number): number {
-  return ((bytes[offset] ?? 0) | ((bytes[offset + 1] ?? 0) << 8) | ((bytes[offset + 2] ?? 0) << 16) | ((bytes[offset + 3] ?? 0) << 24)) >>> 0;
-}
-
-/** `a` rounded up to a multiple of `align` (a power of two). */
-export function alignUp(a: Addr, align: number): Addr {
-  return (a + align - 1) & -align;
-}
-
 /** Whether `member` lies inside the ROM at `addr`, aligned. */
 function inRom(rom: Rom, member: Member, addr: Addr): boolean {
   const off = addr - rom.base;
@@ -150,15 +141,9 @@ export function wordDiffs(rom: Rom, member: Member, addr: Addr, max: number): No
     }
     if (!differs) continue;
     if (out.length === max) return undefined;
-    out.push({ offset: w, reference: wordOf(bytes, w), rom: wordOf(b, off + w) });
+    out.push({ offset: w, reference: le32(bytes, w), rom: le32(b, off + w) });
   }
   return out;
-}
-
-/** The end of a placed member. */
-export function placedEnd(state: VersionState, member: Member): Addr | undefined {
-  const p = state.placed.get(member.index);
-  return p === undefined ? undefined : p.addr + member.size;
 }
 
 /** Where `member` was placed, if it was. */

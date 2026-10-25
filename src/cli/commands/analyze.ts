@@ -29,8 +29,8 @@ import { unifiedDiff } from '../../api/workflow-one-shot.ts';
 import { disabledTuning, discoverTuned, parseRuleIds } from '../../core/workflow/discover.ts';
 import { saveConfig } from '../../shell/config/save.ts';
 import { withProjectLock } from '../../shell/project/lock.ts';
-import { packageRoot, readProject, readProjectTexts } from '../../shell/project/read-inputs.ts';
-import { locateSignatures } from '../../shell/signatures/locate.ts';
+import { readProject, readProjectTexts } from '../../shell/project/read-inputs.ts';
+import { loadSignatureFiles } from '../../shell/signatures/locate.ts';
 import type { CliIo } from '../registry.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
@@ -171,14 +171,14 @@ async function runUpdate(io: CliIo, json: boolean, write: boolean): Promise<Exit
     return ExitCode.errors;
   }
   const project = read.value;
-  const located = project.inputs.config.signatures.enabled ? await locateSignatures({ packageRoot: packageRoot(), env: io.env, cwd: io.cwd }) : undefined;
-  const plan = analyzeUpdate(located === undefined ? project.inputs : { ...project.inputs, signatureFiles: located.files });
+  const located = await loadSignatureFiles(io);
+  const plan = analyzeUpdate({ ...project.inputs, signatureFiles: located.files, signatureNotes: located.diagnostics });
   if (!plan.ok) {
     printDiagnosticsOnly(io, json, 'analyze --update', plan.diagnostics, { ok: false, exitCode: ExitCode.errors });
     return ExitCode.errors;
   }
   const path = project.config.project.config;
-  let diagnostics: readonly Diagnostic[] = [...(located?.diagnostics ?? []), ...plan.diagnostics];
+  let diagnostics: readonly Diagnostic[] = plan.diagnostics;
   let written = false;
   if (write && plan.changed) {
     // Under the lock: the config on disk must still be the text the plan was made from (D75 m).

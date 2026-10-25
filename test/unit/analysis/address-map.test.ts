@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addressMap, loadSpaceRom, rangeAtLoad, runsElsewhere, toLoad, toRun } from '../../../src/core/analysis/address-map.ts';
+import { addressMap, loadSpaceImage, rangeAtLoad, runsElsewhere, toLoad, toRun } from '../../../src/core/analysis/address-map.ts';
 import type { OverrideFact } from '../../../src/core/analysis/types.ts';
 import { u32 } from '../../../src/foundation/rom/rom.ts';
 import { romWith, words } from '../../helpers/analysis.ts';
@@ -66,7 +66,7 @@ test('ranges are sorted; one overlapping an earlier range in load or run space, 
   assert.deepEqual(addressMap([loadOverlap, a]).ranges.map((r) => r.load.start), [0x0800_2000], 'by load start, whatever the order given');
 });
 
-test('loadSpaceRom: inside a range, each aligned word naming a run address of it holds its load address; nothing else changes', () => {
+test('loadSpaceImage: inside a range, each aligned word naming a run address of it holds its load address; nothing else changes; never a Rom (architecture-9)', () => {
   const L = 0x0800_0400;
   const R = 0x0300_0000;
   const rom = romWith([
@@ -74,10 +74,11 @@ test('loadSpaceRom: inside a range, each aligned word naming a run address of it
     { at: L + 0x100, bytes: words(R + 0x10) },
   ], { size: 0x800 });
   const m = addressMap([{ span: { start: L, end: L + 0x100 }, kind: 'code', runsAt: R }]);
-  const image = loadSpaceRom(m, rom);
+  const image = loadSpaceImage(m, rom);
   assert.deepEqual([0, 4, 8, 12].map((k) => u32(image, L + k)), [L + 0x10, 0x0300_0200, 0x1234_5678, L + 0x21]);
   assert.equal(u32(image, L + 0x100), R + 0x10, "a word outside the range is the ROM's own");
   assert.equal(u32(rom, L), R + 0x10, 'the ROM itself is not changed');
-  assert.equal(loadSpaceRom(m, rom), image, 'built once per map and ROM');
-  assert.equal(loadSpaceRom(addressMap([]), rom), rom, 'the ROM itself on the identity map');
+  assert.equal(loadSpaceImage(m, rom), image, 'built once per map and ROM');
+  assert.ok(!('sha1' in image) && !('header' in image), 'rewritten bytes carry no sha1 or header');
+  assert.equal(loadSpaceImage(addressMap([]), rom).bytes, rom.bytes, "the ROM's own bytes on the identity map");
 });

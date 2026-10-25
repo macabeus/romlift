@@ -6,7 +6,8 @@
 // addresses at the first such place is not placed (sig.pinned-both-sides may still pin it). A place over the bytes of
 // another placed member of the version is passed over, and a member whose every byte is masked needs a pointer there
 // that proves it (state.ts, overlapsPlaced and evidenced; phase 6's closing run, docs/phase-6.md).
-import { alignUp, evidenced, fits, overlapsPlaced, placeMember, placedAt, placedNeighbours, pointersAgree } from './state.ts';
+import { evidenced, fits, overlapsPlaced, placeMember, placedAt, placedNeighbours, pointersAgree } from './state.ts';
+import { alignUp } from '../../../foundation/util/align.ts';
 import type { Chain, ChainMemberRule, VersionState } from './state.ts';
 
 const neighbourSpacing: ChainMemberRule = {

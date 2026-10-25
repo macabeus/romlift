@@ -26,3 +26,20 @@ export function parseHexAddr(text: string): number | undefined {
   const digits = HEX_ADDR.exec(text)?.[1];
   return digits === undefined ? undefined : Number.parseInt(digits, 16);
 }
+
+/** The two lower-case hex digits of each byte value (a signature file's spelling of bytes and masks). */
+const BYTE_HEX_LOWER: readonly string[] = Array.from({ length: 256 }, (_, b) => b.toString(16).padStart(2, '0'));
+
+/** `bytes` as lower-case hex, two digits per byte: the spelling of a signature file's `bytes` and `mask` (D31). */
+export function hexBytes(bytes: Uint8Array): string {
+  let out = '';
+  for (const b of bytes) out += BYTE_HEX_LOWER[b] ?? '';
+  return out;
+}
+
+/** hexBytes' inverse: the bytes of an even-length hex text (either case; the caller has validated it). */
+export function bytesOfHex(text: string): Uint8Array {
+  const out = new Uint8Array(text.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = Number.parseInt(text.slice(2 * i, 2 * i + 2), 16);
+  return out;
+}

@@ -60,6 +60,46 @@ export async function isDirectory(path: string): Promise<IoResult<boolean>> {
   }
 }
 
+/**
+ * Whether `path` is a regular file (a link to one counts): false when it is absent or a path component is no directory
+ * (ENOENT, ENOTDIR) or it is another kind of file; any other failure is E_IO_READ, never read as absent (architecture-6).
+ */
+export async function isRegularFile(path: string): Promise<IoResult<boolean>> {
+  try {
+    return { ok: true, value: (await stat(path)).isFile() };
+  } catch (error) {
+    const code = errnoOf(error);
+    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, value: false };
+    return failure('E_IO_READ', path, 'cannot examine', error);
+  }
+}
+
+/** The text of file `path` as UTF-8. */
+export async function readText(path: string): Promise<IoResult<string>> {
+  const read = await readBytes(path);
+  return read.ok ? { ok: true, value: new TextDecoder('utf-8').decode(read.value) } : read;
+}
+
+/** What readJson's caller decodes the parsed JSON with: the value, or why it is refused. */
+export type JsonDecode<T> = (json: unknown) => { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
+
+/**
+ * The JSON file at `path` read, parsed and decoded with `decode`: E_IO_READ when it cannot be read, `invalid` (the
+ * caller's code) when it is not JSON (`<path> is not JSON: …`) or `decode` refuses it (`<path>: <why>`).
+ */
+export async function readJson<T>(path: string, decode: JsonDecode<T>, invalid: ShellCode): Promise<IoResult<T>> {
+  const text = await readText(path);
+  if (!text.ok) return text;
+  let json: unknown;
+  try {
+    json = JSON.parse(text.value);
+  } catch (error) {
+    return { ok: false, diagnostic: diagnostic(ShellCodes, invalid, `${path} is not JSON: ${errorReason(error)}`, { path }) };
+  }
+  const decoded = decode(json);
+  return decoded.ok ? decoded : { ok: false, diagnostic: diagnostic(ShellCodes, invalid, `${path}: ${decoded.error}`, { path }) };
+}
+
 /** The bytes of file `path`. */
 export async function readBytes(path: string): Promise<IoResult<Uint8Array>> {
   try {

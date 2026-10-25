@@ -138,6 +138,18 @@ test('a runs_at range that does not start and end on module borders is E_OVERRID
   assert.deepEqual(toEnd.diagnostics, [], 'the ROM end is a border');
 });
 
+test('a run range inside the ROM, or over another run range, is E_OVERRIDE_INVALID (correctness-8)', () => {
+  const modules = [['rom_header', BASE], ['main', HEADER_END], ['iwram', BASE + 0x200], ['ewram', BASE + 0x300]] as const;
+  const inRom = planModules(ROM, configOf({ modules, overrides: [{ start: BASE + 0x200, size: 0x100, kind: 'code', runsAt: BASE + 0x100 }] }), RULE);
+  assert.deepEqual(inRom.diagnostics.map((d) => d.code), ['E_OVERRIDE_INVALID']);
+  assert.match(inRom.diagnostics[0]?.message ?? '', /overlaps the ROM's load space/);
+  assert.ok(inRom.modules.every((m) => m.runAt === undefined));
+  const twice = planModules(ROM, configOf({ modules, overrides: [{ start: BASE + 0x200, size: 0x100, kind: 'code', runsAt: 0x0300_0000 }, { start: BASE + 0x300, size: 0x100, kind: 'code', runsAt: 0x0300_0080 }] }), RULE);
+  assert.deepEqual(twice.diagnostics.map((d) => [d.code, d.addr]), [['E_OVERRIDE_INVALID', BASE + 0x300]]);
+  assert.match(twice.diagnostics[0]?.message ?? '', /overlaps the run range \[0x03000000, 0x03000100\) of another runs_at range/);
+  assert.deepEqual(twice.modules.map((m) => m.runAt), [undefined, undefined, 0x0300_0000, undefined]);
+});
+
 // C data ranges (architecture §6.6, phase 6, D92): a `c` module's data_start D starts [D, the next module start or the
 // ROM end); a data module at D is dropped, one holding D is clipped there, and every illegal data_start is
 // E_DATA_RANGE_INVALID, leaving the module without a range.

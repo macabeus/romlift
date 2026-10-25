@@ -10,6 +10,7 @@ import { diagnostic, RomliftInvariantError } from '../../foundation/diagnostics/
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { insnUnit } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
@@ -18,7 +19,9 @@ import type { SignatureCode } from './codes.ts';
 import { SIGNATURE_POLICY } from './policy.ts';
 import type { SignaturePolicy, SignatureStage } from './policy.ts';
 import { PLACEMENT_RULES } from './rules/index.ts';
-import { fits, wordOf } from './rules/state.ts';
+import { fits } from './rules/state.ts';
+import { le32 } from '../../foundation/util/bytes.ts';
+import { bytesOfHex } from '../../foundation/util/hex.ts';
 import type { Chain, ChainLink, Member, Placed, SignatureRule, SignatureSweep, VersionState } from './rules/state.ts';
 import type { LibraryVersion, MemberId, SignatureFile, SignaturePlacement } from './schema.ts';
 
@@ -45,11 +48,6 @@ export function versionKey(library: string, version: string): string {
 }
 
 /** Bytes of a lower-case hex string (the validator has checked it). */
-function unhex(text: string): Uint8Array {
-  const out = new Uint8Array(text.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = Number.parseInt(text.slice(2 * i, 2 * i + 2), 16);
-  return out;
-}
 
 /** The first offset, at halfword steps, whose four mask bytes are all 0xFF, or -1. */
 function anchorOf(mask: Uint8Array): number {
@@ -90,13 +88,13 @@ function membersOf(version: LibraryVersion, policy: SignaturePolicy): Scanned[] 
     align: 2 | 4,
     extra: Partial<Pick<Member, 'mode' | 'names'>>,
   ): void => {
-    const mask = unhex(hexMask);
+    const mask = bytesOfHex(hexMask);
     let unmasked = 0;
     for (const m of mask) if (m === 0xff) unmasked++;
     const anchor = anchorOf(mask);
-    out.push({ index: out.length, id, name, kind, size, bytes: unhex(hexBytes), mask, align, unmasked, anchor, free: anchor >= 0 && unmasked >= policy.minUnmaskedBytes, candidates: [], ...extra });
+    out.push({ index: out.length, id, name, kind, size, bytes: bytesOfHex(hexBytes), mask, align, unmasked, anchor, free: anchor >= 0 && unmasked >= policy.minUnmaskedBytes, candidates: [], ...extra });
   };
-  for (const f of version.functions) decode(f.id, f.name, 'function', f.size, f.bytes, f.mask, f.mode === 'arm' ? 4 : 2, { mode: f.mode });
+  for (const f of version.functions) decode(f.id, f.name, 'function', f.size, f.bytes, f.mask, insnUnit(f.mode), { mode: f.mode });
   for (const t of version.tables) {
     // A table keeps the alignment its references gave it: 4 when every reference placed it on a word, else 2.
     const at = refs.get(t.id) ?? [];
@@ -139,14 +137,14 @@ function scanCandidates(rom: Rom, members: readonly Scanned[], range: { readonly
   const index = new Map<number, Scanned[]>();
   for (const m of members) {
     if (m.anchor < 0) continue;
-    const key = wordOf(m.bytes, m.anchor);
+    const key = le32(m.bytes, m.anchor);
     const list = index.get(key);
     if (list === undefined) index.set(key, [m]);
     else list.push(m);
   }
   const b = rom.bytes;
   for (let off = 0; off + 4 <= b.length; off += 2) {
-    const list = index.get(wordOf(b, off));
+    const list = index.get(le32(b, off));
     if (list === undefined) continue;
     for (const m of list) {
       const start = rom.base + off - m.anchor;

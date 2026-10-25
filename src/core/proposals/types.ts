@@ -53,12 +53,18 @@ export type Proposal =
       readonly source: ProposalSource;
     };
 
+/** A module proposal (module inference, the runs_at borders, the library modules of analyze --update). */
+export type ModuleProposal = Extract<Proposal, { readonly kind: 'module' }>;
+
 /** A recognised library's range, as the signature matcher reports it (phase 6) and module inference reads it. */
 export interface LibraryRegion {
   readonly span: Span;
   readonly library: string;
   readonly version: string;
 }
+
+/** The prefix of a signature's `from` key. */
+const SIGNATURE_KEY_PREFIX = 'sig:';
 
 /**
  * The TOML `from` spelling of a source: 'sig:<library>@<version>'. The analysis and module inference are never
@@ -67,9 +73,22 @@ export interface LibraryRegion {
 export function sourceKey(source: ProposalSource): string | undefined {
   switch (source.kind) {
     case 'signature':
-      return `sig:${source.library}@${source.version}`;
+      return `${SIGNATURE_KEY_PREFIX}${source.library}@${source.version}`;
     case 'analysis':
     case 'layout':
       return undefined;
   }
+}
+
+/**
+ * sourceKey's inverse for a signature (architecture-12: each spelling and its parser together): the library and version
+ * a `from` key `sig:<library>@<version>` names (split at its first `@`, both parts non-empty); undefined for any other
+ * key.
+ */
+export function parseSourceKey(from: string | undefined): { readonly library: string; readonly version: string } | undefined {
+  if (from === undefined || !from.startsWith(SIGNATURE_KEY_PREFIX)) return undefined;
+  const key = from.slice(SIGNATURE_KEY_PREFIX.length);
+  const at = key.indexOf('@');
+  if (at <= 0 || at === key.length - 1) return undefined;
+  return { library: key.slice(0, at), version: key.slice(at + 1) };
 }

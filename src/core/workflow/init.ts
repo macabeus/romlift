@@ -2,7 +2,8 @@
 // everything a new project holds out, as a plan the shell applies. Ported from the PoC's `cli.ts` init flow and
 // `generate.ts`, with the TOML written by `init` alone (generate never writes it, nor loads signatures): the config and
 // its canonical TOML (init-config.ts initConfigOf, the one path to them, which from phase 6 folds the screened
-// signature proposals in; the shell, not this plan, reports W_SIGNATURES_ABSENT when it found no built file), the files
+// signature proposals in; the shell's notes on the files it located, W_SIGNATURES_ABSENT among them, are reported only
+// when the layer runs, signature-layer.ts signatureNotes, D95 b), the files
 // init owns as data (romlift.toml and decomp.yaml with their texts, the ROM's project path; architecture-a2-6),
 // decomp.yaml (renderDecompYaml), the checked generate over that config (its tree, the c stubs and modules.mk; §6.4
 // step 2: a failed self-check or a model error refuses the plan, nothing is written), and the scaffold
@@ -21,6 +22,7 @@ import { WorkflowCodes } from './codes.ts';
 import { generate, writable } from './generate.ts';
 import { initConfigOf } from './init-config.ts';
 import { projectScaffold } from './scaffold-diff.ts';
+import { signatureNotes } from './signature-layer.ts';
 import type { InitFile, InitInputs, InitPlan } from './types.ts';
 
 /**
@@ -34,19 +36,20 @@ export function init(inputs: InitInputs, hash?: (text: string) => string): InitP
   const { rom } = inputs;
   const enabled = inputs.options.signatures !== false;
   const files = enabled ? inputs.signatureFiles : undefined;
+  const notes = signatureNotes(enabled, inputs.signatureNotes);
   const made = initConfigOf(rom, {
     ...inputs.options,
     romFile: inputs.romFile,
     ...(inputs.profile === undefined ? {} : { profile: inputs.profile }),
     ...(files === undefined ? {} : { signatureFiles: files }),
   });
-  if (!made.ok) return made;
+  if (!made.ok) return { ok: false, diagnostics: [...made.diagnostics, ...notes] };
   const { config, tomlText } = made;
   // modules.mk records the SHA-1 of the TOML init writes (`hash`, the shell's), as generate records the one it reads.
   const configSha1 = hash === undefined ? {} : { configSha1: hash(tomlText) };
   const result = generate({ rom, config, decomp: { defined: [] }, printer: 'readable', ...(inputs.profile === undefined ? {} : { profile: inputs.profile }), ...configSha1 });
   if (!writable(result)) {
-    return { ok: false, diagnostics: [...result.diagnostics, ...result.report.checks.flatMap((c) => c.diagnostics)] };
+    return { ok: false, diagnostics: [...result.diagnostics, ...result.report.checks.flatMap((c) => c.diagnostics), ...notes] };
   }
   const decompYamlText = renderDecompYaml({ name: config.build.name, title: rom.header.title, gameCode: rom.header.gameCode, sha1: rom.sha1, compiler: config.build.compiler });
   const scaffold = projectScaffold({ name: config.build.name, sha1: rom.sha1, title: rom.header.title, romliftVersion: inputs.romliftVersion, agbcc: inputs.agbcc, templates: inputs.templates });
@@ -54,7 +57,7 @@ export function init(inputs: InitInputs, hash?: (text: string) => string): InitP
     [ROMLIFT_CONFIG_FILE, tomlText],
     [DECOMP_YAML_FILE, decompYamlText],
   ];
-  return { ok: true, config, tomlText, files: owned, romCopy: BASEROM_FILE, result, scaffold, diagnostics: [...made.diagnostics, ...result.diagnostics] };
+  return { ok: true, config, tomlText, files: owned, romCopy: BASEROM_FILE, result, scaffold, diagnostics: [...notes, ...made.diagnostics, ...result.diagnostics] };
 }
 
 // ---------------------------------------------------------------------------------------------------

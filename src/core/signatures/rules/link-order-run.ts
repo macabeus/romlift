@@ -13,7 +13,8 @@
 // its own alignment or at the next word, the padding the linker puts before a word-aligned input section; and a run
 // never places a member over the bytes of a member of the version already placed, nor a member whose every byte is
 // masked without a pointer that proves it (state.ts, overlapsPlaced and evidenced).
-import { alignUp, evidenced, objectOf, overlapsPlaced, placeMember, placedAt, pointersAgree } from './state.ts';
+import { evidenced, objectOf, overlapsPlaced, placeMember, placedAt, pointersAgree } from './state.ts';
+import { alignUp } from '../../../foundation/util/align.ts';
 import type { Chain, ChainRule, Member, VersionState } from './state.ts';
 
 interface Run {

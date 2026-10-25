@@ -7,6 +7,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Insn } from '../../foundation/isa/types.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
+import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { BlSite, CompilerProfile, ProfileId } from '../profile/types.ts';
 import type { Provenance, Rejection } from '../provenance/provenance.ts';
 import type { RuleId, RuleMeta } from '../provenance/rule-id.ts';
@@ -99,6 +100,12 @@ export interface FunctionFact {
   readonly accepted: Provenance;
   /** Later proposals of the same entry, one per proposing rule. */
   readonly also: readonly Provenance[];
+}
+
+/** The function of `functions` (sorted by entry, as AnalysisResult.functions is) whose entry is `addr`, or undefined. */
+export function functionAt<F extends Pick<FunctionFact, 'entry'>>(functions: readonly F[], addr: Addr): F | undefined {
+  const f = functions[lowerBound(functions, addr, (g) => g.entry)];
+  return f?.entry === addr ? f : undefined;
 }
 
 export interface UnlistedFinding {

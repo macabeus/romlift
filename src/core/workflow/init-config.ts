@@ -6,7 +6,7 @@
 //      that would be is refused (E_NAME_INVALID), like a name that is no build name (core/config/schema.ts);
 //   2. the discover analysis and configFromDiscover over it (with `--module-size`); from phase 6, unless the signature
 //      layer is off (`--no-signatures`), the signature files the shell located placed on that discover result and
-//      screened (proposals.ts signatureLayer, checkProposals), their library regions given to module inference
+//      screened (signature-layer.ts signatureLayer, proposals.ts checkProposals), their library regions given to module inference
 //      (`asm` modules with library and version) and their kept proposals folded into the config (foldSignatures: the
 //      signature's name, `from`, `size` and inner `label = true`, tables as [symbols]); [signatures] records `enabled`
 //      and the libraries used. The discover result is garbage before any confirm run starts, so the two never share
@@ -29,7 +29,7 @@ import { ModelCodes } from '../model/codes.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import type { SignatureFile } from '../signatures/schema.ts';
 import { buildNameOf, configFromDiscover } from './config-from-discover.ts';
-import { droppedRegionNotes, foldSignatures, librariesOf, signatureLayer } from './proposals.ts';
+import { droppedRegionNotes, foldSignatures, librariesOf, signatureLayer } from './signature-layer.ts';
 import { discover } from './discover.ts';
 import { confirmModel, generate } from './generate.ts';
 import type { ConfirmedModel, GenerateInputs, GenerateResult } from './generate.ts';

@@ -1,9 +1,9 @@
 // `bench signatures [--only <rom>] [--loo] [--json]` and the signatures family of `bench run` (architecture §7.2,
 // §8.4 "Signatures", §8.5, D24, D25, D31, D32, D37, roadmap 6.B). The bench always scores a seedless discover run and
 // judges the signatures afterwards, on that same run (D24): the locally built signature files (signatures/*.json,
-// gitignored, D40; refused with the build loop named when there are none) are matched on the ROM
-// (matchSignatures), settled (resolvePlacements) and turned into proposals (proposeFromSignatures), all through
-// romlift's entry points (D37), then judged against the reference ELF:
+// gitignored, D40; refused with the build loop named when there are none) are matched on the ROM, settled and turned
+// into proposals by romlift's own composition (signaturesOver, the workflow `signatures <rom>` and the signature layer
+// use; architecture-4), through romlift's entry points (D37), then judged against the reference ELF:
 //
 // - a function placement is `atElfFunc` (an ELF FUNC starts there), `atUntyped` (the dataset lists the address as
 //   `untyped`) or `wrong`;
@@ -41,12 +41,10 @@ import { join } from 'node:path';
 import {
   compareCodeUnits,
   hexAddr,
-  matchSignatures,
   parseElf,
-  proposeFromSignatures,
-  resolvePlacements,
   ROM_BASE,
   signatureFileText,
+  signaturesOver,
   type AnalysisResult,
   type ElfSymbol,
   type LibraryRegion,
@@ -393,8 +391,8 @@ export interface RomSignatures {
 
 /** Matches, settles and proposes the built files on `rom` over its discover run `analysis`. */
 export function romSignatures(rom: Rom, analysis: AnalysisResult, files: readonly SignatureFile[]): RomSignatures {
-  const resolved = resolvePlacements(rom, matchSignatures(rom, analysis, files));
-  return { placements: resolved.placements, regions: resolved.regions, proposals: proposeFromSignatures(resolved, analysis) };
+  const found = signaturesOver(rom, analysis, files);
+  return { placements: found.placements, regions: found.regions, proposals: found.proposals };
 }
 
 /** The judged member of one tuning ROM from its scored run (bench run's family and `bench signatures`). */

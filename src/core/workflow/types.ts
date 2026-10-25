@@ -45,6 +45,11 @@ export interface InitInputs {
    * looked for (an API caller, or `--no-signatures`).
    */
   readonly signatureFiles?: readonly SignatureFile[];
+  /**
+   * The shell's notes on the files it located (W_SIGNATURE_FILE_SKIPPED, W_SIGNATURES_ABSENT; shell/signatures/locate.ts
+   * loadSignatureFiles), which the plan reports only when the signature layer runs (not with `--no-signatures`, D95 b).
+   */
+  readonly signatureNotes?: readonly Diagnostic[];
 }
 
 /** One text file `init` owns: its project path and its text (architecture-a2-6). */
@@ -129,6 +134,8 @@ export interface AnalyzeUpdateInputs {
   readonly profile?: CompilerProfile;
   /** The built signature files the shell located; absent or empty: none (or `[signatures] enabled = false`). */
   readonly signatureFiles?: readonly SignatureFile[];
+  /** The shell's notes on them, which the plan reports only while `[signatures] enabled` (D95 b). */
+  readonly signatureNotes?: readonly Diagnostic[];
 }
 
 /**

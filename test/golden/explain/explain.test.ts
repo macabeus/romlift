@@ -5,7 +5,8 @@
 // (.json), `romlift explain --json` (.ndjson) and the text output (.txt), compared byte for byte. Three kinds:
 //
 //   - bare: `<fixture>/<case>.*`, a bare ROM (discover); the CLI runs with $ROMLIFT_SIGNATURES naming an empty
-//     directory, so no locally built signature file of a real ROM reaches a golden (D40);
+//     directory, so no locally built signature file of a real ROM reaches a golden (D40); the W_SIGNATURES_ABSENT line
+//     that run reports (it names the temporary directory, architecture-4) is left out of the golden;
 //   - project: `<fixture>/project-<case>.*`, a project written to a temporary directory from init's plan (its
 //     romlift.toml, with the case's [[overrides]] appended, decomp.yaml and baserom.gba), explained as `generate`'s
 //     confirm run sees it (seed.listed, seed.override);
@@ -34,7 +35,7 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import { explain, explainOutcome, explainProject } from '../../../src/core/workflow/explain.ts';
 import type { ExplainReport } from '../../../src/core/workflow/explain.ts';
 import { init } from '../../../src/core/workflow/init.ts';
-import { placeSignatures } from '../../../src/core/workflow/proposals.ts';
+import { placeSignatures } from '../../../src/core/workflow/signature-layer.ts';
 import { canonicalJson } from '../../../src/foundation/formats/canonical-json.ts';
 import type { JsonValue } from '../../../src/foundation/formats/types.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
@@ -104,7 +105,7 @@ async function cli(argv: readonly string[], cwd: string = DIR): Promise<string> 
   const io: CliIo = { stdout: (t) => out.push(t), stderr: () => undefined, cwd, env: { [SIGNATURES_ENV]: NO_SIGNATURES } };
   const code = await main(argv, io);
   assert.equal(code, 0, `romlift ${argv.join(' ')} exited ${code}`);
-  return out.join('');
+  return out.join('').split('\n').filter((line) => !line.includes('"code":"W_SIGNATURES_ABSENT"')).join('\n');
 }
 
 function canonical(report: ExplainReport): string {

@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { extractSignatures, hexBytes, isAddressLike, maskMember, signatureFileText } from '../../../../src/core/signatures/extract.ts';
+import { extractSignatures, isAddressLike, maskMember, signatureFileText } from '../../../../src/core/signatures/extract.ts';
+import { hexBytes } from '../../../../src/foundation/util/hex.ts';
 import type { ExtractResult, ReferenceInput } from '../../../../src/core/signatures/extract.ts';
 import { parseSignatureFile } from '../../../../src/core/signatures/schema.ts';
 import type { LibraryVersion, SignatureFile } from '../../../../src/core/signatures/schema.ts';

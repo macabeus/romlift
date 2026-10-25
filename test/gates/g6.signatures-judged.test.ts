@@ -7,7 +7,9 @@
 //     which the baseline must agree with). tmc, revealed after the baseline was pinned (D60), has no PoC row: it is
 //     judged by the ELF checks below with no floor;
 //   - every placement at an ELF FUNC or at a listed untyped address; every table an ELF OBJECT of that size or a label;
-//     every proposed `size` equal to the ELF size (the bench applies the 4-byte padding allowance); on a ROM that is
+//     every proposed `size` equal to the ELF size (the bench applies the 4-byte padding allowance), and every proposed
+//     size accounted for: equal, differ or `unjudged` (no ELF size, a zero ELF size, or a FUNC spanning another FUNC:
+//     nothing to compare with, reported per ROM; phase-6 fix round 1, correctness-4, an owner question, Q13); on a ROM that is
 //     one of the specs' references, every placed member's symbol (its MemberId before '@') equal to that reference's
 //     own symbol at the placement. A display name the spec reviewed differs from the symbol on purpose: it is counted
 //     and reported, never gated.
@@ -18,7 +20,7 @@
 //     "libraries":[{"library","version","functions","objects"}],
 //     "placements":{"total","atElfFunc","atUntyped","wrong"},
 //     "tables":{"total","objectOfSize","label","wrong"},
-//     "sizes":{"proposed","equal","differ"},
+//     "sizes":{"proposed","equal","differ","unjudged"},
 //     "names":{"reference":boolean,"total","equal","differ","reviewed"}}]}
 //   names.equal/differ compare the member's symbol with the reference's; names.reviewed counts the placements whose
 //   display name is a reviewed one.
@@ -38,7 +40,7 @@ interface JudgedRom {
   readonly libraries: readonly LibraryCount[];
   readonly placements: { readonly total: number; readonly atElfFunc: number; readonly atUntyped: number; readonly wrong: number };
   readonly tables: { readonly total: number; readonly objectOfSize: number; readonly label: number; readonly wrong: number };
-  readonly sizes: { readonly proposed: number; readonly equal: number; readonly differ: number };
+  readonly sizes: { readonly proposed: number; readonly equal: number; readonly differ: number; readonly unjudged: number };
   readonly names: { readonly reference: boolean; readonly total: number; readonly equal: number; readonly differ: number; readonly reviewed: number };
 }
 
@@ -119,9 +121,10 @@ gate({
       if (rom.placements.wrong > 0 || rom.placements.atElfFunc + rom.placements.atUntyped !== rom.placements.total) problems.push(`${dataset.name}: ${rom.placements.wrong} placements at neither an ELF FUNC nor a listed untyped address`);
       if (rom.tables.wrong > 0 || rom.tables.objectOfSize + rom.tables.label !== rom.tables.total) problems.push(`${dataset.name}: ${rom.tables.wrong} tables are neither an OBJECT of their size nor a label`);
       if (rom.sizes.differ > 0) problems.push(`${dataset.name}: ${rom.sizes.differ} proposed sizes differ from the ELF`);
+      if (rom.sizes.equal + rom.sizes.differ + rom.sizes.unjudged !== rom.sizes.proposed) problems.push(`${dataset.name}: ${rom.sizes.proposed} proposed sizes, but ${rom.sizes.equal} equal + ${rom.sizes.differ} differ + ${rom.sizes.unjudged} unjudged`);
       if (rom.names.reference && rom.names.differ > 0) problems.push(`${dataset.name}: ${rom.names.differ} placed members' symbols differ from this reference's own symbols`);
       const summary = [...placed].sort((a, b) => byCodeUnit(a[0], b[0])).map(([l, c]) => `${l} ${c.functions}/${c.objects}`).join(', ');
-      cx.note(`${dataset.name}: ${summary}; ${rom.placements.total} placements, ${rom.sizes.proposed} sizes${rom.names.reference ? `, ${rom.names.equal} reference symbols` : ''}, ${rom.names.reviewed} reviewed names (reported)`);
+      cx.note(`${dataset.name}: ${summary}; ${rom.placements.total} placements, ${rom.sizes.proposed} sizes (${rom.sizes.equal} equal, ${rom.sizes.unjudged} unjudged)${rom.names.reference ? `, ${rom.names.equal} reference symbols` : ''}, ${rom.names.reviewed} reviewed names (reported)`);
     }
     if (problems.length > 0) throw new Error(`signatures judged: ${problems.join('; ')}`);
   },

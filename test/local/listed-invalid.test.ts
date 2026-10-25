@@ -1,5 +1,7 @@
 // The confirm run takes the functions configFromDiscover listed without the valid.* rules (phase-3.md Q5 c, the
-// owner's answer of 19 October 2026, D68 e; D74): on each tuning ROM, initConfigOf then the confirm analysis over
+// owner's answer of 19 October 2026, D68 e; D74): on each tuning ROM, initConfigOf without signature files (`init
+// --no-signatures`, as phase 4 had it; the signature path is listed-invalid-signatures.test.ts, delivery-3) then the
+// confirm analysis over
 // that config (what `generate` runs right after `init`) raises no W_LISTED_INVALID and records no listedInvalid
 // row, while its other diagnostics stay as phase 3 measured them (sa3's four W_WALK_LIMIT, tmc's
 // W_UNLISTED_FUNCTION at 0x080B1A28, none elsewhere). The same config with every seed marked `validate: true`
@@ -46,7 +48,7 @@ for (const rom of Object.keys(OTHERS)) {
   const dataset = JSON.parse(readFileSync(path.join(REPO, 'bench', 'dataset', 'real', `${rom}.json`), 'utf8')) as { readonly rom: string; readonly sha1: string };
   const romPath = path.join(BENCH_ROOT, dataset.rom);
   const unavailable = existsSync(romPath) ? undefined : `unavailable: rom ${romPath}`;
-  test(`init then confirm raises no W_LISTED_INVALID: ${rom}`, { skip: REQUIRE ? false : (unavailable ?? false) }, (t) => {
+  test(`init without signatures then confirm raises no W_LISTED_INVALID: ${rom}`, { skip: REQUIRE ? false : (unavailable ?? false) }, (t) => {
     assert.equal(unavailable, undefined, unavailable);
     const bytes = new Uint8Array(readFileSync(romPath));
     const sha1 = sha1Of(bytes);

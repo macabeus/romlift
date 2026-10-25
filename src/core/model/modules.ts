@@ -76,17 +76,40 @@ function orderedModules(rom: Rom, config: RomliftConfig, rule: BorderRule, diagn
   return kept;
 }
 
-/** Every module spanning a runs_at override gets its run address; an override not bounded by module starts is E_OVERRIDE_INVALID. */
+/**
+ * Every module spanning a runs_at override gets its run address. E_OVERRIDE_INVALID, and no run address, for an override
+ * not bounded by module starts, one whose run range [runs_at, runs_at + size) overlaps the ROM's own load space
+ * [base, end) without being its load range itself (ld would place the RAM section over the cartridge's; runs_at equal
+ * to the start is the identity, which moves nothing), or one whose run range overlaps that of an earlier
+ * override (in start order; two sections cannot run at one address) (correctness-8).
+ */
 function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonly start: Addr; readonly end: Addr }[], diagnostics: Diagnostic[]): (Addr | undefined)[] {
   const runAt: (Addr | undefined)[] = spans.map(() => undefined);
   const isBorder = (a: Addr): boolean => a === rom.end || spans.some((s) => s.start === a);
-  for (const o of config.overrides) {
+  const ranged = config.overrides.filter((o) => o.runsAt !== undefined).sort((a, b) => compareNumbers(a.start, b.start));
+  const running: Span[] = [];
+  for (const o of ranged) {
     if (o.runsAt === undefined) continue;
     const end = o.start + o.size;
+    const span = { start: o.start, end };
+    const run = { start: o.runsAt, end: o.runsAt + o.size };
+    const refuse = (why: string): void => {
+      diagnostics.push(diagnostic(ModelCodes, 'E_OVERRIDE_INVALID', `the runs_at range [${hexAddr(o.start)}, ${hexAddr(end)}) ${why}`, { span, addr: o.start }));
+    };
     if (!isBorder(o.start) || !isBorder(end)) {
-      diagnostics.push(diagnostic(ModelCodes, 'E_OVERRIDE_INVALID', `the runs_at range [${hexAddr(o.start)}, ${hexAddr(end)}) does not start and end on module borders; a range that runs from RAM is its own module`, { span: { start: o.start, end }, addr: o.start }));
+      refuse('does not start and end on module borders; a range that runs from RAM is its own module');
       continue;
     }
+    if (run.start !== span.start && run.start < rom.end && rom.base < run.end) {
+      refuse(`runs at [${hexAddr(run.start)}, ${hexAddr(run.end)}), which overlaps the ROM's load space [${hexAddr(rom.base)}, ${hexAddr(rom.end)}); a range runs from RAM, outside the cartridge`);
+      continue;
+    }
+    const clash = running.find((r) => run.start < r.end && r.start < run.end);
+    if (clash !== undefined) {
+      refuse(`runs at [${hexAddr(run.start)}, ${hexAddr(run.end)}), which overlaps the run range [${hexAddr(clash.start)}, ${hexAddr(clash.end)}) of another runs_at range`);
+      continue;
+    }
+    running.push(run);
     spans.forEach((s, i) => {
       if (s.start >= o.start && s.start < end && runAt[i] === undefined && o.runsAt !== undefined) runAt[i] = o.runsAt + (s.start - o.start);
     });

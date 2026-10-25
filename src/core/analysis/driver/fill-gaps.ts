@@ -11,6 +11,7 @@
 // start (`resume`, D60 a): on the halfword right after it when Thumb functions may sit at 2 mod 4 and that
 // halfword is not padding, else on the next compiled-function boundary.
 import { HEADER_END, contains } from '../../../foundation/rom/rom.ts';
+import { alignUp } from '../../../foundation/util/align.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
 import { hexAddr } from '../../../foundation/util/hex.ts';
 import { sortedKeys } from '../../../foundation/util/sorted.ts';
@@ -39,10 +40,6 @@ interface Found {
 /** The count of one fillGaps call, shared by the helpers that accept. */
 interface Added {
   n: number;
-}
-
-function alignUp(a: Addr, to: number): Addr {
-  return a + ((to - (a % to)) % to);
 }
 
 /**

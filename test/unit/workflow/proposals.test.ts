@@ -11,17 +11,8 @@ import { test } from 'node:test';
 import { Claim } from '../../../src/core/analysis/types.ts';
 import type { ClaimRun } from '../../../src/core/analysis/types.ts';
 import type { Proposal, ProposalSource } from '../../../src/core/proposals/types.ts';
-import {
-  checkProposals,
-  droppedRegionNotes,
-  foldSignatures,
-  isDefaultName,
-  librariesOf,
-  libraryModuleProposals,
-  proposalAddr,
-  signatureLayer,
-  updateProposals,
-} from '../../../src/core/workflow/proposals.ts';
+import { checkProposals, proposalAddr } from '../../../src/core/workflow/proposals.ts';
+import { droppedRegionNotes, foldSignatures, isDefaultName, librariesOf, libraryModuleProposals, signatureLayer, updateProposals } from '../../../src/core/workflow/signature-layer.ts';
 import type { RomliftConfig } from '../../../src/core/config/schema.ts';
 import { analysisOf, BASE, configOf, fact, HEADER_END, romWith } from '../layout/hand-made.ts';
 

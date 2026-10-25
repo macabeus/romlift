@@ -9,8 +9,9 @@
 //     the process's and ok true exactly when it is 0, and the exit code is one the recipe below allows and
 //     never 70 (internal).
 // A command with no recipe here fails the gate, so a new command cannot skip the contract. Recipes of a command that
-// is not registered yet stay unused, and a recipe that needs an option (`option`) runs once the command's help lists
-// it: phase 6's commands (`signatures`, `rename`) and `init --no-signatures` land in later waves (D93).
+// is not registered yet stay unused. A recipe that needs an option (`option`) fails the gate when the command's help
+// does not list it (phase-6 fix round 1, correctness-10, D95 e: every phase-6 option is registered, so the wave-time
+// skip the lead added at D93 h is gone and a vanished option can no longer silence its case).
 //
 // Interfaces, frozen by D74 and D93 (architecture §2.1, D33):
 //   exit codes 0 ok, 1 errors, 2 usage, 3 verifyFailed, 70 internal; NDJSON as in g4.e2e-fixtures.
@@ -36,7 +37,7 @@ interface Recipe {
   readonly args: (project: Project) => readonly string[];
   readonly place: Place;
   readonly exits: readonly number[];
-  /** The option this run needs; it runs once the command's help lists it (a later phase's option). */
+  /** The option this run needs; the gate fails when the command's help does not list it. */
   readonly option?: string;
 }
 
@@ -176,7 +177,10 @@ gate({
         continue;
       }
       for (const recipe of recipes) {
-        if (recipe.option !== undefined && !listed.includes(recipe.option)) continue;
+        if (recipe.option !== undefined && !listed.includes(recipe.option)) {
+          problems.push(`${recipe.label}: ${command} --help does not list --${recipe.option}, which this case needs`);
+          continue;
+        }
         const cwd = recipe.place === 'project' ? project.dir : await place(recipe.place);
         const run = await romlift([command, ...recipe.args(project), '--json'], cwd);
         runs++;

@@ -108,7 +108,7 @@ export const EDGE_TABLE: readonly EdgeRow[] = [
   },
   {
     from: 'src/core/signatures/**',
-    allow: [FOUNDATION, 'src/core/provenance/**', 'src/core/analysis/types.ts', 'src/core/proposals/**', 'src/core/signatures/**'],
+    allow: [FOUNDATION, 'src/core/provenance/**', 'src/core/analysis/types.ts', 'src/core/proposals/**', 'npm:zod{,/**}', 'src/core/signatures/**'],
   },
   { from: 'src/core/config/**', allow: [FOUNDATION, 'src/core/proposals/**', ...RUNTIME_DEPS, 'src/core/config/**'] },
   {

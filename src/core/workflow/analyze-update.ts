@@ -13,7 +13,7 @@
 //      TOML decides (D9); an entry without `from` is taken as it is, whether discover still finds it or not.
 //
 // From phase 6, while [signatures] is enabled and the shell located built signature files, the same discover result
-// gives the signature proposals (architecture §7.3, proposals.ts): the placements screened against the analysis and
+// gives the signature proposals (architecture §7.3, signature-layer.ts): the placements screened against the analysis and
 // the config (checkProposals; a contradiction is W_EVIDENCE_CONFLICT and drops the proposal), of which updateProposals
 // keeps those that name an entry still carrying its default name or an unlisted one (`--write` renames only default
 // names, D9), with `label = true` for the listed entries a restored extent holds; and the library [[modules]] the
@@ -22,11 +22,12 @@
 //
 // Then the borders of the code that runs from RAM (architecture §6.7, D91): a hand-written [[overrides]] range with
 // runs_at is its own module, so for each one whose start or end is not a module start (nor the ROM end) the plan
-// proposes the missing border (runsAtBorders, source layout 'runs-at'): at the start an `asm` module `ram_<RUNADDR>`,
-// and at the end a module resuming the one that held the range there (its kind, library and version), named
-// `<that module>_<ENDADDR>` (eight upper-case hex digits each; `_2`, `_3`, … when the name is taken). A range that
-// would take a `c` module's start inside it, or that does not lie in the ROM, cannot be made its own module and is
-// refused with E_OVERRIDE_INVALID, the model's code and message.
+// proposes the missing border (runsAtBorders over core/layout's planRunsAtBorders, source layout 'runs-at', the one
+// naming rule of module-proposals.ts): at the start an `asm` module `ram_<RUNADDR>`, and at the end a module resuming the
+// one that held the range there (its kind, library and version), named `<that module>_<ENDADDR>` (eight upper-case hex
+// digits each; `_2`, `_3`, … when the name is taken). A range that would take a `c` module's start inside it, or that
+// does not lie in the ROM, cannot be made its own module and is refused with E_OVERRIDE_INVALID, the model's code and
+// message.
 //
 // planPatch (core/config/patch.ts) turns the proposals into line edits of the TOML text, keeping every comment (a new
 // [[modules]] block is inserted whole); a patch it refuses (a table restructured by hand) is the plan's refusal. A
@@ -45,7 +46,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
-import { hex, hexAddr } from '../../foundation/util/hex.ts';
+import { hexAddr } from '../../foundation/util/hex.ts';
 import type { AnalysisCode } from '../analysis/codes.ts';
 import { analyze } from '../analysis/driver/run.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
@@ -63,7 +64,9 @@ import { confirmOptions, overrideFactsOf } from './generate.ts';
 import { romSha1Problems } from '../config/rom-sha1.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { WorkflowCodes } from './codes.ts';
-import { freeModuleName, libraryModuleProposals, moduleHolding, signatureLayer, updateProposals } from './proposals.ts';
+import { planRunsAtBorders } from '../layout/module-proposals.ts';
+import type { ModuleProposal } from '../proposals/types.ts';
+import { libraryModuleProposals, signatureLayer, signatureNotes, updateProposals } from './signature-layer.ts';
 import type { SignatureFile } from '../signatures/schema.ts';
 import type { AnalyzeUpdateInputs, AnalyzeUpdatePlan } from './types.ts';
 
@@ -108,8 +111,8 @@ export function unlistedProposals(result: Pick<AnalysisResult, 'functions'>, con
 function discovered(rom: Rom, config: RomliftConfig, profile: CompilerProfile, files: readonly SignatureFile[], ram: readonly ModuleProposal[]): Discovered {
   const result = analyze(rom, profile, { ...discoverOptions(), overrides: overrideFactsOf(config) });
   const unlisted = unlistedProposals(result, config);
-  if (files.length === 0 || result.diagnostics.some((d) => d.severity === 'error')) return { proposals: unlisted, modules: [], replaces: [], diagnostics: result.diagnostics, notes: [] };
   const layer = signatureLayer(rom, result, files, config);
+  if (layer.placements.length === 0) return { proposals: unlisted, modules: [], replaces: [], diagnostics: result.diagnostics, notes: layer.diagnostics };
   const libraries = libraryModuleProposals(rom, result, config, layer.regions, ram);
   return {
     proposals: [...unlisted, ...updateProposals(config, result, layer.proposals)],
@@ -122,8 +125,6 @@ function discovered(rom: Rom, config: RomliftConfig, profile: CompilerProfile, f
 
 // ---------------------------------------------------------------------------------------------------
 // The borders of the runs_at ranges (§6.7).
-
-type ModuleProposal = Extract<Proposal, { readonly kind: 'module' }>;
 
 /** What runsAtBorders leaves: the module proposals, or the refusals of ranges that cannot be their own module. */
 interface RunsAtBorders {
@@ -138,45 +139,16 @@ function rangeRefusal(start: Addr, end: Addr, why: string): Diagnostic {
 }
 
 /**
- * The module proposals that make every runs_at range of `config` its own module (see the header): one at a start that
- * is not a module start, one at an end that is neither a module start nor the ROM end; ranges in start order. Each
- * range is judged against the config's modules alone, so two ranges that share a module each split it once.
+ * The module proposals that make every runs_at range of `config` its own module (see the header; core/layout's
+ * planRunsAtBorders), with E_OVERRIDE_INVALID for each range it refuses.
  */
 export function runsAtBorders(rom: Pick<Rom, 'base' | 'end'>, config: Pick<RomliftConfig, 'modules' | 'overrides'>): RunsAtBorders {
-  const proposals: ModuleProposal[] = [];
-  const refusals: Diagnostic[] = [];
-  const taken = new Set(config.modules.map((m) => m.name));
-  const starts = new Set(config.modules.map((m) => m.start));
-  const source = { kind: 'layout', reason: 'runs-at' } as const;
-  const ranges = config.overrides.filter((o) => o.runsAt !== undefined).sort((a, b) => a.start - b.start || a.size - b.size);
-  // A range ending where another starts leaves that border to the next range's own module.
-  const rangeStarts = new Set(ranges.map((o) => o.start));
-  for (const o of ranges) {
-    const start = o.start;
-    const end = o.start + o.size;
-    if (start < rom.base || end > rom.end || o.size <= 0) {
-      refusals.push(rangeRefusal(start, end, `it does not lie inside the ROM [${hexAddr(rom.base)}, ${hexAddr(rom.end)})`));
-      continue;
-    }
-    const inner = config.modules.find((m) => m.kind === 'c' && m.start > start && m.start < end);
-    if (inner !== undefined) {
-      refusals.push(rangeRefusal(start, end, `the c module ${inner.name} starts inside it at ${hexAddr(inner.start)}: a c module's code cannot run from RAM`));
-      continue;
-    }
-    const resumed = end < rom.end && !starts.has(end) && !rangeStarts.has(end) ? moduleHolding(config.modules, end) : undefined;
-    if (!starts.has(start) && !proposals.some((p) => p.start === start)) proposals.push({ kind: 'module', name: freeModuleName(`ram_${hex(o.runsAt ?? 0)}`, taken), start, moduleKind: 'asm', source });
-    if (resumed !== undefined) {
-      proposals.push({
-        kind: 'module',
-        name: freeModuleName(`${resumed.name}_${hex(end)}`, taken),
-        start: end,
-        moduleKind: resumed.kind,
-        ...(resumed.library === undefined || resumed.version === undefined ? {} : { library: { name: resumed.library, version: resumed.version } }),
-        source,
-      });
-    }
-  }
-  return { proposals, refusals };
+  const overrides = config.overrides.flatMap((o) => (o.runsAt === undefined ? [] : [{ start: o.start, size: o.size, runsAt: o.runsAt }]));
+  const plan = planRunsAtBorders(rom, config.modules, overrides);
+  const refusals = plan.refused.map(({ span, why }) =>
+    rangeRefusal(span.start, span.end, why.kind === 'outside-rom' ? `it does not lie inside the ROM [${hexAddr(rom.base)}, ${hexAddr(rom.end)})` : `the c module ${why.module.name} starts inside it at ${hexAddr(why.module.start)}: a c module's code cannot run from RAM`),
+  );
+  return { proposals: plan.proposals, refusals };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -256,6 +228,7 @@ export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
   const profile = profileOrDefault(inputs.profile);
   const ram = runsAtBorders(rom, config);
   const files = config.signatures.enabled ? (inputs.signatureFiles ?? []) : [];
+  const notes = signatureNotes(config.signatures.enabled, inputs.signatureNotes);
   const found = discovered(rom, config, profile, files, ram.proposals);
   if (found.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: found.diagnostics };
   // A runs_at range that cannot be its own module refuses the plan, as before the signatures existed.
@@ -263,7 +236,7 @@ export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
   const modules = [...ram.proposals.filter((p) => !found.replaces.includes(p.start)), ...found.modules].sort((a, b) => a.start - b.start);
   const proposals = [...found.proposals, ...modules];
   const current = confirmed(rom, config, profile);
-  const reports = [...current.reports, ...found.notes];
+  const reports = [...notes, ...current.reports, ...found.notes];
   const patch = planPatch(inputs.configText, config, proposals);
   if (!patch.ok) return { ok: false, diagnostics: [...reports, ...patch.diagnostics] };
   const changed = patch.text !== inputs.configText;

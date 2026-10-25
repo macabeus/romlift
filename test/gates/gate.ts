@@ -26,7 +26,8 @@ export { byCodeUnit } from './order.ts';
 export type GateTier = 'ci' | 'real';
 export type GateInput = 'roms' | 'elfs' | 'objects' | 'poc' | 'toolchain';
 export type Verdict = 'pass' | 'fail' | 'pending' | 'unavailable' | 'historical';
-export type GatePhase = 1 | 2 | 3 | 4 | 5 | 6;
+/** The phases that have gates; phase 5 was skipped by the owner and has none (D92). */
+export type GatePhase = 1 | 2 | 3 | 4 | 6;
 
 export interface GateSpec {
   readonly id: `g${GatePhase}.${string}`;

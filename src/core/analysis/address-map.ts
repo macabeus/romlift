@@ -9,7 +9,7 @@
 // analysis' question: the model refuses a runs_at range that is not its own module (E_OVERRIDE_INVALID,
 // core/model/modules.ts), the one owner of that refusal.
 import { ROM_BASE, ROM_MAX_SIZE } from '../../foundation/rom/rom.ts';
-import type { Rom } from '../../foundation/rom/rom.ts';
+import type { Rom, RomBytes } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import type { OverrideFact } from './types.ts';
 
@@ -94,17 +94,21 @@ export function toLoad(m: AddressMap, run: Addr): Addr | undefined {
   return run >= ROM_BASE && run < ROM_BASE + ROM_MAX_SIZE ? run : undefined;
 }
 
-/** The load-space image of each (map, ROM) pair loadSpaceRom built, so a run builds it once. */
-const LOAD_SPACE = new WeakMap<AddressMap, { readonly rom: Rom; readonly image: Rom }>();
+/** The ROM's bytes as code inside the runs_at ranges reads them (loadSpaceImage): bounds and bytes, no identity. */
+export type LoadSpaceImage = RomBytes;
+
+/** The load-space image of each (map, ROM) pair loadSpaceImage built, so a run builds it once. */
+const LOAD_SPACE = new WeakMap<AddressMap, { readonly rom: Rom; readonly image: LoadSpaceImage }>();
 
 /**
  * The ROM as code inside the ranges reads it in load space: each aligned word inside a range's load span whose value
  * is a run address of that range holds its load address instead (a pool word naming a jump table, a table entry naming
  * a case). A reader that compares absolute words with load addresses (a jump-table idiom of the profile) then reads
- * code that runs from RAM as it reads any other code. The ROM itself on the identity map; built once per pair.
+ * code that runs from RAM as it reads any other code. A byte view with no sha1 or header (architecture-9: rewritten
+ * bytes are never a Rom); the ROM's own bytes on the identity map; built once per pair.
  */
-export function loadSpaceRom(m: AddressMap, rom: Rom): Rom {
-  if (m.ranges.length === 0) return rom;
+export function loadSpaceImage(m: AddressMap, rom: Rom): LoadSpaceImage {
+  if (m.ranges.length === 0) return { base: rom.base, bytes: rom.bytes, end: rom.end };
   const cached = LOAD_SPACE.get(m);
   if (cached !== undefined && cached.rom === rom) return cached.image;
   const bytes = rom.bytes.slice();
@@ -116,7 +120,7 @@ export function loadSpaceRom(m: AddressMap, rom: Rom): Rom {
       if (v >= r.run && v < r.run + lengthOf(r)) words.setUint32(a - rom.base, r.load.start + (v - r.run), true);
     }
   }
-  const image: Rom = { ...rom, bytes };
+  const image: LoadSpaceImage = { base: rom.base, bytes, end: rom.end };
   LOAD_SPACE.set(m, { rom, image });
   return image;
 }
