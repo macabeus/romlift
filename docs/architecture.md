@@ -1793,7 +1793,7 @@ dataset; `g6.no-heldout-references` fails when a spec names a dataset whose `hel
 until the owner rules they are not committed and not published: `romlift signatures build
 signatures/specs/<library>.json` writes them to `signatures/<library>.json`, which `.gitignore`
 covers, and `shell/signatures/locate.ts` reads them from there or from `ROMLIFT_SIGNATURES`. When none
-is found, `init` raises `W_SIGNATURES_ABSENT` and proceeds without them. Explain goldens for `sig.*`
+is found, `init` reports the shell's `W_SIGNATURES_ABSENT` and proceeds without them. Explain goldens for `sig.*`
 rules come from a self-authored library fixture (§8.1) whose signature file is built from the fixture's
 own ELF; no golden ever contains bytes from a real ROM.
 

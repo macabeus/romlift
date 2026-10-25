@@ -1,8 +1,8 @@
 // `romlift init <rom> [dir] [--name <name>] [--module-size <bytes>] [--no-signatures] [--json]` (architecture §2.1,
 // §6.3 to §6.5, §7.3, D17, D74 c, D93): a new project from a ROM. Unless --no-signatures, the built signature files
 // are located first (shell/signatures/locate.ts: $ROMLIFT_SIGNATURES or the package's signatures/; a file it skips is
-// W_SIGNATURE_FILE_SKIPPED) and handed to the workflow, which names the libraries they place and reports
-// W_SIGNATURES_ABSENT when there is none; --no-signatures writes `[signatures] enabled = false`. `dir` defaults to the working directory; it is accepted when it is absent or
+// W_SIGNATURE_FILE_SKIPPED) and handed to the workflow, which names the libraries they place; none found is the
+// shell's W_SIGNATURES_ABSENT (locate.ts signaturesAbsent); --no-signatures writes `[signatures] enabled = false`. `dir` defaults to the working directory; it is accepted when it is absent or
 // empty, when it holds only the given ROM plus `.git` and dot-files, or when it is a romlift project whose
 // romlift.toml, decomp.yaml and baserom.gba init would write unchanged (an interrupted init run again); anything else
 // is E_DIR_NOT_EMPTY. The workflow (core/workflow/init.ts) plans everything first: the build name, the discover
@@ -18,7 +18,7 @@ import type { Diagnostic } from '../../api/rom.ts';
 import { init, initDirVerdict, wantsLockStep } from '../../core/workflow/init.ts';
 import type { InitOptions } from '../../core/workflow/types.ts';
 import { packageRoot, readInitDir, readScaffoldInputs, resolveFrom } from '../../shell/project/read-inputs.ts';
-import { locateSignatures } from '../../shell/signatures/locate.ts';
+import { locateSignatures, signaturesAbsent } from '../../shell/signatures/locate.ts';
 import { hasPackageLock, writeInitProject } from '../../shell/project/write-project.ts';
 import { readRom } from '../../shell/rom.ts';
 import { sha1Of } from '../../shell/hash.ts';
@@ -90,7 +90,9 @@ export const initCommand: CommandSpec = {
     const files = { romPath, romCopy: plan.romCopy, files: plan.files };
     const written = await writeInitProject(dir, files, { result: plan.result, rom: rom.value, extra: plan.scaffold }, scaffold.value.romliftVersion);
     if (!written.ok && written.refused) return refuse(written.diagnostics);
-    let diagnostics: readonly Diagnostic[] = [...found, ...plan.diagnostics, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
+    // No built file: the shell's W_SIGNATURES_ABSENT, reported once the plan is made (a refused init does not get it).
+    const absent = located === undefined ? undefined : signaturesAbsent(located);
+    let diagnostics: readonly Diagnostic[] = [...found, ...(absent === undefined ? [] : [absent]), ...plan.diagnostics, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
     if (wantsLockStep(diagnostics, await hasPackageLock(dir))) {
       const lock = await writePackageLock(dir, { env: io.env });
       if (!lock.ok) diagnostics = [...diagnostics, lock.diagnostic];

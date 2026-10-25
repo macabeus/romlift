@@ -5,9 +5,10 @@
 // an invalid --name are refused with nothing planned. The directory init is given, as the shell lists it
 // (initDirVerdict: absent, empty, the ROM with .git and dot-files, a project; anything else E_DIR_NOT_EMPTY), and the
 // files of a project init would replace (replacedProblems), moved here from the shell's read-inputs test
-// (architecture-r1-7). From phase 6: the files init owns as data (architecture-a2-6), W_SIGNATURES_ABSENT when the
-// shell found no signature file, none with --no-signatures, and the checked plan of library-game with libfix's file
-// and with a member that restores an extent (the fold's names, size and labels pass every self-check).
+// (architecture-r1-7). From phase 6: the files init owns as data (architecture-a2-6), no library named and no
+// diagnostic of the plan when the shell found no signature file (W_SIGNATURES_ABSENT is the shell's), --no-signatures,
+// and the checked plan of library-game with libfix's file and with a member that restores an extent (the fold's names,
+// size and labels pass every self-check).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -200,14 +201,14 @@ test('replacedProblems: absent, unlisted and equal files are fine; another romli
   assert.match(problems[1]?.message ?? '', /another ROM/);
 });
 
-test('W_SIGNATURES_ABSENT when the shell looked and found no file; none when it did not look or with --no-signatures', () => {
+test('no signature file found: the plan names no library and raises nothing (W_SIGNATURES_ABSENT is the shell\'s); --no-signatures: enabled = false', () => {
   const rom = fixtureRom('far-jump');
   const codes = (over: Partial<InitInputs>): readonly string[] => {
     const plan = init(inputs(rom, over));
     assert.ok(plan.ok);
     return plan.diagnostics.map((d) => d.code);
   };
-  assert.ok(codes({ signatureFiles: [] }).includes('W_SIGNATURES_ABSENT'));
+  assert.ok(!codes({ signatureFiles: [] }).some((c) => c.startsWith('W_SIGNATURE')));
   assert.ok(!codes({}).includes('W_SIGNATURES_ABSENT'));
   assert.ok(!codes({ signatureFiles: [], options: { signatures: false } }).includes('W_SIGNATURES_ABSENT'));
   const off = init(inputs(rom, { signatureFiles: [], options: { signatures: false } }));

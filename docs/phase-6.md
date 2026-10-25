@@ -11,7 +11,7 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
-**Verdict.** Pending: waves 1 and 2 are merged on `phase-6`; wave 3 is to come. The phase lands only when every command of "The closing gate" exits 0
+**Verdict.** Pending: waves 1 to 3 are merged on `phase-6`; the fix rounds and the owner questions below remain. The phase lands only when every command of "The closing gate" exits 0
 at `landed` 6 in a fresh worktree, every owner question below is answered, and the phase pull request's CI ran (a job
 GitHub refuses to start is not a pass).
 
@@ -23,6 +23,7 @@ branches are spelled `phase-6-<component>` (AGENTS.md's spelling). Planned merge
 hygiene, reconcile-carried; wave 2 signatures-build, c-data-expected, ram-code, rename, include-links; wave 3
 signatures-match, proposals and the twelfth. As executed: wave 2 merged signatures-build, signatures-match (moved up from
 wave 3), ram-code, rename and c-data-expected, in that order; include-links did not merge in wave 2 and moves to wave 3.
+Wave 3 merged signatures-apply (the twelfth), proposals, objdiff and include-links, in that order.
 
 | Component | Wave | Branch | Status | Delivers |
 | --- | --- | --- | --- | --- |
@@ -34,10 +35,11 @@ wave 3), ram-code, rename and c-data-expected, in that order; include-links did 
 | `p6-c-data-expected` | 2 | `phase-6-p6-c-data-expected` | merged `fc559ac` | roadmap 6.F (architecture-r2-2 and r2-3 not done, carried to wave 3) |
 | `p6-ram-code` | 2 | `phase-6-p6-ram-code` | merged `52ccc66` | roadmap 6.C |
 | `p6-rename` | 2 | `phase-6-p6-rename` | merged `9c3e864` | roadmap 6.E, with correctness-r0-5's remainder |
-| `p6-include-links` | 3 (planned 2) | | planned | the cpp-exact include resolution behind a symbolic link (D89 a, D90 a), gate-honesty-e1-1 |
+| `p6-include-links` | 3 (planned 2) | `phase-6-p6-include-links` | merged `d0b7395` | the cpp-exact include resolution behind a symbolic link (D89 a, D90 a), gate-honesty-e1-1 |
 | `p6-signatures-match` | 2 (planned 3) | `phase-6-p6-signatures-match` | merged `b635800` | roadmap 6.B: the matcher, the five rules, resolution and proposals; `romlift signatures <rom>` and `bench signatures` not yet |
-| `p6-proposals` | 3 | planned | | roadmap 6.D |
-| (the twelfth) | 3 | planned | | named with its files at its merge |
+| `p6-proposals` | 3 | `phase-6-p6-proposals` | merged `145a291` | roadmap 6.D: the library regions at legal borders and cut around `runs_at` ranges, `checkProposals`, the signature proposals in `init` and `analyze --update`, explain's signature part and the `sig.*` goldens |
+| `p6-signatures-apply` (the twelfth) | 3 | `phase-6-p6-signatures-apply` | merged `379c599` | roadmap 6.B's remainder: `romlift signatures <rom>`, `bench signatures [--loo]`, the signatures family of `bench run` (`src/cli/commands/signatures.ts`, `bench/src/signatures.ts`) |
+| `p6-objdiff` | 3 | `phase-6-p6-objdiff` | merged `11ec05d` | `g6.objdiff` (D34, D92): the readable printer's words inside named, sized entries and `.inst.n`, the objdiff family's base per reference object, one REL/RELA decoder (architecture-r2-2, r2-3) |
 
 The branch of `p6-analysis-layout` is spelled `phase-6-analysis-layout`, as it was created.
 
@@ -120,13 +122,31 @@ Raised at the wave-2 integration (the phase does not land until each is answered
   frozen recipe `signatures <rom>` (exit 0 expected) now runs and exits 2 ("signatures <rom> needs the matcher");
   measured at the integration: "CLI contract: signatures <rom>: exit 2, expected 0". The matcher merged in wave 2, but
   the `<rom>` form of the command did not; it is wave-3 work, and the gate passes again once it lands. No gate change is
-  proposed; this is recorded so the failing phase-4 gate on `phase-6` is not mistaken for a regression.
+  proposed; this is recorded so the failing phase-4 gate on `phase-6` is not mistaken for a regression. Measured at the
+  wave-3 integration, with `signatures <rom>` landed: `g4.cli-contract` passes (16 s), so Q4 needs no answer.
+
+Raised at the wave-3 integration:
+
+- **Q5. `g6.evidence-conflict` scenario (c) cannot pass on any fixture.** The gate takes the first two found functions
+  F and G and puts a data override over F's extent; on every committed fixture F is the cartridge entry at
+  `0x08000000`, whose extent covers G's entry (far-jump: F `[0x08000000, 0x080000F4)`, G the ARM function at
+  `0x080000C0`). The override then covers G too, so `checkProposals` rightly drops U ("a data override of romlift.toml
+  covers [0x08000000, 0x080000F4)") and the gate reports "U alone, which agrees with the analysis, is not kept" for
+  scenario (c) of all 54 fixtures; scenarios (a) and (b) raise no problem. Measured on `phase-6-p6-proposals` alone and
+  on the integration, identical. Options: (a) the gate picks a G whose entry lies outside F's extent (or covers only
+  `[F.entry, F.entry + 4)`); (b) another rule the owner names. The gate file is not edited.
+- **Q6. `g6.objdiff`'s remainder** (the candidate below, now measured by `p6-objdiff`): gated differences (every class
+  but `unnamed-target`) on fe7j, klonoa, pokeemerald, sa2, sa3 and tmc are 19, 131, 157, 4, 55 and 17 (from 458, 353,
+  14,137, 1,637, 1,220 and 3,019 on `phase-6` before wave 3), so the gate still fails on the real tier; the component
+  reports that most of the rest needs the reference's C source. Its method spells each pool word as the reference
+  object spells it (`objectWords`), which the lead reviews as a method question. Options: (a) keep D34 as written, and
+  the phase does not land; (b) amend D34 as phase-3.md Q1 option b.
+- **Q7. `g6.signatures-judged` and `g6.signatures-loo` fail on the real tier** (reported by `p6-signatures-apply`, not
+  re-measured at the integration): judged fails on names and tables, LOO on two runs; `g6.signatures-heldout` passes.
+  The component places the fixes in the matcher, the builder or the specs; no gate change is proposed yet.
 
 Candidates still open (written up with their measured facts and options when they arise):
 
-- **`g6.objdiff`'s remainder**, if the gate still fails after the fix rounds: D34 as written gates every difference but
-  `unnamed-target`; phase-3.md Q1 counted 200, 320, 13,788, 1,374, 564 and 895 gated differences on fe7j, klonoa,
-  pokeemerald, sa2, sa3 and tmc. No amendment is assumed.
 - **`g6.signatures-judged` on tmc.** The pinned PoC baseline has no signatures row for tmc (revealed after it was pinned,
   D60), so the gate as phase 1 wrote it fails on tmc for want of a floor; as aligned by D93 h it judges tmc by the ELF
   checks with no floor. That restatement is not in the owner's words: it is written up at integration with the measured
@@ -182,6 +202,25 @@ and §6.8).
   ROMs equal their ROM ranges), `g6.ram-code-mapped`; fail `g4.cli-contract` (Q4), `g6.reconciler` (Q2), `g6.rename`
   (Q3) and `g6.explain-coverage` (no `test/golden/explain/sig/` golden and seven analysis rules in no explain golden;
   wave 3's `p6-proposals`).
+
+### Wave 3 integration
+
+Merges on `phase-6`, all without a textual conflict: `379c599` (signatures-apply), `145a291` (proposals), `11ec05d`
+(objdiff), `d0b7395` (include-links), then the integration commit. Fixed at the integration:
+
+- `W_SIGNATURES_ABSENT` was defined twice (`src/shell/codes.ts` by signatures-apply, `src/core/workflow/codes.ts` by
+  proposals), which `test/unit/diagnostics/codes.test.ts` refuses. The shell's code stays (architecture §7.3 and §9.1
+  already name it the shell's): `init`'s plan no longer raises it, and `src/cli/commands/init.ts` reports
+  `signaturesAbsent(located)` once the plan is made, so a refused init still leads with its own error.
+- `test/unit/cli/signatures.test.ts` expected libfix's second region at `[0x0800026C, 0x0800027C)`; proposals rebuilt
+  library-game (GameTail loads a Thumb pointer, 8 bytes more), which moves `gFixTable` to `0x08000274`, so the region is
+  `[0x08000274, 0x08000284)`.
+
+- `npm run typecheck`: exit 0; `npm run lint`: exit 0; `npm test`: 2,818 tests, 2,817 pass, 1 todo (the same
+  `__load_<module>` pool-printer case as wave 2), exit 0.
+- Gates on the ci tier, each run alone with `node --conditions=source --test test/gates/<id>.test.ts`: pass
+  `g4.cli-contract` (16 s), `g6.explain-coverage`, `g6.no-heldout-references`, `g6.c-data-ranges` (58 s),
+  `g6.ram-code-mapped` (58 s); fail `g6.reconciler` (Q2), `g6.rename` (Q3) and `g6.evidence-conflict` (Q5).
 
 ## The closing gate
 

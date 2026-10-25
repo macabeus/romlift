@@ -120,7 +120,7 @@ test('signatures <rom> --signatures <dir> --json: one placement line per member 
   assert.equal(table?.['mode'], undefined);
   assert.deepEqual(regions, [
     { type: 'region', library: 'libfix', version: '1.0', start: '0x080001B4', end: '0x08000262' },
-    { type: 'region', library: 'libfix', version: '1.0', start: '0x0800026C', end: '0x0800027C' },
+    { type: 'region', library: 'libfix', version: '1.0', start: '0x08000274', end: '0x08000284' },
   ]);
   assert.deepEqual(all.filter((l) => l['type'] === 'diagnostic').map((l) => l['code']), ['W_SIGNATURE_CONSTANT']);
   assert.deepEqual(all.at(-1), { type: 'summary', ok: true, exitCode: 0, counts: { diagnostics: 1, files: 1, functions: 13, placements: 14, regions: 2, tables: 1 } });

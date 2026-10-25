@@ -41,8 +41,8 @@ export interface InitInputs {
   readonly profile?: CompilerProfile;
   /**
    * The built signature files the shell located (shell/signatures/locate.ts, phase 6). Empty: the shell looked and
-   * found none, which init reports as W_SIGNATURES_ABSENT while the layer is enabled; absent: none was looked for
-   * (an API caller, or `--no-signatures`).
+   * found none (the shell's W_SIGNATURES_ABSENT, which the CLI reports; the plan names no library); absent: none was
+   * looked for (an API caller, or `--no-signatures`).
    */
   readonly signatureFiles?: readonly SignatureFile[];
 }

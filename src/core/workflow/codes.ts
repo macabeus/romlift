@@ -46,10 +46,6 @@ export const WorkflowCodes = defineCodes({
     severity: 'warning',
     meaning: 'a library region the signatures placed in the code could take no module of its own: no legal border inside it, or a module of the config starts inside it; its functions keep their names, and no library module is proposed for it (proposals.ts)',
   },
-  W_SIGNATURES_ABSENT: {
-    severity: 'warning',
-    meaning: 'init runs with [signatures] enabled but no built signature file was found (signatures/ or $ROMLIFT_SIGNATURES; `romlift signatures build` writes them); init proceeds without library names (init.ts)',
-  },
   E_RENAME_INTERRUPTED: {
     severity: 'error',
     meaning: "the project holds the journal of an interrupted write (.romlift/journal.json), which the next generate finishes; rename changes nothing until it has (rename.ts)",
