@@ -825,7 +825,8 @@ phase 5", then "Keep rename and objdiff"). This section is the plan as phase 6 e
 
 ### As executed (D93)
 
-Phase 6 runs as twelve components in three waves on the branch `phase-6`, each on its own flat branch and worktree
+Phase 6 ran as thirteen components in three waves on the branch `phase-6` (planned as twelve; `p6-objdiff`, the
+thirteenth, merged in wave 3 and is recorded below and in phase-6.md), each on its own flat branch and worktree
 under `romlift-wt/` (Git cannot hold `phase-6` beside `phase-6/<component>`); [phase-6.md](phase-6.md) records the
 merges, the measured numbers, the owner questions and the closing gate. Every threshold applies to the six tuning ROMs
 (D60). The waves of the wave-2 and wave-3 components are those planned when wave 1 started; one that moves is recorded at
@@ -844,7 +845,8 @@ its merge.
 | `p6-include-links` | 2 | carried: the cpp-exact include resolution behind a symbolic link (D89 a, D90 a), gate-honesty-e1-1 |
 | `p6-signatures-match` | 3 | 6.B |
 | `p6-proposals` | 3 | 6.D |
-| (the twelfth) | 3 | named, with its files, at its merge (phase-6.md) |
+| `p6-signatures-apply` (the twelfth) | 3 | 6.B's remainder: `romlift signatures <rom>`, `bench signatures [--loo]`, the signatures family of `bench run` (`src/cli/commands/signatures.ts`, `bench/src/signatures.ts`) |
+| `p6-objdiff` (the thirteenth, unplanned) | 3 | `g6.objdiff` (D34, D92): the readable printer's words inside named, sized entries and `.inst.n` (`src/core/emit/print/pool.ts`, `print/data.ts`, `model/resolver.ts`, outside 6.F's Owns: recorded as a deviation in phase-6.md), the objdiff family's base per reference object, one REL/RELA decoder; it took architecture-r2-2 and r2-3 from `p6-c-data-expected` and correctness-r0-5's remainder (pool.ts's WordScope) from `p6-rename` |
 
 ### Carried from phase 4 (D76 g, h)
 
@@ -853,7 +855,7 @@ import, which D92 dropped. Their components (D93):
 
 | Carried item | Component |
 | --- | --- |
-| correctness-r0-5's remainder (pool.ts's `moduleAt`, with the matchings split) | `p6-rename` |
+| correctness-r0-5's remainder (pool.ts's `moduleAt`, with the matchings split) | `p6-rename` as planned; done by `p6-objdiff` (`574849b`, pool.ts's WordScope) |
 | the C-data ASSERT's text | done in phase 4 (D78 c); 6.F replaces the ASSERT for a module with a range |
 | architecture-r1-2 and its "also" items (aliases of `BASEROM_FILE`, `DECOMP_YAML_NAMES`, `SCAFFOLD_ROM_FILE`) | `p6-hygiene` |
 | architecture-r1-3, its "also" (a0-4) and its gate oracle (a1-5) | `p6-analysis-layout` |
@@ -1095,7 +1097,8 @@ pull request) is dropped by the owner (D91); what does not depend on a trace sta
   ci) and commits `bench/results.json` as the run's artifact; pushes `phase-6` and opens the pull request, whose
   `ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml` and `packed.yml` must run (a job GitHub refuses to start is
   not a pass). A gate that still fails after the fix rounds is recorded with its measured numbers as an owner question,
-  and the phase is not merged.
+  and the phase is not merged. A gate the lead writes or restates (6.0) is run against the committed fixtures before it
+  is frozen (phase-6 fix round 1, delivery-2: `g6.ram-code-mapped` and `g6.evidence-conflict` were frozen untried).
 - **Gated by:** every `g6.*` gate and every earlier gate.
 
 ### Phase 6 exit
@@ -1108,7 +1111,7 @@ npm test
 npm run fixtures -- check
 for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || exit 1; done
 npm run build && npm pack --pack-destination "$(mktemp -d)"
-npm pack --dry-run --json | node -e '…'          # fails when a built signature file is packed (phase-6.md)
+npm pack --dry-run --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const bad=JSON.parse(s)[0].files.map(f=>f.path).filter(p=>p.startsWith("signatures/")&&!p.startsWith("signatures/specs/")&&p.endsWith(".json"));if(bad.length){console.error("built signature files are packed: "+bad.join(", "));process.exit(1)}})'
 npm run export-poc -- --mode raw
 npm run export-poc -- --mode scored
 npm run export-poc -- --mode parity
@@ -1131,9 +1134,10 @@ Thresholds, one per gate of the phase (every earlier gate still passes):
 
 - `g6.signatures-judged`: per library, at least the PoC's placements on its five ROMs (klonoa m4a 94 functions and 10
   tables, libagbsyscall 6, libgcc 20; fe7j 18, 22, 94 and 10; pokeemerald 15, 67, 109 and 10; sa2 12, 24, 94 and 10; sa3
-  13, 65, 94 and 10), tmc with no floor; every placement at an ELF `FUNC` or a listed untyped address, every table an
-  `OBJECT` of its size or a label, every proposed `size` the ELF size, on a reference ROM every member's symbol that
-  reference's own;
+  13, 65, 94 and 10), tmc's floor pending the owner (phase-6.md Q9; D93 h judges it with none, not the owner's words);
+  every placement at an ELF `FUNC` or a listed untyped address, every table an `OBJECT` of its size or a label, every
+  proposed `size` the ELF size and every proposed size accounted for (equal, differ or unjudged, Q13), on a reference ROM
+  every member's symbol that reference's own (D93 h's rule, pending Q14);
 - `g6.signatures-rebuild`: two builds of each spec identical; the library fixture's file equals its golden; each real
   build equals the PoC's file converted to schema 3, apart from the reviewed names (every field but `builtWith`);
 - `g6.signatures-heldout`: on every sealed ROM, every placement at an ELF `FUNC` or classified untyped, every table an
@@ -1163,5 +1167,5 @@ Thresholds, one per gate of the phase (every earlier gate still passes):
 | 3 Emission | 7 (3.0, 3.A–3.E, 3.I) | 5 |
 | 4 One shot | 7 (4.0, 4.A–4.E, 4.I) | 5 |
 | 5 Migration | skipped by the owner (D92) | 0 |
-| 6 Evidence | 12 in three waves (D93; 6.0, 6.A–6.F, the carried components, 6.I) | 11 |
+| 6 Evidence | 13 in three waves (D93 planned 12; `p6-objdiff` the thirteenth; 6.0, 6.A–6.F, the carried components, 6.I) | 12 |
 | Total, as planned before D92 | 39 | 27 |

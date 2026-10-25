@@ -308,7 +308,7 @@ Five rules keep the file stable:
 | `romlift generate` | Reads only | Rewrites what changed | Adds or removes `INCLUDE_ASM` lines only |
 | `romlift analyze --update` | Patches, keeping comments | None | None |
 | `romlift rename <old> <new>` | Patches one name | On the next `generate` | Renames the identifier token |
-| `romlift import-legacy` | Builds it from the cfg, the old TOML and `ldscript.in.txt` | None | None |
+| ~~`romlift import-legacy`~~ | Dropped by the owner with phase 5 (D92): not built | | |
 
 Modules are the one thing `init` cannot infer well. It creates a module per recognised library and cuts the remaining code into chunks at function boundaries. Ranges that break compiler rules, such as ARM code, unaligned entries or shared tails, become assembly-only modules. In this repo, 7 of the 11 module starts fall inside a translation unit of kleod's linker map, so boundaries stay easy to move by editing `start`.
 

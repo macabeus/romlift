@@ -1,8 +1,13 @@
-// objdiff.json and expected/ on real tools (architecture §6.8, roadmap 6.F, D92): on the c-data fixture's project, as a
-// user builds it (`init`, `./setup.sh`, `make`, `make expected`), the pinned objdiff-cli loads the objdiff writer's
-// objdiff.json (`report generate`) and reports every unit it lists at 100%: each C module's base object, which agbcc
-// built from its INCLUDE_ASM stubs, against the expected writer's target, which holds the ROM's bytes with no
-// relocation. The project's objdiff.json lists every C module and no other, and every listed path exists.
+// objdiff.json and expected/ on real tools (architecture §6.8, roadmap 6.F, D92, D95 a): on a project as a user builds
+// it (`init`, `./setup.sh`, `make`, `make expected`), the pinned objdiff-cli loads the objdiff writer's objdiff.json
+// (`report generate`): each C module's base object, which agbcc built from its INCLUDE_ASM stubs, against the expected
+// writer's target, the same assembly with the ROM's bytes written over its .text and its relocations kept.
+//   - c-data (a fixture): every unit at 100%; objdiff.json lists every C module and no other, every listed path exists.
+//   - klonoa (a tuning ROM; correctness-2): every function at 100%, except where every differing row is the one class
+//     objdiff cannot match while the target holds the ROM's bytes (phase-6.md Q12): a relocated word or `bl` of the base
+//     whose implicit addend objdiff reads as a target inside the function (a jump-table entry, a call to the function
+//     right after), against the same relocation in the target, whose field holds the ROM's bytes. The counts are
+//     printed and must not grow past the measured ones (51 functions; 3,276 table words and 4 calls).
 //
 // objdiff-cli is found as the bench finds it (ROMLIFT_OBJDIFF, the repository's bench/.local/objdiff-target build, the
 // main checkout's, PATH, then $ROMLIFT_BENCH_ROOT/objdiff), through a child process that loads bench/src/objdiff-cli.ts
@@ -132,4 +137,75 @@ test('c-data: init, ./setup.sh, make and make expected, then objdiff-cli reports
     assert.equal(unit.measures?.fuzzy_match_percent, 100, `${unit.name}: ${JSON.stringify(unit.measures)}`);
     if (Number(unit.measures?.total_code ?? 0) > 0) assert.equal(unit.measures?.matched_code_percent, 100, `${unit.name}: ${JSON.stringify(unit.measures)}`);
   }
+});
+
+interface DiffRow {
+  readonly diff_kind?: string;
+  readonly instruction?: { readonly relocation?: { readonly type_name?: string }; readonly branch_dest?: string; readonly parts?: readonly { readonly opcode?: { readonly mnemonic?: string } }[] };
+}
+
+interface DiffSide {
+  readonly symbols: readonly { readonly name: string; readonly instructions?: readonly DiffRow[] }[];
+}
+
+/** The rows of `name` that differ, each as [base mnemonic, its relocation type, whether the base's branch target is set, the target's relocation type]. */
+async function differingRows(bin: string, dir: string, unit: string, name: string): Promise<readonly (readonly [string, string, boolean, string])[]> {
+  const out = path.join(TMP, `diff-${unit}-${name}.json`);
+  const ran = await run(bin, ['--no-color', 'diff', '-1', `expected/${unit}.o`, '-2', `build/src/${unit}.o`, '-o', out, '--format', 'json', '-c', 'functionRelocDiffs=none', '-c', 'arm.archVersion=v4t', name], dir);
+  assert.equal(ran.code, 0, tail(ran));
+  const diff = JSON.parse(await readFile(out, 'utf8')) as { readonly left: DiffSide; readonly right: DiffSide };
+  const left = diff.left.symbols.find((s) => s.name === name)?.instructions ?? [];
+  const right = diff.right.symbols.find((s) => s.name === name)?.instructions ?? [];
+  const rows: (readonly [string, string, boolean, string])[] = [];
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const l = left[i];
+    const r = right[i];
+    if ((l?.diff_kind ?? 'DIFF_NONE') === 'DIFF_NONE' && (r?.diff_kind ?? 'DIFF_NONE') === 'DIFF_NONE') continue;
+    rows.push([r?.instruction?.parts?.[0]?.opcode?.mnemonic ?? '?', r?.instruction?.relocation?.type_name ?? 'none', r?.instruction?.branch_dest !== undefined, l?.instruction?.relocation?.type_name ?? 'none']);
+  }
+  return rows;
+}
+
+const KLONOA = JSON.parse(await readFile(path.join(REPO, 'bench', 'dataset', 'real', 'klonoa.json'), 'utf8')) as { readonly rom: string };
+const KLONOA_ROM = path.join(BENCH_ROOT, KLONOA.rom);
+
+test('klonoa: every function at 100% but the one class objdiff reads from the relocated fields (Q12)', { skip: REQUIRE ? false : (unavailable ?? (existsSync(KLONOA_ROM) ? false : `unavailable: rom ${KLONOA_ROM}`)), timeout: 30 * 60_000 }, async (t) => {
+  assert.equal(unavailable, undefined, unavailable);
+  assert.ok(existsSync(KLONOA_ROM), `no ${KLONOA_ROM}`);
+  if ('unavailable' in tools) return;
+  const cli = path.join(TMP, 'romlift-klonoa');
+  await writeFile(cli, `#!/bin/sh\nexec '${process.execPath}' --conditions=source '${path.join(REPO, 'src', 'cli', 'main.ts')}' "$@"\n`);
+  await chmod(cli, 0o755);
+  const dir = path.join(TMP, 'klonoa');
+  await mkdir(dir, { recursive: true });
+  await copyFile(KLONOA_ROM, path.join(dir, 'baserom.gba'));
+  const init = await run(cli, ['init', 'baserom.gba', '--json'], dir);
+  assert.equal(init.code, 0, tail(init));
+  const prebuilt = prebuiltAgbcc();
+  for (const part of ['bin', 'include', 'lib']) if (prebuilt !== undefined && existsSync(path.join(prebuilt, part))) await cp(path.join(prebuilt, part), path.join(dir, 'tools', 'agbcc', part), { recursive: true });
+  for (const [command, args] of [['./setup.sh', []], ['make', []], ['make', ['expected']]] as const) {
+    const ran = await run(command, args, dir, { ROMLIFT_CLI: cli });
+    assert.equal(ran.code, 0, `${command} ${args.join(' ')}:\n${tail(ran)}`);
+  }
+  const out = path.join(TMP, 'klonoa-report.json');
+  const report = await run(tools.bin, ['report', 'generate', '-p', dir, '-o', out, '-f', 'json'], dir);
+  assert.equal(report.code, 0, tail(report));
+  const read = JSON.parse(await readFile(out, 'utf8')) as { readonly units: readonly { readonly name: string; readonly functions?: readonly { readonly name: string; readonly fuzzy_match_percent?: number }[] }[] };
+  let total = 0;
+  const below: string[] = [];
+  const counts = new Map<string, number>();
+  for (const unit of read.units) {
+    for (const f of unit.functions ?? []) {
+      total++;
+      if ((f.fuzzy_match_percent ?? 0) >= 100) continue;
+      below.push(`${unit.name}/${f.name}`);
+      for (const [mnemonic, base, inside, target] of await differingRows(tools.bin, dir, unit.name, f.name)) {
+        assert.ok((mnemonic === '.word' && base === 'R_ARM_ABS32') || (mnemonic === 'bl' && base === 'R_ARM_THM_PC22'), `${unit.name}/${f.name}: a differing ${mnemonic} (${base}) outside the class`);
+        assert.ok(inside && target === base, `${unit.name}/${f.name}: a differing ${mnemonic} whose base target objdiff does not read inside the function, or whose target relocation is ${target}`);
+        counts.set(mnemonic, (counts.get(mnemonic) ?? 0) + 1);
+      }
+    }
+  }
+  t.diagnostic(`klonoa: ${below.length} of ${total} functions below 100%, every differing row in Q12's class: .word ${counts.get('.word') ?? 0}, bl ${counts.get('bl') ?? 0}`);
+  assert.ok(below.length <= 51, `${below.length} functions below 100%, more than the 51 measured`);
 });

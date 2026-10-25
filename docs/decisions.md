@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -4238,6 +4238,13 @@ wave touches; the g6 gates stay `pending` or `fail` until their exports and writ
 signature files (forbidden in core/signatures). Keeping the `phase-6/<component>` branch spelling (Git refuses it beside
 `phase-6`).
 
+**Amendment (phase-6 fix round 1, delivery-5).** The phase ran thirteen components, not twelve: `p6-objdiff` merged in
+wave 3 (`11ec05d`) as the thirteenth, unplanned. It delivered `g6.objdiff`'s work (the readable printer's words inside
+named, sized entries and `.inst.n`, the objdiff family's base per reference object, one REL/RELA decoder), took
+architecture-r2-2 and r2-3 from `p6-c-data-expected` and correctness-r0-5's remainder from `p6-rename`, and changed
+readable-printer files outside 6.F's Owns (`src/core/emit/print/pool.ts`, `print/data.ts`, `src/core/model/resolver.ts`);
+roadmap.md "As executed (D93)" and phase-6.md "Deviations from the roadmap" record it.
+
 ## D94. Phase-6 closing round: four matcher refinements, and leave-one-out counted by counterpart
 
 **Context.** The wave-3 integration recorded that `g6.signatures-judged` and `g6.signatures-loo` fail on the real tier
@@ -4285,6 +4292,71 @@ counterparts.
 matches). Trimming a trailing zero halfword from unsized members in the builder so `DivRem` and `Mod` merge
 (`g6.signatures-rebuild` compares the real builds with the PoC's converted files). Counting leave-one-out by member id
 alone (a renamed member is counted as one added and one missing member, against the gate's words).
+
+## D95. Phase-6 fix round 1: the review of the NOT-LANDED closing record
+
+**Context.** The adversarial review of `phase-6` at `1484ab0` (38 findings: 1 blocker, 16 major, 21 minor; their
+dispositions are phase-6.md "Review") agreed with the NOT LANDED verdict and found, besides record errors, five design
+defects in the phase's own code: the objdiff targets do not score an untouched project at 100%, `rename` accepts a
+name `generate` then refuses, the proposal workflow became a god module with the module-planning rule written three
+times, the signature decoders throw for content inside the pure core, and the signature files are located by four
+copies of one call that disagree on `W_SIGNATURES_ABSENT`. None of the answers below changes a gate's threshold; the
+two gate edits (e) restore strictness, and every gate question stays with the owner.
+
+**Decision.**
+
+- (a) **`expected/` is the build unit's assembly with the ROM's bytes** (correctness-2). The `expected` writer emits
+  `expected/<module>.s`, the module as its build unit assembles it (a `c` module's chunk files included in ROM order,
+  at their `asm/matchings` twin once decompiled; an asm or data module's own source included), and
+  `expected/rom/<module>.s`, its ROM range. `make expected` assembles both and writes the ROM's bytes over the first
+  object's `.text` (shell `head`/`cat`/`tail` at the offset `readelf -S` gives, after checking both `.text` sizes are
+  equal), keeping its relocations: the target has the base object's symbols, mapping symbols and relocations, and
+  `g6.expected-bytes` still reads the ROM range from the unlinked object (ci: 225 modules on 54 ROMs). `objcopy
+  --update-section` was measured and rejected: it drops the section's relocations. The orphan-chunk mapping mismatch
+  is gone (sa1: 34 functions below 100% become 33); the rest is objdiff reading a relocated field as its implicit
+  addend (ARM REL): with the ROM's bytes in the field, a base jump-table word or a `bl` to the next function resolves
+  inside the function in the base and outside it in the target (klonoa 51 of 422 functions, every differing row in
+  that class: 3,276 words, 4 calls). No target can hold the ROM's bytes and those addends at once, so the remainder is
+  an owner question (phase-6.md Q12), and `test/local/objdiff-json` pins it on klonoa.
+- (b) **The signature layer and module planning have one home each** (architecture-1, -2, -4). `core/workflow/proposals.ts`
+  is the screen alone; `signature-layer.ts` holds the layer (`signaturesOver` with the one policy for an analysis that
+  failed, `signaturesOnRom`, `signatureLayer`, `foldSignatures`, `updateProposals`, the library-module notes) and
+  `signatureNotes`: the shell's notes on the files it located (`W_SIGNATURE_FILE_SKIPPED`, `W_SIGNATURES_ABSENT`, from
+  `shell/signatures/locate.ts loadSignatureFiles`, the one locator call of `init`, `analyze --update`, `explain --rom`
+  and `signatures <rom>`) are reported by a run that uses signatures, which the workflow decides (`InitInputs` and
+  `AnalyzeUpdateInputs` gain `signatureNotes`). `core/layout/module-proposals.ts` plans the runs_at borders and the
+  library modules of a project; `freeModuleName` beside `runsAtName` is the one naming rule, which init's inference now
+  uses for library names too (same names: `m4a`, `m4a_2`).
+- (c) **`rename` refuses the model's names and lists what it leaves out** (correctness-1, architecture-5). It reads the
+  project's ROM and refuses (`E_RENAME_EXISTS`) a new name the confirm model emits: a default chunk or symbol name, a
+  local label. A file under `src/` or `include/` it cannot edit (a symbolic link, a file that is not UTF-8, a binary) is
+  `W_RENAME_SKIPPED`, or `E_RENAME_SKIPPED_FILE` when its bytes name the old name as an identifier. `C_KEYWORDS` and
+  `directiveOf` live beside the tokenizer.
+- (d) **The signature decoders are zod schemas** (architecture-3). `core/signatures` may import `zod` (architecture §2's
+  edge table, `test/helpers/architecture.ts`), as `core/config` does; `parseSignatureFile` and `parseSignatureSpec` keep
+  their `{ok, value | error}` results and their refusal texts (`issues.ts`); `Refusal`, `refuse` and `decodeHelpers` are
+  deleted. The spec refuses a library name that is no file name; `isSealedDataset` is core's, read by the builder and
+  the bench (architecture-6).
+- (e) **Two gate edits of D93 h are undone, none loosened** (correctness-4, -10). `g4.cli-contract` fails when a recipe's
+  option is missing from the command's `--help` (D93 h skipped the recipe silently); `g6.signatures-judged` requires
+  every proposed size to be equal, different or `unjudged` and reports the unjudged count. Whether `unjudged` sizes and
+  the member-symbol name rule of D93 h may stand is the owner's (phase-6.md Q13, Q14).
+- (f) **Smaller corrections.** `runs_at` load addresses print as `__load_<module> + n` (correctness-5); a run range over
+  the ROM's load space or another run range is `E_OVERRIDE_INVALID` (correctness-8); `loadSpaceImage` returns a
+  `RomBytes` view, never a `Rom` (architecture-9); one `incbinLine`, `functionAt`, `alignUp`, `le32`, `hexBytes`/
+  `bytesOfHex` and `parseSourceKey` (architecture-7, -8, -12); `renamedFunction` keeps every key but `from`
+  (architecture-13).
+
+**Consequences.** `npm test`: 2,836 tests, 0 fail, 0 todo (the `__load_<module>` todo is a test). The writer goldens of
+`expected` and the scaffold golden (the Makefile's `expected` rule) are regenerated; `generate` after a decompilation
+also rewrites the module's `expected/<module>.s` (its include moves to `asm/matchings`). `test/local` gains
+`listed-invalid-signatures` (init with signatures: 17 `W_LISTED_INVALID` on the six tuning ROMs, Q10) and the klonoa
+case of `objdiff-json`. The phase still does not land: Q1 to Q3, Q5, Q6 and Q8 to Q14 are open.
+
+**Rejected.** Symbolic `expected/` objects with no ROM bytes (objdiff 100%, but `g6.expected-bytes` reads the unlinked
+`.text`: a gate change, offered to the owner as Q12 option b). Adding `.reloc` directives to the byte printer (it would
+have to predict every relocation GNU as emits). Ending Klonoa's `runs_at` range before its ROM-called tail (the RAM code
+loads a pool word there PC-relatively, D63). Leaving `isSealed` as the bench's own copy.
 
 ## Review findings index
 

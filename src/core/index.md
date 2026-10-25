@@ -55,10 +55,11 @@ Frozen by the lead (D93); the parts marked with an owner land in waves 2 and 3.
 
 | Path | Responsibility |
 | --- | --- |
-| `signatures/schema.ts`, `signatures/spec.ts` | the schema-3 signature file, the placement and the rule ids; the committed spec; their hand-written validators (`parseSignatureFile`, `parseSignatureSpec`) |
+| `signatures/schema.ts`, `signatures/spec.ts`, `signatures/issues.ts` | the schema-3 signature file, the placement and the rule ids; the committed spec; their zod validators (`parseSignatureFile`, `parseSignatureSpec`, D95 d) and the refusal text of their first issue; `isLibraryName`, `isSealedDataset` (the one sealing rule, D32) |
 | `signatures/codes.ts`, `signatures/rules/` | the signature codes (the matcher's four `W_SIGNATURE_*`; the builder's land with p6-signatures-build) and the five placement rules, one file each, with their registry (`SIGNATURE_RULES`, the metadata; `PLACEMENT_RULES`, the rules match.ts runs) and the state they share (`rules/state.ts`) |
 | `signatures/{extract,match,resolve,policy,propose}.ts` | the builder's pure part (p6-signatures-build), the matcher, overlap resolution, its policy and the proposals (p6-signatures-match) |
 | `config/` | adds the `[[modules]]` key `data_start` (`dataStart`), syntax only |
 | `reconcile/c-scan.ts`, `reconcile/rename-tokens.ts` | the file-scope scanner and include resolution split out of the planner (p6-reconcile-carried); identifier-only renames (p6-rename) |
 | `workflow/types.ts` | adds the signature files `init` and `analyze --update` read, `InitOptions.signatures`, `ProjectInputs.headerRealPaths` and the `CheckProposals` contract |
-| `workflow/proposals.ts`, `workflow/rename.ts`, `workflow/explain.ts` | the proposal screen (`checkProposals`, p6-proposals), `planRename` (p6-rename), explain's signature part (`ExplainSignature`, filled by p6-proposals) |
+| `workflow/proposals.ts`, `workflow/signature-layer.ts`, `workflow/rename.ts`, `workflow/explain.ts` | the proposal screen alone (`checkProposals`, p6-proposals); the signature layer (`signaturesOver`, `signaturesOnRom`, `signatureLayer`, `foldSignatures`, `updateProposals`, the library-module notes, `signatureNotes`; D95 b); `planRename` and `renameModelNames` (p6-rename, D95 c); explain's signature part (`ExplainSignature`, filled by p6-proposals) |
+| `layout/module-proposals.ts` | the runs_at borders and library modules a project lacks (`planRunsAtBorders`, `planLibraryModules`, `regionsWithoutModule`), with infer-modules.ts's `freeModuleName` the one naming rule (D95 b) |

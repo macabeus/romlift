@@ -133,9 +133,11 @@ romlift/
                                     core/config, core/model, core/reconcile, core/emit, core/verify,
                                     core/scaffold and the shell import from here; the public api/ modules
                                     re-export some (api/reconcile.ts, api/model.ts, api/one-shot-types.ts,
-                                    api/config.ts), and the aliases of architecture-r1-2 (locate.ts's
-                                    DECOMP_YAML_NAMES, BASEROM_PATH, SCAFFOLD_ROM_FILE, TARGET) stay until
-                                    phase 6, roadmap.md; D75 g, D76 h, D77 h, D83 c, D84 e, D85 e)
+                                    api/config.ts); the aliases of architecture-r1-2 (locate.ts's
+                                    DECOMP_YAML_NAMES, BASEROM_PATH, SCAFFOLD_ROM_FILE, TARGET) were removed in
+                                    phase 6 (p6-hygiene; D75 g, D76 h, D77 h, D83 c, D84 e, D85 e)),
+                                    align.ts (alignUp), bytes.ts (le32); hex.ts also spells a signature
+                                    member's bytes (hexBytes, bytesOfHex; D95 f)
     core/                           pure; only allowlisted globals (§2, D5)
       diagnostic-codes.ts           the union of every module's codes.ts
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
@@ -150,9 +152,12 @@ romlift/
       proposals/                    types.ts (Proposal, ProposalSource: signature, analysis, layout; LibraryRegion,
                                     sourceKey; D91 e)
       layout/                       types.ts, borders.ts (core/model's one entry; it re-exports the rest), align.ts,
-                                    asm-only.ts, entries.ts, refs.ts, tiling.ts, infer-modules.ts
-      signatures/                   schema.ts, spec.ts (frozen by D93), extract.ts, match.ts, resolve.ts, policy.ts,
-                                    propose.ts, codes.ts
+                                    asm-only.ts, entries.ts, refs.ts, tiling.ts, infer-modules.ts (the module names:
+                                    runsAtName, asmOnlyName, mainName, freeModuleName), module-proposals.ts (the
+                                    runs_at borders and library modules a project lacks, planRunsAtBorders,
+                                    planLibraryModules; phase 6, D95 b)
+      signatures/                   schema.ts, spec.ts (frozen by D93; zod schemas since D95 d), issues.ts (their
+                                    refusal text), extract.ts, match.ts, resolve.ts, policy.ts, propose.ts, codes.ts
         rules/                      index.ts + one file per sig.* placement rule
       config/                       schema.ts, keys.ts, parse.ts, serialize.ts, patch.ts, compilers.ts,
                                     decomp-yaml.ts, rom-sha1.ts (romSha1Problems, E_ROM_SHA1_MISMATCH), codes.ts
@@ -182,7 +187,10 @@ romlift/
                                     (initConfigOf, the one path to init's config, D75 f), generate.ts, c-stubs.ts (a
                                     project's C files reconciled with the model, D75 b, D77 a), init.ts,
                                     scaffold-diff.ts, analyze-update.ts, codes.ts; phase 6: proposals.ts
-                                    (checkProposals, the proposal screen, §7.4) and rename.ts (planRename, D92)
+                                    (checkProposals, the proposal screen, §7.4, and nothing else), signature-layer.ts
+                                    (signaturesOver, signaturesOnRom, signatureLayer, foldSignatures,
+                                    updateProposals, the library-module notes, signatureNotes; §7.3, D95 b) and
+                                    rename.ts (planRename, renameModelNames, D92, D95 c)
     shell/                          the only code that touches files, processes, hashing or the environment
       codes.ts                      the shell's diagnostic codes
       hash.ts                       sha1/sha256 via node:crypto, incremental
@@ -253,7 +261,7 @@ It fails on any edge not allowed here:
 | `core/analysis/rules/<family>/<rule>.ts` | `foundation`, `core/provenance`, `core/profile/types.ts`, `core/analysis/{types,walk,pointers,address-map,limits}`, `rules/define-rule.ts`; **never another rule file, `core/profile/agbcc.ts` or `core/profile/registry.ts`**; only a family's `index.ts` imports its rule files, only `rules/index.ts` imports family indexes, only `driver/` imports `rules/index.ts` |
 | `core/proposals` | `foundation`, `core/provenance` |
 | `core/layout` | `foundation`, `core/profile/types.ts`, `core/analysis/types.ts`, `core/proposals` |
-| `core/signatures` | `foundation`, `core/provenance`, `core/analysis/types.ts`, `core/proposals` |
+| `core/signatures` | `foundation`, `core/provenance`, `core/analysis/types.ts`, `core/proposals`, `zod` (the signature file and spec schemas, D95 d) |
 | `core/config` | `foundation`, `core/proposals`, `smol-toml`, `zod`, `@match-kit/decomp-yaml` (its pure validators) |
 | `core/model` | `foundation`, `core/provenance`, `core/profile/types.ts`, `core/analysis/types.ts`, `core/config` (types and `compilers.ts`), `core/layout/borders.ts` |
 | `core/reconcile`, `core/scaffold` | `foundation` |
@@ -325,7 +333,7 @@ with stdin closed and parses `--json` output line by line.
 | `generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]` (4) | `decomp.yaml` → TOML, ROM, `src/*.c` | generated tree; `INCLUDE_ASM` edits (4: add and remove, D75 b) | self-checks pass before any write; never writes the TOML; `--dry-run --json` prints the write plan |
 | `analyze --update [--write]` (4) | project | prints a TOML patch; `--write` applies it | the patch keeps comments and re-parses |
 | `scaffold --diff` (4) | project, templates | nothing | how scaffold files differ from the current templates |
-| `rename <old> <new>` (6, D92) | TOML, `src/`, `include/` | a one-line TOML patch; identifier tokens | refuses when `new` exists or `old` is unknown |
+| `rename <old> <new>` (6, D92) | TOML, ROM, `src/`, `include/` | a one-line TOML patch; identifier tokens | refuses when `new` is a name of the TOML or of the project's model, `old` is unknown, or a file it cannot edit names `old`; warns of each file it leaves out (D95 c) |
 | `signatures build <spec> [--out <dir>]` / `signatures <rom>` (6) | reference checkouts / ROM | `signatures/<library>.json` (local, gitignored; `--out` another directory) / stdout | placements with their `sig.*` rule ids |
 
 `init`, `generate`, `analyze --update`, `rename` and `explain` are each one function in
@@ -1349,7 +1357,7 @@ module by module in ROM order, so no whole tree is ever held in memory (§9.4).
 | `modules-mk` | `modules.mk` (per-module compiler, `cc1` path and flags as target-specific variables) | generated | 4 |
 | `c-stub` | `src/<module>.c` (the reconciler's stub planner run on an empty file plus the template header) | scaffold at `init`, reconciled after | 4, 6 |
 | `scaffold` | `Makefile`, `setup.sh`, `include/**`, `AGENTS.md`, `.github/workflows/build.yml`, `.gitignore`, `README.md`, `<name>.sha1`, `package.json`, `.gitmodules` | scaffold | 4 |
-| `expected` | `expected/<module>.s` (whole module at exact offsets, §6.8) | generated | 6 (D92) |
+| `expected` | `expected/<module>.s` (the module as its unit assembles it) and `expected/rom/<module>.s` (its ROM range), §6.8 | generated | 6 (D92, D95 a) |
 | `objdiff` | `objdiff.json` | generated | 6 (D92) |
 
 `romlift.toml` and `decomp.yaml` are not tree entries: `init` creates them through `shell/config`, and
@@ -1684,14 +1692,28 @@ The leading `*` matches the object ld is given, `build/src/<module>.o` (D74 f).
 Phase 6 replaces the assertion, for a `c` module that declares a range (`[[modules]] data_start`, §6.5), with a data
 range: the module's bytes from `data_start` to its end are its C object's data, so a C array replaces its slice of the
 ROM and the build still matches (`g6.c-data-ranges`, on the c-data fixture; the object is `build/src/<module>.o`). A
-module without `data_start` keeps the assertion. The range's semantic checks (inside its module, word-aligned, past
-its code) are the model's (p6-c-data-expected, D93); the config reads the key as syntax only.
+module without `data_start` keeps the assertion. The range's semantic checks are the model's (p6-c-data-expected, D93;
+`core/model/modules.ts`); the config reads the key as syntax only. `data_start` must be word-aligned, at or past the
+data start (only data lies there), inside the ROM and past its module's start, outside every `runs_at` range, and two
+ranges must not overlap. The range runs from `data_start` to the next module start or the ROM end: when `data_start`
+lies at or past its module's text end, the range takes the `data` modules after it, clipped or dropped (a `data`
+module starting at `data_start` lies wholly inside the range), so its C object must define every byte of that range for
+`make` to link (correctness-11). `verify --link` does not judge a data range's C: it links the range's ROM bytes as a
+stand-in `.rodata` (`core/model/c-data-assert.ts` cDataStandIn), so a C that leaves part of the range undefined passes
+`verify --link` and fails `make`.
 
 **`rename <old> <new>`** (phase 6, D92). `core/workflow/rename.ts` (`planRename`) plans a one-line patch of the TOML entry
 named `old` (the new name, its `from` removed: the name is now the user's, D9) and, with `rename-tokens.ts`, edits of
 identifier tokens equal to `old` in `src/` and `include/` (never a comment, string or character literal), as
 `reconciled` entries; it refuses when `new` is already a name of the project or `old` names nothing (exit 1, no file
-changed, `g6.rename`). The `c` stubs then follow from `generate`.
+changed, `g6.rename`). A name of the project is one the TOML lists (a function, symbol, alias or module) or one the
+project's model emits (a default chunk or symbol name such as `unk_…` or `gUnk_…`, a local label `_0800…`;
+`renameModelNames`, the confirm model of the project's ROM and TOML), which `generate` would refuse as
+`E_NAME_COLLISION` (correctness-1, D95 c). A file under `src/` or `include/` rename cannot edit (a symbolic link, file or
+directory, since an edit written through a temporary file would replace the link; a file that is not UTF-8 or holds a
+NUL) is listed by the shell, never skipped silently: `W_RENAME_SKIPPED` when it does not name `old`, and the refusal
+`E_RENAME_SKIPPED_FILE` when its bytes hold `old` as an identifier (architecture-5). The `c` stubs then follow from
+`generate`.
 
 ### 6.7 Code that runs from RAM (`runs_at`)
 
@@ -1699,10 +1721,14 @@ An `[[overrides]]` entry with `runs_at`, written by hand (the gba-kit trace that
 the owner, D91), makes `AddressMap` non-identity for its range (D46). The analysis walks those bytes with run-space
 targets; `FunctionFact.runAt`, `Chunk.runAt` and `Module.runAt` record it; labels inside it carry run
 addresses. The range is its own `asm` module: `init` and `analyze --update` propose its two borders,
-and a `runs_at` range whose start and end are not module borders is `E_OVERRIDE_INVALID`. The
+and a `runs_at` range whose start and end are not module borders is `E_OVERRIDE_INVALID`, as is one whose run range
+`[runs_at, runs_at + size)` overlaps the ROM's own load space (but for the identity, `runs_at` equal to its start) or
+the run range of another `runs_at` range (correctness-8: `ld` would refuse the overlapping sections). The
 `ldscript` writer emits the module as `.<module> <runAt> : AT(<load>) { asm/<module>.o(.text) }` and defines `__load_<module> =
 LOADADDR(.<module>)`, so ROM code that copies the bytes names their source and code that calls them names
-their run address. Branches inside the range assemble to the same bytes either way, and the text-layout
+their run address: a pool word or a data word holding a load address of the module (its end included) prints
+`__load_<module>` plus its offset (`resolver.ts` loadOperandIn; on Klonoa, m4aSoundInit's `.4byte
+__load_ram_03000388 + 1`), which the text-layout check resolves (correctness-5). Branches inside the range assemble to the same bytes either way, and the text-layout
 check lays the module out at its load address with run-space symbols. The types land as the identity in
 phase 2 and the model and writers handle `runAt` from phase 3, so phase 6 only fills them;
 `g6.ram-code-mapped` proves it on the RAM-copy fixture (its `expect.json`'s `ramCopy`) and on Klonoa, whose
@@ -1711,12 +1737,19 @@ appends after `init` (D91 c): one module spans exactly the range with that `runA
 
 ### 6.8 `expected/` and `objdiff.json` (phase 6, D92)
 
-The `expected` writer emits `expected/<module>.s` for each generated module: the whole module at its exact offsets,
-every item as its own bytes (`.inst*`, `.4byte`, `.byte`, `.incbin`) with global, typed, sized function labels, so
-`make expected` assembles it without agbcc into an `expected/<module>.o` with no relocation, the target objdiff
-compares a decompiled function's object with. The `objdiff` writer emits `objdiff.json` (objdiff-cli 3.7.2), one unit
-per `c` module with its target and base objects (`build/src/<module>.o`, D74 f) and `options.functionRelocDiffs =
-"none"`, since the target carries no relocation. Both are generated files under the generated roots (§6.4).
+The `expected` writer emits two files for each generated module (D95 a): `expected/<module>.s`, the module as its
+build unit assembles it (a `c` module's chunk files included in ROM order, at their `asm/matchings` twin once the C
+defines the function, which is what agbcc's output of the stub-only C assembles; an asm or data module's own source
+included), and `expected/rom/<module>.s`, the module's ROM range as one `.incbin`. `make expected` assembles both
+without agbcc and writes the ROM range's bytes over the first object's `.text`, keeping its relocations, so
+`expected/<module>.o` has the base object's symbols, mapping symbols and relocations at the same offsets, while its
+unlinked `.text` is the ROM range. The `objdiff` writer emits `objdiff.json` (objdiff-cli 3.7.2), one unit per `c`
+module with its target and base objects (`build/src/<module>.o`, D74 f) and `options.functionRelocDiffs = "none"`:
+objdiff then compares a relocation by its type only, and an untouched project scores every function at 100% except
+where objdiff reads a relocated field as its implicit addend (ARM REL) and that addend moves the target: a base
+jump-table word or a `bl` to the function right after resolves inside the function, the target's field (the ROM's
+bytes) outside it (klonoa: 51 of 422 functions, 3,276 words and 4 calls; phase-6.md Q12, an owner question). Both are
+generated files under the generated roots (§6.4).
 
 `g6.expected-bytes` judges `expected/<module>.s` by the ROM, never by another project's own `expected/` (Klonoa's `make
 expected` is best effort and marks wrong symbols in `.tainted` files): in a project `init` wrote, every `c` module has
@@ -1780,7 +1813,8 @@ export function parseSignatureSpec(json: unknown):
   { readonly ok: true; readonly value: SignatureSpec } | { readonly ok: false; readonly error: string };
 ```
 
-Both validators are written by hand (core/signatures may not import zod), refuse unknown keys and never throw. A
+Both validators are zod schemas decoded with `safeParse`, as the config is validated (D95 d; they were written by hand
+until architecture-3), refuse unknown keys and never throw; the first issue is the refusal (`core/signatures/issues.ts`). A
 reference is named by its bench dataset (revision 2 wrote a `project`), and a link-order member carries its address in
 that reference, which fixes the spacing the placement rules read (D93).
 
@@ -1792,8 +1826,11 @@ dataset; `g6.no-heldout-references` fails when a spec names a dataset whose `hel
 **Where the files live** (D40). Built signature files contain masked bytes read from commercial ROMs, so
 until the owner rules they are not committed and not published: `romlift signatures build
 signatures/specs/<library>.json` writes them to `signatures/<library>.json`, which `.gitignore`
-covers, and `shell/signatures/locate.ts` reads them from there or from `ROMLIFT_SIGNATURES`. When none
-is found, `init` reports the shell's `W_SIGNATURES_ABSENT` and proceeds without them. Explain goldens for `sig.*`
+covers, and `shell/signatures/locate.ts` reads them from there or from `ROMLIFT_SIGNATURES` (`loadSignatureFiles`, the
+one call of `init`, `analyze --update`, `explain --rom` and `signatures <rom>`, D95 b). When none is found, the shell's
+`W_SIGNATURES_ABSENT` is reported by every run that uses signatures (`init` without `--no-signatures`, `analyze
+--update` while `[signatures] enabled`, `explain --rom`, `signatures <rom>`; the workflow decides, signature-layer.ts
+signatureNotes), and the run proceeds without them. Explain goldens for `sig.*`
 rules come from a self-authored library fixture (§8.1) whose signature file is built from the fixture's
 own ELF; no golden ever contains bytes from a real ROM.
 
@@ -1981,7 +2018,7 @@ message states the reason, as the working rule requires.
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
 | Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff score 0 (below; `g6.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a, and into phase 6 with the `expected/` writers when he skipped phase 5, D92; phase 3 records the classified counts) | 3, 6 |
 | Memory | `init` and `generate` on the deterministic 32 MiB synthetic ROM complete under the `romlift` bin's heap cap (`--max-old-space-size=1024`, the owner's answer to Q7 of phase-3.md, D72, replacing Q6's 384) with peak RSS below 1,536 MiB, the budget set again from the recorded runs under that cap with a 25% margin (`g3.large-rom`, D68 b, D72 b); the six tuning ROMs and the code-dense doubled ROM are measured under the same cap and recorded; the bin's own commands complete on the synthetic ROM under the cap (`test/local/large-rom-bin.test.ts`, D70 b; not a gate) | 3 |
-| Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance); on a reference ROM every placed member's symbol (its `MemberId` before '@') equals that reference's own symbol, a reviewed display name being reported, not gated; the PoC's placements as a floor on its five ROMs, none on tmc; leave-one-reference-out adds or moves no placement; sealed held-out counts | 6 |
+| Signatures | every placement at an ELF `FUNC` or a listed untyped address; every table an `OBJECT` of that size or a label; every proposed `size` equals the ELF size (4-byte padding allowance), every proposed size is equal, differs or is `unjudged` (no ELF size, a zero ELF size, or a FUNC spanning another FUNC: nothing to compare with, counted and reported per ROM; correctness-4, phase-6.md Q13); on a reference ROM every placed member's symbol (its `MemberId` before '@') equals that reference's own symbol, a reviewed display name being reported, not gated; the PoC's placements as a floor on its five ROMs, none on tmc; leave-one-reference-out adds or moves no placement; sealed held-out counts | 6 |
 
 The bench always scores a **seedless discover run** (no TOML, signature or evidence seeds) and judges
 signatures afterwards, so library knowledge never flatters the library-agnostic numbers (D24). Every
