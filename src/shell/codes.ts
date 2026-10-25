@@ -22,6 +22,7 @@ export const ShellCodes = defineCodes({
   E_SIGNATURE_REFERENCE_INVALID: { severity: 'error', meaning: "a reference's ELF or map does not parse" },
   E_SIGNATURE_FILE_INVALID: { severity: 'error', meaning: 'a signature file is not JSON or not of schema 3 (parseSignatureFile refused it)' },
   W_SIGNATURE_FILE_SKIPPED: { severity: 'warning', meaning: 'a signature file the locator found could not be read or repeats a library; skipped' },
+  W_SIGNATURES_ABSENT: { severity: 'warning', meaning: 'no built signature file was found (signatures/ or ROMLIFT_SIGNATURES); nothing is placed' },
 });
 
 export type ShellCode = keyof typeof ShellCodes;

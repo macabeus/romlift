@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { locateSignatures, readSignatureFile, SIGNATURES_ENV } from '../../../../src/shell/signatures/locate.ts';
+import { locateSignatures, readSignatureFile, signaturesAbsent, SIGNATURES_ENV } from '../../../../src/shell/signatures/locate.ts';
 
 const GOLDEN = fileURLToPath(new URL('../../../../bench/dataset/synthetic/library/signatures.golden.json', import.meta.url));
 const TMP = mkdtempSync(join(tmpdir(), 'romlift-signatures-locate-'));
@@ -50,6 +50,18 @@ test('$ROMLIFT_SIGNATURES names the directory instead; bad files and a second fi
 test('no directory: no file and no diagnostic (init decides what absence means)', async () => {
   const located = await locateSignatures({ packageRoot: join(TMP, 'absent'), env: {} });
   assert.deepEqual(located, { dir: join(TMP, 'absent', 'signatures'), files: [], diagnostics: [] });
+});
+
+test('signaturesAbsent: W_SIGNATURES_ABSENT naming the directory read when no file was found, else nothing', async () => {
+  const none = await locateSignatures({ packageRoot: join(TMP, 'absent'), env: {} });
+  const absent = signaturesAbsent(none);
+  assert.equal(absent?.code, 'W_SIGNATURES_ABSENT');
+  assert.equal(absent?.severity, 'warning');
+  assert.equal(absent?.path, join(TMP, 'absent', 'signatures'));
+  const root = join(TMP, 'present');
+  mkdirSync(join(root, 'signatures'), { recursive: true });
+  copyFileSync(GOLDEN, join(root, 'signatures', 'libfix.json'));
+  assert.equal(signaturesAbsent(await locateSignatures({ packageRoot: root, env: {} })), undefined);
 });
 
 test('readSignatureFile: a valid file, E_IO_READ, E_SIGNATURE_FILE_INVALID', async () => {

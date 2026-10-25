@@ -3,7 +3,8 @@
 // specs live in its `specs/` subdirectory, which is not read). Every `*.json` regular file of the directory is read and
 // validated with parseSignatureFile; one that cannot be read, is not of schema 3 or repeats a library already read is
 // skipped with W_SIGNATURE_FILE_SKIPPED, so a bad local file never stops `init`. No directory, or none holding a file,
-// gives no file and no diagnostic: the caller decides (`init` raises W_SIGNATURES_ABSENT, p6-proposals).
+// gives no file and no diagnostic: the caller decides, with signaturesAbsent (W_SIGNATURES_ABSENT; `signatures <rom>`
+// and `init` proceed without signatures).
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
@@ -89,4 +90,13 @@ export async function locateSignatures(options: LocateSignaturesOptions): Promis
     return file === undefined ? [] : [file];
   });
   return { dir, files, diagnostics };
+}
+
+/**
+ * W_SIGNATURES_ABSENT when the locator found no valid file (the directory it read is named), else undefined: what a
+ * caller that proceeds without signatures reports (`signatures <rom>`, `init`).
+ */
+export function signaturesAbsent(located: LocatedSignatures): Diagnostic | undefined {
+  if (located.files.length > 0) return undefined;
+  return diagnostic(ShellCodes, 'W_SIGNATURES_ABSENT', `no built signature file in ${located.dir}; build them with \`romlift signatures build <spec>\` (or set ${SIGNATURES_ENV})`, { path: located.dir });
 }
