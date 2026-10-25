@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "41b9eae3e7fbfed3d08342202daf2b690b94af1f",
+    "commit": "fa5d7abf4dacd5f88fb87986ac7159d762a6af06",
     "dirty": false,
-    "sourceDigest": "6ba924e6a676b74c4766f1d6dd716ad1db3dac7e4e07390ad35e4a0fed66d21f",
+    "sourceDigest": "929668b8a99f91858ca2c5750b5ac22e5b6b14c22e5c9f59ba83de7d05334638",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -120,7 +120,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "966ee91a9b235e60a739ab35616d69932a17f13bc304587bdfa8d46c4741170b",
+    "inputsDigest": "729569718223b6ec47dbed29dc76538ea251bb1bf11b10065783a6d289062151",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1904,16 +1904,16 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 956.88,
+        "maxRssMiB": 988.42,
         "maxOldSpaceSizeMiB": 1024,
-        "treeDigest": "7ee1ffe5a27be1ff135d64ecb12586d198dd57b7812c6174ce27267856f1de99"
+        "treeDigest": "fa5bea9e0568d55ddd45cad67bd0efabe14a865d2e763dc25b341a4a583119fc"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 965.34,
+        "maxRssMiB": 995.69,
         "maxOldSpaceSizeMiB": 1024,
-        "treeDigest": "7ee1ffe5a27be1ff135d64ecb12586d198dd57b7812c6174ce27267856f1de99"
+        "treeDigest": "fa5bea9e0568d55ddd45cad67bd0efabe14a865d2e763dc25b341a4a583119fc"
       }
     ]
   },
@@ -2025,7 +2025,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.958; CPU/limit: fe7j 1182/12659 ms, klonoa 257/306 ms, pokeemerald 2342/4208 ms, sa2 733/781 ms, sa3 1122/1488 ms, tmc 1454/1779 ms"
+        "detail": "median of 9 runs; calibration ratio 0.966; CPU/limit: fe7j 1205/12762 ms, klonoa 249/308 ms, pokeemerald 2386/4242 ms, sa2 754/787 ms, sa3 1138/1500 ms, tmc 1488/1794 ms"
       },
       {
         "id": "g3.link",
@@ -2064,11 +2064,11 @@
       },
       {
         "id": "g3.speed-budget",
-        "verdict": "fail",
+        "verdict": "pass",
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "bench speed --json exited 1:\ncalibration 189.9 ms CPU, baseline 196.62 ms, ratio 0.966\nfe7j         1188.2 ms CPU, 867.3 ms wall, limit 12761.2 ms: ok\n  generate 3735.1 ms CPU, 3360.4 ms wall, 7936 files\n  init     4895.6 ms CPU, 4254.1 ms wall, 7936 files\nklonoa       249.9 ms CPU, 227.7 ms wall, limit 308.1 ms: ok\n  generate 1104.8 ms CPU, 1031.5 ms wall, 662 files\n  init     1346.0 ms CPU, 1252.7 ms wall, 662 files\npokeemerald  2314.1 ms CPU, 1781.0 ms wall, limit 4241.9 ms: ok\n  generate 8171.7 ms CPU, 7542.9 ms wall, 16010 files\n  init     10370.1 ms CPU, 9384.3 ms wall, 16010 files\nsa2          791.3 ms CPU, 588.1 ms wall, limit 787.2 ms: SLOWER\n  generate 2446.4 ms CPU, 2160.3 ms wall, 2978 files\n  init     3290.6 ms CPU, 2839.7 ms wall, 2978 files\nsa3          1174.8 ms CPU, 948.9 ms wall, limit 1500.4 ms: ok\n  generate 3180.8 ms CPU, 2902.2 ms wall, 4787 files\n  init     4438.8 ms CPU, 3985.9 ms wall, 4787 files\ntmc          1505.6 ms CPU, 1145.7 ms wall, limit 1793.8 ms: ok\n  generate 3686.2 ms CPU, 3323.4 ms wall, 8765 files\n  init     5158.6 ms CPU, 4529.0 ms wall, 8765 files\n{\"schema\":\"romlift/bench-speed@1\",\"runs\":{\"calibration\":5,\"analysis\":9,\"emission\":5},\"calibration\":{\"cpuMs\":189.858,\"baselineCpuMs\":196.62,\"ratio\":0.9656087885260909},\"roms\":[{\"name\":\"fe7j\",\"analysisCpuMs\":1188.249,\"budgetAnalysisCpuMs\":1203.735,\"analysisRuns\":9,\"wallMs\":867.2633330000008,\"baselineCpuMs\":8810.46,\"generateCpuMs\":3735.137,\"initCpuMs\":4895.643},{\"name\":\"klonoa\",\"analysisCpuMs\":249.919,\"budgetAnalysisCpuMs\":249.429,\"analysisRuns\":9,\"wallMs\":227.67779199999495,\"baselineCpuMs\":212.73,\"generateCpuMs\":1104.805,\"initCpuMs\":1346.014},{\"name\":\"pokeemerald\",\"analysisCpuMs\":2314.107,\"budgetAnalysisCpuMs\":2300.479,\"analysisRuns\":9,\"wallMs\":1781.0296249999956,\"baselineCpuMs\":2928.62,\"generateCpuMs\":8171.727,\"initCpuMs\":10370.127},{\"name\":\"sa2\",\"analysisCpuMs\":791.301,\"budgetAnalysisCpuMs\":799.87,\"analysisRuns\":9,\"wallMs\":588.0735839999979,\"baselineCpuMs\":543.5,\"generateCpuMs\":2446.402,\"initCpuMs\":3290.614},{\"name\":\"sa3\",\"analysisCpuMs\":1174.777,\"budgetAnalysisCpuMs\":1194.983,\"analysisRuns\":9,\"wallMs\":948.876041999989,\"baselineCpuMs\":1035.92,\"generateCpuMs\":3180.786,\"initCpuMs\":4438.813},{\"name\":\"tmc\",\"analysisCpuMs\":1505.649,\"budgetAnalysisCpuMs\":1462.653,\"analysisRuns\":9,\"wallMs\":1145.7274159999797,\"baselineCpuMs\":1238.47,\"generateCpuMs\":3686.216,\"initCpuMs\":5158.564}]}"
+        "detail": "calibration ratio 0.951; fe7j analysis 1231/2852 ms, klonoa analysis 258/2852 ms, pokeemerald analysis 2256/2852 ms, pokeemerald generate 8061/9505 ms, pokeemerald init 10448/14258 ms, sa2 analysis 728/2852 ms, sa3 analysis 1005/2852 ms, tmc analysis 1394/2852 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2084,7 +2084,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label tree 9d890020bb49a2342f5e9d4d258194879bd8a45b6be905a1322bab79e2d7a784 (21 files); adr-handler-block tree b444016fd8404f5d12f2428ce887710e85f550e04a75aa934b43faded3e87eec (17 files); adr-label-and-data tree b9d8d6bd74522062497972f675f7bd91dd2d161f64a92e851d18967fe5b82fbc (29 files); arm-pools-in-front tree b9e7951de5c71a8d72e4a74a4728c7a222edb172d2fe24dab281e8a8e880d689 (21 files); bx-lr-stub-chain tree e1fa5873d946d134e3d3becccfab7af4d81a7109f7033c1e672ab3ae039d696d (20 files); bx-pc-veneer tree bcdc1bef9eebf43dee7130c81c7a3bae18a4af04fb9ce9d97544ed1265a8f10a (25 files); c-data tree e2bddc17967821f05272b6791d15be1cce55efaa160e30d8d390598292cee87b (21 files); code-copied-to-ram tree e21ebd3d864ab3a80394681f85a883a12e0535dfeeb24a9ee0991750d822b464 (20 files); code-end-data-decodes tree 6eafb74a2b093203877170d4d805b17bb8c01bb4d0a330dd4e22fbbcae64d72e (19 files); code-end-unsized-last tree c781aea53ffd0124f98ba79767006a3b5494ead9431afa93b0545d34aa0b3543 (18 files); composite tree 46d241dc6e1f97a9dd2cbccbf52768dd4e8add8d9940d3a011ffdcd999593078 (52 files); computed-jump-callback tree 16438d04a84de3502bf240353b9ecf2a9e0046524843b574c5fa096fb001f693 (17 files); data-frame-not-function tree a99046e4c1ced5247f15a06b8a4b2bdded592f9000c003285c85bd7547af593c (20 files); data-named-between-data tree d6f9f3cf19c7b43bebb7dab318b29dd87a04d935bd2bc0320f1d2d0c551c9d6d (22 files); data-table-between-functions tree 9de6ff645ce21fca49ee5ef580c48647954aa48d09a4057e9ec60a66b49a3d36 (23 files); data-thumb-push-pop tree 55a9432172147476a86a4a3f4cc211fed2187b32beb26095197ecb55fe685cf7 (25 files); dead-code-in-extent tree 4b5da54030441841a16a8103f37f6fa805ef6407dcd08e3484dfed9a667f0601 (23 files); entry-stub-table tree 9218a75de9d1525d84f257417c8435ee0d245ee14487f9e0c756cfa8d7686c1f (23 files); false-stub-2byte tree 0ebe973438c72e9d4d79c1a439995857e62660819980879f06af535372a00469 (18 files); far-jump tree b52a2d6bbe9476a67127d77afe4d4d556e05bccbd1b4e95d1d7f1c7df449183c (16 files); gap-resume-2mod4 tree 685337cec2a6723078119879fddd160c2e5732816c379a35d8ce4de03c975379 (30 files); handwritten-2mod4 tree d85d4b14684a198252582384a68154ad07d98cab89f72f7a220834188dc9a2fd (24 files); inline-arm-switch tree c0ef6f5d5213ac870d9ad94b3e77513b8f53255ca42136d8cb3e2d87b2471ecd (24 files); large-data-referenced tree 88509dbaf116f6ae17240be7b34df0b95e781af7033fec3f902af266d80fdd42 (21 files); leaf-handler-pointer-table tree 8f2051957d788aa68547c3482cd845664334a49be7e77bebc01953a9f2b590d8 (19 files); library tree c81b4019f59391b0944ad5ca1f120e0ac1da0733b120f6fa1a4b046bcf877e7d (29 files); library-game tree 4ff45d720a8f74e9862a6423504e305513b72f46ff4eca1866ce0133c4ab6f32 (36 files); library-ref2 tree 6f297087d067e8ce2dd719a9b3ab89dd72847aca8ba3cb829d00c9b96edfdcda (22 files); local-subroutine tree 5d7a4e6246f1ea7cd3dcd1f1c768a349a4fed7028806c0216ec379c4e7ebfe93 (18 files); mixer-tiled-hole tree aade94d781df365615e806c42e5d56626aaee33dbb5c0e058b6a4299600e987e (35 files); mov-lr-pc-bx tree 4da7e1474db9bec8e47ef2735ca84dec4c1300f9117bc6bc24a62b6a7586fee3 (25 files); multi-compiler tree db56418dbe88dcd131258d1fa5671cdc4c795bd500dc6b687797b9fd63302472 (21 files); noreturn-call-then-next tree f9f00497c76eec980e169adca881303b9fc503251b7a78a9cdaa41f08a5b2a23 (17 files); pointer-table-before-leaf tree b925eb34956695c54ccdaacfab2e95adf4165214075f5d63626b39c02955c088 (26 files); pointer-word-in-gap tree 15be192da19e2feff0e3b2291863eddc39f449bebb7080a47aba09c8436cf708 (22 files); pool-padded-46c0 tree 4b2780ad8e3b0fb220ace5cda8d2dc1f77ca9ca2bbc063f052df50524cf8d76c (24 files); pool-word-push-lr tree 3e90a30e90c9cb52375806f7e3ea535ded4e4e15801df8db23449690b3cd8678 (19 files); pops-unpushed-frame tree 4c84a8bc5b9c3f90d4f2d748144bc206301ffc8d00ce4c16ce971cf773d339f9 (27 files); prologueless-thumb-over-arm tree 3655802dbec1fae197b0db617f49898485db4891d475c61955e22bad6ffbdd39 (24 files); push-lr-2mod4 tree 95e1d07fd16a1747f80d57d5483dc9870a77f86bdcc49614c84bda8b309723cc (27 files); ram-code-entries tree 7ad946153ffed267ecbadf897909753ca96a9a58181ed745c35c614122b5ef8a (27 files); ram-copy-args-straight-line tree 16c42ebecae4d802a7d5af19bbd55f83448182e681d93f455aecaa58a389b094 (19 files); ram-copy-bios tree d1c2394407afcca9285793346a599f01f5bafe24674de5d768d1f08ba7324dbf (28 files); ram-copy-call-via tree bb1668366559477093e983b2244f88ebbe6f5d77173f8b317ea951494887e705 (26 files); ram-copy-entry-boundaries tree 5e6c94cdee93d7d4ff8bccca8a158f957fedae283c19feb46623417a79e46607 (30 files); ram-copy-memcpy tree c1ead55272a94e470d0986cd6f4dadf4de267bc5ba6b781bdb8838fb9e71fc01 (26 files); ram-copy-setup-bound tree 3dec027af8fba7c55f82557a8cbbc900586ad8009126dbf90b2449ab312db745 (27 files); recursive-far-call tree 0e4aca660673218c0bcb01778407e3b530817d0df4c2597b782f541c75b80271 (17 files); shared-tail tree 9dd689326affe480be8e6ee42db692d7d99afdcaf615fc19d71dfc11fc1dc070 (20 files); swi-reset tree 6edfeea13658e922a7f59f50670c9fe2e46f346969e685afc56d84c715d8698c (17 files); table-jump-hoisted tree fdb53a57f635b88b222bd9ae67a36c2aa9c6df73ab312334baf189e124598ea7 (17 files); thumb-pointer-run tree 18ff385797ff14046abd3c59d89a9588fcf27fe9dd6689176cab515e9740a7ad (25 files); unreferenced-leaf tree 7fad4c7d70e4affcdbe311821b3ad13a1608a2d6ecac342e4f72244b6c610793 (18 files); veneer-array tree 9be3920ad7bb10a5aa29ae4c9d006b222530b45a18d898b379fedb77e786ee1b (27 files); fe7j tree 2b906da006882d41b35a5ab4708ba6cf550c2b7bc5c2b7d166bf9acdde7461b8 (7936 files); klonoa tree acb75ab4b4451da42bdbd1bfc9bce21f421d2f17f97abf46e54ef5ad0853c5c6 (662 files); pokeemerald tree 6ca6fd2b02f772b16c94e4ae6cc929f413e40b92ef5a6d798ba211af284dccee (16010 files); sa2 tree 1ab80463b148de316e0b1ce0d53795ed537249419acc69e4c2a2592562568cf8 (2978 files); sa3 tree 59f617c01edc7a50c826900b0a996abba94bbd0ee28dce05962e4a4e05296200 (4787 files); tmc tree 77664bc1d16f4eeff7f936a8f9fe1557d21422d5fd9bc46b7081ca02e4ff4924 (8764 files); 60 trees identical across cwd, project path, TZ and locale; no file names a project path"
+        "detail": "adr-function-label tree 25f16846cc0a453581c9a8c9c9165a46df97c6b27172e053fd119d3c2a806ff8 (17 files); adr-handler-block tree 53c0612635a88d0d631be2282277cc92a7ae023248f42c748327310fe185c1cb (14 files); adr-label-and-data tree 3a95ef9beb885727e249b7311e932e716a7dde5f1408e6a73902b3611a300700 (23 files); arm-pools-in-front tree 86b8260ec532ff06e7d3f17fe21830159378657ab722f98c9e4d5567380fffda (17 files); bx-lr-stub-chain tree 84f9e7fa05b9c4b7d6ff36fa3816063d54b1bfe4ad9b8c90f8795781e8a4294d (17 files); bx-pc-veneer tree 47b2a46e9ef0afbd7238aa96b4dc68e61ef8a1c373cf66b3ff9228d60cd4df38 (20 files); c-data tree 91158e6a81961dc2eef1955cf72188bb368f15701b5efc7d33b49793787d4591 (17 files); code-copied-to-ram tree 9248c92ac73c95b5094c0d16ce23f5171da758247be2a01c4bfd74525d256f48 (16 files); code-end-data-decodes tree 41bc7c633b9105fcccba26f6fada375c775ca143f806d5c5520098ebbf730096 (15 files); code-end-unsized-last tree 431c0a377977df6cfc76556f4bff30505b8443458cd26aec652e539454014569 (14 files); composite tree 39a8ebb9da4b3f315af5e27abe3cbcfd42ebfdaad342061159ad6637cc76cdb6 (46 files); computed-jump-callback tree 8159efd75f2558d8310e92af229f857b39afef0a65781755e04d6a8c43eb3f31 (14 files); data-frame-not-function tree e50ff18af53541e50fb09cab833197da5fee4b0fac9b2b2879ea7f182ecb3b0b (16 files); data-named-between-data tree 186cf769811fa8a7d9c2a915d80cbacffc333a7fa1a2a54ce9bd8f9a2627bcb1 (18 files); data-table-between-functions tree b3c3a8ddbffc8f058c1adb861c5fc904779b976c642500835a105df9523f2ee9 (20 files); data-thumb-push-pop tree 11fa02a5867311198df5309beafad4324cd44d6639e76d9d7235e3d3a9061c4c (22 files); dead-code-in-extent tree c30b19ef917e1070e808d86fc7fc569578141082769d013c4291b8bc99f7e0c7 (18 files); entry-stub-table tree 5c26ed270e3de6bac982436a006955980bf10783928d27ce62231bcf7230d435 (18 files); false-stub-2byte tree b9fef6d63f6a7ff363749e10d43541c7f76ba79b1aeed69cb73da49bf761afcb (15 files); far-jump tree 4c4ebdc24e5146545f1f65bc95d4738e0fe2941e679f2b92d1cfee6928ad7095 (13 files); gap-resume-2mod4 tree 077a2ec8ac81d352a09a45169d567232edf689d044c60b56e71b97440d7080c4 (24 files); handwritten-2mod4 tree 9ec5a3587f661e26e4ded2ee2a8f6fff326abe9c8777cb8d463aab86ed81c10a (19 files); inline-arm-switch tree 06540fbf0b347f9c524694e6c5fe3f9b7ad58c223cd9286ba5f407fddfcd9ed3 (19 files); large-data-referenced tree 9939cdec80cc410a80c877fbc84e7298fad59e82b6e5b289ac854308f6604f53 (17 files); leaf-handler-pointer-table tree cdc1784f0b94490216b18a14074666976962e7cbd20e6334b7bdee23693d070d (16 files); library tree 28b92e10f246caa581e954497a415224fceb80aaa321a00dc01ff0b489c9a9b8 (25 files); library-game tree d53f59ea120ba0e5411557743825f7036cc656e1cfeb1a3d6311bab8441930d4 (32 files); library-ref2 tree b742bc20fa40ca298600820595b9266da62114dec7f618f650d1a1f33ce58799 (19 files); local-subroutine tree 9dad5f28e39a10487c0be26373342c2f6eec91d9c70787954d21e7023d311960 (14 files); mixer-tiled-hole tree 6a20ab6dbb002eb593f1d0c1d1522911caf1f19969905d9a6f951acf39609e24 (28 files); mov-lr-pc-bx tree ff27c23eb68785a047b1e314c50590edd0ac572cf52fc6463753c13738628791 (20 files); multi-compiler tree 4ab2f5189a30db65b7a034b281b65a2345532b50e1a686ad38eb2a8a30b9987c (18 files); noreturn-call-then-next tree a2b2b7278399640a4fd9172db969933b4e7c13098125762dc81af8801ef811f7 (14 files); pointer-table-before-leaf tree 16a6d62db1cedab46831b1c9661b89503d12a2d00d0770a2f9ae1e2afd6c90c4 (22 files); pointer-word-in-gap tree bd62722aba086d4078e0a0306002ee9d092f256d1293ec20be0e2f3ae0998829 (18 files); pool-padded-46c0 tree cd44e965f75170a1bc3199e741dc803b1eaa3d7992810feb45a0c8c90292c1b9 (19 files); pool-word-push-lr tree 604d6168920eecc1dbe01519785223301996442c12635401ba123cf949512360 (16 files); pops-unpushed-frame tree 1d364d8f7c6bc00782143e4cac4addb7dcb4e3ffacb24ab0979d7696aafd1a66 (22 files); prologueless-thumb-over-arm tree e0f80b3023f67ec72ee75b0bd92d2dc3606ddf7bb3e260a7616e85a2ed4aef5c (19 files); push-lr-2mod4 tree 9a7b0cf80d00c48ed1d3d9de086b057bfb152c675a9822f08e4c76311244b9d4 (21 files); ram-code-entries tree 18c6c78c8648fec623c74210b2e9d5c09212167c5bcf34fe1dc7d09b029e6a84 (22 files); ram-copy-args-straight-line tree 72758f200712298c1bcf6ccb5c16c9af79e9fb49c4de7875410ed0808dabe826 (15 files); ram-copy-bios tree 5069e5caf1e30470447dfb61edac5798df30d096b856101230e05626121714e3 (23 files); ram-copy-call-via tree ac1c5db8c0c4624177771357b6c4fb64649fb922a566f697b37fc38660a97b46 (21 files); ram-copy-entry-boundaries tree b46bbd0c2e1195b0f719eba6bdd990311dead98e556767c16504b3685ed35e02 (25 files); ram-copy-memcpy tree 248bc66703a5de9c55d605798f1df53394e88bdcdf8f3afdbd0a0105c40bda9e (21 files); ram-copy-setup-bound tree b63b658068630d0bdf365a7ac9615bab2c926a45e76895c4341d257915676dd2 (22 files); recursive-far-call tree f7b27f9c0ad5cf96e12e85a064664e06e202014ad036d5df9b7ba3864445b27b (14 files); shared-tail tree 1269d35fa68eddea5ebc4db25e892dbd31b106a47228f84636e245f311206e96 (16 files); swi-reset tree 92d6335030a980310e52466b4ac80724c168c2fb43c9910e450a91fa5715f056 (14 files); table-jump-hoisted tree f20bc4b86d507619d3bddf3b6a3f1383365db6f59e3942d34330c2e2a042714c (14 files); thumb-pointer-run tree 39af9019ac7a5551e88400c174e519f408c5cc0fd17d5a84b981f19ec6d768ce (22 files); unreferenced-leaf tree 579e7b1b5951503cb51f612e6da0f36bb175ad6487266c627f166893d5e236c4 (15 files); veneer-array tree e061cb7eb3cca7673d6dc0bb5864d57a5e46e56627f7d3b25ffcb324079d4fbe (23 files); fe7j tree 00fbbebb1fc2a3acc109e9d17c3aee78538897b09b558c45423f84f4fdf3970f (7879 files); klonoa tree 16a70ddd3fecb62686914ac4476a302d3d129fc0449398981fc0f3681a3cf0aa (634 files); pokeemerald tree cd3b0add70577860005aca1f9280925bdc7675a7b0f800325b53c5a2a68b4110 (15967 files); sa2 tree 87a78f3bbcb9defed252190524e77c44df574e3a4b3c64dda71a37309b029703 (2956 files); sa3 tree 117c2c94d77c52a8a9d8c3df5eee298b004a0653a4dd383c284685be7088efa5 (4762 files); tmc tree 438a2083f2d24399e40b1c07cafeb0eab8bd4550fbcf42949d222c05ca6a367b (8724 files); 60 trees identical across cwd, project path, TZ and locale; no file names a project path"
       },
       {
         "id": "g4.e2e-real",
@@ -2101,7 +2101,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label: 38 files, 21 ops all keep; adr-handler-block: 34 files, 17 ops all keep; adr-label-and-data: 46 files, 29 ops all keep; arm-pools-in-front: 38 files, 21 ops all keep; bx-lr-stub-chain: 37 files, 20 ops all keep; bx-pc-veneer: 42 files, 25 ops all keep; c-data: 38 files, 21 ops all keep; code-copied-to-ram: 37 files, 20 ops all keep; code-end-data-decodes: 36 files, 19 ops all keep; code-end-unsized-last: 35 files, 18 ops all keep; composite: 69 files, 52 ops all keep; computed-jump-callback: 34 files, 17 ops all keep; data-frame-not-function: 37 files, 20 ops all keep; data-named-between-data: 39 files, 22 ops all keep; data-table-between-functions: 40 files, 23 ops all keep; data-thumb-push-pop: 42 files, 25 ops all keep; dead-code-in-extent: 40 files, 23 ops all keep; entry-stub-table: 40 files, 23 ops all keep; false-stub-2byte: 35 files, 18 ops all keep; far-jump: 33 files, 16 ops all keep; gap-resume-2mod4: 47 files, 30 ops all keep; handwritten-2mod4: 41 files, 24 ops all keep; inline-arm-switch: 41 files, 24 ops all keep; large-data-referenced: 38 files, 21 ops all keep; leaf-handler-pointer-table: 36 files, 19 ops all keep; library: 46 files, 29 ops all keep; library-game: 53 files, 36 ops all keep; library-ref2: 39 files, 22 ops all keep; local-subroutine: 35 files, 18 ops all keep; mixer-tiled-hole: 52 files, 35 ops all keep; mov-lr-pc-bx: 42 files, 25 ops all keep; multi-compiler: 38 files, 21 ops all keep; noreturn-call-then-next: 34 files, 17 ops all keep; pointer-table-before-leaf: 43 files, 26 ops all keep; pointer-word-in-gap: 39 files, 22 ops all keep; pool-padded-46c0: 41 files, 24 ops all keep; pool-word-push-lr: 36 files, 19 ops all keep; pops-unpushed-frame: 44 files, 27 ops all keep; prologueless-thumb-over-arm: 41 files, 24 ops all keep; push-lr-2mod4: 44 files, 27 ops all keep; ram-code-entries: 44 files, 27 ops all keep; ram-copy-args-straight-line: 36 files, 19 ops all keep; ram-copy-bios: 45 files, 28 ops all keep; ram-copy-call-via: 43 files, 26 ops all keep; ram-copy-entry-boundaries: 47 files, 30 ops all keep; ram-copy-memcpy: 43 files, 26 ops all keep; ram-copy-setup-bound: 44 files, 27 ops all keep; recursive-far-call: 34 files, 17 ops all keep; shared-tail: 37 files, 20 ops all keep; swi-reset: 34 files, 17 ops all keep; table-jump-hoisted: 34 files, 17 ops all keep; thumb-pointer-run: 42 files, 25 ops all keep; unreferenced-leaf: 35 files, 18 ops all keep; veneer-array: 44 files, 27 ops all keep; fe7j: 7935 files, 7918 ops all keep; klonoa: 656 files, 639 ops all keep; pokeemerald: 16006 files, 15989 ops all keep; sa2: 2980 files, 2963 ops all keep; sa3: 4795 files, 4778 ops all keep; tmc: 8819 files, 8802 ops all keep; generate after init changes no file on 60 ROMs"
+        "detail": "adr-function-label: 34 files, 17 ops all keep; adr-handler-block: 31 files, 14 ops all keep; adr-label-and-data: 40 files, 23 ops all keep; arm-pools-in-front: 34 files, 17 ops all keep; bx-lr-stub-chain: 34 files, 17 ops all keep; bx-pc-veneer: 37 files, 20 ops all keep; c-data: 34 files, 17 ops all keep; code-copied-to-ram: 33 files, 16 ops all keep; code-end-data-decodes: 32 files, 15 ops all keep; code-end-unsized-last: 31 files, 14 ops all keep; composite: 63 files, 46 ops all keep; computed-jump-callback: 31 files, 14 ops all keep; data-frame-not-function: 33 files, 16 ops all keep; data-named-between-data: 35 files, 18 ops all keep; data-table-between-functions: 37 files, 20 ops all keep; data-thumb-push-pop: 39 files, 22 ops all keep; dead-code-in-extent: 35 files, 18 ops all keep; entry-stub-table: 35 files, 18 ops all keep; false-stub-2byte: 32 files, 15 ops all keep; far-jump: 30 files, 13 ops all keep; gap-resume-2mod4: 41 files, 24 ops all keep; handwritten-2mod4: 36 files, 19 ops all keep; inline-arm-switch: 36 files, 19 ops all keep; large-data-referenced: 34 files, 17 ops all keep; leaf-handler-pointer-table: 33 files, 16 ops all keep; library: 42 files, 25 ops all keep; library-game: 49 files, 32 ops all keep; library-ref2: 36 files, 19 ops all keep; local-subroutine: 31 files, 14 ops all keep; mixer-tiled-hole: 45 files, 28 ops all keep; mov-lr-pc-bx: 37 files, 20 ops all keep; multi-compiler: 35 files, 18 ops all keep; noreturn-call-then-next: 31 files, 14 ops all keep; pointer-table-before-leaf: 39 files, 22 ops all keep; pointer-word-in-gap: 35 files, 18 ops all keep; pool-padded-46c0: 36 files, 19 ops all keep; pool-word-push-lr: 33 files, 16 ops all keep; pops-unpushed-frame: 39 files, 22 ops all keep; prologueless-thumb-over-arm: 36 files, 19 ops all keep; push-lr-2mod4: 38 files, 21 ops all keep; ram-code-entries: 39 files, 22 ops all keep; ram-copy-args-straight-line: 32 files, 15 ops all keep; ram-copy-bios: 40 files, 23 ops all keep; ram-copy-call-via: 38 files, 21 ops all keep; ram-copy-entry-boundaries: 42 files, 25 ops all keep; ram-copy-memcpy: 38 files, 21 ops all keep; ram-copy-setup-bound: 39 files, 22 ops all keep; recursive-far-call: 31 files, 14 ops all keep; shared-tail: 33 files, 16 ops all keep; swi-reset: 31 files, 14 ops all keep; table-jump-hoisted: 31 files, 14 ops all keep; thumb-pointer-run: 39 files, 22 ops all keep; unreferenced-leaf: 32 files, 15 ops all keep; veneer-array: 40 files, 23 ops all keep; fe7j: 7879 files, 7862 ops all keep; klonoa: 631 files, 614 ops all keep; pokeemerald: 15965 files, 15948 ops all keep; sa2: 2958 files, 2941 ops all keep; sa3: 4768 files, 4751 ops all keep; tmc: 8767 files, 8750 ops all keep; generate after init changes no file on 60 ROMs"
       },
       {
         "id": "g4.toml-mutations",
@@ -2110,7 +2110,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "adr-function-label: no place for move-start; adr-function-label: no place for split-module; arm-pools-in-front: no place for move-start; arm-pools-in-front: no place for split-module; dead-code-in-extent: no place for move-start; dead-code-in-extent: no place for delete-function; dead-code-in-extent: no place for split-module; entry-stub-table: no place for move-start; entry-stub-table: no place for split-module; handwritten-2mod4: no place for move-start; handwritten-2mod4: no place for split-module; inline-arm-switch: no place for move-start; inline-arm-switch: no place for split-module; local-subroutine: no place for move-start; local-subroutine: no place for split-module; mov-lr-pc-bx: no place for move-start; mov-lr-pc-bx: no place for split-module; pool-padded-46c0: no place for move-start; pool-padded-46c0: no place for delete-function; pool-padded-46c0: no place for split-module; prologueless-thumb-over-arm: no place for move-start; prologueless-thumb-over-arm: no place for delete-function; prologueless-thumb-over-arm: no place for split-module; push-lr-2mod4: no place for move-start; push-lr-2mod4: no place for split-module; shared-tail: no place for move-start; shared-tail: no place for split-module; 273 legal edits link to the SHA-1 and build with make to it (move-start 48, rename 60, delete-function 57, add-override 60 (each a no-op that warns W_OVERRIDE_IGNORED, D81 c), split-module 48), and 179 illegal edits give their codes, on 60 ROMs"
+        "detail": "adr-function-label: no place for move-start; adr-function-label: no place for add-override; adr-function-label: no place for split-module; adr-handler-block: no place for add-override; adr-label-and-data: no place for add-override; arm-pools-in-front: no place for move-start; arm-pools-in-front: no place for split-module; bx-pc-veneer: no place for add-override; c-data: no place for add-override; code-copied-to-ram: no place for add-override; code-end-data-decodes: no place for add-override; code-end-unsized-last: no place for add-override; data-frame-not-function: no place for add-override; data-thumb-push-pop: no place for add-override; dead-code-in-extent: no place for move-start; dead-code-in-extent: no place for delete-function; dead-code-in-extent: no place for add-override; dead-code-in-extent: no place for split-module; entry-stub-table: no place for move-start; entry-stub-table: no place for add-override; entry-stub-table: no place for split-module; false-stub-2byte: no place for add-override; far-jump: no place for add-override; handwritten-2mod4: no place for move-start; handwritten-2mod4: no place for add-override; handwritten-2mod4: no place for split-module; inline-arm-switch: no place for move-start; inline-arm-switch: no place for add-override; inline-arm-switch: no place for split-module; library: no place for add-override; library-game: no place for add-override; library-ref2: no place for add-override; local-subroutine: no place for move-start; local-subroutine: no place for add-override; local-subroutine: no place for split-module; mov-lr-pc-bx: no place for move-start; mov-lr-pc-bx: no place for add-override; mov-lr-pc-bx: no place for split-module; multi-compiler: no place for add-override; pool-padded-46c0: no place for move-start; pool-padded-46c0: no place for delete-function; pool-padded-46c0: no place for add-override; pool-padded-46c0: no place for split-module; pool-word-push-lr: no place for add-override; pops-unpushed-frame: no place for add-override; prologueless-thumb-over-arm: no place for move-start; prologueless-thumb-over-arm: no place for delete-function; prologueless-thumb-over-arm: no place for add-override; prologueless-thumb-over-arm: no place for split-module; push-lr-2mod4: no place for move-start; push-lr-2mod4: no place for split-module; ram-copy-args-straight-line: no place for add-override; ram-copy-call-via: no place for add-override; ram-copy-entry-boundaries: no place for add-override; recursive-far-call: no place for add-override; shared-tail: no place for move-start; shared-tail: no place for split-module; table-jump-hoisted: no place for add-override; 242 legal edits link to the SHA-1 and build with make to it (move-start 48, rename 60, delete-function 57, add-override 29 (each accepted through its seed, no W_OVERRIDE_IGNORED, D98 d), split-module 48), and 239 illegal edits give their codes, on 60 ROMs"
       },
       {
         "id": "g4.worktree",
@@ -2128,18 +2128,18 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "448 expected modules on 60 ROMs equal their ROM ranges byte for byte, and each unit's object as assembled equals them outside its relocated fields with every symbol where the model places it"
+        "detail": "452 expected modules on 61 targets (1 runs_at), each linked at its module's address, equal their ROM ranges byte for byte with every symbol where the model places it"
       },
       {
         "id": "g6.objdiff",
-        "verdict": "fail",
+        "verdict": "pass",
         "inputs": {
           "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "objects": "1528d229c866d9104663c0e2d1ba3570454a35e07d54a41af81bf723211817fd",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "objdiff: fe7j: 9 instruction, 3 missing-relocation, 7 relocation; TalkInterpret instruction +0xaa8 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xb64 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xcc0 arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xd0c arg-mismatch: .word 0x30000c8 | .word sTalkText | TalkInterpret instruction +0xd58 arg-mismatch: .word 0x30000c8 | .word sTalkText; klonoa: 1 relocation, 130 tool; LevelOrWorldInit relocation +0x1ee0 R_ARM_ABS32: gUnk_080520E4 | gVisionBgNbrTiles | sub_0804B254 tool src/code_0804B254.o: Invalid instruction size 1 | sub_0804B260 tool src/code_0804B254.o: Invalid instruction size 1 | sub_0804B270 tool src/code_0804B254.o: Invalid instruction size 1 | sub_0804B288 tool src/code_0804B254.o: Invalid instruction size 1; pokeemerald: 11 instruction, 9 missing-relocation, 2 missing-symbol, 135 relocation; DisableGpioPortRead instruction +0x8c4 arg-mismatch: .word 0x80000c8 | .word GPIOPortDirection+0x2 | EnableGpioPortRead instruction +0x8b0 arg-mismatch: .word 0x80000c8 | .word GPIOPortDirection+0x2 | SetUpCopyrightScreen instruction +0x298 arg-mismatch: .word 0x20000ac | .word gHeap+0xac | SiiRtcGetDateTime instruction +0x354 arg-mismatch: .word 0x80000c6 | .word GPIOPortDirection | SiiRtcGetStatus instruction +0x24c arg-mismatch: .word 0x80000c6 | .word GPIOPortDirection; sa2: 3 instruction, 1 missing-relocation; MP2K_event_rept instruction base only insert: (none) | .hword 0x0 | StageBgUpdate_Zone3Acts12 instruction +0xc00 arg-mismatch: .word 0x3000408 | .word sUnknown_03000408 | StageBgUpdate_Zone3Acts12 instruction +0xcf4 arg-mismatch: .word 0x3000408 | .word sUnknown_03000408 | OamMalloc missing-relocation +0x1530 R_ARM_ABS32: gOamMallocBuffer | a plain value; sa3: 52 instruction, 1 missing-relocation, 2 relocation; MP2K_event_rept instruction base only insert: (none) | .hword 0x0 | Task_80B5038 instruction +0x36d0 arg-mismatch: .word 0x30007b4 | .word gLoadedSaveGame+0x284 | Task_8E8_80B1DA0 instruction +0x328 arg-mismatch: .word 0x30008c7 | .word gStageData+0x27 | Task_8E8_80B1DA0 instruction +0x334 arg-mismatch: .word 0x30008be | .word gStageData+0x1e | Task_8E8_80B1E34 instruction +0x36c arg-mismatch: .word 0x30008c4 | .word gStageData+0x24; tmc: 3 missing-relocation, 14 relocation; DispString missing-relocation +0xbe0 R_ARM_ABS32: gTextRender | a plain value | sub_080533CC missing-relocation +0xfe8 R_ARM_ABS32: gPaletteBuffer | a plain value | zFree missing-relocation +0x55c R_ARM_ABS32: gzHeap | a plain value | CreateRandomItemDrop relocation +0x680 R_ARM_ABS32: gObjectDroptables | gAreaDroptables | FileSelectTask relocation +0x1d0 R_ARM_ABS32: gChooseFileState | gMenu"
+        "detail": "fe7j 1471 functions, gated 7 of ceiling 7, 0 uncompared (classes: 9 value-named, 5 symbol-addend, 7 relocation-other, 55 unnamed-target); klonoa 485 functions, gated 1 of ceiling 1, 130 uncompared (classes: 4 value-for-symbol, 1 relocation-other, 130 tool); pokeemerald 15850 functions, gated 12 of ceiling 12, 2 uncompared (classes: 41 value-named, 133 alias, 8 value-for-symbol, 11 relocation-other, 1 instruction-other, 2 missing-symbol, 2608 unnamed-target); sa2 2887 functions, gated 1 of ceiling 1, 0 uncompared (classes: 2658 value-named, 5 value-for-symbol, 1 instruction-other, 127 unnamed-target); sa3 4305 functions, gated 4 of ceiling 4, 0 uncompared (classes: 1650 value-named, 4 value-for-symbol, 3 relocation-other, 1 instruction-other, 81 unnamed-target); tmc 8388 functions, gated 25 of ceiling 25, 0 uncompared (classes: 11 value-named, 9 alias, 5 value-for-symbol, 25 relocation-other, 315 unnamed-target)"
       },
       {
         "id": "g6.ram-code-mapped",
@@ -2166,7 +2166,7 @@
           "elfs": "f890828eb18586cab6742cf36fab4e6fb2e7cca40e63eeb52eba886f5da01d8b",
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "fe7j: libagbsyscall 18/0, libgcc 22/0, m4a 94/10; 134 placements, 20 sizes (15 equal, 5 unjudged), 40 reference symbols, 0 reviewed names (reported); klonoa: libagbsyscall 6/0, libgcc 20/0, m4a 94/10; 120 placements, 17 sizes (15 equal, 2 unjudged), 6 reference symbols, 0 reviewed names (reported); pokeemerald: agb_flash 22/4, libagbsyscall 15/0, libgcc 67/0, librfu 148/5, m4a 109/10, siirtc 16/1; 377 placements, 17 sizes (15 equal, 2 unjudged), 397 reference symbols, 1 reviewed names (reported); sa2: agb_flash 17/1, libagbsyscall 12/0, libgcc 24/0, m4a 94/10; 147 placements, 17 sizes (15 equal, 2 unjudged), 140 reference symbols, 0 reviewed names (reported); sa3: agb_flash 17/1, libagbsyscall 13/0, libgcc 65/0, m4a 94/10; 189 placements, 19 sizes (17 equal, 2 unjudged), 1 reviewed names (reported); tmc: no PoC signatures row (not in the pinned baseline), judged by the ELF checks with no floor; tmc: libagbsyscall 13/0, m4a 55/10; 68 placements, 5 sizes (0 equal, 5 unjudged), 0 reviewed names (reported)"
+        "detail": "fe7j: libagbsyscall 18/0, libgcc 22/0, m4a 94/10; 134 placements, 20 sizes (15 equal, 5 unjudged), 40 reference symbols, 0 reviewed names (reported); klonoa: libagbsyscall 6/0, libgcc 20/0, m4a 94/10; 120 placements, 17 sizes (15 equal, 2 unjudged), 6 reference symbols, 0 reviewed names (reported); pokeemerald: agb_flash 22/4, libagbsyscall 15/0, libgcc 67/0, librfu 148/5, m4a 109/10, siirtc 16/1; 377 placements, 17 sizes (15 equal, 2 unjudged), 397 reference symbols, 1 reviewed names (reported); sa2: agb_flash 17/1, libagbsyscall 12/0, libgcc 24/0, m4a 94/10; 147 placements, 17 sizes (15 equal, 2 unjudged), 140 reference symbols, 0 reviewed names (reported); sa3: agb_flash 17/1, libagbsyscall 13/0, libgcc 65/0, m4a 94/10; 189 placements, 19 sizes (17 equal, 2 unjudged), 1 reviewed names (reported); tmc: libagbsyscall 13/0, m4a 55/10; 68 placements, 5 sizes (0 equal, 5 unjudged), 0 reviewed names (reported)"
       },
       {
         "id": "g6.signatures-loo",
@@ -2426,9 +2426,8 @@
         "scored": 1471,
         "differences": {
           "instruction": 9,
-          "missing-relocation": 3,
-          "relocation": 7,
-          "unnamed-target": 77
+          "relocation": 12,
+          "unnamed-target": 55
         },
         "examples": [
           {
@@ -2458,18 +2457,8 @@
           },
           {
             "function": "FixROMUnitStructPtr",
-            "kind": "missing-relocation",
-            "detail": "+0x514 R_ARM_ABS32: gCharacterData | a plain value"
-          },
-          {
-            "function": "GetCharacterData",
-            "kind": "missing-relocation",
-            "detail": "+0x1868 R_ARM_ABS32: gCharacterData | a plain value"
-          },
-          {
-            "function": "UnitInitFromDefinition",
-            "kind": "missing-relocation",
-            "detail": "+0x3b8 R_ARM_ABS32: gCharacterData | a plain value"
+            "kind": "relocation",
+            "detail": "+0x514 R_ARM_ABS32: gCharacterData | gUnk_08C4C124"
           },
           {
             "function": "GetBgFromPtr",
@@ -2492,38 +2481,70 @@
             "detail": "+0x1fb8 R_ARM_ABS32: gBg3Tm | gBgMapVramTable"
           },
           {
-            "function": "GetClassData",
-            "kind": "relocation",
-            "detail": "+0x1850 R_ARM_ABS32: gClassData | gCharacterData"
-          },
-          {
-            "function": "AnimInterpret",
-            "kind": "unnamed-target",
-            "detail": "+0x25c R_ARM_ABS32: section .text | AnimInterpret"
-          },
-          {
             "function": "ApplyFactionFacePal",
             "kind": "unnamed-target",
-            "detail": "+0xad8 R_ARM_ABS32: section .rodata | no relocation"
-          },
-          {
-            "function": "BattleAIS_ExecCommands",
-            "kind": "unnamed-target",
-            "detail": "+0x44c R_ARM_ABS32: section .text | BattleAIS_ExecCommands"
-          },
-          {
-            "function": "BattleAIS_ExecCommands",
-            "kind": "unnamed-target",
-            "detail": "+0x74 R_ARM_ABS32: section .text | BattleAIS_ExecCommands"
+            "detail": "+0xad8 R_ARM_ABS32: section .rodata | gUnk_0818F8FC"
           },
           {
             "function": "BattleCheckTriangleAttack",
             "kind": "unnamed-target",
-            "detail": "+0x1054 R_ARM_ABS32: section .rodata | no relocation"
+            "detail": "+0x1054 R_ARM_ABS32: section .rodata | gUnk_081C9474"
+          },
+          {
+            "function": "CanActiveUnitStillMove",
+            "kind": "unnamed-target",
+            "detail": "+0x1214 R_ARM_ABS32: section .rodata | gUnk_081C922F"
+          },
+          {
+            "function": "DisplayBwl",
+            "kind": "unnamed-target",
+            "detail": "+0x5d8 R_ARM_ABS32: section .rodata | gStatScreenWeaponExpLabelsMagicalInfo"
+          },
+          {
+            "function": "DisplayBwl",
+            "kind": "unnamed-target",
+            "detail": "+0x5dc R_ARM_ABS32: section .rodata | gStatScreenWeaponExpLabelsMagicalInfo"
           }
-        ]
+        ],
+        "classes": {
+          "counts": {
+            "value-named": 9,
+            "symbol-addend": 5,
+            "relocation-other": 7,
+            "unnamed-target": 55
+          },
+          "gated": 7,
+          "uncompared": 0,
+          "gatedExamples": [
+            {
+              "function": "FixROMUnitStructPtr",
+              "kind": "relocation-other",
+              "detail": "+0x514 R_ARM_ABS32: gCharacterData | gUnk_08C4C124"
+            },
+            {
+              "function": "GetCharacterData",
+              "kind": "relocation-other",
+              "detail": "+0x1868 R_ARM_ABS32: gCharacterData | gUnk_08C4C124"
+            },
+            {
+              "function": "GetClassData",
+              "kind": "relocation-other",
+              "detail": "+0x1850 R_ARM_ABS32: gClassData | gCharacterData"
+            },
+            {
+              "function": "GetClassSMSId",
+              "kind": "relocation-other",
+              "detail": "+0x1354 R_ARM_ABS32: gClassData | gCharacterData"
+            },
+            {
+              "function": "InitSpriteTalk",
+              "kind": "relocation-other",
+              "detail": "+0x160 R_ARM_ABS32: Pal_Text | gUnk_081901E8"
+            }
+          ]
+        }
       },
-      "treeDigest": "2b906da006882d41b35a5ab4708ba6cf550c2b7bc5c2b7d166bf9acdde7461b8",
+      "treeDigest": "00fbbebb1fc2a3acc109e9d17c3aee78538897b09b558c45423f84f4fdf3970f",
       "signatures": {
         "libraries": [
           {
@@ -2673,11 +2694,31 @@
         "linked": true,
         "scored": 485,
         "differences": {
+          "missing-relocation": 4,
           "relocation": 1,
-          "tool": 130,
-          "unnamed-target": 65
+          "tool": 130
         },
         "examples": [
+          {
+            "function": "MPlayExtender",
+            "kind": "missing-relocation",
+            "detail": "+0x470 R_ARM_ABS32: gMaxLines | a plain value"
+          },
+          {
+            "function": "m4aMPlayAllContinue",
+            "kind": "missing-relocation",
+            "detail": "+0x2b8 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
+          {
+            "function": "m4aMPlayAllStop",
+            "kind": "missing-relocation",
+            "detail": "+0x280 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
+          {
+            "function": "m4aSoundInit",
+            "kind": "missing-relocation",
+            "detail": "+0x110 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
           {
             "function": "LevelOrWorldInit",
             "kind": "relocation",
@@ -2707,35 +2748,26 @@
             "function": "sub_0804B2A0",
             "kind": "tool",
             "detail": "src/code_0804B254.o: Invalid instruction size 1"
-          },
-          {
-            "function": "DeleteAllSaveDataScreenHandler",
-            "kind": "unnamed-target",
-            "detail": "+0x52c R_ARM_ABS32: section .text | DeleteAllSaveDataScreenHandler"
-          },
-          {
-            "function": "FileSelectScreenDrawInfo",
-            "kind": "unnamed-target",
-            "detail": "+0x3074 R_ARM_ABS32: section .text | FileSelectScreenDrawInfo"
-          },
-          {
-            "function": "GameOverScreenStageSetup",
-            "kind": "unnamed-target",
-            "detail": "+0x648 R_ARM_ABS32: section .text | GameOverScreenStageSetup"
-          },
-          {
-            "function": "MP2K_event_memacc",
-            "kind": "unnamed-target",
-            "detail": "+0x134c R_ARM_ABS32: section .text | MP2K_event_memacc"
-          },
-          {
-            "function": "PauseMenuScreenHandler",
-            "kind": "unnamed-target",
-            "detail": "+0x94c R_ARM_ABS32: section .text | PauseMenuScreenHandler"
           }
-        ]
+        ],
+        "classes": {
+          "counts": {
+            "value-for-symbol": 4,
+            "relocation-other": 1,
+            "tool": 130
+          },
+          "gated": 1,
+          "uncompared": 130,
+          "gatedExamples": [
+            {
+              "function": "LevelOrWorldInit",
+              "kind": "relocation-other",
+              "detail": "+0x1ee0 R_ARM_ABS32: gUnk_080520E4 | gVisionBgNbrTiles"
+            }
+          ]
+        }
       },
-      "treeDigest": "acb75ab4b4451da42bdbd1bfc9bce21f421d2f17f97abf46e54ef5ad0853c5c6",
+      "treeDigest": "16a70ddd3fecb62686914ac4476a302d3d129fc0449398981fc0f3681a3cf0aa",
       "signatures": {
         "libraries": [
           {
@@ -2925,62 +2957,62 @@
         "linked": true,
         "scored": 15850,
         "differences": {
-          "instruction": 11,
-          "missing-relocation": 9,
+          "instruction": 42,
+          "missing-relocation": 8,
           "missing-symbol": 2,
-          "relocation": 135,
-          "unnamed-target": 3182
+          "relocation": 144,
+          "unnamed-target": 2608
         },
         "examples": [
           {
-            "function": "DisableGpioPortRead",
+            "function": "BattleAnimateBackSprite",
             "kind": "instruction",
-            "detail": "+0x8c4 arg-mismatch: .word 0x80000c8 | .word GPIOPortDirection+0x2"
+            "detail": "+0x746c arg-mismatch: .word 0x2000002 | .word gHeap+0x2"
           },
           {
-            "function": "EnableGpioPortRead",
+            "function": "BattleAnimateFrontSprite",
             "kind": "instruction",
-            "detail": "+0x8b0 arg-mismatch: .word 0x80000c8 | .word GPIOPortDirection+0x2"
+            "detail": "+0x72b8 arg-mismatch: .word 0x2000002 | .word gHeap+0x2"
           },
           {
-            "function": "SetUpCopyrightScreen",
+            "function": "BattleIntroSlide3",
             "kind": "instruction",
-            "detail": "+0x298 arg-mismatch: .word 0x20000ac | .word gHeap+0xac"
+            "detail": "+0x70c arg-mismatch: .word 0x2000002 | .word gHeap+0x2"
           },
           {
-            "function": "SiiRtcGetDateTime",
+            "function": "BattlePutTextOnWindow",
             "kind": "instruction",
-            "detail": "+0x354 arg-mismatch: .word 0x80000c6 | .word GPIOPortDirection"
+            "detail": "+0x1a6c arg-mismatch: .word 0x2000002 | .word gHeap+0x2"
           },
           {
-            "function": "SiiRtcGetStatus",
+            "function": "BattleStartClearSetData",
             "kind": "instruction",
-            "detail": "+0x24c arg-mismatch: .word 0x80000c6 | .word GPIOPortDirection"
+            "detail": "+0x3acc arg-mismatch: .word 0x2000002 | .word gHeap+0x2"
           },
           {
-            "function": "Cmd_loadspritegfx",
+            "function": "InitMysteryEventScript",
             "kind": "missing-relocation",
-            "detail": "+0x440 R_ARM_ABS32: gBattleAnimPicTable | a plain value"
+            "detail": "+0x80 R_ARM_ABS32: gMysteryEventScriptCmdTableEnd | a plain value"
           },
           {
-            "function": "Cmd_loadspritegfx",
+            "function": "MPlayExtender",
             "kind": "missing-relocation",
-            "detail": "+0x444 R_ARM_ABS32: gBattleAnimPaletteTable | a plain value"
+            "detail": "+0x4dc R_ARM_ABS32: gMaxLines | a plain value"
           },
           {
-            "function": "CopyItemNameHandlePlural",
+            "function": "MysteryGift_LoadLinkGameData",
             "kind": "missing-relocation",
-            "detail": "+0x158 R_ARM_ABS32: gBerries | a plain value"
+            "detail": "+0x6c0 R_ARM_ABS32: RomHeaderGameCode | a plain value"
           },
           {
-            "function": "CountTotalItemQuantityInBag",
+            "function": "MysteryGift_LoadLinkGameData",
             "kind": "missing-relocation",
-            "detail": "+0xbb4 R_ARM_ABS32: gBagPockets | a plain value"
+            "detail": "+0x6c4 R_ARM_ABS32: RomHeaderSoftwareVersion | a plain value"
           },
           {
-            "function": "InitDomeTrainers",
+            "function": "SiiRtcSetAlarm",
             "kind": "missing-relocation",
-            "detail": "+0x860 R_ARM_ABS32: gPlayerParty | a plain value"
+            "detail": "+0x684 R_ARM_ABS32: GPIOPortDirection | a plain value"
           },
           {
             "function": "GameCubeMultiBoot_ExecuteProgram",
@@ -3018,33 +3050,78 @@
             "detail": "+0x35e R_ARM_THM_PC22: GetMonData3 | GetMonData2"
           },
           {
-            "function": "AbilityBattleEffects",
-            "kind": "unnamed-target",
-            "detail": "+0x490c R_ARM_ABS32: section .text | AbilityBattleEffects"
-          },
-          {
-            "function": "AbilityBattleEffects",
-            "kind": "unnamed-target",
-            "detail": "+0x49f8 R_ARM_ABS32: section .text | AbilityBattleEffects"
-          },
-          {
-            "function": "AbilityBattleEffects",
-            "kind": "unnamed-target",
-            "detail": "+0x510c R_ARM_ABS32: section .text | AbilityBattleEffects"
-          },
-          {
-            "function": "AbilityBattleEffects",
-            "kind": "unnamed-target",
-            "detail": "+0x588c R_ARM_ABS32: section .text | AbilityBattleEffects"
-          },
-          {
             "function": "AddBerryTagTextToBg0",
             "kind": "unnamed-target",
             "detail": "+0x4d8 R_ARM_ABS32: section ewram_data | sBerryTag"
+          },
+          {
+            "function": "AddJumpScore",
+            "kind": "unnamed-target",
+            "detail": "+0x1d00 R_ARM_ABS32: section ewram_data | sPokemonJump"
+          },
+          {
+            "function": "AddPokeblockToConditions",
+            "kind": "unnamed-target",
+            "detail": "+0xefc R_ARM_ABS32: section ewram_data | sInfo"
+          },
+          {
+            "function": "AddScrollArrows",
+            "kind": "unnamed-target",
+            "detail": "+0xbf4 R_ARM_ABS32: section ewram_data | sMoveRelearnerStruct"
+          },
+          {
+            "function": "AddScrollIndicatorArrowObject",
+            "kind": "unnamed-target",
+            "detail": "+0xf24 R_ARM_ABS32: section .rodata | sScrollIndicatorTemplates"
           }
-        ]
+        ],
+        "classes": {
+          "counts": {
+            "value-named": 41,
+            "alias": 133,
+            "value-for-symbol": 8,
+            "relocation-other": 11,
+            "instruction-other": 1,
+            "missing-symbol": 2,
+            "unnamed-target": 2608
+          },
+          "gated": 12,
+          "uncompared": 2,
+          "gatedExamples": [
+            {
+              "function": "ply_rept",
+              "kind": "instruction-other",
+              "detail": "base only insert: (none) | .hword 0x0"
+            },
+            {
+              "function": "Cmd_loadspritegfx",
+              "kind": "relocation-other",
+              "detail": "+0x440 R_ARM_ABS32: gBattleAnimPicTable | gTilesetAnims_General_Water_Frame3"
+            },
+            {
+              "function": "Cmd_loadspritegfx",
+              "kind": "relocation-other",
+              "detail": "+0x444 R_ARM_ABS32: gBattleAnimPaletteTable | gTilesetAnims_General_Water_Frame5"
+            },
+            {
+              "function": "CopyItemNameHandlePlural",
+              "kind": "relocation-other",
+              "detail": "+0x158 R_ARM_ABS32: gBerries | gContestOpponents"
+            },
+            {
+              "function": "CountTotalItemQuantityInBag",
+              "kind": "relocation-other",
+              "detail": "+0xbb4 R_ARM_ABS32: gBagPockets | sCutGrassSpriteArrayPtr"
+            },
+            {
+              "function": "GetBerryInfo",
+              "kind": "relocation-other",
+              "detail": "+0x104 R_ARM_ABS32: gBerries | sBerryDescriptionPart2_Enigma"
+            }
+          ]
+        }
       },
-      "treeDigest": "6ca6fd2b02f772b16c94e4ae6cc929f413e40b92ef5a6d798ba211af284dccee",
+      "treeDigest": "cd3b0add70577860005aca1f9280925bdc7675a7b0f800325b53c5a2a68b4110",
       "signatures": {
         "libraries": [
           {
@@ -3246,25 +3323,40 @@
         "linked": true,
         "scored": 2887,
         "differences": {
-          "instruction": 3,
-          "missing-relocation": 1,
-          "unnamed-target": 158
+          "instruction": 2659,
+          "missing-relocation": 5,
+          "unnamed-target": 127
         },
         "examples": [
           {
-            "function": "MP2K_event_rept",
+            "function": "AeroEggMove",
             "kind": "instruction",
-            "detail": "base only insert: (none) | .hword 0x0"
+            "detail": "+0x10f8 arg-mismatch: .word 0x3000018 | .word SoundMainRAM_Buffer+0x18"
           },
           {
-            "function": "StageBgUpdate_Zone3Acts12",
+            "function": "AeroEggMove",
             "kind": "instruction",
-            "detail": "+0xc00 arg-mismatch: .word 0x3000408 | .word sUnknown_03000408"
+            "detail": "+0x10fc arg-mismatch: .word 0x3000030 | .word SoundMainRAM_Buffer+0x30"
           },
           {
-            "function": "StageBgUpdate_Zone3Acts12",
+            "function": "AeroEggMove",
             "kind": "instruction",
-            "detail": "+0xcf4 arg-mismatch: .word 0x3000408 | .word sUnknown_03000408"
+            "detail": "+0x1100 arg-mismatch: .word 0x3000034 | .word SoundMainRAM_Buffer+0x34"
+          },
+          {
+            "function": "AnimateResults",
+            "kind": "instruction",
+            "detail": "+0x6cc arg-mismatch: .word 0x3000168 | .word SoundMainRAM_Buffer+0x168"
+          },
+          {
+            "function": "AnimateResults",
+            "kind": "instruction",
+            "detail": "+0x6d0 arg-mismatch: .word 0x300012c | .word SoundMainRAM_Buffer+0x12c"
+          },
+          {
+            "function": "MPlayExtender",
+            "kind": "missing-relocation",
+            "detail": "+0x470 R_ARM_ABS32: gMaxLines | a plain value"
           },
           {
             "function": "OamMalloc",
@@ -3272,9 +3364,19 @@
             "detail": "+0x1530 R_ARM_ABS32: gOamMallocBuffer | a plain value"
           },
           {
-            "function": "ApplyItemboxEffect",
-            "kind": "unnamed-target",
-            "detail": "+0x220 R_ARM_ABS32: section .text | ApplyItemboxEffect"
+            "function": "m4aMPlayAllContinue",
+            "kind": "missing-relocation",
+            "detail": "+0x2b8 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
+          {
+            "function": "m4aMPlayAllStop",
+            "kind": "missing-relocation",
+            "detail": "+0x280 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
+          {
+            "function": "m4aSoundInit",
+            "kind": "missing-relocation",
+            "detail": "+0x110 R_ARM_ABS32: gNumMusicPlayers | a plain value"
           },
           {
             "function": "BoostEffect_StorePlayerState",
@@ -3287,18 +3389,40 @@
             "detail": "+0xbe4 R_ARM_ABS32: section .rodata | gUnknown_080DF794"
           },
           {
-            "function": "CallPlayerTransition",
-            "kind": "unnamed-target",
-            "detail": "+0x2e8c R_ARM_ABS32: section .text | CallPlayerTransition"
-          },
-          {
             "function": "CreateActor",
             "kind": "unnamed-target",
             "detail": "+0x95c R_ARM_ABS32: section .rodata | gUnknown_080D7540"
+          },
+          {
+            "function": "CreateAngledNoteParticle",
+            "kind": "unnamed-target",
+            "detail": "+0x130 R_ARM_ABS32: section .rodata | gUnknown_080E0140"
+          },
+          {
+            "function": "CreateAngledNoteParticle",
+            "kind": "unnamed-target",
+            "detail": "+0x178 R_ARM_ABS32: section .rodata | gUnknown_080E0140"
           }
-        ]
+        ],
+        "classes": {
+          "counts": {
+            "value-named": 2658,
+            "value-for-symbol": 5,
+            "instruction-other": 1,
+            "unnamed-target": 127
+          },
+          "gated": 1,
+          "uncompared": 0,
+          "gatedExamples": [
+            {
+              "function": "MP2K_event_rept",
+              "kind": "instruction-other",
+              "detail": "base only insert: (none) | .hword 0x0"
+            }
+          ]
+        }
       },
-      "treeDigest": "1ab80463b148de316e0b1ce0d53795ed537249419acc69e4c2a2592562568cf8",
+      "treeDigest": "87a78f3bbcb9defed252190524e77c44df574e3a4b3c64dda71a37309b029703",
       "signatures": {
         "libraries": [
           {
@@ -3488,41 +3612,56 @@
         "linked": true,
         "scored": 4305,
         "differences": {
-          "instruction": 52,
-          "missing-relocation": 1,
-          "relocation": 2,
-          "unnamed-target": 138
+          "instruction": 1651,
+          "missing-relocation": 4,
+          "relocation": 3,
+          "unnamed-target": 81
         },
         "examples": [
           {
-            "function": "MP2K_event_rept",
+            "function": "CgbSound",
             "kind": "instruction",
-            "detail": "base only insert: (none) | .hword 0x0"
+            "detail": "+0xc7c arg-mismatch: .word 0x3007ff0 | .word gUnknown_03007FF0"
           },
           {
-            "function": "Task_80B5038",
+            "function": "CreateApeProjectile",
             "kind": "instruction",
-            "detail": "+0x36d0 arg-mismatch: .word 0x30007b4 | .word gLoadedSaveGame+0x284"
+            "detail": "+0x900 arg-mismatch: .word 0x3000044 | .word SoundMainRAM_Buffer+0x44"
           },
           {
-            "function": "Task_8E8_80B1DA0",
+            "function": "CreateApeProjectile",
             "kind": "instruction",
-            "detail": "+0x328 arg-mismatch: .word 0x30008c7 | .word gStageData+0x27"
+            "detail": "+0x908 arg-mismatch: .word 0x300003c | .word SoundMainRAM_Buffer+0x3c"
           },
           {
-            "function": "Task_8E8_80B1DA0",
+            "function": "CreateBigAirBubble",
             "kind": "instruction",
-            "detail": "+0x334 arg-mismatch: .word 0x30008be | .word gStageData+0x1e"
+            "detail": "+0x3a4 arg-mismatch: .word 0x3000014 | .word SoundMainRAM_Buffer+0x14"
           },
           {
-            "function": "Task_8E8_80B1E34",
+            "function": "CreateBlueOrRedButton",
             "kind": "instruction",
-            "detail": "+0x36c arg-mismatch: .word 0x30008c4 | .word gStageData+0x24"
+            "detail": "+0x100 arg-mismatch: .word 0x3000036 | .word SoundMainRAM_Buffer+0x36"
           },
           {
-            "function": "sub_805C280",
+            "function": "MPlayExtender",
             "kind": "missing-relocation",
-            "detail": "+0x43c R_ARM_ABS32: gPlayers | a plain value"
+            "detail": "+0x470 R_ARM_ABS32: gMaxLines | a plain value"
+          },
+          {
+            "function": "m4aMPlayAllContinue",
+            "kind": "missing-relocation",
+            "detail": "+0x2b8 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
+          {
+            "function": "m4aMPlayAllStop",
+            "kind": "missing-relocation",
+            "detail": "+0x280 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
+          {
+            "function": "m4aSoundInit",
+            "kind": "missing-relocation",
+            "detail": "+0x110 R_ARM_ABS32: gNumMusicPlayers | a plain value"
           },
           {
             "function": "OamMalloc",
@@ -3535,33 +3674,71 @@
             "detail": "+0xea0 R_ARM_ABS32: gUnknown_03001060 | gUnknown_030010AC"
           },
           {
+            "function": "sub_805C280",
+            "kind": "relocation",
+            "detail": "+0x43c R_ARM_ABS32: gPlayers | gStageBackgroundsRam"
+          },
+          {
             "function": "ChaoMap_InitSprites",
             "kind": "unnamed-target",
-            "detail": "+0x1e0 R_ARM_ABS32: section .rodata | no relocation"
+            "detail": "+0x1e0 R_ARM_ABS32: section .rodata | gUnk_080CEECC"
           },
           {
             "function": "CreateEntity_Rocket",
             "kind": "unnamed-target",
-            "detail": "+0x194 R_ARM_ABS32: section .rodata | no relocation"
+            "detail": "+0x194 R_ARM_ABS32: section .rodata | gUnknown_080D030C"
           },
           {
             "function": "CreateEntity_Rocket",
             "kind": "unnamed-target",
-            "detail": "+0x198 R_ARM_ABS32: section .rodata | no relocation"
-          },
-          {
-            "function": "CreateGemerl",
-            "kind": "unnamed-target",
-            "detail": "+0x170 R_ARM_ABS32: section .text | CreateGemerl"
+            "detail": "+0x198 R_ARM_ABS32: section .rodata | gUnknown_080D030C"
           },
           {
             "function": "CreateIceShiver",
             "kind": "unnamed-target",
-            "detail": "+0x53c R_ARM_ABS32: section .rodata | no relocation"
+            "detail": "+0x53c R_ARM_ABS32: section .rodata | gUnknown_080D030C"
+          },
+          {
+            "function": "GBPlayerSioInterrupt",
+            "kind": "unnamed-target",
+            "detail": "+0x26c R_ARM_ABS32: section .data | sGbPlayerComm"
           }
-        ]
+        ],
+        "classes": {
+          "counts": {
+            "value-named": 1650,
+            "value-for-symbol": 4,
+            "relocation-other": 3,
+            "instruction-other": 1,
+            "unnamed-target": 81
+          },
+          "gated": 4,
+          "uncompared": 0,
+          "gatedExamples": [
+            {
+              "function": "MP2K_event_rept",
+              "kind": "instruction-other",
+              "detail": "base only insert: (none) | .hword 0x0"
+            },
+            {
+              "function": "OamMalloc",
+              "kind": "relocation-other",
+              "detail": "+0x1e14 R_ARM_ABS32: gOamMallocBuffer | gVramGraphicsCopyQueue"
+            },
+            {
+              "function": "Task_EC_808DD6C",
+              "kind": "relocation-other",
+              "detail": "+0xea0 R_ARM_ABS32: gUnknown_03001060 | gUnknown_030010AC"
+            },
+            {
+              "function": "sub_805C280",
+              "kind": "relocation-other",
+              "detail": "+0x43c R_ARM_ABS32: gPlayers | gStageBackgroundsRam"
+            }
+          ]
+        }
       },
-      "treeDigest": "59f617c01edc7a50c826900b0a996abba94bbd0ee28dce05962e4a4e05296200",
+      "treeDigest": "117c2c94d77c52a8a9d8c3df5eee298b004a0653a4dd383c284685be7088efa5",
       "signatures": {
         "libraries": [
           {
@@ -4080,25 +4257,61 @@
         "linked": true,
         "scored": 8388,
         "differences": {
-          "missing-relocation": 3,
-          "relocation": 14,
-          "unnamed-target": 448
+          "instruction": 11,
+          "missing-relocation": 5,
+          "relocation": 34,
+          "unnamed-target": 315
         },
         "examples": [
           {
-            "function": "DispString",
-            "kind": "missing-relocation",
-            "detail": "+0xbe0 R_ARM_ABS32: gTextRender | a plain value"
+            "function": "CgbSound",
+            "kind": "instruction",
+            "detail": "+0xcd8 arg-mismatch: .word 0x3007ff0 | .word irq_stack_begin+0x50"
           },
           {
-            "function": "sub_080533CC",
-            "kind": "missing-relocation",
-            "detail": "+0xfe8 R_ARM_ABS32: gPaletteBuffer | a plain value"
+            "function": "MPlayExtender",
+            "kind": "instruction",
+            "detail": "+0x464 arg-mismatch: .word 0x3007ff0 | .word irq_stack_begin+0x50"
           },
           {
-            "function": "zFree",
+            "function": "MPlayOpen",
+            "kind": "instruction",
+            "detail": "+0x8a8 arg-mismatch: .word 0x3007ff0 | .word irq_stack_begin+0x50"
+          },
+          {
+            "function": "SampleFreqSet",
+            "kind": "instruction",
+            "detail": "+0x5f8 arg-mismatch: .word 0x3007ff0 | .word irq_stack_begin+0x50"
+          },
+          {
+            "function": "SoundClear",
+            "kind": "instruction",
+            "detail": "+0x6ec arg-mismatch: .word 0x3007ff0 | .word irq_stack_begin+0x50"
+          },
+          {
+            "function": "InitOverlays",
             "kind": "missing-relocation",
-            "detail": "+0x55c R_ARM_ABS32: gzHeap | a plain value"
+            "detail": "+0x174 R_ARM_ABS32: sub_080B197C | a plain value"
+          },
+          {
+            "function": "MPlayExtender",
+            "kind": "missing-relocation",
+            "detail": "+0x4a0 R_ARM_ABS32: gMaxLines | a plain value"
+          },
+          {
+            "function": "m4aMPlayAllContinue",
+            "kind": "missing-relocation",
+            "detail": "+0x2c0 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
+          {
+            "function": "m4aMPlayAllStop",
+            "kind": "missing-relocation",
+            "detail": "+0x288 R_ARM_ABS32: gNumMusicPlayers | a plain value"
+          },
+          {
+            "function": "m4aSoundInit",
+            "kind": "missing-relocation",
+            "detail": "+0x118 R_ARM_ABS32: gNumMusicPlayers | a plain value"
           },
           {
             "function": "CreateRandomItemDrop",
@@ -4106,24 +4319,24 @@
             "detail": "+0x680 R_ARM_ABS32: gObjectDroptables | gAreaDroptables"
           },
           {
-            "function": "FileSelectTask",
+            "function": "CreateUIElement",
             "kind": "relocation",
-            "detail": "+0x1d0 R_ARM_ABS32: gChooseFileState | gMenu"
+            "detail": "+0x8d4 R_ARM_ABS32: gHUD | gUnk_0200AF34"
           },
           {
-            "function": "HandleFileSelect",
+            "function": "CutsceneMiscObject_Type18",
             "kind": "relocation",
-            "detail": "+0x528 R_ARM_ABS32: gChooseFileState | gMenu"
+            "detail": "+0xe8c R_ARM_ABS32: gArea | gUnk_020342F8"
           },
           {
-            "function": "InitOverlays",
+            "function": "DeleteAllEnemies",
             "kind": "relocation",
-            "detail": "+0x17c R_ARM_ABS32: gCopyToEndOfEwram_End | RAMFUNCS_END"
+            "detail": "+0x9b8 R_ARM_ABS32: gEntityLists | gCollidableCount"
           },
           {
-            "function": "InitOverlays",
+            "function": "DeleteAllEntities",
             "kind": "relocation",
-            "detail": "+0x180 R_ARM_ABS32: gCopyToEndOfEwram_Start | RAMFUNCS_END"
+            "detail": "+0x688 R_ARM_ABS32: gEntityLists | gCollidableCount"
           },
           {
             "function": "AcroBandit",
@@ -4150,9 +4363,47 @@
             "kind": "unnamed-target",
             "detail": "+0x14 R_ARM_ABS32: section .rodata | AngryStatueManager_Actions.3"
           }
-        ]
+        ],
+        "classes": {
+          "counts": {
+            "value-named": 11,
+            "alias": 9,
+            "value-for-symbol": 5,
+            "relocation-other": 25,
+            "unnamed-target": 315
+          },
+          "gated": 25,
+          "uncompared": 0,
+          "gatedExamples": [
+            {
+              "function": "CreateRandomItemDrop",
+              "kind": "relocation-other",
+              "detail": "+0x680 R_ARM_ABS32: gObjectDroptables | gAreaDroptables"
+            },
+            {
+              "function": "CreateUIElement",
+              "kind": "relocation-other",
+              "detail": "+0x8d4 R_ARM_ABS32: gHUD | gUnk_0200AF34"
+            },
+            {
+              "function": "CutsceneMiscObject_Type18",
+              "kind": "relocation-other",
+              "detail": "+0xe8c R_ARM_ABS32: gArea | gUnk_020342F8"
+            },
+            {
+              "function": "DeleteAllEnemies",
+              "kind": "relocation-other",
+              "detail": "+0x9b8 R_ARM_ABS32: gEntityLists | gCollidableCount"
+            },
+            {
+              "function": "DeleteAllEntities",
+              "kind": "relocation-other",
+              "detail": "+0x688 R_ARM_ABS32: gEntityLists | gCollidableCount"
+            }
+          ]
+        }
       },
-      "treeDigest": "77664bc1d16f4eeff7f936a8f9fe1557d21422d5fd9bc46b7081ca02e4ff4924",
+      "treeDigest": "438a2083f2d24399e40b1c07cafeb0eab8bd4550fbcf42949d222c05ca6a367b",
       "signatures": {
         "libraries": [
           {

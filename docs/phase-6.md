@@ -11,6 +11,15 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
+**Verdict of the closing run after fix round 4 (run 5): PHASE 6 PASSES ITS CLOSING GATE.** With every owner question
+answered (D98, D100 to D103) and applied, the whole closing list ran in a fresh worktree at `fa5d7ab`
+(`romlift-wt/phase-6-closing-5`, `landed` 6, only `bench/.local/poc` and `bench/.local/agbcc` copied in), the real tier
+before the ci tier, and every one of its 20 commands exits 0 (run 5, "The closing gate"): `gates --require 6 --tier
+real` 29 pass and 1 historical (`g2.poc-parity`), `--tier ci` 46 of 46 pass, `bench provenance` ok on every check.
+The owner's answers changed no command of the list. `bench/results.json` is committed as run 5's artifact. What is
+left is the merge: the phase pull request with its CI workflows, or, if GitHub refuses to start the jobs, the checks
+those jobs run, run locally (the owner's landing answer, D103); the merge carries `{ "landed": 6 }`.
+
 **Fix round 4, step 1 (D98, D99): not landed yet.** The owner answered every open question on 25 October 2026. This
 step applied his gate edits and records (Q1 to Q3, Q5, Q8, Q9, Q11, Q13, Q14): `g6.reconciler`, `g6.rename` and
 `g6.evidence-conflict` now pass on the ci tier, `g6.signatures-judged` holds tmc to the floor he set, and
@@ -641,9 +650,10 @@ npm run bench -- gates --require 6 --tier ci
 npm run bench -- provenance
 ```
 
-Then the phase pull request: `ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml` and `packed.yml` must run. Not
-opened: the list does not pass. This is the orchestrator's list (roadmap "Phase 6 exit" now reads the same). Both runs
-used `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler`,
+Then the phase pull request: `ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml` and `packed.yml` must run, or,
+if GitHub refuses to start them, the checks they run are run locally (the owner's landing answer, D103). Runs 1 to 4
+did not pass the list, so no pull request was opened; run 5 passes it. This is the orchestrator's list (roadmap "Phase
+6 exit" now reads the same); the owner's answers of 25 October 2026 changed none of its commands. Every run used `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler`,
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc` and a fresh worktree with `bench/.local/poc` and
 `bench/.local/agbcc` copied in.
 
@@ -747,6 +757,45 @@ After the run, measured on the same commit in the main checkout with nothing els
 (791.0) and 769.9 ms (772.8); `g3.speed-budget` alone on the real tier in the run's worktree passes (calibration 0.960,
 sa2 analysis 783 ms, pokeemerald `generate` 8,159 of 9,598 ms, `init` 10,448 of 14,398 ms). `bench/results.json` is
 committed as run 4's artifact.
+
+### Run 5 (`fa5d7ab`, fix round 4, worktree `romlift-wt/phase-6-closing-5`)
+
+After the owner's answers (D98, D100 to D103) and the four steps of fix round 4 that applied them. A fresh worktree at
+`fa5d7ab` with `test/gates/phase.json` at `{ "landed": 6 }`, no local cache but `bench/.local/poc` and
+`bench/.local/agbcc` copied in (objdiff-cli 3.7.2 found as the main checkout's `bench/.local/objdiff-target` build),
+every command run in this order in the foreground of one script, each waited for (25 October 2026, 22:40 to 00:35).
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (1 s) |
+| `npm run typecheck` | 0 | no error (6 s) |
+| `npm run lint` | 0 | 21 tests pass (5 s) |
+| `npm test` | 0 | 2,859 tests, 2,859 pass, 0 fail, 0 skipped, 0 todo (42 s) |
+| `npm run fixtures -- check` | 0 | 54 of 54 fixtures agree (binutils 2.45.1) (2 s) |
+| signature build loop | 0 | six files, 0 diagnostics each: agb_flash 22 functions and 5 tables, libagbsyscall 22, libgcc 69, librfu 148 and 5, m4a 203 and 20 (2 versions), siirtc 16 and 1 (20 s) |
+| `npm run build && npm pack --pack-destination …` | 0 | `romlift-0.0.0.tgz`, 766 files, 615.3 kB (4 s) |
+| packed-signature check (the full one-liner above) | 0 | no built signature file packed |
+| `npm run export-poc -- --mode raw` | 0 | 54 fixtures dumped (15 s) |
+| `npm run export-poc -- --mode scored` | 0 | six scored dumps, tmc from romlift's dataset (250 s) |
+| `npm run export-poc -- --mode parity` | 0 | five parity digests, `poc-digests.json` unchanged (79 s) |
+| `npm run export-poc -- --mode queries` | 0 | five lockstep logs, parity equal to the committed digests (51 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 122 tests, 122 pass, 0 skipped (733 s); among them `listed-invalid-signatures` no `W_LISTED_INVALID` on the six tuning ROMs (Q10), `objdiff-json` c-data every unit and untouched sa1 and klonoa every function at 100% (Q12), `decompiled-c` to klonoa's SHA-1 with signatures |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (3 s) |
+| `npm run corpus` | 0 | ok, 150 ARM rows with coverage (4 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1, the init build (init, setup.sh, make) to the SHA-1 on all six; both sealed ROMs pass with their init builds at the SHA-1; objdiff differences fe7j 9 instruction, 12 relocation, 55 unnamed-target; klonoa 4 missing-relocation, 1 relocation, 130 tool; pokeemerald 42, 8, 2 missing-symbol, 144, 2,608; sa2 2,659 instruction, 5 missing-relocation, 127; sa3 1,651, 4, 3 relocation, 81; tmc 11, 5, 34, 315 (classed by D34 as amended in `g6.objdiff` below); memory family peak RSS `init` 988.4 MiB, `generate` 995.7 MiB against 1,536 MiB, heap cap 1,024 MiB; wrote `bench/results.json` (6 rows, 2 sealed, commit `fa5d7ab`) (272 s) |
+| `npm run bench -- regression` | 0 | no regression against `89deb54` (1 s) |
+| `npm run bench -- gates --require 6 --tier real` | 0 | 30 records: 29 pass, 1 historical (`g2.poc-parity`), 0 fail. `g6.objdiff` every tuning ROM at its ceiling: fe7j 1,471 functions, gated 7 of 7; klonoa 485, 1 of 1, 130 uncompared; pokeemerald 15,850, 12 of 12, 2 uncompared; sa2 2,887, 1 of 1; sa3 4,305, 4 of 4; tmc 8,388, 25 of 25. `g6.signatures-judged` every PoC floor held and tmc at the owner's floor (libagbsyscall 13, m4a 55 and 10, 68 placements, 0 wrong); sizes fe7j 20 = 15 equal + 5 unjudged, klonoa 17 = 15 + 2, pokeemerald 17 = 15 + 2, sa2 17 = 15 + 2, sa3 19 = 17 + 2, tmc 5 = 0 + 5. `g6.expected-bytes` 452 modules on 61 targets (1 `runs_at`), linked at their modules' addresses. `g6.ram-code-mapped` the RAM-copy fixture and Klonoa (`0x0804F318 -> 0x03000388`). `g6.signatures-loo` 7 runs, 0 added, moved or lost; `-heldout` pokefirered 353 placements and 18 tables, pokeruby 226 and 15, none wrong; `-rebuild` libagbsyscall, libgcc, m4a equal the PoC's converted files. `g4.toml-mutations` 242 legal edits (add-override 29, each accepted through its seed, no `W_OVERRIDE_IGNORED`), 239 illegal, 60 ROMs. `g4.e2e-real` the six tuning ROMs to their SHA-1s from the source tree and the tarball. `g2.speed` calibration 0.966: fe7j 1,205 of 12,762 ms, klonoa 249 of 308, pokeemerald 2,386 of 4,242, sa2 754 of 787 (95.8%), sa3 1,138 of 1,500, tmc 1,488 of 1,794. `g3.speed-budget` calibration 0.951: pokeemerald `generate` 8,061 of 9,505 ms, `init` 10,448 of 14,258 ms. `g3.readability` at its floors (3,494 s) |
+| `npm run bench -- gates --require 6 --tier ci` | 0 | 46 gates, 46 pass, 0 fail. `g1.provenance` (source digest `929668b8…`, 30 real-tier records pass or are historical), `g6.reconciler` (9 cases, 11 golden tests, 16 comment and string tokens untouched), `g6.rename` (`sub_080000F4` renamed; both refusals change nothing), `g6.evidence-conflict` (162 contradictions on 54 fixtures), `g6.expected-bytes` (229 modules on 55 targets, 1 `runs_at`), `g6.ram-code-mapped`, `g6.c-data-ranges`, `g6.explain-coverage` (58 analysis and 5 sig rule ids in 213 goldens), `g6.no-heldout-references` (6 specs, 12 references), `g4.cli-contract` (10 commands, 17 `--json` runs), `g4.packed-e2e` (766 files, no ROM, ELF, map or built signature file; 53 fixtures to their SHA-1), `g4.e2e-fixtures` (53 fixtures), `g3.large-rom` (`init` 964.7 MiB, `generate` 1,009.1 MiB peak RSS, heap cap 1,024 MiB) (1,917 s) |
+| `npm run bench -- provenance` | 0 | source digest `929668b8…` ok (Node 24); gate record: 30 real-tier gates of phase ≤ 6 pass or are historical; families live (code-end, determinism, entries, extents, readability, scaffold, signatures, speed, memory, printer); 6 rows, one per tuning dataset; no sealed row |
+
+Every command exits 0, so **phase 6 passes its closing gate**. No speed gate needed a rerun (sa2's analysis at 95.8%
+of its limit, inside the spread phase 4 recorded). `bench/results.json` is committed as run 5's artifact.
+
+**Verdict.** Phase 6 passes its closing gate at `fa5d7ab` with `test/gates/phase.json` at `{ "landed": 6 }`: every
+command of the list exits 0 in a fresh worktree, both gate tiers pass every gate of phases 1 to 6 (the one historical
+record, `g2.poc-parity`, frozen since phase 2), and every owner question is answered and applied (Q1 to Q3, Q5, Q6,
+Q8 to Q16; Q4 and Q7 needed no answer). It lands when the phase pull request merges to `main` with the raised marker,
+after its CI workflows run, or, if GitHub refuses to start them, after the checks they run pass locally (D103).
 
 ## Review
 

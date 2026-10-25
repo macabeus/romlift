@@ -4739,6 +4739,22 @@ base adds after `MP2K_event_rept` (`ply_rept`). The per-class counts, before and
 the ROM; the printer follows the model's sizes, and the classifier checks the word); counting an `unnamed-target`
 under the ceiling (D34 reports it); a ceiling per class (the owner named a count per tuning ROM).
 
+## D103. Phase-6 landing, the owner's answer of 25 October 2026: the checks run locally
+
+**Context.** AGENTS.md ("Phases and Git") merges a phase to `main` only when its closing gate passes and the CI
+workflows (`ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml`, `packed.yml`) have run on the phase's pull request,
+and a job GitHub refuses to start is not a pass. GitHub may refuse to start the jobs (billing).
+
+**Decision.** In the owner's words (Bruno Macabeus, 25 October 2026): "You don't need to wait for my review. You can
+land phase 6 normally. Just run the checks locally". Applied to phase 6 only: if GitHub refuses to start the pull
+request's CI jobs, the checks those jobs run are run locally instead, recorded in phase-6.md, and the pull request is
+merged without waiting for the owner's review. Every command of phase-6.md's closing gate still has to exit 0 in a
+fresh worktree at `landed` 6 first (run 5, phase-6.md).
+
+**Consequences.** The rule of AGENTS.md stands for later phases; this answer replaces it for phase 6's merge alone.
+
+**Rejected.** Waiting for the owner's review or for GitHub to start the jobs (the owner said not to).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

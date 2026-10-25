@@ -135,7 +135,7 @@ and the ELF, map and legacy importers, D91, D92, only library signatures' propos
 - `test/gates/phase.json` is raised on the phase branch before the closing real-tier run, because it is
   part of the source digest that run records (D55 j). Merge to `main` and push only when the phase gate
   passes and the CI workflows (`ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml`, `packed.yml`) have run on the
-  phase's pull request (a job GitHub refuses to start is not a pass); the merge carries the raised marker. Only the phase lead regenerates `bench/results.json`
+  phase's pull request (a job GitHub refuses to start is not a pass; for phase 6 alone the owner let the checks those jobs run be run locally instead, D103); the merge carries the raised marker. Only the phase lead regenerates `bench/results.json`
   and `bench/baseline/speed.json`.
 - Every commit message ends with exactly this line (from phase 4 on; phases 1 to 3 also carried a `Claude-Session:`
   line, D75 p):

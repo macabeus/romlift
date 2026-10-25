@@ -87,7 +87,9 @@ review (D95) changed no gate threshold, but its ROM overwrite of the objdiff tar
 catch only a wrong size; fix round 2 (D96) tightened that gate to judge each unit's object as assembled, and put the
 bench's `objectWords` rewrite, which changes what `g6.objdiff` measures, to the owner as Q15. Fix round 3 (D97) refuses a `runs_at`
 module whose linker-script section is another section's name, and put `g6.expected-bytes`' `runs_at` exemption to the
-owner as Q16.
+owner as Q16. The closing list's fifth run, in a fresh worktree at `fa5d7ab`, exits 0 on every command (both gate
+tiers, `bench provenance`), so phase 6 passes its closing gate; it lands when its pull request merges, the CI checks run
+locally if GitHub refuses to start them (the owner's landing answer, D103).
 
 | Phase | Delivers |
 | --- | --- |
