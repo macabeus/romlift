@@ -24,9 +24,11 @@ if (FAR_JUMP === undefined) throw new Error('the far-jump fixture is missing');
 const ROM = FAR_JUMP.rom;
 const TMP = mkdtempSync(join(tmpdir(), 'romlift-explain-'));
 after(() => rmSync(TMP, { recursive: true, force: true }));
+/** No built signature file, whatever the checkout's signatures/ holds: `--rom` then reports W_SIGNATURES_ABSENT (D95 b). */
+const NO_SIGNATURES = mkdtempSync(join(TMP, 'no-signatures-'));
 
 async function run(argv: readonly string[]): Promise<{ readonly code: ExitCode; readonly stdout: string; readonly stderr: string }> {
-  const io = capturingIo();
+  const io = { ...capturingIo(), env: { ROMLIFT_SIGNATURES: NO_SIGNATURES } };
   const code = await main(argv, io);
   return { code, stdout: io.out.join(''), stderr: io.err.join('') };
 }
@@ -49,17 +51,18 @@ test('claimName names every claim kind', () => {
   for (const [name, kind] of Object.entries(Claim)) assert.equal(claimName(kind), name);
 });
 
-test('explain --json: one report line, then the summary', async () => {
+test('explain --json: one report line, the W_SIGNATURES_ABSENT note of a run with no built file, then the summary', async () => {
   const out = await run(['explain', '0x08000104', '--rom', ROM, '--json']);
   assert.equal(out.code, ExitCode.ok, out.stderr);
   const parsed = lines(out.stdout);
-  assert.equal(parsed.length, 2);
+  assert.equal(parsed.length, 3);
+  assert.equal(parsed[1]?.['code'], 'W_SIGNATURES_ABSENT');
   const bytes = new Uint8Array(readFileSync(ROM));
   const report = explain(romFromBytes(bytes, sha1Of(bytes)), 0x0800_0104);
   assert.deepEqual(parsed[0], { type: 'explain', ...JSON.parse(JSON.stringify(explainRecord(report))) });
   assert.equal(parsed[0]?.['addr'], '0x08000104');
   assert.equal(parsed[0]?.['claim'], 'code');
-  assert.deepEqual(parsed[1], { type: 'summary', ok: true, exitCode: 0 });
+  assert.deepEqual(parsed[2], { type: 'summary', ok: true, exitCode: 0 });
 });
 
 test('explain text: claim, owner and provenance, the always-shown groups, the rule meta, the summary', async () => {

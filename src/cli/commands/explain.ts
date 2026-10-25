@@ -206,7 +206,8 @@ async function explainAt(io: CliIo, romPath: string | undefined, addr: Addr, sig
   if (!loaded.ok) return { refused: [loaded.diagnostic] };
   const located = await loadSignatureFiles(io, signatures === undefined ? {} : { dir: signatures });
   const outcome = explainOutcome(loaded.value, addr, { signatureFiles: located.files });
-  return { report: outcome.report, diagnostics: [...located.diagnostics, ...outcome.diagnostics] };
+  // The explanation's own diagnostics first (an image that is not a cartridge), then the notes on the signature files.
+  return { report: outcome.report, diagnostics: [...outcome.diagnostics, ...located.diagnostics] };
 }
 
 export const explainCommand: CommandSpec = {
