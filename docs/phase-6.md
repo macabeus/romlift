@@ -11,6 +11,19 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
+**Verdict after fix round 2 (D96): still NOT LANDED.** The review of fix round 1 raised 16 findings; 14 are fixed, one
+is owner question Q15 (the bench's `objectWords` rewrite inside `g6.objdiff`) and one is rejected with a measurement
+("Review", fix round 2). The closing list ran a fourth time in a fresh worktree at `41b9eae` (run 4 below): every
+command exits 0 but the two gate runs and `bench provenance`. The real tier fails `g6.objdiff` (unchanged: fe7j 19,
+klonoa 131, pokeemerald 157, sa2 4, sa3 55, tmc 17) and, this run, `g3.speed-budget`, because `bench speed` measured
+sa2's analysis at 791.3 ms against a 787.2 ms limit (100.5%); the same commit measured 764.5 and 765.3 ms (limits 787.6,
+808.3) in two later `bench speed --only sa2` runs, the code before fix round 2's `le32` change 766.5 and 769.9 ms, and
+the gate alone passed on a rerun (sa2 783 ms): the phase-4 spread of sa2 against its limit, not a regression. The ci
+tier fails `g6.reconciler`, `g6.rename`, `g6.evidence-conflict` (gate files that cannot pass as written, Q2, Q3, Q5)
+and `g1.provenance`, and `bench provenance` fails on the artifact's gate records (`g3.speed-budget`, `g6.objdiff`). The
+tightened `g6.expected-bytes` passes on both tiers (448 modules on 60 ROMs). The phase waits for the owner's answers to
+Q1 to Q3, Q5, Q6 and Q8 to Q15; nothing is merged, pushed or opened as a pull request.
+
 **Verdict after fix round 1 (D95): still NOT LANDED.** The review's 38 findings are fixed or recorded ("Review"); the
 closing list ran a third time in a fresh worktree at `e8043cc` (run 3 below) with the same four failing commands and
 the same failing gates: `g6.objdiff` on the real tier (gated differences unchanged, fe7j 19, klonoa 131, pokeemerald
@@ -535,6 +548,39 @@ list run again from the start.
 
 `bench/results.json` is committed as run 3's artifact.
 
+### Run 4 (`41b9eae`, fix round 2, worktree `romlift-wt/phase-6-fix2`)
+
+After the second review's fixes (D96), `bench/.local/poc` and `bench/.local/agbcc` copied in.
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (1 s) |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | 21 tests pass |
+| `npm test` | 0 | 2,848 tests, 2,848 pass, 0 fail, 0 todo (41 s) |
+| `npm run fixtures -- check` | 0 | 54 of 54 fixtures agree (binutils 2.45.1) |
+| signature build loop | 0 | six files (20 s) |
+| `npm run build && npm pack --pack-destination …` | 0 | `romlift-0.0.0.tgz`, 764 files, 610.6 kB |
+| packed-signature check | 0 | no built signature file packed |
+| `npm run export-poc -- --mode raw` | 0 | (15 s) |
+| `npm run export-poc -- --mode scored` | 0 | (250 s) |
+| `npm run export-poc -- --mode parity` | 0 | (79 s) |
+| `npm run export-poc -- --mode queries` | 0 | (52 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 121 tests, 121 pass, 0 skipped (731 s) |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok |
+| `npm run corpus` | 0 | ok (5 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows link (raw and readable) and build from `init` to the SHA-1, both sealed ROMs pass; objdiff fe7j 9 instruction, 3 missing-relocation, 7 relocation; klonoa 1 relocation, 130 tool; pokeemerald 11, 9, 2 missing-symbol, 135; sa2 3, 1; sa3 52, 1, 2; tmc 3 missing-relocation, 14 relocation (gated 19, 131, 157, 4, 55, 17, unchanged); memory family `init` 956.9 MiB, `generate` 965.3 MiB peak RSS against 1,536 MiB, heap cap 1,024 MiB (269 s) |
+| `npm run bench -- regression` | 0 | no regression against `89deb54` |
+| `npm run bench -- gates --require 6 --tier real` | **1** | 30 records: 27 pass, 1 historical (`g2.poc-parity`), **2 fail: `g6.objdiff`** (Q6, Q15) **and `g3.speed-budget`** (`bench speed --json` exited 1: sa2 analysis 791.3 ms, limit 787.2 ms; `g2.speed` of the same run passed with sa2 733 of 781 ms; see the verdict). Among the passes: `g6.expected-bytes` (448 modules on 60 ROMs, the unit objects judged too), `g6.ram-code-mapped`, `g6.signatures-judged`, `-loo`, `-heldout`, `-rebuild`, `g2.speed` (ratio 0.958), `g4.e2e-real` (3,373 s) |
+| `npm run bench -- gates --require 6 --tier ci` | **1** | 46 gates: 42 pass, **4 fail: `g1.provenance`** (the artifact's `g3.speed-budget` and `g6.objdiff` records), **`g6.evidence-conflict`** (Q5), **`g6.reconciler`** (Q2), **`g6.rename`** (Q3). Among the passes: `g4.cli-contract` (10 commands, 17 `--json` runs), `g4.packed-e2e` (764 files), `g3.large-rom` (`init` 965.9 MiB), `g6.c-data-ranges`, `g6.explain-coverage` (58 analysis and 5 sig rule ids in 213 goldens) (1,983 s) |
+| `npm run bench -- provenance` | **1** | source digest `6ba924e6…` ok (Node 24); **gate record: `g3.speed-budget` and `g6.objdiff` are fail**; families live; 6 rows, no sealed row |
+
+After the run, measured on the same commit in the main checkout with nothing else running: `bench speed --only sa2`
+764.5 ms (limit 787.6) and 765.3 ms (808.3); with `src/foundation/rom/rom.ts` as it was before fix round 2 766.5 ms
+(791.0) and 769.9 ms (772.8); `g3.speed-budget` alone on the real tier in the run's worktree passes (calibration 0.960,
+sa2 analysis 783 ms, pokeemerald `generate` 8,159 of 9,598 ms, `init` 10,448 of 14,398 ms). `bench/results.json` is
+committed as run 4's artifact.
+
 ## Review
 
 ### Fix round 1 (review of `1484ab0`, D95)
@@ -584,3 +630,25 @@ list run again from the start.
 | delivery-11 | minor | Fixed (`080f589`): the scaffold's AGENTS.md and README document `npx romlift rename`, `from = "sig:…"` entries, `runs_at` overrides and the objdiff remainder; scaffold golden regenerated. |
 | delivery-12 | minor | Recorded in "Known limitations" (librfu ambiguity and m4a@2004 dropped warnings on klonoa). |
 | delivery-13 | minor | Fixed: Q6 gains option (c), the `tool` class as uncompared (klonoa 131 to 1). |
+
+### Fix round 2 (review of `ea1dbcb`, D96)
+
+16 findings (3 major, 13 minor). Fourteen are fixed, one is an owner question (delivery-r1-1, Q15) and one is rejected
+with a measurement (architecture-r1-5's suggested command; its concern is addressed otherwise). Commits on `phase-6`:
+`95e9f5b` (code and tests), `41b9eae` (documents), then this record.
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-r1-1 | major | Fixed (`95e9f5b`, D96 a), a gate tightening: `make expected` keeps the unit's object as assembled at `build/expected/<module>.o`; `g6.expected-bytes` requires its `.text` to equal the ROM range outside every relocated field (`readelf -r`, ARM field widths, an unknown type fails) and every symbol the model places to sit at the model's offset. Run against the committed fixtures before freezing: 225 modules on 54 ROMs pass. A scratch copy of the gate that swaps the `sub_080000F8` and `sub_0800010C` includes of c-data's `expected/main.s` fails: "build/expected/main.o differs from the ROM at 0x080000F8, outside every relocated field (sub_0800010C) \| sub_080000F8 sits at 0x0800011C … where the model places it at 0x080000F8 \| sub_0800010C sits at 0x080000F8 …"; the gate before the fix passes it ("PATCHED TEXT EQUALS ROM"). README and D96 now say fix round 1 left the gate able to catch only a wrong size. |
+| correctness-r1-2 | major | Fixed (`95e9f5b`, D96 c): `linkerNameCollisions` (core/model/names.ts) makes a config name equal to a runs_at module's `__load_<module>` `E_NAME_COLLISION`; `modelNamesOf` lists it, so rename refuses it. Measured on klonoa with `bench/overrides/klonoa.json` (init, the override appended, `analyze --update --write`, `generate`): `rename SoundMain __load_ram_03000388` exits 1 with `E_RENAME_EXISTS` and leaves the TOML unchanged; the TOML edited by hand to that name makes `generate` exit 1 with `E_NAME_COLLISION … is the symbol ldscript.txt defines as the load address of runs_at module ram_03000388`; the unedited project still generates, `verify --link` gives SHA-1 `a0a298d9…` and `make expected` exits 0. Model test with a function and a RAM symbol of that name. |
+| delivery-r1-1 | major | Owner question Q15 (D96 b), with both measurements (`bench/tools/objdiff-classes.ts`, new `--own-spelling`): gated with `objectWords` 19, 131, 157, 4, 55, 17; without it 21, 135, 201, 2,665, 1,664, 51 (under Q6 option b 3, 1, 6, 1, 54, 5 and 7, 1, 44, 2,648, 1,642, 37). Nothing reverted before the owner answers. |
+| correctness-r1-3 | minor | Fixed (`95e9f5b`, D96 d): `runAddresses` refuses a `runs_at` that is not its start plus a multiple of 4 and a run range ending past `0xFFFFFFFF` (`E_OVERRIDE_INVALID`); §6.7 and the scaffold AGENTS.md state both. On klonoa, `runs_at = 0x0300038A` and `0xFFFFFF00` now make `analyze --update` refuse its patch (exit 1) and `generate` exit 1. Model tests. |
+| correctness-r1-4 | minor | Fixed (`95e9f5b`): the assertion reads `src/<m>.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)`, which still matches `g4.c-data-fails-loud`'s pattern (the gate file, including its header comment that quotes the old text, is not edited); writer, scaffold and unit goldens regenerated. |
+| architecture-r1-1 | minor | Fixed (`95e9f5b`): `linkedFileBytes` reads ENOENT, ENOTDIR and ELOOP as a link to nothing and throws anything else, which `readRenameTexts` reports as `E_IO_READ`; a read-inputs test with a link to a mode-000 file. |
+| architecture-r1-2 | minor | Fixed (`95e9f5b`): `signatureFromPlacements` calls `signaturesOver(...).placements`; explain.ts's header, codes.ts (both mentions) and architecture §2's `fs.ts` entry corrected. |
+| architecture-r1-3 | minor | Fixed (`95e9f5b`, D96 e): a `c` module's `expected/<module>.s` is its heading plus `stubAssemblyText` over the written chunk paths; the statement parser (D49) reads `.syntax divided` as a no-byte directive and refuses an instruction or include under it; text-layout has one `chunkBytes` (taking the Map) and one `macrosOrderError`. |
+| architecture-r1-4 | minor | Fixed (`95e9f5b`): text-layout cases for each refusal of `checkExpectedFile` (macro file after a chunk include, misordered and missing include, the asm/matchings twin accepted, an instruction under `.syntax divided`, a byte past the module) and `checkExpectedRomFile` (another offset, a short range, an include); fs tests for `isRegularFile` (EACCES via mode 000, ENOTDIR, a link) and `readJson` (EACCES, not JSON, a decoder refusal); `test/unit/workflow/signature-layer.test.ts` for `signaturesOnRom` on a non-cartridge image, `signaturesOver` over an analysis with an error, and `signatureNotes(false, …)`. |
+| architecture-r1-5 | minor | Rejected as written, concern addressed: `objcopy --update-section .text=expected/rom/main.bin` measured again (binutils 2.45.1, c-data): `.rel.text` has 1 entry before and "There are no relocations in this file" after, and D95 a needs them kept. The rule now refuses an object without exactly one `.text` instead of splicing at a guessed offset; it still reads `readelf -SW`'s columns, which no binutils command replaces while keeping the relocations. |
+| architecture-r1-6 | minor | Fixed (`95e9f5b`): `runsAtOverrides`/`runsAtSpans` exported from core/model/modules.ts and used by modules.ts, signature-layer.ts and analyze-update.ts; layout/align.ts's function is `alignWord`, re-exported through borders.ts; `peek32` and `u32` read through `le32`; spec.ts sorts with `compareCodeUnits`; the bench's `romSignatures` returns core's `RomSignatures` and refuses a run whose analysis or matcher reports an error. |
+| architecture-r1-7 | minor | Fixed (`95e9f5b`): the orphan doc comment in match.ts is deleted. |
+| architecture-r1-8 | minor | Fixed (`95e9f5b`): `core/signatures/zod-helpers.ts` holds `nonEmptyText`, `anyText`, `listOf`, `exactObject` for both schemas (`memberIdText` is schema.ts's own again); `core/signatures/sealing.ts` holds `isSealedDataset`, which the builder and `romlift/internal` read; §2 and core/index.md list both. |
