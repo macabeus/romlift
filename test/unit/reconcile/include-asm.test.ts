@@ -113,8 +113,22 @@ test('a module split or moved: the stubs of the functions that left are removed,
 });
 
 test('a removed stub that shares its line keeps the rest of the line; comments and definitions are never removed', () => {
+  // The first item of its line takes the blanks after it, so the rest keeps its column (phase 6's reconcile goldens).
   const text = `${C_STUB_HEADER}${stub('Old')} // was Old\nvoid Old(void) { }\n/* ${stub('Old')} */\n`;
-  assert.equal(planned(text, { module: 'main', chunks: same(['A']) }), `${C_STUB_HEADER} // was Old\nvoid Old(void) { }\n/* ${stub('Old')} */\n${stub('A')}\n`);
+  assert.equal(planned(text, { module: 'main', chunks: same(['A']) }), `${C_STUB_HEADER}// was Old\nvoid Old(void) { }\n/* ${stub('Old')} */\n${stub('A')}\n`);
+  assert.equal(planned(`  ${stub('Old')}\t${stub('A')}\n`, { module: 'main', chunks: same(['A']) }), `  ${stub('A')}\n`, 'the indentation before it stays');
+  assert.equal(planned(`${stub('A')} ${stub('Old')} /* x */\n`, { module: 'main', chunks: same(['A']) }), `${stub('A')}  /* x */\n`, 'between two items: the statement alone, its blanks kept');
+});
+
+test('a stub that goes above the comments leading into the first held chunk gets the header above it (phase 6, reconcile goldens)', () => {
+  // Without a header the file gains one; the stub before the first held definition goes above its comment, so the
+  // header must too, or INCLUDE_ASM comes before the include that defines it.
+  const text = '// about B\nvoid B(void) { }\n';
+  assert.equal(planned(text, { module: 'main', chunks: same(['A', 'B']) }), `${C_STUB_HEADER}${stub('A')}\n// about B\nvoid B(void) { }\n`);
+  const bom = `\ufeff${text}`;
+  assert.equal(planned(bom, { module: 'main', chunks: same(['A', 'B']) }), `\ufeff${C_STUB_HEADER}${stub('A')}\n// about B\nvoid B(void) { }\n`);
+  // The header after the leading comment still, when no stub goes above it.
+  assert.equal(planned('// licence\nvoid A(void) { }\n', { module: 'main', chunks: same(['A', 'B']) }), `// licence\n${C_STUB_HEADER}void A(void) { }\n${stub('B')}\n`);
 });
 
 test('an insertion at the start of a removed line goes before the removal; the CRLF line ending goes with it', () => {

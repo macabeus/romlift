@@ -1,8 +1,9 @@
 // The spellings a project's own files and romlift's default names share across layers (architecture §6.2, §6.5,
 // D75 g): defined once here, so core/config, core/model, core/scaffold and the shell cannot drift apart. Also the
-// project paths of the C stubs (D77 h): the directory of a module's chunk files, the chunk file an INCLUDE_ASM names,
-// and the header that defines the macro, which foundation/asm/dialect.ts, core/model, core/reconcile and core/scaffold
-// share (core/reconcile imports only foundation).
+// project paths of the C stubs (D77 h): the directory of a module's chunk files (and, since phase 6, of its decompiled
+// functions' under asm/matchings, D92), the chunk file an INCLUDE_ASM names, and the header that defines the macro,
+// which foundation/asm/dialect.ts, core/model, core/reconcile and core/scaffold share (core/reconcile imports only
+// foundation).
 import { hex } from './hex.ts';
 
 /** The user's ROM at a project's root, whatever name `init` was given: the config's [rom] path and the only file an `.incbin` reads. */
@@ -61,6 +62,34 @@ export const NONMATCHINGS_ROOT = 'asm/nonmatchings';
 /** The directory of a module's function and orphan files, without a trailing '/': what its INCLUDE_ASM statements name. */
 export function nonmatchingDir(module: string): string {
   return `${NONMATCHINGS_ROOT}/${module}`;
+}
+
+/**
+ * The root of the chunk files of decompiled functions (architecture §6.3, phase 6, D92): a function that its C module's
+ * source defines for the default build is written to `<root>/<module>/<Name>.s` instead of NONMATCHINGS_ROOT, so the
+ * tree shows which functions are done. No INCLUDE_ASM statement ever names it.
+ */
+export const MATCHINGS_ROOT = 'asm/matchings';
+
+/** The directory of a module's decompiled functions' chunk files, without a trailing '/'. */
+export function matchingDir(module: string): string {
+  return `${MATCHINGS_ROOT}/${module}`;
+}
+
+/**
+ * The chunk file `file` (`asm/nonmatchings/<module>/<name>.s`) as a decompiled function's, under MATCHINGS_ROOT with the
+ * same module directory and base name; any other path as it is.
+ */
+export function matchingFileOf(file: string): string {
+  return file.startsWith(`${NONMATCHINGS_ROOT}/`) ? `${MATCHINGS_ROOT}/${file.slice(NONMATCHINGS_ROOT.length + 1)}` : file;
+}
+
+/**
+ * matchingFileOf's inverse: a decompiled function's chunk file (`asm/matchings/<module>/<name>.s`) at the path the model
+ * gives its chunk, under NONMATCHINGS_ROOT, where the reconciliation and the checks read chunk files; any other path as it is.
+ */
+export function nonmatchingFileOf(file: string): string {
+  return file.startsWith(`${MATCHINGS_ROOT}/`) ? `${NONMATCHINGS_ROOT}/${file.slice(MATCHINGS_ROOT.length + 1)}` : file;
 }
 
 /** The extension of a chunk file. */

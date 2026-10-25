@@ -1,0 +1,7 @@
+{
+  "module": "main",
+  "path": "src/main.c",
+  "chunks": ["First", "Second", "Third", "Fourth"],
+  "fragments": { "src/part.c": "part.c" },
+  "sources": { "src/main.c": "main" }
+}

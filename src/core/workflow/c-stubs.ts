@@ -42,7 +42,7 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
 import { stubChunks } from '../model/c-unit.ts';
-import { isCSource, nonmatchingDir } from '../../foundation/util/project-files.ts';
+import { isCSource, nonmatchingDir, nonmatchingFileOf } from '../../foundation/util/project-files.ts';
 import { chunkNamesOf, chunkPathsOf, moduleChunkStubs, moduleSource } from '../model/paths.ts';
 import type { Model } from '../model/types.ts';
 import { compiledDefinitions, fragmentPhrase, scanC } from '../reconcile/c-scan.ts';
@@ -100,7 +100,8 @@ function movedDiagnostic(path: string, d: Pick<CDefinition, 'name' | 'line' | 'v
  * The reconciliation of every C file of `cTexts` (project path -> text) that is the source of a generated C module of
  * `model`; a C file of no such module is not romlift's to edit and is left out (W_C_FILE_UNUSED when it is the source
  * of no module at all, with E_C_DEFINITION_MOVED for each function it defines that a module has). `previousChunkFiles`: the project paths of the chunk files of the tree on disk (the one
- * romlift last generated), or undefined (or empty) when there is none. `headerTexts`: every file under `include/` and
+ * romlift last generated, asm/matchings included: a decompiled function's file counts at its chunk's path under
+ * asm/nonmatchings, phase 6), or undefined (or empty) when there is none. `headerTexts`: every file under `include/` and
  * every `.h` under `src/` by project path, which the planner follows to learn whether the includes of a file or of
  * its fragments define INCLUDE_ASM (fix round 10, correctness-c2-1; fix round 11, correctness-d0-1, d0-2;
  * IncludeAsmWanted.headers); undefined, none is followed.
@@ -123,8 +124,10 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
   const sourceModules = new Map(model.modules.map((m) => [moduleSource(model, m), m.name] as const));
   /** The fragments some module's file includes; what they hold was checked there. */
   const included = new Set<string>();
+  // A decompiled function's file of that tree, under asm/matchings (phase 6, D92), counts at its chunk's path.
+  const previous = previousChunkFiles?.map(nonmatchingFileOf);
   // A function of the previous tree that a module still has is wanted there (or E_C_DEFINITION_MOVED), never stale.
-  const retired = previousChunkFiles !== undefined && previousChunkFiles.length > 0 ? chunkNamesOf(previousChunkFiles).filter((name) => !owners.has(name)) : undefined;
+  const retired = previous !== undefined && previous.length > 0 ? chunkNamesOf(previous).filter((name) => !owners.has(name)) : undefined;
   // The tree this run writes: a stub of a directory it no longer writes that file in goes (correctness-b0-2).
   let tree: StubTree | undefined;
   for (const module of model.modules) {
@@ -133,8 +136,8 @@ export function reconcileStubs(model: Pick<Model, 'modules' | 'chunks'>, cTexts:
     const base = cTexts.get(path);
     if (!isCSource(path) || base === undefined) continue;
     tree ??= stubTree(model);
-    const previous = retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previousChunkFiles ?? [], module.name) };
-    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, sources: sourceModules, ...(headerTexts === undefined ? {} : { headers: headerTexts }), ...previous });
+    const before = retired === undefined ? {} : { retired, previousStubs: moduleChunkStubs(previous ?? [], module.name) };
+    const plan = planIncludeAsm(base, { module: module.name, chunks: stubChunks(model, module), path, tree, fragments, sources: sourceModules, ...(headerTexts === undefined ? {} : { headers: headerTexts }), ...before });
     files.push({ path, base, edits: plan.edits, text: applyTextEdits(base, plan.edits) });
     diagnostics.push(...plan.diagnostics);
     for (const fragment of plan.included) included.add(fragment);

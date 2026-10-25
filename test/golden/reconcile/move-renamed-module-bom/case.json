@@ -1,0 +1,9 @@
+{
+  "module": "new",
+  "path": "src/new.c",
+  "chunks": ["sub_08001000", "sub_08001100"],
+  "tree": {
+    "files": ["asm/nonmatchings/new/sub_08001000.s", "asm/nonmatchings/new/sub_08001100.s"],
+    "userDirs": []
+  }
+}

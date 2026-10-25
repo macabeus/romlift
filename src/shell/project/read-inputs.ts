@@ -5,13 +5,13 @@
 // what `init`'s directory holds. Mechanical: it reads, hashes and reports; every decision is a workflow's or
 // planWrites' (whether `init` may write in a directory is core/workflow/init.ts's). Each refusal is a diagnostic:
 // E_PROJECT_NOT_FOUND, E_IO_READ, E_DECOMP_YAML_INVALID, the config's parse codes.
-import { readFile, stat } from 'node:fs/promises';
+import { lstat, readFile, stat } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
-import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, isHeaderPath, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
+import { chunkFileOf, C_SOURCE_DIR, cSourceOf, INCLUDE_DIR, isChunkFile, isCSource, isHeaderPath, matchingDir, MATCHINGS_ROOT, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../core/scaffold/vars.ts';
 import type { ProjectInputs } from '../../core/workflow/types.ts';
@@ -148,27 +148,86 @@ export async function readHeaderTexts(dir: string): Promise<ReadResult<ReadonlyM
 }
 
 /**
- * The project paths of the chunk files under the project's asm/nonmatchings/ (`asm/nonmatchings/<module>/<name>.s`,
- * one level of module directories), in code-unit order: the tree romlift last generated, which the C
- * reconciliation reads (D78 a). Empty when there is no such directory.
+ * The project paths of the chunk files under the project's asm/nonmatchings/ and asm/matchings/
+ * (`<root>/<module>/<name>.s`, one level of module directories; asm/matchings holds the decompiled functions' since
+ * phase 6, D92), in code-unit order: the tree romlift last generated, which the C reconciliation reads (D78 a). Empty
+ * when there is no such directory.
  */
 export async function readChunkFiles(dir: string): Promise<ReadResult<readonly string[]>> {
-  const root = join(dir, ...NONMATCHINGS_ROOT.split('/'));
-  const present = await isDirectory(root);
-  if (!present.ok) return fromIo(present);
-  if (!present.value) return { ok: true, value: [] };
-  const modules = await listDir(root);
-  if (!modules.ok) return fromIo(modules);
   const out: string[] = [];
-  for (const module of modules.value) {
-    const isModule = await isDirectory(join(root, module));
-    if (!isModule.ok) return fromIo(isModule);
-    if (!isModule.value) continue;
-    const names = await listDir(join(root, module));
-    if (!names.ok) return fromIo(names);
-    for (const name of names.value) if (isChunkFile(name)) out.push(chunkFileOf(nonmatchingDir(module), stubNameOf(name)));
+  for (const [rootPath, dirOf] of [
+    [MATCHINGS_ROOT, matchingDir],
+    [NONMATCHINGS_ROOT, nonmatchingDir],
+  ] as const) {
+    const root = join(dir, ...rootPath.split('/'));
+    const present = await isDirectory(root);
+    if (!present.ok) return fromIo(present);
+    if (!present.value) continue;
+    const modules = await listDir(root);
+    if (!modules.ok) return fromIo(modules);
+    for (const module of modules.value) {
+      const isModule = await isDirectory(join(root, module));
+      if (!isModule.ok) return fromIo(isModule);
+      if (!isModule.value) continue;
+      const names = await listDir(join(root, module));
+      if (!names.ok) return fromIo(names);
+      for (const name of names.value) if (isChunkFile(name)) out.push(chunkFileOf(dirOf(module), stubNameOf(name)));
+    }
   }
   return { ok: true, value: out };
+}
+
+/** What `rename` edits: every text it may rename identifiers in, and the sha1 of each one's bytes, by project path. */
+export interface RenameTexts {
+  readonly texts: ReadonlyMap<string, string>;
+  readonly sha1s: ReadonlyMap<string, string>;
+}
+
+/** UTF-8, refusing a byte sequence that is not, and keeping a leading byte order mark (its bytes are hashed). */
+const RENAME_UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+
+/** Whether project path `path` is a text rename reads: a `.c` or `.h` under src/, or any file under include/. */
+function isRenameText(path: string): boolean {
+  if (path.startsWith(`${INCLUDE_DIR}/`)) return true;
+  return path.startsWith(`${C_SOURCE_DIR}/`) && (isCSource(path) || isHeaderPath(path));
+}
+
+/**
+ * The texts `rename` reads (architecture §6.6, phase 6, D92): every `.c` and `.h` under the project's src/ and every
+ * file under include/, at any depth, with the sha1 of each one's bytes (RenameTexts). A symbolic link is left out, file
+ * or directory, since an edit written through a temporary file and a rename would replace the link with a file; so is
+ * a file that is not UTF-8 text or holds a NUL (a binary under include/), which an edit could not write back as it was.
+ * Empty when neither directory exists; any other failure to list or read is E_IO_READ.
+ */
+export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTexts>> {
+  const listed: string[] = [];
+  for (const root of [C_SOURCE_DIR, INCLUDE_DIR]) {
+    const under = await filesUnder(dir, root, listed);
+    if (!under.ok) return fromIo(under);
+  }
+  const texts = new Map<string, string>();
+  const sha1s = new Map<string, string>();
+  for (const path of listed.filter(isRenameText).sort(compareCodeUnits)) {
+    const file = join(dir, ...path.split('/'));
+    let bytes: Uint8Array;
+    try {
+      if ((await lstat(file)).isSymbolicLink()) continue;
+      bytes = await readFile(file);
+    } catch (error) {
+      if (errnoOf(error) === 'ENOENT') continue;
+      return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })] };
+    }
+    let text: string;
+    try {
+      text = RENAME_UTF8.decode(bytes);
+    } catch {
+      continue;
+    }
+    if (text.includes('\0')) continue;
+    texts.set(path, text);
+    sha1s.set(path, sha1Of(bytes));
+  }
+  return { ok: true, value: { texts, sha1s } };
 }
 
 /**

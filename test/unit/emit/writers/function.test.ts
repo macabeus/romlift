@@ -1,10 +1,12 @@
 // The function writer (architecture §6.3): one file per function chunk at its chunkPaths path, the chunk as
 // printChunk prints it, no preamble (the module's file includes it), ending with a newline; a chunk that folded
-// the pad before its entry opens with its start macro, which emits the pad.
+// the pad before its entry opens with its start macro, which emits the pad; a function of a `c` module the C defines
+// goes to asm/matchings (phase 6, D92).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { printChunk } from '../../../../src/core/emit/print/chunk.ts';
+import { unitText, writtenChunkPath } from '../../../../src/core/emit/unit-text.ts';
 import { functionWriter } from '../../../../src/core/emit/writers/function.ts';
 import { buildModel } from '../../../../src/core/model/model.ts';
 import { chunkPaths, chunkPathsOf } from '../../../../src/core/model/paths.ts';
@@ -72,4 +74,47 @@ test('a function that folded the pad before it: its file opens with the start ma
   const b = entries[1];
   assert.ok(b !== undefined && b.ownership === 'generated');
   assert.equal(b.text, '.thumb\n\tthumb_func_start_local B\nB: @ 0800010C\n\tmovs r0, #1\n\tbx lr\n\tthumb_func_end B\n');
+});
+
+// The matchings split (architecture §6.3 function row, phase 6, D92): a function of a `c` module that the C defines
+// (EmitContext.decomp) is written under asm/matchings/<module>/, with the same base name and text; the rest stays.
+
+/** Three Thumb functions in one module of `kind`, the second and third named by case alone, and an orphan pad after them. */
+function threeFunctions(kind: 'c' | 'asm') {
+  const at = 0x0800_0200;
+  const r = romWith([{ at, bytes: thumbAt(at)`bx lr; bx lr; bx lr; bx lr` }]);
+  const m = modelOf(r, {
+    modules: [
+      {
+        name: 'main',
+        kind,
+        chunks: [
+          { name: 'Init', items: codeItems(r, at, at + 2, 'thumb') },
+          { name: 'VBlankCB', items: codeItems(r, at + 2, at + 4, 'thumb') },
+          { name: 'VblankCB', items: codeItems(r, at + 4, at + 6, 'thumb') },
+          { name: 'unk_08000206', kind: 'orphan', items: codeItems(r, at + 6, at + 8, 'thumb') },
+        ],
+      },
+    ],
+    labels: [label('Init', at), label('VBlankCB', at + 2), label('VblankCB', at + 4)],
+  });
+  return { rom: r, model: m };
+}
+
+test('a function its C module defines goes to asm/matchings with its base name and text; the others stay', () => {
+  const { rom: r, model: m } = threeFunctions('c');
+  const plain = [...functionWriter.emit(r, m, cx, 0)];
+  const decompiled = [...functionWriter.emit(r, m, { decomp: { defined: ['Init', 'VblankCB', 'Elsewhere'] } }, 0)];
+  assert.deepEqual(decompiled.map((e) => e.path), ['asm/matchings/main/Init.s', 'asm/nonmatchings/main/VBlankCB_08000202.s', 'asm/matchings/main/VblankCB_08000204.s']);
+  assert.deepEqual(decompiled.map((e) => (e.ownership === 'generated' ? e.text : '')), plain.map((e) => (e.ownership === 'generated' ? e.text : '')), 'the same text');
+  assert.equal(writtenChunkPath(m, { decomp: { defined: ['unk_08000206'] } }, m.modules[0]!, 3), 'asm/nonmatchings/main/unk_08000206.s', 'an orphan never moves');
+  assert.equal(writtenChunkPath(m, cx, m.modules[0]!, 0), chunkPathsOf(m)[0]);
+});
+
+test('a function of an asm module stays where its module file includes it, defined or not', () => {
+  const { rom: r, model: m } = threeFunctions('asm');
+  const defined = { decomp: { defined: ['Init', 'VBlankCB', 'VblankCB'] } };
+  assert.deepEqual([...functionWriter.emit(r, m, defined, 0)].map((e) => e.path), chunkPathsOf(m).slice(0, 3));
+  const source = unitText(r, m, defined, m.modules[0]!, { preface: [], spaced: false });
+  assert.ok(source.includes('.include "asm/nonmatchings/main/Init.s"') && !source.includes('asm/matchings'));
 });

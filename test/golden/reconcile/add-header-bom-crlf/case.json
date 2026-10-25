@@ -1,0 +1,5 @@
+{
+  "module": "tail",
+  "path": "src/tail.c",
+  "chunks": ["sub_08000400", "sub_08000500", "sub_08000600"]
+}

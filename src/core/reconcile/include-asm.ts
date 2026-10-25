@@ -305,20 +305,23 @@ function orderDiagnostics(wanted: IncludeAsmWanted, held: readonly (Held | undef
 
 /**
  * The removal of statement `s`: its whole line (from the line's start through its newline) when nothing else is on
- * it; the statement and the blanks around it up to the newline when it is the last item of a shared line; else the
- * statement alone.
+ * it; the statement and the blanks around it up to the newline when it is the last item of a shared line; the
+ * statement and the blanks after it when it is the first (so the rest of the line keeps its place, not a stray blank:
+ * found by the reconcile goldens, phase 6); else the statement alone.
  */
 function removalOf(text: string, s: IncludeAsmStatement): TextEdit {
   const lineStart = lineStartOf(text, s.start);
   let after = s.end;
   while (text[after] === ' ' || text[after] === '\t') after++;
   const lineEnd = text[after] === '\n' ? after + 1 : text[after] === '\r' && text[after + 1] === '\n' ? after + 2 : after === text.length ? after : -1;
-  if (lineEnd >= 0 && text.slice(lineStart, s.start).trim() === '') return { start: lineStart, end: lineEnd, text: '', reason: 'remove-stub' };
+  const first = text.slice(lineStart, s.start).trim() === '';
+  if (lineEnd >= 0 && first) return { start: lineStart, end: lineEnd, text: '', reason: 'remove-stub' };
   if (lineEnd >= 0) {
     let from = s.start;
     while (from > lineStart && (text[from - 1] === ' ' || text[from - 1] === '\t')) from--;
     return { start: from, end: after, text: '', reason: 'remove-stub' };
   }
+  if (first) return { start: s.start, end: after, text: '', reason: 'remove-stub' };
   return { start: s.start, end: s.end, text: '', reason: 'remove-stub' };
 }
 
@@ -376,6 +379,20 @@ function headerInsertion(text: string, scan: CFileScan, removed: readonly Includ
   return { start: at, end: at, text: at === lineStart ? header : `${eol}${header}`, reason: 'add-header' };
 }
 
+/**
+ * `header` moved up to the first stub insertion when one goes above it (found by the reconcile goldens, phase 6): a
+ * stub placed before the first held chunk goes above the comments that lead into it, which can be above the file's
+ * first line of code, where the header goes, and an INCLUDE_ASM before the include that defines the macro does not
+ * compile. At one offset the header comes first (joinAtOffsets keeps the edits' order).
+ */
+function aboveInsertions(text: string, header: TextEdit | undefined, insertions: readonly TextEdit[]): TextEdit | undefined {
+  if (header === undefined) return undefined;
+  const first = Math.min(...insertions.map((e) => e.start));
+  if (!(first < header.start)) return header;
+  const eol = eolOf(text);
+  const body = C_STUB_HEADER.split('\n').join(eol);
+  return { start: first, end: first, text: lineStartOf(text, first) === first ? body : `${eol}${body}`, reason: 'add-header' };
+}
 
 /**
  * The E_C_STALE_DEFINITION of definition `d`; `slot`: the missing chunk whose stub goes where it lies, if any;
@@ -510,7 +527,7 @@ function planScanned(text: string, scan: CFileScan, wanted: IncludeAsmWanted, un
     if (edit === undefined) unplaced.push(chunk.stub);
     else insertions.push(edit);
   });
-  const header = insertions.length > 0 ? headerInsertion(text, scan, removed, wanted, included) : undefined;
+  const header = insertions.length > 0 ? aboveInsertions(text, headerInsertion(text, scan, removed, wanted, included), insertions) : undefined;
   const edits: TextEdit[] = [...(header === undefined ? [] : [header]), ...insertions];
   for (const statement of removed) edits.push(removalOf(text, statement));
   /** The chunk of the previous tree's own directory a stranger took the place of (correctness-a2-1). */

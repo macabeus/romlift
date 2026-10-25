@@ -1,0 +1,5 @@
+{
+  "module": "main",
+  "path": "src/main.c",
+  "chunks": ["sub_08000100", "sub_08000200", "sub_08000300", "sub_08000400"]
+}

@@ -522,7 +522,12 @@ test('decompiled C in a src/*.c fragment the module\'s file #includes: generate 
   const kept = await run(dir, ['generate', '--json']);
   assert.equal(kept.code, ExitCode.ok, kept.stdout);
   assert.deepEqual(lines(kept.stdout).filter((l) => l['type'] === 'diagnostic'), [], kept.stdout);
-  assert.deepEqual(await snapshot(dir), before, 'nothing to write');
+  // The C is kept; only the decompiled function's chunk file moves to asm/matchings (phase 6, D92), with the manifest.
+  const now = await snapshot(dir);
+  const changed = [...new Set([...before.keys(), ...now.keys()])].filter((k) => before.get(k) !== now.get(k)).sort();
+  assert.deepEqual(changed, ['.romlift/manifest.json', 'asm/matchings/main_2/sub_08000488.s', 'asm/nonmatchings/main_2/sub_08000488.s'], 'nothing else to write');
+  assert.equal(now.get('asm/matchings/main_2/sub_08000488.s')?.split(' ')[0], before.get('asm/nonmatchings/main_2/sub_08000488.s')?.split(' ')[0], 'the same text');
+  assert.ok(!now.has('asm/nonmatchings/main_2/sub_08000488.s'));
   // The same fragment under a name romlift does not read: the stub it would insert might define the function twice.
   await rm(path.join(dir, 'src', 'poly.inc.c'));
   await writeFile(path.join(dir, 'src', 'poly.inc'), 'int sub_08000488(void) {\n  return 0;\n}\n');

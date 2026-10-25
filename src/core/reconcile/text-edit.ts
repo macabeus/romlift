@@ -1,8 +1,8 @@
 // Text edits of a reconciled C file (architecture §3.4, §6.3 `reconciled` ownership, §6.6): what the INCLUDE_ASM
-// planner (and phase 6's renames, D76 g) return, and how they apply. An edit replaces [start, end) of the base text, in
-// UTF-16 offsets, so `generate` touches a C file only where a planner says (R9). The shape is architecture §3.4's
-// TextEdit, declared here once (core/reconcile imports only foundation) and re-exported by core/emit/tree.ts for the
-// FileEntry that carries it.
+// planner and the identifier renames of `rename` (rename-tokens.ts, phase 6, D92) return, and how they apply. An edit
+// replaces [start, end) of the base text, in UTF-16 offsets, so `generate` touches a C file only where a planner says
+// (R9). The shape is architecture §3.4's TextEdit, declared here once (core/reconcile imports only foundation) and
+// re-exported by core/emit/tree.ts for the FileEntry that carries it.
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 
 /** One edit of a reconciled file, in UTF-16 offsets of its base text. */
@@ -12,9 +12,10 @@ export interface TextEdit {
   readonly text: string;
   /**
    * Why: a stub added or removed, or the `#include "include_asm.h"` a file gains with its first stub ('add-header', fix
-   * round 7, architecture-b2-10); phase 6's renames add their own reasons with their raiser.
+   * round 7, architecture-b2-10); or an identifier token `rename` replaced ('rename-identifier', rename-tokens.ts,
+   * phase 6, D92).
    */
-  readonly reason: 'add-stub' | 'remove-stub' | 'add-header';
+  readonly reason: 'add-stub' | 'remove-stub' | 'add-header' | 'rename-identifier';
 }
 
 /**

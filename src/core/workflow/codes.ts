@@ -1,7 +1,8 @@
 // Diagnostic codes raised by core/workflow (architecture §9.1, D45): `init`'s verdict on the directory it is given
-// (init.ts initDirVerdict and replacedProblems, D75 j), which the shell only lists and hashes, and `analyze --update
-// --write`'s refusal to save over a config that changed since it was read (analyze-update.ts staleConfigProblems),
-// and what the reconciliation of a project's C files cannot fix (c-stubs.ts, D77 a).
+// (init.ts initDirVerdict and replacedProblems, D75 j), which the shell only lists and hashes, the refusal of `analyze
+// --update --write` and of `rename` to save over a config that changed since it was read (analyze-update.ts
+// staleConfigProblems, rename.ts staleRenameConfig), what the reconciliation of a project's C files cannot fix
+// (c-stubs.ts, D77 a), and `rename`'s refusals (rename.ts planRename, renameJournalProblems; phase 6, D92).
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
 
 export const WorkflowCodes = defineCodes({
@@ -19,7 +20,23 @@ export const WorkflowCodes = defineCodes({
   },
   E_STALE_CONFIG: {
     severity: 'error',
-    meaning: 'romlift.toml changed on disk while analyze --update ran, so its patch, made from the text it read, is not saved',
+    meaning: 'romlift.toml changed on disk while analyze --update or rename ran, so its patch, made from the text it read, is not saved',
+  },
+  E_RENAME_UNKNOWN: {
+    severity: 'error',
+    meaning: 'rename was given an old name that is no [functions] or [symbols] entry of romlift.toml nor an alias of one; nothing is changed (rename.ts)',
+  },
+  E_RENAME_EXISTS: {
+    severity: 'error',
+    meaning: 'rename was given a new name that romlift.toml already has: a function, a symbol, an alias or a module; nothing is changed (rename.ts)',
+  },
+  E_RENAME_INVALID: {
+    severity: 'error',
+    meaning: 'rename was given a new name that is not a C identifier (a letter or _, then letters, digits and _, not a C keyword) or not an assembler symbol name; nothing is changed (rename.ts)',
+  },
+  E_RENAME_INTERRUPTED: {
+    severity: 'error',
+    meaning: "the project holds the journal of an interrupted write (.romlift/journal.json), which the next generate finishes; rename changes nothing until it has (rename.ts)",
   },
 });
 
