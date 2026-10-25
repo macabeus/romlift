@@ -14,7 +14,7 @@ import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import { romWith } from '../../../helpers/analysis.ts';
 import type { Placed } from '../../../helpers/analysis.ts';
 import { arm } from '../../../helpers/arm.ts';
-import { codeRange, concat, contiguous, distinct, idOf, signatureFile, withWord } from '../../../helpers/signatures.ts';
+import { codeRange, concat, contiguous, distinct, idOf, signatureFile, withWord, wordBytes } from '../../../helpers/signatures.ts';
 import type { FunctionSpec, MemberSpec, TableSpec } from '../../../helpers/signatures.ts';
 import { thumb } from '../../../helpers/thumb.ts';
 
@@ -107,6 +107,55 @@ test('sig.link-order-run: the longest run wins over a shorter one found first', 
   const rom = romWith([at(0x0800_2000, concat(a.bytes, b.bytes, c.bytes)), at(0x0800_3000, concat(b.bytes, c.bytes, d.bytes, e.bytes))]);
   const m = run(rom, [signatureFile('lib', { id: '1', members: [a, b, c, d, e] })]);
   assert.deepEqual(placed(m), ['Swi2 sig.link-order-run 0x8003000', 'Swi3 sig.link-order-run 0x8003004', 'Swi4 sig.link-order-run 0x8003008', 'Swi5 sig.link-order-run 0x800300c']);
+});
+
+test('sig.link-order-run: an object is linked whole, so a run never skips a link of the object before or after the gap', () => {
+  // Two 16-byte wrappers with the same code and a long member, all of one object in this order: on the ROM the
+  // wrapper right before Long is Second, never First reached by skipping Second.
+  const wrapper = (name: string): FunctionSpec => ({ name, bytes: thumb`push {lr}; movs r0, #4; lsls r0, r0, #8; adds r0, #1; movs r1, #9; adds r0, r0, r1; pop {r0}; bx r0` });
+  const [first, second] = [wrapper('First'), wrapper('Second')];
+  const long = big('Long', 30, 64);
+  const rom = romWith([at(0x0800_1000, first.bytes), at(0x0800_2000, concat(second.bytes, long.bytes))]);
+  const m = run(rom, [signatureFile('lib', { id: '1', members: [first, second, long] })]);
+  assert.deepEqual(placed(m), ['Second sig.link-order-run 0x8002000', 'Long sig.unique-fit 0x8002010']);
+});
+
+test('sig.link-order-run: across an object border the next member may start at the next word', () => {
+  // Mod (6 bytes) ends its object off a word; the next object starts on the word after the linker's padding.
+  const mod: FunctionSpec = { name: 'Mod', object: 'mod', bytes: thumb`swi #6; movs r0, r1; bx lr` };
+  const next: FunctionSpec = { name: 'Next', object: 'next', bytes: thumb`movs r0, #1; movs r1, #2; adds r0, r0, r1; bx lr` };
+  const rom = romWith([at(0x0800_2000, concat(mod.bytes, new Uint8Array(2), next.bytes))]);
+  const linkOrder = [{ reference: 'ref', members: [{ name: 'Mod', addr: 0x0810_0000 }, { name: 'Next', addr: 0x0810_0008 }] }];
+  assert.deepEqual(placed(run(rom, [signatureFile('lib', { id: '1', members: [mod, next], linkOrder })])), ['Mod sig.link-order-run 0x8002000', 'Next sig.link-order-run 0x8002008']);
+  const oneObject = [{ ...mod, object: 'one' }, { ...next, object: 'one' }];
+  assert.deepEqual(placed(run(rom, [signatureFile('lib', { id: '1', members: oneObject, linkOrder })])), [], 'inside one object the run stops at the gap');
+});
+
+test('sig.link-order-run: the runs of every chain are weighed together, and no member lands on bytes another holds', () => {
+  // Reference one links S1 S2 Mod; reference two links S1 S2 DivRem S3 S4, where DivRem is Mod's code and its
+  // padding. On a ROM laid out as reference two, two's longer run wins although one's chain comes first, and Mod,
+  // which fits at DivRem's address, is not placed over it.
+  const s1 = stub(1);
+  const s2 = stub(2);
+  const s3 = stub(3);
+  const s4 = stub(4);
+  const mod: FunctionSpec = { name: 'Mod', object: 'mod', bytes: thumb`swi #6; movs r0, r1; bx lr` };
+  const divRem: FunctionSpec = { name: 'DivRem', object: 'gba', bytes: concat(mod.bytes, new Uint8Array(2)) };
+  const gba = [s1, s2, s3, s4].map((m) => ({ ...m, object: 'gba' }));
+  const [g1, g2, g3, g4] = gba;
+  assert.ok(g1 !== undefined && g2 !== undefined && g3 !== undefined && g4 !== undefined);
+  const rom = romWith([at(0x0800_2000, concat(g1.bytes, g2.bytes, divRem.bytes, g3.bytes, g4.bytes))]);
+  const linkOrder = [contiguous('one', [g1, g2, mod]), contiguous('two', [g1, g2, divRem, g3, g4], 0x0820_0000)];
+  const m = run(rom, [signatureFile('lib', { id: '1', members: [g1, g2, mod, divRem, g3, g4], linkOrder })]);
+  assert.deepEqual(placed(m), ['Swi1 sig.link-order-run 0x8002000', 'Swi2 sig.link-order-run 0x8002004', 'DivRem sig.link-order-run 0x8002008', 'Swi3 sig.link-order-run 0x8002010', 'Swi4 sig.link-order-run 0x8002014']);
+});
+
+test('sig.unique-fit: a member is never placed over the bytes of a larger member placed before it', () => {
+  const whole = big('Whole', 31, 48);
+  const tail: FunctionSpec = { name: 'Tail', bytes: whole.bytes.slice(16) };
+  const rom = romWith([at(0x0800_1000, whole.bytes)]);
+  const linkOrder = [{ reference: 'ref', members: [{ name: 'Whole', addr: 0x0810_0000 }] }, { reference: 'other', members: [{ name: 'Tail', addr: 0x0820_0000 }] }];
+  assert.deepEqual(placed(run(rom, [signatureFile('lib', { id: '1', members: [whole, tail], linkOrder })])), ['Whole sig.unique-fit 0x8001000']);
 });
 
 test('sig.neighbour-spacing: the reference spacing from a placed neighbour', () => {
@@ -217,6 +266,17 @@ test('a pointer table whose word names another address is refused: W_SIGNATURE_P
     assert.deepEqual(m.pointerTables, []);
     assert.deepEqual(m.diagnostics.map((d) => [d.code, d.addr]), [['W_SIGNATURE_POINTERS', 0x0800_4000]]);
   }
+});
+
+test('a table whose every byte is masked is placed by its neighbours only where a pointer proves it', () => {
+  const fn = big('Handler', 32);
+  const head: TableSpec = { kind: 'table', name: 'gHead', bytes: distinct(33, 16) };
+  const masked = (names?: readonly (string | null)[]): TableSpec => ({ kind: 'table', name: 'gPointers', bytes: new Uint8Array(8), masked: [0, 1, 2, 3, 4, 5, 6, 7], ...(names === undefined ? {} : { names }) });
+  const rom = (word: number): Rom => romWith([at(0x0800_1000, fn.bytes), at(0x0800_4000, concat(head.bytes, wordBytes(word, 0x0800_9000)))]);
+  const file = (t: TableSpec): SignatureFile => signatureFile('lib', { id: '1', members: [fn, head, t], linkOrder: [contiguous('ref', [fn]), contiguous('ref', [head, t], 0x0830_0000)] });
+  assert.deepEqual(placed(run(rom(0x0800_1001), [file(masked())])), ['Handler sig.unique-fit 0x8001000', 'gHead sig.unique-fit 0x8004000'], 'no pointer: fitting anywhere proves nothing');
+  assert.deepEqual(placed(run(rom(0x0800_1001), [file(masked(['Handler', null]))])), ['Handler sig.unique-fit 0x8001000', 'gHead sig.unique-fit 0x8004000', 'gPointers sig.neighbour-spacing 0x8004010']);
+  assert.deepEqual(placed(run(rom(0x0800_1101), [file(masked(['Handler', null]))])), ['Handler sig.unique-fit 0x8001000', 'gHead sig.unique-fit 0x8004000'], 'a pointer that names another address');
 });
 
 test('a pointer to an ARM function carries no Thumb bit', () => {

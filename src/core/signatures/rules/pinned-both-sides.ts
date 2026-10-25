@@ -2,8 +2,9 @@
 // policy.pinnedMinBytes bytes whose placed neighbours on both sides, in the same reference's link order, agree on its
 // address by the reference spacing is placed there when it differs from the ROM in at least one and at most
 // policy.maxDiffWords aligned words. Those words are the constants a game passes into the library (m4aSoundInit's
-// sound mode); the placement carries them and the matcher reports them (W_SIGNATURE_CONSTANT).
-import { placeMember, placedAt, placedNeighbours, pointersAgree, wordDiffs } from './state.ts';
+// sound mode); the placement carries them and the matcher reports them (W_SIGNATURE_CONSTANT). Never over the bytes of
+// another placed member of the version (state.ts, overlapsPlaced).
+import { overlapsPlaced, placeMember, placedAt, placedNeighbours, pointersAgree, wordDiffs } from './state.ts';
 import type { Chain, ChainMemberRule, VersionState } from './state.ts';
 
 const pinnedBothSides: ChainMemberRule = {
@@ -28,6 +29,7 @@ const pinnedBothSides: ChainMemberRule = {
     if (prevAt === undefined || nextAt === undefined) return false;
     const at = prevAt + (link.refAddr - prev.refAddr);
     if (at !== nextAt + (link.refAddr - next.refAddr)) return false;
+    if (overlapsPlaced(state, member, at)) return false;
     const constants = wordDiffs(state.rom, member, at, state.policy.maxDiffWords);
     if (constants === undefined || constants.length === 0 || !pointersAgree(state, member, at)) return false;
     placeMember(state, member, at, 'sig.pinned-both-sides', constants);

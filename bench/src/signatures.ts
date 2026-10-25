@@ -28,9 +28,14 @@
 // `--loo` (D31): for every version that names two or more references in signatures/specs/*.json, and each of its
 // references R, the version is rebuilt in memory without R (buildSignatures with the spec less R) and matched on R's
 // ROM beside the other built files; against the full build's placements of that version there it counts `added`
-// (members placed only without R), `moved` (placed at another address) and `missingShared` (members R's link order
-// shares with another reference's that the rebuilt version does not place). The command exits 0 whenever the run
-// completes; the gates (g6.signatures-judged, -heldout, -loo) judge the counts.
+// (placements at an address where the full build placed no member of the version), `moved` (a member placed at
+// another address than the full build placed it) and `missingShared` (members R's link order shares with another
+// reference's that the rebuilt version does not place). A member is the same in both builds when another reference
+// links it at the same address there (`counterparts`): leaving R out renames a member R and that reference shared
+// (Emerald's `BgAffineSet@BgAffineSet.o` becomes Fire Emblem 7's `BgAffineSet@gba-syscall.o`), and another
+// reference's member with the same code (`Mod`, `DivRem`) may take the address under its own name; neither adds or
+// moves a placement (phase 6's closing run, docs/phase-6.md). The command exits 0 whenever the run completes; the
+// gates (g6.signatures-judged, -heldout, -loo) judge the counts.
 import { join } from 'node:path';
 
 import {
@@ -316,19 +321,42 @@ export function sharedMembers(version: SignatureFile['versions'][number], refere
 }
 
 /**
- * The difference of one version's placements on R's ROM rebuilt without R (`loo`) against the full build's (`full`),
- * both already that version's: members placed only in `loo`, members placed at another address, and the shared
- * members `loo` does not place.
+ * The full build's id of each member of the version rebuilt without R: the member another reference links at the same
+ * address in both builds (the rebuilt version names it by the first remaining reference that links it).
  */
-export function looCounts(full: readonly SignaturePlacement[], loo: readonly SignaturePlacement[], shared: ReadonlySet<MemberId>): { readonly added: number; readonly moved: number; readonly missingShared: number } {
+export function counterparts(full: SignatureFile['versions'][number], rebuilt: SignatureFile['versions'][number]): ReadonlyMap<MemberId, MemberId> {
+  const fullAt = new Map<string, MemberId>();
+  for (const order of full.linkOrder) for (const m of order.members) fullAt.set(`${order.reference}:${m.addr}`, m.id);
+  const out = new Map<MemberId, MemberId>();
+  for (const order of rebuilt.linkOrder) {
+    for (const m of order.members) {
+      const id = fullAt.get(`${order.reference}:${m.addr}`);
+      if (id !== undefined && !out.has(m.id)) out.set(m.id, id);
+    }
+  }
+  return out;
+}
+
+/**
+ * The difference of one version's placements on R's ROM rebuilt without R (`loo`) against the full build's (`full`),
+ * both already that version's, `loo`'s members read as their full-build counterparts: placements at an address where
+ * `full` placed no member, members placed at another address, and the shared members `loo` does not place.
+ */
+export function looCounts(
+  full: readonly SignaturePlacement[],
+  loo: readonly SignaturePlacement[],
+  shared: ReadonlySet<MemberId>,
+  counterpart: ReadonlyMap<MemberId, MemberId> = new Map(),
+): { readonly added: number; readonly moved: number; readonly missingShared: number } {
   const fullAt = new Map(full.map((p) => [p.member, p.addr] as const));
-  const looAt = new Map(loo.map((p) => [p.member, p.addr] as const));
+  const fullAddrs = new Set(full.map((p) => p.addr));
+  const looAt = new Map(loo.map((p) => [counterpart.get(p.member) ?? p.member, p.addr] as const));
   let added = 0;
   let moved = 0;
   for (const [member, addr] of looAt) {
     const before = fullAt.get(member);
-    if (before === undefined) added++;
-    else if (before !== addr) moved++;
+    if (before !== undefined && before !== addr) moved++;
+    else if (before === undefined && !fullAddrs.has(addr)) added++;
   }
   let missingShared = 0;
   for (const member of shared) if (!looAt.has(member)) missingShared++;
@@ -549,7 +577,9 @@ export async function benchSignaturesLoo(cx: BenchContext, options: SignaturesOp
       const fullVersion = full.versions.find((v) => v.id === version);
       if (fullVersion === undefined) throw new BenchError(`the built ${spec.library}.json has no version ${version}: rebuild it with\n  ${SIGNATURES_BUILD_LOOP}`);
       const loo = romSignatures(rom.inputs.rom, rom.analysis, replaceLibrary(files, rebuilt.value)).placements;
-      const counts = looCounts(ofVersion(rom.full, spec.library, version), ofVersion(loo, spec.library, version), sharedMembers(fullVersion, reference));
+      const rebuiltVersion = rebuilt.value.versions.find((v) => v.id === version);
+      const renamed = rebuiltVersion === undefined ? new Map<MemberId, MemberId>() : counterparts(fullVersion, rebuiltVersion);
+      const counts = looCounts(ofVersion(rom.full, spec.library, version), ofVersion(loo, spec.library, version), sharedMembers(fullVersion, reference), renamed);
       const run: LooRun = { library: spec.library, version, reference, ...counts };
       runs.push(run);
       log(`${spec.library}@${version} without ${reference}: ${run.added} added, ${run.moved} moved, ${run.missingShared} shared members not placed`);

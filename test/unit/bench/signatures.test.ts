@@ -27,6 +27,7 @@ import {
   isMappingSymbol,
   judgeSignatures,
   libraryPlacements,
+  counterparts,
   looCounts,
   looPairs,
   memberSymbol,
@@ -234,9 +235,40 @@ test('mutation: a sealed entry that leaks an address or a name fails the guard; 
 test('looCounts: added, moved and the shared members the rebuilt version does not place', () => {
   const full = [placement('A@x.o', 0x100), placement('B@x.o', 0x200), placement('C@x.o', 0x300), placement('Own@x.o', 0x400)];
   assert.deepEqual(looCounts(full, full.slice(0, 3), new Set<MemberId>(['A@x.o', 'B@x.o', 'C@x.o'])), { added: 0, moved: 0, missingShared: 0 }, 'only R-own members missing');
-  const loo = [placement('A@x.o', 0x100), placement('B@x.o', 0x210), placement('New@y.o', 0x300)];
+  const loo = [placement('A@x.o', 0x100), placement('B@x.o', 0x210), placement('New@y.o', 0x500)];
   assert.deepEqual(looCounts(full, loo, new Set<MemberId>(['A@x.o', 'B@x.o', 'C@x.o'])), { added: 1, moved: 1, missingShared: 1 });
   assert.deepEqual(looCounts([], [], new Set<MemberId>(['A@x.o'])), { added: 0, moved: 0, missingShared: 1 });
+});
+
+test('looCounts: a renamed member is its counterpart, and another member at an address the full build placed adds nothing', () => {
+  const full = [placement('A@x.o', 0x100), placement('B@x.o', 0x200), placement('C@x.o', 0x300)];
+  const shared = new Set<MemberId>(['A@x.o', 'B@x.o']);
+  // B is linked by R and another reference, under R's id; without R it carries the other reference's id.
+  const loo = [placement('A@x.o', 0x100), placement('B@y.o', 0x200), placement('Same@z.o', 0x300)];
+  assert.deepEqual(looCounts(full, loo, shared), { added: 0, moved: 0, missingShared: 1 }, 'without counterparts B is missing');
+  assert.deepEqual(looCounts(full, loo, shared, new Map<MemberId, MemberId>([['B@y.o', 'B@x.o']])), { added: 0, moved: 0, missingShared: 0 });
+  const movedLoo = [placement('A@x.o', 0x100), placement('B@y.o', 0x240)];
+  assert.deepEqual(looCounts(full, movedLoo, shared, new Map<MemberId, MemberId>([['B@y.o', 'B@x.o']])), { added: 0, moved: 1, missingShared: 0 });
+});
+
+test("counterparts: the full build's id of the member another reference links at the same address", () => {
+  const fullFile = signatureFile('lib', {
+    id: '1',
+    members: [],
+    linkOrder: [
+      { reference: 'r1', members: [{ name: 'A', addr: 1 }, { name: 'B', addr: 2 }] },
+      { reference: 'r2', members: [{ name: 'A', addr: 5 }, { name: 'C', addr: 6 }] },
+    ],
+  });
+  const rebuiltFile = signatureFile('lib', {
+    id: '1',
+    members: [],
+    linkOrder: [{ reference: 'r2', members: [{ name: 'A', addr: 5, object: 'other' }, { name: 'C', addr: 6 }, { name: 'D', addr: 7 }] }],
+  });
+  const full = fullFile.versions[0];
+  const rebuilt = rebuiltFile.versions[0];
+  assert.ok(full !== undefined && rebuilt !== undefined);
+  assert.deepEqual([...counterparts(full, rebuilt)].sort(), [['A@other.o', 'A@lib.o'], ['C@lib.o', 'C@lib.o']]);
 });
 
 test("sharedMembers is R's link order intersected with the other references' link orders", () => {

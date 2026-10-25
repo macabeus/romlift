@@ -73,7 +73,7 @@ export interface VersionState {
 }
 
 /** How a rule visits the members of its stage (policy.ts, SignatureStage): every rule of a stage shares one. */
-export type SignatureSweep = 'largest-first' | 'listed' | 'chain' | 'chain-member';
+export type SignatureSweep = 'largest-first' | 'listed' | 'chains' | 'chain-member';
 
 interface RuleBase {
   readonly meta: RuleMeta & { readonly id: SignatureRuleId };
@@ -85,10 +85,13 @@ export interface MemberRule extends RuleBase {
   place(state: VersionState, member: Member): boolean;
 }
 
-/** A rule that decides a whole chain at once. */
+/**
+ * A rule that decides every chain of the version at once (`state.chains`): what one reference's link order proves
+ * is weighed against what another's does before anything is placed.
+ */
 export interface ChainRule extends RuleBase {
-  readonly sweep: 'chain';
-  place(state: VersionState, chain: Chain): boolean;
+  readonly sweep: 'chains';
+  place(state: VersionState): boolean;
 }
 
 /** A rule that decides the unplaced member at `index` of a chain, reading its placed neighbours there. */
@@ -184,6 +187,45 @@ export function pointersAgree(state: VersionState, member: Member, addr: Addr): 
     }
   }
   return true;
+}
+
+/** The object a member id names: `name@object.o` -> `object.o`. */
+export function objectOf(id: MemberId): string {
+  return id.slice(id.indexOf('@') + 1);
+}
+
+/**
+ * Whether `member` at `addr` would share a byte with another member of this version already placed: a library's
+ * members are linked side by side, so two of them never hold the same byte (two members of different references with
+ * the same code, such as one SDK's `DivRem` and another's `Mod`, both fit there, and only one is placed).
+ */
+export function overlapsPlaced(state: VersionState, member: Member, addr: Addr): boolean {
+  const end = addr + member.size;
+  for (const other of state.members) {
+    if (other.index === member.index) continue;
+    const p = state.placed.get(other.index);
+    if (p !== undefined && addr < p.addr + other.size && p.addr < end) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether fitting at `addr` says anything: a member with an unmasked byte fits only where those bytes are, but one
+ * whose every byte is masked (a table of pointers) fits anywhere, so it needs a word that names a placed function of
+ * this version and holds that function's address there.
+ */
+export function evidenced(state: VersionState, member: Member, addr: Addr): boolean {
+  if (member.unmasked > 0) return true;
+  const names = member.names ?? [];
+  for (let i = 0; i < names.length; i++) {
+    const id = names[i];
+    if (id === null || id === undefined) continue;
+    const target = state.byId.get(id);
+    if (target === undefined || target.kind !== 'function') continue;
+    const at = placedAt(state, target);
+    if (at !== undefined && peek32(state.rom, addr + 4 * i) === at + (target.mode === 'thumb' ? 1 : 0)) return true;
+  }
+  return false;
 }
 
 /** Records that `rule` placed `member` at `addr`. */

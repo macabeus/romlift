@@ -180,10 +180,8 @@ function sweepOnce(state: VersionState, rules: readonly SignatureRule[], sweep: 
         }
       }
       return changed;
-    case 'chain':
-      for (const chain of state.chains) {
-        for (const rule of rules) if (rule.sweep === 'chain' && rule.place(state, chain)) changed = true;
-      }
+    case 'chains':
+      for (const rule of rules) if (rule.sweep === 'chains' && rule.place(state)) changed = true;
       return changed;
     case 'chain-member':
       for (const chain of state.chains) {

@@ -3,8 +3,10 @@
 // from the previous placed neighbour, right after it, the reference spacing from the next one, right before it, and
 // the only candidate within policy.window bytes of a neighbour, that lies between the two neighbours and fits.
 // Spacing and order only mean something between members of one reference. A table whose pointers name other
-// addresses at the first such place is not placed (sig.pinned-both-sides may still pin it).
-import { alignUp, fits, placeMember, placedAt, placedNeighbours, pointersAgree } from './state.ts';
+// addresses at the first such place is not placed (sig.pinned-both-sides may still pin it). A place over the bytes of
+// another placed member of the version is passed over, and a member whose every byte is masked needs a pointer there
+// that proves it (state.ts, overlapsPlaced and evidenced; phase 6's closing run, docs/phase-6.md).
+import { alignUp, evidenced, fits, overlapsPlaced, placeMember, placedAt, placedNeighbours, pointersAgree } from './state.ts';
 import type { Chain, ChainMemberRule, VersionState } from './state.ts';
 
 const neighbourSpacing: ChainMemberRule = {
@@ -40,6 +42,7 @@ const neighbourSpacing: ChainMemberRule = {
       if (at === undefined || want.indexOf(at) !== k) continue;
       if (!(at >= lo && at + member.size <= hi)) continue;
       if (!(member.candidates.includes(at) || fits(state.rom, member, at))) continue;
+      if (overlapsPlaced(state, member, at) || !evidenced(state, member, at)) continue;
       if (!pointersAgree(state, member, at)) return false;
       placeMember(state, member, at, 'sig.neighbour-spacing');
       return true;

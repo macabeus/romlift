@@ -1812,7 +1812,12 @@ own ELF; no golden ever contains bytes from a real ROM.
   `sig.neighbour-spacing` (spacing, adjacency, or the only fit within `policy.window` = 64 bytes, same
   reference only), `sig.pinned-both-sides` (at most `policy.maxDiffWords` = 2 differing words, reported
   as game constants, `W_SIGNATURE_CONSTANT`), `sig.short-member-window`. Pointer tables are accepted only
-  when every word naming a matched function points at it. `resolve.ts` settles overlaps: per module, the
+  when every word naming a matched function points at it. Within one version no member is placed over the bytes of
+  another placed member, and a member whose every byte is masked is placed by its neighbours only where one of its
+  words names a placed function and holds its address. `sig.link-order-run` weighs the runs of every reference's
+  chain together, skips a link only when its object is neither the object before nor the one after the gap (an
+  object is linked whole), and lets the next object start at the next word (phase-6.md, the closing run's matcher
+  refinements). `resolve.ts` settles overlaps: per module, the
   version or library that matched more wins; ties by `library@version` in code-unit order.
 
 ### 7.3 Signatures propose; the TOML decides (D9)
