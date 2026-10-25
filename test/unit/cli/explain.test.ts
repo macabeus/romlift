@@ -1,6 +1,7 @@
 // `romlift explain <addr> --rom <rom> [--json]` (architecture §2.1, §9.2): in process through `main`: the
 // report line and the summary, the text sections, the phase-3 chunk and item, the usage errors (missing
-// --rom, a bad address) and the content errors (an unreadable file, an image that is not a cartridge).
+// --rom, a bad address) and the content errors (an unreadable file, an image that is not a cartridge); the phase-4
+// name and project mode; the phase-6 signature part (--signatures, and the from key in a project).
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,7 +16,7 @@ import { Claim } from '../../../src/core/analysis/types.ts';
 import { explain } from '../../../src/core/workflow/explain.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
-import { listSyntheticFixtures } from '../../helpers/fixtures.ts';
+import { listSyntheticFixtures, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
 import { capturingIo } from './fake.ts';
 
 const FAR_JUMP = listSyntheticFixtures().find((f) => f.name === 'far-jump');
@@ -160,4 +161,37 @@ test('explain names the function holding the address: analysis on a bare ROM, to
   const text = { ...capturingIo(), cwd: dir };
   assert.equal(await main(['explain', '0x08000106'], text), ExitCode.ok);
   assert.match(text.out.join(''), /^ {2}name: FarJumpCaller \(toml, from legacy\)$/m);
+});
+
+// Phase 6: the signature part, from --signatures on a bare ROM (with the placement's rule) and from romlift.toml's
+// `from` key in a project; --signatures goes with --rom only.
+
+test('explain --rom --signatures: the placement holding the address, in the record and the text', async () => {
+  const game = listSyntheticFixtures().find((f) => f.name === 'library-game') ?? assert.fail('library-game');
+  const dir = mkdtempSync(join(TMP, 'signatures-'));
+  writeFileSync(join(dir, 'libfix.json'), readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json')));
+  const json = await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', dir, '--json']);
+  assert.equal(json.code, ExitCode.ok, json.stdout);
+  assert.deepEqual(lines(json.stdout)[0]?.['signature'], { library: 'libfix', version: '1.0', name: 'FixAbs', rule: 'sig.unique-fit' });
+  const text = await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', dir]);
+  assert.match(text.stdout, /^ {2}signature: libfix@1\.0 FixAbs \(sig\.unique-fit\)$/m);
+  const empty = mkdtempSync(join(TMP, 'no-signatures-'));
+  const none = await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', empty, '--json']);
+  assert.equal(lines(none.stdout)[0]?.['signature'], undefined);
+  assert.doesNotMatch((await run(['explain', '0x08000246', '--rom', game.rom, '--signatures', empty])).stdout, /signature:/);
+  assert.equal((await run(['explain', '0x08000246', '--signatures', dir])).code, ExitCode.usage);
+});
+
+test('explain in a project reads the signature from the from key, without a rule', async () => {
+  const dir = mkdtempSync(join(TMP, 'project-sig-'));
+  writeFileSync(join(dir, 'baserom.gba'), readFileSync(ROM));
+  assert.equal(await main(['init', 'baserom.gba'], { ...capturingIo(), cwd: dir }), ExitCode.ok);
+  const file = join(dir, 'romlift.toml');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('0x08000104 = "sub_08000104"', '0x08000104 = { name = "FarJumpCaller", from = "sig:farlib@2" }'));
+  const io = { ...capturingIo(), cwd: dir };
+  assert.equal(await main(['explain', '0x08000106', '--json'], io), ExitCode.ok, io.out.join(''));
+  assert.deepEqual(lines(io.out.join(''))[0]?.['signature'], { library: 'farlib', version: '2', name: 'FarJumpCaller' });
+  const text = { ...capturingIo(), cwd: dir };
+  assert.equal(await main(['explain', '0x08000106'], text), ExitCode.ok);
+  assert.match(text.out.join(''), /^ {2}signature: farlib@2 FarJumpCaller$/m);
 });

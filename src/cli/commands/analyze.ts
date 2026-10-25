@@ -10,7 +10,10 @@
 // `romlift analyze --update [--write] [--json]` (phase 4, architecture §2.1, §6.5): inside a project, what the
 // analysis proposes for its romlift.toml (core/workflow/analyze-update.ts): one line per proposal (text) or
 // {"type":"proposal","kind","addr","mode","label"?,"rule"} (--json), the reports (W_LISTED_INVALID), the patch as a
-// unified diff ({"type":"patch","path","changed","diff"} with --json), then the summary. The patch keeps every
+// unified diff ({"type":"patch","path","changed","diff"} with --json), then the summary. From phase 6, while the
+// config's [signatures] is enabled, the built signature files are located (shell/signatures/locate.ts) and the
+// workflow adds their screened proposals (a function or symbol with its name and `from`, a library module); a
+// proposal record then carries `from` (`sig:<library>@<version>`) and a module its `library`. The patch keeps every
 // comment and re-parses; --write saves it (shell/config/save.ts, under the project lock), and nothing else ever
 // writes the TOML but `init` and phase 6's `rename` (`import-legacy` was dropped with phase 5, D76 g). Exit codes: 0 ok, 1 an error diagnostic (no project,
 // another ROM, E_TOML_PATCH_REFUSED, a write that failed), 2 usage (a ROM argument with --update, --write alone).
@@ -20,12 +23,14 @@ import type { Rejection } from '../../api/profile.ts';
 import type { Diagnostic } from '../../api/rom.ts';
 import { hexAddr } from '../../api/rom.ts';
 import type { Proposal } from '../../api/config-types.ts';
+import { sourceKey } from '../../api/config-types.ts';
 import { analyzeUpdate, staleConfigProblems } from '../../core/workflow/analyze-update.ts';
 import { unifiedDiff } from '../../api/workflow-one-shot.ts';
 import { disabledTuning, discoverTuned, parseRuleIds } from '../../core/workflow/discover.ts';
 import { saveConfig } from '../../shell/config/save.ts';
 import { withProjectLock } from '../../shell/project/lock.ts';
-import { readProject, readProjectTexts } from '../../shell/project/read-inputs.ts';
+import { packageRoot, readProject, readProjectTexts } from '../../shell/project/read-inputs.ts';
+import { locateSignatures } from '../../shell/signatures/locate.ts';
 import type { CliIo } from '../registry.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
@@ -128,11 +133,21 @@ function analyzeTextDiagnostics(result: AnalysisResult): string {
 export function proposalRecord(p: Proposal): RecordFields {
   switch (p.kind) {
     case 'function':
-      return { kind: p.kind, addr: hexAddr(p.addr), mode: p.mode, name: p.name, label: p.label, source: p.source.kind, rule: 'rule' in p.source ? p.source.rule : undefined };
+      return {
+        kind: p.kind,
+        addr: hexAddr(p.addr),
+        mode: p.mode,
+        name: p.name,
+        size: p.size,
+        label: p.label,
+        source: p.source.kind,
+        rule: 'rule' in p.source ? p.source.rule : undefined,
+        from: sourceKey(p.source),
+      };
     case 'symbol':
-      return { kind: p.kind, addr: hexAddr(p.addr), name: p.name, source: p.source.kind };
+      return { kind: p.kind, addr: hexAddr(p.addr), name: p.name, size: p.size, symbolType: p.type, source: p.source.kind, rule: 'rule' in p.source ? p.source.rule : undefined, from: sourceKey(p.source) };
     case 'module':
-      return { kind: p.kind, addr: hexAddr(p.start), name: p.name, source: p.source.kind };
+      return { kind: p.kind, addr: hexAddr(p.start), name: p.name, moduleKind: p.moduleKind, library: p.library === undefined ? undefined : `${p.library.name}@${p.library.version}`, source: p.source.kind };
     case 'override':
       return { kind: p.kind, addr: hexAddr(p.span.start), end: hexAddr(p.span.end), source: p.source.kind };
   }
@@ -142,7 +157,10 @@ function proposalText(p: Proposal): string {
   const record = proposalRecord(p);
   const rule = typeof record['rule'] === 'string' ? ` (${record['rule']})` : '';
   const label = record['label'] === true ? ', label' : '';
-  return `${p.kind} ${String(record['addr'])}${typeof record['mode'] === 'string' ? ` ${record['mode']}` : ''}${label}${rule}\n`;
+  const name = typeof record['name'] === 'string' && p.kind !== 'module' ? ` ${record['name']}` : '';
+  const from = typeof record['from'] === 'string' ? `, from ${record['from']}` : '';
+  const library = typeof record['library'] === 'string' ? ` ${String(record['name'])}, library ${record['library']}` : '';
+  return `${p.kind} ${String(record['addr'])}${typeof record['mode'] === 'string' ? ` ${record['mode']}` : ''}${name}${library}${label}${from}${rule}\n`;
 }
 
 /** Runs `analyze --update [--write]` in the project that holds `io.cwd`. */
@@ -153,13 +171,14 @@ async function runUpdate(io: CliIo, json: boolean, write: boolean): Promise<Exit
     return ExitCode.errors;
   }
   const project = read.value;
-  const plan = analyzeUpdate(project.inputs);
+  const located = project.inputs.config.signatures.enabled ? await locateSignatures({ packageRoot: packageRoot(), env: io.env, cwd: io.cwd }) : undefined;
+  const plan = analyzeUpdate(located === undefined ? project.inputs : { ...project.inputs, signatureFiles: located.files });
   if (!plan.ok) {
     printDiagnosticsOnly(io, json, 'analyze --update', plan.diagnostics, { ok: false, exitCode: ExitCode.errors });
     return ExitCode.errors;
   }
   const path = project.config.project.config;
-  let diagnostics: readonly Diagnostic[] = plan.diagnostics;
+  let diagnostics: readonly Diagnostic[] = [...(located?.diagnostics ?? []), ...plan.diagnostics];
   let written = false;
   if (write && plan.changed) {
     // Under the lock: the config on disk must still be the text the plan was made from (D75 m).

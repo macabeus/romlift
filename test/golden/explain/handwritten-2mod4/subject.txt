@@ -23,11 +23,13 @@
     0x08000104 walk.pc-load-is-pool round 0 cites 0x080000F4, 0x08000104: pool
     0x0800011C walk.mov-pc-without-table round 0 cites 0x0800011A, 0x0800011C: end-path
   waits: none
-  claims (3):
+  claims (5):
     0x08000114 claim.dead-code-in-extent round 0 cites 0x08000114: 1 edits
     0x0800011A claim.dead-code-in-extent round 0 cites 0x0800011A: 1 edits
     0x08000120 claim.dead-code-in-extent round 1 cites 0x08000120: 1 edits
-  rules (7):
+    0x0800011E region.padding round 7 cites 0x0800011E: padding to 0x08000120
+    0x08000126 region.data-after-code round 7 cites 0x08000126: data to 0x08000128
+  rules (9):
     accept.tiles-after-accepted: a valid candidate that starts where claimed bytes end, give or take padding, is a function
       rests on: the linker lays compiled functions out back to back, each aligned with zero or nop padding
       recovers: functions referenced only by pointers whose neighbour below is already known
@@ -37,6 +39,12 @@
     claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
       rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
+    region.padding: free padding bytes that align the claimed item after them, between claimed bytes below the code end, are claimed as padding
+      rests on: agbcc and as emit .align 2, 0 before every function and literal pool, so the only free bytes between code are the zeros of an alignment
+      recovers: alignment zeros emitted as data slices between functions instead of .align
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

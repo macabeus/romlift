@@ -1,9 +1,12 @@
-// The init workflow (architecture §2.1, §6.3 to §6.5, D17, D36, D49, D74 c, d; roadmap 4.D): a ROM in, everything a
-// new project holds out, as a plan the shell applies. Ported from the PoC's `cli.ts` init flow and `generate.ts`,
-// without signatures (phase 6) and with the TOML written by `init` alone (generate never writes it): the config and
-// its canonical TOML (init-config.ts initConfigOf, the one path to them), decomp.yaml (renderDecompYaml), the checked
-// generate over that config (its tree, the c stubs and modules.mk; §6.4 step 2: a failed self-check or a model error
-// refuses the plan, nothing is written), and the scaffold (scaffold-diff.ts projectScaffold).
+// The init workflow (architecture §2.1, §6.3 to §6.5, §7.3, D17, D36, D49, D74 c, d; roadmap 4.D, 6.D): a ROM in,
+// everything a new project holds out, as a plan the shell applies. Ported from the PoC's `cli.ts` init flow and
+// `generate.ts`, with the TOML written by `init` alone (generate never writes it, nor loads signatures): the config and
+// its canonical TOML (init-config.ts initConfigOf, the one path to them, which from phase 6 folds the screened
+// signature proposals in; W_SIGNATURES_ABSENT when the layer is enabled and the shell found no built file), the files
+// init owns as data (romlift.toml and decomp.yaml with their texts, the ROM's project path; architecture-a2-6),
+// decomp.yaml (renderDecompYaml), the checked generate over that config (its tree, the c stubs and modules.mk; §6.4
+// step 2: a failed self-check or a model error refuses the plan, nothing is written), and the scaffold
+// (scaffold-diff.ts projectScaffold).
 //
 // Whether a directory may receive `init` is decided here too, from what the shell lists and reads (initDirVerdict,
 // replacedProblems, D75 j): the shell decides nothing. Pure: the shell reads the ROM, the templates, the pin and the
@@ -18,7 +21,7 @@ import { WorkflowCodes } from './codes.ts';
 import { generate, writable } from './generate.ts';
 import { initConfigOf } from './init-config.ts';
 import { projectScaffold } from './scaffold-diff.ts';
-import type { InitInputs, InitPlan } from './types.ts';
+import type { InitFile, InitInputs, InitPlan } from './types.ts';
 
 /**
  * `init`'s plan (architecture §2.1): the config and its TOML, decomp.yaml, the checked generate over the config the
@@ -29,8 +32,16 @@ import type { InitInputs, InitPlan } from './types.ts';
  */
 export function init(inputs: InitInputs, hash?: (text: string) => string): InitPlan {
   const { rom } = inputs;
-  const made = initConfigOf(rom, { ...inputs.options, romFile: inputs.romFile, ...(inputs.profile === undefined ? {} : { profile: inputs.profile }) });
+  const enabled = inputs.options.signatures !== false;
+  const files = enabled ? inputs.signatureFiles : undefined;
+  const made = initConfigOf(rom, {
+    ...inputs.options,
+    romFile: inputs.romFile,
+    ...(inputs.profile === undefined ? {} : { profile: inputs.profile }),
+    ...(files === undefined ? {} : { signatureFiles: files }),
+  });
   if (!made.ok) return made;
+  const absent = files?.length === 0 ? [signaturesAbsent()] : [];
   const { config, tomlText } = made;
   // modules.mk records the SHA-1 of the TOML init writes (`hash`, the shell's), as generate records the one it reads.
   const configSha1 = hash === undefined ? {} : { configSha1: hash(tomlText) };
@@ -40,7 +51,17 @@ export function init(inputs: InitInputs, hash?: (text: string) => string): InitP
   }
   const decompYamlText = renderDecompYaml({ name: config.build.name, title: rom.header.title, gameCode: rom.header.gameCode, sha1: rom.sha1, compiler: config.build.compiler });
   const scaffold = projectScaffold({ name: config.build.name, sha1: rom.sha1, title: rom.header.title, romliftVersion: inputs.romliftVersion, agbcc: inputs.agbcc, templates: inputs.templates });
-  return { ok: true, config, tomlText, decompYamlText, result, scaffold, diagnostics: [...made.diagnostics, ...result.diagnostics] };
+  const owned: readonly InitFile[] = [
+    [ROMLIFT_CONFIG_FILE, tomlText],
+    [DECOMP_YAML_FILE, decompYamlText],
+  ];
+  return { ok: true, config, tomlText, files: owned, romCopy: BASEROM_FILE, result, scaffold, diagnostics: [...absent, ...made.diagnostics, ...result.diagnostics] };
+}
+
+/** W_SIGNATURES_ABSENT: the layer is enabled and the shell found no built signature file; init proceeds without. */
+function signaturesAbsent(): Diagnostic {
+  const message = 'no built signature file was found (signatures/ or $ROMLIFT_SIGNATURES), so no library is named; build them with `romlift signatures build <spec>`, or pass --no-signatures';
+  return diagnostic(WorkflowCodes, 'W_SIGNATURES_ABSENT', message);
 }
 
 // ---------------------------------------------------------------------------------------------------

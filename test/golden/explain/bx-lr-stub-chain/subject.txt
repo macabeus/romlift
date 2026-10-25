@@ -23,13 +23,18 @@
     0x080000F6 bl.near-is-call round 0 cites 0x080000F6, 0x08000104: call
     0x080000FA bl.near-is-call round 0 cites 0x080000FA, 0x08000118: call
   waits: none
-  claims (5):
+  claims (10):
     0x08000104 claim.dead-code-in-extent round 0 cites 0x08000104: 1 edits
     0x08000118 claim.dead-code-in-extent round 0 cites 0x08000118: 1 edits
     0x0800010C claim.dead-code-in-extent round 2 cites 0x0800010C: 1 edits
     0x08000110 claim.dead-code-in-extent round 2 cites 0x08000110: 1 edits
     0x08000114 claim.dead-code-in-extent round 2 cites 0x08000114: 1 edits
-  rules (4):
+    0x08000102 region.padding round 6 cites 0x08000102: padding to 0x08000104
+    0x0800010A region.padding round 6 cites 0x0800010A: padding to 0x0800010C
+    0x0800010E region.padding round 6 cites 0x0800010E: padding to 0x08000110
+    0x08000116 region.padding round 6 cites 0x08000116: padding to 0x08000118
+    0x0800011E region.data-after-code round 6 cites 0x0800011E: data to 0x08000120
+  rules (6):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
@@ -39,6 +44,12 @@
     gap.forward-chain: a valid Thumb reading at the cursor, first word nonzero and no pointer to an accepted function, extent inside [gap start, end), chained forward from the gap start
       rests on: compiled functions are laid out back to back, so an unreferenced one starts where the previous one ends, give or take alignment; a literal pool word holding an accepted Thumb function + 1 is that function's address, not code
       recovers: functions reached only through computed addresses or not at all (dead code, callbacks named in data the harvest missed)
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
+    region.padding: free padding bytes that align the claimed item after them, between claimed bytes below the code end, are claimed as padding
+      rests on: agbcc and as emit .align 2, 0 before every function and literal pool, so the only free bytes between code are the zeros of an alignment
+      recovers: alignment zeros emitted as data slices between functions instead of .align
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

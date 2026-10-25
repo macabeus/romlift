@@ -5,8 +5,12 @@
 // an invalid --name are refused with nothing planned. The directory init is given, as the shell lists it
 // (initDirVerdict: absent, empty, the ROM with .git and dot-files, a project; anything else E_DIR_NOT_EMPTY), and the
 // files of a project init would replace (replacedProblems), moved here from the shell's read-inputs test
-// (architecture-r1-7).
+// (architecture-r1-7). From phase 6: the files init owns as data (architecture-a2-6), W_SIGNATURES_ABSENT when the
+// shell found no signature file, none with --no-signatures, and the checked plan of library-game with libfix's file
+// and with a member that restores an extent (the fold's names, size and labels pass every self-check).
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { readDecompYaml } from '../../../src/core/config/decomp-yaml.ts';
@@ -24,7 +28,9 @@ import type { DiskFileState } from '../../../src/core/write-plan/types.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { readScaffoldInputs } from '../../../src/shell/project/read-inputs.ts';
-import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
+import { parseSignatureFile } from '../../../src/core/signatures/schema.ts';
+import { listSyntheticFixtures, readFixtureRom, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
+import { signatureFile } from '../../helpers/signatures.ts';
 
 const scaffold = await readScaffoldInputs();
 if (!scaffold.ok) throw new Error(`the package's templates do not read: ${scaffold.diagnostics.map((d) => d.message).join('; ')}`);
@@ -48,15 +54,21 @@ test('the plan of a fixture: the canonical TOML of its config, decomp.yaml, the 
   const rom = fixtureRom('far-jump');
   const plan = init(inputs(rom));
   assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.code).join(', '));
-  // The TOML is the canonical text of the config configFromDiscover builds, and parses back to the plan's config.
+  // The TOML is the canonical text of the config configFromDiscover builds, with the signature layer enabled (no
+  // file was looked for, so no library is named and no W_SIGNATURES_ABSENT), and parses back to the plan's config.
   const discovered = configFromDiscover(rom, discover(rom));
-  assert.equal(plan.tomlText, serializeConfig({ ...discovered, build: { ...discovered.build, name: plan.config.build.name } }));
+  assert.equal(plan.tomlText, serializeConfig({ ...discovered, build: { ...discovered.build, name: plan.config.build.name }, signatures: { enabled: true } }));
+  assert.ok(!plan.diagnostics.some((d) => d.code === 'W_SIGNATURES_ABSENT'));
+  // The files init owns, as data (architecture-a2-6): romlift.toml and decomp.yaml with their texts, the ROM's copy.
+  assert.deepEqual(plan.files.map(([path]) => path), ['romlift.toml', 'decomp.yaml']);
+  assert.equal(plan.files[0]?.[1], plan.tomlText);
+  assert.equal(plan.romCopy, 'baserom.gba');
   const parsed = parseConfig(plan.tomlText);
   assert.ok(parsed.ok);
   assert.deepEqual(parsed.value, plan.config);
   assert.equal(plan.config.rom.sha1, rom.sha1);
   // decomp.yaml names the TOML, the ROM and the build.
-  const yaml = readDecompYaml(plan.decompYamlText);
+  const yaml = readDecompYaml(plan.files[1]?.[1] ?? '');
   assert.ok(yaml.ok);
   assert.deepEqual([yaml.value.config, yaml.value.target, yaml.value.sha1, yaml.value.buildName], ['romlift.toml', 'baserom.gba', rom.sha1, plan.config.build.name]);
   // The tree passed every self-check and holds the C stubs, modules.mk and the linker files.
@@ -81,7 +93,7 @@ test('init is deterministic', () => {
   const b = init(inputs(rom));
   assert.ok(a.ok && b.ok);
   assert.equal(a.tomlText, b.tomlText);
-  assert.equal(a.decompYamlText, b.decompYamlText);
+  assert.deepEqual(a.files, b.files);
   assert.deepEqual(a.result.paths, b.result.paths);
   assert.deepEqual(a.scaffold, b.scaffold);
 });
@@ -186,4 +198,39 @@ test('replacedProblems: absent, unlisted and equal files are fine; another romli
   assert.deepEqual(problems.map((d) => [d.code, d.path]), [['E_DIR_NOT_EMPTY', 'romlift.toml'], ['E_DIR_NOT_EMPTY', 'baserom.gba']]);
   assert.match(problems[0]?.message ?? '', /romlift generate/);
   assert.match(problems[1]?.message ?? '', /another ROM/);
+});
+
+test('W_SIGNATURES_ABSENT when the shell looked and found no file; none when it did not look or with --no-signatures', () => {
+  const rom = fixtureRom('far-jump');
+  const codes = (over: Partial<InitInputs>): readonly string[] => {
+    const plan = init(inputs(rom, over));
+    assert.ok(plan.ok);
+    return plan.diagnostics.map((d) => d.code);
+  };
+  assert.ok(codes({ signatureFiles: [] }).includes('W_SIGNATURES_ABSENT'));
+  assert.ok(!codes({}).includes('W_SIGNATURES_ABSENT'));
+  assert.ok(!codes({ signatureFiles: [], options: { signatures: false } }).includes('W_SIGNATURES_ABSENT'));
+  const off = init(inputs(rom, { signatureFiles: [], options: { signatures: false } }));
+  assert.ok(off.ok);
+  assert.deepEqual(off.config.signatures, { enabled: false });
+  assert.match(off.tomlText, /\[signatures\]\nenabled = false\n/);
+});
+
+test("library-game with libfix's file, and with a member that restores an extent: the plans pass every self-check", () => {
+  const rom = fixtureRom('library-game');
+  const golden = parseSignatureFile(JSON.parse(readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), 'utf8')));
+  assert.ok(golden.ok);
+  const plan = init(inputs(rom, { signatureFiles: [golden.value] }));
+  assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.code).join(', '));
+  assert.ok(plan.result.report.ok);
+  assert.ok(plan.result.model.modules.some((m) => m.name === 'libfix' && m.kind === 'asm' && m.library?.name === 'libfix'));
+  assert.ok(plan.result.model.functions.some((f) => f.name === 'FixMulShift' && f.source.name.kind === 'toml'));
+  const pair = signatureFile('gamelib', { id: '1', members: [{ name: 'GamePair', bytes: rom.bytes.slice(0x154, 0x160) }] });
+  const restored = init(inputs(rom, { signatureFiles: [pair] }));
+  assert.ok(restored.ok, restored.ok ? '' : restored.diagnostics.map((d) => `${d.code} ${d.message}`).join('; '));
+  assert.ok(restored.result.report.ok);
+  const fn = restored.result.model.functions.find((f) => f.name === 'GamePair');
+  assert.deepEqual(fn?.extent, { start: 0x0800_0154, end: 0x0800_0160 });
+  assert.equal(fn?.source.extent, 'toml-size');
+  assert.ok(restored.result.model.chunks.some((c) => c.name === 'GamePair' && c.innerLabels.some((l) => l.addr === 0x0800_015c)));
 });

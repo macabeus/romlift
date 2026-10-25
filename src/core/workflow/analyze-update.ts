@@ -12,6 +12,14 @@
 //      (`Seed.validate`), one that fails the valid.* rules is reported (W_LISTED_INVALID) and stays listed, since the
 //      TOML decides (D9); an entry without `from` is taken as it is, whether discover still finds it or not.
 //
+// From phase 6, while [signatures] is enabled and the shell located built signature files, the same discover result
+// gives the signature proposals (architecture §7.3, proposals.ts): the placements screened against the analysis and
+// the config (checkProposals; a contradiction is W_EVIDENCE_CONFLICT and drops the proposal), of which updateProposals
+// keeps those that name an entry still carrying its default name or an unlisted one (`--write` renames only default
+// names, D9), with `label = true` for the listed entries a restored extent holds; and the library [[modules]] the
+// config lacks (libraryModuleProposals: each region shrunk to legal borders and cut around the runs_at ranges, with
+// the module that held it resumed after it; W_LIBRARY_MODULE_DROPPED when it cannot be inserted).
+//
 // Then the borders of the code that runs from RAM (architecture §6.7, D91): a hand-written [[overrides]] range with
 // runs_at is its own module, so for each one whose start or end is not a module start (nor the ROM end) the plan
 // proposes the missing border (runsAtBorders, source layout 'runs-at'): at the start an `asm` module `ram_<RUNADDR>`,
@@ -43,7 +51,7 @@ import { analyze } from '../analysis/driver/run.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import { parseConfig } from '../config/parse.ts';
 import { planPatch } from '../config/patch.ts';
-import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
+import type { RomliftConfig } from '../config/schema.ts';
 import { codeLayout, coveredEntries } from '../layout/borders.ts';
 import { ModelCodes } from '../model/codes.ts';
 import type { ModelCode } from '../model/codes.ts';
@@ -55,6 +63,8 @@ import { confirmOptions, overrideFactsOf } from './generate.ts';
 import { romSha1Problems } from '../config/rom-sha1.ts';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { WorkflowCodes } from './codes.ts';
+import { freeModuleName, libraryModuleProposals, moduleHolding, signatureLayer, updateProposals } from './proposals.ts';
+import type { SignatureFile } from '../signatures/schema.ts';
 import type { AnalyzeUpdateInputs, AnalyzeUpdatePlan } from './types.ts';
 
 /** The report a listed entry that fails validity gets. */
@@ -68,8 +78,14 @@ const OVERRIDE_INVALID: ModelCode = 'E_OVERRIDE_INVALID';
 
 /** What the discover run leaves for the update: the proposals and its diagnostics. */
 interface Discovered {
+  /** The unlisted functions, then the signature proposals (updateProposals). */
   readonly proposals: readonly Proposal[];
+  /** The library modules the config lacks, and the starts of `ram` proposals they replace. */
+  readonly modules: readonly ModuleProposal[];
+  readonly replaces: readonly Addr[];
   readonly diagnostics: readonly Diagnostic[];
+  /** The signature layer's warnings (W_SIGNATURE_*, W_EVIDENCE_CONFLICT, W_LIBRARY_MODULE_DROPPED). */
+  readonly notes: readonly Diagnostic[];
 }
 
 /** The function proposals of a discover result against `config`: every found entry the config does not list. */
@@ -88,10 +104,20 @@ export function unlistedProposals(result: Pick<AnalysisResult, 'functions'>, con
     );
 }
 
-/** Step 1 of the header; the discover result does not outlive this call. */
-function discovered(rom: Rom, config: RomliftConfig, profile: CompilerProfile): Discovered {
+/** Step 1 of the header, with the signature layer over its result; the discover result does not outlive this call. */
+function discovered(rom: Rom, config: RomliftConfig, profile: CompilerProfile, files: readonly SignatureFile[], ram: readonly ModuleProposal[]): Discovered {
   const result = analyze(rom, profile, { ...discoverOptions(), overrides: overrideFactsOf(config) });
-  return { proposals: unlistedProposals(result, config), diagnostics: result.diagnostics };
+  const unlisted = unlistedProposals(result, config);
+  if (files.length === 0 || result.diagnostics.some((d) => d.severity === 'error')) return { proposals: unlisted, modules: [], replaces: [], diagnostics: result.diagnostics, notes: [] };
+  const layer = signatureLayer(rom, result, files, config);
+  const libraries = libraryModuleProposals(rom, result, config, layer.regions, ram);
+  return {
+    proposals: [...unlisted, ...updateProposals(config, result, layer.proposals)],
+    modules: libraries.proposals,
+    replaces: libraries.replaces,
+    diagnostics: result.diagnostics,
+    notes: [...layer.diagnostics, ...libraries.notes],
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -103,21 +129,6 @@ type ModuleProposal = Extract<Proposal, { readonly kind: 'module' }>;
 interface RunsAtBorders {
   readonly proposals: readonly ModuleProposal[];
   readonly refusals: readonly Diagnostic[];
-}
-
-/** `base`, or `base_2`, `base_3`, … : the first name not in `taken`, which it then holds. */
-function freeName(base: string, taken: Set<string>): string {
-  let name = base;
-  for (let n = 2; taken.has(name); n++) name = `${base}_${n}`;
-  taken.add(name);
-  return name;
-}
-
-/** The module of `modules` (in link order) that holds `a`: the last one starting at or below it. */
-function moduleHolding(modules: readonly ModuleConfig[], a: Addr): ModuleConfig | undefined {
-  let found: ModuleConfig | undefined;
-  for (const m of modules) if (m.start <= a) found = m;
-  return found;
 }
 
 /** E_OVERRIDE_INVALID for a runs_at range that cannot be its own module, with the model's message and why. */
@@ -153,11 +164,11 @@ export function runsAtBorders(rom: Pick<Rom, 'base' | 'end'>, config: Pick<Romli
       continue;
     }
     const resumed = end < rom.end && !starts.has(end) && !rangeStarts.has(end) ? moduleHolding(config.modules, end) : undefined;
-    if (!starts.has(start) && !proposals.some((p) => p.start === start)) proposals.push({ kind: 'module', name: freeName(`ram_${hex(o.runsAt ?? 0)}`, taken), start, moduleKind: 'asm', source });
+    if (!starts.has(start) && !proposals.some((p) => p.start === start)) proposals.push({ kind: 'module', name: freeModuleName(`ram_${hex(o.runsAt ?? 0)}`, taken), start, moduleKind: 'asm', source });
     if (resumed !== undefined) {
       proposals.push({
         kind: 'module',
-        name: freeName(`${resumed.name}_${hex(end)}`, taken),
+        name: freeModuleName(`${resumed.name}_${hex(end)}`, taken),
         start: end,
         moduleKind: resumed.kind,
         ...(resumed.library === undefined || resumed.version === undefined ? {} : { library: { name: resumed.library, version: resumed.version } }),
@@ -243,13 +254,16 @@ export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
   const problems = checkRom(rom.bytes);
   if (problems.length > 0) return { ok: false, diagnostics: problems };
   const profile = profileOrDefault(inputs.profile);
-  const found = discovered(rom, config, profile);
-  if (found.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: found.diagnostics };
   const ram = runsAtBorders(rom, config);
+  const files = config.signatures.enabled ? (inputs.signatureFiles ?? []) : [];
+  const found = discovered(rom, config, profile, files, ram.proposals);
+  if (found.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: found.diagnostics };
+  // A runs_at range that cannot be its own module refuses the plan, as before the signatures existed.
   if (ram.refusals.length > 0) return { ok: false, diagnostics: ram.refusals };
-  const proposals = [...found.proposals, ...ram.proposals];
+  const modules = [...ram.proposals.filter((p) => !found.replaces.includes(p.start)), ...found.modules].sort((a, b) => a.start - b.start);
+  const proposals = [...found.proposals, ...modules];
   const current = confirmed(rom, config, profile);
-  const reports = current.reports;
+  const reports = [...current.reports, ...found.notes];
   const patch = planPatch(inputs.configText, config, proposals);
   if (!patch.ok) return { ok: false, diagnostics: [...reports, ...patch.diagnostics] };
   const changed = patch.text !== inputs.configText;

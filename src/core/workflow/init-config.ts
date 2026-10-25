@@ -4,8 +4,13 @@
 //   1. the build name: `--name`, or the header's game code (buildNameOf); `<name>.gba`, the ROM `make` builds, must not
 //      be the user's ROM file nor `baserom.gba`, so a default name that would be gets BUILD_NAME_SUFFIX and a `--name`
 //      that would be is refused (E_NAME_INVALID), like a name that is no build name (core/config/schema.ts);
-//   2. the discover analysis and configFromDiscover over it (with `--module-size`); the discover result is garbage
-//      before any confirm run starts, so the two never share the bin's 1,024 MiB heap cap (D69, D72);
+//   2. the discover analysis and configFromDiscover over it (with `--module-size`); from phase 6, unless the signature
+//      layer is off (`--no-signatures`), the signature files the shell located placed on that discover result and
+//      screened (proposals.ts signatureLayer, checkProposals), their library regions given to module inference
+//      (`asm` modules with library and version) and their kept proposals folded into the config (foldSignatures: the
+//      signature's name, `from`, `size` and inner `label = true`, tables as [symbols]); [signatures] records `enabled`
+//      and the libraries used. The discover result is garbage before any confirm run starts, so the two never share
+//      the bin's 1,024 MiB heap cap (D69, D72);
 //   3. the config serialised (serializeConfig, the canonical layout) and parsed back: what romlift.toml says is what
 //      every caller generates from, so `generate` right after `init` changes nothing and `verify --rom` checks the
 //      config `init` writes.
@@ -22,7 +27,9 @@ import type { RomliftConfig } from '../config/schema.ts';
 import { serializeConfig } from '../config/serialize.ts';
 import { ModelCodes } from '../model/codes.ts';
 import type { CompilerProfile } from '../profile/types.ts';
+import type { SignatureFile } from '../signatures/schema.ts';
 import { buildNameOf, configFromDiscover } from './config-from-discover.ts';
+import { droppedRegionNotes, foldSignatures, librariesOf, signatureLayer } from './proposals.ts';
 import { discover } from './discover.ts';
 import { confirmModel, generate } from './generate.ts';
 import type { ConfirmedModel, GenerateInputs, GenerateResult } from './generate.ts';
@@ -58,11 +65,16 @@ export function initBuildName(rom: Pick<Rom, 'header'>, romFile: string, options
   return { ok: true, name: builtRomCollides(name, romFile) ? `${name}${BUILD_NAME_SUFFIX}` : name };
 }
 
-/** initConfigOf's options: init's own, the ROM file name the user gave (default baserom.gba) and the analysis profile. */
+/**
+ * initConfigOf's options: init's own, the ROM file name the user gave (default baserom.gba), the analysis profile and
+ * the built signature files (none: the config names no library; `signatures: false` skips them and writes
+ * `enabled = false`).
+ */
 export interface InitConfigOptions extends InitOptions {
   /** The ROM's file name as the user gave it, for the build name's collision rule; default baserom.gba. */
   readonly romFile?: string;
   readonly profile?: CompilerProfile;
+  readonly signatureFiles?: readonly SignatureFile[];
 }
 
 /** The config `init` writes for a ROM and its canonical TOML, or the diagnostics that refuse it. */
@@ -84,14 +96,22 @@ export function initConfigOf(rom: Rom, options: InitConfigOptions = {}): InitCon
   const tomlText = serializeConfig({ ...found.config, build: { ...found.config.build, name: named.name } });
   const parsed = parseConfig(tomlText);
   if (!parsed.ok) throw new RomliftInvariantError(`init's romlift.toml does not parse back: ${parsed.diagnostics.map((d) => `${d.code} ${d.message}`).join('; ')}`);
-  return { ok: true, config: parsed.value, tomlText, diagnostics: parsed.diagnostics };
+  return { ok: true, config: parsed.value, tomlText, diagnostics: [...found.diagnostics, ...parsed.diagnostics] };
 }
 
-/** Step 2 of the header; the discover result does not outlive this call. */
-function configBeforeSerialising(rom: Rom, options: InitConfigOptions): { readonly ok: true; readonly config: RomliftConfig } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
+/** Step 2 of the header, with the signature layer's diagnostics; the discover result does not outlive this call. */
+function configBeforeSerialising(
+  rom: Rom,
+  options: InitConfigOptions,
+): { readonly ok: true; readonly config: RomliftConfig; readonly diagnostics: readonly Diagnostic[] } | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const discovered = discover(rom, options.profile === undefined ? {} : { profile: options.profile });
   if (discovered.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: discovered.diagnostics };
-  return { ok: true, config: configFromDiscover(rom, discovered, options.moduleSize === undefined ? {} : { moduleSize: options.moduleSize }) };
+  const enabled = options.signatures !== false;
+  const layer = signatureLayer(rom, discovered, enabled ? (options.signatureFiles ?? []) : []);
+  const inferred = configFromDiscover(rom, discovered, { ...(options.moduleSize === undefined ? {} : { moduleSize: options.moduleSize }), ...(layer.regions.length === 0 ? {} : { libraries: layer.regions }) });
+  const libraries = librariesOf(layer.proposals);
+  const config = { ...foldSignatures(inferred, layer.proposals), signatures: { enabled, ...(libraries.length === 0 ? {} : { libraries }) } };
+  return { ok: true, config, diagnostics: [...layer.diagnostics, ...droppedRegionNotes(config, layer.regions)] };
 }
 
 /** What `model --rom` prints for a ROM: initConfigOf, then the confirm analysis over that config and its Model. */

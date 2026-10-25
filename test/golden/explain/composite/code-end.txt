@@ -1,0 +1,16 @@
+0x0800061C
+  claim: data
+  owner: none (no function extent covers it)
+  chunk: gUnk_0800061C (data) in module data
+  item: data 0x0800061C..0x0800062C
+  name: none
+  rejections: none
+  verdicts: none
+  waits: none
+  claims (1):
+    0x0800061C region.data-after-code round 7 cites 0x0800061C: data to 0x0800062C
+  rules (1):
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
+explain: ok (exit 0)

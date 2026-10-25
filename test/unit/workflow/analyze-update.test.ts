@@ -5,8 +5,13 @@
 // a patch whose module starts generate would refuse is refused with E_MODULE_BORDER naming the proposal
 // (architecture-r1-3, a0-4); the borders of a hand-written runs_at range are proposed as modules (`ram_<RUNADDR>` at
 // its start, the module it splits resumed at its end, §6.7), and a range that cannot be its own module is
-// E_OVERRIDE_INVALID; and unifiedDiff renders a patch in `diff -u` form.
+// E_OVERRIDE_INVALID; and unifiedDiff renders a patch in `diff -u` form. From phase 6, with signature files: entries
+// that still carry a default name are renamed with `from`, a table added, a missing library module inserted with the
+// module it split resumed, a user's name kept, nothing proposed while [signatures] is disabled, and a contradiction
+// of the config reported as W_EVIDENCE_CONFLICT without changing the rest.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { parseConfig } from '../../../src/core/config/parse.ts';
@@ -19,7 +24,10 @@ import type { ModuleConfig, OverrideConfig, RomliftConfig } from '../../../src/c
 import { borderRefs } from '../../../src/core/layout/refs.ts';
 import { confirmModel } from '../../../src/core/workflow/generate.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
-import { listSyntheticFixtures, readFixtureRom } from '../../helpers/fixtures.ts';
+import { parseSignatureFile } from '../../../src/core/signatures/schema.ts';
+import type { SignatureFile } from '../../../src/core/signatures/schema.ts';
+import { initConfigOf } from '../../../src/core/workflow/init-config.ts';
+import { listSyntheticFixtures, readFixtureRom, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
 
 function fixtureRom(name: string): Rom {
   return readFixtureRom(listSyntheticFixtures().find((f) => f.name === name) ?? assert.fail(name));
@@ -263,4 +271,74 @@ test('a range analyze --update cannot make its own module is refused with E_OVER
   const plan = analyzeUpdate({ rom, configText: serializeConfig(bad), config: bad });
   assert.equal(plan.ok, false);
   assert.deepEqual(plan.ok ? [] : plan.diagnostics.map((d) => d.code), ['E_OVERRIDE_INVALID']);
+});
+
+// ---------------------------------------------------------------------------------------------------
+// Signature proposals (phase 6, architecture §7.3, §7.4, D9): libfix's committed golden file on library-game.
+
+const LIBFIX = ((): SignatureFile => {
+  const parsed = parseSignatureFile(JSON.parse(readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), 'utf8')));
+  assert.ok(parsed.ok);
+  return parsed.value;
+})();
+
+/** library-game's project as init writes it without a signature file: every default name, [signatures] enabled. */
+function gameProject(): { readonly rom: Rom; readonly text: string; readonly config: RomliftConfig } {
+  const rom = fixtureRom('library-game');
+  const made = initConfigOf(rom);
+  assert.ok(made.ok);
+  return { rom, text: made.tomlText, config: made.config };
+}
+
+function update(rom: Rom, text: string): ReturnType<typeof analyzeUpdate> {
+  const parsed = parseConfig(text);
+  assert.ok(parsed.ok, parsed.ok ? '' : parsed.diagnostics.map((d) => d.message).join('; '));
+  return analyzeUpdate({ rom, configText: text, config: parsed.value, signatureFiles: [LIBFIX] });
+}
+
+test('signatures: default names are renamed with from, the table added, the missing library module inserted; a second run changes nothing', () => {
+  const { rom, text } = gameProject();
+  const plan = update(rom, text);
+  assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => `${d.code} ${d.message}`).join('; '));
+  assert.ok(plan.changed);
+  assert.match(plan.text, /^0x080001B4 = \{ name = "FixMulShift", from = "sig:libfix@1\.0" \}$/m);
+  assert.match(plan.text, /^0x08000274 = \{ name = "gFixTable", size = 0x10, type = "pointers", from = "sig:libfix@1\.0" \}$/m);
+  assert.match(plan.text, /\[\[modules\]\]\nname = "libfix"\nstart = 0x080001B4\nkind = "asm"\nlibrary = "libfix"\nversion = "1\.0"\n/);
+  assert.match(plan.text, /\[\[modules\]\]\nname = "main_08000264"\nstart = 0x08000264\nkind = "c"\n/, 'the c module that held the region resumes after it');
+  const modules = plan.proposals.flatMap((p) => (p.kind === 'module' ? [[p.name, p.library?.name]] : []));
+  assert.deepEqual(modules, [
+    ['libfix', 'libfix'],
+    ['main_08000264', undefined],
+  ]);
+  assert.deepEqual(plan.diagnostics.map((d) => d.code), ['W_SIGNATURE_CONSTANT']);
+  const again = update(rom, plan.text);
+  assert.ok(again.ok);
+  assert.equal(again.changed, false, 'every name is the TOML now, and the module is there');
+  assert.deepEqual(again.proposals, []);
+});
+
+test('signatures: an entry the user named keeps its name, and [signatures] enabled = false proposes nothing from the files', () => {
+  const { rom, text } = gameProject();
+  const named = text.replace('0x08000244 = "sub_08000244"', '0x08000244 = "MyAbs"');
+  const plan = update(rom, named);
+  assert.ok(plan.ok);
+  assert.match(plan.text, /^0x08000244 = "MyAbs"$/m);
+  assert.ok(!plan.proposals.some((p) => p.kind === 'function' && p.addr === 0x0800_0244));
+  const off = update(rom, text.replace('[signatures]\nenabled = true', '[signatures]\nenabled = false'));
+  assert.ok(off.ok);
+  assert.deepEqual(off.proposals, []);
+  assert.equal(off.changed, false);
+});
+
+test('signatures: a proposal the config contradicts (a data override over it) is W_EVIDENCE_CONFLICT and changes nothing', () => {
+  const { rom, text } = gameProject();
+  const overridden = `${text}\n[[overrides]]\nstart = 0x08000244\nsize = 0xE\nkind = "data"\n`;
+  const plan = update(rom, overridden);
+  assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => `${d.code} ${d.message}`).join('; '));
+  const conflict = plan.diagnostics.find((d) => d.code === 'W_EVIDENCE_CONFLICT');
+  assert.ok(conflict !== undefined, plan.diagnostics.map((d) => d.code).join(', '));
+  assert.equal(conflict.addr, 0x0800_0244);
+  assert.match(conflict.message, /FixAbs as a thumb function at 0x08000244, but .*a data override of romlift\.toml covers \[0x08000244, 0x08000252\)/);
+  assert.ok(!plan.proposals.some((p) => p.kind === 'function' && p.addr === 0x0800_0244 && p.name === 'FixAbs'));
+  assert.match(plan.text, /^0x080001B4 = \{ name = "FixMulShift", from = "sig:libfix@1\.0" \}$/m, 'the other proposals stand');
 });

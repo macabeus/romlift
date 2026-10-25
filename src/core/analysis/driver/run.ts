@@ -1,15 +1,17 @@
 // The driver entry (the PoC's run()): the seed slot in order, then each pass of the profile runs grow
-// and fillGaps until neither adds a function, then the region slot; then the result is built from the
-// final state. The rule registry is injected (runAnalysis) so driver tests run with fake rules; analyze
+// and fillGaps until neither adds a function, then the region slot (each region claim and the startup region leave a
+// trail event, so explain names the region rule that decided an address; phase 6, g6.explain-coverage); then the
+// result is built from the final state. The rule registry is injected (runAnalysis) so driver tests run with fake rules; analyze
 // and analyzeTuned bind RULES.
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr } from '../../../foundation/rom/span.ts';
+import { hexAddr } from '../../../foundation/util/hex.ts';
 import { compareNumbers, sortedEntries, sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { CompilerProfile } from '../../profile/types.ts';
 import { compareRejections } from '../../provenance/provenance.ts';
 import type { TrailSink } from '../../provenance/trail.ts';
 import { fixpointLimit, LIMITS } from '../limits.ts';
-import { Claim } from '../types.ts';
+import { Claim, claimName } from '../types.ts';
 import type {
   AnalysisOptions,
   AnalysisOptionsRecord,
@@ -29,6 +31,7 @@ import { grow } from './grow.ts';
 import { RULES } from './rules.ts';
 import { createDriver } from './state.ts';
 import type { DriverState } from './state.ts';
+import { emit } from './trail.ts';
 
 /** The tuning `analyze` runs with: epoch caching, nothing disabled (the worklist is always ascending, D10, D59). */
 export const DEFAULT_TUNING: AnalysisTuning = { cache: 'epoch', disabled: [] };
@@ -49,9 +52,16 @@ export function runDriver(s: DriverState): StartupRegion {
     }
   }
   let startup: StartupRegion | undefined;
-  for (const { rule } of s.rules.region) {
-    for (const e of rule.classify(s.view)) write(s, e);
-    startup ??= rule.startup?.(s.view);
+  for (const { id, rule } of s.rules.region) {
+    for (const e of rule.classify(s.view)) {
+      emit(s, 'claim', e.span.start, id, [e.span.start], `${claimName(e.kind)} to ${hexAddr(e.span.end)}`);
+      write(s, e);
+    }
+    const region = startup === undefined ? rule.startup?.(s.view) : undefined;
+    if (region !== undefined) {
+      emit(s, 'verdict', region.span.start, id, [region.span.start, ...region.entries], `startup region to ${hexAddr(region.span.end)}`);
+      startup = region;
+    }
   }
   return startup ?? { span: { start: s.rom.base, end: s.rom.base }, entries: [] };
 }

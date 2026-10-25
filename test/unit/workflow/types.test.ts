@@ -60,7 +60,7 @@ test('every plan is ok with its data or a refusal with diagnostics only', () => 
   for (const plan of [refusedInit, refusedGenerate, refusedUpdate]) assert.deepEqual(Object.keys(plan).sort(), ['diagnostics', 'ok']);
   assert.equal(update.ok && update.proposals.length, 1);
   // The ok variants, built only as types (a GenerateResult needs a whole run): they must stay assignable.
-  const makeInit = (r: GenerateResult): InitPlan => ({ ok: true, config, tomlText: '', decompYamlText: '', result: r, scaffold: [entry], diagnostics: [] });
+  const makeInit = (r: GenerateResult): InitPlan => ({ ok: true, config, tomlText: '', files: [['romlift.toml', '']], romCopy: 'baserom.gba', result: r, scaffold: [entry], diagnostics: [] });
   const makeGenerate = (r: GenerateResult): GeneratePlan => ({ ok: true, result: r, diagnostics: [] });
   assert.equal(typeof makeInit, 'function');
   assert.equal(typeof makeGenerate, 'function');

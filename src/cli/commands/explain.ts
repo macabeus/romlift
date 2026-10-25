@@ -8,8 +8,11 @@
 // and the gap's prefer and skip slots, and waits always shown), then the summary, restsOn and recovers of every rule
 // that appears, and the summary line; diagnostics on stderr. --json: one {"type":"explain"} line holding the report
 // (addresses as hexAddr strings, the claim by name, an instruction item with its spec id and its `.inst` text, the
-// name as {value, source, from?}), the diagnostics, then the summary line. Exit codes: 0 ok, 1 an error diagnostic,
-// 2 usage.
+// name as {value, source, from?}, from phase 6 the signature as {library, version, name, rule?}), the diagnostics,
+// then the summary line. The signature part (phase 6): inside a project it is read from romlift.toml's `from` key;
+// with --rom, from the placements of the built signature files ($ROMLIFT_SIGNATURES or the package's signatures/,
+// or the directory --signatures names), with the placement rule; the text prints it only when there is one. Exit
+// codes: 0 ok, 1 an error diagnostic, 2 usage.
 import { claimName } from '../../api/analysis.ts';
 import { readRom } from '../../api/files.ts';
 import { formatRaw } from '../../api/isa.ts';
@@ -20,10 +23,12 @@ import { hexAddr, parseHexAddr } from '../../api/rom.ts';
 import type { Addr, Diagnostic } from '../../api/rom.ts';
 import { explainOutcome, explainProject } from '../../core/workflow/explain.ts';
 import type { ExplainChunk, ExplainName, ExplainOutcome, ExplainReport } from '../../core/workflow/explain.ts';
-import { readProject, resolveFrom } from '../../shell/project/read-inputs.ts';
+import type { ExplainSignature } from '../../core/workflow/explain.ts';
+import { packageRoot, readProject, resolveFrom } from '../../shell/project/read-inputs.ts';
+import { locateSignatures, SIGNATURES_ENV } from '../../shell/signatures/locate.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
-import type { CommandSpec } from '../registry.ts';
+import type { CliIo, CommandSpec } from '../registry.ts';
 import { diagnosticLine, recordLine, summaryLine } from '../reporters/ndjson.ts';
 import type { RecordFields } from '../reporters/ndjson.ts';
 import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
@@ -81,6 +86,15 @@ function nameJson(name: ExplainName): RecordFields {
   return { value: name.value, source: nameSourceText(name), from: name.source.kind === 'toml' ? name.source.from : undefined };
 }
 
+function signatureJson(signature: ExplainSignature): RecordFields {
+  return { library: signature.library, version: signature.version, name: signature.name, rule: signature.rule };
+}
+
+/** The signature line of the text output: `m4a@2001 SoundMain (sig.unique-fit)`. */
+function signatureText(signature: ExplainSignature): string {
+  return `${signature.library}@${signature.version} ${signature.name}${signature.rule === undefined ? '' : ` (${signature.rule})`}`;
+}
+
 /** The {"type":"explain"} record of a report. */
 export function explainRecord(report: ExplainReport): RecordFields {
   return {
@@ -93,6 +107,7 @@ export function explainRecord(report: ExplainReport): RecordFields {
     chunk: report.chunk === undefined ? undefined : chunkJson(report.chunk),
     item: report.item === undefined ? undefined : itemJson(report.item),
     name: report.name === undefined ? undefined : nameJson(report.name),
+    signature: report.signature === undefined ? undefined : signatureJson(report.signature),
     events: report.events.map(eventJson),
     rules: report.rules.map(ruleJson),
   };
@@ -142,7 +157,8 @@ function modelText(report: ExplainReport): string {
   const chunk = report.chunk === undefined ? 'none (outside the model)' : `${report.chunk.name} (${report.chunk.kind}) in module ${report.chunk.module}`;
   const item = report.item === undefined ? 'none' : `${report.item.kind} ${hexAddr(report.item.span.start)}..${hexAddr(report.item.span.end)}${itemDetail(report.item)}`;
   const name = report.name === undefined ? 'none' : `${report.name.value} (${nameSourceText(report.name)}${report.name.source.kind === 'toml' && report.name.source.from !== undefined ? `, from ${report.name.source.from}` : ''})`;
-  return `  chunk: ${chunk}\n  item: ${item}\n  name: ${name}\n`;
+  const signature = report.signature === undefined ? '' : `  signature: ${signatureText(report.signature)}\n`;
+  return `  chunk: ${chunk}\n  item: ${item}\n  name: ${name}\n${signature}`;
 }
 
 function eventText(e: TrailEvent): string {
@@ -175,26 +191,33 @@ export function explainText(report: ExplainReport, summary: RunSummary): string 
   return `${out}explain: ${formatSummaryText(summary)}\n`;
 }
 
-/** The explanation of `addr` in the project that holds `from`, or on the bare ROM at `romPath`. */
-async function explainAt(from: string, romPath: string | undefined, addr: Addr): Promise<ExplainOutcome | { readonly refused: readonly Diagnostic[] }> {
+/**
+ * The explanation of `addr` in the project that holds `io.cwd`, or on the bare ROM at `romPath` with the signature
+ * files located there (`signatures`, a directory, in place of $ROMLIFT_SIGNATURES and the package's signatures/).
+ */
+async function explainAt(io: CliIo, romPath: string | undefined, addr: Addr, signatures: string | undefined): Promise<ExplainOutcome | { readonly refused: readonly Diagnostic[] }> {
   if (romPath === undefined) {
-    const read = await readProject(from, { withoutC: true });
+    const read = await readProject(io.cwd, { withoutC: true });
     if (!read.ok) return { refused: read.diagnostics };
     const explained = explainProject(read.value.inputs, addr);
     return explained.ok ? explained : { refused: explained.diagnostics };
   }
-  const loaded = await readRom(resolveFrom(from, romPath));
+  const loaded = await readRom(resolveFrom(io.cwd, romPath));
   if (!loaded.ok) return { refused: [loaded.diagnostic] };
-  return explainOutcome(loaded.value, addr);
+  const env = signatures === undefined ? io.env : { ...io.env, [SIGNATURES_ENV]: signatures };
+  const located = await locateSignatures({ packageRoot: packageRoot(), env, cwd: io.cwd });
+  const outcome = explainOutcome(loaded.value, addr, { signatureFiles: located.files });
+  return { report: outcome.report, diagnostics: [...located.diagnostics, ...outcome.diagnostics] };
 }
 
 export const explainCommand: CommandSpec = {
   name: 'explain',
   summary: 'Explains what romlift decided about one address: claim, owner, provenance, chunk, item, rejections, verdicts, rules',
-  usage: 'explain <addr> [--rom <rom>] [--json]',
+  usage: 'explain <addr> [--rom <rom>] [--signatures <dir>] [--json]',
   positionals: [{ name: '<addr>' }],
   options: [
     { name: 'rom', kind: 'string', summary: "A bare ROM to analyse (discover mode); default the project's ROM and romlift.toml (confirm mode)", value: '<rom>' },
+    { name: 'signatures', kind: 'string', summary: 'With --rom: the directory of built signature files to place (default $ROMLIFT_SIGNATURES, else the package\'s signatures/)', value: '<dir>' },
     { name: 'json', kind: 'boolean', summary: 'Prints NDJSON: the report line, the diagnostics, then a summary' },
   ],
   async run(args, io) {
@@ -202,7 +225,9 @@ export const explainCommand: CommandSpec = {
     const text = args.positionals[0] ?? '';
     const addr = parseAddrArg(text);
     if (addr === undefined) return usageError(io, 'explain', `'${text}' is not an address (0x and hex digits, or decimal)`);
-    const outcome = await explainAt(io.cwd, args.options['rom'], addr);
+    const signatures = args.options['signatures'];
+    if (signatures !== undefined && args.options['rom'] === undefined) return usageError(io, 'explain', "--signatures goes with --rom; in a project the signature is read from romlift.toml's from key");
+    const outcome = await explainAt(io, args.options['rom'], addr, signatures);
     if ('refused' in outcome) {
       printDiagnosticsOnly(io, json, 'explain', outcome.refused, { ok: false, exitCode: ExitCode.errors });
       return ExitCode.errors;

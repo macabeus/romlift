@@ -40,23 +40,33 @@ export interface InitInputs {
   /** The analysis profile; default the discover profile (agbcc). */
   readonly profile?: CompilerProfile;
   /**
-   * The built signature files the shell located (shell/signatures/locate.ts, phase 6); absent or empty: none was found
-   * (W_SIGNATURES_ABSENT, raised by the shell) or `--no-signatures`.
+   * The built signature files the shell located (shell/signatures/locate.ts, phase 6). Empty: the shell looked and
+   * found none, which init reports as W_SIGNATURES_ABSENT while the layer is enabled; absent: none was looked for
+   * (an API caller, or `--no-signatures`).
    */
   readonly signatureFiles?: readonly SignatureFile[];
 }
 
+/** One text file `init` owns: its project path and its text (architecture-a2-6). */
+export type InitFile = readonly [path: string, text: string];
+
 /**
- * `init`'s plan: the config and its canonical TOML (`romlift.toml`), `decomp.yaml`, the checked generate over that
- * config (its tree, c stubs and modules.mk included, re-emitted by generatedEntries for the write pass) and the
- * scaffold entries. Refused (`ok: false`) when discover or a self-check fails: nothing is written.
+ * `init`'s plan: the config and its canonical TOML (`romlift.toml`), the files init owns as data (romlift.toml and
+ * decomp.yaml as [path, text] pairs, and the project path the ROM is copied to, `baserom.gba`; the shell only writes
+ * and hashes them, architecture-a2-6), the checked generate over that config (its tree, c stubs and modules.mk
+ * included, re-emitted by generatedEntries for the write pass) and the scaffold entries. Refused (`ok: false`) when
+ * discover or a self-check fails: nothing is written.
  */
 export type InitPlan =
   | {
       readonly ok: true;
       readonly config: RomliftConfig;
+      /** romlift.toml's text, also the first of `files`. */
       readonly tomlText: string;
-      readonly decompYamlText: string;
+      /** romlift.toml, then decomp.yaml. */
+      readonly files: readonly InitFile[];
+      /** Where the ROM is copied in the project. */
+      readonly romCopy: string;
       readonly result: GenerateResult;
       readonly scaffold: readonly FileEntry[];
       readonly diagnostics: readonly Diagnostic[];
