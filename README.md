@@ -51,6 +51,13 @@ Whether built files ship with the package is the owner's open decision (D40, arc
 
 ## Status
 
+**Phases 1 to 4 and 6 landed; phase 5 skipped by the owner** (D92). Final review run: 2026-10-26, on `main` at
+`2499afa`; the report is [docs/final-review.md](docs/final-review.md). Every gate of phases 1 to 6 passes on both
+tiers, all six tuning ROMs and both sealed held-out ROMs go from `init` through `./setup.sh` and `make` to their SHA-1,
+and the five ROMs of the proof of concept reproduce its function boundaries exactly. Nine minor findings stay open
+(among them: the "Try it before it is published" commands need bash, not zsh), with the owner questions O1 to O5. The
+history of each phase follows.
+
 Phase 1 of 6 (Decoder) has landed ([docs/phase-1.md](docs/phase-1.md)): the Thumb and ARM instruction
 table with its decoder, encoder, formatter and parser round-trips 100% of printed mnemonics through GNU
 `as`, `romlift doctor` checks the user's toolchain, and the bench harness rescores the proof of concept.
@@ -165,7 +172,7 @@ limit, from 95 to 101%), made `bench run` refuse to drop a ROM's PoC reference, 
 | [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q8 with the owner's answers, the review fix rounds, and known limitations |
 | [docs/phase-4.md](docs/phase-4.md) | the record of phase 4: components in three waves, what the phase delivered (commands, scaffold, C stubs, formats), the closing round and the closing gate run, deviations, the owner questions Q1 to Q9 with the owner's answers, the review fix rounds, and known limitations |
 | [docs/phase-6.md](docs/phase-6.md) | the record of phase 6 (phase 5 was skipped, D92; landed by pull request #5): what it delivered (signatures, proposals, code run from RAM, the reconciler and `rename`, objdiff targets, C data ranges), components in three waves, the closing round, deviations, the owner questions Q1 to Q16, known limitations, measured numbers, the closing gate runs and the review's dispositions |
-| [docs/final-review.md](docs/final-review.md) | the final review of the six phases: every finding's disposition, the fixes of round 1 and the gate results after them |
+| [docs/final-review.md](docs/final-review.md) | the final report of the review of the six phases: the five lenses, the final gate numbers per ROM (held-out included), the comparison with the proof of concept, the remaining findings, the commands that reproduce it, and every finding's disposition with the fixes of rounds 1 and 2 and the gate results after each |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

@@ -1,18 +1,218 @@
 # Final review
 
-The final review of romlift after phase 6 landed (main at `0ccc5a0`, tag `phase-6`) ran four passes: a clean clone
-followed through the README (`clean-clone-*`), the gates re-run and read against their decisions (`gates-*`), a new
-user's session through `init`, `setup.sh`, `make` and the commands (`end-to-end-user-*`), the architecture against the
-code (`architecture-*`), and the documents against the plan (`docs-and-plan-*`). It raised 15 majors and 32 minors and
-no blocker. Fix round 1 (branch `final-review-1`, decision D106) fixed every major in code or in the documents, as each
-finding's own fix proposed, and the cheap minors; the rest are carried past phase 6 with a reason (roadmap.md "Carried
-past phase 6"), and four need the owner (below).
+This is the final report of romlift's review after the six phases, run on 26 October 2026 against `main` at
+`2499afa` (phase 6 merged as `7a5342f`, tag `phase-6`, then the review's fix rounds 1 and 2, D106 and D107). It
+states what was verified and how, the final gate numbers per ROM (the held-out ones included), how they compare with
+the proof of concept, the findings that remain and why, and the commands that reproduce the verification. The
+dispositions of every earlier finding follow, from "Fix round 1" on.
+
+**Verdict.** Phases 1 to 4 and 6 have landed; phase 5 (Migration) was skipped by the owner on 20 October 2026 (D92):
+legacy import (`import-legacy`, the Luvdis cfg, ldscript symbols, `analyze --evidence`), the Klonoa migration tooling
+and the switch-over are dropped, and `rename`, the reconciler, the `expected/` and `objdiff.json` writers, C data
+ranges and the objdiff gate moved into phase 6 as `g6.*` gates. The plan's gba-kit trace integration was dropped by
+the owner the same day (D91: "very few functions are called and found by gba-kit"); code run from RAM comes from
+hand-written `runs_at` overrides only. Neither absence is a finding. At `2499afa` (source digest `641f0167…`, the same as
+the closing run's `b98b2e6`) every gate of phases 1 to 6 passes
+on both tiers, all six tuning ROMs and both sealed held-out ROMs go from `romlift init` through `./setup.sh` and
+`make` to their SHA-1 with no file edited, and the five ROMs the proof of concept was tuned on reproduce its function
+boundaries exactly. Ten minor findings of the last review pass remain (one fixed by this report's commit, nine open,
+none touching a built ROM or a gate), with the five owner questions O1 to O5 and the items carried in roadmap.md
+"Carried past phase 6". Release 1 cannot yet claim generality: the held-out gate passes only with both family
+conditions waived (D60, D61).
+
+## How it was verified: the five lenses
+
+Each review pass read the project through five lenses. A finding's id names its lens and pass: no suffix for the
+first pass (review of `0ccc5a0`), `-r1-` for the second (review of `a1a4328`, after fix round 1), `-r2-` for the
+third (review of `2499afa`, after fix round 2).
+
+| Lens | What it does | Finding ids (pass 1 / 2 / 3) |
+| --- | --- | --- |
+| clean clone (`clean-clone-*`) | clones the repository fresh and follows the README and AGENTS.md literally: `npm ci`, `npm run build`, the "Try it before it is published" flow, the real-tier prerequisites, the signature build, `bench run` | 11 / 4 / 3 |
+| gates (`gates-*`) | re-runs the phase-6 closing list in a fresh worktree or clone and reads each gate's verdict against the decision that set it (thresholds, waivers, ceilings, timing margins) | 8 / 4 / 0 |
+| end-to-end user (`end-to-end-user-*`) | a new user's session on real ROMs: `init`, `setup.sh`, `make`, then `generate`, `rename`, `analyze --update`, `[functions]` and `[[overrides]]` edits, `explain`, `make expected` and objdiff-cli on the result | 16 / 6 / 7 |
+| architecture (`architecture-*`) | reads `src/` against docs/architecture.md: layer rules and the checker, the D36 composition rule, the diagnostic-code table, helpers, exports, the §2 tree | 15 / – / – |
+| documents and plan (`docs-and-plan-*`) | reads README, AGENTS.md, plan.md, roadmap.md, the phase records and decisions.md against the code and each other, and against the owner's decisions (D91, D92) | 15 / – / – |
+
+A dash marks a lens a pass did not run: passes 2 and 3 re-ran the clean clone, the gates and the new user only. Pass 1's 65 ids are
+dispositioned in 12 major and 44 minor rows below (its own tally said 15 majors and 32 minors; a row merges ids that
+name one defect, such as clean-clone-1, end-to-end-user-1 and docs-and-plan-7), pass 2 raised one blocker, one major
+and twelve minors, pass 3 ten minors, two pairs of which are the same defect seen by two lenses. Fix rounds 1 and 2 fixed
+every blocker and major. Each pass re-ran the gates: the closing list of fix round 1 at `31f13ce`, that of fix round 2
+at `b98b2e6` (whose `bench/results.json` is committed), and pass 3's gates lens ran `bench run --scaffold` and the
+real tier again in a fresh clone at `2499afa` (`romlift-verify`), with the same rows and verdicts as `b98b2e6` and only
+the timings different (below). `2499afa` differs from `b98b2e6` in documents and `bench/results.json` only; the source
+digest of both is `641f0167…`.
+
+For this report a fresh clone of `main` at `2499afa` was checked again on 26 October 2026: `npm ci` 0;
+`npm run typecheck` 0; `npm run lint` 0; `npm test` 0, 2,885 tests, 2,884 pass, 1 skipped (the objdiff-cli test, no
+`ROMLIFT_OBJDIFF` in a plain clone); `npm run fixtures -- check` with `ROMLIFT_BENCH_ROOT` 0, 54 of 54 fixtures agree;
+`npm run build` 0; then, in bash, from an empty directory holding klonoa's `baserom.gba`, `$ROMLIFT_CLI init
+baserom.gba` 0 (560 functions, 18 modules, 631 files written; `W_SIGNATURES_ABSENT` and `W_LOCKFILE_DEFERRED`),
+`git init`, `./setup.sh` 0 and `make` 0, `akle.gba: OK`, 51 s in all. The same `$ROMLIFT_CLI --version` under zsh
+exits 127 (clean-clone-r2-1, still open).
+
+## Final gate numbers
+
+From the committed artifact of fix round 2's closing run (`b98b2e6`, source digest `641f0167…`, `bench/results.json`),
+which every command of the closing list passed: the real tier 30 records, 29 pass and 1 historical
+(`g2.poc-parity`, frozen since phase 2), 0 fail; the ci tier 46 of 46 pass; `bench provenance` ok.
+
+### Tuning ROMs
+
+| ROM | ELF functions | Found | Precision / recall | Missed / false | Extents agree | Code end | `init` → `setup.sh` → `make` | `g2.speed` CPU / limit (ms) | Signature placements, wrong | `g6.objdiff` gated / ceiling (uncompared) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| fe7j | 7,735 | 7,724 | 99.86% / 99.86% | 11 / 11 | 1,471 / 1,471 | 0 | SHA-1 | 1,050 / 12,314 | 134, 0 | 7 / 7 (0) |
+| klonoa | 559 | 556 | 99.82% / 99.46% | 3 / 1 | 485 / 485 | 0 | SHA-1 | 224 / 297 | 120, 0 | 1 / 1 (130) |
+| pokeemerald | 15,856 | 15,856 | 99.96% / 100.00% | 0 / 6 | 15,850 / 15,853 | 0 | SHA-1 | 2,062 / 4,093 | 377, 0 | 12 / 12 (2) |
+| sa2 | 2,892 | 2,892 | 99.79% / 100.00% | 0 / 6 | 2,887 / 2,889 | 0 | SHA-1 | 619 / 760 (81.4%) | 147, 0 | 1 / 1 (0) |
+| sa3 | 4,693 | 4,693 | 99.87% / 100.00% | 0 / 6 | 4,305 / 4,307 | 0 | SHA-1 | 1,008 / 1,448 | 189, 0 | 4 / 4 (0) |
+| tmc | 8,636 | 8,631 | 99.86% / 99.94% | 5 / 12 | 8,388 / 8,388 | 0 | SHA-1 | 1,311 / 1,731 | 68, 0 | 25 / 25 (0) |
+
+Every tuning ROM also links to its SHA-1 with both printers (`g3.raw-link`, `g3.link`, with the 54 fixtures), its
+readable tree prints 99.999% or more of its instructions as mnemonics with 99.998% or more of branches and 100% of
+pool words symbolic (`g3.readability`), `generate` is idempotent and every seeded legal TOML edit still builds
+(`g4.toml-mutations`: 269 legal edits, 239 illegal, on 60 ROMs), the `expected/` objects of 432 modules on 61 targets
+equal their ROM ranges (`g6.expected-bytes`), and klonoa's `SoundMainRAM` links at its run address through a
+hand-written `runs_at` override (`g6.ram-code-mapped`). `g3.speed-budget` (calibration 0.932): analysis at most
+1,953 of 2,795 ms (pokeemerald), pokeemerald `generate` 7,473 of 9,318 ms and `init` 9,333 of 13,977 ms;
+`g3.large-rom` on the 32 MiB ROM peaks at 1,163.3 MiB (`init`) and 1,274.0 MiB (`generate`) under the 1,536 MiB budget.
+Pass 3's re-run at `2499afa` measured `g2.speed` at calibration 0.962: fe7j 1,104 / 12,715, klonoa 233 / 307, pokeemerald
+2,139 / 4,227, sa2 669 / 784 (85.3%), sa3 1,035 / 1,495, tmc 1,401 / 1,787 ms; everything else as above.
+
+tmc is a tuning ROM since D60 and is held to its measured numbers (D61), not to the PoC-comparison gates;
+confirm-equals-discover differs on 8 tmc functions, a recorded limitation (D61, Q6). `g6.objdiff` is a no-regression
+ceiling, not a 100% score; on klonoa 130 of 485 functions are not compared (objdiff-cli cannot read one object,
+carried as gates-4).
+
+### Held-out ROMs (sealed)
+
+| ROM | Family | ELF functions | Found | Precision / recall | False (startup / inside an ELF function) | Extents agree | Code end | `init` → `setup.sh` → `make` | Signature placements, tables, wrong |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| pokefirered | pret-gen3 | 12,389 | 12,389 | 99.95% / 100.00% | 4 / 6 | 12,383 / 12,386 (99.976%) | 0 | SHA-1 | 353, 18, 0 |
+| pokeruby | pret-gen3 | 11,455 | 11,455 | 99.95% / 100.00% | 4 / 6 | 11,449 / 11,452 (99.974%) | 0 | SHA-1 | 226, 15, 0 |
+
+Both pass `g2.held-out` with nothing glued and no label candidates, and `g6.signatures-heldout`, sealed: no rule was
+tuned on them. Both are from one family that the tuning set also holds (pokeemerald), so the gate passes only with its
+two family conditions waived by the owner (D60, D61 b). tmc was the third held-out ROM until it failed in phase 2 and
+the owner moved it into tuning (D60).
+
+## Comparison with the proof of concept
+
+| Measure | Proof of concept (docs/proof-of-concept.md) | romlift at `2499afa` |
+| --- | --- | --- |
+| Function entries on the five PoC ROMs | klonoa 99.82% / 99.46%, sa2 99.79% / 100%, sa3 99.87% / 100%, fe7j 99.86% / 99.86%, pokeemerald 99.96% / 100% | identical, entry for entry: the same true positives (556, 2,892, 4,693, 7,724, 15,856), misses and false entries; the parity digests and lockstep equal the PoC's (`g2.poc-parity`, frozen at phase 2) |
+| tmc | not in the PoC's pinned results; its own run finds 8,582 | 8,631 (+49), recall 99.94% |
+| Extents on the five | 24,995 of 25,005 (99.96%) | 24,998 of 25,005 (99.97%) |
+| Held-out ROMs | none run | pokefirered and pokeruby sealed, 99.95% / 100% each |
+| Library placements (m4a, libagbsyscall, libgcc) | klonoa 120, sa2 130, sa3 172, fe7j 134, pokeemerald 191; libagbsyscall, libgcc and m4a signature files | the same three libraries equal the PoC's converted files (`g6.signatures-rebuild`); with agb_flash, librfu and siirtc added: klonoa 120, sa2 147, sa3 189, fe7j 134, pokeemerald 377, tmc 68, held-out 353 and 226, 0 wrong on all |
+| Scaffold | five ROMs rebuild byte for byte from raw `.2byte`/`.4byte` chunks; no instructions, no C stubs, no agbcc | six tuning and two sealed ROMs rebuild from readable GNU `as` (99.999%+ mnemonics) with `INCLUDE_ASM` C stubs compiled by agbcc, `expected/` and `objdiff.json`; the raw printer still reproduces the PoC's raw output on every fixture |
+| Analysis time | 1 to 2 s per ROM, 7 s pokeemerald, 19 s sa3 (wall, unoptimised) | median CPU 0.22 s (klonoa) to 2.06 s (pokeemerald); sa3 1.01 s |
+
+## Remaining findings
+
+The last review pass (pass 3, review of `2499afa`) raised these after the last fix round. The workflow has no fix
+round after it, so they are recorded here (and in roadmap.md "Carried past phase 6") rather than fixed, except
+clean-clone-r2-3, which this report's commit fixes. All are minor: none changes a built ROM, a tree's SHA-1 result or a
+gate verdict.
+
+| Finding | Severity | Area | Status | Why it remains |
+| --- | --- | --- | --- | --- |
+| clean-clone-r2-1, end-to-end-user-r2-2 | minor | README "Try it before it is published", AGENTS.md `npm run build` row | open | In zsh (macOS's default shell) `$ROMLIFT_CLI init baserom.gba` exits 127, because zsh does not word-split `"node …/main.js"`; `dist/cli/main.js` is built 0644, so the bin path alone does not run either. Confirmed again for this report. The flow works in bash, `setup.sh` and the Makefile are unaffected, and zsh users can write `${=ROMLIFT_CLI}`. The fix (chmod the bin in the build and document the single-word form, or a shell function) touches the build and two documents, and no fix round followed the pass |
+| clean-clone-r2-2, end-to-end-user-r2-3 | minor | README wording vs `init` (`W_LOCKFILE_DEFERRED`) | open | With `ROMLIFT_CLI` set, init skips npm and its 404 wait as the README says, but still prints `W_LOCKFILE_DEFERRED` (seen again for this report). The message is accurate and harmless; demoting it or rewording the README is a one-line change no round was left to make |
+| clean-clone-r2-3 | minor | README documentation table | fixed in this report's commit | The row now says the file holds the final report, every finding's disposition and the gate results of both fix rounds |
+| end-to-end-user-r2-1 | minor | `generate`, a `[functions]` entry inside a found function | open | The cut leaves the outer function's tail as an unowned `unk_` chunk with an `INCLUDE_ASM` stub and no diagnostic; `make` still reaches the SHA-1, but objdiff counts the chunk's local labels as functions. The fix is a new warning (`W_CODE_UNOWNED`) with tests and a template paragraph; it is the same gap as end-to-end-user-14, carried at fix round 1 as not cheap |
+| end-to-end-user-r2-4 | minor | generated AGENTS.md and README (`asm/matchings`) | open | Decompiled functions' assembly moves to `asm/matchings/<module>/` for the objdiff target, which works (objdiff scored the function at 100%) but is not documented; a template sentence and a scaffold golden update |
+| end-to-end-user-r2-5 | minor | printer readability | open | A libgcc `_call_via_rN`'s trailing nop pad prints as bare `.inst.n 0x46C0`; it assembles to the same bytes. A comment or `mov r8, r8` changes the printer and every affected golden and tree digest |
+| end-to-end-user-r2-6 | minor | `runs_at` module label naming | open | Default labels in a `runs_at` module are named by ROM load address while the header and `adr` comments use run addresses. Renaming by run address changes the printer's naming convention, goldens and `g6.expected-bytes`' objects, a convention change for a decision, not a minor fix |
+| end-to-end-user-r2-7 | minor | generated AGENTS.md examples | open | The TOML examples carry klonoa's fixed addresses in every project and are not marked illustrative; filling them from the project's model needs new template variables |
+
+Also open: the five owner questions below (O1 re-measuring `speed.json`, O2 shipping built signature files, O3 the
+fresh-family pair to seal, O4 a Linux runner, O5 `g3.speed-budget`'s scope), the items carried from fix rounds 1 and
+2 (roadmap.md "Carried past phase 6"), and the Linux CI jobs of phase 6, which have never run (GitHub Actions is
+refused; their checks ran locally on macOS only, D103).
+
+## Owner questions
+
+All five are open at this report.
+
+- **O1. Re-measure `bench/baseline/speed.json` at the current tuning?** (gates-2, gates-3, clean-clone-11, gates-r1-1)
+  Until fix round 2 sa2 ran at 94 to 101% of its limit depending on machine load (the review of fix round 1 measured
+  100.9% in a plain run, which failed the closing list); fix round 2's result-neutral speed changes (D107 a) bring it
+  to about 81%. fe7j and pokeemerald have limits about ten and two times what they measure. Re-measuring gives every
+  ROM a limit 1.5 times today's time.
+- **O5. May `g3.speed-budget` judge only its own budgets?** (gates-r1-2, D107 b) It fails whenever `bench speed --json`
+  exits 1, which happens when any ROM exceeds the `g2.speed` limit, so one slow sa2 run fails both speed gates while
+  the 3 s, 10 s and 15 s budgets are met with a wide margin. The fix is a gate edit (read the JSON whatever the exit
+  code, or a `bench speed` flag that skips the ratchet's exit).
+- **O2. Ship built signature files?** (clean-clone-2, docs-and-plan-2; D40, architecture §12 item 1) Until then a user
+  names libraries only by building them from the reference decomps.
+- **O3. Which fresh-family pair to seal before release 1?** (gates-1) Kirby & the Amazing Mirror or Pokémon Pinball,
+  from the reserve pool, once its build reproduces its SHA-1.
+- **O4. A Linux runner for phase 6's CI** (docs-and-plan-6, gates-8): restore Actions billing, or name a host.
+
+## Reproducing the verification
+
+In a fresh clone of `git@github.com:macabeus/romlift.git` at `main`, with Node 24, GNU binutils for ARM, `make`, `git`
+and a C compiler:
+
+```sh
+export ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler      # the benchmark checkouts (docs/benchmark-roms.md)
+export ROMLIFT_POC=$ROMLIFT_BENCH_ROOT/romlift-poc                 # read-only
+echo '{ "landed": 6 }' | cmp - test/gates/phase.json               # the gates' phase
+mkdir -p bench/.local && cp -R /path/to/main-checkout/bench/.local/agbcc bench/.local/agbcc
+cargo build --release --manifest-path "$ROMLIFT_BENCH_ROOT/objdiff/Cargo.toml" -p objdiff-cli \
+  --target-dir "$PWD/bench/.local/objdiff-target"                  # objdiff-cli 3.7.2, or set ROMLIFT_OBJDIFF
+```
+
+Then the phase-6 closing list (phase-6.md "The closing gate"), in this order, each command waited for:
+
+```sh
+npm ci
+npm run typecheck
+npm run lint
+npm test
+npm run fixtures -- check
+for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || exit 1; done
+npm run build && npm pack --pack-destination "$(mktemp -d)"
+npm pack --dry-run --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const bad=JSON.parse(s)[0].files.map(f=>f.path).filter(p=>p.startsWith("signatures/")&&!p.startsWith("signatures/specs/")&&p.endsWith(".json"));if(bad.length){console.error("built signature files are packed: "+bad.join(", "));process.exit(1)}})'
+npm run export-poc -- --mode raw
+npm run export-poc -- --mode scored
+npm run export-poc -- --mode parity
+npm run export-poc -- --mode queries
+ROMLIFT_REQUIRE_LOCAL=1 npm run test:local
+npm run bench -- doctor-real
+npm run corpus
+npm run bench -- run --scaffold
+npm run bench -- regression
+npm run bench -- gates --require 6 --tier real
+npm run bench -- gates --require 6 --tier ci
+npm run bench -- provenance
+```
+
+About two hours in all (fix round 2's run: 19:30 to 21:15). Expect every command to exit 0, `npm test` 2,885 pass with
+objdiff-cli reachable, `test:local` 122 of 122, the real tier 29 pass and 1 historical, the ci tier 46 of 46, and
+`bench run --scaffold` to rewrite `bench/results.json` with the rows above and only timings and peak RSS changed. The
+user path, in bash (not zsh, clean-clone-r2-1), from an empty directory holding only a ROM:
+
+```sh
+export ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js"
+$ROMLIFT_CLI init baserom.gba
+git init && ./setup.sh && make                                      # klonoa: akle.gba: OK
+```
+
+## Fix round 1
+
+The first pass reviewed `main` at `0ccc5a0` (phase 6 landed, tag `phase-6`) through the five lenses. It raised 15
+majors and 32 minors and no blocker. Fix round 1 (branch `final-review-1`, decision D106) fixed every major in code or
+in the documents, as each finding's own fix proposed, and the cheap minors; the rest are carried past phase 6 with a
+reason (roadmap.md "Carried past phase 6"), and four need the owner ("Owner questions", above).
 
 Dispositions: **fixed** (the finding's fix, or an equivalent, is in the branch), **partly fixed** (the part named is
 fixed, the rest carried), **carried** (recorded and left for later, with the reason), **no change** (the finding asks
 for none, or the fix is a record already made).
 
-## Majors
+### Majors
 
 | Finding | Disposition | What was done |
 | --- | --- | --- |
@@ -29,7 +229,7 @@ for none, or the fix is a record already made).
 | docs-and-plan-5 (Mizuchi config "on request" with no mechanism) | fixed (recorded) | D106 e: asmlift's block always written (16 October decision), Mizuchi deferred with no flag, Transmuter open (§12 item 8); plan.md annotated |
 | docs-and-plan-6, gates-8 (phase 6 landed without its Linux checks) | carried | No Linux host was used: GitHub Actions is still refused, and a Docker VM on the shared machine would load the timing gates other agents were running. Recorded as a known limitation (phase-6.md), in README's status and in roadmap.md "Carried past phase 6", to run on `main` once a Linux runner is available |
 
-## Minors
+### Minors
 
 | Finding | Disposition | What was done, or why not |
 | --- | --- | --- |
@@ -78,24 +278,7 @@ for none, or the fix is a record already made).
 | docs-and-plan-14 (src/index.md lists evidence) | fixed | Replaced with proposals, reconcile, scaffold, and the phase 4, 6 and final-review exports |
 | docs-and-plan-15 ("packs" in plan.md) | fixed | "signatures" / "the m4a signatures"; the quoted history of the rejected word stays |
 
-## Owner questions
-
-- **O1. Re-measure `bench/baseline/speed.json` at the current tuning?** (gates-2, gates-3, clean-clone-11, gates-r1-1)
-  Until fix round 2 sa2 ran at 94 to 101% of its limit depending on machine load (the review of fix round 1 measured
-  100.9% in a plain run, which failed the closing list); fix round 2's result-neutral speed changes (D107 a) bring it
-  to about 81%. fe7j and pokeemerald have limits about ten and two times what they measure. Re-measuring gives every
-  ROM a limit 1.5 times today's time.
-- **O5. May `g3.speed-budget` judge only its own budgets?** (gates-r1-2, D107 b) It fails whenever `bench speed --json`
-  exits 1, which happens when any ROM exceeds the `g2.speed` limit, so one slow sa2 run fails both speed gates while
-  the 3 s, 10 s and 15 s budgets are met with a wide margin. The fix is a gate edit (read the JSON whatever the exit
-  code, or a `bench speed` flag that skips the ratchet's exit).
-- **O2. Ship built signature files?** (clean-clone-2, docs-and-plan-2; D40, architecture §12 item 1) Until then a user
-  names libraries only by building them from the reference decomps.
-- **O3. Which fresh-family pair to seal before release 1?** (gates-1) Kirby & the Amazing Mirror or Pokémon Pinball,
-  from the reserve pool, once its build reproduces its SHA-1.
-- **O4. A Linux runner for phase 6's CI** (docs-and-plan-6, gates-8): restore Actions billing, or name a host.
-
-## Gate results
+### Gate results of fix round 1
 
 The phase-6 closing list (phase-6.md "The closing gate", which runs every gate of phases 1 to 6 on both tiers) ran in
 a fresh worktree (`romlift-wt/final-review-1-closing`) at `31f13ce` with `test/gates/phase.json` at `{ "landed": 6 }`,
@@ -128,7 +311,7 @@ CI jobs were not run (docs-and-plan-6, carried).
 ## Fix round 2
 
 A second review pass over main at `a1a4328` (fix round 1 merged) followed a clean clone and a new user again and re-ran
-the closing list in a fresh clone. It raised 1 blocker, 1 major and 11 minors. Fix round 2 (branch `final-review-2`,
+the closing list in a fresh clone. It raised 1 blocker, 1 major and 12 minors. Fix round 2 (branch `final-review-2`,
 decision D107) fixed the blocker and the major in code, the cheap minors, and carried or recorded the rest (roadmap.md
 "Carried past phase 6").
 

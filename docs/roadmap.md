@@ -1207,6 +1207,18 @@ Fix round 2 of the final review (docs/final-review.md, D107) carries these:
 | gates-r1-3 | a `c` module after the bx-pc-veneer fixture's veneers, so `g4.toml-mutations` has a place for `move-start` and `split-module` there again (D107 e) |
 | end-to-end-user-r1-1 | the ARM `adr r0, X + 1` printed as `adr r0, <label> + 1` (D107 f): a `label + 1` target operand in the ISA, a label at target − 1, the text-layout check and the corpus |
 
+The final report (docs/final-review.md "Remaining findings", review of `2499afa`) leaves these open, all minor:
+
+| Carried item | What is left |
+| --- | --- |
+| clean-clone-r2-1, end-to-end-user-r2-2 | the README's first-run flow and AGENTS.md's `npm run build` row in a form zsh runs (`$ROMLIFT_CLI` is not word-split there), and `dist/cli/main.js` built executable |
+| clean-clone-r2-2, end-to-end-user-r2-3 | `W_LOCKFILE_DEFERRED` with `ROMLIFT_CLI` set demoted to a note, or the README reworded to say only npm and its 404 are skipped |
+| end-to-end-user-r2-1 | a warning (`W_CODE_UNOWNED`) when a listed entry leaves claimed code without a function extent, and `unk_<ADDR>` stubs documented (with end-to-end-user-14) |
+| end-to-end-user-r2-4 | `asm/matchings/<module>/` documented in the generated AGENTS.md and README |
+| end-to-end-user-r2-5 | a nop pad inside a sized function printed with a comment or as `mov r8, r8` |
+| end-to-end-user-r2-6 | default labels in a `runs_at` module named by run address, or both addresses in their comments |
+| end-to-end-user-r2-7 | the generated AGENTS.md's TOML examples filled from the project's model, or marked illustrative |
+
 ---
 
 ## Component count
