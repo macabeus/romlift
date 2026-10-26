@@ -4909,8 +4909,8 @@ out 0x3b where the ROM holds 0x3c (at 0x08000124)`), at `3befe08` it exited 0 an
   under a file now fails at the write (`E_IO_WRITE … ENOTDIR`) instead of the read. Only `apply-writes.ts`' removal of a
   file takes ENOENT alone as already gone; `shell/index.md` says so.
 
-**Consequences.** `npm test` 2,876 tests pass. No gate threshold changed, no golden moved. The closing list ran again
-(phase-6.md, run 7).
+**Consequences.** `npm test` 2,876 tests pass. No gate threshold changed, no golden moved. The closing list ran again in
+a fresh worktree at `74aa225` (phase-6.md, run 7): all 20 commands exit 0, the gate counts and ceilings as run 6.
 
 **Rejected.** Moving `abs32Word` to `romlift/internal` (architecture-o1-4's other option): the public
 `LayoutInput.resolve` returns a `SymbolValue`, so the rule that reads one belongs beside it. A test that holds D104 f's
