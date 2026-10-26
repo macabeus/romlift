@@ -30,7 +30,7 @@ those jobs run, run locally (the owner's landing answer, D103); the merge carrie
 step applied his gate edits and records (Q1 to Q3, Q5, Q8, Q9, Q11, Q13, Q14): `g6.reconciler`, `g6.rename` and
 `g6.evidence-conflict` now pass on the ci tier, `g6.signatures-judged` holds tmc to the floor he set, and
 `g4.toml-mutations` makes an add-override edit that changes the model and refuses an odd `[functions]` key, on both
-tiers; it fixed seven of fix round 3's nine carried minors ("Review", fix round 4, step 1). The round's later steps
+tiers; it fixed six of fix round 3's eight carried minors and moved two ("Review", fix round 4, step 1). The round's later steps
 apply Q10, Q12, Q6 with Q15, and Q16, then run the closing list.
 
 **Fix round 4, step 2 (D100): not landed yet.** Q10 applied as the owner chose (option (c)): the confirm run validates
@@ -53,9 +53,9 @@ differences and the uncompared functions (`missing-symbol`, `tool`), and `g6.obj
 tuning ROM's gated count at its ceiling in `bench/baseline/objdiff-ceiling.json`: fe7j 7, klonoa 1, pokeemerald 12,
 sa2 1, sa3 4, tmc 25 (Q6, "Review", fix round 4, step 4). The round's last step runs the closing list.
 
-**Verdict after fix round 3 (D97): still NOT LANDED.** The review of fix round 2 (`b64f0b7`) raised 11 findings: one
-major (correctness-r2-1, a `runs_at` module named `text` or `c_data_<m>` broke the link), fixed in this round, and ten
-minors, nine carried and one an owner question (Q16) ("Review", fix round 3). The orchestrator asked to land the phase; it cannot: the fourteen owner
+**Verdict after fix round 3 (D97): still NOT LANDED.** The review of fix round 2 (`b64f0b7`) raised 10 findings: one
+major (correctness-r2-1, a `runs_at` module named `text` or `c_data_<m>` broke the link), fixed in this round, and nine
+minors, eight carried and one an owner question (Q16) ("Review", fix round 3). The orchestrator asked to land the phase; it cannot: the fourteen owner
 questions below (Q1 to Q3, Q5, Q6, Q8 to Q16) are unanswered, and the gates that wait on them fail as run 4 measured
 (`g6.objdiff` on the real tier; `g6.reconciler`, `g6.rename`, `g6.evidence-conflict` and `g1.provenance` on the ci
 tier; `bench provenance`). No gate file is changed, no pull request is opened, nothing is merged or tagged, and the
@@ -598,6 +598,13 @@ Q6 and Q15. Q4 and Q7 need no answer.
   architecture-r2-7, D99 e; recorded at fix round 5, architecture-o0-8): the owner authorised no edit of that gate
   file, and its pattern matches the current text (`src/<m>.c defines data; see AGENTS.md (…)`), so the gate passes;
   only its comment is stale. Carried past phase 6.
+- **A `code` override without `runs_at` changes no `generate` model on its own** (D104 a, recorded at fix round 6,
+  architecture-o1-2): every `generate` is a confirm run, which takes only the listed functions, so the override's seed
+  at an unlisted start is only reported (`W_UNLISTED_FUNCTION`, then `W_OVERRIDE_IGNORED` naming that start and `romlift
+  analyze --update`) and a listed start is the listed seed's already. Its one effect is the extent `placeEntries` gives
+  a listed entry the analysis did not take inside it. Since D104 a, `g4.toml-mutations`' add-override edit is a `data`
+  override, so no gate exercises a code override without `runs_at`; `test/unit/model/model.test.ts` covers its
+  warnings and the extent it gives.
 - The release-1 limitations of phases 1 to 4 stand (phase-4.md, "Known limitations").
 
 ## Measured numbers
@@ -817,7 +824,7 @@ every command run in this order in the foreground of one script, each waited for
 | `npm run corpus` | 0 | ok, 150 ARM rows with coverage (4 s) |
 | `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1, the init build (init, setup.sh, make) to the SHA-1 on all six; both sealed ROMs pass with their init builds at the SHA-1; objdiff differences fe7j 9 instruction, 12 relocation, 55 unnamed-target; klonoa 4 missing-relocation, 1 relocation, 130 tool; pokeemerald 42, 8, 2 missing-symbol, 144, 2,608; sa2 2,659 instruction, 5 missing-relocation, 127; sa3 1,651, 4, 3 relocation, 81; tmc 11, 5, 34, 315 (classed by D34 as amended in `g6.objdiff` below); memory family peak RSS `init` 988.4 MiB, `generate` 995.7 MiB against 1,536 MiB, heap cap 1,024 MiB; wrote `bench/results.json` (6 rows, 2 sealed, commit `fa5d7ab`) (272 s) |
 | `npm run bench -- regression` | 0 | no regression against `89deb54` (1 s) |
-| `npm run bench -- gates --require 6 --tier real` | 0 | 30 records: 29 pass, 1 historical (`g2.poc-parity`), 0 fail. `g6.objdiff` every tuning ROM at its ceiling: fe7j 1,471 functions, gated 7 of 7; klonoa 485, 1 of 1, 130 uncompared; pokeemerald 15,850, 12 of 12, 2 uncompared; sa2 2,887, 1 of 1; sa3 4,305, 4 of 4; tmc 8,388, 25 of 25. `g6.signatures-judged` every PoC floor held and tmc at the owner's floor (libagbsyscall 13, m4a 55 and 10, 68 placements, 0 wrong); sizes fe7j 20 = 15 equal + 5 unjudged, klonoa 17 = 15 + 2, pokeemerald 17 = 15 + 2, sa2 17 = 15 + 2, sa3 19 = 17 + 2, tmc 5 = 0 + 5. `g6.expected-bytes` 452 modules on 61 targets (1 `runs_at`), linked at their modules' addresses. `g6.ram-code-mapped` the RAM-copy fixture and Klonoa (`0x0804F318 -> 0x03000388`). `g6.signatures-loo` 7 runs, 0 added, moved or lost; `-heldout` pokefirered 353 placements and 18 tables, pokeruby 226 and 15, none wrong; `-rebuild` libagbsyscall, libgcc, m4a equal the PoC's converted files. `g4.toml-mutations` 242 legal edits (add-override 29, each accepted through its seed, no `W_OVERRIDE_IGNORED`), 239 illegal, 60 ROMs. `g4.e2e-real` the six tuning ROMs to their SHA-1s from the source tree and the tarball. `g2.speed` calibration 0.966: fe7j 1,205 of 12,762 ms, klonoa 249 of 308, pokeemerald 2,386 of 4,242, sa2 754 of 787 (95.8%), sa3 1,138 of 1,500, tmc 1,488 of 1,794. `g3.speed-budget` calibration 0.951: pokeemerald `generate` 8,061 of 9,505 ms, `init` 10,448 of 14,258 ms. `g3.readability` at its floors (3,494 s) |
+| `npm run bench -- gates --require 6 --tier real` | 0 | 30 records: 29 pass, 1 historical (`g2.poc-parity`), 0 fail. `g6.objdiff` every tuning ROM at its ceiling: fe7j 1,471 functions, gated 7 of 7; klonoa 485, 1 of 1, 130 uncompared; pokeemerald 15,850, 12 of 12, 2 uncompared; sa2 2,887, 1 of 1; sa3 4,305, 4 of 4; tmc 8,388, 25 of 25. `g6.signatures-judged` every PoC floor held and tmc at the owner's floor (libagbsyscall 13, m4a 55 and 10, 68 placements, 0 wrong); sizes fe7j 20 = 15 equal + 5 unjudged, klonoa 17 = 15 + 2, pokeemerald 17 = 15 + 2, sa2 17 = 15 + 2, sa3 19 = 17 + 2, tmc 5 = 0 + 5. `g6.expected-bytes` 452 modules on 61 targets (1 `runs_at`), linked at their modules' addresses. `g6.ram-code-mapped` the RAM-copy fixture and Klonoa (`0x0804F318 -> 0x03000388`). `g6.signatures-loo` 7 runs, 0 added, moved or lost; `-heldout` pokefirered 353 placements and 18 tables, pokeruby 226 and 15, none wrong; `-rebuild` libagbsyscall, libgcc, m4a equal the PoC's converted files. `g4.toml-mutations` 242 legal edits (add-override 29, each accepted through its seed, no `W_OVERRIDE_IGNORED`), 239 illegal, 60 ROMs (superseded by D104 a: the code-override edit changed nothing, as D98 d's correction says; its 29 edits only reproduced the original model, and Q11 was applied at fix round 5, measured in run 6). `g4.e2e-real` the six tuning ROMs to their SHA-1s from the source tree and the tarball. `g2.speed` calibration 0.966: fe7j 1,205 of 12,762 ms, klonoa 249 of 308, pokeemerald 2,386 of 4,242, sa2 754 of 787 (95.8%), sa3 1,138 of 1,500, tmc 1,488 of 1,794. `g3.speed-budget` calibration 0.951: pokeemerald `generate` 8,061 of 9,505 ms, `init` 10,448 of 14,258 ms. `g3.readability` at its floors (3,494 s) |
 | `npm run bench -- gates --require 6 --tier ci` | 0 | 46 gates, 46 pass, 0 fail. `g1.provenance` (source digest `929668b8…`, 30 real-tier records pass or are historical), `g6.reconciler` (9 cases, 11 golden tests, 16 comment and string tokens untouched), `g6.rename` (`sub_080000F4` renamed; both refusals change nothing), `g6.evidence-conflict` (162 contradictions on 54 fixtures), `g6.expected-bytes` (229 modules on 55 targets, 1 `runs_at`), `g6.ram-code-mapped`, `g6.c-data-ranges`, `g6.explain-coverage` (58 analysis and 5 sig rule ids in 213 goldens), `g6.no-heldout-references` (6 specs, 12 references), `g4.cli-contract` (10 commands, 17 `--json` runs), `g4.packed-e2e` (766 files, no ROM, ELF, map or built signature file; 53 fixtures to their SHA-1), `g4.e2e-fixtures` (53 fixtures), `g3.large-rom` (`init` 964.7 MiB, `generate` 1,009.1 MiB peak RSS, heap cap 1,024 MiB) (1,917 s) |
 | `npm run bench -- provenance` | 0 | source digest `929668b8…` ok (Node 24); gate record: 30 real-tier gates of phase ≤ 6 pass or are historical; families live (code-end, determinism, entries, extents, readability, scaffold, signatures, speed, memory, printer); 6 rows, one per tuning dataset; no sealed row |
 
@@ -827,7 +834,9 @@ of its limit, inside the spread phase 4 recorded). `bench/results.json` is commi
 **Verdict.** Phase 6 passes its closing gate at `fa5d7ab` with `test/gates/phase.json` at `{ "landed": 6 }`: every
 command of the list exits 0 in a fresh worktree, both gate tiers pass every gate of phases 1 to 6 (the one historical
 record, `g2.poc-parity`, frozen since phase 2), and every owner question is answered and applied (Q1 to Q3, Q5, Q6,
-Q8 to Q16; Q4 and Q7 needed no answer). It lands when the phase pull request merges to `main` with the raised marker,
+Q8 to Q16; Q4 and Q7 needed no answer). **Corrected at fix round 5 (D104 a):** Q11 was not yet applied at `fa5d7ab`: the
+gate's add-override edit did not change the model (D98 d's correction); Q11 was applied at fix round 5 and measured in
+run 6. It lands when the phase pull request merges to `main` with the raised marker,
 after its CI workflows run, or, if GitHub refuses to start them, after the checks they run pass locally (D103).
 
 ### Run 6 (`d66d802`, fix round 5, worktree `romlift-wt/phase-6-closing-6`)
@@ -835,7 +844,9 @@ after its CI workflows run, or, if GitHub refuses to start them, after the check
 After the review of fix round 4 and its fixes (D104). A fresh worktree at `d66d802` with `test/gates/phase.json` at
 `{ "landed": 6 }`, no local cache but `bench/.local/poc` and `bench/.local/agbcc` copied in (objdiff-cli 3.7.2 found as
 the main checkout's `bench/.local/objdiff-target` build), every command run in this order in one script, each waited
-for (26 October 2026, 02:31 to 04:43).
+for (26 October 2026, 03:01 to 04:43; corrected at fix round 6, gate-honesty-o1-2, from the script's log: the
+02:31 to 02:57 activity was measurement before the commits `43c89f0` and `d66d802`, both at 03:00:52, among it D104 a's
+ci-tier figure of 243 legal, add-override 54, 215 illegal, which run 6 reproduced).
 
 | Command | Exit | Output |
 | --- | --- | --- |
@@ -940,7 +951,7 @@ with a measurement (architecture-r1-5's suggested command; its concern is addres
 
 ### Fix round 3 (review of `b64f0b7`, D97)
 
-11 findings (1 major, 10 minor). The major is fixed; nine minors are carried (each stays open and goes to the next
+10 findings (1 major, 9 minor) (counts corrected at fix round 6, architecture-o1-7: the table holds one major and nine minors). The major is fixed; eight minors are carried (each stays open and goes to the next
 round or phase with the phase) and one is owner question Q16. Measured after the fix, in the main checkout: `npm run typecheck` 0, `npm run lint` 0,
 `npm test` 2,849 of 2,849 (the scaffold golden regenerated for the template's new sentence);
 `ROMLIFT_REQUIRE_LOCAL=1` `test/local/{ram-code,config-mutations,emission-real}` 9 of 9; on the ci tier
@@ -963,8 +974,8 @@ on the real tier `g6.ram-code-mapped` passes (the RAM-copy fixture and Klonoa, `
 ### Fix round 4, step 1 (the owner's answers, D98, D99)
 
 The owner answered the open questions on 25 October 2026. This step applied the answers that are gate edits and
-records (Q1, Q2, Q3, Q5, Q8, Q9, Q11, Q13, Q14; each recorded under its question above) and fixed seven of fix round 3's
-nine carried minors (the table above; two moved to the steps of Q12 and Q15). Commits: `fb16a0f` (the gate edits),
+records (Q1, Q2, Q3, Q5, Q8, Q9, Q11, Q13, Q14; each recorded under its question above) and fixed six of fix round 3's
+eight carried minors (the table above; two moved to the steps of Q12 and Q15). Commits: `fb16a0f` (the gate edits),
 `10fe83a` (the minors), then the documents. Measured on `10fe83a` in a fresh worktree (`romlift-wt/phase-6-step1`, the
 signature files built, `bench/.local/agbcc` and `bench/.local/poc` copied in):
 
@@ -1097,6 +1108,31 @@ is rejected and no owner question is raised. Commits on `phase-6`: `43c89f0` (co
 | architecture-o0-3 | minor | Fixed (`43c89f0`, D104 c): `pass` removed; `objdiffVerdict` classes each difference once (`countClasses`). |
 | architecture-o0-4 | minor | Fixed (`43c89f0`): the `ValidityRule` contract names the ARM-part call (D100); `shell/index.md`'s `fs.ts` row names `isAbsentError`'s three codes. |
 | architecture-o0-5 | minor | Fixed (`43c89f0`, D104 f): `resolver.ts entryLabelOf` is the `entryLabel` of `pool.ts wordText`, `labels.ts` candidates (through the run address's load address) and `labels.ts` scopes; `resolver.test.ts` covers a TOML-sized function of a `runs_at` module. |
-| architecture-o0-6 | minor | Fixed (`43c89f0`, D104 g) without a gate change: `test/unit/emit/sized-entries.test.ts` links three fixture trees with a sized entry each (`gTable + 8` from another module, an odd word `name + 4` inside a TOML-sized Thumb function, an even word never `name + n`) to their SHA-1s with binutils, in `npm test`. No gate's config can hold a sized entry (each is `configFromDiscover`'s). |
+| architecture-o0-6 | minor | Fixed (`43c89f0`, D104 g) without a gate change: `test/unit/emit/sized-entries.test.ts` links three fixture trees with a sized entry each (`gTable + 8` from another module, an odd word `name + 4` inside a TOML-sized Thumb function, an even word never `name + n`) to their SHA-1s with binutils, in `npm test`. No ci-tier gate's config holds a sized entry, since `init` places no signature on the synthetic fixtures (corrected at fix round 6, correctness-o1-3, architecture-o1-3: the real-tier gates build `init`'s configs, which hold signature sizes and tables, 27 `size =` entries on Klonoa, 17 in `[functions]` and 10 in `[symbols]`, so the real tier exercises the rule). |
 | architecture-o0-7 | minor | Fixed with gate-honesty-o0-1 (`OWNER_CEILINGS`) and `lowerCeilings` refusing a ROM without a ceiling (D104 b). |
 | architecture-o0-8 | minor | Recorded in "Known limitations" as carried past phase 6 (the frozen `g4.c-data-fails-loud` header's stale quote); no gate edit, so no owner question. |
+
+### Fix round 6 (review of `553a922`, D105)
+
+16 findings (2 major, 14 minor; gate-honesty-o1-3 and correctness-o1-5 are recorded empty scope checks). Every one is
+fixed or recorded; none is rejected and no owner question is raised. Commits on `phase-6`: `87171b3` (code and tests),
+then the documents, then this record with run 7.
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| architecture-o1-1 | major | Fixed (`87171b3`, D105 a): `resolver.ts addendTo`, read by `print/table.ts` and the label scopes; an even entry at a Thumb function names the local label `labels.ts` now places beside it. The review's repro (table-jump-hoisted with `0x0800013C = { name = "CaseA", label = true }`) exited 3 with `E_SELF_CHECK_TEXT` at `553a922`; now `generate` exits 0, the entry prints `.4byte _0800013C`, `verify --link` gives `d3ff0e07…`. New `test/unit/emit/table-function-target.test.ts` (5 tests; 4 fail without the fix); `table.test.ts` expects `0x08001020`, not `Case - 1`; D104 e's wrong sentence corrected in place. |
+| architecture-o1-2 | major | Fixed (D105 b): architecture §6.5's override bullet rewritten for phase 6 (a data override claims its span and ends every extent; a code override seeds `seed.override`, taken in discover, only reported in confirm, its one confirm effect the extent `placeEntries` gives); "Known limitations" records that a code override without `runs_at` changes no `generate` model and no gate exercises one; D104 a notes it. |
+| gate-honesty-o1-1 | minor | Fixed: run 5's `g4.toml-mutations` cell and its Verdict carry a note that D104 a superseded them and that Q11 was applied at fix round 5 (run 6). |
+| gate-honesty-o1-2 | minor | Fixed: run 6's window is 03:01 to 04:43, with the note that D104 a's ci-tier figure was measured before the commits and reproduced by run 6. |
+| gate-honesty-o1-3 | minor | Recorded: the review's empty scope check and its fresh-clone rerun of the closing list at `553a922` (20 of 20 exit 0). Nothing to change. |
+| correctness-o1-1 | minor | Fixed with architecture-o1-2 (D105 b), citing D104 a and d. |
+| correctness-o1-2 | minor | Fixed (`87171b3`, D105 d): `W_OVERRIDE_IGNORED` names one reason per code override; after `analyze --update --write` the warning says the override is redundant and can be removed (measured on table-jump-hoisted, unit case in `model.test.ts`). |
+| correctness-o1-3 | minor | Fixed (D105 f): D104 g, the fix round 5 row and `sized-entries.test.ts`'s header say no ci-tier gate's config has a sized entry; the real tier's `init` configs hold 27 on Klonoa (17 `[functions]`, 10 `[symbols]`, measured). |
+| correctness-o1-4 | minor | Fixed (`87171b3`): `relocation.ts` names the public `romlift` export. |
+| correctness-o1-5 | minor | Recorded: the review's empty scope check. Nothing to change. |
+| architecture-o1-3 | minor | Fixed with correctness-o1-3. |
+| architecture-o1-4 | minor | Fixed (`87171b3`, D105 f): `abs32Word` stays public beside the public `LayoutInput.resolve`, whose type change to `SymbolValue` D104 e now records; `relocation.ts`' header corrected. |
+| architecture-o1-5 | minor | Fixed (`87171b3`, D105 c): the conversion could change no model `buildModel` accepts, so `labels.ts` looks the candidates up at the entry's address; `model.test.ts` adds a TOML-sized `runs_at` function (`RamFunc + 4`); `sized-entries.test.ts` runs the text-layout check without binutils, skipping only the link, and loses its dead return. |
+| architecture-o1-6 | minor | Fixed (`87171b3`, D105 g): the ENOENT-only read sites go through `isAbsentError`; `init` into `<file>/sub` now fails at the write (`E_IO_WRITE … ENOTDIR`, exit 1); `read-inputs.test.ts` covers ENOTDIR and ELOOP; the `shell/index.md` row names the one remover that takes ENOENT alone. |
+| architecture-o1-7 | minor | Fixed (D105 f): fix round 3 had 10 findings (1 major, 9 minor), eight carried and one Q16; fix round 4, step 1 fixed six of the eight and moved two (here, in the status paragraphs, D97 and D99). |
+| architecture-o1-8 | minor | Fixed (`87171b3`, D105 e): D104 b and roadmap.md say every tuning ROM must link, under the owner's per-ROM ceiling rule; the gate's empty-run problem is "no tuning ROM dataset to judge". |

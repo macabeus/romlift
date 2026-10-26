@@ -4432,12 +4432,12 @@ Reverting `objectWords` before the owner answers Q15.
 
 ## D97. Phase-6 fix round 3: a runs_at module's section name, and the landing attempt
 
-**Context.** The review of `phase-6` at `b64f0b7` (fix round 2, D96) raised 11 findings (1 major, 10 minor;
-phase-6.md "Review", fix round 3). The major (correctness-r2-1): the ldscript writer emits a `runs_at` module as the
+**Context.** The review of `phase-6` at `b64f0b7` (fix round 2, D96) raised 10 findings (1 major, 9 minor;
+phase-6.md "Review", fix round 3; counts corrected at fix round 6, D105 f). The major (correctness-r2-1): the ldscript writer emits a `runs_at` module as the
 output section `.<module>`, and nothing stopped that name from being another section the script emits. Measured by the
 review on Klonoa with `bench/overrides/klonoa.json`: a module named `text` duplicated the ROM's `.text`, `generate`
 exited 0 and the ROM no longer matched its SHA-1 (`__load_text` resolved to `0x08000000`); one named `c_data_main`
-made `generate` exit 3 (`E_SELF_CHECK_TEXT`). The orchestrator then asked to land the phase with the 10 minors carried.
+made `generate` exit 3 (`E_SELF_CHECK_TEXT`). The orchestrator then asked to land the phase with the minors carried.
 
 **Decision.**
 
@@ -4450,7 +4450,7 @@ made `generate` exit 3 (`E_SELF_CHECK_TEXT`). The orchestrator then asked to lan
   Rejected: a reserved prefix for the RAM section (`.ram.<module>`), which would change every `runs_at` project's
   ldscript and its check for a rule the model can state.
 - (b) **The phase still does not land.** Fourteen owner questions (Q1 to Q3, Q5, Q6, Q8 to Q16) are unanswered and the
-  gates that wait for them still fail (run 4), so no pull request is opened. Of the 10 minors, nine are recorded as
+  gates that wait for them still fail (run 4), so no pull request is opened. Of the 9 minors, eight are recorded as
   carried and one (architecture-r2-1, `g6.expected-bytes` judging no `runs_at` module) is Q16, since its fix changes a
   frozen gate file.
 
@@ -4522,9 +4522,9 @@ comment and string tokens untouched), `g6.rename` (`sub_080000F4` renamed on the
 `g6.signatures-judged` (tmc libagbsyscall 13, m4a 55 and 10, 68 placements, 0 wrong: at its floor) and
 `g4.toml-mutations` (242 legal edits on 60 ROMs, add-override 29 of them, all six tuning ROMs among them; 239 illegal) pass. The questions answered here are closed in phase-6.md.
 
-## D99. Phase-6 fix round 4, step 1: fix round 3's nine carried minors
+## D99. Phase-6 fix round 4, step 1: fix round 3's eight carried minors
 
-**Context.** Fix round 3 (D97) carried nine minors (phase-6.md "Review", fix round 3). The orchestrator asked to fix
+**Context.** Fix round 3 (D97) carried eight minors (nine until fix round 6 corrected the count, D105 f; phase-6.md "Review", fix round 3). The orchestrator asked to fix
 those that are cheap in the first step of fix round 4 and to record each disposition.
 
 **Decision.**
@@ -4787,12 +4787,18 @@ nothing either (0 of 54 fixtures): the unlisted bytes are a data chunk without i
   fixture), 215 illegal. D98 d's objection to a data override over a whole function (a caller's `bl` would name data)
   does not apply: the override covers pool words, which were data already, and no instruction. The gate's header,
   D98 d and phase-6.md Q11 say so. The gate gains the call `buildModel` (core/model, exported by `romlift`).
+  **Recorded at fix round 6 (D105 b):** since this edit, no gate exercises a `code` override without `runs_at`;
+  architecture §6.5 and phase-6.md "Known limitations" say what such an override does (only the extent `placeEntries`
+  gives a listed entry the analysis did not take).
 - (b) **The owner's ceilings are pinned** (gate-honesty-o0-1, correctness-o0-4, architecture-o0-7; D102 d). The owner
   said a ceiling "may be lowered, never raised, without the owner"; nothing checked it. `g6.objdiff` now holds
   `OWNER_CEILINGS` (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25) and fails on a committed ceiling above
   its pinned value or a ROM without one; `lowerCeilings` refuses a measured ROM that has no ceiling; a tuning ROM
   whose readable build does not link fails the gate. Each tightens the gate the owner authorised for Q6 and Q15 toward
-  his own rule; none changes a threshold.
+  his own rule; none changes a threshold. **Corrected at fix round 6 (D105 e):** the last one changes the gate's
+  scope: a tuning ROM whose readable build does not link was a note and now fails the gate (the roadmap read "every
+  tuning ROM that links"); it follows the owner's per-ROM rule ("the gated count per tuning ROM … any count above its
+  ceiling fails"), and roadmap.md now says every tuning ROM must link.
 - (c) **One pass rule for objdiff** (gate-honesty-o0-2, architecture-o0-3). `ObjdiffVerdict.pass` ("no gated
   difference"), which no gate read and which was false on all six tuning ROMs while `g6.objdiff` passed, is removed:
   the ceiling is the one rule. The fixture tests assert `classes.gated`. The verdict classes each difference once
@@ -4807,15 +4813,28 @@ nothing either (0 of 54 fixtures): the unlisted bytes are a data chunk without i
   while ld writes F + 3 (measured with binutils 2.45.1: F + 3, F + 4, F - 1 give 0x08000003, 0x08000005, 0x07FFFFFF).
   No emitted file reached the difference (the printer never spells a Thumb function with an odd addend that differs),
   so no byte changed; the layout's unit test that expected (S | T) - 1 for `Func - 1` now expects ld's word.
+  **Corrected at fix round 6 (D105 a, architecture-o1-1):** the sentence before is wrong. The jump-table printer still
+  found its addend by the old rule and printed `Func - 1` for an even entry whose target is a Thumb function, which ld
+  links to S - 1; a legal TOML edit (an inner label at a case target of table-jump-hoisted) reached it, and since this
+  decision the layout refuses it at `generate` (`E_SELF_CHECK_TEXT`). D105 a gives the table printer the one rule.
+  Also recorded then (architecture-o1-4): the public `LayoutInput.resolve` (`romlift`, api/verify.ts) now returns
+  `SymbolValue | undefined` instead of `number | undefined`, an API change of romlift's unpublished 0.0.0, which is why
+  `abs32Word` and `SymbolValue` are exported from the public root.
 - (f) **One lookup of a sized entry's label** (architecture-o0-5). `resolver.ts entryLabelOf` (the label named as the
   entry at its run address, not local) is the `entryLabel` of all three readers of `wordNameOf`; `labels.ts` reads the
   candidates already built, through the run address's load address, instead of the config's map keyed by load
   address. Byte-neutral today (a `runs_at` entry's addresses are RAM, which no data word in a data module names).
+  **Corrected at fix round 6 (D105 c):** the run-to-load conversion could not change any model `buildModel` accepts,
+  so no test could hold it; `labels.ts` now looks the candidates up at the entry's address, which is what the printer
+  reads.
 - (g) **The emission rule assembled and linked in `npm test`** (architecture-o0-6). `test/unit/emit/sized-entries.test.ts`
   gives three fixtures one sized entry each (a `[symbols]` entry a pool word of another module points inside; a
   TOML-sized Thumb function with an odd word inside it, printed `name + 4`; one with an even word, never printed
   `name + n`) and requires each tree to pass the text-layout check and link to its SHA-1 with binutils. No gate's
-  config has a sized entry (every gate tree is `configFromDiscover`'s), so no gate is changed for it.
+  config has a sized entry (every gate tree is `configFromDiscover`'s), so no gate is changed for it. **Corrected at
+  fix round 6 (D105 f):** only the ci tier's configs have none (`init` places no signature on the synthetic
+  fixtures); the real-tier gates build `init`'s configs, which hold signature sizes and tables (27 `size =` entries on
+  Klonoa), so the real tier exercises the rule. No gate needed a change either way.
 - (h) **Recorded, not changed** (correctness-o0-3, correctness-o0-5, architecture-o0-8): phase-6.md "Known
   limitations" records that the ci tier's only `runs_at` target of `g6.expected-bytes` has every symbol at offset 0 of
   its module, that a sized entry drops the default-named `gUnk_` labels inside it (C that names one stops linking,
@@ -4831,6 +4850,71 @@ edit on every target (ci 54 of 54, real 60 of 60: 273 legal edits, 239 illegal);
 the override kind, and the data override satisfies both on every fixture. Keeping the nominal code-override edit (it
 changes nothing). Moving the ceilings into the gate file alone (the baseline file stays what `--write-ceiling` lowers;
 the gate pins the maximum).
+
+## D105. Phase-6 fix round 6: the review of fix round 5 (`553a922`)
+
+**Context.** The review of fix round 5 raised two majors and fourteen minors (phase-6.md "Review", fix round 6; two of
+the minors, gate-honesty-o1-3 and correctness-o1-5, are recorded empty scope checks). The first major
+(architecture-o1-1): D104 e left two R_ARM_ABS32 rules. The jump-table printer found its addend as `stored -
+wordValueOf(label)`, the inverse of the old (S | T) + A, so an even entry whose target is a Thumb function printed
+`Func - 1`, which ld links to S - 1. Reproduced on table-jump-hoisted with `0x0800013C = { name = "CaseA", label = true }`
+(a case target of sub_08000108's table): at `553a922` `generate` exits 3 (`E_SELF_CHECK_TEXT … line 17: the file lays
+out 0x3b where the ROM holds 0x3c (at 0x08000124)`), at `3befe08` it exited 0 and the link failed the SHA-1. The second
+(architecture-o1-2): architecture §6.5 still gave the phase-4 override semantics.
+
+**Decision.**
+
+- (a) **One rule for jump-table entries** (architecture-o1-1). `resolver.ts addendTo(label, word)` is the addend from
+  the word the label links to, kept only when `linkedWordOf(label, addend)` (abs32Word) gives the word back, so a Thumb
+  function names an odd word with addend 0 and never an even one. `print/table.ts tableEntryOperand` prints the
+  preferred visible label at the target that `addendTo` accepts, else the stored value. `labels.ts` gives an even
+  entry's target that only Thumb functions name its local label, extending the `adr` rule (D72 c), and the label scopes
+  reference the label the entry prints. On the repro the entry prints `.4byte _0800013C`, `generate` exits 0 and
+  `verify --link` gives `d3ff0e07…`, the fixture's SHA-1. `test/unit/emit/table-function-target.test.ts` holds that case
+  (the model's two labels, the spelling, the text-layout check, both printers' links); `table.test.ts` expects the
+  stored value where it expected `Case - 1`. No committed tree changes: an even entry at a Thumb function never linked
+  before, so no fixture or tuning ROM had one.
+- (b) **Architecture §6.5 gives phase 6's override semantics** (architecture-o1-2, correctness-o1-1). A `data` override
+  is claimed as data and ends every extent at it; a `code` override seeds `seed.override`, which a discover run takes
+  and a confirm run only reports as unlisted, its one confirm effect the extent `placeEntries` gives a listed entry the
+  analysis did not take. phase-6.md "Known limitations" records that a code override without `runs_at` changes no
+  `generate` model on its own and that no gate exercises one since D104 a (noted there). The switch of the gate's edit
+  to a data override stays the reading of Q11 both reviewers accepted.
+- (c) **A sized entry's label is looked up at its address** (architecture-o1-5). D104 f's run-to-load conversion in
+  `labels.ts candidatesOf` changed no model `buildModel` accepts: only a word of a ROM data module is asked about, a
+  function's entry holding one is outside every run range (`modules.ts runAddresses` refuses a run range overlapping
+  the cartridge), where run equals load, and a symbol's candidate is keyed by its own address. So no test could hold
+  it; the lookup now reads the candidates at the entry's address, what the printer reads. `model.test.ts` adds a
+  TOML-sized function of a `runs_at` module whose pool word prints `RamFunc + 4` at the run address;
+  `sized-entries.test.ts` runs the text-layout check without binutils and skips only the link.
+- (d) **`W_OVERRIDE_IGNORED` names the reason that applies** (correctness-o1-2). For a code override: its start is
+  listed (the override is redundant and can be removed), a confirm run reported its start unlisted (list it, `romlift
+  analyze --update` proposes it, after which the override is redundant), another rule started a function there, or its
+  seed added no function and it gave no listed entry its extent. Measured on table-jump-hoisted: with `0x080001A8`
+  unlisted and a code override there the warning says to list it; after `analyze --update --write` it says the
+  override is redundant. `model.test.ts` covers the four reasons.
+- (e) **`g6.objdiff`'s scope is recorded** (architecture-o1-8). D104 b's last tightening, a tuning ROM whose readable
+  build does not link fails the gate, changes the gate's scope (roadmap.md read "every tuning ROM that links"); it
+  follows the owner's per-ROM ceiling rule, so no owner question is needed. D104 b and roadmap.md say so. The gate's
+  `judged === 0` check, which could fire only without datasets, is now "no tuning ROM dataset to judge", within the gate
+  edit the owner authorised for Q6 and Q15.
+- (f) **Records corrected** (gate-honesty-o1-1, o1-2, correctness-o1-3, o1-4, architecture-o1-3, o1-4, o1-7). Run 5's
+  `g4.toml-mutations` cell and verdict carry a note that D104 a superseded them; run 6's window is 03:01 to 04:43;
+  D104 g, the fix round 5 row and `sized-entries.test.ts` say "no ci-tier gate's config" (the real tier builds
+  `init`'s configs, 27 `size =` entries on Klonoa); `relocation.ts` names the public `romlift` export, and D104 e records
+  the public `LayoutInput.resolve` type change and its own wrong sentence; fix round 3 had 10 findings (1 major, 9
+  minor), of which eight were carried and one became Q16 (phase-6.md, D97, D99).
+- (g) **Absence is read once in the shell** (architecture-o1-6). `readInitDir`, `readDigests`, the C-text and rename
+  reads of `read-inputs.ts` and `disk-state.ts readOptionalText` read absence through `isAbsentError`; `init` into a path
+  under a file now fails at the write (`E_IO_WRITE … ENOTDIR`) instead of the read. Only `apply-writes.ts`' removal of a
+  file takes ENOENT alone as already gone; `shell/index.md` says so.
+
+**Consequences.** `npm test` 2,876 tests pass. No gate threshold changed, no golden moved. The closing list ran again
+(phase-6.md, run 7).
+
+**Rejected.** Moving `abs32Word` to `romlift/internal` (architecture-o1-4's other option): the public
+`LayoutInput.resolve` returns a `SymbolValue`, so the rule that reads one belongs beside it. A test that holds D104 f's
+conversion on an input `buildModel` refuses.
 
 ## Review findings index
 

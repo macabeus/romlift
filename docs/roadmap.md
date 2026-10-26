@@ -1159,7 +1159,8 @@ Thresholds, one per gate of the phase (every earlier gate still passes):
   module at its run address), equals its ROM range with every symbol where the model places it, on every fixture, the
   RAM-copy fixture with its hand-written `runs_at` override, and every tuning ROM (the owner's answers to Q12 and Q16,
   D101 b);
-- `g6.objdiff`: on every agreeing function of every tuning ROM that links, scored in romlift's own spelling, the
+- `g6.objdiff`: on every agreeing function of every tuning ROM (each must link: a tuning ROM whose readable build does
+  not link fails the gate, under the owner's per-ROM ceiling rule, D104 b), scored in romlift's own spelling, the
   differences D34 as amended gates (not the same-word classes, not an uncompared function, not `unnamed-target`) at or
   below the ROM's ceiling in `bench/baseline/objdiff-ceiling.json`, which may be lowered, never raised without the owner
   (the owner's answers to phase-6.md Q6 and Q15, D102; the gate pins his values and fails a ceiling above them or a

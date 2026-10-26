@@ -1219,7 +1219,11 @@ same corpus through the user's `as`. The same check on whole writer output (a Th
   sit, always in the module of the load that names them: `as` cannot assemble a PC-relative load of a symbol
   in another object, so no legal border separates the two (D63).
 - **Jump tables.** One `table-entry` item per word, printed `.4byte _0800ABCD` (with `+ 1` when the
-  stored value carries the Thumb bit) to a `local` label.
+  stored value carries the Thumb bit) to a `local` label, or to another label at the target, the preferred one some
+  addend of which links to the stored value under R_ARM_ABS32's (S + A) | T (`resolver.ts addendTo`, the rule the label
+  scopes read too): a Thumb function names an odd entry (`.4byte Func`) and never an even one, whose target keeps its
+  local label beside the function, as an `adr` target does (phase-6 fix round 6, D105 a); a target with no such label
+  prints the stored value.
 - **Mode switches.** `bx pc` is followed by whatever bytes are there (`.align 2, 0` when they are zero,
   or the `mov r8, r8` printed as an instruction), then `.arm`. Every chunk opens with `.thumb` or
   `.arm`, so no file depends on state from an earlier include. ARM functions open with
@@ -1572,13 +1576,29 @@ runs_at = 0x03000388
   D81 c, raised by the config since D82 d, so every command that loads `romlift.toml` refuses it before any analysis,
   through the predicate `insnAligned` of `foundation/rom/span.ts`, which the assembler layout reads too; the
   analysis keeps its own bit tests, D83 e).
-- `[[overrides]]` with `runs_at` place a RAM-run range (§6.7). Until phase 6 applies the others to the analysis, an
-  override without `runs_at` changes nothing but the extent of a listed entry the analysis did not find (a `code`
-  override holding it, which `placeEntries` records on that entry); every other one is `W_OVERRIDE_IGNORED`, a
-  warning derived from what `placeEntries` reports it used (the applied override itself, matched to one entry of its
-  kind, span and mode, so a data override or a second code override on the same span is still ignored, D83 e), not
-  from the override's kind, and not raised for a range wholly outside the ROM, which is `W_OVERRIDE_OUTSIDE_ROM`'s (a
-  known limitation of phase 4; D81 c, D82 d).
+- `[[overrides]]` with `runs_at` place a RAM-run range (§6.7). From phase 6 the analysis applies the others too
+  (`core/analysis/driver/seeds.ts`, D104 a, d):
+  - a `data` override's span, clipped to the ROM, is claimed as data before round 0, a claim no walk enters, and every
+    extent ends at the first data override after its entry (`driver/facts.ts extentEndOf`), in discover and confirm
+    runs alike; so a data override over a listed function's trailing pool words ends its extent there and makes them a
+    chunk of their own (what `g4.toml-mutations`' add-override edit relies on, D104 a);
+  - a `code` override seeds `seed.override` at its start in its mode. A discover run takes the seed like any other. A
+    confirm run (every `generate`) takes only the listed functions, so the seed of an unlisted start is only reported
+    (`W_UNLISTED_FUNCTION`) and changes nothing, and a listed start is the listed seed's already. The one effect left
+    in a confirm run is the extent `placeEntries` gives a listed entry the analysis did not take inside the override,
+    which it records on that entry. A `code` override without `runs_at` therefore changes no confirm model on its own
+    (measured on the 54 fixtures, D104 a); no gate exercises one since D104 a (phase-6.md "Known limitations").
+
+  Every override without `runs_at` that nothing applied is `W_OVERRIDE_IGNORED`, a warning derived from what the
+  analysis (`core/layout/entries.ts appliedOverrides`: a data override whose span holds a data claim, a code override
+  whose start the run took from its seed) and `placeEntries` report they used, each applied override matched to one
+  entry of its kind, span and mode (so a data override or a second code override on the span of an applied one is
+  still ignored, D83 e), never from the override's kind; it is not raised for a range wholly outside the ROM, which is
+  `W_OVERRIDE_OUTSIDE_ROM`'s (D81 c, D82 d). For a code override it names the one reason that applies: its start is
+  listed (the override is redundant and can be removed), a confirm run only reported its start unlisted (list it,
+  `romlift analyze --update` proposes it, after which the override is redundant; D104 d), another rule already starts a
+  function there, or its seed added no function and it gave no listed entry its extent (phase-6 fix round 6,
+  correctness-o1-2).
 - `data_start` (phase 6, D92) on a `[[modules]]` entry starts the module's C data range: the bytes from it to the
   module's end are what its C object's `.rodata` and `.data` replace (§6.6). The config reads it as a syntax only
   (an address); whether it is legal for its module is the model's question.
