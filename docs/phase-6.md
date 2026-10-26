@@ -11,6 +11,32 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
+**Verdict: PHASE 6 LANDS by pull request #5 (https://github.com/macabeus/romlift/pull/5), CI checked locally (D103).**
+The pull request's head `ee6bfda` started 14 jobs in the five workflows, and GitHub refused to start all 14 jobs, with 0
+steps run in each. The annotation on every job reads "The job was not started because recent account payments have
+failed or your spending limit needs to be increased" (runs 40300519224 `ci`, 40300519149 `printer`, 40300519165
+`fixtures`, 40300519214 `packed`, 40300519121 `provenance`, 26 October 2026). The owner's words of 25 October 2026
+apply: **"You don't need to wait for my review. You can land phase 6 normally. Just run the checks locally"**. Each
+refused job's steps were therefore run from its workflow file at `ee6bfda`, each in a fresh worktree
+(`romlift-wt/land-*`), on darwin-arm64. Node 22.18.0 was the official nodejs.org build, its SHA-256 checked, and Node
+24 was v24.15.0. No `ROMLIFT_*` variable was set and nothing was copied in. agbcc and old_agbcc are the local build at
+the same pinned commit `da598c1d…` (`bench/.local/agbcc`); fetching and building pret/agbcc afresh was not permitted in
+this session. binutils is 2.45.1 from Homebrew's `gcc-arm-embedded` cask, not the `arm-none-eabi-binutils` formula.
+26 October 2026, 10:36 to 11:15:
+
+| Job (workflow) | Local commands | Exit |
+| --- | --- | --- |
+| `macos-latest, Node 22.18` (`ci.yml`) | `npm ci --ignore-scripts`; `npm run typecheck`; `npm test` (2,876 of 2,876); `npm run bench -- gates --require 6 --tier ci` (46 of 46 pass, `g3.large-rom` init 937.0 and generate 914.1 MiB); `npm run bench -- regression` (none against `89deb54`); `node --conditions=source bench/tools/ci-digests.ts`; the same in `TZ=Pacific/Kiritimati LC_ALL=tr_TR.UTF-8` from another directory, then `cmp` | 0 at each |
+| `macos-latest, Node 24` (`ci.yml`) | the same steps (2,876 of 2,876; 46 of 46, `g1.provenance` digest `3e28f223…`; `g3.large-rom` 1,014.2 and 1,114.0 MiB) | 0 at each |
+| `Analysis and tree digests agree …` (`ci.yml`) | `node --conditions=source bench/tools/ci-digests.ts --compare <node-22.18>/ci-digests.json <node-24>/ci-digests.json --expect 2`: "54 fixture analysis and tree digest(s) agree across 2 job(s): darwin-arm64 Node v22.18.0, darwin-arm64 Node v24.15.0" (`--expect 4` exits 1: only two files exist) | 0 |
+| `corpus, homebrew` (`printer.yml`) | `npm ci --ignore-scripts`; `npm run corpus -- --json` (`ok: true`, encoder 722,336 checked, 0 disagree; context 221,898, 0 disagree) | 0, 0 |
+| `macos-latest` (`fixtures.yml`) | `npm ci --ignore-scripts`; `ROMLIFT_AGBCC=… ROMLIFT_AGBCC_COMMIT=da598c1d… npm run fixtures -- check --json` (54 of 54 ok, no note); the workflow's init, `./setup.sh` and `make` loop from the source CLI ("53 fixtures reach their SHA-1 from init, setup.sh and make") | 0, 0, 0 |
+| `macos-latest, installed on Node 24` / `on Node 22.18` (`packed.yml`) | with Node 24: `npm ci --ignore-scripts`, `npm run build`, `npm pack --json`, the file-list check ("romlift-0.0.0.tgz: 768 files, no ROM, ELF, map, object or built signature file"); then with the matrix Node: `npm install --ignore-scripts` of the tarball into an empty directory, `romlift doctor --json`, and the `npx --no romlift init`, `./setup.sh` and `make` loop ("53 fixtures reach their SHA-1 from the installed tarball") | 0 at each, on both |
+| `provenance` (`provenance.yml`) | `npm ci --ignore-scripts`; `npm run bench -- provenance` (source digest `3e28f223…` ok on Node 24; 30 real-tier gates pass or are historical; families live; 6 rows; no sealed row) | 0, 0 |
+| `ubuntu-latest`: `ci.yml` × 2 Node, `corpus, apt`, `fixtures.yml`, `packed.yml` × 2 Node | **not run**: no Linux host here (the Docker daemon is not running), so the Linux half of the digest comparison is missing | not run |
+
+Every local check of a refused job that this machine can run exits 0. The pull request merges with `{ "landed": 6 }`.
+
 **Review of fix round 6 (`370744e`): eight minors, the phase lands.** The review raised no major. One finding
 corrects this record (gate-honesty-o2-1, fixed by the notes on the two status paragraphs below); four are code minors
 carried past phase 6 (correctness-o2-1 with architecture-o2-1, correctness-o2-2 with architecture-o2-3, and
