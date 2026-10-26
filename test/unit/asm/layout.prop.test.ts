@@ -51,7 +51,10 @@ function roundTrip(mode: Mode, start: number, words: readonly number[]): Sample 
     statements: parsed.statements,
     start,
     mode,
-    resolve: (name) => LABELS.addressOf(name),
+    resolve: (name) => {
+      const addr = LABELS.addressOf(name);
+      return addr === undefined ? undefined : { addr, thumbFunction: false };
+    },
     incbin: () => undefined,
   });
   assert.deepEqual(out.errors.slice(0, 5), []);

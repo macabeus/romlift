@@ -49,13 +49,12 @@ import {
   type Rom,
   type RomliftConfig,
   type SymbolConfig,
-  wordValueOf,
 } from 'romlift';
 import { DIALECT } from 'romlift/isa';
 import { assembleWithBinutils, findBinutils, type Binutils } from 'romlift/node';
 
 import { diffObjects, type FunctionDiff } from './objdiff-cli.ts';
-import { classCounts, classTotals, isGated, nameAddresses, OBJDIFF_CLASSES, objdiffClass, type NameAddresses } from './objdiff-classes.ts';
+import { classTotals, countClasses, isGated, nameAddresses, OBJDIFF_CLASSES, objdiffClass, type NameAddresses } from './objdiff-classes.ts';
 import {
   indexObjectSymbols,
   inputAt,
@@ -223,9 +222,8 @@ export interface ObjdiffVerdict {
   readonly scored: number;
   readonly differences: Readonly<Record<string, number>>;
   readonly examples: readonly ObjdiffExample[];
+  /** The classes of D34 as amended (D102): what g6.objdiff holds to the ROM's ceiling (`gated`), the one pass rule. */
   readonly classes: ObjdiffClassSummary;
-  /** No difference D34 as amended gates (D102), and at least one function scored. */
-  readonly pass: boolean;
 }
 
 /** Up to EXAMPLES_PER_KIND of `sorted` per value of `key`, in the order given. */
@@ -249,16 +247,15 @@ export function objdiffVerdict(compared: readonly ComparedFunction[], addressesO
   for (const d of all) counts.set(d.kind, (counts.get(d.kind) ?? 0) + 1);
   const differences: Record<string, number> = {};
   for (const kind of [...counts.keys()].sort(compareCodeUnits)) differences[kind] = counts.get(kind) ?? 0;
-  const perClass = classCounts(found, addressesOf);
+  // Each difference classed once; the counts and the gated examples both read that one array.
+  const classed = found.map((d) => ({ example: d.example, cls: objdiffClass(d, addressesOf) }));
+  const perClass = countClasses(classed.map((d) => d.cls));
   const totals = classTotals(perClass);
   const occurring: Record<string, number> = {};
   for (const c of OBJDIFF_CLASSES) if (perClass[c] > 0) occurring[c] = perClass[c];
-  const gatedRows = found.flatMap((d) => {
-    const c = objdiffClass(d, addressesOf);
-    return isGated(c) ? [{ ...d.example, kind: c }] : [];
-  });
+  const gatedRows = classed.flatMap((d) => (isGated(d.cls) ? [{ ...d.example, kind: d.cls }] : []));
   const classes: ObjdiffClassSummary = { counts: occurring, gated: totals.gated, uncompared: totals.uncompared, gatedExamples: capped(gatedRows.sort(byExample), (e) => e.kind) };
-  return { scored: compared.length, differences, examples: capped(all, (e) => e.kind), classes, pass: compared.length > 0 && totals.gated === 0 };
+  return { scored: compared.length, differences, examples: capped(all, (e) => e.kind), classes };
 }
 
 /** The member of a ROM whose readable build does not link: nothing is scored (g6.objdiff notes it). */
@@ -434,10 +431,9 @@ export function functionSource(rom: Rom, model: Model, chunk: number): string {
 // ---------------------------------------------------------------------------------------------------
 // The base of one reference object, named as that object names things
 
-/** A label of the base text: its address, the word `.4byte <it>` links to, whether it is a function, and whether the text defines it. */
+/** A label of the base text: its address, whether it is a function, and whether the text defines it. */
 export interface BaseLabel {
   readonly addr: number;
-  readonly value: number;
   readonly func: boolean;
   readonly defined: boolean;
 }
@@ -766,7 +762,7 @@ async function groupSource(group: Group, cx: Context): Promise<string> {
   const defined = definedNames(cx.model, chunks);
   const labelOf = (name: string): BaseLabel | undefined => {
     const l = cx.labelByName.get(name);
-    return l === undefined || l === null ? undefined : { addr: l.addr, value: wordValueOf(l), func: l.kind === 'func', defined: defined.has(name) };
+    return l === undefined || l === null ? undefined : { addr: l.addr, func: l.kind === 'func', defined: defined.has(name) };
   };
   return nameBase(text, labelOf, names);
 }

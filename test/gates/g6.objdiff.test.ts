@@ -15,8 +15,11 @@
 //     per tuning ROM, the gated count measured on the final product of the step that applied the answer, committed in
 //     bench/baseline/objdiff-ceiling.json, which this gate reads. A count above its ceiling fails; a ROM without a
 //     ceiling fails. The ceiling may be lowered (bench/tools/objdiff-classes.ts --write-ceiling lowers only), never
-//     raised without the owner.
-// On every tuning ROM whose readable build links, every function whose entry and extent agree with the ELF is compared
+//     raised without the owner: OWNER_CEILINGS below pins the ceilings D102 recorded, and a ceiling file that gives a
+//     ROM more than its pinned value, or names a ROM that has none, fails (phase-6 fix round 5, gate-honesty-o0-1,
+//     D102 d, D104 b), so only a lowered file passes; a tuning ROM whose readable build does not link is not judged,
+//     so it fails too (correctness-o0-4).
+// On every tuning ROM (each must link its readable build), every function whose entry and extent agree with the ELF is compared
 // by objdiff-cli (the pinned bench/tools/objdiff.version) with the project's own reference object (`objectsDir`, the
 // map's object or archive member at its entry). objdiff-cli is located by ROMLIFT_OBJDIFF, then the repository's
 // bench/.local/objdiff-target build (then the main checkout's, from a worktree), then PATH, then
@@ -63,19 +66,27 @@ interface BenchRun {
 }
 
 const CEILING_FILE = join('bench', 'baseline', 'objdiff-ceiling.json');
+/**
+ * The owner's ceilings (D102, measured at phase-6 fix round 4, step 4, on 644af21): the most a committed ceiling may be.
+ * Lowering one in bench/baseline/objdiff-ceiling.json needs no change here; raising one, or adding a ROM, is the owner's.
+ */
+const OWNER_CEILINGS: Readonly<Record<string, number>> = { fe7j: 7, klonoa: 1, pokeemerald: 12, sa2: 1, sa3: 4, tmc: 25 };
 const CEILING_SCHEMA = 'romlift-bench/objdiff-ceiling@1';
 
 function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
 
-/** The committed ceilings: per tuning ROM a non-negative integer. */
+/** The committed ceilings: per tuning ROM a non-negative integer, at most the owner's (OWNER_CEILINGS). */
 async function readCeilings(repoRoot: string): Promise<ReadonlyMap<string, number>> {
   const value = JSON.parse(await readFile(join(repoRoot, CEILING_FILE), 'utf8')) as { readonly schema?: unknown; readonly roms?: unknown };
   if (value.schema !== CEILING_SCHEMA || typeof value.roms !== 'object' || value.roms === null) throw new Error(`${CEILING_FILE}: not a ${CEILING_SCHEMA} file`);
   const out = new Map<string, number>();
   for (const [name, n] of Object.entries(value.roms)) {
     if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) throw new Error(`${CEILING_FILE}: roms.${name} is not a non-negative integer`);
+    const owner = OWNER_CEILINGS[name];
+    if (owner === undefined) throw new Error(`${CEILING_FILE}: roms.${name} has no ceiling the owner set (D102); adding one is the owner's`);
+    if (n > owner) throw new Error(`${CEILING_FILE}: roms.${name} is ${n}, above the owner's ceiling ${owner} (D102); raising it is the owner's`);
     out.set(name, n);
   }
   return out;
@@ -103,7 +114,7 @@ gate({
         continue;
       }
       if (!rom.objdiff.linked) {
-        notes.push(`${rom.name} not judged (readable build does not link)`);
+        problems.push(`${rom.name}: not judged, its readable build does not link`);
         continue;
       }
       judged++;

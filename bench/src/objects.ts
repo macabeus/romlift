@@ -367,8 +367,6 @@ export interface ObjectName {
   /** Whether the object defines it (else it is an external its relocations name). */
   readonly defined: boolean;
   readonly func: boolean;
-  /** Its size: the ELF's for a global or external name, the object's own for a local one; 0 when unknown. */
-  readonly size: number;
 }
 
 /** Where the ELF defines a name: its address and size. */
@@ -405,18 +403,18 @@ export function objectNames(object: NamedObject, sectionStart: (section: string)
   for (const s of object.symbols) {
     if (!isIndexedSymbol(s) || s.sectionName === undefined || seen.has(s.name)) continue;
     const start = sectionStart(s.sectionName);
-    const own = start === undefined ? undefined : { addr: start + s.addr, size: s.size };
+    const own = start === undefined ? undefined : { addr: start + s.addr };
     const at = s.bind === 'local' ? own : (definitionOf(s.name) ?? own);
     if (at === undefined) continue;
     seen.add(s.name);
-    out.push({ name: s.name, addr: at.addr, bind: s.bind === 'local' ? 'local' : 'global', defined: true, func: s.type === 'func', size: at.size });
+    out.push({ name: s.name, addr: at.addr, bind: s.bind === 'local' ? 'local' : 'global', defined: true, func: s.type === 'func' });
   }
   for (const r of object.relocations) {
     const s = r.symbol;
     if (s.type === 'section' || s.name === '' || s.name.startsWith('$') || s.name.startsWith('.L') || seen.has(s.name)) continue;
     seen.add(s.name);
     const at = definitionOf(s.name);
-    if (at !== undefined) out.push({ name: s.name, addr: at.addr, bind: 'global', defined: false, func: s.type === 'func', size: at.size });
+    if (at !== undefined) out.push({ name: s.name, addr: at.addr, bind: 'global', defined: false, func: s.type === 'func' });
   }
   const uses = useCounts(object.relocations);
   const used = (n: ObjectName): number => uses.get(n.name) ?? 0;

@@ -194,12 +194,12 @@ test('objectNames: own symbols where their section is linked, a global where the
     ['gCommon', { addr: 0x0300_0200, size: 0x10 }],
   ]);
   const names = objectNames({ symbols, relocations }, (s) => starts.get(s), (n) => elf.get(n));
-  assert.deepEqual(names.map((n) => [n.name, n.addr, n.bind, n.defined, n.func, n.size]), [
-    ['gExternB', 0x0200_0000, 'global', false, false, 8],
-    ['gExternA', 0x0200_0000, 'global', false, false, 8],
-    ['gData', 0x0300_0100, 'global', true, false, 4],
-    ['gCommon', 0x0300_0200, 'global', false, false, 0x10],
-    ['Global', 0x0800_1010, 'global', true, true, 4],
-    ['sStatic', 0x0800_1020, 'local', true, true, 8],
+  assert.deepEqual(names.map((n) => [n.name, n.addr, n.bind, n.defined, n.func]), [
+    ['gExternB', 0x0200_0000, 'global', false, false],
+    ['gExternA', 0x0200_0000, 'global', false, false],
+    ['gData', 0x0300_0100, 'global', true, false],
+    ['gCommon', 0x0300_0200, 'global', false, false],
+    ['Global', 0x0800_1010, 'global', true, true],
+    ['sStatic', 0x0800_1020, 'local', true, true],
   ], 'gExternB first at its address: its object refers to it twice');
 });

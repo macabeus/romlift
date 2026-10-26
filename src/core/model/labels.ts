@@ -30,7 +30,7 @@ import type { ChunkPlan } from './chunks.ts';
 import type { Segments } from './segments.ts';
 import { loadAddressOf, loadModuleAt, moduleIndexAt, runOffsetAt } from './modules.ts';
 import { dataName, localName } from '../../foundation/util/project-files.ts';
-import { compareLabels, isExactLabel, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from './resolver.ts';
+import { compareLabels, entryLabelOf, isExactLabel, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from './resolver.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -225,13 +225,14 @@ function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; 
     else add({ load: s.addr, name: s.name, kind: 'data', thumb: false });
   }
   const isData = (a: Addr): boolean => contains(rom, a) && modules[loadModuleAt(modules, a)]?.kind === 'data';
-  // A pool word a placed sized entry holds prints `name + offset` (wordNameOf), so it names no label of its own.
-  const unplacedEntries = new Set(unplaced.map((s) => `${String(s.addr)}:${s.name}`));
-  const entryLabel = (entry: SizedEntry): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'> | undefined => {
-    if (unplacedEntries.has(`${String(entry.addr)}:${entry.name}`)) return undefined;
-    const f = inputs.functions.get(entry.addr);
-    return f?.name === entry.name ? { addr: entry.addr, name: entry.name, kind: 'func', thumb: f.mode === 'thumb' } : { addr: entry.addr, name: entry.name, kind: 'data', thumb: false };
-  };
+  // A pool word a placed sized entry holds prints `name + offset` (wordNameOf), so it names no label of its own. The
+  // entry's label is a candidate already added (a function, a chunk or a placed symbol), looked up as the printer
+  // looks it up (entryLabelOf) at the entry's run address, through its load address: an unplaced symbol has none.
+  const byLoad = new Map<Addr, Candidate[]>();
+  for (const c of out) byLoad.set(c.load, [...(byLoad.get(c.load) ?? []), c]);
+  const labelsAtRun = (run: Addr): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'>[] =>
+    (byLoad.get(loadAddressOf(inputs.relocated, run)) ?? []).map((c) => ({ addr: run, name: c.name, kind: c.kind, thumb: c.thumb }));
+  const entryLabel = (entry: SizedEntry): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'> | undefined => entryLabelOf(entry, labelsAtRun);
   const heldByEntry = (a: Addr): boolean => wordNameOf(inputs.entries, a, [], entryLabel)?.kind === 'inside';
   const data: Addr[] = [];
   const targets: Addr[] = [];
@@ -308,7 +309,7 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
       const l = index.byAddr[i];
       return l !== undefined && l.kind !== 'local' && wordValueOf(l) === value ? [l] : [];
     });
-    const entryLabel = (entry: SizedEntry): Label | undefined => index.byAddr[preferredAt(index, entry.addr, (l) => l.name === entry.name && l.kind !== 'local')];
+    const entryLabel = (entry: SizedEntry): Label | undefined => entryLabelOf(entry, (a) => labelsAt(index, a).flatMap((i) => index.byAddr[i] ?? []));
     const named = wordNameOf(inputs.entries, value, linking, entryLabel);
     if (named !== undefined) reference(site, position.get(named.label) ?? -1);
   };

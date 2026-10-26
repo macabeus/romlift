@@ -71,15 +71,15 @@ test('objdiffDifferences: each difference of the recording carries its section b
   assert.equal(objdiffClass(unplaced[0] ?? differences[0]!, names), 'unverified');
 });
 
-const name = (n: string, addr: number, extra: Partial<ObjectName> = {}): ObjectName => ({ name: n, addr, bind: 'global', defined: false, func: false, size: 0, ...extra });
+const name = (n: string, addr: number, extra: Partial<ObjectName> = {}): ObjectName => ({ name: n, addr, bind: 'global', defined: false, func: false, ...extra });
 
 const LABELS: Readonly<Record<string, BaseLabel>> = {
-  sub_08000100: { addr: 0x0800_0100, value: 0x0800_0101, func: true, defined: true },
-  sub_08000110: { addr: 0x0800_0110, value: 0x0800_0111, func: true, defined: true },
-  Other: { addr: 0x0800_0200, value: 0x0800_0201, func: true, defined: true },
-  gELF: { addr: 0x0300_0000, value: 0x0300_0000, func: false, defined: false },
-  gUnused: { addr: 0x0300_0100, value: 0x0300_0100, func: false, defined: false },
-  gInner: { addr: 0x0200_0010, value: 0x0200_0010, func: false, defined: false },
+  sub_08000100: { addr: 0x0800_0100, func: true, defined: true },
+  sub_08000110: { addr: 0x0800_0110, func: true, defined: true },
+  Other: { addr: 0x0800_0200, func: true, defined: true },
+  gELF: { addr: 0x0300_0000, func: false, defined: false },
+  gUnused: { addr: 0x0300_0100, func: false, defined: false },
+  gInner: { addr: 0x0200_0010, func: false, defined: false },
 };
 const labelOf = (n: string): BaseLabel | undefined => LABELS[n];
 
@@ -103,10 +103,10 @@ test('baseBindings: the object binds what it defines; a function it does not def
   ]);
   const binds = baseBindings(
     [
-      { name: 'sStatic', label: { addr: 0x0800_0100, value: 0x0800_0101, func: true, defined: true } },
-      { name: 'Global', label: { addr: 0x0800_0110, value: 0x0800_0111, func: true, defined: true } },
-      { name: 'Foreign', label: { addr: 0x0800_0200, value: 0x0800_0201, func: true, defined: true } },
-      { name: '_08000120', label: { addr: 0x0800_0120, value: 0x0800_0120, func: false, defined: true } },
+      { name: 'sStatic', label: { addr: 0x0800_0100, func: true, defined: true } },
+      { name: 'Global', label: { addr: 0x0800_0110, func: true, defined: true } },
+      { name: 'Foreign', label: { addr: 0x0800_0200, func: true, defined: true } },
+      { name: '_08000120', label: { addr: 0x0800_0120, func: false, defined: true } },
     ],
     names,
   );
@@ -137,8 +137,8 @@ test('nameBase: renames labels, binds a static function local and another object
   ].join('\n');
   const names = new Map([
     [0x0800_0100, name('sStatic', 0x0800_0100, { defined: true, func: true, bind: 'local' })],
-    [0x0300_0000, name('gObject', 0x0300_0000, { size: 0x10 })],
-    [0x0200_0000, name('gOuter', 0x0200_0000, { size: 0x40 })],
+    [0x0300_0000, name('gObject', 0x0300_0000)],
+    [0x0200_0000, name('gOuter', 0x0200_0000)],
   ]);
   assert.equal(
     nameBase(text, labelOf, names),

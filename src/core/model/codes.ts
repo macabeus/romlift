@@ -31,7 +31,7 @@ export const ModelCodes = defineCodes({
   },
   W_OVERRIDE_IGNORED: {
     severity: 'warning',
-    meaning: 'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override whose bytes the analysis did not claim, or a code override whose seed added no function (one already starts there) and that gives no listed entry its extent (fix round 5, D81 c; applied since phase 6, correctness-b0-3)',
+    meaning: 'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override whose bytes the analysis did not claim, or a code override whose seed added no function (one already starts there, or in a confirm run [functions] does not list its start, which the run only reports) and that gives no listed entry its extent (fix round 5, D81 c; applied since phase 6, correctness-b0-3; the unlisted case since phase-6 fix round 5, correctness-o0-2)',
   },
   W_FUNCTION_OUTSIDE_ROM: {
     severity: 'warning',

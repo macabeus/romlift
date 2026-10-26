@@ -478,7 +478,9 @@ export interface ValidityFailure {
 
 /**
  * whyInvalid(), in pipeline.validity order; `check` returns the detail of a failure. A rule with
- * `checkEntry` judges the entry before any reading exists, and its `check` is never called (D56).
+ * `checkEntry` judges a Thumb entry before any reading exists, and its `check` is not called for that entry (D56);
+ * an ARM part of a listed extent is judged by every rule's `check`, this rule's included (driver/validity.ts
+ * firstInvalid, listed-extent.ts, D100).
  * Reasons: valid.in-rom-unclaimed 'inside-code' (checkEntry: outside the ROM, odd, or claimed);
  * valid.decodes 'decode-error' (no instruction, or an error); valid.balanced-stack 'pops-frame';
  * valid.returns-or-prologue 'no-return-no-prologue' (no return and !idioms.opensWithPushLr);

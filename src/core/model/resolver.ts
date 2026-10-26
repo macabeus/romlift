@@ -20,6 +20,7 @@
 // never print as one of those labels, which would link to the run address. No label lies at a load address of a
 // runs_at module, so such a word finds none and prints as its value; loadWordOperand names it through the ldscript's
 // `__load_<module>` symbol (LOADADDR of the module's section) instead, which links to the same bytes.
+import { abs32Word, type SymbolValue } from '../../foundation/asm/relocation.ts';
 import type { SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
@@ -59,12 +60,18 @@ export function wordValueOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>): numb
   return linkedWordOf(label, 0);
 }
 
+/** What a label stands for in a relocation (foundation/asm/relocation.ts): its address, and T for a Thumb `func` label. */
+export function symbolValueOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>): SymbolValue {
+  return { addr: label.addr, thumbFunction: label.kind === 'func' && label.thumb };
+}
+
 /**
- * The value a `.4byte <label> + offset` links to: R_ARM_ABS32's (S + A) | T, the Thumb bit T set for a Thumb function
- * whatever the addend, so no addend makes a Thumb function's name link to an even word.
+ * The value a `.4byte <label> + offset` links to: R_ARM_ABS32's (S + A) | T (abs32Word, the one rule the assembler
+ * layout reads too), the Thumb bit T set for a Thumb function whatever the addend, so no addend makes a Thumb
+ * function's name link to an even word.
  */
 export function linkedWordOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>, offset: number): number {
-  return ((label.addr + offset) | (label.kind === 'func' && label.thumb ? 1 : 0)) >>> 0;
+  return abs32Word(symbolValueOf(label), offset);
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -137,6 +144,16 @@ export function sizedEntryAt(entries: SizedEntries, word: number): SizedEntry | 
   return undefined;
 }
 
+/**
+ * A sized entry's own label, the one its `name + offset` names: the label named `entry.name` at `entry.addr` (the
+ * entry's run address) that is not local, from `labelsAt` (the labels at a run address, preferred first). The one
+ * lookup the three readers of wordNameOf pass as its `entryLabel` (pool.ts wordText and labels.ts' gUnk_ candidates and
+ * label scopes), each over its own labels, so they cannot disagree on which label is the entry's (architecture-o0-5).
+ */
+export function entryLabelOf<L extends Pick<Label, 'name' | 'kind'>>(entry: SizedEntry, labelsAt: (addr: Addr) => readonly L[]): L | undefined {
+  return labelsAt(entry.addr).find((l) => l.name === entry.name && l.kind !== 'local');
+}
+
 /** What a word names (wordNameOf): a label itself, or a sized entry's label with the offset from the word it links to. */
 export type WordName<L> = { readonly kind: 'label'; readonly label: L } | { readonly kind: 'inside'; readonly label: L; readonly offset: number };
 
@@ -146,7 +163,7 @@ export type WordName<L> = { readonly kind: 'label'; readonly label: L } | { read
  * first: the first of them that is a named entry (a function, a [symbols] entry) names it; else the innermost sized
  * entry holding the word (sizedEntryAt) names it as `name + offset`, the offset from the word its label links to (what
  * the compiler emits for `&sym.field` or `&array[i]`: a relocation against the symbol with an addend), when
- * `entryLabel` gives that entry's label and `name + offset` links to the word (linkedWordOf: never an even word inside
+ * `entryLabel` (entryLabelOf over the caller's labels) gives that entry's label and `name + offset` links to the word (linkedWordOf: never an even word inside
  * a Thumb function, which the linker would write with the Thumb bit); else the first of `exact`; else nothing.
  */
 export function wordNameOf<L extends Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'>>(entries: SizedEntries, word: number, exact: readonly L[], entryLabel: (entry: SizedEntry) => L | undefined): WordName<L> | undefined {

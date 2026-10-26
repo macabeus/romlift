@@ -1,8 +1,8 @@
 // The objdiff ceilings (D102, the owner's answer of 25 October 2026 to phase-6.md Q6 and Q15): per tuning ROM, the most
 // differences D34 as amended gates (objdiff-classes.ts isGated) that g6.objdiff accepts, bench/baseline/objdiff-ceiling.json.
 // The first ceilings are the counts measured on the final product of the step that applied the answer; a ceiling may
-// be lowered (bench/tools/objdiff-classes.ts --write-ceiling writes a ROM's count only when it is lower), never raised
-// without the owner.
+// be lowered (bench/tools/objdiff-classes.ts --write-ceiling writes a ROM's count only when it is lower, and refuses a ROM
+// without a ceiling), never raised without the owner; g6.objdiff pins the owner's values as the most a ceiling may be.
 import { join } from 'node:path';
 
 import { compareCodeUnits } from 'romlift';
@@ -40,15 +40,18 @@ export async function readCeilings(cx: BenchContext): Promise<ObjdiffCeilings | 
 }
 
 /**
- * The ceilings after a measurement: each ROM's ceiling lowered to its measured count, never raised; a ROM without a
- * ceiling takes its count. ROMs in code-unit order.
+ * The ceilings after a measurement: each ROM's ceiling lowered to its measured count, never raised. A measured ROM
+ * without a ceiling (or no ceiling file at all) is refused: setting a ceiling is the owner's (D102, D104 b), so the tool
+ * never adds one. ROMs in code-unit order.
  */
 export function lowerCeilings(existing: ObjdiffCeilings | undefined, measured: Readonly<Record<string, number>>): ObjdiffCeilings {
+  const missing = Object.keys(measured).filter((name) => existing?.roms[name] === undefined).sort(compareCodeUnits);
+  if (missing.length > 0) throw new BenchError(`no ceiling to lower for ${missing.join(', ')}: a new ceiling is the owner's (D102)`);
   const roms: Record<string, number> = {};
-  for (const name of [...new Set([...Object.keys(existing?.roms ?? {}), ...Object.keys(measured)])].sort(compareCodeUnits)) {
-    const had = existing?.roms[name];
+  for (const name of Object.keys(existing?.roms ?? {}).sort(compareCodeUnits)) {
+    const had = existing?.roms[name] ?? 0;
     const now = measured[name];
-    roms[name] = had === undefined ? (now ?? 0) : now === undefined ? had : Math.min(had, now);
+    roms[name] = now === undefined ? had : Math.min(had, now);
   }
   return { schema: CEILING_SCHEMA, roms };
 }

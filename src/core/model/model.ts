@@ -109,7 +109,8 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
 /**
  * W_OVERRIDE_IGNORED for every [[overrides]] entry without runs_at that nothing applied (fix round 5, correctness-b0-3):
  * derived from what core/layout reports was used, never from the override's kind: the overrides the analysis applied
- * (appliedOverrides: a data override's claim, a code override's seed that took its start) and the override of an
+ * (appliedOverrides: a data override's claim, a code override's seed that took its start, never one a confirm run only
+ * reported as unlisted, correctness-o0-2) and the override of an
  * entry whose extent placeEntries gave (fix round 6, architecture-b1-2). What is left changes nothing, such as a code
  * override exactly over a function the [functions] list or another rule already starts. A range wholly outside the
  * ROM is W_OVERRIDE_OUTSIDE_ROM's alone.
@@ -133,7 +134,7 @@ function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly Plac
     const why =
       o.kind === 'data'
         ? 'the analysis claimed none of its bytes as data'
-        : `a function already starts at ${hexAddr(o.start)} (listed in [functions], or found by another rule) or its start is no ${o.mode ?? 'thumb'} instruction address, so its seed adds none, and it gives no listed entry its extent`;
+        : `a function already starts at ${hexAddr(o.start)} (listed in [functions], or found by another rule), [functions] does not list ${hexAddr(o.start)} (a confirm run takes only the listed functions and reports what the seed finds as W_UNLISTED_FUNCTION; \`romlift analyze --update\` proposes it), or its start is no ${o.mode ?? 'thumb'} instruction address, so its seed adds none, and it gives no listed entry its extent`;
     out.push(diagnostic(ModelCodes, 'W_OVERRIDE_IGNORED', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`, { span, addr: o.start }));
   }
   return out;

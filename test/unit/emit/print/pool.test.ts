@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { labelForWord, poolLine, poolLoadComment, visibleLabelsAt, wordScope, wordText } from '../../../../src/core/emit/print/pool.ts';
+import { poolLine, poolLoadComment, visibleLabelsAt, wordScope, wordText } from '../../../../src/core/emit/print/pool.ts';
 import { dataItem, label, modelOf, romWith } from '../../../helpers/model.ts';
 
 const A = 0x0800_1000;
@@ -47,7 +47,7 @@ test('RAM, I/O and unlabelled ROM words are numeric', () => {
   assert.equal(wordText(wordScope(model, 'alpha'), 0x0300_0000), '0x03000000');
   assert.equal(wordText(wordScope(model, 'alpha'), 0x0400_0001), '0x04000001');
   assert.equal(wordText(wordScope(model, 'alpha'), A + 0x71), '0x08001071');
-  assert.equal(labelForWord(wordScope(model, 'alpha'), 0), undefined);
+  assert.equal(wordText(wordScope(model, 'alpha'), 0), '0x00000000');
 });
 
 test('a module-scoped label of another module is not a candidate; a global one is, preferred by kind', () => {

@@ -3,7 +3,7 @@
 Building blocks with no knowledge of romlift projects: `rom/` (spans, the ROM value, the cartridge
 header, the memory map), `isa/` (the Thumb and ARM table, decoder, encoder, GNU `as` formatter and
 parser), `corpus/` (the `as` round-trip corpus: its cases, file layout and comparison, counts only,
-D55), `asm/` (the shared assembler dialect and statement layout), `formats/` (pure parsers of ELF,
+D55), `asm/` (the shared assembler dialect, statement layout and R_ARM_ABS32 rule, `relocation.ts`), `formats/` (pure parsers of ELF,
 GNU map, canonical JSON and the legacy files), `diagnostics/` (the mechanism, never the codes) and
 `util/`.
 

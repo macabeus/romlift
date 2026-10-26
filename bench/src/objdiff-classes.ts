@@ -36,7 +36,7 @@
 // reports rather than gates; NOT_COMPARED the functions objdiff could not compare at all. D34 as the owner amended it
 // on 25 October 2026 (D102: phase-3.md Q1 option (b) and phase-6.md Q6 option (c)) gates every other class but
 // unnamed-target (isGated), up to each tuning ROM's ceiling (bench/baseline/objdiff-ceiling.json, g6.objdiff).
-import { R_ARM, R_ARM_BRANCHES } from 'romlift';
+import { abs32Word, R_ARM, R_ARM_BRANCHES } from 'romlift';
 import { defaultSpellingAddress } from 'romlift/internal';
 
 import type { ObjdiffDifference } from './objdiff.ts';
@@ -134,7 +134,7 @@ const MISSING_ROW = new RegExp(`: (${NAME}) \\| a plain value$`);
  * branch (R_ARM_BRANCHES) it is the target, the PC bias of both sides being one.
  */
 function linkedWord(span: NamedSpan, addend: number, type: number): number | undefined {
-  if (type === R_ARM.ABS32) return ((span.addr + addend) | (span.thumb ? 1 : 0)) >>> 0;
+  if (type === R_ARM.ABS32) return abs32Word({ addr: span.addr, thumbFunction: span.thumb }, addend);
   if (R_ARM_BRANCHES.has(type)) return (span.addr + addend) >>> 0;
   return undefined;
 }
@@ -215,11 +215,16 @@ export function objdiffClass(d: ObjdiffDifference, addressesOf: NameAddresses): 
   }
 }
 
+/** The count of every class in `classes` (one per difference), every class present (0 when none). */
+export function countClasses(classes: readonly ObjdiffClass[]): Readonly<Record<ObjdiffClass, number>> {
+  const out = Object.fromEntries(OBJDIFF_CLASSES.map((c) => [c, 0])) as Record<ObjdiffClass, number>;
+  for (const c of classes) out[c] += 1;
+  return out;
+}
+
 /** The count of every class over `differences`, every class present (0 when none). */
 export function classCounts(differences: readonly ObjdiffDifference[], addressesOf: NameAddresses): Readonly<Record<ObjdiffClass, number>> {
-  const out = Object.fromEntries(OBJDIFF_CLASSES.map((c) => [c, 0])) as Record<ObjdiffClass, number>;
-  for (const d of differences) out[objdiffClass(d, addressesOf)] += 1;
-  return out;
+  return countClasses(differences.map((d) => objdiffClass(d, addressesOf)));
 }
 
 /** Whether D34, as the owner amended it (D102), gates a class: neither a same-word class, nor an uncompared function, nor unnamed-target. */

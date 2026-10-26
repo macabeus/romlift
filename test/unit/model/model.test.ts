@@ -249,10 +249,13 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   assert.deepEqual(both.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED'), [], 'both applied');
   const twice = buildModel(ROM, applied, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [data, data, code, code] }));
   assert.deepEqual(twice.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => [d.addr, /kind = "(\w+)"/.exec(d.message)?.[1]]), [[data.start, 'data'], [code.start, 'code']], 'a second identical entry changes nothing');
-  // In confirm mode a code override at an unlisted start is reported unlisted from its seed (W_UNLISTED_FUNCTION): applied.
+  // In confirm mode a code override at an unlisted start is only reported unlisted from its seed (W_UNLISTED_FUNCTION),
+  // which claims nothing: it changes nothing and is ignored, the message naming the unlisted start (correctness-o0-2).
   const confirm = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], seeds: [{ entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed' }], overrides: [facts[1] ?? assert.fail()] });
   const unlisted = { ...confirm, unlisted: [{ entry: code.start, mode: 'thumb' as const, origin: 'override' as const, provenance: { rule: 'seed.override' as const, round: 0, cites: [] } }] };
-  assert.deepEqual(buildModel(ROM, unlisted, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED'), []);
+  const unlistedIgnored = buildModel(ROM, unlisted, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED');
+  assert.deepEqual(unlistedIgnored.map((d) => d.addr), [code.start]);
+  assert.match(unlistedIgnored[0]?.message ?? '', /\[functions\] does not list 0x08000150/);
   // A range wholly outside the ROM is W_OVERRIDE_OUTSIDE_ROM's alone (fix round 6, architecture-b1-2).
   const outside = buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [{ start: 0x0900_0000, size: 4, kind: 'code', mode: 'thumb' }] }));
   assert.deepEqual(outside.diagnostics.map((d) => d.code), ['W_OVERRIDE_OUTSIDE_ROM']);

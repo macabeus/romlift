@@ -149,12 +149,12 @@ function claimsData(claims: readonly ClaimRun[], span: OverrideFact['span']): bo
  * The overrides without runs_at the analysis applied itself (correctness-b0-3), each the options' own object and at
  * most one per kind, span and mode (a second identical entry changes nothing): a `data` override whose span holds
  * data the run claimed (it claims the whole span from round 0), and a `code` override whose start the run took from
- * its seed.override seed, accepted with origin 'override' or, in confirm mode, reported as unlisted with it. A code
- * override over a function another rule, or the [functions] list, already started there changes nothing.
+ * its seed.override seed, accepted with origin 'override'. A code override over a function another rule, or the
+ * [functions] list, already started there changes nothing; nor does one whose seed a confirm run only reports as
+ * unlisted (W_UNLISTED_FUNCTION claims nothing, so the tree is the one without it; fix round 5, correctness-o0-2).
  */
 export function appliedOverrides(analysis: AnalysisResult): readonly OverrideFact[] {
   const fromOverride = new Set<Addr>(analysis.functions.filter((f) => f.origin === 'override').map((f) => f.entry));
-  if (analysis.mode === 'confirm') for (const u of analysis.unlisted) if (u.origin === 'override') fromOverride.add(u.entry);
   const seen = new Set<string>();
   return analysis.options.overrides.filter((o) => {
     if (o.runsAt !== undefined) return false;

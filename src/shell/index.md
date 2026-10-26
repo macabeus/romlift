@@ -13,7 +13,7 @@ and agbcc, applying a write plan atomically under a lock. (The evidence and trac
 | `project/disk-state.ts`, `project/apply-writes.ts`, `project/lock.ts`, `project/spelling.ts` | the disk snapshot, the manifest and journal a plan reads, applying a write plan atomically (an edit hashed again right before its write and judged by core's `staleEdit`), the project lock and case-only renames |
 | `project/write-project.ts`, `project/fresh-tree.ts`, `project/templates.ts` | `init`'s writes, a tree written into a fresh directory, the scaffold templates and the agbcc pin |
 | `config/load.ts`, `config/save.ts` | reading `romlift.toml` and saving `analyze --update --write`'s patch under the lock |
-| `fs.ts` | adds `isDirectory` (absent only on ENOENT or ENOTDIR, any other failure E_IO_READ); from phase 6 `isRegularFile`, `readText` and `readJson` under the same rule (architecture-6, D95), and `isAbsentError`, the one reading of absence the shell's stat sites share, a link loop (ELOOP) included (fix round 4, architecture-r2-4) |
+| `fs.ts` | adds `isDirectory`; from phase 6 `isRegularFile`, `readText` and `readJson` (architecture-6, D95); each, like every other stat site of the shell, reads absence through `isAbsentError`, ENOENT, ENOTDIR or ELOOP (a link loop, since fix round 4, architecture-r2-4, D99 c), and any other failure is E_IO_READ |
 
 ## Phase 6: evidence
 

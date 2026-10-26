@@ -11,7 +11,7 @@
 //   ld gives them. It is read as `as` reads it, inside its module file, after that file's include of the
 //   macro file: a chunk file that includes the macro file again redefines every macro, which `as` refuses.
 //   Names it does not define resolve to the model: a label of its module, else a global label (resolver.ts
-//   wordValueOf: a Thumb function carries the Thumb bit), else a [symbols] entry outside the ROM (what
+//   symbolValueOf: a Thumb function is T, and a data value links to (S + A) | T, foundation/asm/relocation.ts), else a [symbols] entry outside the ROM (what
 //   symbols.ld defines), else a runs_at module's `__load_<module>` (the ldscript's, its load start); only a label a
 //   printer can place counts, one at an item's start or inside a data item
 //   (chunk.ts places no other), so a name the tree never defines is an undefined symbol here as for `as`. A
@@ -50,6 +50,7 @@
 import { DIALECT } from '../../foundation/asm/dialect.ts';
 import { layoutMemo, layoutStatements } from '../../foundation/asm/layout.ts';
 import type { Layout, LayoutInput, LayoutMemo } from '../../foundation/asm/layout.ts';
+import type { SymbolValue } from '../../foundation/asm/relocation.ts';
 import { parseStatements, stripComment } from '../../foundation/asm/statements.ts';
 import type { Statement } from '../../foundation/asm/statements.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
@@ -65,7 +66,7 @@ import { dataRangeModuleAt, linkerDefinedNames, moduleIndexAt, relocatedModules,
 import { BASEROM_FILE, isCSource, matchingFileOf, nonmatchingFileOf } from '../../foundation/util/project-files.ts';
 import { chunkPathsOf, expectedSourcePath, hasExpectedTarget, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { STUB_UNIT_MODE } from '../model/c-unit.ts';
-import { wordValueOf } from '../model/resolver.ts';
+import { symbolValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Label, Model, Module } from '../model/types.ts';
 import { readStub } from './c-stub.ts';
@@ -173,13 +174,14 @@ function objectModuleAt(model: Model, index: IndexData, addr: number): number {
   return m >= 0 ? m : dataRangeModuleAt(model.modules, addr);
 }
 
-/** The value of a name a file of module `m` does not define (what ld would give it), or undefined. */
-function resolveIn(model: Model, index: IndexData, m: number): (name: string) => number | undefined {
+/** The symbol a file of module `m` names but does not define (what ld would relocate against), or undefined. */
+function resolveIn(model: Model, index: IndexData, m: number): (name: string) => SymbolValue | undefined {
   return (name) => {
     const labels = index.labelsByName.get(name) ?? [];
     const label = labels.find((l) => objectModuleAt(model, index, l.addr) === m) ?? labels.find((l) => l.scope === 'global');
-    if (label !== undefined) return wordValueOf(label);
-    return index.symbolsByName.get(name) ?? index.loadSymbols.get(name);
+    if (label !== undefined) return symbolValueOf(label);
+    const addr = index.symbolsByName.get(name) ?? index.loadSymbols.get(name);
+    return addr === undefined ? undefined : { addr, thumbFunction: false };
   };
 }
 

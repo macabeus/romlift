@@ -7,7 +7,8 @@
 // output. It reads the ROMs, ELFs, maps and objects the datasets name and gives the family each dataset's map (so each
 // function's reference object is the one the map links at its entry, and the archive members the map links are
 // reference objects too). It writes nothing, except with `--write-ceiling`: bench/baseline/objdiff-ceiling.json, each
-// measured ROM's ceiling lowered to its gated count, never raised (objdiff-ceiling.ts lowerCeilings; g6.objdiff reads it).
+// measured ROM's ceiling lowered to its gated count, never raised, a ROM without one refused (objdiff-ceiling.ts
+// lowerCeilings; g6.objdiff reads it and pins the owner's values, D104 b).
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';

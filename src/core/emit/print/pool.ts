@@ -21,7 +21,7 @@ import type { Addr } from '../../../foundation/rom/span.ts';
 import { hex } from '../../../foundation/util/hex.ts';
 import { lowerBound } from '../../../foundation/util/arrays.ts';
 import { moduleIndexAt, relocatedModules } from '../../model/modules.ts';
-import { compareLabels, loadOperandIn, sizedEntries, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from '../../model/resolver.ts';
+import { compareLabels, entryLabelOf, loadOperandIn, sizedEntries, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from '../../model/resolver.ts';
 import type { Label, Model, Module } from '../../model/types.ts';
 
 /** What naming a word inside one module reads: the model's labels and modules, computed once for the module. */
@@ -62,18 +62,13 @@ function exactLabels(scope: WordScope, value: number): readonly Label[] {
   return candidates.filter((l) => l.kind !== 'local' && wordValueOf(l) === word);
 }
 
-/** The label `.4byte <name>` of which links to exactly `value`, visible in the scope's module, or undefined. */
-export function labelForWord(scope: WordScope, value: number): Label | undefined {
-  return exactLabels(scope, value)[0];
-}
-
 /**
  * The operand of a `.4byte` holding `value`: a label's name or `name + offset` under the rule above (resolver.ts
  * wordNameOf), else a runs_at module's `__load_<module> + offset`, else `0xXXXXXXXX`.
  */
 export function wordText(scope: WordScope, value: number): string {
   const word = value >>> 0;
-  const entryLabel = (entry: SizedEntry): Label | undefined => visibleLabelsAt(scope, entry.addr).find((l) => l.name === entry.name && l.kind !== 'local');
+  const entryLabel = (entry: SizedEntry): Label | undefined => entryLabelOf(entry, (a) => visibleLabelsAt(scope, a));
   const named = wordNameOf(scope.entries, word, exactLabels(scope, word), entryLabel);
   if (named?.kind === 'inside') return `${named.label.name} + ${named.offset}`;
   return named?.label.name ?? loadOperandIn(scope.relocated, word) ?? `0x${hex(word)}`;

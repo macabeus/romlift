@@ -11,9 +11,10 @@
 // with GNU as, g1.encoder-agrees), `.inst*` words, data values, `.align` fill, `.incbin` bytes.
 //
 // Symbols: a local label stands for its address; in a data value, a label defined in Thumb state that
-// `.thumb_func` precedes or `.type name, %function` names is a Thumb function and stands for its
-// address plus one, as ld writes it for `.4byte Func`. Other names go to `resolve`, which returns symbol
-// VALUES (the caller adds the Thumb bit to Thumb function symbols). A branch drops the Thumb bit of its
+// `.thumb_func` precedes or `.type name, %function` names is a Thumb function, and a data value naming a symbol
+// links to R_ARM_ABS32's (S + A) | T (relocation.ts abs32Word): `.4byte Func` to its address plus one, `.4byte
+// Func + 3` to its address plus 3. Other names go to `resolve`, which returns each symbol's address and whether it
+// is a Thumb function. An instruction operand takes the symbol's value (S | T); a branch drops the Thumb bit of its
 // target, as ld does for a branch relocation; any other instruction operand takes the value as is. A
 // PC-relative load or `adr` (flows pc-load and adr) may name another object's symbol only where `sameObject`
 // says the name is in this object: `as` has no relocation for one that reaches into another (D63), so the
@@ -35,6 +36,7 @@ import type { Assembled, FlowKind, SymbolResolver } from '../isa/types.ts';
 import type { Addr, Mode } from '../rom/span.ts';
 import { insnAligned, insnUnit } from '../rom/span.ts';
 import { hex } from '../util/hex.ts';
+import { abs32Word, type SymbolValue } from './relocation.ts';
 import type { Expr, Statement } from './statements.ts';
 
 /** The number of memo slots: a state (Thumb, ARM) times an address mod 4. */
@@ -75,8 +77,8 @@ export interface LayoutInput {
   readonly start: Addr;
   /** The state the text starts in. */
   readonly mode: Mode;
-  /** The value of a symbol the statements do not define, or undefined when it has none. */
-  resolve(name: string): number | undefined;
+  /** A symbol the statements do not define: its address and whether it is a Thumb function, or undefined when it has none. */
+  resolve(name: string): SymbolValue | undefined;
   /** `length` bytes of `file` from `offset`, or undefined when they cannot be read. */
   incbin(file: string, offset: number, length: number): Uint8Array | undefined;
   /** The statements of an included file, laid out in place; absent or undefined: an unknown include. */
@@ -358,17 +360,17 @@ class Symbols {
     return this.#input.sameObject?.(name) ?? true;
   }
 
-  /** The caller's value of a name the statements do not define. */
-  external(name: string): number | undefined {
-    const value = this.#input.resolve(name);
-    return value !== undefined && Number.isInteger(value) ? value : undefined;
+  /** The caller's symbol of a name the statements do not define. */
+  external(name: string): SymbolValue | undefined {
+    const symbol = this.#input.resolve(name);
+    return symbol !== undefined && Number.isInteger(symbol.addr) ? symbol : undefined;
   }
 
-  /** The value of `name` in a data value: a Thumb function label carries the Thumb bit. */
-  dataValue(name: string): number | undefined {
+  /** What `name` stands for in a data value: a local label (a Thumb function per isThumbFunction), else the caller's symbol. */
+  dataSymbol(name: string): SymbolValue | undefined {
     const label = this.#labels.get(name);
     if (label === undefined) return this.external(name);
-    return label.addr + (this.isThumbFunction(name) ? 1 : 0);
+    return { addr: label.addr, thumbFunction: this.isThumbFunction(name) };
   }
 }
 
@@ -399,7 +401,8 @@ function attempt(
         lookups.locals.push(name);
         return local.addr;
       }
-      const value = symbols.external(name);
+      const symbol = symbols.external(name);
+      const value = symbol === undefined ? undefined : abs32Word(symbol, 0);
       if (value === undefined) lookups.missing.push(name);
       else lookups.external.push(name);
       if (value !== undefined && value % 2 !== 0) {
@@ -457,8 +460,8 @@ function encodeInsn(text: string, p: Placed, symbols: Symbols, onName: () => voi
 /** The value of a data expression, or an error message. */
 function exprValue(expr: Expr, symbols: Symbols): number | string {
   if (expr.kind === 'number') return expr.value;
-  const value = symbols.dataValue(expr.name);
-  return value === undefined ? `undefined symbol \`${expr.name}\`` : value + expr.addend;
+  const symbol = symbols.dataSymbol(expr.name);
+  return symbol === undefined ? `undefined symbol \`${expr.name}\`` : abs32Word(symbol, expr.addend);
 }
 
 /**

@@ -8,7 +8,7 @@ import { test } from 'node:test';
 
 import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
 import { wordScope, wordText } from '../../../src/core/emit/print/pool.ts';
-import { adrResolverFor, compareLabels, isExactLabel, isNamedEntry, loadWordOperand, moduleAt, resolverFor, resolverOver, linkedWordOf, sizedEntries, sizedEntryAt, wordNameOf, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { adrResolverFor, compareLabels, entryLabelOf, isExactLabel, isNamedEntry, loadWordOperand, moduleAt, resolverFor, resolverOver, linkedWordOf, sizedEntries, sizedEntryAt, wordNameOf, wordValueOf } from '../../../src/core/model/resolver.ts';
 import { loadSymbolOf } from '../../../src/core/model/modules.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
@@ -177,4 +177,19 @@ test('linkedWordOf and wordNameOf: a Thumb function plus an addend links with th
   const entries = sizedEntries({ symbols: [], functions });
   assert.deepEqual(wordNameOf(entries, 0x0800_0105, [], () => fn), { kind: 'inside', label: fn, offset: 4 });
   assert.equal(wordNameOf(entries, 0x0800_0104, [], () => fn), undefined, 'Sized + 3 would link to 0x08000103');
+});
+
+test('entryLabelOf: the sized entry\'s own label, named as the entry at its run address and not local (architecture-o0-5)', () => {
+  const fn = label('Sized', 0x0300_0100);
+  const local = label('Sized', 0x0300_0100, { kind: 'local', thumb: false });
+  const other = label('Other', 0x0300_0100, { kind: 'data', thumb: false });
+  const at = (labels: readonly Label[]) => (addr: number): readonly Label[] => labels.filter((l) => l.addr === addr);
+  // A runs_at function's sized entry sits at its run address (sizedEntries reads runAt), where its func label is.
+  const functions = [{ entry: 0x0800_0400, runAt: 0x0300_0100, extent: { start: 0x0800_0400, end: 0x0800_0410 }, mode: 'thumb' as const, name: 'Sized', aliases: [], source: { name: { kind: 'default' as const }, extent: 'toml-size' as const } }];
+  const [entry] = sizedEntries({ symbols: [], functions }).sized;
+  assert.deepEqual(entry, { addr: 0x0300_0100, name: 'Sized', size: 0x10 });
+  if (entry === undefined) return;
+  assert.equal(entryLabelOf(entry, at([local, other, fn])), fn, 'never a local label, never another name');
+  assert.equal(entryLabelOf(entry, at([local, other])), undefined);
+  assert.equal(entryLabelOf({ ...entry, addr: 0x0800_0400 }, at([fn])), undefined, 'the load address holds none of its labels');
 });
