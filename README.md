@@ -21,13 +21,14 @@ install that `./setup.sh` runs both fail with a 404. Run it from a checkout inst
 git clone https://github.com/macabeus/romlift.git && cd romlift
 npm ci && npm run build
 cd /path/to/new-project-dir            # an empty directory holding only your ROM
-node /path/to/romlift/dist/cli/main.js init baserom.gba
-ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js" ./setup.sh && make
+export ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js"
+$ROMLIFT_CLI init baserom.gba
+./setup.sh && make
 ```
 
 `ROMLIFT_CLI` makes `./setup.sh` (and the messages of the generated `Makefile`) use that command instead of `npx
-romlift`; run every other romlift command of the project the same way (`node /path/to/romlift/dist/cli/main.js
-generate`). Run `git init` in the project before `./setup.sh` if you want it in Git: `setup.sh` then registers
+romlift`, and set while `init` runs it skips the npm lock step, which would wait for the registry's 404 and warn
+`W_LOCKFILE_DEFERRED`; run every other romlift command of the project the same way (`$ROMLIFT_CLI generate`). Run `git init` in the project before `./setup.sh` if you want it in Git: `setup.sh` then registers
 `tools/agbcc` as a submodule. `romlift --version` prints the version.
 
 You need GNU binutils for ARM (`arm-none-eabi-as`, `-ld`, `-objcopy`), `make`, `git`, a C compiler and Node.js 22.18 or
@@ -40,8 +41,11 @@ checkouts each spec names (sa2, pokeemerald, fe7j, klonoa; [docs/benchmark-roms.
 their ROMs, ELFs and maps under `ROMLIFT_BENCH_ROOT`:
 
 ```sh
-for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || break; done
+for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || exit 1; done
 ```
+
+They land in this checkout's `signatures/`, which a romlift run from it reads; point any other romlift at them with
+`ROMLIFT_SIGNATURES=/path/to/romlift/signatures`.
 
 Whether built files ship with the package is the owner's open decision (D40, architecture §12 item 1).
 
