@@ -117,7 +117,9 @@ romlift/
                                     as round-trip corpus, counts only (D54 c, D55)
       asm/                          dialect.ts (preamble, macros.inc, C-stub texts; their paths are
                                     util/project-files.ts's, D77 h), statements.ts (parser of the
-                                    directive subset romlift emits), layout.ts (lays statements out to bytes)
+                                    directive subset romlift emits), layout.ts (lays statements out to bytes),
+                                    relocation.ts (abs32Word, R_ARM_ABS32's (S + A) | T, the one rule the
+                                    layout, core's linkedWordOf and the bench's classifier read, D104 e)
       formats/                      elf.ts, gnu-map.ts, canonical-json.ts (the legacy-file parsers and the trace's
                                     format were dropped with legacy import and the trace, D91, D92)
       diagnostics/                  diagnostic.ts (the mechanism; no codes)
@@ -2070,8 +2072,10 @@ the functions objdiff did not compare (`missing-symbol`, and `tool`, a reference
 (c)) and `unnamed-target` (a relocation whose reference side targets a section symbol) are reported, not gated; every
 other difference is gated, and each tuning ROM's gated count must not exceed its ceiling in
 `bench/baseline/objdiff-ceiling.json` (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25, measured when the owner's
-answer was applied; a ceiling may be lowered, never raised without the owner). A fixture test misnames one pool word
-and requires the verdict to fail.
+answer was applied; a ceiling may be lowered, never raised without the owner: `g6.objdiff` pins these values as the most
+a ceiling may be, so a raised or added ceiling fails the gate, and `--write-ceiling` refuses a ROM without one, D104 b).
+A tuning ROM whose readable build does not link fails the gate (it cannot be judged). A fixture test misnames one pool
+word and requires a gated difference (the verdict has no pass rule of its own: the ceiling is the one, D104 c).
 
 **Held-out runs** (`bench/src/seal.ts` and `classify.ts` for the sealed counts of one ROM, `test/gates/held-out-verdict.ts` for the verdict across the sealed ROMs and the D60 waiver, D25, D53). A dataset with `heldout: true` and an
 empty `revealed` runs sealed: `bench run` stores and prints only counts and gate verdicts, never an
@@ -2459,7 +2463,7 @@ one is missing.
 | `g4.e2e-real` | real | the same command on every tuning ROM; sealed ROMs report counts only |
 | `g4.packed-e2e` | ci | the same command from the packed and installed tarball (`packed.yml`) |
 | `g4.generate-idempotent` | ci and real | `generate` right after `init` gives an identical tree on every fixture and every tuning ROM |
-| `g4.toml-mutations` | ci and real | seeded random legal TOML edits (move a module start to another legal border, rename, delete a listed function, add a valid override, split a module) keep the self-checks and the link green; each illegal edit (unaligned start, duplicate key, bad key spelling) gives its documented code and writes nothing |
+| `g4.toml-mutations` | ci and real | seeded random legal TOML edits (move a module start to another legal border, rename, delete a listed function, add an override that changes the model: a `data` override over a listed function's trailing pool words, the owner's answer to phase-6.md Q11, D98 d, D104 a; split a module) keep the self-checks and the link green; each illegal edit (unaligned start, duplicate key, bad key spelling, an odd Thumb `[functions]` key) gives its documented code and writes nothing |
 | `g4.no-toml-write` | ci | `generate` never opens the TOML for writing |
 | `g4.worktree` | ci and real | in a fresh `git worktree` of an initialised project, `./setup.sh` copies the ROM from the main checkout and `make` ends at the SHA-1 |
 | `g4.toml-canonical` | ci | `serialize∘parse` is the identity on canonical files; patches keep comments and re-parse |
@@ -2478,5 +2482,5 @@ one is missing.
 | `g6.reconciler` | ci | C in, C out goldens: add, remove, move stubs; comments and strings untouched (`g5.reconciler` until D92) |
 | `g6.rename` | ci | identifier-only renames; refusals (`g5.rename` until D92) |
 | `g6.expected-bytes` | ci and real | §6.8: every `expected/<module>.s` assembles to a target that, linked at its module's address (a `runs_at` module at its run address), equals the module's ROM range byte for byte, with every symbol where the model places it; the RAM-copy fixture runs again with its hand-written `runs_at` override (Q12 option (b), Q16 option (a), D101 b) (`g5.expected-bytes` until D92) |
-| `g6.objdiff` | real | §8.4 objdiff, on every tuning ROM whose readable build links: the gated differences (D34 as the owner amended it, D102) at or below the ROM's ceiling in `bench/baseline/objdiff-ceiling.json` (`g3.objdiff` until D68 a, `g5.objdiff` until D92) |
+| `g6.objdiff` | real | §8.4 objdiff, on every tuning ROM, each of whose readable build must link: the gated differences (D34 as the owner amended it, D102) at or below the ROM's ceiling in `bench/baseline/objdiff-ceiling.json`, itself at or below the owner's values the gate pins (D104 b) (`g3.objdiff` until D68 a, `g5.objdiff` until D92) |
 | `g6.c-data-ranges` | ci | §6.6: with `data_start`, a C array replaces its slice of the ROM and the build still matches (`g5.c-data-ranges` until D92) |

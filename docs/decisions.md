@@ -4510,7 +4510,11 @@ by the later steps of the round and recorded there. Q4 and Q7 need no answer.
   `W_OVERRIDE_IGNORED`, and fails when no target takes such an edit. The illegal edits gain the first Thumb
   `[functions]` key plus one (`E_FUNCTION_MISALIGNED`, correctness-b0-4's case). Rejected: a `data` override over a
   found function (the callers' `bl` would name data, and a `c` module would hold data in its `.text`), and a code
-  override at a place no rule finds code (no general way to find one on a tuning ROM).
+  override at a place no rule finds code (no general way to find one on a tuning ROM). **Corrected at fix round 5
+  (D104 a):** this edit did not change the model. The gate counted F as accepted when F appeared only among the confirm
+  run's unlisted findings, and a confirm run takes only `[functions]`: what an override's seed finds beyond the list
+  is reported (`W_UNLISTED_FUNCTION`) and claims nothing, so the tree was the delete-function edit's, byte for byte
+  (correctness-o0-1). The sentences above that say the confirm run accepts F are wrong; D104 a replaces the edit.
 
 **Consequences.** Run on `10fe83a` in a fresh worktree: on the ci tier `g6.reconciler` (9 cases, 11 golden tests, 16
 comment and string tokens untouched), `g6.rename` (`sub_080000F4` renamed on the composite fixture),
@@ -4723,7 +4727,11 @@ Applied:
   holds each tuning ROM's gated count measured on the final product of this step: fe7j 7, klonoa 1, pokeemerald 12,
   sa2 1, sa3 4, tmc 25. `g6.objdiff` reads it and fails on a count above its ceiling or a ROM without one.
   `bench/tools/objdiff-classes.ts --write-ceiling` writes a measured count only where it is lower
-  (`objdiff-ceiling.ts lowerCeilings`), so the tool never raises a ceiling; raising one is the owner's.
+  (`objdiff-ceiling.ts lowerCeilings`), so the tool never raises a ceiling; raising one is the owner's. **Pinned at
+  fix round 5 (D104 b):** `g6.objdiff` holds these six values as `OWNER_CEILINGS`, the most a committed ceiling may be,
+  as `g6.signatures-judged` holds tmc's floor; a ceiling file that gives a ROM more than its pinned value, or names a
+  ROM without one, fails the gate, so a lowered file passes and a raised one does not; `--write-ceiling` refuses to
+  add a ROM; a tuning ROM whose readable build does not link fails the gate instead of escaping its ceiling.
 
 **Consequences.** Every fixture and tuning ROM still links to its SHA-1 (`g3.link`, `g3.raw-link` and the init builds
 of `bench run --scaffold`, `g4.e2e-real`, `g6.expected-bytes`), and no golden changed: no committed fixture has a sized
@@ -4754,6 +4762,74 @@ fresh worktree at `landed` 6 first (run 5, phase-6.md).
 **Consequences.** The rule of AGENTS.md stands for later phases; this answer replaces it for phase 6's merge alone.
 
 **Rejected.** Waiting for the owner's review or for GitHub to start the jobs (the owner said not to).
+
+## D104. Phase-6 fix round 5: the review of fix round 4 (`3befe08`)
+
+**Context.** The review of fix round 4 raised one major and fifteen minors (phase-6.md "Review", fix round 5). The
+major (correctness-o0-1): `g4.toml-mutations`' add-override edit, as D98 d applied Q11, does not change the model
+(D98 d, corrected there). Measured on the 54 fixtures with their discover configs: no `code` override without
+`runs_at` changes a confirm model. Its seed takes nothing a confirm run does not list (it is only reported), it takes
+nothing already listed (the listed seed did), and `placeEntries` gives an extent from it only to a listed entry the
+analysis did not take, which happens only inside a `data` override. A `data` override over the deleted F changes
+nothing either (0 of 54 fixtures): the unlisted bytes are a data chunk without it.
+
+**Decision.**
+
+- (a) **The add-override edit is a `data` override that changes the model** (Q11 option (a), the owner's words "the
+  add-override edit must be one that changes the model", which name no override kind). The edit takes a found function
+  F that `[functions]` lists (no label) with a pool word at or past its code end inside its extent, and adds a `data`
+  override from the first such word to the end of F's extent, F still listed. A confirm run ends every extent at the
+  first data override after its entry (`facts.ts extentEndOf`), so F's extent ends there and the words become a chunk of
+  their own. The gate keeps the edit only when the model `buildModel` builds from the edited config's confirm run
+  differs from the original config's in its functions' extents or its chunks (at most 32 candidates per target), and
+  requires `generate` to warn no `W_OVERRIDE_IGNORED`, the link to reproduce the SHA-1 and `make` to exit 0, as every
+  legal edit; at least one target must take it. Measured on the ci tier: 243 legal edits, add-override 54 (every
+  fixture), 215 illegal. D98 d's objection to a data override over a whole function (a caller's `bl` would name data)
+  does not apply: the override covers pool words, which were data already, and no instruction. The gate's header,
+  D98 d and phase-6.md Q11 say so. The gate gains the call `buildModel` (core/model, exported by `romlift`).
+- (b) **The owner's ceilings are pinned** (gate-honesty-o0-1, correctness-o0-4, architecture-o0-7; D102 d). The owner
+  said a ceiling "may be lowered, never raised, without the owner"; nothing checked it. `g6.objdiff` now holds
+  `OWNER_CEILINGS` (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25) and fails on a committed ceiling above
+  its pinned value or a ROM without one; `lowerCeilings` refuses a measured ROM that has no ceiling; a tuning ROM
+  whose readable build does not link fails the gate. Each tightens the gate the owner authorised for Q6 and Q15 toward
+  his own rule; none changes a threshold.
+- (c) **One pass rule for objdiff** (gate-honesty-o0-2, architecture-o0-3). `ObjdiffVerdict.pass` ("no gated
+  difference"), which no gate read and which was false on all six tuning ROMs while `g6.objdiff` passed, is removed:
+  the ceiling is the one rule. The fixture tests assert `classes.gated`. The verdict classes each difference once
+  (`countClasses` over one classed array, read by the counts and the gated examples).
+- (d) **An override a confirm run only reports is ignored** (correctness-o0-2). `appliedOverrides` no longer counts a
+  code override whose seed only gave an unlisted finding, so `generate` warns `W_OVERRIDE_IGNORED` for it, naming the
+  unlisted start and `analyze --update`, beside `W_UNLISTED_FUNCTION`.
+- (e) **One R_ARM_ABS32 rule** (architecture-o0-1). `foundation/asm/relocation.ts abs32Word` computes (S + A) | T.
+  The assembler layout reads it for every data value (its resolver now returns a symbol's address and whether it is a
+  Thumb function, `SymbolValue`, instead of a value with the Thumb bit added), core's `linkedWordOf` and the bench's
+  classifier read it (through `romlift`). Before, the layout computed (S | T) + A: `.4byte F + 3` laid out to F + 4
+  while ld writes F + 3 (measured with binutils 2.45.1: F + 3, F + 4, F - 1 give 0x08000003, 0x08000005, 0x07FFFFFF).
+  No emitted file reached the difference (the printer never spells a Thumb function with an odd addend that differs),
+  so no byte changed; the layout's unit test that expected (S | T) - 1 for `Func - 1` now expects ld's word.
+- (f) **One lookup of a sized entry's label** (architecture-o0-5). `resolver.ts entryLabelOf` (the label named as the
+  entry at its run address, not local) is the `entryLabel` of all three readers of `wordNameOf`; `labels.ts` reads the
+  candidates already built, through the run address's load address, instead of the config's map keyed by load
+  address. Byte-neutral today (a `runs_at` entry's addresses are RAM, which no data word in a data module names).
+- (g) **The emission rule assembled and linked in `npm test`** (architecture-o0-6). `test/unit/emit/sized-entries.test.ts`
+  gives three fixtures one sized entry each (a `[symbols]` entry a pool word of another module points inside; a
+  TOML-sized Thumb function with an odd word inside it, printed `name + 4`; one with an even word, never printed
+  `name + n`) and requires each tree to pass the text-layout check and link to its SHA-1 with binutils. No gate's
+  config has a sized entry (every gate tree is `configFromDiscover`'s), so no gate is changed for it.
+- (h) **Recorded, not changed** (correctness-o0-3, correctness-o0-5, architecture-o0-8): phase-6.md "Known
+  limitations" records that the ci tier's only `runs_at` target of `g6.expected-bytes` has every symbol at offset 0 of
+  its module, that a sized entry drops the default-named `gUnk_` labels inside it (C that names one stops linking,
+  loudly, at `make`), and that the frozen `g4.c-data-fails-loud` header still quotes the C-data assertion's old text
+  (the owner did not authorise editing that file; its pattern matches the new text).
+
+**Consequences.** `npm test` 2,865 tests pass (new or changed: the unlisted code override in `model.test.ts`, `entryLabelOf`, the layout's
+(S + A) | T case, the sized-entry link test; the ceiling and verdict tests rewritten). The closing list ran again in a
+fresh worktree (phase-6.md, run 6).
+
+**Rejected.** Writing the add-override question to the owner again: his answer names the edit and the property, not
+the override kind, and the data override satisfies both on every fixture. Keeping the nominal code-override edit (it
+changes nothing). Moving the ceilings into the gate file alone (the baseline file stays what `--write-ceiling` lowers;
+the gate pins the maximum).
 
 ## Review findings index
 

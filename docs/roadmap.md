@@ -926,7 +926,8 @@ import, which D92 dropped. Their components (D93):
   start (the rule exists; no seed of it is built), and, with the owner's leave since it changes a gate, makes
   `g4.toml-mutations`' add-override edit one that changes the model (until then it covered a found function
   exactly, a no-op that warned). Nothing here depends on `g5.import-legacy`. Done: the owner authorised the gate edit
-  on 25 October 2026 (phase-6.md Q11, D98 d).
+  on 25 October 2026 (phase-6.md Q11, D98 d); since fix round 5 the edit is a `data` override over a listed
+  function's trailing pool words, since a `code` override without `runs_at` changes no confirm model (D104 a).
 - **correctness-b0-4's gate case** (fix round 5, D81 c): `E_FUNCTION_MISALIGNED` is tested by unit and CLI tests;
   adding an odd `[functions]` key to `g4.toml-mutations`' illegal edits changes a gate, which the owner has not
   authorised in phase 4. Since fix round 6 the config raises it (D82 d). Done at phase-6 fix round 4 with the owner's
@@ -1161,7 +1162,8 @@ Thresholds, one per gate of the phase (every earlier gate still passes):
 - `g6.objdiff`: on every agreeing function of every tuning ROM that links, scored in romlift's own spelling, the
   differences D34 as amended gates (not the same-word classes, not an uncompared function, not `unnamed-target`) at or
   below the ROM's ceiling in `bench/baseline/objdiff-ceiling.json`, which may be lowered, never raised without the owner
-  (the owner's answers to phase-6.md Q6 and Q15, D102);
+  (the owner's answers to phase-6.md Q6 and Q15, D102; the gate pins his values and fails a ceiling above them or a
+  tuning ROM it cannot judge, D104 b);
 - `g6.c-data-ranges`: the c-data fixture's array from `build/src/<module>.o` at its ROM address, the build at the
   SHA-1;
 - `npm pack --dry-run` lists no built signature file.

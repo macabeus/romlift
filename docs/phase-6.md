@@ -362,7 +362,9 @@ Raised at the wave-3 integration:
   jump table that `574849b` spelled `F + odd`, one below the ROM's word, in the bench's model with the ELF's sizes, and
   that now name the table's label, which `as` relocates against the section as the reference does). Romlift's own
   spelling under the new classifier and the old printer gave gated 7, 1, 12, 1, 8, 26. The ceilings are the after
-  column's gated row: fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25. What stays gated depends on the
+  column's gated row: fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25; since fix round 5 `g6.objdiff` pins
+  them as the most a committed ceiling may be, so only a lowered file passes, and a tuning ROM that does not link fails
+  (D102 d, D104 b). What stays gated depends on the
   reference's source, not on the ROM: relocations with a negative addend or past the symbol's ELF size (fe7j
   `gClassData - 84` where romlift names `gCharacterData + 13072`, tmc `gHUD + 52` against `gUnk_0200AF34`, pokeemerald
   `gPlayerParty - 100` against `gBattleScripting + 20`, klonoa `gUnk_080520E4 - 252` against `gVisionBgNbrTiles + 234`)
@@ -386,7 +388,8 @@ Raised at the closing round:
   an unplaced address, and two cases cover counterparts. Options: (a) accept the count; (b) count by id and the phase
   does not land on this gate; (c) another count the owner names.
   **Answered on 25 October 2026 (D98 b), with Q13 and Q14, "Accept all three"**: "option (a) each (the leave-one-out
-  counterpart count; …). Write each as the owner's rule." The counterpart count is the owner's rule (architecture
+  counterpart count; `unjudged` sizes accepted and reported; member symbols compared on a reference ROM, the reviewed
+  display name reported). Write each as the owner's rule." The counterpart count is the owner's rule (architecture
   §8.4, roadmap thresholds); nothing else changes.
 - **Q9. `g6.signatures-judged` judges tmc with no floor.** The pinned PoC baseline has no signatures row for tmc
   (revealed after it was pinned, D60), so the gate as phase 1 wrote it had no floor for it; D93 h, not the owner's words,
@@ -431,12 +434,19 @@ Raised at the closing round:
   key; (b) keep the gate as it is.
   **Answered on 25 October 2026 (D98 d), "Tighten"**: "option (a): g4.toml-mutations' add-override edit must be one that
   changes the model, and an odd [functions] key joins its illegal edits. The owner authorises editing that frozen
-  phase-4 gate file." Applied (`fb16a0f`): the edit takes a found function no found function calls out of
-  `[functions]` and covers its extent with a code override the confirm run accepts through its seed (origin
-  `override`; a listed or called function's override is a no-op, measured), `generate` must warn no
-  `W_OVERRIDE_IGNORED`, and at least one target must take it; the first Thumb key plus one is an illegal edit
-  (`E_FUNCTION_MISALIGNED`). Measured (fix round 4 below): ci tier 212 legal edits (add-override 23 on 54 fixtures,
-  31 with no place) and 215 illegal; real tier 242 legal edits (add-override 29: the 23 fixtures and all six tuning ROMs) and 239 illegal, 60 ROMs.
+  phase-4 gate file." Applied (`fb16a0f`): the edit took a found function no found function calls out of
+  `[functions]` and covered its extent with a code override; the gate counted F as accepted through the override's
+  seed when F was only reported as unlisted, which claims nothing, so the edit did not change the model (the review
+  of fix round 4, correctness-o0-1; measured: the tree equals the delete-function edit's). The first Thumb key plus
+  one is an illegal edit (`E_FUNCTION_MISALIGNED`); that half stands. Applied again at fix round 5 (D104 a): no `code`
+  override without `runs_at` changes a confirm model (a confirm run takes only `[functions]`), so the edit is a
+  `data` override over a listed function's trailing pool words, F still listed: the confirm run ends F's extent at
+  the override; the gate keeps the edit only when the model `buildModel` builds differs from the original config's in
+  its functions' extents or its chunks, `generate` must warn no `W_OVERRIDE_IGNORED`, the link must reproduce the
+  SHA-1, `make` must exit 0, and at least one target must take it. Measured: fix round 4 (the code override) ci tier
+  212 legal edits (add-override 23 on 54 fixtures, 31 with no place) and 215 illegal, real tier 242 legal
+  (add-override 29) and 239 illegal, 60 ROMs; fix round 5 (the data override) ci tier 243 legal edits (add-override
+  54, every fixture) and 215 illegal; the real tier in run 6 ("The closing gate").
 
 Raised at fix round 1 (the review of the closing record, D95):
 
@@ -474,10 +484,11 @@ Raised at fix round 1 (the review of the closing record, D95):
   gate require equal + differ + unjudged = proposed and report the unjudged count (correctness-4, a tightening), and
   wrote the exemption into §8.4; the exemption itself is not the owner's words. Options: (a) accept `unjudged`; (b) the
   gate fails on an unjudged size (tmc, fe7j and klonoa fail until the bench can judge them); (c) another rule.
-  **Answered on 25 October 2026 (D98 b), "Accept all three"**: "option (a) each (…; `unjudged` sizes accepted and
-  reported; …). Write each as the owner's rule." §8.4 and the roadmap now state it as the owner's rule; the gate is
-  unchanged (fe7j 20 = 15 equal + 5 unjudged, klonoa 17 = 15 + 2, pokeemerald 17 = 15 + 2, sa2 17 = 15 + 2, sa3 19 =
-  17 + 2, tmc 5 = 0 + 5).
+  **Answered on 25 October 2026 (D98 b), with Q8 and Q14, "Accept all three"**: "option (a) each (the leave-one-out
+  counterpart count; `unjudged` sizes accepted and reported; member symbols compared on a reference ROM, the reviewed
+  display name reported). Write each as the owner's rule." §8.4 and the roadmap now state it as the owner's rule; the
+  gate is unchanged (fe7j 20 = 15 equal + 5 unjudged, klonoa 17 = 15 + 2, pokeemerald 17 = 15 + 2, sa2 17 = 15 + 2,
+  sa3 19 = 17 + 2, tmc 5 = 0 + 5).
 - **Q14. `g6.signatures-judged` compares member symbols, not display names, on a reference ROM.** Phase 4's gate text
   required "on a reference ROM, every name equal to that reference's symbol"; D93 h (the lead's, not the owner's words)
   compares the MemberId's symbol and only reports a reviewed display name. Measured case (correctness-3): on pokeemerald,
@@ -487,9 +498,10 @@ Raised at fix round 1 (the review of the closing record, D95):
   the gate stands changed without his authorisation. Options: (a) accept the member-symbol rule (a reviewed name may
   differ on its own reference); (b) restore the old rule, and the gate fails on pokeemerald until the spec's reviewed
   name goes (the PoC's ad hoc `_dp`/`_f` disambiguation, D31); (c) another rule.
-  **Answered on 25 October 2026 (D98 b), "Accept all three"**: "option (a) each (…; member symbols compared on a
-  reference ROM, the reviewed display name reported). Write each as the owner's rule." The gate stands as D93 h wrote
-  it, now the owner's rule (pokeemerald 397 reference symbols, 1 reviewed name reported).
+  **Answered on 25 October 2026 (D98 b), with Q8 and Q13, "Accept all three"**: "option (a) each (the leave-one-out
+  counterpart count; `unjudged` sizes accepted and reported; member symbols compared on a reference ROM, the reviewed
+  display name reported). Write each as the owner's rule." The gate stands as D93 h wrote it, now the owner's rule
+  (pokeemerald 397 reference symbols, 1 reviewed name reported).
 
 Raised at fix round 2 (the review of fix round 1, D96):
 
@@ -565,6 +577,20 @@ Q6 and Q15. Q4 and Q7 need no answer.
   the owner.
 - **correctness-b2-3's remainder stays carried**: `modules.mk` records only `romlift.toml`'s SHA-1, not the romlift
   version, until romlift is published (D76 d).
+- **`g6.expected-bytes` has one `runs_at` target on the ci tier, and it places every symbol at offset 0 of its module**
+  (fix round 5, correctness-o0-3): the RAM-copy fixture with its override has `gUnk_0800012C` and `sub_0800012C` both
+  at the start of its one `runs_at` module, so a run-offset error for a symbol inside a `runs_at` module is caught on
+  the ci tier only at offset 0. The check works at other offsets: on Klonoa with `bench/overrides/klonoa.json`
+  (measured, not a gate target), moving `sub_0804F4B0` one instruction down fails both the byte and the symbol
+  comparison. A synthetic fixture with labels deeper in a copied range is left to a later phase.
+- **A sized entry drops the default-named data labels inside it** (fix round 5, correctness-o0-5): a `[symbols]` entry
+  with `size` makes every pool word it holds print `name + offset` (D102 a), so `generate` makes no `gUnk_<ADDR>`
+  label inside it. C that already names such a label (`extern … gUnk_080D8E14`) stops linking at `make`, loudly;
+  `generate` does not warn. The fix is to name the entry plus its offset in the C, or to drop the entry's `size`.
+- **The frozen `g4.c-data-fails-loud` header quotes the C-data assertion's old text** (carried from fix round 3,
+  architecture-r2-7, D99 e; recorded at fix round 5, architecture-o0-8): the owner authorised no edit of that gate
+  file, and its pattern matches the current text (`src/<m>.c defines data; see AGENTS.md (…)`), so the gate passes;
+  only its comment is stale. Carried past phase 6.
 - The release-1 limitations of phases 1 to 4 stand (phase-4.md, "Known limitations").
 
 ## Measured numbers
