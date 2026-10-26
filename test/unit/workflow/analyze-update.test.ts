@@ -349,6 +349,18 @@ test('signatures: an entry the user named keeps its name, and [signatures] enabl
   assert.equal(off.changed, false);
 });
 
+test('signatures: [signatures] libraries limits the files a run uses to the libraries it names (final-review docs-and-plan-4)', () => {
+  const { rom, text } = gameProject();
+  const only = (list: string): string => text.replace('[signatures]\nenabled = true', `[signatures]\nenabled = true\nlibraries = ${list}`);
+  const other = update(rom, only('["m4a"]'));
+  assert.ok(other.ok);
+  assert.deepEqual(other.proposals, [], 'libfix is not listed, so its file is not used');
+  assert.equal(other.changed, false);
+  const listed = update(rom, only('["libfix"]'));
+  assert.ok(listed.ok);
+  assert.ok(listed.proposals.some((p) => p.kind === 'function' && p.name === 'FixMulShift'), 'the listed library proposes as without the key');
+});
+
 test('signatures: a proposal the config contradicts (a data override over it) is W_EVIDENCE_CONFLICT and changes nothing', () => {
   const { rom, text } = gameProject();
   const overridden = `${text}\n[[overrides]]\nstart = 0x08000244\nsize = 0xE\nkind = "data"\n`;

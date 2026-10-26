@@ -151,9 +151,13 @@ export const EDGE_TABLE: readonly EdgeRow[] = [
       'src/core/workflow/**',
       'src/core/diagnostic-codes.ts',
       'src/foundation/diagnostics/**',
-      'src/api/**',
+      // The api files whose values the CLI may use: reading files and ROMs, formatting, codecs and doctor. The
+      // verify, project and write-plan barrels are composition, which lives in core/workflow and the shell's runners
+      // (D36; final-review architecture-1), so the CLI reaches them only for types.
+      'src/api/{analysis,config,config-types,files,formats,isa,model,rom,toolchain,workflow-one-shot}.ts',
       'src/cli/**',
     ],
+    allowTypes: ['src/api/**'],
   },
   { from: 'src/api/*.ts', allow: [FOUNDATION, 'src/core/**', 'src/shell/**'] },
   { from: 'src/{index,node,isa,internal}.ts', allow: ['src/api/*.ts'], rule: 'barrel' },
@@ -609,8 +613,15 @@ function isSortedHelperArgument(cx: FileContext, node: ts.Node): boolean {
   });
 }
 
+/**
+ * Where `.toString(16)` may format a number (architecture §4.4, final-review architecture-4): the hex helpers, and the
+ * instruction formatter and corpus, whose operand spelling (lower case, `#0x12`) is the printer's own.
+ */
+const HEX_FORMATTERS: readonly string[] = ['src/foundation/util/hex.ts', 'src/foundation/isa/operand-text.ts', 'src/foundation/corpus/layout.ts'];
+
 function checkSourceRules(cx: FileContext): void {
   const pure = cx.file.startsWith('src/foundation/') || cx.file.startsWith('src/core/');
+  const hexFormatter = !cx.file.startsWith('src/') || HEX_FORMATTERS.includes(cx.file);
   const mapScope = isUnder(cx.file, MAP_ITERATION_SCOPES);
   const shellReaddir = cx.file.startsWith('src/shell/') && cx.file !== 'src/shell/fs.ts';
 
@@ -624,6 +635,12 @@ function checkSourceRules(cx: FileContext): void {
     const member = memberName(node);
     if (member !== undefined && LOCALE_MEMBERS.has(member)) {
       cx.report(node, 'member', `.${member} depends on the locale`);
+    }
+    if (!hexFormatter && ts.isCallExpression(node) && node.arguments.length === 1 && memberName(node.expression) === 'toString') {
+      const radix = node.arguments[0];
+      if (radix !== undefined && ts.isNumericLiteral(radix) && radix.text === '16') {
+        cx.report(node, 'member', '.toString(16) formats hex outside foundation/util/hex.ts; use hex, hexAddr or hexSize');
+      }
     }
     if (ts.isCallExpression(node) && node.arguments.length === 0) {
       const callee = memberName(node.expression);

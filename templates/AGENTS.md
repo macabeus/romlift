@@ -13,7 +13,7 @@ was created by [romlift](https://github.com/macabeus/romlift) @@romliftVersion@@
 | `make rom` | builds `@@builtRom@@` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
 | `make expected` | builds each module's objdiff target, `build/expected/<module>.o` (no compiler; `objdiff.json` lists the C modules') |
-| `npx romlift rename <old> <new>` | renames a function or symbol in `romlift.toml` and in the C of `src/` and `include/` together |
+| `npx romlift rename <old> <new>` | renames a function or symbol of `romlift.toml` in it and in the C of `src/` and `include/` together (a default data label such as `gUnk_<ADDR>` needs a `[symbols]` entry first, below) |
 | `make clean` | removes `build/` (the objdiff targets with it) and the built ROM |
 
 `@@romFile@@` is the original ROM. It is never committed (`.gitignore`); bring your own copy.
@@ -36,7 +36,9 @@ generate`).
   they differ, rather than build a stale tree. After one that changes the romlift version `package.json` pins, run
   `./setup.sh` and then `npx romlift generate` yourself: neither `make` nor `./setup.sh` notices a new romlift.
 - **Yours:** `romlift.toml` (modules, function names and boundaries, symbols; the one place to change what is
-  generated), `src/*.c`, `include/`, `Makefile`, `mk/*.mk`, `setup.sh` and this file. romlift wrote them once and does
+  generated), `src/*.c`, `include/` (`global.h` with `gba/types.h` and `gba/io_reg.h`, the types and I/O registers
+  decompiled C includes; `include_asm.h` and `macros.inc`, which the stubs need), `Makefile`, `mk/*.mk`, `setup.sh` and
+  this file. romlift wrote them once and does
   not overwrite them; `npx romlift scaffold --diff` shows how they differ from the current templates.
 
 ## Decompiling a function
@@ -73,14 +75,40 @@ decompiled function, change both its C name and `romlift.toml`; renamed in C alo
 name of the project (an entry, an alias or a module of `romlift.toml`, or a name the generated files use, such as a
 default `unk_…`, `gUnk_…` or `_0800…` label), when `<old>` names nothing, or when a file it cannot edit names `<old>`:
 a symbolic link (an edit would replace the link with a file), a file that is not UTF-8 text, or a binary. It warns
-(`W_RENAME_SKIPPED`) of every other such file it left alone.
+(`W_RENAME_SKIPPED`) of every other such file it left alone. It renames only what `romlift.toml` lists: every function
+is listed, but a default data or RAM label (`gUnk_<ADDR>`, `unk_<ADDR>`) is not, so `rename` refuses it
+(`E_RENAME_UNKNOWN`). Add its entry to `[symbols]` first, under the default name (`0x08051C76 = "gUnk_08051C76"`, with
+`size` when you know it), then rename it.
 
 **Entries named by library signatures.** romlift recognises library code (m4a, libgcc, the BIOS call stubs, …) by its
 bytes and names it: such an entry of `[functions]` or `[symbols]` carries `from = "sig:<library>@<version>"`, and the
 library gets an `asm` module of its own (`[[modules]]` with `library` and `version`). Every `romlift generate` checks an
 entry with `from` against the code it finds (a warning, `W_LISTED_INVALID`, when they disagree); the TOML still
 decides. Rename such an entry like any other: the rename drops its `from`. `npx romlift analyze --update --write`
-renames only entries that still carry a default name, so a name you gave is never replaced.
+renames only entries that still carry a default name, so a name you gave is never replaced. `[signatures] libraries`
+lists the libraries whose signature files `analyze --update` uses (`init` writes the ones it placed); remove the key, or
+add a library, to let it use another.
+
+Signature files are not shipped with romlift: `init` names no library (`W_SIGNATURES_ABSENT`) unless they were built
+(`romlift signatures build`, in a romlift source checkout with the reference decomp checkouts) or `ROMLIFT_SIGNATURES`
+names a directory of them. Built after `init`, `analyze --update --write` renames the library's functions but adds no
+library module where `init`'s default modules already lie (`W_LIBRARY_MODULE_DROPPED`, naming the region): it only
+inserts modules. To give the library its `asm` module by hand, in `romlift.toml`: delete the `[[modules]]` blocks with
+default names (`main_<n>`, `asm_<ADDR>`) that start inside the region the warning names; add, at the region's start,
+
+```toml
+[[modules]]
+name = "m4a"
+start = 0x0804F284
+kind = "asm"
+library = "m4a"
+version = "2001"
+```
+
+and, when the region ends inside code a deleted module held, a `[[modules]]` of the kind it had at the region's end
+(a `c` module needs a name of its own, such as `main_<ADDR>`). Move any decompiled C out of the deleted modules' files
+first; a `src/<module>.c` left holding only `INCLUDE_ASM` lines can be deleted (`romlift generate` warns
+`W_C_FILE_UNUSED` while it exists). Then run `npx romlift generate` and `make`.
 
 Write decompiled C in `src/<module>.c` itself, or in a `src/*.c` file directly under `src/` that it `#include`s at
 file scope (romlift reads that file, and the `src/*.c` files directly under `src/` it includes, as part of the module:
@@ -135,7 +163,9 @@ bytes `build/src/<module>.o` had before you decompiled anything. `objdiff.json` 
 with that target and the object `make` builds from `src/<module>.c`, `build/src/<module>.o`. Open the project in objdiff
 (or run `objdiff-cli`) after `make expected`: it runs `make build/src/<module>.o` itself before each diff
 (`build_base`), never `make expected` (`build_target` is false), so run `make expected` again after a `romlift
-generate` that changed `expected/`. Before you change anything, objdiff scores every function at 100%.
+generate` that changed `expected/`. Before you change anything, objdiff scores every function at 100%. Use objdiff
+3.7.2 or later (the version romlift is tested with): older releases cannot load the targets (`Unsupported ARM implicit
+relocation`).
 
 ## Code that runs from RAM
 

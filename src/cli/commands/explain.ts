@@ -24,6 +24,7 @@ import type { Addr, Diagnostic } from '../../api/rom.ts';
 import { explainOutcome, explainProject } from '../../core/workflow/explain.ts';
 import type { ExplainChunk, ExplainName, ExplainOutcome, ExplainReport } from '../../core/workflow/explain.ts';
 import type { ExplainSignature } from '../../core/workflow/explain.ts';
+import { projectConfigIgnored } from '../../shell/project/locate.ts';
 import { readProject, resolveFrom } from '../../shell/project/read-inputs.ts';
 import { loadSignatureFiles } from '../../shell/signatures/locate.ts';
 import { ExitCode } from '../exit-codes.ts';
@@ -206,8 +207,10 @@ async function explainAt(io: CliIo, romPath: string | undefined, addr: Addr, sig
   if (!loaded.ok) return { refused: [loaded.diagnostic] };
   const located = await loadSignatureFiles(io, signatures === undefined ? {} : { dir: signatures });
   const outcome = explainOutcome(loaded.value, addr, { signatureFiles: located.files });
-  // The explanation's own diagnostics first (an image that is not a cartridge), then the notes on the signature files.
-  return { report: outcome.report, diagnostics: [...outcome.diagnostics, ...located.diagnostics] };
+  // The explanation's own diagnostics first (an image that is not a cartridge), then the notes on the signature files
+  // and on a project's romlift.toml left unread.
+  const ignored = await projectConfigIgnored(io.cwd, 'explain');
+  return { report: outcome.report, diagnostics: [...outcome.diagnostics, ...located.diagnostics, ...(ignored === undefined ? [] : [ignored])] };
 }
 
 export const explainCommand: CommandSpec = {

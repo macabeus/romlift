@@ -11,7 +11,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { insnUnit } from '../../foundation/rom/span.ts';
-import { hexAddr } from '../../foundation/util/hex.ts';
+import { hexAddr, hexSize } from '../../foundation/util/hex.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import { SignatureCodes } from './codes.ts';
@@ -213,22 +213,32 @@ function versionDiagnostics(state: VersionState): Diagnostic<SignatureCode>[] {
     const p = state.placed.get(m.index);
     if (p?.constants !== undefined) out.push(constantDiagnostic(placementOf(state, m, p)));
   }
+  const ambiguous: { readonly name: string; readonly count: string }[] = [];
   for (const m of state.members) {
     if (state.placed.has(m.index)) continue;
     const refused = state.refusals.get(m.index);
     if (refused !== undefined) {
       out.push(diagnostic(SignatureCodes, 'W_SIGNATURE_POINTERS', `${label}: ${m.name} fits at ${hexAddr(refused)} but its pointers do not name the placed functions; not placed`, { addr: refused }));
     } else if (m.candidates.length > 1) {
-      const count = m.candidates.length >= state.policy.candidateCap ? `${m.candidates.length} or more` : `${m.candidates.length}`;
-      out.push(diagnostic(SignatureCodes, 'W_SIGNATURE_AMBIGUOUS', `${label}: ${m.name} fits at ${count} places and no neighbour settles it`));
+      ambiguous.push({ name: m.name, count: m.candidates.length >= state.policy.candidateCap ? `${m.candidates.length} or more` : `${m.candidates.length}` });
     }
+  }
+  // One line per version (final-review clean-clone-6, end-to-end-user-16): a version that placed nothing at all is
+  // most likely not linked, and its short members fit by chance, so the line says so instead of one warning each.
+  const only = ambiguous.length === 1 ? ambiguous[0] : undefined;
+  const none = state.placed.size === 0 ? `; nothing of ${label} is placed, so the ROM likely does not link it` : '';
+  if (only !== undefined) {
+    out.push(diagnostic(SignatureCodes, 'W_SIGNATURE_AMBIGUOUS', `${label}: ${only.name} fits at ${only.count} places and no neighbour settles it${none}`));
+  } else if (ambiguous.length > 1) {
+    const list = ambiguous.map((a) => `${a.name} (${a.count})`).join(', ');
+    out.push(diagnostic(SignatureCodes, 'W_SIGNATURE_AMBIGUOUS', `${label}: ${ambiguous.length} members fit at several places and no neighbour settles them: ${list}${none}`));
   }
   return out;
 }
 
 /** W_SIGNATURE_CONSTANT for a placement sig.pinned-both-sides made: the words where the ROM differs from the reference. */
 export function constantDiagnostic(p: SignaturePlacement): Diagnostic<SignatureCode> {
-  const words = (p.constants ?? []).map((c) => `+0x${c.offset.toString(16)} ${hexAddr(c.reference)} -> ${hexAddr(c.rom)}`).join(', ');
+  const words = (p.constants ?? []).map((c) => `+${hexSize(c.offset)} ${hexAddr(c.reference)} -> ${hexAddr(c.rom)}`).join(', ');
   return diagnostic(SignatureCodes, 'W_SIGNATURE_CONSTANT', `${versionKey(p.library, p.version)}: ${p.name} differs from the reference in game constants: ${words}`, {
     addr: p.addr,
     span: { start: p.addr, end: p.addr + p.size },

@@ -88,7 +88,7 @@ export function usageText(commands: readonly CommandSpec[]): string {
     'Commands:',
     ...(rows.length === 0 ? ['  (none)'] : table(rows)),
     '',
-    `Run '${PROGRAM} <command> --help' for the options of a command.`,
+    `Run '${PROGRAM} <command> --help' for the options of a command, '${PROGRAM} --version' for the version.`,
     '',
   ].join('\n');
 }

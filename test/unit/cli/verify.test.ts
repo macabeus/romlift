@@ -12,7 +12,8 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { verifyExitCode } from '../../../src/cli/commands/command-common.ts';
-import { toolchainChecks, verifyNdjson, verifyText, VERIFY_TEMP_PREFIX } from '../../../src/cli/commands/verify.ts';
+import { verifyNdjson, verifyText } from '../../../src/cli/commands/verify.ts';
+import { runToolchainChecks, VERIFY_TEMP_PREFIX } from '../../../src/shell/project/verify-run.ts';
 import type { VerifyOutcome } from '../../../src/cli/commands/verify.ts';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
@@ -179,7 +180,7 @@ test('the toolchain checks write the tree into a fresh temporary directory, asse
     for (const printer of PRINTERS) {
       const result = generate({ rom, config: discovered(rom), decomp: { defined: [] }, printer });
       assert.ok(result.report.ok, `${fixture.name} ${printer}: ${result.report.checks.map((c) => c.detail).join('; ')}`);
-      const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: process.env }, prefix);
+      const outcome = await runToolchainChecks(rom, result, { assemble: true, link: true }, process.env, prefix);
       assert.deepEqual(
         outcome.checks.map((c) => [c.id, c.ok, c.detail]),
         [
@@ -197,7 +198,7 @@ test('the toolchain checks write the tree into a fresh temporary directory, asse
 test('binutils missing from the environment is E_TOOLCHAIN_MISSING on both toolchain checks, which exits 1', async () => {
   const rom = readFixtureRom(FAR_JUMP);
   const result = generate({ rom, config: discovered(rom), decomp: { defined: [] }, printer: 'readable' });
-  const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: { PATH: '' } });
+  const outcome = await runToolchainChecks(rom, result, { assemble: true, link: true }, { PATH: '' });
   assert.deepEqual(
     outcome.checks.map((c) => [c.id, c.ok, c.diagnostics.map((d) => d.code)]),
     [
@@ -212,13 +213,13 @@ test('nothing is written and no toolchain check runs while a self-check fails', 
   const rom = readFixtureRom(FAR_JUMP);
   const result = generate({ rom, config: discovered(rom), decomp: { defined: [] }, printer: 'readable' });
   const broken = { ...result, report: { ok: false, checks: [checkResult('tiling', [diagnostic(VerifyCodes, 'E_SELF_CHECK_TILING', 'gap')], 'gap')] } };
-  const outcome = await toolchainChecks(rom, broken, { assemble: false, link: true }, { ...capturingIo(), env: process.env });
+  const outcome = await runToolchainChecks(rom, broken, { assemble: false, link: true }, process.env);
   assert.deepEqual(
     outcome.checks.map((c) => [c.id, c.ok]),
     [['link', false]],
   );
   assert.match(outcome.checks[0]?.detail ?? '', /^not run: /);
-  assert.deepEqual(await toolchainChecks(rom, result, { assemble: false, link: false }, capturingIo()), { checks: [] });
+  assert.deepEqual(await runToolchainChecks(rom, result, { assemble: false, link: false }, {}), { checks: [] });
 });
 
 test('verify exits 0 on every fixture with both printers and --link reproduces the SHA-1', { skip: noToolchain }, async () => {
@@ -264,7 +265,7 @@ test('a [symbols] entry in RAM names every pool word equal to its address, which
       assert.match(all, /\.4byte gIrqStackTop\b/);
       assert.doesNotMatch(all, /\.4byte 0x0(2000000|3007FA0)\b/);
     }
-    const outcome = await toolchainChecks(rom, result, { assemble: true, link: true }, { ...capturingIo(), env: process.env });
+    const outcome = await runToolchainChecks(rom, result, { assemble: true, link: true }, process.env);
     assert.deepEqual(outcome.checks.map((c) => [c.id, c.ok]), [['assemble', true], ['link', true]], printer);
     assert.equal(outcome.sha1, rom.sha1, printer);
   }
@@ -327,4 +328,14 @@ test('inside a project another ROM is E_ROM_SHA1_MISMATCH (exit 1); --rom keeps 
   assert.equal(lines(io.out.join(''))[0]?.['code'], 'E_ROM_SHA1_MISMATCH');
   const bare = { ...capturingIo(), cwd: dir };
   assert.equal(await main(['verify', '--rom', 'baserom.gba', '--json'], bare), ExitCode.ok);
+  // It says so: the project's romlift.toml was not read (final-review end-to-end-user-5); so do model and explain.
+  assert.ok(lines(bare.out.join('')).some((l) => l['code'] === 'W_PROJECT_CONFIG_IGNORED'), bare.out.join(''));
+  for (const argv of [['model', '--rom', 'baserom.gba', '--json'], ['explain', '0x08000000', '--rom', 'baserom.gba', '--json']]) {
+    const io2 = { ...capturingIo(), cwd: dir };
+    await main(argv, io2);
+    assert.ok(lines(io2.out.join('')).some((l) => l['code'] === 'W_PROJECT_CONFIG_IGNORED'), `${argv[0]}: ${io2.out.join('').slice(-400)}`);
+  }
+  const outside = { ...capturingIo(), cwd: TMP };
+  await main(['verify', '--rom', join(dir, 'baserom.gba'), '--json'], outside);
+  assert.ok(!lines(outside.out.join('')).some((l) => l['code'] === 'W_PROJECT_CONFIG_IGNORED'), 'outside a project there is nothing to ignore');
 });

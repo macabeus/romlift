@@ -61,7 +61,10 @@ function settleOverlaps(rom: Rom, placements: readonly SignaturePlacement[], dro
       taken.fill(1, off, off + p.size);
       kept.push(p);
     }
-    if (clashes > 0) drops.push(diagnostic(SignatureCodes, 'W_SIGNATURE_DROPPED', `${key}: ${clashes} of its ${list.length} placements overlap a version that placed more; dropped`));
+    // A version all of whose placements another version of its library took first is that library's other version:
+    // the ROM links the winner, and the drop is no news (final-review clean-clone-6). Any other drop is reported.
+    const superseded = clashes === list.length && kept.some((k) => k.library === list[0]?.library);
+    if (clashes > 0 && !superseded) drops.push(diagnostic(SignatureCodes, 'W_SIGNATURE_DROPPED', `${key}: ${clashes} of its ${list.length} placements overlap a version that placed more; dropped`));
   }
   return kept.sort(byAddress);
 }

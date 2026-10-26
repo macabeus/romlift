@@ -169,7 +169,8 @@ async function runMatch(io: CliIo, romArg: string, dirArg: string | undefined, j
 
 export const signaturesCommand: CommandSpec = {
   name: COMMAND,
-  summary: 'Places the built library signatures on a ROM (signatures <rom>), or builds a signature file from a spec (signatures build <spec>)',
+  summary:
+    'Places the built library signatures on a ROM (signatures <rom>), or builds a signature file from a spec (signatures build <spec>; in a romlift source checkout, with the reference decomp checkouts of the spec under ROMLIFT_BENCH_ROOT)',
   usage: 'signatures <rom> [--signatures <dir>] [--json] | signatures build <spec> [--out <dir>] [--json]',
   positionals: [{ name: '<rom>|build' }, { name: '<spec>', optional: true }],
   options: [

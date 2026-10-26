@@ -82,14 +82,15 @@ export function placeholderValues(vars: ScaffoldVars): Readonly<Record<ScaffoldP
   };
 }
 
-const PLACEHOLDER = /@@([A-Za-z0-9]*)@@/g;
+/** A placeholder spelling, `@@<name>@@` (render.ts fills them). */
+export const PLACEHOLDER = /@@([A-Za-z0-9]*)@@/g;
 
 /** The placeholder names `text` spells, in order (a name may be unknown); a lone `@@` is not one. */
 export function placeholdersIn(text: string): readonly string[] {
   return [...text.matchAll(PLACEHOLDER)].map((m) => m[1] ?? '');
 }
 
-function isPlaceholder(name: string): name is ScaffoldPlaceholder {
+export function isPlaceholder(name: string): name is ScaffoldPlaceholder {
   return (SCAFFOLD_PLACEHOLDERS as readonly string[]).includes(name);
 }
 

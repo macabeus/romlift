@@ -14,6 +14,11 @@ export function hex(value: number, digits = 8): string {
   return (value >>> 0).toString(16).toUpperCase().padStart(digits, '0');
 }
 
+/** `value` as '0x' followed by its upper-case hex digits, unpadded: a size, an offset or a count (final-review architecture-4). */
+export function hexSize(value: number): string {
+  return `0x${(value < 0 ? value >>> 0 : value).toString(16).toUpperCase()}`;
+}
+
 /** `addr` as '0x' followed by eight upper-case hex digits. */
 export function hexAddr(addr: number): string {
   return `0x${hex(addr)}`;

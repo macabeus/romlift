@@ -15,6 +15,7 @@ import type { Diagnostic, Rom } from '../../api/rom.ts';
 import { confirmProject } from '../../core/workflow/generate.ts';
 import { initModel } from '../../core/workflow/init-config.ts';
 import type { InitModel } from '../../core/workflow/init-config.ts';
+import { projectConfigIgnored } from '../../shell/project/locate.ts';
 import { readProject, resolveFrom } from '../../shell/project/read-inputs.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
@@ -33,17 +34,18 @@ function modelSummary(model: Model, exitCode: ExitCode): RunSummary {
 }
 
 /** The model of the project that holds `from`, or of the bare ROM at `romPath`, with the ROM it was built from. */
-async function modelOf(from: string, romPath: string | undefined): Promise<{ readonly rom: Rom; readonly model: InitModel } | { readonly refused: readonly Diagnostic[] }> {
+async function modelOf(from: string, romPath: string | undefined): Promise<{ readonly rom: Rom; readonly model: InitModel; readonly notes: readonly Diagnostic[] } | { readonly refused: readonly Diagnostic[] }> {
   if (romPath === undefined) {
     const read = await readProject(from, { withoutC: true });
     if (!read.ok) return { refused: read.diagnostics };
     const confirmed = confirmProject(read.value.inputs);
     if (!confirmed.ok) return { refused: confirmed.diagnostics };
-    return { rom: read.value.inputs.rom, model: { ...confirmed, config: read.value.inputs.config } };
+    return { rom: read.value.inputs.rom, model: { ...confirmed, config: read.value.inputs.config }, notes: [] };
   }
   const loaded = await readRom(resolveFrom(from, romPath));
   if (!loaded.ok) return { refused: [loaded.diagnostic] };
-  return { rom: loaded.value, model: initModel(loaded.value) };
+  const ignored = await projectConfigIgnored(from, 'model');
+  return { rom: loaded.value, model: initModel(loaded.value), notes: ignored === undefined ? [] : [ignored] };
 }
 
 const MODULE_HEADER = ['module', 'kind', 'span', 'chunks', 'compiler'];
@@ -76,11 +78,11 @@ export const modelCommand: CommandSpec = {
       return ExitCode.errors;
     }
     const { analysis, model } = init;
-    const diagnostics: readonly Diagnostic[] = [...analysis.diagnostics, ...model.diagnostics];
+    const diagnostics: readonly Diagnostic[] = [...built.notes, ...analysis.diagnostics, ...model.diagnostics];
     const summary = modelSummary(model, exitCodeOf(diagnostics));
     if (json) {
       await writeLines(io, encodeModel(model, rom));
-      await writeLines(io, [...analysis.diagnostics.map(diagnosticLine), summaryLine(summary)]);
+      await writeLines(io, [...built.notes.map(diagnosticLine), ...analysis.diagnostics.map(diagnosticLine), summaryLine(summary)]);
     } else {
       if (diagnostics.length > 0) io.stderr(diagnostics.map((d) => `${formatDiagnosticText(d)}\n`).join(''));
       io.stdout(modelText(model, summary));

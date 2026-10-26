@@ -35,7 +35,7 @@ import { specOf } from '../isa/rows.ts';
 import type { Assembled, FlowKind, SymbolResolver } from '../isa/types.ts';
 import type { Addr, Mode } from '../rom/span.ts';
 import { insnAligned, insnUnit } from '../rom/span.ts';
-import { hex } from '../util/hex.ts';
+import { hex, hexSize } from '../util/hex.ts';
 import { abs32Word, type SymbolValue } from './relocation.ts';
 import type { Expr, Statement } from './statements.ts';
 
@@ -512,8 +512,8 @@ function emit(p: Placed, symbols: Symbols, input: LayoutInput, bytes: Uint8Array
       return undefined;
     case 'incbin': {
       const data = input.incbin(stmt.file, stmt.offset, stmt.length);
-      if (data === undefined) return `cannot read ${stmt.length} bytes of "${stmt.file}" at 0x${stmt.offset.toString(16)}`;
-      if (data.length !== stmt.length) return `"${stmt.file}" gave ${data.length} bytes at 0x${stmt.offset.toString(16)}, not ${stmt.length}`;
+      if (data === undefined) return `cannot read ${stmt.length} bytes of "${stmt.file}" at ${hexSize(stmt.offset)}`;
+      if (data.length !== stmt.length) return `"${stmt.file}" gave ${data.length} bytes at ${hexSize(stmt.offset)}, not ${stmt.length}`;
       bytes.set(data, offset);
       return undefined;
     }

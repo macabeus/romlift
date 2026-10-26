@@ -114,6 +114,3 @@ export type JsonValue =
   | readonly JsonValue[]
   | { readonly [key: string]: JsonValue | undefined };
 
-export type ParseElf = (bytes: Uint8Array) => ParseResult<ElfFile>;
-export type ParseGnuMap = (text: string) => ParseResult<GnuMap>;
-export type CanonicalJson = (value: JsonValue) => Iterable<string>;

@@ -359,6 +359,6 @@ test('control: the tests pass with the journal modules loaded through the mutant
 for (const mutant of MUTANTS) {
   test(`mutant caught: ${mutant.name}`, { skip: underMutation() }, async (t) => {
     const failed = await assertCaught(THIS_FILE, mutant);
-    t.diagnostic(`failed under the mutant: ${failed.join('; ')}`);
+    t.diagnostic(`mutant killed (expected) by: ${failed.join('; ')}`);
   });
 }

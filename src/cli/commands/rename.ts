@@ -44,7 +44,8 @@ async function printOutcome(io: CliIo, json: boolean, outcome: RenameOutcome, su
 
 export const renameCommand: CommandSpec = {
   name: 'rename',
-  summary: "Renames a function or symbol: its romlift.toml entry on one line (its `from` dropped) and the identifiers in src/ and include/, never comments or strings",
+  summary:
+    "Renames a function or symbol of romlift.toml: its entry on one line (its `from` dropped) and the identifiers in src/ and include/, never comments or strings; a default data label (gUnk_…) needs a [symbols] entry first",
   usage: 'rename <old> <new> [--json]',
   positionals: [{ name: '<old>' }, { name: '<new>' }],
   options: [{ name: 'json', kind: 'boolean', summary: 'Prints NDJSON: one line per edited file, the TOML patch, the diagnostics, then a summary' }],

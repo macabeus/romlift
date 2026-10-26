@@ -9,7 +9,7 @@
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { parseElf, relocationsOf } from '../../foundation/formats/elf.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import { hex } from '../../foundation/util/hex.ts';
+import { hex, hexSize } from '../../foundation/util/hex.ts';
 import type { AssembleUnit, BuildUnit } from '../model/paths.ts';
 import type { CheckResult } from './report.ts';
 
@@ -58,7 +58,7 @@ export function firstDifference(image: Uint8Array, rom: Rom): string {
   for (let i = 0; i < shared; i++) {
     if (image[i] !== rom.bytes[i]) return `first difference at 0x${hex(rom.base + i)}`;
   }
-  return `the image is 0x${image.length.toString(16)} bytes, the ROM 0x${rom.bytes.length.toString(16)}`;
+  return `the image is ${hexSize(image.length)} bytes, the ROM ${hexSize(rom.bytes.length)}`;
 }
 
 /** The link verdict of a linked image of `units` units, whose SHA-1 the shell computed. */
@@ -84,7 +84,7 @@ function compareSection(object: Uint8Array, unit: AssembleUnit, rom: Rom, name: 
   const length = span.end - span.start;
   const size = section?.size ?? 0;
   if (section === undefined || size !== length) {
-    return failed(`${unit.object} has 0x${size.toString(16)} bytes of ${name}, ${what} spans 0x${length.toString(16)}`);
+    return failed(`${unit.object} has ${hexSize(size)} bytes of ${name}, ${what} spans ${hexSize(length)}`);
   }
   if (section.offset + size > object.length) return failed(`${unit.object}: ${name} lies outside the file`);
   const relocations = relocationsOf(object, elf.value, section);

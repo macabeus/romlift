@@ -8,6 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { join, posix } from 'node:path';
 
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
+import { readTextIfPresent } from '../fs.ts';
 import { sha256Stream } from '../hash.ts';
 
 /** Where the closure starts (repository-relative): the corpus core, its verdict, its runner, this digest and the driver. */
@@ -32,12 +33,11 @@ export function relativeImports(text: string): readonly string[] {
   return out;
 }
 
+/** A corpus input's text, or undefined when it does not exist; an input that cannot be read stops the digest. */
 async function readText(path: string): Promise<string | undefined> {
-  try {
-    return await readFile(path, 'utf8');
-  } catch {
-    return undefined;
-  }
+  const read = await readTextIfPresent(path);
+  if (!read.ok) throw new Error(read.diagnostic.message);
+  return read.value;
 }
 
 /** The repository-relative files the corpus depends on, sorted by code unit; roots that do not exist are left out. */

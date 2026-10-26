@@ -17,6 +17,15 @@ knows nothing of phases (D29).
 | `init <rom> [dir] [--name <name>] [--module-size <bytes>] [--json]` | `commands/init.ts` | `lists/one-shot.ts` | phase 4 |
 | `generate [--rom <rom>] [--dry-run] [--out <dir>] [--json]` | `commands/generate.ts` | `lists/one-shot.ts` | phase 4 |
 | `scaffold --diff [--json]` | `commands/scaffold.ts` | `lists/scaffold.ts` | phase 4 |
+| `signatures build <spec> [--out <dir>] [--json]` | `commands/signatures.ts` | `lists/signatures.ts` | phase 6 |
+| `signatures <rom> [--signatures <dir>] [--json]` | `commands/signatures.ts` | `lists/signatures.ts` | phase 6 |
+| `init <rom> --no-signatures` | `commands/init.ts` | `lists/one-shot.ts` | phase 6 (the flag) |
+| `rename <old> <new> [--json]` | `commands/rename.ts` | `lists/rename.ts` | phase 6 (moved from phase 5, D92) |
+| `--version` | `main.ts` | none | final review (end-to-end-user-12) |
+
+`verify` only parses and prints: its composition is `core/workflow/verify.ts` (the toolchain plan and the report) and
+`shell/project/verify-run.ts` (the runner), and the CLI may take values from only some `src/api` barrels (architecture
+§2, D106 a). `verify`, `model` and `explain` with `--rom` inside a project warn `W_PROJECT_CONFIG_IGNORED`.
 
 `commands/command-common.ts` holds what several commands share: the exit codes of a refusal and of a verify report
 (`refusedExitCode`, `verifyExitCode`), the diagnostics of a result (`allDiagnostics`), the op counts of a write

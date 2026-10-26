@@ -102,6 +102,19 @@ export interface FunctionFact {
   readonly also: readonly Provenance[];
 }
 
+/**
+ * The PoC's codeRange hi: the greatest extent end of an accepted function, as a view sees it (region.padding and
+ * region.data-after-code share it, final-review architecture-6).
+ */
+export function codeEnd(v: AnalysisView): Addr {
+  let end: Addr = v.rom.base;
+  for (const e of v.functions()) {
+    const f = v.owner(e);
+    end = Math.max(end, f?.entry === e ? f.extent.end : (v.accepted(e)?.end ?? e));
+  }
+  return end;
+}
+
 /** The function of `functions` (sorted by entry, as AnalysisResult.functions is) whose entry is `addr`, or undefined. */
 export function functionAt<F extends Pick<FunctionFact, 'entry'>>(functions: readonly F[], addr: Addr): F | undefined {
   const f = functions[lowerBound(functions, addr, (g) => g.entry)];

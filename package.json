@@ -36,8 +36,7 @@
   },
   "files": [
     "dist/",
-    "templates/",
-    "signatures/specs/"
+    "templates/"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

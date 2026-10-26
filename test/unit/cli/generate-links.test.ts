@@ -46,6 +46,9 @@ async function initProject(): Promise<{ readonly outer: string; readonly dir: st
   await copyFile(COMPOSITE.rom, path.join(dir, 'baserom.gba'));
   const out = await run(dir, ['init', 'baserom.gba', '--module-size', '0x200']);
   assert.equal(out.code, ExitCode.ok, out.stdout);
+  // The layouts below are projects that brought their own headers: init's starter global.h and gba/ are replaced.
+  await rm(path.join(dir, 'include', 'global.h'));
+  await rm(path.join(dir, 'include', 'gba'), { recursive: true });
   return { outer, dir };
 }
 

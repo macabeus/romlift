@@ -20,6 +20,13 @@ import type { IoResult } from '../fs.ts';
 /** The environment variable naming a directory of built signature files. */
 export const SIGNATURES_ENV = 'ROMLIFT_SIGNATURES';
 
+/**
+ * How a user gets signature files, which W_SIGNATURES_ABSENT ends with (final-review clean-clone-2, end-to-end-user-2):
+ * none is shipped (D40), and building one needs a romlift source checkout and the reference decomp checkouts.
+ */
+export const SIGNATURES_HOWTO =
+  `signature files are not shipped (D40): build them in a romlift source checkout with \`romlift signatures build signatures/specs/<library>.json\`, which needs each spec's reference decomp checkouts (ROM, ELF and map) under ROMLIFT_BENCH_ROOT (docs/benchmark-roms.md), or set ${SIGNATURES_ENV} to a directory of built files`;
+
 export interface LocateSignaturesOptions {
   /** The package whose `signatures/` directory is the default. */
   readonly packageRoot: string;
@@ -86,7 +93,7 @@ export async function locateSignatures(options: LocateSignaturesOptions): Promis
  */
 export function signaturesAbsent(located: LocatedSignatures): Diagnostic | undefined {
   if (located.files.length > 0) return undefined;
-  return diagnostic(ShellCodes, 'W_SIGNATURES_ABSENT', `no built signature file in ${located.dir}; build them with \`romlift signatures build <spec>\` (or set ${SIGNATURES_ENV})`, { path: located.dir });
+  return diagnostic(ShellCodes, 'W_SIGNATURES_ABSENT', `no built signature file in ${located.dir}, so no library is named; ${SIGNATURES_HOWTO}`, { path: located.dir });
 }
 
 /** The files a command uses and the notes on them (the locator's, then W_SIGNATURES_ABSENT when it found none). */

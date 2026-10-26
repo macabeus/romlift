@@ -6,7 +6,7 @@ SECTIONS {
         build/rom_header.o(.text);
         build/crt0.o(.text);
         build/src/main.o(.text);
-        build/asm_08000108.o(.text);
+        build/asm_08000104.o(.text);
         build/src/main_2.o(.text);
         build/data.o(.text);
     }

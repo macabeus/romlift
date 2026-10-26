@@ -66,7 +66,7 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { WorkflowCodes } from './codes.ts';
 import { planRunsAtBorders } from '../layout/module-proposals.ts';
 import type { ModuleProposal } from '../proposals/types.ts';
-import { libraryModuleProposals, signatureLayer, signatureNotes, updateProposals } from './signature-layer.ts';
+import { filesFor, libraryModuleProposals, signatureLayer, signatureNotes, updateProposals } from './signature-layer.ts';
 import type { SignatureFile } from '../signatures/schema.ts';
 import type { AnalyzeUpdateInputs, AnalyzeUpdatePlan } from './types.ts';
 
@@ -226,7 +226,7 @@ export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
   if (problems.length > 0) return { ok: false, diagnostics: problems };
   const profile = profileOrDefault(inputs.profile);
   const ram = runsAtBorders(rom, config);
-  const files = config.signatures.enabled ? (inputs.signatureFiles ?? []) : [];
+  const files = filesFor(config.signatures, inputs.signatureFiles ?? []);
   const notes = signatureNotes(config.signatures.enabled, inputs.signatureNotes);
   const found = discovered(rom, config, profile, files, ram.proposals);
   if (found.diagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: found.diagnostics };

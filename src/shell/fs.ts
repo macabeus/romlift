@@ -88,6 +88,19 @@ export async function readText(path: string): Promise<IoResult<string>> {
   return read.ok ? { ok: true, value: new TextDecoder('utf-8').decode(read.value) } : read;
 }
 
+/**
+ * The text of file `path` as UTF-8, or undefined when nothing is there (isAbsentError); any other failure is E_IO_READ
+ * (final-review architecture-5: the lock and the corpus inputs read through it instead of a catch-all).
+ */
+export async function readTextIfPresent(path: string): Promise<IoResult<string | undefined>> {
+  try {
+    return { ok: true, value: await readFile(path, 'utf8') };
+  } catch (error) {
+    if (isAbsentError(error)) return { ok: true, value: undefined };
+    return failure('E_IO_READ', path, 'cannot read', error);
+  }
+}
+
 /** What readJson's caller decodes the parsed JSON with: the value, or why it is refused. */
 export type JsonDecode<T> = (json: unknown) => { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
 

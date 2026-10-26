@@ -23,6 +23,8 @@ export const ShellCodes = defineCodes({
   E_SIGNATURE_FILE_INVALID: { severity: 'error', meaning: 'a signature file is not JSON or not of schema 3 (parseSignatureFile refused it)' },
   W_SIGNATURE_FILE_SKIPPED: { severity: 'warning', meaning: 'a signature file the locator found could not be read or repeats a library; skipped' },
   W_SIGNATURES_ABSENT: { severity: 'warning', meaning: 'no built signature file was found (signatures/ or ROMLIFT_SIGNATURES); nothing is placed' },
+  W_PROJECT_CONFIG_IGNORED: { severity: 'warning', meaning: "verify, model or explain --rom ran inside a project: the bare ROM's discover config was used, not the project's romlift.toml" },
+  W_PROJECT_ROM_ABSENT: { severity: 'warning', meaning: "generate --rom read another ROM path while the project's own ROM is missing, which the tree .incbins and make needs" },
 });
 
 export type ShellCode = keyof typeof ShellCodes;

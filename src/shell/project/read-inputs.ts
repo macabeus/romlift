@@ -93,6 +93,11 @@ export interface ReadProject {
   /** The ROM file read, absolute. */
   readonly romPath: string;
   readonly inputs: ProjectInputs;
+  /**
+   * W_PROJECT_ROM_ABSENT when `options.rom` was read while the config's own ROM path holds no file: the tree written
+   * `.incbin`s that path, so `make` needs it (final-review end-to-end-user-6).
+   */
+  readonly notes: readonly Diagnostic[];
 }
 
 export interface ReadProjectOptions {
@@ -425,8 +430,26 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
   if (!loaded.ok) return loaded;
   const dir = loaded.value.dir;
   const romPath = options.rom === undefined ? join(dir, ...loaded.value.value.rom.path.split('/')) : resolve(from, options.rom);
+  if (options.rom === undefined) {
+    // A project without its ROM (a fresh clone or worktree): say how to get one, not only ENOENT.
+    const present = await isRegularFile(romPath);
+    if (present.ok && !present.value) {
+      return fromIo({
+        ok: false,
+        diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `${romPath} is missing: put your own copy of the ROM there (it is never committed), run ./setup.sh in a git worktree to copy it from the main one, or pass --rom <path>`, { path: romPath }),
+      });
+    }
+  }
   const rom = await readRom(romPath);
   if (!rom.ok) return fromIo(rom);
+  const notes: Diagnostic[] = [];
+  if (options.rom !== undefined) {
+    const own = join(dir, ...loaded.value.value.rom.path.split('/'));
+    const present = await isRegularFile(own);
+    if (present.ok && !present.value) {
+      notes.push(diagnostic(ShellCodes, 'W_PROJECT_ROM_ABSENT', `${own} is missing: the tree reads the ROM's bytes from it (.incbin), so make fails until you copy the ROM there (or run ./setup.sh in a git worktree)`, { path: own }));
+    }
+  }
   let cTexts: ReadonlyMap<string, string> = new Map();
   let previousChunkFiles: readonly string[] | undefined;
   let headerTexts: ReadonlyMap<string, string> | undefined;
@@ -444,7 +467,7 @@ export async function readProject(from: string, options: ReadProjectOptions = {}
     headerRealPaths = headers.value.realPaths;
   }
   const inputs: ProjectInputs = { rom: rom.value, configText: loaded.value.text, config: loaded.value.value, configSha1: loaded.value.sha1, cTexts, ...(previousChunkFiles === undefined ? {} : { previousChunkFiles }), ...(headerTexts === undefined ? {} : { headerTexts }), ...(headerRealPaths === undefined ? {} : { headerRealPaths }) };
-  return { ok: true, value: { dir, config: loaded.value, romPath, inputs } };
+  return { ok: true, value: { dir, config: loaded.value, romPath, inputs, notes } };
 }
 
 /**

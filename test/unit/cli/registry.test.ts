@@ -27,7 +27,7 @@ test('usageText lists commands sorted by name', () => {
       '  verify      Fails its self-check',
       '  zeta        Last by name',
       '',
-      "Run 'romlift <command> --help' for the options of a command.",
+      "Run 'romlift <command> --help' for the options of a command, 'romlift --version' for the version.",
       '',
     ].join('\n'),
   );
@@ -36,7 +36,7 @@ test('usageText lists commands sorted by name', () => {
 test('usageText with no commands', () => {
   assert.equal(
     usageText([]),
-    "Usage: romlift <command> [options]\n\nCommands:\n  (none)\n\nRun 'romlift <command> --help' for the options of a command.\n",
+    "Usage: romlift <command> [options]\n\nCommands:\n  (none)\n\nRun 'romlift <command> --help' for the options of a command, 'romlift --version' for the version.\n",
   );
 });
 

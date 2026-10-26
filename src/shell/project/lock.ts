@@ -3,7 +3,7 @@
 // fails with E_PROJECT_LOCKED; a lock whose pid is gone on this host is taken over with W_STALE_LOCK; the
 // lock is always released, also when the locked function throws.
 import { randomBytes } from 'node:crypto';
-import { link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
+import { link, mkdir, open, rename, unlink } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -13,7 +13,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { LOCK_PATH, ROMLIFT_DIR } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
 import { onDisk } from './disk-state.ts';
-import { errnoOf, errorReason } from '../fs.ts';
+import { errnoOf, errorReason, readTextIfPresent } from '../fs.ts';
 
 export type LockOutcome<T> =
   | { readonly ok: true; readonly value: T; readonly diagnostics: readonly Diagnostic[] }
@@ -77,12 +77,10 @@ async function create(file: string, text: string): Promise<Attempt> {
   }
 }
 
+/** The lock's text, or undefined when it is gone or cannot be read (a removal or a release then does nothing). */
 async function readText(file: string): Promise<string | undefined> {
-  try {
-    return await readFile(file, 'utf8');
-  } catch {
-    return undefined;
-  }
+  const read = await readTextIfPresent(file);
+  return read.ok ? read.value : undefined;
 }
 
 function locked(file: string, why: string): Diagnostic {
@@ -122,7 +120,8 @@ async function acquire(file: string, text: string): Promise<Acquired> {
     if (created.kind === 'taken') return { ok: true, diagnostics: notes };
     if (created.kind === 'failed') return { ok: false, diagnostic: created.diagnostic };
     const held = await readText(file);
-    if (held === undefined) continue; // released between our create and read: try again
+    // Released between our create and read, or unreadable (a directory there): try again, then E_PROJECT_LOCKED.
+    if (held === undefined) continue;
     const holder = parseLock(held);
     if (holder === undefined) {
       return { ok: false, diagnostic: locked(file, 'holds no pid and host; if no romlift run is active, remove it') };

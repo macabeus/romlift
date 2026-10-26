@@ -91,6 +91,14 @@ test('with a built signature file the run judges it on the scored run: the row m
     // A file the locator cannot read stops the run rather than dropping the family.
     await writeFile(join(cx.repoRoot, 'signatures', 'broken.json'), '{}');
     await assert.rejects(benchRun(cx, runWith()), /signatures: .*broken\.json/);
+    // With no built file, a run that would write an artifact without the family the committed one carries is refused
+    // when asked to (`bench run` without --json), and only logs that the family does not run otherwise (clean-clone-3).
+    await rm(join(cx.repoRoot, 'signatures'), { recursive: true });
+    await assert.rejects(benchRun(cx, { ...runWith(), requireSignatures: true }), /no built signature file in .*: build them first with/);
+    assert.equal(await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8'), text, 'nothing is written');
+    const lines: string[] = [];
+    await benchRun(cx, { ...runWith(), json: true, requireSignatures: true, log: (l) => lines.push(l) });
+    assert.ok(lines.some((l) => l.startsWith('signatures: no built signature file')), lines.join('\n'));
   });
 });
 

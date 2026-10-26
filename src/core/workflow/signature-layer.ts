@@ -125,6 +125,16 @@ function keptRegions(regions: readonly LibraryRegion[], placements: readonly Sig
 // ---------------------------------------------------------------------------------------------------
 // Folding into a config (init) and the update's proposals.
 
+/**
+ * The signature files a config lets a run use (final-review docs-and-plan-4): none when `[signatures] enabled` is
+ * false; else, when `libraries` is set, only the files of the libraries it names; else every file.
+ */
+export function filesFor<F extends { readonly library: string }>(signatures: { readonly enabled: boolean; readonly libraries?: readonly string[] }, files: readonly F[]): readonly F[] {
+  if (!signatures.enabled) return [];
+  const only = signatures.libraries;
+  return only === undefined ? files : files.filter((f) => only.includes(f.library));
+}
+
 /** The libraries the kept proposals name, sorted by code unit: init's [signatures] libraries. */
 export function librariesOf(proposals: readonly Proposal[]): readonly string[] {
   const out = new Set<string>();

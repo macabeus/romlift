@@ -270,14 +270,6 @@ export function adrResolverFor(model: Pick<Model, 'labels' | 'modules'>, module:
 }
 
 /**
- * resolverFor over labels and modules not yet in a Model (while buildModel assembles them), in any label
- * order. It indexes them afresh on every call and caches nothing, so the arrays may still grow afterwards.
- */
-export function resolverOver(labels: readonly Label[], modules: readonly Module[], module: string): SymbolResolver {
-  return resolverFromIndex(buildIndex(labels, modules), module);
-}
-
-/**
  * The operand of a `.4byte` holding `value` when it is a load address inside a runs_at module, the module's end
  * included (a copy's end): `__load_<module>`, plus the offset when there is one (`__load_ram_03000388 + 1` for a Thumb
  * pointer to its first byte). It links to `value` itself, wherever the module runs. Undefined for any other value.

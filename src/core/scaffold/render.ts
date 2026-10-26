@@ -10,7 +10,7 @@ import { DIALECT, INCLUDE_ASM_HEADER } from '../../foundation/asm/dialect.ts';
 import { INCLUDE_ASM_HEADER_PATH } from '../../foundation/util/project-files.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
 import { compareCodeUnits } from '../../foundation/util/sorted.ts';
-import { placeholdersIn, placeholderText, placeholderValues, ROMLIFT_RENDERED_TARGETS, SCAFFOLD_PLACEHOLDERS } from './vars.ts';
+import { isPlaceholder, PLACEHOLDER, placeholdersIn, placeholderText, placeholderValues, ROMLIFT_RENDERED_TARGETS } from './vars.ts';
 import type { ScaffoldPlaceholder, ScaffoldTemplates, ScaffoldVars } from './vars.ts';
 
 /**
@@ -24,12 +24,6 @@ export interface ScaffoldFileEntry {
   readonly writer: 'scaffold';
   /** The manifest's `executable`: written with the executable bits (absent: not executable). */
   readonly executable?: true;
-}
-
-const PLACEHOLDER = /@@([A-Za-z0-9]*)@@/g;
-
-function isPlaceholder(name: string): name is ScaffoldPlaceholder {
-  return (SCAFFOLD_PLACEHOLDERS as readonly string[]).includes(name);
 }
 
 /** `text` with every placeholder replaced by its value; `where` names the text in the error of an unknown one. */

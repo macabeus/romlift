@@ -41,7 +41,15 @@ test('a registry failure is W_LOCKFILE_DEFERRED, a warning quoting npm\'s error 
   assert.equal(result.diagnostic.code, 'W_LOCKFILE_DEFERRED');
   assert.equal(result.diagnostic.severity, 'warning');
   assert.equal(result.diagnostic.path, 'package-lock.json');
-  assert.match(result.diagnostic.message, /exited 1 \(npm error code E404; npm error 404 Not Found - GET https:\/\/registry\.npmjs\.org\/romlift\); setup\.sh writes it on its first run$/);
+  assert.match(result.diagnostic.message, /exited 1 \(npm error code E404; npm error 404 Not Found - GET https:\/\/registry\.npmjs\.org\/romlift\); setup\.sh writes it on its first run that installs romlift with npm, and none does while ROMLIFT_CLI is set \(romlift is not on the npm registry until it is published\)$/);
+});
+
+test('with ROMLIFT_CLI set, npm is not run and the lock is deferred saying so (final-review clean-clone-5)', async () => {
+  const bin = await stubNpm('never', 'echo ran > "$0.ran"; exit 0');
+  const result = await writePackageLock(DIR, { env: { PATH: bin, ROMLIFT_CLI: 'node /romlift/dist/cli/main.js' } });
+  assert.ok(!result.ok);
+  assert.equal(result.diagnostic.code, 'W_LOCKFILE_DEFERRED');
+  assert.match(result.diagnostic.message, /^package-lock\.json not written: ROMLIFT_CLI is set, so npm was not asked; /);
 });
 
 test('npm missing from the PATH, an npm that cannot start and the time limit are each deferred', async () => {

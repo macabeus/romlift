@@ -49,7 +49,8 @@ async function printOutcome(io: CliIo, json: boolean, dryRun: boolean, ops: read
 
 export const generateCommand: CommandSpec = {
   name: 'generate',
-  summary: "Regenerates the project's tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk) from its ROM and romlift.toml, and the INCLUDE_ASM lines of src/*.c (missing files written); never writes the TOML",
+  summary:
+    "Regenerates the project's tree (asm/, data/, expected/, ldscript.txt, symbols.ld, objdiff.json, modules.mk) from its ROM and romlift.toml, and the INCLUDE_ASM lines of src/*.c (missing files written); never writes the TOML",
   usage: 'generate [--rom <rom>] [--dry-run] [--json] [--out <dir>]',
   positionals: [],
   options: [
@@ -90,7 +91,7 @@ export const generateCommand: CommandSpec = {
     const dir = out === undefined ? project.dir : resolveFrom(io.cwd, out);
     const written = await writeTree(dir, { result, rom: project.inputs.rom, target: dir === project.dir ? 'project' : 'out' }, version.value, dryRun);
     const ops: readonly WriteOp[] = written.ok ? written.value.plan.ops : [];
-    const diagnostics: readonly Diagnostic[] = [...checked, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
+    const diagnostics: readonly Diagnostic[] = [...project.notes, ...checked, ...(written.ok ? written.value.diagnostics : written.diagnostics)];
     const exitCode = writeExitCode(diagnostics);
     const summary: RunSummary = { ok: exitCode === ExitCode.ok, exitCode, counts: { ...opCounts(ops), files: result.paths.length } };
     await printOutcome(io, json, dryRun, ops, diagnostics, summary);

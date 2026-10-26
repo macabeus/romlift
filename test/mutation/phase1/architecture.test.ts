@@ -204,6 +204,20 @@ const FAULTS: readonly Fault[] = [
     text: "export { listDir } from '../shell/fs.ts';\n",
   },
   {
+    // final-review architecture-1: the verify composition is core/workflow's and the shell's, so the CLI may take
+    // only types from the project, verify and write-plan barrels.
+    name: 'the CLI importing a value of an api barrel outside its list',
+    rule: 'edge',
+    file: 'src/cli/commands/list.ts',
+    text: "import { listDir } from '../../api/files.ts';\nimport { biggest } from '../../api/rom.ts';\nimport { here } from '../../api/project.ts';\nexport const all = [listDir, biggest, here];\n",
+  },
+  {
+    name: '.toString(16) outside the hex helpers',
+    rule: 'member',
+    file: 'src/core/model/size.ts',
+    text: 'export const size = (n: number): string => `0x${n.toString(16)}`;\n',
+  },
+  {
     name: 'bench/src importing src directly',
     rule: 'edge',
     file: 'bench/src/direct.ts',

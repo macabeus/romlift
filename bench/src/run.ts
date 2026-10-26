@@ -70,7 +70,7 @@ import type { PocSource, RomliftRow } from './row.ts';
 import { initVerdict, NOT_RUN, ROMLIFT_FAMILIES, type EmissionFamilies, type InitBuild, type InitBuildVerdict } from './scaffold.ts';
 import { analysisFunctions, scoreAnalysis, staleExceptions } from './score.ts';
 import { appendReveal, assertCountsOnly, sealedCounts, sealedPasses } from './seal.ts';
-import { locateBuiltSignatures, signaturesDigest, tuningSignatures, type SignaturesMember } from './signatures.ts';
+import { locateBuiltSignatures, readBuiltSignatures, SIGNATURES_BUILD_LOOP, signaturesDigest, tuningSignatures, type SignaturesMember } from './signatures.ts';
 import { readSpeedBaseline } from './speed.ts';
 import { objdiffTool, toolchainVersions } from './toolchain.ts';
 
@@ -108,6 +108,12 @@ export interface RunOptions {
   /** The objdiff-cli of a --scaffold run; default toolchain.ts objdiffTool. */
   readonly objdiffTool?: (cx: BenchContext) => Promise<string>;
   readonly log?: (line: string) => void;
+  /**
+   * Refuse a run that writes bench/results.json while no signature file is built and the committed artifact carries the
+   * signatures family (`bench run` without --json sets it): the new artifact would lack the family, which `bench
+   * provenance` rejects (final-review clean-clone-3).
+   */
+  readonly requireSignatures?: boolean;
 }
 
 export interface RunOutcome {
@@ -120,6 +126,12 @@ export interface RunOutcome {
 export async function romliftVersion(repoRoot: string): Promise<string> {
   const pkg = await readJson(join(repoRoot, 'package.json'));
   return isRecord(pkg) && typeof pkg['version'] === 'string' ? pkg['version'] : '';
+}
+
+/** Whether the committed bench/results.json records the signatures family (its `signaturesDigest`). */
+async function committedSignatures(cx: BenchContext): Promise<boolean> {
+  const previous = await readResultsFile(resultsPath(cx)).catch(() => undefined);
+  return previous?.meta.inputs['signaturesDigest'] !== undefined;
 }
 
 /** The previous gate record survives only if it was judged on the same sources and inputs. */
@@ -381,8 +393,15 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
     tuning,
     floors: await readReadabilityFloors(cx),
     objdiff: scaffolding ? await (options.objdiffTool ?? objdiffTool)(cx) : undefined,
-    signatures: tuningSet.length > 0 ? await locateBuiltSignatures(cx) : undefined,
+    signatures: tuningSet.length === 0 ? undefined : await locateBuiltSignatures(cx),
   };
+  if (writing && options.requireSignatures === true && tuningSet.length > 0 && run.signatures === undefined && (await committedSignatures(cx))) {
+    // The committed artifact carries the signatures family; an artifact without it would fail `bench provenance`.
+    await readBuiltSignatures(cx);
+  }
+  if (tuningSet.length > 0 && run.signatures === undefined) {
+    log(`signatures: no built signature file in ${join(cx.repoRoot, 'signatures')}, so the signatures family does not run; build them first with\n  ${SIGNATURES_BUILD_LOOP}`);
+  }
 
   let roms: RomliftRow[] = [];
   const sealed: SealedEntry[] = [];

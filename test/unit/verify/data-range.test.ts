@@ -204,7 +204,7 @@ for (const [name, model] of Object.entries(LAYOUTS)) {
     assert.ok(unit !== undefined && data !== undefined);
     const at = (start: number, end: number): AssembleUnit => ({ ...unit, data: { ...data, span: { start, end } } });
     assert.match(compareObject(object, at(TABLE - 4, rom.end - 4), rom).detail, /^first difference at 0x0800014/);
-    assert.equal(compareObject(object, at(TABLE, rom.end - 4), rom).detail, 'build/src/main.o has 0x10 bytes of .rodata, its data range spans 0xc');
+    assert.equal(compareObject(object, at(TABLE, rom.end - 4), rom).detail, 'build/src/main.o has 0x10 bytes of .rodata, its data range spans 0xC');
     assert.equal(compareObject(object, at(TABLE, rom.end), rom).ok, true);
   });
 }

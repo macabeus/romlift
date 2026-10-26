@@ -3,19 +3,9 @@
 // the alignment of the item after it and ending on that alignment, becomes a padding claim. It runs after
 // the passes, so it changes no function and no extent.
 import type { Addr } from '../../../../foundation/rom/span.ts';
-import { Claim } from '../../types.ts';
+import { Claim, codeEnd } from '../../types.ts';
 import type { AnalysisView, ClaimEdit, ClaimKind } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
-
-/** The PoC's codeRange hi: the greatest extent end of an accepted function. */
-function codeEnd(v: AnalysisView): Addr {
-  let end: Addr = v.rom.base;
-  for (const e of v.functions()) {
-    const f = v.owner(e);
-    end = Math.max(end, f?.entry === e ? f.extent.end : (v.accepted(e)?.end ?? e));
-  }
-  return end;
-}
 
 /** Whether the free run [start, stop) aligns the claimed item at `stop`. */
 function aligns(v: AnalysisView, start: Addr, stop: Addr, next: ClaimKind): boolean {

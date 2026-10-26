@@ -144,6 +144,10 @@ test('klonoa: a renamed NONMATCHING block, a module split behind a decompiled fu
   // `init --no-signatures` here until then).
   const init = await run(cli, ['init', 'baserom.gba', '--json'], dir);
   assert.equal(init.code, 0, tail(init));
+  // The flows below lay out the project's own headers (global.h, gba/), as klonoa's do: init's starter headers are
+  // replaced (final-review docs-and-plan-1 added them to the scaffold).
+  await rm(file('include/global.h'));
+  await rm(file('include/gba'), { recursive: true });
   for (const part of ['bin', 'include', 'lib']) if (prebuilt !== undefined && existsSync(path.join(prebuilt, part))) await cp(path.join(prebuilt, part), path.join(dir, 'tools', 'agbcc', part), { recursive: true });
   const setup = await run('./setup.sh', [], dir, env);
   assert.equal(setup.code, 0, tail(setup));

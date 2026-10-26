@@ -42,19 +42,28 @@ SHA1SUM  := $(shell command -v sha1sum >/dev/null 2>&1 && echo sha1sum || echo '
 
 all: compare
 
+# The romlift command the messages below name: $(ROMLIFT_CLI) when it is set (a romlift checkout, as setup.sh runs it),
+# else npx romlift, which works once romlift is on the npm registry.
+ROMLIFT_RUN  := $(if $(ROMLIFT_CLI),$(ROMLIFT_CLI),npx romlift)
+ROMLIFT_HINT := $(if $(ROMLIFT_CLI),,; until romlift is on the npm registry, set ROMLIFT_CLI to a romlift checkout's command (README.md))
+
 # OBJS (every object in link order), C_OBJS (the C objects), EXPECTED_OBJS (their objdiff targets) and, per C object,
 # CC1 and CFLAGS.
 ifneq ($(wildcard modules.mk),)
 include modules.mk
 else ifeq ($(filter clean,$(MAKECMDGOALS)),)
-$(error modules.mk is missing: run ./setup.sh, or npx romlift generate)
+$(error modules.mk is missing: run ./setup.sh, or $(ROMLIFT_RUN) generate$(ROMLIFT_HINT))
 endif
 
 # modules.mk records the SHA-1 of the romlift.toml it was generated from (ROMLIFT_TOML_SHA1). A pull, a checkout or an
-# edit that changed romlift.toml since leaves the generated tree stale, so make stops before building from it.
+# edit that changed romlift.toml since leaves the generated tree stale, so make stops before building from it. The
+# tree reads its bytes from $(BASEROM) (.incbin), so make also stops, with a message, while that file is missing.
 ifeq ($(filter clean,$(MAKECMDGOALS)),)
 ifneq ($(ROMLIFT_TOML_SHA1),$(shell $(SHA1SUM) romlift.toml 2>/dev/null | cut -d ' ' -f 1))
-$(error romlift.toml changed since romlift generate last ran (a pull, a checkout or an edit): run npx romlift generate (or ./setup.sh), then make)
+$(error romlift.toml changed since romlift generate last ran (a pull, a checkout or an edit): run $(ROMLIFT_RUN) generate (or ./setup.sh), then make$(ROMLIFT_HINT))
+endif
+ifeq ($(wildcard $(BASEROM)),)
+$(error $(BASEROM) is missing: put your own copy of the ROM there (it is never committed), or run ./setup.sh in a git worktree to copy it from the main one)
 endif
 endif
 

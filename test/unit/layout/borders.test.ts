@@ -218,13 +218,36 @@ test('legalBorders: no border strictly inside an assembly-only range; its two en
   assert.deepEqual(layout.borders, [BASE, HEADER_END, BASE + 0x100, BASE + 0x110, BASE + 0x118]);
 });
 
-test('asmOnlyReasons: ARM code, a Thumb entry at 2 mod 4, a shared tail, a tiled hole', () => {
+test('asmOnlyReasons: ARM code, a Thumb entry at 2 mod 4, a shared tail, a tiled hole, a Thumb bx pc', () => {
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x108 })), []);
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' })), ['arm']);
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x102, end: BASE + 0x108 })), ['unaligned-entry']);
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x108, exits: [{ at: BASE + 0x104, rule: 'walk.branch-into-function', kind: 'tail' }] })), ['shared-tail']);
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x108, exits: [{ at: BASE + 0x104, rule: 'walk.decoder-flow', kind: 'return' }] })), []);
   assert.deepEqual(asmOnlyReasons(fact({ entry: BASE + 0x100, end: BASE + 0x110, holes: [{ start: BASE + 0x104, end: BASE + 0x108 }] })), ['tiled-hole']);
+  // A Thumb `bx pc` veneer: agbcc emits no `bx pc`, so the stub stays with its ARM half (final-review end-to-end-user-3).
+  assert.deepEqual(asmOnlyReasons({ ...fact({ entry: BASE + 0x100, end: BASE + 0x102 }), veneers: [BASE + 0x104] }), ['mode-switch']);
+  assert.deepEqual(asmOnlyReasons({ ...fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' }), veneers: [BASE + 0x104] }), ['arm']);
+});
+
+test('asmOnlyRanges: a run of Thumb `bx pc` stubs, their nop orphans and the ARM code behind them is one range', () => {
+  // klonoa's linker thunks: `bx pc` at 0x…AC, `.2byte 0x46C0` at 0x…AE, the ARM branch at 0x…B0, six times over.
+  const functions = [
+    fact({ entry: BASE + 0x100, end: BASE + 0x104, mode: 'arm' }),
+    { ...fact({ entry: BASE + 0x104, end: BASE + 0x106 }), veneers: [BASE + 0x108] },
+    fact({ entry: BASE + 0x108, end: BASE + 0x10c, mode: 'arm' }),
+    { ...fact({ entry: BASE + 0x10c, end: BASE + 0x10e }), veneers: [BASE + 0x110] },
+    fact({ entry: BASE + 0x110, end: BASE + 0x114, mode: 'arm' }),
+    fact({ entry: BASE + 0x114, end: BASE + 0x118 }),
+  ];
+  const chunks = tileCode(
+    functions.map((f) => placed(f.entry, f.extent.end)),
+    HEADER_END,
+    BASE + 0x118,
+    [],
+  );
+  const facts = new Map(functions.map((f) => [f.entry, f] as const));
+  assert.deepEqual(asmOnlyRanges(chunks, facts, HEADER_END), [{ start: BASE + 0x100, end: BASE + 0x114 }]);
 });
 
 test('asmOnlyRanges: consecutive assembly-only functions merge across orphans; agbcc code splits them; the startup region is left out', () => {
