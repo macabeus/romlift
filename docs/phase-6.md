@@ -623,7 +623,10 @@ Added at the final review (docs/final-review.md, D106):
   review's tree agree (787 against 789 ms, 747 against 722 ms), so the analysis did not slow down: the limit, 1.5 times
   a baseline measured on 17 October, is close to what a loaded machine measures. Re-measuring `speed.json` is the
   owner's (owner question O1 of the final review); fe7j and pokeemerald, whose baselines predate a sevenfold speed-up,
-  are held to limits ten and two times what they measure (gates-3).
+  are held to limits ten and two times what they measure (gates-3). The review of fix round 1 then measured 100.9% in a plain fresh-clone run, failing `g3.speed-budget`, `g1.provenance`
+  and `bench provenance` (gates-r1-1); fix round 2 (D107 a) made the analysis faster without changing its result, to
+  about 81% of the limit (`bench speed --only sa2`, 610 to 625 ms of 751 to 769 ms), with every gate, threshold and
+  baseline unchanged.
 - **tmc's signature floor is romlift's own output** (gates-5). `g6.signatures-judged` holds tmc to the counts the
   closing round measured (libagbsyscall 13, m4a 55 functions and 10 tables, 68 placements; D98 c), not to an
   independent bar. 39 of m4a's 94 members are not placed on tmc; why (a modified m4a, or a version no spec has) was not
@@ -755,7 +758,7 @@ Merges on `phase-6`, all without a textual conflict: `379c599` (signatures-apply
 The list, run in this order in a fresh worktree at `landed` 6, the real tier before the ci tier (D54 i). Its
 environment: `ROMLIFT_BENCH_ROOT`, `ROMLIFT_POC`, `bench/.local/poc` and `bench/.local/agbcc`, and the pinned
 objdiff-cli 3.7.2 reachable as `ROMLIFT_OBJDIFF` or a build in `bench/.local/objdiff-target` (a linked worktree
-falls back to the main checkout's): in a plain clone without it `npm test` skips one test (2,875 pass, 1 skipped)
+falls back to the main checkout's): in a plain clone without it `npm test` skips one test (2,884 pass, 1 skipped at final-review fix round 2)
 and `bench doctor-real` fails (final-review gates-7, clean-clone-4):
 
 ```

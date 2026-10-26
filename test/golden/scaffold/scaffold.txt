@@ -509,6 +509,11 @@ setup.sh then skips the npm install and runs that command to generate the tree; 
 through node the same way (`node /path/to/romlift/dist/cli/main.js generate` where this file says `npx romlift
 generate`).
 
+The same limitation stops the CI workflow, `.github/workflows/build.yml`: once you store the repository secret
+`BASEROM_URL` (the workflow builds nothing without it), its `./setup.sh` step fails at the npm install with a 404 until
+romlift is published. To build there before then, check out and build romlift in the workflow and set `ROMLIFT_CLI` on
+that step, or leave `BASEROM_URL` unset.
+
 ## Layout
 
 | Path | What it is |

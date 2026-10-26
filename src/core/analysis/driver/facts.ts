@@ -6,7 +6,7 @@ import { compareNumbers } from '../../../foundation/util/sorted.ts';
 import { innermost, intervalIndex } from '../../../foundation/util/interval-index.ts';
 import { runsElsewhere, toRun } from '../address-map.ts';
 import { Claim } from '../types.ts';
-import type { FunctionFact, Reading } from '../types.ts';
+import type { FunctionFact, InsnSpan, Reading } from '../types.ts';
 import { nextSpanStart } from './seeds.ts';
 import type { Accepted, DriverState } from './state.ts';
 
@@ -42,11 +42,24 @@ function deadRuns(s: DriverState, extent: Span): Span[] {
 /** The FunctionFact of reading `r` with the acceptance record `f`, under the current claims. */
 function factFrom(s: DriverState, r: Reading, f: Pick<Accepted, 'origin' | 'accepted' | 'also' | 'absorbed'>): FunctionFact {
   const extent = { start: r.entry, end: extentEndOf(s, r) };
+  // The instructions' spans merged where they touch, one object per merged run (final-review gates-r1-1: not one per
+  // instruction).
   const code: Span[] = [];
-  for (const i of r.insns) {
-    const last = code[code.length - 1];
-    if (last !== undefined && last.end >= i.addr) code[code.length - 1] = { start: last.start, end: Math.max(last.end, i.addr + i.len) };
-    else code.push({ start: i.addr, end: i.addr + i.len });
+  const insns = r.insns;
+  const first = insns[0];
+  if (first !== undefined) {
+    let start = first.addr;
+    let end = start + first.len;
+    for (let k = 1; k < insns.length; k++) {
+      const i = insns[k] as InsnSpan;
+      if (end >= i.addr) end = Math.max(end, i.addr + i.len);
+      else {
+        code.push({ start, end });
+        start = i.addr;
+        end = i.addr + i.len;
+      }
+    }
+    code.push({ start, end });
   }
   const dead = deadRuns(s, extent);
   const pools = r.pools.map((p) => p.addr).sort(compareNumbers);

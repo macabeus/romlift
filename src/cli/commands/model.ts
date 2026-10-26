@@ -50,9 +50,12 @@ async function modelOf(from: string, romPath: string | undefined): Promise<{ rea
 
 const MODULE_HEADER = ['module', 'kind', 'span', 'chunks', 'compiler'];
 
-/** The text output: one row per module on stdout, then the summary line. */
+/**
+ * The text output: one row per module on stdout, then the summary line. Only a `c` module is compiled, so the compiler
+ * column of an asm or data module is `-` (end-to-end-user-r1-6; the --json header keeps the model's field).
+ */
 export function modelText(model: Model, summary: RunSummary): string {
-  const rows = model.modules.map((m) => [m.name, m.kind, `${hexAddr(m.span.start)}..${hexAddr(m.span.end)}`, String(m.chunks.count), m.compiler]);
+  const rows = model.modules.map((m) => [m.name, m.kind, `${hexAddr(m.span.start)}..${hexAddr(m.span.end)}`, String(m.chunks.count), m.kind === 'c' ? m.compiler : '-']);
   return `${model.modules.length === 0 ? '' : columns([MODULE_HEADER, ...rows])}model: ${formatSummaryText(summary)}\n`;
 }
 

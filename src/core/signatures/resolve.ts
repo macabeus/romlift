@@ -138,7 +138,17 @@ export function resolvePlacements(rom: Rom, matched: SignatureMatch, policy: Sig
   }
   const keptKeys = new Set(chosen.map((p) => `${versionKey(p.library, p.version)}:${p.member}`));
   const pointerTables = matched.pointerTables.filter((t) => keptKeys.has(`${versionKey(t.library, t.version)}:${t.member}`));
-  const diagnostics: Diagnostic<SignatureCode>[] = matched.diagnostics.filter((d) => d.code !== 'W_SIGNATURE_CONSTANT');
+  // A refused pointer table of a version that kept nothing while another version of its library kept placements is that
+  // library's other version, which the ROM does not link: not reported (final-review end-to-end-user-r1-4, as
+  // settleOverlaps treats its drops). versionDiagnostics starts each message with the version's key.
+  const keptVersions = new Set(chosen.map((p) => versionKey(p.library, p.version)));
+  const keptLibraries = new Set(chosen.map((p) => p.library));
+  const otherVersion = (d: Diagnostic<SignatureCode>): boolean => {
+    const key = d.message.slice(0, d.message.indexOf(': '));
+    const library = key.slice(0, key.lastIndexOf('@'));
+    return key.includes('@') && !keptVersions.has(key) && keptLibraries.has(library);
+  };
+  const diagnostics: Diagnostic<SignatureCode>[] = matched.diagnostics.filter((d) => d.code !== 'W_SIGNATURE_CONSTANT' && !(d.code === 'W_SIGNATURE_POINTERS' && otherVersion(d)));
   for (const p of chosen) if (p.constants !== undefined) diagnostics.push(constantDiagnostic(p));
   for (const d of drops) diagnostics.push(d);
   return {

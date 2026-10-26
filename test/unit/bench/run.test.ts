@@ -102,6 +102,24 @@ test('with a built signature file the run judges it on the scored run: the row m
   });
 });
 
+test("bench run refuses to write when a committed row compares with the PoC's dump and the dump is missing (clean-clone-r1-1)", async () => {
+  await withTempDir('romlift-run-dump-', async (root) => {
+    const cx = await syntheticTier(root);
+    await benchRun(cx, runWith());
+    const path = join(cx.repoRoot, 'bench', 'results.json');
+    // The committed row of tiny as a revealed ROM's (tmc's) would read: compared with the PoC's own dump.
+    const committed = JSON.parse(await readFile(path, 'utf8')) as { roms: { poc: { tp: number; source: string } }[] };
+    for (const r of committed.roms) r.poc = { ...r.poc, source: 'dump' };
+    const text = `${JSON.stringify(committed, null, 2)}\n`;
+    await writeFile(path, text);
+    await rm(join(cx.repoRoot, 'bench', '.local', 'poc'), { recursive: true });
+    await assert.rejects(benchRun(cx, runWith()), /not writing bench\/results\.json: .*PoC's dump, and .*tiny\/scored\.json is missing; run npm run export-poc -- --mode scored/);
+    assert.equal(await readFile(path, 'utf8'), text, 'nothing is written');
+    // A --json run writes no artifact and is not refused.
+    await benchRun(cx, { ...runWith(), json: true });
+  });
+});
+
 test('bench run records a non-deterministic analysis and a missing dump', async () => {
   await withTempDir('romlift-run-nondet-', async (root) => {
     const cx = await syntheticTier(root);

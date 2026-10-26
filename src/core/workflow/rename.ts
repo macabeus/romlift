@@ -147,7 +147,13 @@ export function renameProblems(config: RomliftConfig, from: string, to: string, 
     out.push(diagnostic(WorkflowCodes, 'E_RENAME_INVALID', `${JSON.stringify(to)} cannot be a function or symbol name: it must be a C identifier (a letter or _, then letters, digits and _, not a C keyword) of at most 200 characters; nothing was changed`));
   }
   if (entriesNamed(config, from).length === 0) {
-    out.push(diagnostic(WorkflowCodes, 'E_RENAME_UNKNOWN', `romlift.toml has no function or symbol named ${from}, nor one with ${from} as an alias; nothing was changed`));
+    // A default name of the model (a gUnk_ data or RAM label, a default chunk name) has a fixed remedy (end-to-end-user-r1-2).
+    const at = modelNames.get(from);
+    const hint =
+      at === undefined
+        ? ''
+        : `; ${from} is a default name of the project's model at ${hexAddr(at)}: add \`${hexAddr(at)} = "${from}"\` to [symbols] (or to [functions] for a function) first, then rename it`;
+    out.push(diagnostic(WorkflowCodes, 'E_RENAME_UNKNOWN', `romlift.toml has no function or symbol named ${from}, nor one with ${from} as an alias; nothing was changed${hint}`));
   }
   const emitted = modelNames.get(to);
   if (projectNames(config).has(to)) {

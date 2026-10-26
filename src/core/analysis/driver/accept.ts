@@ -35,21 +35,28 @@ export function originOf(s: DriverState, rule: RuleId): Origin {
 
 /** Applies one claim edit; the bytes of a data override keep their data claim (seeds.ts). */
 export function write(s: DriverState, e: ClaimEdit): void {
-  const lo = Math.max(e.span.start - s.rom.base, 0);
-  const hi = Math.min(e.span.end - s.rom.base, s.claims.length);
+  writeSpan(s, e.span.start, e.span.end, e.kind, e.when);
+}
+
+/** write() of the edit {span: {start, end}, kind, when}, without building it (claim() writes one per instruction). */
+function writeSpan(s: DriverState, start: Addr, end: Addr, kind: ClaimEdit['kind'], when: ClaimEdit['when']): void {
+  const lo = Math.max(start - s.rom.base, 0);
+  const hi = Math.min(end - s.rom.base, s.claims.length);
   if (lo >= hi) return;
   if (s.reuse !== undefined) touch(s.reuse, s.rom.base + lo, s.rom.base + hi);
-  if (e.when === 'free-bytes') {
-    for (let k = lo; k < hi; k++) if (s.claims[k] === Claim.free) s.claims[k] = e.kind;
+  if (when === 'free-bytes') {
+    for (let k = lo; k < hi; k++) if (s.claims[k] === Claim.free) s.claims[k] = kind;
     return;
   }
-  if (e.when === 'start-free' && s.claims[lo] !== Claim.free) return;
+  if (when === 'start-free' && s.claims[lo] !== Claim.free) return;
   if (s.dataOverrides.length === 0) {
-    s.claims.fill(e.kind, lo, hi);
+    // An instruction's few bytes are stored directly; a native fill pays off only on a longer span.
+    if (hi - lo <= 4) for (let k = lo; k < hi; k++) s.claims[k] = kind;
+    else s.claims.fill(kind, lo, hi);
     return;
   }
   const B = s.rom.base;
-  for (const part of outsideSpans(s.dataOverrides, B + lo, B + hi)) s.claims.fill(e.kind, part.start - B, part.end - B);
+  for (const part of outsideSpans(s.dataOverrides, B + lo, B + hi)) s.claims.fill(kind, part.start - B, part.end - B);
 }
 
 /** A 'verdict' event for every walk-slot answer the reading applied (Reading.steps; recorded only when a trail is on). */
@@ -59,7 +66,7 @@ function citeSteps(s: DriverState, r: Reading): void {
 
 /** The PoC's claim(f): the instruction bytes as code, then the claim slot in order. `owner` is the accepted function `r` belongs to. */
 export function claim(s: DriverState, owner: Addr, r: Reading): void {
-  for (const i of r.insns) write(s, { span: { start: i.addr, end: i.addr + i.len }, kind: Claim.code, when: 'always' });
+  for (const i of r.insns) writeSpan(s, i.addr, i.addr + i.len, Claim.code, 'always');
   const fact = factOf(s, owner);
   if (fact === undefined) return;
   for (const { id, rule } of s.rules.claim) {

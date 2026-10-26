@@ -21,13 +21,14 @@ install that `./setup.sh` runs both fail with a 404. Run it from a checkout inst
 git clone https://github.com/macabeus/romlift.git && cd romlift
 npm ci && npm run build
 cd /path/to/new-project-dir            # an empty directory holding only your ROM
-node /path/to/romlift/dist/cli/main.js init baserom.gba
-ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js" ./setup.sh && make
+export ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js"
+$ROMLIFT_CLI init baserom.gba
+./setup.sh && make
 ```
 
 `ROMLIFT_CLI` makes `./setup.sh` (and the messages of the generated `Makefile`) use that command instead of `npx
-romlift`; run every other romlift command of the project the same way (`node /path/to/romlift/dist/cli/main.js
-generate`). Run `git init` in the project before `./setup.sh` if you want it in Git: `setup.sh` then registers
+romlift`, and set while `init` runs it skips the npm lock step, which would wait for the registry's 404 and warn
+`W_LOCKFILE_DEFERRED`; run every other romlift command of the project the same way (`$ROMLIFT_CLI generate`). Run `git init` in the project before `./setup.sh` if you want it in Git: `setup.sh` then registers
 `tools/agbcc` as a submodule. `romlift --version` prints the version.
 
 You need GNU binutils for ARM (`arm-none-eabi-as`, `-ld`, `-objcopy`), `make`, `git`, a C compiler and Node.js 22.18 or
@@ -40,8 +41,11 @@ checkouts each spec names (sa2, pokeemerald, fe7j, klonoa; [docs/benchmark-roms.
 their ROMs, ELFs and maps under `ROMLIFT_BENCH_ROOT`:
 
 ```sh
-for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || break; done
+for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || exit 1; done
 ```
+
+They land in this checkout's `signatures/`, which a romlift run from it reads; point any other romlift at them with
+`ROMLIFT_SIGNATURES=/path/to/romlift/signatures`.
 
 Whether built files ship with the package is the owner's open decision (D40, architecture §12 item 1).
 
@@ -134,7 +138,9 @@ klonoa 130 of 485 functions are not compared at all (objdiff-cli cannot read one
 The final review of the six phases (fix round 1, [docs/final-review.md](docs/final-review.md), D106) made the
 first-run path above work from a checkout, stopped shipping signature specs nobody could build from the package, kept
 `bx pc` veneers out of C modules, added `include/global.h` and `include/gba/*.h` to the scaffold, gave
-`[signatures] libraries` its effect, moved the `verify` composition out of the CLI, and recorded what stays open. Release
+`[signatures] libraries` its effect, moved the `verify` composition out of the CLI, and recorded what stays open. Fix
+round 2 (D107) restored sa2's `g2.speed` headroom with result-neutral speed changes to the analysis (about 81% of its
+limit, from 95 to 101%), made `bench run` refuse to drop a ROM's PoC reference, and fixed the smaller findings. Release
 1 still cannot claim generality: the held-out gate passes only with both family conditions waived (D60, D61).
 
 | Phase | Delivers |
@@ -152,7 +158,7 @@ first-run path above work from a checkout, stopped shipping signature specs nobo
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D106 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D107 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |

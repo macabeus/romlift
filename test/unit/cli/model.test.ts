@@ -59,7 +59,9 @@ test('model --json prints encodeModel of the model generate emits, then the summ
 test('model text: one row per module and the summary', async () => {
   const out = await run(['model', '--rom', FAR_JUMP.rom]);
   assert.equal(out.code, ExitCode.ok);
-  assert.match(out.stdout, /^module {6}kind {2}span {20}chunks {2}compiler\nrom_header {2}asm {3}0x08000000\.\.0x080000C0 {2}1 {7}agbcc\n/);
+  // An asm or data module is compiled by nothing: its compiler column is `-` (end-to-end-user-r1-6).
+  assert.match(out.stdout, /^module {6}kind {2}span {20}chunks {2}compiler\nrom_header {2}asm {3}0x08000000\.\.0x080000C0 {2}1 {7}-\n/);
+  assert.match(out.stdout, /\n\S+ +c +0x\S+ +\d+ +agbcc\n/, 'a c module names its compiler');
   assert.match(out.stdout, /\nmodel: ok \(exit 0\): chunks \d+, functions \d+, items \d+, modules 3\n$/);
 });
 
