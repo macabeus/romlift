@@ -1,16 +1,49 @@
 # romlift
 
-romlift turns a Game Boy Advance ROM into a matching-decompilation project in one run:
+romlift turns a Game Boy Advance ROM into a matching-decompilation project in one run that ends at the ROM's SHA-1
+with no file edited by hand. Once romlift is published to npm, that run is:
 
 ```sh
 npx romlift init baserom.gba && ./setup.sh && make
 ```
 
-ends at the ROM's SHA-1 with no file edited by hand. It carries its own Thumb and ARM decoder and GNU
-`as` printer, recovers function boundaries with rules measured against matching ELFs, recognises known
-libraries through signatures, and writes one `romlift.toml`, a `decomp.yaml`, regenerated `asm/` and
-`data/`, C stubs, the linker script, objdiff targets and the build scaffold. It is written in TypeScript
-and needs only Node.js and the GBA toolchain.
+It carries its own Thumb and ARM decoder and GNU `as` printer, recovers function boundaries with rules measured
+against matching ELFs, recognises known libraries through signatures (when signature files are built, below), and
+writes one `romlift.toml`, a `decomp.yaml`, regenerated `asm/` and `data/`, C stubs, the linker script, objdiff targets
+and the build scaffold. It is written in TypeScript and needs only Node.js and the GBA toolchain.
+
+## Try it before it is published
+
+romlift is not on the npm registry yet (`package.json` is `private`, version `0.0.0`), so `npx romlift` and the npm
+install that `./setup.sh` runs both fail with a 404. Run it from a checkout instead:
+
+```sh
+git clone https://github.com/macabeus/romlift.git && cd romlift
+npm ci && npm run build
+cd /path/to/new-project-dir            # an empty directory holding only your ROM
+node /path/to/romlift/dist/cli/main.js init baserom.gba
+ROMLIFT_CLI="node /path/to/romlift/dist/cli/main.js" ./setup.sh && make
+```
+
+`ROMLIFT_CLI` makes `./setup.sh` (and the messages of the generated `Makefile`) use that command instead of `npx
+romlift`; run every other romlift command of the project the same way (`node /path/to/romlift/dist/cli/main.js
+generate`). Run `git init` in the project before `./setup.sh` if you want it in Git: `setup.sh` then registers
+`tools/agbcc` as a submodule. `romlift --version` prints the version.
+
+You need GNU binutils for ARM (`arm-none-eabi-as`, `-ld`, `-objcopy`), `make`, `git`, a C compiler and Node.js 22.18 or
+later. objdiff 3.7.2 or later opens the generated `objdiff.json`.
+
+**Library signatures are not shipped.** Built signature files are local (gitignored, decision D40), so a plain
+checkout, like an installed package, names no library: `init` warns `W_SIGNATURES_ABSENT` and leaves m4a, libgcc and
+the BIOS call stubs unnamed in ordinary modules. Building them needs this repository and the reference decomp
+checkouts each spec names (sa2, pokeemerald, fe7j, klonoa; [docs/benchmark-roms.md](docs/benchmark-roms.md)) with
+their ROMs, ELFs and maps under `ROMLIFT_BENCH_ROOT`:
+
+```sh
+for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || break; done
+```
+
+Whether built files ship with the package is the owner's open decision (D40, architecture §12 item 1).
 
 ## Status
 
@@ -91,8 +124,18 @@ owner as Q16. The closing list's fifth run, in a fresh worktree at `fa5d7ab`, ex
 tiers, `bench provenance`), so phase 6 passes its closing gate. Fix round 5 (D104) made `g4.toml-mutations`'
 add-override edit a data override that changes the model (the code override changed nothing), pinned the owner's
 objdiff ceilings in `g6.objdiff` and put one R_ARM_ABS32 rule under the layout and the printer; the sixth run, at
-`d66d802`, exits 0 on every command too; it lands when its pull request merges, the CI checks run
-locally if GitHub refuses to start them (the owner's landing answer, D103).
+`d66d802`, exits 0 on every command too. After fix round 6 the seventh run, at `74aa225`, exited 0 on every command,
+and phase 6 landed: pull request #5 merged as `7a5342f`, tagged `phase-6`. GitHub refused to start the CI jobs, so
+their checks ran locally (the owner's landing answer, D103) on macOS only: the Linux jobs (`ci.yml` on Ubuntu, the apt
+binutils corpus, `fixtures.yml`, `packed.yml`) have not run for phase 6, and the cross-OS digest comparison covered two
+macOS runs (a known limitation, carried past phase 6). `g6.objdiff` is a no-regression ceiling, not a 100% score: on
+klonoa 130 of 485 functions are not compared at all (objdiff-cli cannot read one object).
+
+The final review of the six phases (fix round 1, [docs/final-review.md](docs/final-review.md), D106) made the
+first-run path above work from a checkout, stopped shipping signature specs nobody could build from the package, kept
+`bx pc` veneers out of C modules, added `include/global.h` and `include/gba/*.h` to the scaffold, gave
+`[signatures] libraries` its effect, moved the `verify` composition out of the CLI, and recorded what stays open. Release
+1 still cannot claim generality: the held-out gate passes only with both family conditions waived (D60, D61).
 
 | Phase | Delivers |
 | --- | --- |
@@ -109,13 +152,14 @@ locally if GitHub refuses to start them (the owner's landing answer, D103).
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D94 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D106 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
 | [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q8 with the owner's answers, the review fix rounds, and known limitations |
 | [docs/phase-4.md](docs/phase-4.md) | the record of phase 4: components in three waves, what the phase delivered (commands, scaffold, C stubs, formats), the closing round and the closing gate run, deviations, the owner questions Q1 to Q9 with the owner's answers, the review fix rounds, and known limitations |
-| [docs/phase-6.md](docs/phase-6.md) | the record of phase 6 (phase 5 was skipped, D92; landed by pull request #5): what it delivered (signatures, proposals, code run from RAM, the reconciler and `rename`, objdiff targets, C data ranges), components in three waves, the closing round, deviations, the owner questions Q1 to Q15, known limitations, measured numbers, the closing gate runs and the review's dispositions |
+| [docs/phase-6.md](docs/phase-6.md) | the record of phase 6 (phase 5 was skipped, D92; landed by pull request #5): what it delivered (signatures, proposals, code run from RAM, the reconciler and `rename`, objdiff targets, C data ranges), components in three waves, the closing round, deviations, the owner questions Q1 to Q16, known limitations, measured numbers, the closing gate runs and the review's dispositions |
+| [docs/final-review.md](docs/final-review.md) | the final review of the six phases: every finding's disposition, the fixes of round 1 and the gate results after them |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

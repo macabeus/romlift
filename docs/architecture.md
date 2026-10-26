@@ -75,8 +75,9 @@ analysis, model, emission, explain, formats; browser-safe), `romlift/node` (the 
 locate and load a project, apply a write plan, run the toolchain), `romlift/isa` (the instruction set,
 importable alone so gba-kit can share it) and `romlift/internal` (analysis tuning, the rule registry,
 `defineRule` and ablation; outside semver, documented as such, imported only by the CLI's `--disable`, the bench,
-the gate tests and `test/local`). Templates ship inside the package. Signature specs ship; built
-signature files ship only once the owner decides (D40). The bench, fixtures and tests are not published.
+the gate tests and `test/local`). Templates ship inside the package. Neither signature specs nor built signature
+files ship: a spec names bench datasets that are not published and so cannot be built from an installed package, and
+built files ship only once the owner decides (D40; final-review clean-clone-2, D106 b). The bench, fixtures and tests are not published.
 
 Node 24 runs `.ts` directly through type stripping (D2). Each export has two conditions,
 `"source": "./src/<entry>.ts"` and `"default": "./dist/<entry>.js"`; every npm script runs Node with
@@ -93,7 +94,7 @@ romlift/
   README.md
   package.json                      bin romlift (dist/cli/main.js, whose first line runs Node with
                                     --max-old-space-size=1024, D68 b, D72); exports ".", "./node", "./isa", "./internal" (source/default
-                                    conditions); engines node >=22.18; files: dist/, templates/, signatures/specs/
+                                    conditions); engines node >=22.18; files: dist/, templates/
   package-lock.json
   tsconfig.json, tsconfig.build.json
   .gitignore                        *.gba *.elf *.map *.o (fixture builds re-included), dist/, bench/.local/,
@@ -101,7 +102,9 @@ romlift/
   .github/workflows/                ci.yml, printer.yml, fixtures.yml, provenance.yml, packed.yml
   templates/                        MANIFEST.json (every scaffold file and its project path, D74 d), Makefile, setup.sh,
                                     AGENTS.md, build.yml, gitignore, README.md, compilers/<id>.mk, agbcc.json (the pinned
-                                    agbcc URL and commit); include/** is rendered from the dialect, not a template
+                                    agbcc URL and commit), include/global.h and include/gba/{types,io_reg}.h (the
+                                    starter headers, D106 d); include_asm.h and macros.inc are rendered from the
+                                    dialect, not templates
   signatures/
     specs/<library>.json            committed: references, object globs, reviewed names; no bytes
     <library>.json                  built locally by `romlift signatures build`; gitignored (D40)
@@ -112,7 +115,10 @@ romlift/
                                     imports nothing outside foundation/
       rom/                          span.ts, rom.ts, header.ts, memory-map.ts, bios.ts, codes.ts
       isa/                          types.ts, thumb-table.ts, arm-table.ts, decode.ts, encode.ts, format.ts,
-                                    parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59)
+                                    parse.ts, assemble.ts, roundtrip.ts, registers.ts (register effects, D59); the
+                                    tables' building blocks: template.ts, row.ts, rows.ts, bits.ts, flow.ts, pc-relative.ts,
+                                    operand-text.ts, and the ARM encodings arm-dp.ts, arm-immediate.ts, arm-mem.ts,
+                                    arm-misc.ts, arm-shift.ts
       corpus/                       corpus.ts, types.ts, cases.ts, layout.ts, compare.ts, parse-summary.ts: the
                                     as round-trip corpus, counts only (D54 c, D55)
       asm/                          dialect.ts (preamble, macros.inc, C-stub texts; their paths are
@@ -145,9 +151,10 @@ romlift/
       provenance/                   rule-id.ts, provenance.ts, trail.ts, vocabulary.ts
       profile/                      types.ts, registry.ts, agbcc.ts
       analysis/                     types.ts, address-map.ts, pointers.ts, limits.ts, codec.ts, explain.ts, codes.ts,
-                                    reading.ts
+                                    reading.ts, insn-lookup.ts
         driver/                     run.ts, state.ts, facts.ts, trail.ts, view.ts, grow.ts, fill-gaps.ts, accept.ts,
-                                    settle.ts, validity.ts, epoch.ts, worklist.ts, confirm.ts, diagnose.ts, reuse.ts
+                                    settle.ts, validity.ts, epoch.ts, worklist.ts, confirm.ts, diagnose.ts, reuse.ts,
+                                    rules.ts, seeds.ts, listed-extent.ts
         walk/                       cursor.ts, record.ts, predicates.ts, insn-index.ts, thumb.ts, arm.ts
         rules/                      define-rule.ts, index.ts (concatenates the family registries)
           seed/ walk/ bl/ valid/ accept/ gap/ claim/ region/     index.ts + one file per rule (§4.1)
@@ -163,8 +170,9 @@ romlift/
                                     (isSealedDataset, D32), extract.ts, match.ts, resolve.ts, policy.ts, propose.ts,
                                     codes.ts
         rules/                      index.ts + one file per sig.* placement rule
-      config/                       schema.ts, keys.ts, parse.ts, serialize.ts, patch.ts, compilers.ts,
-                                    decomp-yaml.ts, rom-sha1.ts (romSha1Problems, E_ROM_SHA1_MISMATCH), codes.ts
+      config/                       schema.ts, keys.ts, parse.ts, serialize.ts, patch.ts, rename-patch.ts (rename's
+                                    one-line TOML patch), compilers.ts, decomp-yaml.ts, rom-sha1.ts (romSha1Problems,
+                                    E_ROM_SHA1_MISMATCH), codes.ts
       model/                        types.ts, item-table.ts (ItemTable builder, itemAt), resolver.ts (labels per
                                     module, wordValueOf), paths.ts (the paths writers and checks share), segments.ts,
                                     printing-cache.ts, items.ts, chunks.ts, modules.ts, labels.ts, names.ts,
@@ -177,7 +185,7 @@ romlift/
                                     text-edit.ts, codes.ts
       emit/                         tree.ts, emit-tree.ts, unit-text.ts (what the chunk-file and unit-file writers
                                     share; the resolver is core/model/resolver.ts, D62 b)
-        print/                      insn.ts, pool.ts, table.ts, data.ts, raw.ts
+        print/                      insn.ts, pool.ts, table.ts, data.ts, raw.ts, chunk.ts
         writers/                    one file per WriterId (§6.3)
       verify/                       tiling.ts, reencode.ts, module-size.ts, text-layout.ts, link-scripts.ts (ldscript.txt
                                     and symbols.ld), text-error.ts, paths.ts, toolchain.ts (the assemble and link
@@ -193,8 +201,9 @@ romlift/
                                     scaffold-diff.ts, analyze-update.ts, codes.ts; phase 6: proposals.ts
                                     (checkProposals, the proposal screen, §7.4, and nothing else), signature-layer.ts
                                     (signaturesOver, signaturesOnRom, signatureLayer, foldSignatures,
-                                    updateProposals, the library-module notes, signatureNotes; §7.3, D95 b) and
-                                    rename.ts (planRename, renameModelNames, D92, D95 c)
+                                    updateProposals, the library-module notes, signatureNotes, filesFor; §7.3, D95 b),
+                                    rename.ts (planRename, renameModelNames, D92, D95 c) and verify.ts (`verify`'s
+                                    toolchain plan and report, D106 a)
     shell/                          the only code that touches files, processes, hashing or the environment
       codes.ts                      the shell's diagnostic codes
       hash.ts                       sha1/sha256 via node:crypto, incremental
@@ -205,7 +214,9 @@ romlift/
       project/                      locate.ts, read-inputs.ts, templates.ts, apply-writes.ts, lock.ts, disk-state.ts,
                                     fresh-tree.ts (writeFreshTree), write-project.ts (generate's and init's writes
                                     under the project lock), spelling.ts (case-only renames on a case-insensitive file
-                                    system)
+                                    system), rename-project.ts (rename's reads and writes), verify-run.ts
+                                    (runToolchainChecks, `verify --assemble/--link`'s runner, D106 a)
+      temp-dir.ts                   withTempDir: a fresh directory under os.tmpdir(), removed afterwards
       config/                       load.ts, save.ts
       toolchain/                    binutils.ts, doctor.ts, corpus.ts (runCorpus), corpus-inputs.ts (the corpus
                                     inputs digest), link-check.ts, npm.ts (D55)
@@ -276,10 +287,10 @@ It fails on any edge not allowed here:
 | `core/emit` | `foundation`, `core/model`, `core/reconcile` (stub planning for the `c-stub` writer) |
 | `core/verify` | `foundation`, `core/model`, `core/emit/tree.ts`, `core/reconcile` and `core/config/compilers.ts` (a C unit's stub, read with the one C tokenizer, and its compiler; D74 g) |
 | `core/write-plan` | `foundation`, `core/emit/tree.ts` |
-| `core/diagnostic-codes.ts` | the `codes.ts` file of every module, and `foundation/rom/codes.ts` |
-| `core/workflow` | every core module above; **nothing in core imports `core/workflow`** |
+| `core/diagnostic-codes.ts` | the `codes.ts` file of every module, `foundation/rom/codes.ts` and `foundation/diagnostics` |
+| `core/workflow` | every core module above; **nothing in core imports `core/workflow`** but `core/diagnostic-codes.ts`, which takes its `codes.ts` (codes only) like every other module's |
 | `shell/*` | `core`, `foundation`, `node:*`, runtime npm dependencies |
-| `cli/*` | `shell`, `core/workflow`, `core/diagnostic-codes.ts`, `foundation/diagnostics`, `src/api/*` |
+| `cli/*` | `shell`, `core/workflow`, `core/diagnostic-codes.ts`, `foundation/diagnostics`, and of `src/api/*` the values of `analysis`, `config`, `config-types`, `files`, `formats`, `isa`, `model`, `rom`, `toolchain` and `workflow-one-shot` (reading, formatting, codecs, doctor) with types from any; the verify composition is `core/workflow/verify.ts` and `shell/project/verify-run.ts` (final-review architecture-1, D106) |
 | `src/api/*`, `src/{index,node,isa,internal}.ts` | the modules they re-export |
 | `bench/src/*`, `test/gates/*`, `test/local/*` | `romlift`, `romlift/node`, `romlift/isa`, `romlift/internal` (package self-reference), `node:*` |
 | `test/corpus/*` | the same, plus `bench/src/args.ts` (D55) |
@@ -1041,13 +1052,18 @@ numbers and a reordered `validity` slot, and requires it to typecheck and run on
 ### 4.4 Determinism
 
 - Output collections are sorted arrays with numeric comparators. A `Map` or `Set` only indexes; the
-  architecture test enforces that iteration goes through `sortedKeys`/`sortedEntries` (§2).
+  architecture test enforces that iteration goes through `sortedKeys`/`sortedEntries` (§2) in `core/analysis`,
+  `core/model`, `core/emit`, `core/layout` and `core/signatures` (its `MAP_ITERATION_SCOPES`). Elsewhere (the config,
+  the workflows, the shell) a `Map` or `Set` is iterated only after its input was sorted or filled in sorted order, a
+  convention the test does not check (final-review architecture-3, D106 f).
 - The worklist key is total (D10): `'ascending'` pops the minimum of `(addr, modeRank, ruleRank, seq)`,
   where `modeRank` is 0 for Thumb and 1 for ARM, `ruleRank` is the proposing rule's index in its
   pipeline slot, and `seq` is the proposal counter. `'poc-lifo'`, which reproduced the PoC's
   `work.pop()`, was deleted by the phase-2 integration (D59).
 - No clock, environment, locale, `os` or path value reaches core. Text is LF only, paths are POSIX, and
-  numbers print through `foundation/util/hex.ts`. Generated files never contain the project's absolute
+  numbers print through `foundation/util/hex.ts` (`hex`, `hexAddr`, `hexSize`); the architecture test refuses a
+  `.toString(16)` anywhere else in `src/` but the instruction formatter's operands and the corpus (final-review
+  architecture-4). Generated files never contain the project's absolute
   path.
 - Names are scoped (§6.2) and the tree check `E_PATH_CASE_COLLISION` rejects two paths that differ only
   by case, so APFS and ext4 write the same tree.
@@ -1327,7 +1343,8 @@ follows the plan's rule:
   the list is empty), cut on legal borders.
 - Every range that agbcc cannot have produced becomes an `asm`-only module: ARM code, an entry at a
   2-mod-4 address, a shared tail (a `walk.branch-into-function` exit into another function), a tiled
-  hole. Adjacent such ranges merge.
+  hole, a Thumb `bx pc` mode switch (an interworking veneer's stub, which agbcc never emits; D106 g). Adjacent such
+  ranges merge, across the orphan chunks between them.
 - The remaining agbcc-shaped code is cut into `c` modules at legal borders, each closed at the first
   legal border past `--module-size` bytes (default `0x10000`). The default is measured: across the five
   tuning maps, 90% of C translation units have at most 0xFF70 bytes of `.text` (kleod p90 0xFF70, Emerald
@@ -1389,7 +1406,11 @@ only `analyze --update --write` and `rename` patch the TOML.
 
 - `package.json` pins the exact romlift version. `init` then runs `npm install --package-lock-only
   --ignore-scripts` (`shell/toolchain/npm.ts`) to write `package-lock.json`; when the registry cannot be
-  reached it raises `W_LOCKFILE_DEFERRED`, and `setup.sh` writes the lock on its first run.
+  reached it raises `W_LOCKFILE_DEFERRED`, and `setup.sh` writes the lock on its first run that installs romlift with
+  npm. With `ROMLIFT_CLI` set, init runs no npm and setup.sh installs nothing, so no lock is written (D106 j).
+- `include/global.h`, `include/gba/types.h` and `include/gba/io_reg.h` (templates, written once, the user's): the
+  fixed-width types and the I/O registers decompiled C includes (D106 d); `include/include_asm.h` and
+  `include/macros.inc` are rendered from the dialect.
 - `tools/agbcc` is a submodule at the commit pinned in `templates/agbcc.json`. `init` writes
   `.gitmodules`; `setup.sh` registers and checks out the submodule (or clones it outside Git).
 - `setup.sh` has five duties, each a template with a golden test: (1) check the toolchain
@@ -1408,8 +1429,9 @@ only `analyze --update --write` and `rename` patch the TOML.
   Git, a pull or a checkout that changes `romlift.toml` leaves it stale: `modules.mk` records the SHA-1 of the
   `romlift.toml` bytes it was generated from (`ROMLIFT_TOML_SHA1`, the shell's hash passed in as
   `EmitContext.configSha1`; absent outside a project), and the `Makefile` stops before any build while the file's
-  SHA-1 differs (`make clean` excepted), naming `npx romlift generate`; a C object's recorded SHA-1 leaves that line
-  out (D82 a). The `Makefile` includes `modules.mk` and uses the per-compiler rule of
+  SHA-1 differs (`make clean` excepted), naming `$(ROMLIFT_CLI) generate` when that is set, else `npx romlift
+  generate` with the `ROMLIFT_CLI` remedy, and stops with a message while `baserom.gba` is missing (D106 j); a C
+  object's recorded SHA-1 leaves that line out (D82 a). The `Makefile` includes `modules.mk` and uses the per-compiler rule of
   `templates/compilers/<id>.mk`; an explicit rule the user adds for one object takes precedence over the
   pattern rule, which is how a legacy project keeps hand-written compile steps (D47).
 - **Frozen by D74.** `templates/MANIFEST.json` lists every scaffold file with its project path; templates and targets
@@ -1506,6 +1528,7 @@ compiler = "agbcc"            # the default build compiler of every module
 
 [signatures]                  # read by init and analyze --update only (phase 6)
 enabled = true
+libraries = ["libgcc", "m4a"] # optional: only these libraries' signature files are used (init writes the ones it placed)
 
 [[modules]]                   # link order; start addresses increase; each start is a legal border
 name = "crt0"
@@ -1561,13 +1584,24 @@ kind = "data"
 0x03005220 = "gUnk_03005220"
 0x03002920 = { name = "gEntityInfo", aliases = ["gUnk_03002920"] }
 0x08189E84 = { name = "gSpriteDataTable", size = 0x40, type = "pointers" }
+0x08189EC4 = { name = "gFontGlyphs", size = 0x200, type = "bytes" }   # "bytes": never read as pointers
 
 [[overrides]]                 # facts analysis cannot infer, written by hand; each is validated
 start = 0x0804F318
 size = 0x400
 kind = "code"
+mode = "thumb"                # a code override's mode: "thumb" (default) or "arm"
 runs_at = 0x03000388
 ```
+
+The keys the example does not show in full (final-review docs-and-plan-9):
+
+| Key | Meaning |
+| --- | --- |
+| `[signatures] libraries` | the libraries whose built signature files `init` and `analyze --update` use; absent, every built file is used; `init` writes the libraries it placed (final-review docs-and-plan-4, D106 c) |
+| `[[modules]] generated` | absent means `true`; `false` keeps the module's source and chunk files out of romlift's writes (`planWrites` never touches them, D62 d) and gives it no objdiff target |
+| `[symbols] type` | `"pointers"`: a sized table printed as words naming labels; `"bytes"`: a sized blob printed as bytes, never read as pointers |
+| `[[overrides]] mode` | the instruction set of a `code` override, `"thumb"` or `"arm"` |
 
 - `core/config/keys.ts` rejects any address key that is not `0x` plus eight upper-case hex digits
   (`E_TOML_KEY_SPELLING`), any address listed twice (`E_DUPLICATE_ADDRESS`), and, once the schema has given each
@@ -1600,7 +1634,8 @@ runs_at = 0x03000388
   function there, or its seed added no function and it gave no listed entry its extent (phase-6 fix round 6,
   correctness-o1-2).
 - `data_start` (phase 6, D92) on a `[[modules]]` entry starts the module's C data range: the bytes from it to the
-  module's end are what its C object's `.rodata` and `.data` replace (§6.6). The config reads it as a syntax only
+  module's end are what its C object's `.rodata` replaces (§6.6; the linker script places only `.rodata .rodata.*`,
+  and data the C file puts in RAM still fails the link). The config reads it as a syntax only
   (an address); whether it is legal for its module is the model's question.
 - `from` records where a proposed entry came from, as a `sourceKey`: `sig:<library>@<version>`, the only persisted
   source since the evidence importers and legacy import were dropped (D91, D92). It is data, not a comment: `explain` reads it, and `rename` removes it
@@ -2191,21 +2226,25 @@ information.
 
 Each module's `codes.ts` lists its codes with a one-line meaning; `core/diagnostic-codes.ts` unions them
 (D45). A unit test fails on a code that is defined but never raised in its module, or raised but not
-defined. The codes:
+defined, and on a table below whose codes differ from the codes the `codes.ts` files define (final-review
+architecture-2). The codes:
 
 | Code | Module |
 | --- | --- |
 | `E_ROM_NOT_GBA` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_FUNCTION_MISALIGNED`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER`, `E_DECOMP_YAML_INVALID`, `E_ROM_SHA1_MISMATCH` | `core/config` |
-| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED` | `core/model` |
-| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_PROFILE_MISFIT`, `W_UNDECODED_GAP`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET` | `core/analysis` |
+| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_DATA_RANGE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED` | `core/model` (`E_DATA_RANGE_INVALID`: a C data range, phase 6, D92) |
+| `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET`, `E_ANALYSIS_JSON` | `core/analysis` (`E_ANALYSIS_JSON`: the analysis codec's refusal; `W_PROFILE_MISFIT` and `W_UNDECODED_GAP` are not defined: each lands with its first raiser, D59 g) |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` (`E_STALE_EDIT` through `staleEdit`, which the shell's `applyWrites` also calls at write time, D81 b) |
 | `W_C_ORDER`, `E_C_STUB_UNPLACED`, `E_C_STALE_DEFINITION`, `E_C_CONDITIONAL_STUB`, `E_C_FRAGMENT_STUB`, `E_C_MODULE_INCLUDED`, `E_C_UNSCANNABLE`, `W_C_UNSCANNABLE` | `core/reconcile` (`W_C_UNSCANNABLE` also through `unscannableWarning`, which `core/workflow/c-stubs.ts` calls for a C file of no module, D81 a; `E_C_FRAGMENT_STUB` since fix round 7, D83 a) |
 | `E_DIR_NOT_EMPTY`, `E_STALE_CONFIG`, `E_C_DEFINITION_MOVED`, `W_C_FILE_UNUSED` | `core/workflow` (`init`'s verdict on its directory, D75 j, checked under the project lock, D77 j; `analyze --update --write` over a changed config, D75 m; the reconciliation of a project's C files, D77 a) |
-| `W_EVIDENCE_CONFLICT` | `core/workflow` (the proposal screen, `checkProposals`, §7.4; `core/evidence` and the legacy codes were dropped with their importers, D91, D92) |
-| `W_SIGNATURE_CONSTANT` | `core/signatures` (`codes.ts`, empty until its first raiser, D93) |
-| `E_IO_READ`, `E_IO_WRITE`, `E_TOOLCHAIN_MISSING`, `E_TOOLCHAIN_FAILED`, `E_PROJECT_NOT_FOUND`, `E_PROJECT_LOCKED`, `W_STALE_LOCK`, `W_LOCKFILE_DEFERRED`, `W_SIGNATURES_ABSENT` | `shell` (its own `codes.ts`, outside the core union) |
+| `E_RENAME_UNKNOWN`, `E_RENAME_EXISTS`, `E_RENAME_INVALID`, `E_RENAME_SKIPPED_FILE`, `W_RENAME_SKIPPED`, `E_RENAME_INTERRUPTED` | `core/workflow` (`rename`, phase 6, D92, D95 c, D96 c) |
+| `W_EVIDENCE_CONFLICT`, `W_LIBRARY_MODULE_DROPPED` | `core/workflow` (the proposal screen, `checkProposals`, §7.4, and a library region `analyze --update` gives no module; `core/evidence` and the legacy codes were dropped with their importers, D91, D92) |
+| `E_SIGNATURE_REFERENCES_MISMATCH`, `E_SIGNATURE_OBJECTS_UNMATCHED`, `E_SIGNATURE_MEMBER_ID_INVALID`, `E_SIGNATURE_MEMBER_DUPLICATE`, `E_SIGNATURE_MEMBER_OUTSIDE_ROM`, `E_SIGNATURE_TABLE_UNPLACED`, `E_SIGNATURE_NAME_DUPLICATE`, `W_SIGNATURE_TABLE_MISSING`, `W_SIGNATURE_TABLE_UNSIZED`, `W_SIGNATURE_MEMBER_DIFFERS`, `W_SIGNATURE_REVIEWED_UNUSED` | `core/signatures` (the builder, `extract.ts`, §7.2) |
+| `W_SIGNATURE_CONSTANT`, `W_SIGNATURE_POINTERS`, `W_SIGNATURE_AMBIGUOUS`, `W_SIGNATURE_DROPPED` | `core/signatures` (the matcher and its resolver, §7.2; `W_SIGNATURE_AMBIGUOUS` is one line per version, and a version wholly superseded by another version of its library is not reported, final-review clean-clone-6) |
+| `E_IO_READ`, `E_IO_WRITE`, `E_TOOLCHAIN_MISSING`, `E_TOOLCHAIN_FAILED`, `E_PROJECT_NOT_FOUND`, `E_PROJECT_LOCKED`, `W_STALE_LOCK`, `W_LOCKFILE_DEFERRED`, `W_PROJECT_CONFIG_IGNORED`, `W_PROJECT_ROM_ABSENT` | `shell` (its own `codes.ts`, outside the core union; the last two since the final review, end-to-end-user-5 and -6) |
+| `E_SIGNATURE_SPEC_INVALID`, `E_SIGNATURE_DATASET_UNKNOWN`, `E_SIGNATURE_DATASET_SEALED`, `E_SIGNATURE_DATASET_INVALID`, `E_SIGNATURE_REFERENCE_SHA1`, `E_SIGNATURE_REFERENCE_INVALID`, `E_SIGNATURE_FILE_INVALID`, `W_SIGNATURE_FILE_SKIPPED`, `W_SIGNATURES_ABSENT` | `shell` (`signatures/`: reading specs, references and built files, D95 b) |
 
 Core never throws for content: it returns diagnostics, and a config error returns all errors at once.
 It throws only `RomliftInvariantError` on a broken internal invariant (exit 70). The shell wraps I/O
@@ -2342,10 +2381,13 @@ earlier gate. Capability is detected inside the test, so the product API carries
 The components of each phase, their files, APIs, tests, ported PoC code and dependencies, and the exact
 exit commands, are in [roadmap.md](roadmap.md). The rules here govern all of them.
 
-**Git** (D39). One branch `phase/<n>-<name>` per phase, with component branches `phase/<n>/<component>`,
-each in its own `git worktree`. The phase branch merges to `main` and is pushed only when `npm run bench
--- gates --require <n>` passes for both tiers and `phase.json` is raised in the same merge. Every commit
-message ends with the two attribution lines of `AGENTS.md`.
+**Git** (D39, as executed: D43, D55 j, D75 p, D93; `AGENTS.md` "Phases and Git" is the working copy). One branch
+`phase-<n>` per phase, with flat component branches `phase-<n>-<component>`, each in its own `git worktree` (under
+`romlift-wt/`, roadmap.md). The phase branch merges to `main` and is pushed only when `npm run bench -- gates --require
+<n>` passes for both tiers, `phase.json` is raised in the same merge and the CI workflows ran on the pull request (for
+phase 6 alone their checks ran locally, D103). Every commit message ends with exactly one line, `Co-Authored-By:
+Claude Opus 5.5 <noreply@anthropic.com>`, from phase 4 on (phases 1 to 3 also carried a `Claude-Session:` line, D75
+p).
 
 **Parallel work** (D43). Each phase opens with component 0, by the phase lead: it freezes the phase's
 types, creates the empty barrels (`src/api/<component>.ts`, `cli/commands/lists/<component>.ts`), the empty
@@ -2406,12 +2448,13 @@ in roadmap.md pass. The gates per phase are those of §1.
    (phase-2.md, Q6); the owner answered Q6 on 18 October 2026, "Yes, cover all 8", and the known limitation
    covers the eight with their records. Nothing else is waived.
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
-   about 16,000 lines).
-6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export.
-7. Windows: the tool only, or the scaffolded build too.
-8. The Transmuter block in `decomp.yaml`.
+   about 16,000 lines). Built default: one `romlift.toml`, `[functions]` inline.
+6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export. Built default: a
+   subpath export of `romlift` (D1).
+7. Windows: the tool only, or the scaffolded build too. Built default: neither; macOS and Linux only (D30).
+8. The Transmuter block in `decomp.yaml`. Built default: none is written (D106 e).
 9. Which compiler built the other Klonoa GBA games, which decides whether a second analysis profile
-   belongs in release 1.
+   belongs in release 1. Built default: the agbcc profile only (`g2.second-profile` keeps the seam).
 10. The phase-3 owner questions (phase-3.md, Q1 to Q8), **answered by the owner on 19 October 2026** (D68, D69, D72, D73):
     Q1, "Move gate to phase 5" (`g3.objdiff` is `g5.objdiff`, `g6.objdiff` since D92; phase 3 records the classified counts and keeps the
     classifier); Q2, "Measure under a heap cap" (the `romlift` bin and `g3.large-rom` run Node with

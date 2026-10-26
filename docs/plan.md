@@ -3,6 +3,16 @@
 > Exported from the Plan tab of the Claude Docs artifact <https://claude.ai/code/artifact/7963dcce-e818-490a-a959-ca96941bdc23> (revision 26, 2026-10-17). The three embedded diagrams are transcribed as Mermaid from their SVG source. "This repo" in the text means the Klonoa decomp repository (klonoa-empire-of-dreams), where the plan was written.
 >
 > Revised in phase 6 for the owner's decisions of 20 October 2026: the gba-kit trace integration is dropped ("I think we can skip this part of the plan, since very few functions are called and found by gba-kit", D91), and phase 5 is skipped ("We don't need it. Skip phase 5", then "Keep rename and objdiff", D92): legacy import and the switch-over of this repo are dropped, and the reconciler, `rename`, objdiff targets, C data ranges and the objdiff gate move into phase 6. The gba-kit evaluation stays below as the measured reason. Where the text below still describes the dropped parts, these notes and [roadmap.md](roadmap.md) govern.
+>
+> Revised at the final review (fix round 1, D106) for the gates the owner changed after this plan was written, which the
+> milestone table and the Readability row below still state in their original form: **phase 2** was not passed by "two
+> unseen ROMs": The Minish Cap (tmc), sealed first, failed and was revealed and tuned on (D60), and the gate passes on
+> the sealed pair pokefirered and pokeruby with both family conditions waived (D60, D61), so no held-out evidence of
+> generality from a family absent from the tuning set exists and release 1 cannot claim it until a fresh family's
+> sealed pair passes; **phase 6**'s objdiff gate is not "score 0": `g6.objdiff` holds each tuning ROM's gated
+> differences at a per-ROM ceiling the owner set (D102, pinned by D104 b), a no-regression bar, and the readability
+> objdiff score is that same ceiling, not 0 on every function. Mizuchi config and the "on request" tool configs are
+> settled by D106 e (below, "The one-shot scaffold").
 
 Oct 16, 2026 · @Bruno
 
@@ -339,7 +349,7 @@ Five choices follow from the lessons above:
 - **Templates are versioned with the tool.** `romlift scaffold --diff` shows how a project differs from the current templates and never overwrites.
 - **Data defined in C comes later.** The first linker script places only `.text`, as this repo's does, and the build fails loudly if a C file emits `.rodata`, `.data` or `.bss`. Phase 6 (phase 5's before the owner skipped it, D92) adds a data range per module, so a C array can replace its slice of the ROM.
 
-Config for asmlift, Transmuter and Mizuchi is written only on request, since not every project uses them.
+Config for asmlift, Transmuter and Mizuchi is written only on request, since not every project uses them. (As built, D106 e: `decomp.yaml` always carries the `tools.asmlift` block, decided on 16 October 2026, because asmlift reads nothing else and an unused block costs nothing; Mizuchi's config is not written, deferred until a project asks for it, with no request flag; Transmuter's block stays open, architecture §12 item 8.)
 
 ## gba-kit evaluation
 
@@ -434,7 +444,7 @@ Every change to romlift is measured the way asmlift is: a committed artifact tha
 | Scaffold | `make` on the scaffolded project reproduces the ROM; build time | SHA-1 equal on every ROM | Built, passing |
 | Determinism | Two runs on the same input | Byte-identical artifact | Built, passing |
 | Printer | Every Thumb halfword and an ARM sample: the text re-assembles to the same bytes, or the item falls back to raw | 100% round-trip; the raw share only decreases | Phase 1 |
-| Readability | Per function: share of instructions printed as mnemonics, branches and pool loads symbolic, objdiff score of the emitted `.s` against the ELF's own function | Per-ROM shares only increase; score 0 on every function | Phase 3 |
+| Readability | Per function: share of instructions printed as mnemonics, branches and pool loads symbolic, objdiff score of the emitted `.s` against the ELF's own function | Per-ROM shares only increase; score 0 on every function (as built: the objdiff part is `g6.objdiff`'s per-ROM ceiling of gated differences, D102, D104 b) | Phase 3 |
 | Speed | Analysis wall time per ROM | Within 1.5 times the committed time | Informational now, a gate from phase 2 |
 
 **The artifact.** `bench/results.json` holds `meta` (generated at, romlift commit and whether the tree was dirty, Node version, per-ROM SHA-1 and ELF commit), one summary per ROM and tier, and the exception rows in full: misses with their reason, false entries with their origin and owner, extent mismatches, the code end. Per-function outcomes stay out of it; they are re-derived by `bench run` and the committed rows are the ones a reviewer needs to see move. The PR diff of this file is the review of a change's effect, as it is in asmlift.
@@ -474,7 +484,7 @@ Six phases, each closed by a test rather than a date. The one-shot scaffold you 
 ```mermaid
 flowchart LR
   p1["<b>1 Decoder</b><br/>ARMv4T decode and encode,<br/>GNU as text, raw fallback<br/>◆ gate: all Thumb encodings<br/>round-trip through as"]
-  p2["<b>2 Analysis</b><br/>descent, far jumps, pools,<br/>tables, pointer harvest<br/>◆ gate: five-ROM scores hold;<br/>two unseen ROMs pass"]
+  p2["<b>2 Analysis</b><br/>descent, far jumps, pools,<br/>tables, pointer harvest<br/>◆ gate: five-ROM scores hold;<br/>two sealed ROMs pass<br/>(family conditions waived, D60/D61)"]
   p3["<b>3 Emission</b><br/>model to asm, data and<br/>linker script; self-check<br/>◆ gate: three ROMs rebuild from<br/>generated asm alone"]
   p4["<b>4 One shot</b><br/>TOML schema, scaffold,<br/>C stubs, init command<br/>◆ gate: init, setup, make: SHA-1<br/>matches, no hand edits"]
   p5["<b>5 Migration</b><br/>skipped by the owner (D92);<br/>reconciler and objdiff targets<br/>moved to phase 6"]
@@ -486,11 +496,11 @@ flowchart LR
 | Phase | Scope | Gate |
 | --- | --- | --- |
 | 1 Decoder | ARMv4T decode and encode, GNU as text, raw fallback | All Thumb encodings round-trip through as |
-| 2 Analysis | Descent, far jumps, pools, tables, pointer harvest | Five-ROM scores hold; two unseen ROMs pass |
+| 2 Analysis | Descent, far jumps, pools, tables, pointer harvest | Five-ROM scores hold; two sealed ROMs pass (family conditions waived, D60/D61; tmc revealed and tuned on, D60) |
 | 3 Emission | Model to asm, data and linker script; self-check | Three ROMs rebuild from generated asm alone |
 | **4 One shot** | TOML schema, scaffold, C stubs, init command | init, setup, make: SHA-1 matches, no hand edits |
 | 5 Migration | Skipped by the owner (D92): legacy import and this repo's switch-over dropped; the reconciler and objdiff targets moved to phase 6 | none |
-| 6 Evidence | Library signatures, explain, code run from RAM through hand-written overrides (the gba-kit trace dropped, D91); from phase 5 the reconciler, `rename`, objdiff targets and C data ranges | m4a and libgcc named; RAM code mapped; objdiff score 0 |
+| 6 Evidence | Library signatures, explain, code run from RAM through hand-written overrides (the gba-kit trace dropped, D91); from phase 5 the reconciler, `rename`, objdiff targets and C data ranges | m4a and libgcc named; RAM code mapped; objdiff score 0 (as built: gated differences at or under each tuning ROM's ceiling, D102, D104 b) |
 
 Phases 1 to 3 are judged on bytes alone, before any project layout exists. That order puts the riskiest work first: if the analysis does not hold on ROMs it has never seen, it shows in phase 2.
 
@@ -507,7 +517,7 @@ Phase 5 would have retired four things in this repo (`generate_asm.py`, `generat
 | 5 Migration | Skipped by the owner (D92): `import-legacy` and the pull request that switches this repo over are dropped; the rest moves to phase 6 |
 | 6 Evidence | A signature format and signature files for m4a, libgcc, the serial libraries and the BIOS call stubs; signature proposals screened with conflict reports; code run from RAM through hand-written overrides (`romlift trace` and the gba-kit trace API dropped, D91); from phase 5 (D92) the `INCLUDE_ASM` reconciler, `rename`, objdiff targets and `objdiff.json`, data ranges for C-defined data |
 
-Signature packs sit in phase 6 because the scaffold builds without them: an unrecognised library range is still emitted byte-exact, only unsplit. If the m4a engine matters early for a project, the m4a pack can move up to phase 2, where it would lift recall on all five ROMs.
+Signatures sit in phase 6 because the scaffold builds without them: an unrecognised library range is still emitted byte-exact, only unsplit. If m4a matters early for a project, the m4a signatures can move up to phase 2, where they would lift recall on all five ROMs.
 
 ## Risks and open questions
 
@@ -517,7 +527,7 @@ The largest risk is that the rules do not hold for the next ROM. It has already 
 | --- | --- | --- |
 | The rules overfit the five benchmark ROMs | Wrong splits on a new game | Two unseen ROMs must pass the same gates. Every rule names the compiler behaviour it rests on |
 | A ROM was built with another compiler, or a newer GCC | Functions are mis-split | Rules sit behind a profile. A high rule-violation rate is reported as "profile does not fit" |
-| Hand-written library code: m4a, serial routines, startup | Was where nearly all misses were; the tiled-hole and ARM rules now find the functions, and the labels inside them are what remains | Signature packs name the labels and the ARM blocks inside the mixer |
+| Hand-written library code: m4a, serial routines, startup | Was where nearly all misses were; the tiled-hole and ARM rules now find the functions, and the labels inside them are what remains | Signatures name the labels and the ARM blocks inside the mixer |
 | Data that looks like a function pointer | Bogus functions, which can also truncate a real one | The validity and evidence tests. Measured: one or two per ROM, all under 50 bytes |
 | Code reached only by computed addresses, or run only from RAM | Left as data | Reported as an undecoded gap inside code. Overrides resolve it (gba-kit evidence was dropped, D91) |
 | GNU `as` versions disagree on an encoding | Mismatch at first build | `romlift doctor`, and the raw fallback |
@@ -530,11 +540,13 @@ The largest risk is that the rules do not hold for the next ROM. It has already 
 Decisions that are yours to make:
 
 - [x] Should this repo adopt the recovered boundaries? It would drop 283 cfg entries, add the 183 functions the list lacks, and rename files such as `sub_08016EEE.s`. One PR, or module by module? Moot: the owner skipped phase 5 and dropped the switch-over (D92).
-- [ ] One TOML, or settings in the TOML and the function list in an included file?
-- [ ] Does the tool get its own repo, or live in the gba-kit monorepo next to the shared decoder?
-- [ ] Decided 16 October 2026: `init` writes `decomp.yaml` with `tools.asmlift` and `tools.romlift` blocks, through `@match-kit/decomp-yaml`, so asmlift and a git worktree find the project without flags (see The one-shot scaffold). Transmuter's block is still open.
-- [ ] Which compiler built the other Klonoa GBA games? The answer decides whether a second profile belongs in the first release.
-- [ ] Windows: support the tool only, or the scaffolded build as well?
+- [x] Does the tool get its own repo, or live in the gba-kit monorepo next to the shared decoder? Decided: its own repository, macabeus/romlift, with the instruction set as the `romlift/isa` subpath export gba-kit can import (D1); whether `romlift/isa` becomes a package of its own is architecture §12 item 6.
+- [x] Decided 16 October 2026: `init` writes `decomp.yaml` with `tools.asmlift` and `tools.romlift` blocks, through `@match-kit/decomp-yaml`, so asmlift and a git worktree find the project without flags (see The one-shot scaffold). Transmuter's block is still open (architecture §12 item 8).
+- [ ] One TOML, or settings in the TOML and the function list in an included file? Open: architecture §12 item 5 (built: one TOML).
+- [ ] Which compiler built the other Klonoa GBA games? The answer decides whether a second profile belongs in the first release. Open: architecture §12 item 9 (built: agbcc only).
+- [ ] Windows: support the tool only, or the scaffolded build as well? Open: architecture §12 item 7 (built: macOS and Linux only).
+
+The open decisions and their built defaults are tracked in [architecture.md](architecture.md) §12.
 
 ## Name suggestions
 

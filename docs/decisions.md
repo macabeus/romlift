@@ -4916,6 +4916,66 @@ a fresh worktree at `74aa225` (phase-6.md, run 7): all 20 commands exit 0, the g
 `LayoutInput.resolve` returns a `SymbolValue`, so the rule that reads one belongs beside it. A test that holds D104 f's
 conversion on an input `buildModel` refuses.
 
+## D106. Final review, fix round 1: the review of the six phases (`0ccc5a0`)
+
+**Context.** The final review of the landed project (main at `0ccc5a0`, tag `phase-6`) ran a clean clone through the
+README, a new user through init, setup and the commands, the gates, the architecture and the documents against the
+plan, and raised 15 majors and 32 minors (docs/final-review.md, which records every disposition). The majors that
+asked for code: the README's first command fails (romlift is not on npm), signature naming cannot work from a clone or
+the package, `bench run` silently drops the signatures family, `bx pc` veneers become 4-byte C modules, the verify
+composition lives in the CLI (against D36), the plan's scaffold headers are missing, and `[signatures] libraries` does
+nothing.
+
+**Decision.**
+
+- (a) **The verify composition is core's and the shell's** (architecture-1). `core/workflow/verify.ts` decides which
+  toolchain checks run, whether they run (not while a self-check or the model fails), with which units, and the report;
+  `shell/project/verify-run.ts runToolchainChecks` carries the plan out and is exported from `romlift/node`. The CLI's
+  edge row lets it take values from only the api barrels of reading, formatting, codecs and doctor, types from any
+  (architecture §2), and a mutation case proves the checker refuses another.
+- (b) **The package ships no signature spec** (clean-clone-2, docs-and-plan-2, end-to-end-user-2). A spec names bench
+  datasets the package does not ship, so `signatures build` cannot work from an installed package; `files` drops
+  `signatures/specs/`. `W_SIGNATURES_ABSENT` says files are not shipped and that a build needs a source checkout and the
+  reference decomp checkouts under `ROMLIFT_BENCH_ROOT`; an unreadable reference and an unknown dataset say the same.
+  Shipping built files stays the owner's (D40, architecture §12 item 1). Rejected: shipping built files now, which
+  reopens D40 without the owner.
+- (c) **`[signatures] libraries` limits the files a run uses** (docs-and-plan-4). `analyze --update` uses only the built
+  files of the libraries the key lists (all when absent); `init` keeps writing the libraries it placed. Rejected:
+  dropping the key, which `init` writes in every project with signatures.
+- (d) **The scaffold writes `include/global.h`, `include/gba/types.h` and `include/gba/io_reg.h`** (docs-and-plan-1):
+  the plan's table promised them. Written once and the user's; the C stubs do not include them, so a project may
+  replace them (the reconciler tests that lay out their own headers remove them first). Rejected: recording their
+  absence, since every decompiled function needs the types.
+- (e) **Tool configs** (docs-and-plan-5). `decomp.yaml` always carries `tools.asmlift` (decided 16 October 2026: asmlift
+  reads nothing else, and an unused block costs nothing); Mizuchi's config is deferred, with no request flag, until a
+  project asks; Transmuter's block stays open (architecture §12 item 8). plan.md's "written only on request" is
+  annotated.
+- (f) **The Map iteration rule's scope is stated as enforced** (architecture-3). §4.4 names the five scopes the checker
+  enforces; elsewhere iteration over sorted or sorted-filled input is a convention. Rejected for this round: widening
+  the scope and rewriting the 21 sites, each deterministic today.
+- (g) **A Thumb `bx pc` stub is assembly-only** (end-to-end-user-3). `asmOnlyReasons` gives a Thumb function with a
+  veneer (`walk.bx-pc-veneer`) the reason `mode-switch`, so the stub joins its ARM half, and a run of veneers, their nop
+  orphans and their ARM code is one `asm_<ADDR>` module: klonoa's thunks go from eleven 4-byte modules to one (15
+  modules with signatures). The analysis' function boundaries are unchanged (still a 2-byte Thumb function and an ARM
+  function), so no score moves; the bx-pc-veneer and adr-label-and-data goldens move one module start. Rejected: one
+  function spanning both modes, which changes the analysis, the model and the printer.
+- (h) **Signature warnings a user cannot act on are folded** (clean-clone-6, end-to-end-user-16). `W_SIGNATURE_AMBIGUOUS`
+  is one line per version, saying when the version placed nothing (the library is likely not linked);
+  `W_SIGNATURE_DROPPED` is not raised for a version every placement of which another version of the same library took
+  first.
+- (i) **`src/*.c` fragment includes resolve lexically** (architecture-7): the cpp-exact resolution of D89 a is for
+  headers; `resolveInclude` keeps popping `..` textually for a fragment, recorded rather than changed.
+- (j) **Smaller fixes**: `romlift --version`; the generated Makefile names `$(ROMLIFT_CLI)` and stops with a message
+  without `baserom.gba`; setup.sh prints the `ROMLIFT_CLI` remedy when npm cannot install romlift; init skips the npm
+  lock step while `ROMLIFT_CLI` is set; a project without its ROM says how to get one, `generate --rom` warns
+  `W_PROJECT_ROM_ABSENT`, and `verify`, `model` and `explain --rom` inside a project warn `W_PROJECT_CONFIG_IGNORED`;
+  `bench run` refuses to write an artifact without the signatures family the committed one carries; hex through
+  `hexSize`, enforced by the checker; §9.1's code table regenerated and tested against the `codes.ts` files; shared
+  `codeEnd` and placeholder helpers; `readTextIfPresent` for the lock and the corpus inputs; dead exports removed.
+
+**Consequences.** Every phase gate runs again (docs/final-review.md, "Gate results"). What stays open is listed in
+roadmap.md "Carried past phase 6" and asked of the owner in docs/final-review.md.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

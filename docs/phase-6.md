@@ -161,7 +161,15 @@ a pass).
   written over it, D101), `objdiff.json` (one unit per `c` module), and the `[[modules]]` key `data_start`, whose range
   is the C object's `.rodata` in place of phase 4's C-data assertion.
 - **The carried minors** of phase 4 (roadmap "Carried from phase 4"), each with its component in the table below; the
-  include resolution behind a symbolic link is cpp-exact.
+  include resolution behind a symbolic link is cpp-exact for headers; a `src/*.c` fragment's `#include` still resolves
+  lexically (`c-scan.ts resolveInclude`, which pops `..` textually and ignores links), a recorded limit (final-review
+  architecture-7, D106 i).
+- **The objdiff gate is a no-regression ceiling** (final-review gates-4). `g6.objdiff` holds each tuning ROM's gated
+  differences at a ceiling the owner set from the measured counts (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4,
+  tmc 25; D102, pinned by D104 b), with no headroom: it says "nothing got worse", not "every function matches". The
+  same-word classes and the uncompared functions are reported, not gated, and on klonoa 130 of its 485 scored functions
+  are not compared at all, because objdiff-cli 3.7.2 cannot read `src/code_0804B254.o` (a known limitation below;
+  carried past phase 6).
 - **Commands** added: `signatures build <spec>`, `signatures <rom>`, `rename <old> <new>`, `init --no-signatures`, `bench
   signatures [--loo]`. **Formats** added: signature file schema 3, signature spec, `expected/<module>.s`, `objdiff.json`,
   `data_start`, the two bench signature schemas.
@@ -597,6 +605,31 @@ Q6 and Q15. Q4 and Q7 need no answer.
 
 ## Known limitations
 
+Added at the final review (docs/final-review.md, D106):
+
+- **Signature files are not shipped, and only a source checkout with the reference decomps can build them**
+  (docs-and-plan-2, clean-clone-2). Built files are local (gitignored, D40) and, since the final review, the specs are
+  not packed either, because a spec names bench datasets the package does not ship. An installed or freshly cloned
+  romlift names no library until the files are built with the reference checkouts (sa2, pokeemerald, fe7j, klonoa)
+  under `ROMLIFT_BENCH_ROOT`; `W_SIGNATURES_ABSENT` says so. Shipping built files stays the owner's decision
+  (architecture §12 item 1).
+- **Phase 6's Linux CI never ran** (docs-and-plan-6, gates-8). GitHub refused the jobs and the owner let their checks
+  run locally (D103), which was macOS only: `ci.yml` on Ubuntu with both Node versions, the apt-binutils corpus
+  (binutils 2.42), `fixtures.yml` and `packed.yml` did not run, and `ci-digests --expect 2` compared two darwin runs, so
+  R4's "byte-identical on Linux and macOS" was last shown at phase 4's pull request. Carried past phase 6 (roadmap).
+- **sa2's `g2.speed` margin depends on machine load** (gates-2). Run 7 measured 94.0% of the limit; the final review
+  measured 99.1% (the gate run of another agent's closing list on the same machine) and 99.9% (load average 7 to 10),
+  both passing. Alternating same-process medians of discover on sa2 at `b0759e7` (phase 2's close) and at the final
+  review's tree agree (787 against 789 ms, 747 against 722 ms), so the analysis did not slow down: the limit, 1.5 times
+  a baseline measured on 17 October, is close to what a loaded machine measures. Re-measuring `speed.json` is the
+  owner's (owner question O1 of the final review); fe7j and pokeemerald, whose baselines predate a sevenfold speed-up,
+  are held to limits ten and two times what they measure (gates-3).
+- **tmc's signature floor is romlift's own output** (gates-5). `g6.signatures-judged` holds tmc to the counts the
+  closing round measured (libagbsyscall 13, m4a 55 functions and 10 tables, 68 placements; D98 c), not to an
+  independent bar. 39 of m4a's 94 members are not placed on tmc; why (a modified m4a, or a version no spec has) was not
+  investigated, so the floor is not full coverage. Names are not judged on tmc (no reviewed reference), and none of its
+  5 proposed sizes can be judged.
+
 - **Code run from RAM needs a hand-written override** (D91): nothing proposes `runs_at`; a user writes the
   `[[overrides]]` entry, and the analysis, the model and the ldscript honour it.
 - **No import path for an existing decomp's function list** (D92): `import-legacy` is not built; a project starts from
@@ -719,7 +752,11 @@ Merges on `phase-6`, all without a textual conflict: `379c599` (signatures-apply
 
 ## The closing gate
 
-The list, run in this order in a fresh worktree at `landed` 6, the real tier before the ci tier (D54 i):
+The list, run in this order in a fresh worktree at `landed` 6, the real tier before the ci tier (D54 i). Its
+environment: `ROMLIFT_BENCH_ROOT`, `ROMLIFT_POC`, `bench/.local/poc` and `bench/.local/agbcc`, and the pinned
+objdiff-cli 3.7.2 reachable as `ROMLIFT_OBJDIFF` or a build in `bench/.local/objdiff-target` (a linked worktree
+falls back to the main checkout's): in a plain clone without it `npm test` skips one test (2,875 pass, 1 skipped)
+and `bench doctor-real` fails (final-review gates-7, clean-clone-4):
 
 ```
 npm ci

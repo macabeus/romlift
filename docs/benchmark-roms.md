@@ -35,6 +35,12 @@ These pairs are the held-out gate of phase 2 ("the same gates on at least two RO
 
 Status on 2026-10-17: all three held-out builds (`pokefirered`, `pokeruby`, `tmc`) reproduce their checkout's own SHA-1 file, so all three pairs are ready. `tmc` writes its ELF at the checkout root (`tmc/tmc.elf`) and its map under the build directory (`tmc/build/USA/tmc.map`), not beside the ELF. Their ROM SHA-1s, ELF digests and ELF commits are recorded in their sealed dataset files (`bench/dataset/real/{pokefirered,pokeruby,tmc}.json`, phase 2), created by `node --conditions=source bench/tools/seal-dataset.ts`, which hashes the files, reads the checkout's `git rev-parse --short HEAD` and never reads a symbol; the measured commits equal the table above. This document records only the paths, so nobody opens, hashes or inspects a held-out file to keep it current.
 
+## Evaluation only: sa1
+
+| Dataset name | Game | ROM | Checkout (upstream) | Commit | ROM SHA-1 | Role |
+| --- | --- | --- | --- | --- | --- | --- |
+| `sa1` | Sonic Advance | `sa1.gba` (at the benchmark root) | `sa1/` (SAT-R/sa1) | `fdd89564` | `eb00f101af23d728075ac2117e27ecd8a4b4c3e9` | objdiff evaluation only (`test/local/objdiff-json.test.ts`, architecture §6.8, phase-6.md Q12): an untouched project's every function at 100% in objdiff. Not tuning data, not held out, no dataset file; nothing reads its ELF or symbols |
+
 ## Codebase families and the reserve pool
 
 Every dataset records its codebase family (architecture §8.2; the term is D55's, replacing "engine family"). `g2.held-out` needs two passing sealed ROMs
@@ -108,9 +114,14 @@ digest), built from the `objdiff/` checkout (encounter/objdiff, `v3.7.2-5-g3c7b5
 sources:
 
 ```
-cargo build --release --manifest-path /Users/macabeus/ApenasMeu/decompiler/objdiff/Cargo.toml -p objdiff-cli \
-  --target-dir /Users/macabeus/ApenasMeu/decompiler/romlift/bench/.local/objdiff-target
+# from the romlift checkout (a clone or a worktree): the build lands in its own bench/.local
+cargo build --release --manifest-path "$ROMLIFT_BENCH_ROOT/objdiff/Cargo.toml" -p objdiff-cli \
+  --target-dir "$PWD/bench/.local/objdiff-target"
 ```
+
+Every clone needs this build (or `ROMLIFT_OBJDIFF` naming one): without it `bench doctor-real` fails and `npm test`
+skips the test that runs the pinned objdiff-cli (final-review clean-clone-4, gates-7). Only a linked `git worktree`
+falls back to the main checkout's build.
 
 `bench/src/objdiff-cli.ts` looks for it in this order: `ROMLIFT_OBJDIFF`; the repository's
 `bench/.local/objdiff-target/release/objdiff-cli`, then the main checkout's when the repository is a linked

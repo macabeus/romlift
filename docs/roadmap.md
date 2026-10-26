@@ -868,7 +868,7 @@ import, which D92 dropped. Their components (D93):
 | code whose only producers the owner dropped (`seed.evidence-hint`; the `legacy` and `evidence` sources; `read-trace.ts`, `trace-json.ts`) | `p6-analysis-layout` (the rule), `p6-lead` (the sources); the files never existed (D91 a) |
 | architecture-b2-8's remainder | `p6-analysis-layout` |
 | correctness-b2-3's remainder (`ROMLIFT_VERSION` in `modules.mk`) | stays carried: it waits for romlift's publication (D76 d) |
-| the cpp-exact include resolution behind a symbolic link, gate-honesty-e1-1 | `p6-include-links` |
+| the cpp-exact include resolution behind a symbolic link, gate-honesty-e1-1 (headers only; `src/*.c` fragments stay lexical, D106 i) | `p6-include-links` |
 
 - **correctness-r0-5's remainder** (from phase 3, carried again; phase-4.md, "The carried minors"): pool.ts calls
   `moduleAt` once per address with labels; thread the relocated-module list through `wordText`, `labelForWord` and
@@ -1131,7 +1131,11 @@ npm run bench -- provenance
 ```
 
 The list is the one the closing run executed (phase-6.md, "The closing gate"): phase 4's list with the signature build
-loop and the packed-file check. The signature build runs from source, not `npx romlift signatures build`: romlift is unpublished (D76 d) and npx would
+loop and the packed-file check. Its environment: `ROMLIFT_BENCH_ROOT` and `ROMLIFT_POC` set, `bench/.local/poc` and
+`bench/.local/agbcc` present, and the pinned objdiff-cli reachable (`ROMLIFT_OBJDIFF`, or a build in the checkout's
+`bench/.local/objdiff-target`; a linked worktree falls back to the main checkout's): without it `bench doctor-real`
+fails and `npm test` skips one test, so "0 skipped" holds only with it (final-review gates-7). Since the final review
+the package ships no signature spec either, so the packed-file check finds no `signatures/` file at all. The signature build runs from source, not `npx romlift signatures build`: romlift is unpublished (D76 d) and npx would
 query the registry (D93 i).
 
 Thresholds, one per gate of the phase (every earlier gate still passes):
@@ -1181,6 +1185,19 @@ code minors open, each recorded in phase-6.md "Known limitations". None is a def
 | architecture-o2-2 | `resolver.ts wordNameOf` calls `addendTo` instead of recomputing it, and `addendTo`'s comment lists it as a reader |
 | architecture-o0-8 (phase-6 fix round 5) | the frozen `g4.c-data-fails-loud` header's stale quote of the C-data assertion (a gate file; an edit needs the owner) |
 | correctness-b2-3's remainder | `ROMLIFT_VERSION` in `modules.mk`, when romlift is published (D76 d) |
+
+The final review (docs/final-review.md, D106) carries these, each with its reason there:
+
+| Carried item | What is left |
+| --- | --- |
+| docs-and-plan-6, gates-8 | the Linux half of phase 6's CI: `ci.yml` on Ubuntu (both Node versions), the apt-binutils corpus, `fixtures.yml` and `packed.yml`, and the four-way `ci-digests` comparison; never run for phase 6 (no Linux host, GitHub refused the jobs, D103); to run on `main` once Actions billing is restored or a Linux host is available, and recorded in phase-6.md |
+| gates-1 | a sealed pair from a codebase family absent from the tuning set (reserve pool: Kirby & the Amazing Mirror, Pokémon Pinball), sealed and run before release 1 claims generality (D53, D60) |
+| gates-2, gates-3, clean-clone-11 | re-measuring `bench/baseline/speed.json` at the current tuning, an owner decision: sa2 runs at 94 to 99.9% of its `g2.speed` limit depending on machine load, while fe7j and pokeemerald have limits far above what they measure |
+| gates-4 | an objdiff-cli fix or workaround for klonoa's `src/code_0804B254.o`, so its 130 uncompared functions can be judged |
+| end-to-end-user-8, -10, -14 | overlapping `[symbols]` entries warned; `explain` by name and scoped by default; a warning for a listed entry that cuts a found function into a fragment |
+| end-to-end-user-9 | `sym + 0xA2` (hex addends) in the readable printer, a change to every tree with addends |
+| architecture-7 to -12 | fragment includes through the cpp-exact resolver (recorded as lexical, D106 i); `seed.ram-copy`'s evaluator moved to `walk/` with a closed `SpecId` union; the driver's value-import cycle; the signature build's refusals in core; the reconciler's message templates split into statement and hint; explain's JSON encoder in core |
+| architecture-13's remainder | `emptyItemTable` kept for its tests, and the 89 file-private exports narrowed |
 
 ---
 
