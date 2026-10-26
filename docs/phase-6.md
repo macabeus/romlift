@@ -11,7 +11,7 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
-**Verdict: PHASE 6 LANDS by pull request #5 (https://github.com/macabeus/romlift/pull/5), CI checked locally (D103).**
+**Verdict: PHASE 6 IS READY TO LAND by pull request #5 (https://github.com/macabeus/romlift/pull/5), CI checked locally (D103); not merged yet.**
 The pull request's head `ee6bfda` started 14 jobs in the five workflows, and GitHub refused to start all 14 jobs, with 0
 steps run in each. The annotation on every job reads "The job was not started because recent account payments have
 failed or your spending limit needs to be increased" (runs 40300519224 `ci`, 40300519149 `printer`, 40300519165
@@ -35,7 +35,7 @@ this session. binutils is 2.45.1 from Homebrew's `gcc-arm-embedded` cask, not th
 | `provenance` (`provenance.yml`) | `npm ci --ignore-scripts`; `npm run bench -- provenance` (source digest `3e28f223…` ok on Node 24; 30 real-tier gates pass or are historical; families live; 6 rows; no sealed row) | 0, 0 |
 | `ubuntu-latest`: `ci.yml` × 2 Node, `corpus, apt`, `fixtures.yml`, `packed.yml` × 2 Node | **not run**: no Linux host here (the Docker daemon is not running), so the Linux half of the digest comparison is missing | not run |
 
-Every local check of a refused job that this machine can run exits 0. The pull request merges with `{ "landed": 6 }`.
+Every local check of a refused job that this machine can run exits 0. The pull request is ready to merge with `{ "landed": 6 }`. The `gh pr merge` of this session was refused by the session's permission system (no merge without review), so the merge, the `phase-6` tag and the clean-up wait for the owner.
 
 **Review of fix round 6 (`370744e`): eight minors, the phase lands.** The review raised no major. One finding
 corrects this record (gate-honesty-o2-1, fixed by the notes on the two status paragraphs below); four are code minors
