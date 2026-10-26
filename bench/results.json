@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "fa5d7abf4dacd5f88fb87986ac7159d762a6af06",
+    "commit": "d66d802cc6d72d62083d10a1e86eda7d3b54c664",
     "dirty": false,
-    "sourceDigest": "929668b8a99f91858ca2c5750b5ac22e5b6b14c22e5c9f59ba83de7d05334638",
+    "sourceDigest": "26c9857413ca6d7f9cc858dcf708c7de8bd492a39ee1673cd42a3605f1c39dba",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -120,7 +120,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "729569718223b6ec47dbed29dc76538ea251bb1bf11b10065783a6d289062151",
+    "inputsDigest": "91f25918412bd977d54669d63c480aa87789a4fc95d87e4260c1d5b84fa63465",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1904,14 +1904,14 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 988.42,
+        "maxRssMiB": 1191.36,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "fa5bea9e0568d55ddd45cad67bd0efabe14a865d2e763dc25b341a4a583119fc"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 995.69,
+        "maxRssMiB": 1091.39,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "fa5bea9e0568d55ddd45cad67bd0efabe14a865d2e763dc25b341a4a583119fc"
       }
@@ -2025,7 +2025,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.966; CPU/limit: fe7j 1205/12762 ms, klonoa 249/308 ms, pokeemerald 2386/4242 ms, sa2 754/787 ms, sa3 1138/1500 ms, tmc 1488/1794 ms"
+        "detail": "median of 9 runs; calibration ratio 0.931; CPU/limit: fe7j 1132/12301 ms, klonoa 242/297 ms, pokeemerald 2225/4089 ms, sa2 723/759 ms, sa3 1115/1446 ms, tmc 1421/1729 ms"
       },
       {
         "id": "g3.link",
@@ -2068,7 +2068,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.951; fe7j analysis 1231/2852 ms, klonoa analysis 258/2852 ms, pokeemerald analysis 2256/2852 ms, pokeemerald generate 8061/9505 ms, pokeemerald init 10448/14258 ms, sa2 analysis 728/2852 ms, sa3 analysis 1005/2852 ms, tmc analysis 1394/2852 ms"
+        "detail": "calibration ratio 0.960; fe7j analysis 1176/2880 ms, klonoa analysis 248/2880 ms, pokeemerald analysis 2216/2880 ms, pokeemerald generate 7740/9598 ms, pokeemerald init 10093/14398 ms, sa2 analysis 730/2880 ms, sa3 analysis 1093/2880 ms, tmc analysis 1394/2880 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2110,7 +2110,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "adr-function-label: no place for move-start; adr-function-label: no place for add-override; adr-function-label: no place for split-module; adr-handler-block: no place for add-override; adr-label-and-data: no place for add-override; arm-pools-in-front: no place for move-start; arm-pools-in-front: no place for split-module; bx-pc-veneer: no place for add-override; c-data: no place for add-override; code-copied-to-ram: no place for add-override; code-end-data-decodes: no place for add-override; code-end-unsized-last: no place for add-override; data-frame-not-function: no place for add-override; data-thumb-push-pop: no place for add-override; dead-code-in-extent: no place for move-start; dead-code-in-extent: no place for delete-function; dead-code-in-extent: no place for add-override; dead-code-in-extent: no place for split-module; entry-stub-table: no place for move-start; entry-stub-table: no place for add-override; entry-stub-table: no place for split-module; false-stub-2byte: no place for add-override; far-jump: no place for add-override; handwritten-2mod4: no place for move-start; handwritten-2mod4: no place for add-override; handwritten-2mod4: no place for split-module; inline-arm-switch: no place for move-start; inline-arm-switch: no place for add-override; inline-arm-switch: no place for split-module; library: no place for add-override; library-game: no place for add-override; library-ref2: no place for add-override; local-subroutine: no place for move-start; local-subroutine: no place for add-override; local-subroutine: no place for split-module; mov-lr-pc-bx: no place for move-start; mov-lr-pc-bx: no place for add-override; mov-lr-pc-bx: no place for split-module; multi-compiler: no place for add-override; pool-padded-46c0: no place for move-start; pool-padded-46c0: no place for delete-function; pool-padded-46c0: no place for add-override; pool-padded-46c0: no place for split-module; pool-word-push-lr: no place for add-override; pops-unpushed-frame: no place for add-override; prologueless-thumb-over-arm: no place for move-start; prologueless-thumb-over-arm: no place for delete-function; prologueless-thumb-over-arm: no place for add-override; prologueless-thumb-over-arm: no place for split-module; push-lr-2mod4: no place for move-start; push-lr-2mod4: no place for split-module; ram-copy-args-straight-line: no place for add-override; ram-copy-call-via: no place for add-override; ram-copy-entry-boundaries: no place for add-override; recursive-far-call: no place for add-override; shared-tail: no place for move-start; shared-tail: no place for split-module; table-jump-hoisted: no place for add-override; 242 legal edits link to the SHA-1 and build with make to it (move-start 48, rename 60, delete-function 57, add-override 29 (each accepted through its seed, no W_OVERRIDE_IGNORED, D98 d), split-module 48), and 239 illegal edits give their codes, on 60 ROMs"
+        "detail": "adr-function-label: no place for move-start; adr-function-label: no place for split-module; arm-pools-in-front: no place for move-start; arm-pools-in-front: no place for split-module; dead-code-in-extent: no place for move-start; dead-code-in-extent: no place for delete-function; dead-code-in-extent: no place for split-module; entry-stub-table: no place for move-start; entry-stub-table: no place for split-module; handwritten-2mod4: no place for move-start; handwritten-2mod4: no place for split-module; inline-arm-switch: no place for move-start; inline-arm-switch: no place for split-module; local-subroutine: no place for move-start; local-subroutine: no place for split-module; mov-lr-pc-bx: no place for move-start; mov-lr-pc-bx: no place for split-module; pool-padded-46c0: no place for move-start; pool-padded-46c0: no place for delete-function; pool-padded-46c0: no place for split-module; prologueless-thumb-over-arm: no place for move-start; prologueless-thumb-over-arm: no place for delete-function; prologueless-thumb-over-arm: no place for split-module; push-lr-2mod4: no place for move-start; push-lr-2mod4: no place for split-module; shared-tail: no place for move-start; shared-tail: no place for split-module; 273 legal edits link to the SHA-1 and build with make to it (move-start 48, rename 60, delete-function 57, add-override 60 (each a data override that changes the model, no W_OVERRIDE_IGNORED, D98 d, D104 a), split-module 48), and 239 illegal edits give their codes, on 60 ROMs"
       },
       {
         "id": "g4.worktree",

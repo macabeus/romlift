@@ -4824,7 +4824,8 @@ nothing either (0 of 54 fixtures): the unlisted bytes are a data chunk without i
 
 **Consequences.** `npm test` 2,865 tests pass (new or changed: the unlisted code override in `model.test.ts`, `entryLabelOf`, the layout's
 (S + A) | T case, the sized-entry link test; the ceiling and verdict tests rewritten). The closing list ran again in a
-fresh worktree (phase-6.md, run 6).
+fresh worktree at `d66d802` (phase-6.md, run 6): all 20 commands exit 0; `g4.toml-mutations` takes the data-override
+edit on every target (ci 54 of 54, real 60 of 60: 273 legal edits, 239 illegal); `g6.objdiff` at the pinned ceilings.
 
 **Rejected.** Writing the add-override question to the owner again: his answer names the edit and the property, not
 the override kind, and the data override satisfies both on every fixture. Keeping the nominal code-override edit (it

@@ -11,6 +11,12 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
+**Verdict after fix round 5 (D104, run 6): PHASE 6 PASSES ITS CLOSING GATE.** The review of fix round 4 raised one
+major (`g4.toml-mutations`' add-override edit did not change the model) and fifteen minors; all are fixed or recorded,
+none needed an owner question ("Review", fix round 5). The whole closing list ran again in a fresh worktree at `d66d802`
+(`landed` 6), and every one of its 20 commands exits 0 (run 6): `gates --require 6 --tier real` 29 pass and 1
+historical, `--tier ci` 46 of 46, `bench provenance` ok. `bench/results.json` is committed as run 6's artifact.
+
 **Verdict of the closing run after fix round 4 (run 5): PHASE 6 PASSES ITS CLOSING GATE.** With every owner question
 answered (D98, D100 to D103) and applied, the whole closing list ran in a fresh worktree at `fa5d7ab`
 (`romlift-wt/phase-6-closing-5`, `landed` 6, only `bench/.local/poc` and `bench/.local/agbcc` copied in), the real tier
@@ -446,7 +452,8 @@ Raised at the closing round:
   SHA-1, `make` must exit 0, and at least one target must take it. Measured: fix round 4 (the code override) ci tier
   212 legal edits (add-override 23 on 54 fixtures, 31 with no place) and 215 illegal, real tier 242 legal
   (add-override 29) and 239 illegal, 60 ROMs; fix round 5 (the data override) ci tier 243 legal edits (add-override
-  54, every fixture) and 215 illegal; the real tier in run 6 ("The closing gate").
+  54, every fixture) and 215 illegal; real tier 273 legal edits (add-override 60, all 60 ROMs) and 239 illegal (run 6,
+  "The closing gate").
 
 Raised at fix round 1 (the review of the closing record, D95):
 
@@ -678,7 +685,7 @@ npm run bench -- provenance
 
 Then the phase pull request: `ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml` and `packed.yml` must run, or,
 if GitHub refuses to start them, the checks they run are run locally (the owner's landing answer, D103). Runs 1 to 4
-did not pass the list, so no pull request was opened; run 5 passes it. This is the orchestrator's list (roadmap "Phase
+did not pass the list, so no pull request was opened; runs 5 and 6 pass it. This is the orchestrator's list (roadmap "Phase
 6 exit" now reads the same); the owner's answers of 25 October 2026 changed none of its commands. Every run used `ROMLIFT_BENCH_ROOT=/Users/macabeus/ApenasMeu/decompiler`,
 `ROMLIFT_POC=/Users/macabeus/ApenasMeu/decompiler/romlift-poc` and a fresh worktree with `bench/.local/poc` and
 `bench/.local/agbcc` copied in.
@@ -822,6 +829,42 @@ command of the list exits 0 in a fresh worktree, both gate tiers pass every gate
 record, `g2.poc-parity`, frozen since phase 2), and every owner question is answered and applied (Q1 to Q3, Q5, Q6,
 Q8 to Q16; Q4 and Q7 needed no answer). It lands when the phase pull request merges to `main` with the raised marker,
 after its CI workflows run, or, if GitHub refuses to start them, after the checks they run pass locally (D103).
+
+### Run 6 (`d66d802`, fix round 5, worktree `romlift-wt/phase-6-closing-6`)
+
+After the review of fix round 4 and its fixes (D104). A fresh worktree at `d66d802` with `test/gates/phase.json` at
+`{ "landed": 6 }`, no local cache but `bench/.local/poc` and `bench/.local/agbcc` copied in (objdiff-cli 3.7.2 found as
+the main checkout's `bench/.local/objdiff-target` build), every command run in this order in one script, each waited
+for (26 October 2026, 02:31 to 04:43).
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | (1 s) |
+| `npm run typecheck` | 0 | no error (5 s) |
+| `npm run lint` | 0 | 21 tests pass (5 s) |
+| `npm test` | 0 | 2,865 tests, 2,865 pass, 0 fail, 0 skipped, 0 todo (35 s) |
+| `npm run fixtures -- check` | 0 | 54 of 54 fixtures agree (2 s) |
+| signature build loop | 0 | six files, 0 diagnostics (18 s) |
+| `npm run build && npm pack --pack-destination …` | 0 | `romlift-0.0.0.tgz`, 768 files, 617.9 kB (3 s) |
+| packed-signature check (the full one-liner above) | 0 | no built signature file packed (1 s) |
+| `npm run export-poc -- --mode raw` | 0 | (13 s) |
+| `npm run export-poc -- --mode scored` | 0 | (238 s) |
+| `npm run export-poc -- --mode parity` | 0 | (76 s) |
+| `npm run export-poc -- --mode queries` | 0 | (49 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 122 tests, 122 pass, 0 skipped (691 s); `listed-invalid-signatures` no `W_LISTED_INVALID` on the six tuning ROMs; `objdiff-json` sa1 0 of 2,013 and klonoa 0 of 422 functions below 100% |
+| `npm run bench -- doctor-real` | 0 | every input and the toolchain ok (2 s) |
+| `npm run corpus` | 0 | ok (5 s) |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1, the init build to the SHA-1 on all six; both sealed ROMs pass with their init builds at the SHA-1; objdiff differences as run 5 (fe7j 9 instruction, 12 relocation, 55 unnamed-target; klonoa 4 missing-relocation, 1 relocation, 130 tool; pokeemerald 42, 8, 2 missing-symbol, 144, 2,608; sa2 2,659 instruction, 5 missing-relocation, 127; sa3 1,651, 4, 3 relocation, 81; tmc 11, 5, 34, 315); memory family peak RSS `init` 1,191.4 MiB, `generate` 1,091.4 MiB against 1,536 MiB, heap cap 1,024 MiB; wrote `bench/results.json` (6 rows, 2 sealed, commit `d66d802`) (245 s) |
+| `npm run bench -- regression` | 0 | no regression against `89deb54` (1 s) |
+| `npm run bench -- gates --require 6 --tier real` | 0 | 30 records: 29 pass, 1 historical (`g2.poc-parity`), 0 fail. `g6.objdiff` every tuning ROM at its ceiling (fe7j 7 of 7, klonoa 1 of 1 with 130 uncompared, pokeemerald 12 of 12 with 2 uncompared, sa2 1 of 1, sa3 4 of 4, tmc 25 of 25), the committed ceilings at the owner's pinned values. `g4.toml-mutations` 273 legal edits (move-start 48, rename 60, delete-function 57, add-override 60: a data override that changes the model on every one of the 60 ROMs, split-module 48), 239 illegal. `g6.expected-bytes` 452 modules on 61 targets (1 `runs_at`). `g6.signatures-judged`, `-loo`, `-heldout`, `-rebuild`, `g6.ram-code-mapped`, `g4.e2e-real` (the six tuning ROMs to their SHA-1s) pass as in run 5. `g2.speed` calibration 0.931: fe7j 1,132 of 12,301 ms, klonoa 242 of 297, pokeemerald 2,225 of 4,089, sa2 723 of 759 (95.3%), sa3 1,115 of 1,446, tmc 1,421 of 1,729. `g3.speed-budget` calibration 0.960: pokeemerald `generate` 7,740 of 9,598 ms, `init` 10,093 of 14,398 ms. `g3.readability` at its floors (3,038 s) |
+| `npm run bench -- gates --require 6 --tier ci` | 0 | 46 gates, 46 pass, 0 fail. `g1.provenance` (source digest `26c98574…`, 30 real-tier records pass or are historical), `g4.toml-mutations` 243 legal edits (add-override 54, every fixture), 215 illegal, `g6.expected-bytes` 229 modules on 55 targets (1 `runs_at`), `g6.rename` (`sub_080000F4`), `g6.evidence-conflict` (162 contradictions on 54 fixtures), `g4.cli-contract` (10 commands, 17 `--json` runs), `g4.packed-e2e` (768 files, 53 fixtures to their SHA-1), `g3.large-rom` (`init` 1,182.3 MiB, `generate` 1,155.8 MiB peak RSS, heap cap 1,024 MiB, under the 1,536 MiB limit) (1,707 s) |
+| `npm run bench -- provenance` | 0 | source digest `26c98574…` ok (Node 24); gate record: 30 real-tier gates of phase ≤ 6 pass or are historical; families live; 6 rows, one per tuning dataset; no sealed row (1 s) |
+
+Every command exits 0, so **phase 6 passes its closing gate** at `d66d802`. No speed gate needed a rerun (sa2's
+analysis at 95.3% of its limit, inside the spread phase 4 recorded). The memory peaks are higher than run 5's (`init`
+1,191.4 against 988.4 MiB in the bench, `g3.large-rom` 1,182.3 against 964.7) and still under the 1,536 MiB limit; the
+review's own rerun of `3befe08` measured 1,173.7 and 1,222.2, the same spread before this round's changes, which touch
+no memory path. `bench/results.json` is committed as run 6's artifact.
 
 ## Review
 
@@ -1031,3 +1074,29 @@ documents. Measured on the phase branch at `644af21`:
 Not run in this step: the full closing list (the round's last step runs it), `g1.provenance` and `bench provenance`
 (they read the committed artifact, which the closing run regenerates).
 
+
+### Fix round 5 (review of `3befe08`, D104)
+
+16 findings (1 major, 15 minor; gate-honesty-o0-4 a recorded empty scope check). Every one is fixed or recorded; none
+is rejected and no owner question is raised. Commits on `phase-6`: `43c89f0` (code, gates and tests), `d66d802`
+(documents), then this record with run 6 (all 20 commands exit 0).
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| correctness-o0-1 | major | Fixed (`43c89f0`, D104 a), within the owner's answer to Q11 ("the add-override edit must be one that changes the model", no override kind named). Measured first, on the 54 fixtures: no `code` override without `runs_at` changes a confirm model (its seed takes nothing unlisted, nothing listed is new, and `placeEntries` gives an override's extent only to a listed entry the analysis did not take, which happens only inside a data override), and a `data` override over the deleted F changes nothing either (0 of 54). The edit is now a `data` override over a listed function's trailing pool words, F still listed; the gate keeps it only when `buildModel`'s functions' extents or chunks differ from the original config's, and requires no `W_OVERRIDE_IGNORED`, the SHA-1 and `make` as before. `acceptedByOverride` is gone. ci tier: 243 legal edits (add-override 54, every fixture), 215 illegal (423 s); real tier in run 6: 273 legal edits (add-override 60, every fixture and tuning ROM), 239 illegal. The gate header, D98 d (corrected in place) and Q11's "Applied" text no longer say F is accepted. |
+| correctness-o0-2 | minor | Fixed (`43c89f0`, D104 d): `appliedOverrides` no longer counts a code override whose seed only gave an unlisted finding; `W_OVERRIDE_IGNORED` names the unlisted start and `analyze --update`; `model.test.ts` asserts it. |
+| correctness-o0-3 | minor | Recorded in "Known limitations" (the ci tier's one `runs_at` target has every symbol at offset 0; the review's Klonoa measurement shows the check works deeper). |
+| correctness-o0-4 | minor | Fixed (`43c89f0`, D104 b): `g6.objdiff` fails a committed ceiling above the owner's D102 value and a tuning ROM whose readable build does not link. |
+| correctness-o0-5 | minor | Recorded in "Known limitations" (a sized entry drops the `gUnk_` labels inside it; C naming one fails at `make`). |
+| gate-honesty-o0-1 | minor | Fixed (`43c89f0`, D104 b, D102 d): `OWNER_CEILINGS` in `g6.objdiff` (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25); a value above it or an unknown ROM in `bench/baseline/objdiff-ceiling.json` fails the gate before it runs the bench. |
+| gate-honesty-o0-2 | minor | Fixed (`43c89f0`, D104 c): `ObjdiffVerdict.pass` removed; the unit and local tests assert `classes.gated`. |
+| gate-honesty-o0-3 | minor | Fixed (`d66d802`): Q8, Q13 and Q14 quote D98 b's full sentence. |
+| gate-honesty-o0-4 | minor | Recorded: the review's empty scope check of the gate, bench and baseline diff since `615fb0e`, and its independent rerun of the closing list at `3befe08` (20 of 20 exit 0). Nothing to change. |
+| architecture-o0-1 | minor | Fixed (`43c89f0`, D104 e): `foundation/asm/relocation.ts abs32Word`, (S + A) \| T, read by the layout (`LayoutInput.resolve` returns `SymbolValue`), core's `linkedWordOf` and the bench's `linkedWord`; the layout test of `.4byte F + 3, F + 4, F - 1, F, G - 1, G + 3` expects the words binutils 2.45.1 writes (0x08000003, 0x08000005, 0x07FFFFFF, 0x08000001, 0x0800001B, 0x0800001F), and the old test's `Func - 1` now expects ld's 0x08001233. |
+| architecture-o0-2 | minor | Fixed (`43c89f0`): `BaseLabel.value`, `ObjectName.size` and `labelForWord` deleted; the pool test reads `wordText`. |
+| architecture-o0-3 | minor | Fixed (`43c89f0`, D104 c): `pass` removed; `objdiffVerdict` classes each difference once (`countClasses`). |
+| architecture-o0-4 | minor | Fixed (`43c89f0`): the `ValidityRule` contract names the ARM-part call (D100); `shell/index.md`'s `fs.ts` row names `isAbsentError`'s three codes. |
+| architecture-o0-5 | minor | Fixed (`43c89f0`, D104 f): `resolver.ts entryLabelOf` is the `entryLabel` of `pool.ts wordText`, `labels.ts` candidates (through the run address's load address) and `labels.ts` scopes; `resolver.test.ts` covers a TOML-sized function of a `runs_at` module. |
+| architecture-o0-6 | minor | Fixed (`43c89f0`, D104 g) without a gate change: `test/unit/emit/sized-entries.test.ts` links three fixture trees with a sized entry each (`gTable + 8` from another module, an odd word `name + 4` inside a TOML-sized Thumb function, an even word never `name + n`) to their SHA-1s with binutils, in `npm test`. No gate's config can hold a sized entry (each is `configFromDiscover`'s). |
+| architecture-o0-7 | minor | Fixed with gate-honesty-o0-1 (`OWNER_CEILINGS`) and `lowerCeilings` refusing a ROM without a ceiling (D104 b). |
+| architecture-o0-8 | minor | Recorded in "Known limitations" as carried past phase 6 (the frozen `g4.c-data-fails-loud` header's stale quote); no gate edit, so no owner question. |
