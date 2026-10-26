@@ -1,6 +1,7 @@
 // The printer's word rule for named, sized entries (resolver.ts wordNameOf, the owner's answer to phase-6.md Q6 and Q15,
-// D102), assembled and linked on committed fixtures (phase-6 fix round 5, architecture-o0-6: no gate's config has a
-// sized entry, since every gate tree is configFromDiscover's, so this is the rule's toolchain coverage in `npm test`).
+// D102), assembled and linked on committed fixtures (phase-6 fix round 5, architecture-o0-6: no ci-tier gate's config
+// has a sized entry, since `init` places no signature on the synthetic fixtures, so this is the rule's toolchain coverage
+// in `npm test`; the real-tier gates build `init`'s configs, which hold signature sizes and tables, D104 g).
 // Three configs, each the fixture's discover config plus one sized entry:
 //   - code-end-unsized-last: a [symbols] entry `gTable` with `size` at the data module's start; the pool word of the
 //     code module holding 0x08000110, 8 bytes in, prints `gTable + 8` from the other module, gTable global;
@@ -8,7 +9,8 @@
 //     inside it, prints `<name> + 4`, which R_ARM_ABS32 links to (S + 4) | 1;
 //   - composite: the Thumb function at 0x080003D4 given a TOML `size`; its pool word 0x080003EC, an even word inside
 //     it, never prints `<name> + n` (the linker would set the Thumb bit).
-// Each model has no diagnostic, its tree passes the text-layout check, and with binutils it links to the SHA-1.
+// Each model has no diagnostic, its tree passes the text-layout check (no toolchain needed), and with binutils it links
+// to the SHA-1.
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -80,11 +82,14 @@ test('the spellings: name + offset from another module, an odd word inside a Thu
 });
 
 for (const [name, c] of Object.entries(CASES)) {
-  test(`${name}: the tree passes the text-layout check and links to the fixture's SHA-1`, { skip }, async () => {
-    const entries = [...emitTree(c.rom, c.model, { decomp: { defined: [] } })];
-    const layout = checkEntries(c.rom, c.model, entries);
+  test(`${name}: the tree passes the text-layout check`, () => {
+    const layout = checkEntries(c.rom, c.model, emitTree(c.rom, c.model, { decomp: { defined: [] } }));
     assert.ok(layout.ok, layout.checks.filter((k) => !k.ok).map((k) => k.detail).join('; '));
-    if ('code' in tools) return;
+  });
+
+  test(`${name}: the tree links to the fixture's SHA-1`, { skip }, async () => {
+    assert.ok(!('code' in tools));
+    const entries = [...emitTree(c.rom, c.model, { decomp: { defined: [] } })];
     const dir = await mkdtemp(join(tmpdir(), 'romlift-sized-'));
     roots.push(dir);
     for (const e of entries) {

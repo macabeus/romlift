@@ -74,6 +74,17 @@ export function linkedWordOf(label: Pick<Label, 'addr' | 'kind' | 'thumb'>, offs
   return abs32Word(symbolValueOf(label), offset);
 }
 
+/**
+ * The addend with which `.4byte <label> + addend` links to `word` (linkedWordOf, R_ARM_ABS32's one rule), counted from
+ * the word the label itself links to (wordValueOf), so a Thumb function names an odd word with addend 0; undefined when
+ * no addend does, as for an even word at a Thumb function, whose name always links with the Thumb bit. The jump-table
+ * printer (core/emit/print/table.ts) and the label scopes (labels.ts) read it, so they agree on the label an entry names.
+ */
+export function addendTo(label: Pick<Label, 'addr' | 'kind' | 'thumb'>, word: number): number | undefined {
+  const addend = (word >>> 0) - wordValueOf(label);
+  return linkedWordOf(label, addend) === word >>> 0 ? addend : undefined;
+}
+
 // ---------------------------------------------------------------------------------------------------
 // Named, sized entries: what a word inside one prints as (wordNameOf, read by core/emit/print/pool.ts wordText and the
 // label scopes of labels.ts).

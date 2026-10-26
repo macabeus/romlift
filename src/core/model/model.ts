@@ -131,13 +131,26 @@ function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly Plac
       unmatched.splice(at, 1);
       continue;
     }
-    const why =
-      o.kind === 'data'
-        ? 'the analysis claimed none of its bytes as data'
-        : `a function already starts at ${hexAddr(o.start)} (listed in [functions], or found by another rule), [functions] does not list ${hexAddr(o.start)} (a confirm run takes only the listed functions and reports what the seed finds as W_UNLISTED_FUNCTION; \`romlift analyze --update\` proposes it), or its start is no ${o.mode ?? 'thumb'} instruction address, so its seed adds none, and it gives no listed entry its extent`;
+    const why = o.kind === 'data' ? 'the analysis claimed none of its bytes as data' : codeOverrideIgnoredWhy(o, config, analysis);
     out.push(diagnostic(ModelCodes, 'W_OVERRIDE_IGNORED', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`, { span, addr: o.start }));
   }
   return out;
+}
+
+/**
+ * Why a code override without runs_at changes nothing, the one reason that applies (phase-6 fix round 6,
+ * correctness-o1-2): [functions] lists its start, so the override is redundant; a confirm run only reported its seed as
+ * unlisted (W_UNLISTED_FUNCTION, D104 d), so listing the start is the fix, after which the override is redundant; another
+ * rule already started a function there; or its seed added no function and it gave no listed entry its extent.
+ */
+function codeOverrideIgnoredWhy(o: RomliftConfig['overrides'][number], config: RomliftConfig, analysis: AnalysisResult): string {
+  const at = hexAddr(o.start);
+  if (config.functions.has(o.start)) return `a function already starts at ${at}: [functions] lists it, so the override is redundant and can be removed`;
+  if (analysis.mode === 'confirm' && analysis.unlisted.some((u) => u.entry === o.start)) {
+    return `[functions] does not list ${at}, and a confirm run takes only the listed functions, reporting what the seed finds as W_UNLISTED_FUNCTION; list it (\`romlift analyze --update\` proposes it), after which the override is redundant and can be removed`;
+  }
+  if (analysis.functions.some((f) => f.entry === o.start)) return `a function already starts at ${at}, found by another rule, so the override is redundant and can be removed`;
+  return `its seed adds no function at ${at} (no ${o.mode ?? 'thumb'} instruction the analysis accepts starts there), and it gives no listed entry its extent`;
 }
 
 /** W_SYMBOL_UNPLACED for each [symbols] entry inside the ROM that no file can define. */

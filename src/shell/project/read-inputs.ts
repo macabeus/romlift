@@ -173,7 +173,7 @@ export async function readHeaderTexts(dir: string, cTexts: ReadonlyMap<string, s
     try {
       texts.set(path, await readFile(file, 'utf8'));
     } catch (error) {
-      if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'EISDIR') continue;
+      if (isAbsentError(error) || errnoOf(error) === 'EISDIR') continue;
       return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })] };
     }
     const placed = await place(path);
@@ -385,7 +385,7 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
       if (!isRenameText(path)) continue;
       bytes = await readFile(file);
     } catch (error) {
-      if (errnoOf(error) === 'ENOENT') continue;
+      if (isAbsentError(error)) continue;
       return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${file}: ${errorReason(error)}`, { path })] };
     }
     edited.add(join(root, ...path.split('/')));
@@ -485,7 +485,7 @@ export async function readInitDir(dir: string, romPath: string): Promise<ReadRes
   try {
     if (!(await stat(at)).isDirectory()) return { ok: true, value: { ...base, state: 'not-directory', names: [] } };
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT') return { ok: true, value: { ...base, state: 'absent', names: [] } };
+    if (isAbsentError(error)) return { ok: true, value: { ...base, state: 'absent', names: [] } };
     return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot examine ${at}: ${errorReason(error)}`, { path: at })] };
   }
   const names = await listDir(at);
@@ -500,7 +500,7 @@ export async function readDigests(dir: string, paths: Iterable<string>): Promise
     try {
       out.set(path, { kind: 'present', sha1: sha1Of(await readFile(join(dir, ...path.split('/')))) });
     } catch (error) {
-      if (errnoOf(error) !== 'ENOENT') return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${join(dir, path)}: ${errorReason(error)}`, { path })] };
+      if (!isAbsentError(error)) return { ok: false, diagnostics: [diagnostic(ShellCodes, 'E_IO_READ', `cannot read ${join(dir, path)}: ${errorReason(error)}`, { path })] };
       out.set(path, { kind: 'absent' });
     }
   }

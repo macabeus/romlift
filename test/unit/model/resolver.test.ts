@@ -8,7 +8,7 @@ import { test } from 'node:test';
 
 import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
 import { wordScope, wordText } from '../../../src/core/emit/print/pool.ts';
-import { adrResolverFor, compareLabels, entryLabelOf, isExactLabel, isNamedEntry, loadWordOperand, moduleAt, resolverFor, resolverOver, linkedWordOf, sizedEntries, sizedEntryAt, wordNameOf, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { addendTo, adrResolverFor, compareLabels, entryLabelOf, isExactLabel, isNamedEntry, loadWordOperand, moduleAt, resolverFor, resolverOver, linkedWordOf, sizedEntries, sizedEntryAt, wordNameOf, wordValueOf } from '../../../src/core/model/resolver.ts';
 import { loadSymbolOf } from '../../../src/core/model/modules.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
@@ -177,6 +177,18 @@ test('linkedWordOf and wordNameOf: a Thumb function plus an addend links with th
   const entries = sizedEntries({ symbols: [], functions });
   assert.deepEqual(wordNameOf(entries, 0x0800_0105, [], () => fn), { kind: 'inside', label: fn, offset: 4 });
   assert.equal(wordNameOf(entries, 0x0800_0104, [], () => fn), undefined, 'Sized + 3 would link to 0x08000103');
+});
+
+test('addendTo: the addend from the word a label links to, none when R_ARM_ABS32 cannot give the word (architecture-o1-1)', () => {
+  const fn = label('Case', 0x0800_1020);
+  assert.equal(addendTo(fn, 0x0800_1021), 0, 'a Thumb function names its odd word with addend 0');
+  assert.equal(addendTo(fn, 0x0800_1020), undefined, '`Case - 1` links to 0x0800101F, not the even word');
+  assert.equal(addendTo(fn, 0x0800_1025), 4);
+  assert.equal(addendTo(fn, 0x0800_1024), undefined);
+  const local = label('_08001020', 0x0800_1020, { kind: 'local', thumb: false });
+  assert.equal(addendTo(local, 0x0800_1020), 0);
+  assert.equal(addendTo(local, 0x0800_1021), 1);
+  assert.equal(addendTo(label('ArmCase', 0x0800_1030, { thumb: false }), 0x0800_1031), 1);
 });
 
 test('entryLabelOf: the sized entry\'s own label, named as the entry at its run address and not local (architecture-o0-5)', () => {

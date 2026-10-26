@@ -83,6 +83,14 @@ test("readInitDir: an absent path, an empty directory, the ROM inside with .git 
   assert.deepEqual(await listing(crowded, path.join(crowded, 'game.gba')), { dir: crowded, romInside: 'game.gba', state: 'directory', names: ['another.gba', 'game.gba'] });
   const file = path.join(crowded, 'game.gba');
   assert.deepEqual(await listing(file, file), { dir: file, state: 'not-directory', names: [] });
+  // A path under a file (ENOTDIR) and a link loop (ELOOP) are absent, read through isAbsentError (fix round 6,
+  // architecture-o1-6); before, each was E_IO_READ.
+  const underFile = path.join(file, 'sub');
+  assert.deepEqual(await listing(underFile, '/elsewhere/rom.gba'), { dir: underFile, state: 'absent', names: [] });
+  const loop = await dirWith({});
+  await symlink(path.join(loop, 'loopB'), path.join(loop, 'loopA'));
+  await symlink(path.join(loop, 'loopA'), path.join(loop, 'loopB'));
+  assert.deepEqual(await listing(path.join(loop, 'loopA'), '/elsewhere/rom.gba'), { dir: path.join(loop, 'loopA'), state: 'absent', names: [] });
 });
 
 test("readInitDir: a romlift project's entries, with the ROM inside", async () => {

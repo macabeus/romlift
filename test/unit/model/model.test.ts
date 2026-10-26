@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { Claim } from '../../../src/core/analysis/types.ts';
+import { printChunk } from '../../../src/core/emit/print/chunk.ts';
 import { itemAt } from '../../../src/core/model/item-table.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { modelNamesOf } from '../../../src/core/workflow/rename.ts';
@@ -74,8 +75,8 @@ test('a confirm result carries its unlisted findings; a listed entry the analysi
   assert.equal(model.functions.find((f) => f.name === 'B')?.source.extent, 'next-listed');
 });
 
-/** A function copied to IWRAM: load 0x140, run 0x03000000, with a pool load and a branch inside. */
-function ramCode() {
+/** A function copied to IWRAM: load 0x140, run 0x03000000, with a pool load (holding `poolWord`) and a branch inside. */
+function ramCode(poolWord = 0x1234_5678) {
   const code = thumbAt(0x0300_0000)`
     push {lr}
     ldr r0, _0300000C
@@ -84,7 +85,7 @@ function ramCode() {
     pop {r0}
     bx r0
   `;
-  const rom = romWith([{ at: BASE + 0x140, bytes: code }, { at: BASE + 0x14c, bytes: words(0x1234_5678) }], { size: 0x200 });
+  const rom = romWith([{ at: BASE + 0x140, bytes: code }, { at: BASE + 0x14c, bytes: words(poolWord) }], { size: 0x200 });
   const analysis = analysisOf(rom, { functions: [fact({ entry: BASE + 0x140, end: BASE + 0x150, code: [{ start: BASE + 0x140, end: BASE + 0x14c }], pools: [BASE + 0x14c] })] });
   const config = (runsAt: number): RomliftConfig =>
     configOf({
@@ -133,6 +134,28 @@ test('runs_at plumbing: a moved run address puts the labels at run addresses and
     ['insn', 0x14a, 0x0300_000a],
     ['pool', 0x14c, 0],
   ]);
+});
+
+// Fix round 6 (architecture-o1-5): a TOML-sized function of a runs_at module is a sized entry at its run address, so a
+// pool word holding an odd run address inside it prints `name + offset` (resolver.ts entryLabelOf over the labels at the
+// run address), the function label stays module-scoped, and no other label takes the word.
+test('a pool word inside a TOML-sized function of a runs_at module prints `name + offset` at the run address', () => {
+  const { rom, analysis, config } = ramCode(0x0300_0005);
+  const base = config(0x0300_0000);
+  const sized = { ...base, functions: new Map([...base.functions].map(([a, f]) => [a, { ...f, size: 0x10 }])) };
+  const model = buildModel(rom, analysis, sized);
+  assert.deepEqual(model.diagnostics, []);
+  assert.equal(model.functions[0]?.source.extent, 'toml-size');
+  const i = model.chunks.findIndex((c) => c.name === 'RamFunc');
+  const lines = printChunk(rom, model, i).lines;
+  assert.ok(lines.includes('_0800014C: .4byte RamFunc + 4'), lines.join('\n'));
+  assert.deepEqual(model.labels.filter((l) => l.addr >= 0x0300_0000 && l.addr < 0x0300_0010).map((l) => [l.name, l.addr, l.scope]), [
+    ['RamFunc', 0x0300_0000, 'module'],
+    ['_08000148', 0x0300_0008, 'module'],
+    ['_0800014C', 0x0300_000c, 'module'],
+  ]);
+  const unsized = printChunk(rom, buildModel(rom, analysis, base), i).lines;
+  assert.ok(unsized.includes('_0800014C: .4byte 0x03000005'), unsized.join('\n'));
 });
 
 test('a runs_at range off the module borders is E_OVERRIDE_INVALID; the model is still built', () => {
@@ -218,7 +241,9 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   const ignored = (overrides: NonNullable<Parameters<typeof configOf>[0]['overrides']>, functions: NonNullable<Parameters<typeof configOf>[0]['functions']> = [[BASE + 0x100, 'A']]): readonly string[] =>
     buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions, overrides })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => d.message);
   assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'data' }])[0] ?? '', /changes nothing: the analysis claimed none of its bytes as data/, 'a data override the analysis did not apply');
-  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: a function already starts at 0x08000100 \(listed in \[functions\], or found by another rule\)/);
+  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: a function already starts at 0x08000100: \[functions\] lists it, so the override is redundant and can be removed$/);
+  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }], [])[0] ?? '', /changes nothing: a function already starts at 0x08000100, found by another rule, so the override is redundant/);
+  assert.match(ignored([{ start: BASE + 0x200, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: its seed adds no function at 0x08000200 \(no thumb instruction the analysis accepts starts there\)/);
   // A listed entry the analysis did not find, inside a code override the run read: its extent comes from the override.
   const override = { start: BASE + 0x120, size: 0x10, kind: 'code' as const, mode: 'thumb' as const };
   const read = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], overrides: [{ span: { start: override.start, end: override.start + override.size }, kind: 'code', mode: 'thumb' }] });
@@ -255,7 +280,14 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   const unlisted = { ...confirm, unlisted: [{ entry: code.start, mode: 'thumb' as const, origin: 'override' as const, provenance: { rule: 'seed.override' as const, round: 0, cites: [] } }] };
   const unlistedIgnored = buildModel(ROM, unlisted, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED');
   assert.deepEqual(unlistedIgnored.map((d) => d.addr), [code.start]);
-  assert.match(unlistedIgnored[0]?.message ?? '', /\[functions\] does not list 0x08000150/);
+  assert.match(unlistedIgnored[0]?.message ?? '', /changes nothing: \[functions\] does not list 0x08000150, .*`romlift analyze --update` proposes it/);
+  // After `analyze --update` lists the start, the warning says the override is redundant (fix round 6, correctness-o1-2).
+  const listedConfirm = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 }), fact({ entry: code.start, end: code.start + 0x10 })], seeds: [{ entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed' }, { entry: code.start, mode: 'thumb', rule: 'seed.listed' }], overrides: [facts[1] ?? assert.fail()] });
+  const listed = { ...listedConfirm, unlisted: [] };
+  const listedIgnored = buildModel(ROM, listed, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [code.start, 'Listed']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED');
+  assert.deepEqual(listedIgnored.map((d) => d.addr), [code.start]);
+  assert.match(listedIgnored[0]?.message ?? '', /a function already starts at 0x08000150: \[functions\] lists it, so the override is redundant and can be removed$/);
+  assert.doesNotMatch(listedIgnored[0]?.message ?? '', /does not list/);
   // A range wholly outside the ROM is W_OVERRIDE_OUTSIDE_ROM's alone (fix round 6, architecture-b1-2).
   const outside = buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [{ start: 0x0900_0000, size: 4, kind: 'code', mode: 'thumb' }] }));
   assert.deepEqual(outside.diagnostics.map((d) => d.code), ['W_OVERRIDE_OUTSIDE_ROM']);

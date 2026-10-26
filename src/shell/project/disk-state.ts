@@ -15,7 +15,7 @@ import { decodeManifest, isProjectPath } from '../../core/write-plan/manifest.ts
 import { GENERATED_ROOTS, JOURNAL_PATH, MANIFEST_PATH } from '../../core/write-plan/types.ts';
 import type { DiskFileState, Manifest } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
-import { errnoOf, errorReason, isAbsentError, listDir } from '../fs.ts';
+import { errorReason, isAbsentError, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { sha1Of } from '../hash.ts';
 
@@ -34,7 +34,7 @@ async function readOptionalText(dir: string, path: string): Promise<IoResult<str
   try {
     return { ok: true, value: await readFile(file, 'utf8') };
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT') return { ok: true, value: null };
+    if (isAbsentError(error)) return { ok: true, value: null };
     return ioError('E_IO_READ', file, `cannot read ${file}: ${errorReason(error)}`);
   }
 }

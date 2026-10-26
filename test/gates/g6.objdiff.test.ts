@@ -106,7 +106,6 @@ gate({
     if (result.schema !== 'romlift/bench-run@1') throw new Error(`bench run printed schema '${String(result.schema)}'`);
     const problems: string[] = [];
     const notes: string[] = [];
-    let judged = 0;
     for (const dataset of cx.datasets) {
       const rom = result.roms.find((r) => r.name === dataset.name);
       if (rom === undefined) {
@@ -117,7 +116,6 @@ gate({
         problems.push(`${rom.name}: not judged, its readable build does not link`);
         continue;
       }
-      judged++;
       const classes = rom.objdiff.classes;
       const ceiling = ceilings.get(rom.name);
       if (rom.objdiff.scored <= 0) problems.push(`${rom.name}: no function scored`);
@@ -136,7 +134,8 @@ gate({
       }
       notes.push(`${rom.name} ${rom.objdiff.scored} functions, gated ${classes.gated} of ceiling ${ceiling}, ${classes.uncompared} uncompared (classes: ${counts || 'none'})`);
     }
-    if (judged === 0) problems.push('no tuning ROM has a readable build that links');
+    // Each tuning ROM whose readable build does not link fails above, under the owner's per-ROM ceiling rule (D104 b).
+    if (cx.datasets.length === 0) problems.push('no tuning ROM dataset to judge');
     if (problems.length > 0) throw new Error(`objdiff: ${problems.join('; ')}`);
     cx.note(notes.join('; '));
   },
