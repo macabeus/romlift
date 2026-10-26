@@ -1169,6 +1169,19 @@ Thresholds, one per gate of the phase (every earlier gate still passes):
   SHA-1;
 - `npm pack --dry-run` lists no built signature file.
 
+### Carried past phase 6
+
+The review of fix round 6 (`370744e`, phase-6.md "Review") raised eight minors and no major; phase 6 lands with these
+code minors open, each recorded in phase-6.md "Known limitations". None is a defect of an emitted tree or a gate.
+
+| Carried item | What is left |
+| --- | --- |
+| correctness-o2-1, architecture-o2-1 | a two-module `labels.test.ts` case for D105 a's scope half: an even table entry in module A whose target in module B is a Thumb function; the local label `_<target>` is `global`, the function label stays `module`, and module A prints the local label |
+| correctness-o2-2, architecture-o2-3 | `model.ts codeOverrideIgnoredWhy`'s "listed" branch split three ways: an inner label (`label = true`), a listed entry of the other mode, and the same-mode "redundant" case; two unit cases in `model.test.ts` |
+| architecture-o2-2 | `resolver.ts wordNameOf` calls `addendTo` instead of recomputing it, and `addendTo`'s comment lists it as a reader |
+| architecture-o0-8 (phase-6 fix round 5) | the frozen `g4.c-data-fails-loud` header's stale quote of the C-data assertion (a gate file; an edit needs the owner) |
+| correctness-b2-3's remainder | `ROMLIFT_VERSION` in `modules.mk`, when romlift is published (D76 d) |
+
 ---
 
 ## Component count

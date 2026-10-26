@@ -11,6 +11,13 @@ and report counts only (D25).
 Phase 6 starts from `main` at `89deb54` (phase 4 merged by pull request #4, tag `phase-4`, `test/gates/phase.json` `{
 "landed": 4 }`). Phase 5 was skipped by the owner and never lands (D92), so this phase raises `phase.json` from 4 to 6.
 
+**Review of fix round 6 (`370744e`): eight minors, the phase lands.** The review raised no major. One finding
+corrects this record (gate-honesty-o2-1, fixed by the notes on the two status paragraphs below); four are code minors
+carried past phase 6 (correctness-o2-1 with architecture-o2-1, correctness-o2-2 with architecture-o2-3, and
+architecture-o2-2), recorded in "Known limitations" and roadmap.md, "Carried past phase 6"; three are empty scope
+checks, among them a fresh-clone rerun of the whole closing list at `370744e` (20 of 20 exit 0) ("Review", the review
+of fix round 6). No code or gate changes; the phase lands by its pull request (D103).
+
 **Verdict after fix round 6 (D105, run 7): PHASE 6 PASSES ITS CLOSING GATE.** The review of fix round 5 raised two
 majors (the jump-table printer still inverted the old R_ARM_ABS32 rule and printed `Func - 1` for an even entry at a
 Thumb function; architecture §6.5 gave the phase-4 override semantics) and fourteen minors; all are fixed or recorded,
@@ -29,7 +36,7 @@ answered (D98, D100 to D103) and applied, the whole closing list ran in a fresh 
 (`romlift-wt/phase-6-closing-5`, `landed` 6, only `bench/.local/poc` and `bench/.local/agbcc` copied in), the real tier
 before the ci tier, and every one of its 20 commands exits 0 (run 5, "The closing gate"): `gates --require 6 --tier
 real` 29 pass and 1 historical (`g2.poc-parity`), `--tier ci` 46 of 46 pass, `bench provenance` ok on every check.
-The owner's answers changed no command of the list. `bench/results.json` is committed as run 5's artifact. What is
+The owner's answers changed no command of the list. `bench/results.json` is committed as run 5's artifact. (Superseded by D104 a, recorded at the review of fix round 6, gate-honesty-o2-1: the code-override edit changed nothing; Q11 was applied at fix round 5 and measured in run 6.) What is
 left is the merge: the phase pull request with its CI workflows, or, if GitHub refuses to start the jobs, the checks
 those jobs run, run locally (the owner's landing answer, D103); the merge carries `{ "landed": 6 }`.
 
@@ -38,7 +45,7 @@ step applied his gate edits and records (Q1 to Q3, Q5, Q8, Q9, Q11, Q13, Q14): `
 `g6.evidence-conflict` now pass on the ci tier, `g6.signatures-judged` holds tmc to the floor he set, and
 `g4.toml-mutations` makes an add-override edit that changes the model and refuses an odd `[functions]` key, on both
 tiers; it fixed six of fix round 3's eight carried minors and moved two ("Review", fix round 4, step 1). The round's later steps
-apply Q10, Q12, Q6 with Q15, and Q16, then run the closing list.
+apply Q10, Q12, Q6 with Q15, and Q16, then run the closing list. (Superseded by D104 a, recorded at the review of fix round 6, gate-honesty-o2-1: the code-override edit changed nothing; Q11 was applied at fix round 5 and measured in run 6.)
 
 **Fix round 4, step 2 (D100): not landed yet.** Q10 applied as the owner chose (option (c)): the confirm run validates
 a listed extent per inner label's mode and takes a fall-through into the next listed function as an exit; no
@@ -612,6 +619,20 @@ Q6 and Q15. Q4 and Q7 need no answer.
   a listed entry the analysis did not take inside it. Since D104 a, `g4.toml-mutations`' add-override edit is a `data`
   override, so no gate exercises a code override without `runs_at`; `test/unit/model/model.test.ts` covers its
   warnings and the extent it gives.
+- **No test holds the label scopes' half of D105 a across modules** (the review of fix round 6, correctness-o2-1,
+  architecture-o2-1; carried past phase 6): `labels.ts` scopes a jump-table entry's target by the label the printer
+  prints (`preferredAt(…, (l) => addendTo(l, stored) !== undefined)`), but reverting that predicate fails no test, since
+  `table-function-target.test.ts` builds one module only, where scope does not matter. Under the old call an even entry
+  whose target lies in another module would make the Thumb function global, not the local label, and the printer would
+  fall back to the stored value, which still links. The missing test is a two-module `labels.test.ts` case.
+- **`W_OVERRIDE_IGNORED`'s "listed" reason ignores `label` and `mode`** (the review of fix round 6, correctness-o2-2,
+  architecture-o2-3; carried past phase 6): `model.ts codeOverrideIgnoredWhy` says "a function already starts at X …
+  the override is redundant" for any start in `[functions]`, also an inner label (`label = true`, which `analyze
+  --update` proposes for an override inside a function) and a listed function of the other mode. The warning stays
+  loud and the build is unaffected (`verify --link` ok); the text is wrong in those two cases.
+- **The R_ARM_ABS32 addend has two spellings in `resolver.ts`** (the review of fix round 6, architecture-o2-2; carried
+  past phase 6): `wordNameOf` recomputes inline what `addendTo` computes (`word - wordValueOf(label)` checked by
+  `linkedWordOf`), apart from its `offset > 0` guard. Output is the same; `resolver.test.ts` pins both.
 - The release-1 limitations of phases 1 to 4 stand (phase-4.md, "Known limitations").
 
 ## Measured numbers
@@ -1178,3 +1199,21 @@ fixed or recorded; none is rejected and no owner question is raised. Commits on 
 | architecture-o1-6 | minor | Fixed (`87171b3`, D105 g): the ENOENT-only read sites go through `isAbsentError`; `init` into `<file>/sub` now fails at the write (`E_IO_WRITE … ENOTDIR`, exit 1); `read-inputs.test.ts` covers ENOTDIR and ELOOP; the `shell/index.md` row names the one remover that takes ENOENT alone. |
 | architecture-o1-7 | minor | Fixed (D105 f): fix round 3 had 10 findings (1 major, 9 minor), eight carried and one Q16; fix round 4, step 1 fixed six of the eight and moved two (here, in the status paragraphs, D97 and D99). |
 | architecture-o1-8 | minor | Fixed (`87171b3`, D105 e): D104 b and roadmap.md say every tuning ROM must link, under the owner's per-ROM ceiling rule; the gate's empty-run problem is "no tuning ROM dataset to judge". |
+
+### The review of fix round 6 (review of `370744e`)
+
+8 findings, all minor (gate-honesty-o2-2, correctness-o2-3 and architecture-o2-4 are recorded empty scope checks).
+None is rejected and no owner question is raised; no code, gate or baseline changes. The phase lands with the code
+minors carried past phase 6 (roadmap.md, "Carried past phase 6"; "Known limitations").
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| gate-honesty-o2-1 | minor | Fixed (records): the run 5 summary verdict and the fix round 4, step 1 paragraph carry the note run 5's own Verdict already had: superseded by D104 a; the code-override edit changed nothing; Q11 was applied at fix round 5 and measured in run 6. |
+| gate-honesty-o2-2 | minor | Recorded: the review's empty scope check. The gate changes since `615fb0e` stay inside the owner's answers (`g4.toml-mutations` Q11, `g6.evidence-conflict` Q5, `g6.expected-bytes` Q12 and Q16, `g6.objdiff` Q6 and Q15, `g6.reconciler` Q2, `g6.rename` Q3, `g6.signatures-judged` Q9, Q13 and Q14); the ceiling checks fail as they should (tmc 26, an added ROM, tmc 24 with sa2 removed); a fresh-clone rerun of the closing list at `370744e` exits 0 at all 20 commands (`npm test` 2,876 of 2,876, `test:local` 122 of 122, real tier 29 pass and 1 historical, ci tier 46 of 46, `bench provenance` ok, digest `3e28f223`). Nothing to change. |
+| correctness-o2-1 | minor | Carried past phase 6 ("Known limitations"): no test covers the label scopes' half of D105 a; reverting the scope call fails only `tsc` (an unused import). The test to add is a `labels.test.ts` case with the entry in module A and its Thumb-function target in module B. |
+| correctness-o2-2 | minor | Carried past phase 6 ("Known limitations"): `W_OVERRIDE_IGNORED`'s "listed" reason says "a function already starts at X" for an inner label (`label = true`); its advice (redundant, remove it) still holds. |
+| correctness-o2-3 | minor | Recorded: the review's empty scope check (repros of architecture-o1-1, correctness-o1-2 and architecture-o1-6 hold; `make` prints `rlfx.gba: OK`; no regression in `init`, `generate`, `verify`, `rename` or `make expected`). Nothing to change. |
+| architecture-o2-1 | minor | Carried past phase 6 with correctness-o2-1: a predicate mutated to accept every label passes the whole suite (2,875 of 2,875). |
+| architecture-o2-2 | minor | Carried past phase 6 ("Known limitations"): `resolver.ts wordNameOf` recomputes `addendTo` inline; the fix is to call it there and list `wordNameOf` among its readers, with no output change. |
+| architecture-o2-3 | minor | Carried past phase 6 with correctness-o2-2: the "listed" branch also calls an override of the other mode redundant; the fix splits it into an inner-label reason, an other-mode reason and the same-mode "redundant" reason, with two unit cases. |
+| architecture-o2-4 | minor | Recorded: the review's empty scope check (every o1 finding fixed or honestly recorded; the fix round changed no gate beyond the authorised `g6.objdiff` edit). Nothing to change. |
