@@ -149,3 +149,34 @@ decision D107) fixed the blocker and the major in code, the cheap minors, and ca
 | end-to-end-user-r1-5 (`W_LIBRARY_MODULE_DROPPED` names two ranges) | minor | fixed | The message and the diagnostic's span name the range the module border check read, and say when it adds the region's trailing pad; unit test |
 | end-to-end-user-r1-6 (`model` gives asm and data modules a compiler) | minor | fixed (text), no change (`--json`) | The text table prints `-` for an asm or data module; the `--json` header's `compiler` is the model's field in the public `romlift/model-json@1` schema, left as it is |
 
+### Gate results of fix round 2
+
+The phase-6 closing list ran in a fresh worktree (`romlift-wt/final-review-2-closing`) at `b98b2e6` (the round's code;
+the later commits change documents only, outside the source digest) with `test/gates/phase.json` at `{ "landed": 6 }`,
+`ROMLIFT_BENCH_ROOT` and `ROMLIFT_POC` set, `bench/.local/poc` and `bench/.local/agbcc` copied in and objdiff-cli 3.7.2
+found as the main checkout's build; 26 October 2026, 19:30 to 21:15, every command waited for, load average 2 to 4
+after the first minutes (14 to 17 while `npm test` and the signature builds ran).
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npm ci` | 0 | |
+| `npm run typecheck` | 0 | no error |
+| `npm run lint` | 0 | |
+| `npm test` | 0 | 2,885 tests, 2,885 pass, 0 skipped (36 s) |
+| `npm run fixtures -- check` | 0 | 54 of 54 fixtures agree |
+| signature build loop | 0 | six files (17 s) |
+| `npm run build && npm pack` | 0 | |
+| packed-signature check | 0 | |
+| `npm run export-poc -- --mode raw`, `scored`, `parity`, `queries` | 0 | (13, 241, 76, 49 s) |
+| `ROMLIFT_REQUIRE_LOCAL=1 npm run test:local` | 0 | 122 tests, 122 pass, 0 skipped (673 s) |
+| `npm run bench -- doctor-real` | 0 | |
+| `npm run corpus` | 0 | ok |
+| `npm run bench -- run --scaffold` | 0 | six rows: raw and readable link to the SHA-1, the init build to the SHA-1 on all six; both sealed ROMs pass with their init builds at the SHA-1; rows as fix round 1 (tmc tp 8,631, PoC 8,582); objdiff differences as fix round 1; signatures fe7j 134, klonoa 120, pokeemerald 377, sa2 147, sa3 189, tmc 68 placements, 0 wrong; memory family `init` 1,138.7 MiB, `generate` 1,095.8 MiB peak RSS; wrote `bench/results.json` (241 s) |
+| `npm run bench -- regression` | 0 | no regression |
+| `npm run bench -- gates --require 6 --tier real` | 0 | 30 records: 29 pass, 1 historical (`g2.poc-parity`), 0 fail. `g2.speed` calibration 0.932: fe7j 1,050 of 12,314 ms, klonoa 224 of 297, pokeemerald 2,062 of 4,093, **sa2 619 of 760 (81.4%)**, sa3 1,008 of 1,448, tmc 1,311 of 1,731. `g3.speed-budget` calibration 0.932: sa2 analysis 602 of 2,795 ms, pokeemerald `generate` 7,473 of 9,318 ms, `init` 9,333 of 13,977 ms. `g2.held-out` passes with both family conditions waived. `g6.objdiff` every ROM at its ceiling. `g4.toml-mutations` 269 legal edits (move-start 46, rename 60, delete-function 57, add-override 60, split-module 46), 239 illegal, 60 ROMs. `g6.expected-bytes` 432 modules on 61 targets (3,062 s) |
+| `npm run bench -- gates --require 6 --tier ci` | 0 | 46 gates, 46 pass, 0 fail; `g1.provenance` (source digest `641f0167…`), `g4.cli-contract` (10 commands, 17 `--json` runs), `g4.packed-e2e` (769 files), `g4.toml-mutations` 239 legal edits (move-start 40, split-module 40), `g3.large-rom` (init 1,163.3 MiB, generate 1,274.0 MiB peak RSS under the 1,536 MiB budget) (1,806 s) |
+| `npm run bench -- provenance` | 0 | source digest `641f0167…` ok; 30 real-tier gates pass or are historical; families live; 6 rows; no sealed row |
+
+Every gate of phases 1 to 6 passes on both tiers. `bench/results.json` is committed as this run's artifact. The Linux
+CI jobs were not run (docs-and-plan-6, carried).
+
