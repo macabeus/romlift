@@ -6,6 +6,7 @@ import type { Dialect } from '../isa/types.ts';
 import { ROM_BASE } from '../rom/rom.ts';
 import type { Mode } from '../rom/span.ts';
 import { BASEROM_FILE, INCLUDE_ASM_HEADER_NAME, nonmatchingDir } from '../util/project-files.ts';
+import { hexSize } from '../util/hex.ts';
 
 /** A function-start macro: word alignment (unless the entry is at 2 mod 4), visibility, mode and type. */
 function startMacro(name: string, mode: Mode, aligned: boolean, global: boolean): string {
@@ -80,7 +81,7 @@ const MACROS_INCLUDE = `.include "${MACROS_PATH}"`;
  * stand-in share (architecture-7).
  */
 export function incbinLine(from: number, to: number): string {
-  return `\t.incbin "${BASEROM_FILE}", 0x${(from - ROM_BASE).toString(16).toUpperCase()}, 0x${(to - from).toString(16).toUpperCase()}`;
+  return `\t.incbin "${BASEROM_FILE}", ${hexSize(from - ROM_BASE)}, ${hexSize(to - from)}`;
 }
 
 export const DIALECT: Dialect = {

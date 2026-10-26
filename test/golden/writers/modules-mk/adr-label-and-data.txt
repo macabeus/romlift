@@ -4,7 +4,7 @@ OBJS := \
 	build/rom_header.o \
 	build/crt0.o \
 	build/src/main.o \
-	build/asm_08000108.o \
+	build/asm_08000104.o \
 	build/src/main_2.o \
 	build/data.o
 C_OBJS := \
@@ -14,7 +14,7 @@ EXPECTED_OBJS := \
 	build/expected/rom_header.o \
 	build/expected/crt0.o \
 	build/expected/main.o \
-	build/expected/asm_08000108.o \
+	build/expected/asm_08000104.o \
 	build/expected/main_2.o \
 	build/expected/data.o
 build/src/main.o: CC1 := tools/agbcc/bin/agbcc

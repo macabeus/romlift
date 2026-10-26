@@ -5,7 +5,7 @@
 import type { Provenance } from '../../api/profile.ts';
 import { hexAddr } from '../../api/rom.ts';
 import type { Diagnostic, Span } from '../../api/rom.ts';
-import { VerifyCodes } from '../../api/verify.ts';
+import { VerifyCodes } from '../../core/diagnostic-codes.ts';
 import type { VerifyReport } from '../../api/verify.ts';
 import type { WriteOp } from '../../api/write-plan.ts';
 import { ExitCode } from '../exit-codes.ts';

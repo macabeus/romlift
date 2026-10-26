@@ -4,28 +4,27 @@
 // ROM than [rom] sha1 records, or a config the model refuses, is an error, exit 1); with --rom, as in phase 3, the
 // config is the one configFromDiscover builds from the ROM's discover analysis, and `generate` then runs the confirm
 // analysis, builds the model and makes the check pass (tiling, re-encode, module size, text layout, paths).
-// --assemble and --link write the tree into a fresh temporary directory, never the working directory
-// (writeFreshTree: planWrites with no manifest over an empty disk, then applyWrites), and run `as` per module against its ROM
-// range and the full link against the ROM's SHA-1; they run only when the self-checks passed, since a write
-// follows a passing check pass (§6.4). Output (frozen by the g3.self-check, g3.text-layout, g3.link and
+// --assemble and --link write the tree into a fresh temporary directory, never the working directory, and run `as`
+// per module against its ROM range and the full link against the ROM's SHA-1; they run only when the self-checks
+// passed, since a write follows a passing check pass (§6.4). The composition is core/workflow/verify.ts's
+// (toolchainPlan, verifyReport) and the shell's runner (shell/project/verify-run.ts); this file only parses and prints. Output (frozen by the g3.self-check, g3.text-layout, g3.link and
 // g3.raw-link headers): with --json, one {"type":"check","id","status":"ok"|"fail","detail"} line per check in
 // CHECK_IDS order, the {"type":"diagnostic"} lines, then {"type":"summary","ok","exitCode","sha1"?,"counts"};
 // text mode prints the same as lines, the diagnostics on stderr. Exit codes: 0 every check passed, 3 a check
 // failed (a self-check, an object that differs, a linked SHA-1 that differs), 1 an error diagnostic of the input
 // or the toolchain (an unreadable file, E_ROM_NOT_GBA, a model error, binutils missing), 2 usage.
-import { assembleUnits, buildUnits } from '../../api/model.ts';
-import { assembleCheck, linkCheck, writeFreshTree } from '../../api/project.ts';
 import { readRom } from '../../api/files.ts';
 import type { Diagnostic, Rom } from '../../api/rom.ts';
-import { findBinutils } from '../../api/toolchain.ts';
 import type { Printer } from '../../api/emit.ts';
-import { combineReports } from '../../api/verify.ts';
-import type { CheckId, CheckResult, VerifyReport } from '../../api/verify.ts';
-import { generatedEntries, generateProject, writable } from '../../core/workflow/generate.ts';
-import { generateFromRom } from '../../core/workflow/init-config.ts';
-import { readProject, resolveFrom } from '../../shell/project/read-inputs.ts';
+import type { VerifyReport } from '../../api/verify.ts';
+import { generateProject } from '../../core/workflow/generate.ts';
 import type { GenerateResult } from '../../core/workflow/generate.ts';
-import { withTempDir } from '../../shell/temp-dir.ts';
+import { generateFromRom } from '../../core/workflow/init-config.ts';
+import { verifyReport } from '../../core/workflow/verify.ts';
+import type { ToolchainFlags } from '../../core/workflow/verify.ts';
+import { readProject, resolveFrom } from '../../shell/project/read-inputs.ts';
+import { projectConfigIgnored } from '../../shell/project/locate.ts';
+import { runToolchainChecks } from '../../shell/project/verify-run.ts';
 import { ExitCode } from '../exit-codes.ts';
 import type { RunSummary } from '../exit-codes.ts';
 import type { CliIo, CommandSpec } from '../registry.ts';
@@ -34,14 +33,6 @@ import { formatDiagnosticText, formatSummaryText } from '../reporters/text.ts';
 import { allDiagnostics, exitCodeOf, printDiagnosticsOnly, refusedExitCode, usageError, verifyExitCode } from './command-common.ts';
 
 const PRINTERS: readonly Printer[] = ['readable', 'raw'];
-/** Where the tree of --assemble and --link is written: under os.tmpdir(), never the working directory. */
-export const VERIFY_TEMP_PREFIX = 'romlift-verify-';
-
-/** What the toolchain part of a run adds: its checks and the linked image's SHA-1. */
-interface ToolchainOutcome {
-  readonly checks: readonly CheckResult[];
-  readonly sha1?: string;
-}
 
 /** The outcome of one verify run, before it is printed. */
 export interface VerifyOutcome {
@@ -52,67 +43,26 @@ export interface VerifyOutcome {
   readonly sha1?: string;
 }
 
-function notRun(id: CheckId, detail: string, diagnostics: readonly Diagnostic[] = []): CheckResult {
-  return { id, ok: false, detail, diagnostics };
-}
+type Refused = { readonly refused: readonly Diagnostic[] };
 
-/** The toolchain checks a run asks for, in CHECK_IDS order. */
-type ToolchainFlags = { readonly assemble: boolean; readonly link: boolean };
-
-function toolchainIds(flags: ToolchainFlags): readonly CheckId[] {
-  return [...(flags.assemble ? (['assemble'] as const) : []), ...(flags.link ? (['link'] as const) : [])];
-}
-
-/** Writes the tree into `dir` and runs the requested toolchain checks there. */
-async function checkInDir(dir: string, rom: Rom, result: GenerateResult, flags: ToolchainFlags, ids: readonly CheckId[], io: CliIo): Promise<ToolchainOutcome> {
-  const { model } = result;
-  const applied = await writeFreshTree(dir, { model, entries: generatedEntries(rom, result), paths: result.paths });
-  if (!applied.ok) return { checks: ids.map((id) => notRun(id, 'the tree could not be written', applied.diagnostics)) };
-  const tools = findBinutils(io.env);
-  if ('code' in tools) return { checks: ids.map((id) => notRun(id, 'binutils not found', [tools])) };
-  const checks: CheckResult[] = [];
-  if (flags.assemble) checks.push(await assembleCheck({ dir, rom, units: assembleUnits(model), tools }));
-  if (!flags.link) return { checks };
-  const linked = await linkCheck({ dir, rom, units: buildUnits(model), tools });
-  checks.push(linked);
-  return linked.sha1 === null ? { checks } : { checks, sha1: linked.sha1 };
-}
-
-/**
- * The toolchain checks of a run, in a temporary directory named `<tempPrefix>…` under the system temporary directory;
- * not run when the self-checks or the model failed. A test passes its own prefix, so it can tell its directories from
- * those of any other verify on the machine.
- */
-export async function toolchainChecks(rom: Rom, result: GenerateResult, flags: ToolchainFlags, io: CliIo, tempPrefix: string = VERIFY_TEMP_PREFIX): Promise<ToolchainOutcome> {
-  const ids = toolchainIds(flags);
-  if (ids.length === 0) return { checks: [] };
-  if (!writable(result)) {
-    return { checks: ids.map((id) => notRun(id, 'not run: nothing is written while a self-check or the model fails')) };
-  }
-  const ran = await withTempDir(tempPrefix, (dir) => checkInDir(dir, rom, result, flags, ids, io));
-  return ran.ok ? ran.value : { checks: ids.map((id) => notRun(id, 'no temporary directory', [ran.diagnostic])) };
+/** The outcome of a generate result and the toolchain checks asked for (core/workflow/verify.ts, shell/project/verify-run.ts). */
+async function verifyResult(rom: Rom, result: GenerateResult, flags: ToolchainFlags, io: CliIo): Promise<VerifyOutcome> {
+  const toolchain = await runToolchainChecks(rom, result, flags, io.env);
+  return { report: verifyReport(result, toolchain), diagnostics: result.diagnostics, files: result.paths.length, ...(toolchain.sha1 === undefined ? {} : { sha1: toolchain.sha1 }) };
 }
 
 /** Verifies a ROM: generateFromRom (discover, configFromDiscover, generate), then the toolchain checks asked for. */
-async function verifyRom(rom: Rom, options: { readonly printer: Printer } & ToolchainFlags, io: CliIo): Promise<VerifyOutcome | { readonly refused: readonly Diagnostic[] }> {
+async function verifyRom(rom: Rom, options: { readonly printer: Printer } & ToolchainFlags, io: CliIo): Promise<VerifyOutcome | Refused> {
   const result = generateFromRom(rom, { decomp: { defined: [] }, printer: options.printer });
-  if (!result.ok) return { refused: result.diagnostics };
-  const toolchain = await toolchainChecks(rom, result, options, io);
-  const report = combineReports(result.report, { ok: toolchain.checks.every((c) => c.ok), checks: toolchain.checks });
-  return { report, diagnostics: result.diagnostics, files: result.paths.length, ...(toolchain.sha1 === undefined ? {} : { sha1: toolchain.sha1 }) };
+  return result.ok ? verifyResult(rom, result, options, io) : { refused: result.diagnostics };
 }
 
 /** Verifies the project that holds `from`: generateProject over its ROM and config, then the toolchain checks asked for. */
-async function verifyProject(from: string, options: { readonly printer: Printer } & ToolchainFlags, io: CliIo): Promise<VerifyOutcome | { readonly refused: readonly Diagnostic[] }> {
+async function verifyProject(from: string, options: { readonly printer: Printer } & ToolchainFlags, io: CliIo): Promise<VerifyOutcome | Refused> {
   const read = await readProject(from);
   if (!read.ok) return { refused: read.diagnostics };
-  const rom = read.value.inputs.rom;
   const generated = generateProject(read.value.inputs, { printer: options.printer });
-  if (!generated.ok) return { refused: generated.diagnostics };
-  const result = generated.result;
-  const toolchain = await toolchainChecks(rom, result, options, io);
-  const report = combineReports(result.report, { ok: toolchain.checks.every((c) => c.ok), checks: toolchain.checks });
-  return { report, diagnostics: result.diagnostics, files: result.paths.length, ...(toolchain.sha1 === undefined ? {} : { sha1: toolchain.sha1 }) };
+  return generated.ok ? verifyResult(read.value.inputs.rom, generated.result, options, io) : { refused: generated.diagnostics };
 }
 
 /** The summary of a run: its exit code, the counts, and the linked SHA-1 when there is one. */
@@ -165,7 +115,7 @@ export const verifyCommand: CommandSpec = {
     const printer = args.options['printer'] ?? 'readable';
     if (!isPrinter(printer)) return usageError(io, 'verify', `--printer is 'readable' or 'raw', not '${printer}'`);
     const options = { printer, assemble: args.flags['assemble'] === true, link: args.flags['link'] === true };
-    let outcome: VerifyOutcome | { readonly refused: readonly Diagnostic[] };
+    let outcome: VerifyOutcome | Refused;
     if (path === undefined) {
       outcome = await verifyProject(io.cwd, options, io);
     } else {
@@ -174,7 +124,9 @@ export const verifyCommand: CommandSpec = {
         printDiagnosticsOnly(io, json, 'verify', [loaded.diagnostic], { ok: false, exitCode: ExitCode.errors });
         return ExitCode.errors;
       }
-      outcome = await verifyRom(loaded.value, options, io);
+      const ran = await verifyRom(loaded.value, options, io);
+      const ignored = await projectConfigIgnored(io.cwd, 'verify');
+      outcome = 'refused' in ran || ignored === undefined ? ran : { ...ran, diagnostics: [ignored, ...ran.diagnostics] };
     }
     if ('refused' in outcome) {
       const exitCode = exitCodeOf(outcome.refused) === ExitCode.ok ? ExitCode.ok : refusedExitCode(outcome.refused);

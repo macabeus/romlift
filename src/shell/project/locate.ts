@@ -62,3 +62,20 @@ export async function locateProject(from: string = process.cwd()): Promise<Locat
     ],
   };
 }
+
+/**
+ * W_PROJECT_CONFIG_IGNORED when `from` lies inside a project (final-review end-to-end-user-5): `verify`, `model` and
+ * `explain` with `--rom` analyse that bare ROM under the config its discover run builds, not the project's
+ * romlift.toml, which a user inside the project would otherwise not learn. Undefined outside a project.
+ */
+export async function projectConfigIgnored(from: string, command: string): Promise<Diagnostic<ShellCode> | undefined> {
+  const located = await locateProject(from);
+  if (!located.ok) return undefined;
+  const dir = located.value.dir;
+  return diagnostic(
+    ShellCodes,
+    'W_PROJECT_CONFIG_IGNORED',
+    `${command} --rom reads the bare ROM with the config its discover run builds, not the romlift.toml of the project in ${dir}; run ${command} without --rom to check the project`,
+    { path: dir },
+  );
+}

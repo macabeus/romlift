@@ -102,18 +102,27 @@ copy_baserom() {
   [ "$actual" = "$expected" ] || die "$ROM has SHA-1 $actual, but $SHA1_FILE expects $expected"
 }
 
-# Duty 4: romlift, at the exact version package.json pins.
+# Duty 4: romlift, at the exact version package.json pins. Until romlift is on the npm registry, npm cannot install it:
+# set ROMLIFT_CLI to a romlift checkout's command instead (see README.md).
 install_romlift() {
   if [ -n "${ROMLIFT_CLI:-}" ]; then
-    say "ROMLIFT_CLI is set: not installing romlift with npm"
+    if [ -f package-lock.json ]; then
+      say "ROMLIFT_CLI is set: not installing romlift with npm"
+    else
+      say "ROMLIFT_CLI is set: not installing romlift with npm, so package-lock.json stays unwritten"
+    fi
     return 0
   fi
   have npm || die "npm is missing: install Node.js 22.18 or later"
   if [ -f package-lock.json ]; then
-    npm ci
+    npm ci || npm_failed
   else
-    npm install
+    npm install || npm_failed
   fi
+}
+
+npm_failed() {
+  die "npm could not install romlift. If it is not on the npm registry yet, build a romlift checkout (npm ci && npm run build) and run: ROMLIFT_CLI=\"node /path/to/romlift/dist/cli/main.js\" ./setup.sh"
 }
 
 # Duty 5: the generated tree (asm/, data/, ldscript.txt, symbols.ld, modules.mk), none of it in Git: when asm/ is

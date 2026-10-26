@@ -185,6 +185,12 @@ test('make stops while romlift.toml is not the one modules.mk records; setup.sh\
     const toml = 'schema = 1\n';
     const sha1 = createHash('sha1').update(toml).digest('hex');
     for (const [file, text] of [['Makefile', makefile], ['romlift.toml', toml], ['ldscript.txt', ''], ['symbols.ld', '']] as const) writeFileSync(join(dir, file), text);
+    // The tree .incbins the ROM, so make stops with a message while it is missing (final-review end-to-end-user-6).
+    writeFileSync(join(dir, 'modules.mk'), modulesMkText({ modules: [], chunks: [] }, sha1));
+    const noRom = spawnSync('make', ['-n', 'rom'], { cwd: dir, encoding: 'utf8' });
+    assert.notEqual(noRom.status, 0);
+    assert.match(noRom.stderr, /baserom\.gba is missing: put your own copy of the ROM there/);
+    writeFileSync(join(dir, 'baserom.gba'), '');
     // modules.mk as the writer spells it, with no unit, with and without the stamp.
     const modulesMk = (recorded: string | undefined): void => writeFileSync(join(dir, 'modules.mk'), modulesMkText({ modules: [], chunks: [] }, recorded));
     const make = (goal: string): { readonly status: number | null; readonly stderr: string } => spawnSync('make', ['-n', goal], { cwd: dir, encoding: 'utf8' });

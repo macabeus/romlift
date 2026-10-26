@@ -104,7 +104,14 @@ async function resolveReference(repo: string, benchRoot: string, dataset: string
     const isFixture = await isDirectory(fixture);
     if (!isFixture.ok) return isFixture;
     if (!isFixture.value) {
-      return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_DATASET_UNKNOWN', `${dataset}: no ${file} and no synthetic fixture build ${fixture}`) };
+      return {
+        ok: false,
+        diagnostic: diagnostic(
+          ShellCodes,
+          'E_SIGNATURE_DATASET_UNKNOWN',
+          `${dataset}: no ${file} and no synthetic fixture build ${fixture}; a spec is built in a romlift source checkout, whose bench/dataset/ names its references (the installed package ships none)`,
+        ),
+      };
     }
     const at = (ext: string): string => join(fixture, `${dataset}.${ext}`);
     return { ok: true, value: { dataset, rom: at('gba'), elf: at('elf'), map: at('map'), commit: SYNTHETIC_COMMIT } };
@@ -126,19 +133,30 @@ async function resolveReference(repo: string, benchRoot: string, dataset: string
   return { ok: true, value: { dataset, rom: resolve(benchRoot, rom), elf: resolve(benchRoot, elf), map: resolve(benchRoot, map), commit, sha1 } };
 }
 
+/**
+ * A reference file that cannot be read, with what a build needs (final-review end-to-end-user-2): the dataset's decomp
+ * checkout under the bench root, which a bare ENOENT does not say.
+ */
+function unreadableReference<C extends string>(ref: ResolvedReference, benchRoot: string, read: Diagnostic<C>): Diagnostic<C> {
+  return {
+    ...read,
+    message: `${read.message}; the ${ref.dataset} reference needs its decomp checkout (ROM, ELF and map, docs/benchmark-roms.md) under the bench root ${benchRoot} (ROMLIFT_BENCH_ROOT)`,
+  };
+}
+
 /** A resolved reference read, parsed and analysed. */
-async function loadReference(ref: ResolvedReference): Promise<IoResult<ReferenceInput>> {
+async function loadReference(ref: ResolvedReference, benchRoot: string): Promise<IoResult<ReferenceInput>> {
   const rom = await readRom(ref.rom);
-  if (!rom.ok) return rom;
+  if (!rom.ok) return { ok: false, diagnostic: unreadableReference(ref, benchRoot, rom.diagnostic) };
   if (ref.sha1 !== undefined && rom.value.sha1 !== ref.sha1) {
     return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_REFERENCE_SHA1', `${ref.rom} has SHA-1 ${rom.value.sha1}, the ${ref.dataset} dataset records ${ref.sha1}`, { path: ref.rom }) };
   }
   const elfBytes = await readBytes(ref.elf);
-  if (!elfBytes.ok) return elfBytes;
+  if (!elfBytes.ok) return { ok: false, diagnostic: unreadableReference(ref, benchRoot, elfBytes.diagnostic) };
   const elf = parseElf(elfBytes.value);
   if (!elf.ok) return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_REFERENCE_INVALID', `${ref.elf}: ${elf.error}`, { path: ref.elf }) };
   const mapText = await readText(ref.map);
-  if (!mapText.ok) return mapText;
+  if (!mapText.ok) return { ok: false, diagnostic: unreadableReference(ref, benchRoot, mapText.diagnostic) };
   const map = parseGnuMap(mapText.value);
   if (!map.ok) return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_SIGNATURE_REFERENCE_INVALID', `${ref.map}: ${map.error}`, { path: ref.map }) };
   const placements = mapPlacements(map.value);
@@ -186,7 +204,7 @@ export async function buildSignatures(input: BuildSignaturesInput, options: Buil
   const load = (dataset: string): Promise<IoResult<ReferenceInput>> => {
     let pending = loaded.get(dataset);
     if (pending === undefined) {
-      pending = resolveReference(repo, benchRoot, dataset).then((resolved) => (resolved.ok ? loadReference(resolved.value) : resolved));
+      pending = resolveReference(repo, benchRoot, dataset).then((resolved) => (resolved.ok ? loadReference(resolved.value, benchRoot) : resolved));
       loaded.set(dataset, pending);
     }
     return pending;

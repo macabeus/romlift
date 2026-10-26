@@ -4,6 +4,7 @@
 // truth.ts. Every read is bounds-checked, so a truncated or corrupt file is an ok:false result, never an exception
 // or a read past the buffer.
 import type { Span } from '../rom/span.ts';
+import { hexSize } from '../util/hex.ts';
 import type {
   ElfFile,
   ElfFunction,
@@ -68,7 +69,7 @@ class Reader {
 
   need(offset: number, length: number, what: string): void {
     if (!(offset >= 0 && length >= 0 && offset + length <= this.bytes.length)) {
-      throw new Malformed(`${what} (0x${offset.toString(16)}+0x${length.toString(16)}) lies outside the ${this.bytes.length}-byte file`);
+      throw new Malformed(`${what} (${hexSize(offset)}+${hexSize(length)}) lies outside the ${this.bytes.length}-byte file`);
     }
   }
 
@@ -90,9 +91,9 @@ class Reader {
   /** The NUL-terminated string at `offset` inside the table [tableStart, tableEnd). */
   cString(tableStart: number, tableEnd: number, offset: number, what: string): string {
     const start = tableStart + offset;
-    if (offset >= tableEnd - tableStart) throw new Malformed(`${what}: name offset 0x${offset.toString(16)} is outside its string table`);
+    if (offset >= tableEnd - tableStart) throw new Malformed(`${what}: name offset ${hexSize(offset)} is outside its string table`);
     const end = this.bytes.subarray(start, tableEnd).indexOf(0);
-    if (end < 0) throw new Malformed(`${what}: name at 0x${start.toString(16)} is not NUL-terminated`);
+    if (end < 0) throw new Malformed(`${what}: name at ${hexSize(start)} is not NUL-terminated`);
     return utf8.decode(this.bytes.subarray(start, start + end));
   }
 }
@@ -184,7 +185,7 @@ function readSymbols(r: Reader, sections: readonly ElfSection[]): ElfSymbol[] {
       const func = type === 'func';
       const sectionName = shndx < SHN_LORESERVE ? sections[shndx]?.name : undefined;
       symbols.push({
-        name: r.cString(strtab.offset, strEnd, r.u32(o), `symbol at 0x${o.toString(16)}`),
+        name: r.cString(strtab.offset, strEnd, r.u32(o), `symbol at ${hexSize(o)}`),
         value,
         addr: func ? (value & ~1) >>> 0 : value,
         size: r.u32(o + 8),

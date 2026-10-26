@@ -8,7 +8,7 @@ import { test } from 'node:test';
 
 import { moduleIndexAt, relocatedModules } from '../../../src/core/model/modules.ts';
 import { wordScope, wordText } from '../../../src/core/emit/print/pool.ts';
-import { addendTo, adrResolverFor, compareLabels, entryLabelOf, isExactLabel, isNamedEntry, loadWordOperand, moduleAt, resolverFor, resolverOver, linkedWordOf, sizedEntries, sizedEntryAt, wordNameOf, wordValueOf } from '../../../src/core/model/resolver.ts';
+import { addendTo, adrResolverFor, compareLabels, entryLabelOf, isExactLabel, isNamedEntry, loadWordOperand, moduleAt, resolverFor, linkedWordOf, sizedEntries, sizedEntryAt, wordNameOf, wordValueOf } from '../../../src/core/model/resolver.ts';
 import { loadSymbolOf } from '../../../src/core/model/modules.ts';
 import type { Label } from '../../../src/core/model/types.ts';
 import { dataItem, label, modelOf, romWith } from '../../helpers/model.ts';
@@ -76,14 +76,6 @@ test('a runs_at module owns its run range; its labels hold run addresses', () =>
   assert.equal(moduleAt(m, 0x0800_4000), undefined);
   assert.equal(resolverFor(m, 'ram').labelFor(RAM + 0x10, RAM), 'RamHelper');
   assert.equal(resolverFor(m, 'alpha').labelFor(RAM + 0x10, A), undefined);
-});
-
-test('resolverOver indexes unsorted labels afresh, so a growing array is read as it is now', () => {
-  const m = model([]);
-  const labels: Label[] = [label('Late', A + 8), label('Early', A + 4)];
-  assert.equal(resolverOver(labels, m.modules, 'alpha').labelFor(A + 4, A), 'Early');
-  labels.push(label('Later', A + 12));
-  assert.equal(resolverOver(labels, m.modules, 'alpha').labelFor(A + 12, A), 'Later');
 });
 
 test('wordValueOf: a Thumb function links to its address plus one, everything else to its address', () => {

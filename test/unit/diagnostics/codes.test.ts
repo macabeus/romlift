@@ -96,3 +96,15 @@ test('core/diagnostic-codes.ts unions every core codes module and foundation/rom
     assert.equal(unionCodes.has(code), expected.includes(file), `${code} (${file}) in ALL_CODES`);
   }
 });
+
+test('architecture §9.1 lists exactly the codes the codes.ts files define (final-review architecture-2)', () => {
+  const doc = readFileSync(fileURLToPath(new URL('../../../docs/architecture.md', import.meta.url)), 'utf8');
+  const start = doc.indexOf('### 9.1 ');
+  const end = doc.indexOf('### 9.2 ', start);
+  assert.ok(start >= 0 && end > start, 'architecture.md has §9.1 and §9.2');
+  const rows = doc.slice(start, end).split('\n').filter((line) => line.startsWith('| `'));
+  const listed = rows.flatMap((line) => [...(line.split(' | ')[0] ?? '').matchAll(/`([EW]_[A-Z0-9_]+)`/g)].map((m) => m[1] ?? ''));
+  const sorted = (codes: Iterable<string>): string[] => [...codes].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  assert.deepEqual(sorted(new Set(listed)), sorted(defined.keys()));
+  assert.equal(listed.length, new Set(listed).size, 'no code is listed twice');
+});

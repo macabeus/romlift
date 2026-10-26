@@ -20,6 +20,7 @@ refuses an unknown member, a target that is not a project path, a repeated targe
 | `<name>.sha1` (`@@sha1File@@`) | none | romlift: `<sha1>  <name>.gba` in sha1sum format |
 | `package.json` | none | romlift: the exact romlift version pinned |
 | `.gitmodules` | none | romlift: `tools/agbcc` at `agbcc.json`'s URL |
+| `include/global.h`, `include/gba/types.h`, `include/gba/io_reg.h` | `include/…` | their templates: the types and I/O registers decompiled C includes (plan.md's scaffold table; final-review docs-and-plan-1) |
 | `include/macros.inc` | none | romlift: `DIALECT.macrosInc` |
 | `include/include_asm.h` | none | romlift: `INCLUDE_ASM_HEADER` (`src/foundation/asm/dialect.ts`) |
 

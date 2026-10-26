@@ -2,7 +2,8 @@
 // `npm install --package-lock-only --ignore-scripts` writes package-lock.json from the registry without installing
 // anything or running a script. It runs with stdin closed and a time limit. When npm is missing, the registry cannot
 // be reached (offline, a mirror down, a version not published), npm fails or the limit passes, the lock is deferred:
-// W_LOCKFILE_DEFERRED, and setup.sh writes it on its first run (`npm install` while no lock exists). Mechanical: it
+// W_LOCKFILE_DEFERRED, and setup.sh writes it on its first run that installs romlift with npm (`npm install` while no
+// lock exists); with ROMLIFT_CLI set npm is not run at all, since setup.sh then installs nothing. Mechanical: it
 // runs npm and reports; it never decides what the lock holds.
 import { spawn } from 'node:child_process';
 
@@ -36,7 +37,15 @@ export interface NpmLockOptions {
 export type NpmLockResult = { readonly ok: true } | { readonly ok: false; readonly diagnostic: Diagnostic<ShellCode> };
 
 function deferred(message: string): NpmLockResult {
-  return { ok: false, diagnostic: diagnostic(ShellCodes, 'W_LOCKFILE_DEFERRED', `package-lock.json not written: ${message}; setup.sh writes it on its first run`, { path: 'package-lock.json' }) };
+  return {
+    ok: false,
+    diagnostic: diagnostic(
+      ShellCodes,
+      'W_LOCKFILE_DEFERRED',
+      `package-lock.json not written: ${message}; setup.sh writes it on its first run that installs romlift with npm, and none does while ROMLIFT_CLI is set (romlift is not on the npm registry until it is published)`,
+      { path: 'package-lock.json' },
+    ),
+  };
 }
 
 /**
@@ -94,6 +103,10 @@ function runNpm(npm: string, cwd: string, env: Readonly<Record<string, string | 
 /** Runs the lock step in the project directory `dir`; never throws. */
 export async function writePackageLock(dir: string, options: NpmLockOptions = {}): Promise<NpmLockResult> {
   const env = options.env ?? process.env;
+  // final-review clean-clone-5, end-to-end-user-13: with ROMLIFT_CLI set romlift runs from a checkout, so the registry
+  // is not asked for a package it does not hold.
+  const cli = env['ROMLIFT_CLI'];
+  if (cli !== undefined && cli !== '') return deferred('ROMLIFT_CLI is set, so npm was not asked');
   const npm = options.npm ?? findExecutable('npm', env);
   if (npm === undefined) return deferred('npm is not on the PATH');
   const timeoutMs = options.timeoutMs ?? NPM_LOCK_TIME_LIMIT_MS;

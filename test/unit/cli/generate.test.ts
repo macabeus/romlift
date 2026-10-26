@@ -42,6 +42,9 @@ async function initProject(rom: string = COMPOSITE.rom, args: readonly string[] 
   await copyFile(rom, path.join(dir, 'baserom.gba'));
   const out = await run(dir, ['init', 'baserom.gba', ...args]);
   assert.equal(out.code, ExitCode.ok, out.stderr);
+  // Several tests lay out a project's own headers (global.h, gba/): init's starter headers are replaced.
+  await rm(path.join(dir, 'include', 'global.h'));
+  await rm(path.join(dir, 'include', 'gba'), { recursive: true });
   return dir;
 }
 
@@ -177,6 +180,15 @@ test('another ROM is E_ROM_SHA1_MISMATCH; --rom reads another copy of the right 
   assert.equal(lines(other.stdout)[0]?.['code'], 'E_ROM_SHA1_MISMATCH');
   const right = await run(dir, ['generate', '--rom', FAR_JUMP.rom, '--dry-run', '--json']);
   assert.equal(right.code, ExitCode.ok, right.stdout);
+  assert.ok(!lines(right.stdout).some((l) => l['code'] === 'W_PROJECT_ROM_ABSENT'), 'the project has a baserom.gba');
+  // No baserom.gba (a worktree): plain generate names the remedies; --rom works and warns that make needs the ROM there.
+  await rm(path.join(dir, 'baserom.gba'));
+  const missing = await run(dir, ['generate', '--json']);
+  assert.equal(missing.code, ExitCode.errors);
+  assert.match(String(lines(missing.stdout)[0]?.['message']), /baserom\.gba is missing: put your own copy of the ROM there .*, or pass --rom <path>$/);
+  const elsewhere = await run(dir, ['generate', '--rom', FAR_JUMP.rom, '--dry-run', '--json']);
+  assert.equal(elsewhere.code, ExitCode.ok, elsewhere.stdout);
+  assert.ok(lines(elsewhere.stdout).some((l) => l['code'] === 'W_PROJECT_ROM_ABSENT'), elsewhere.stdout);
   const nowhere = path.join(TMP, `none-${fresh++}`);
   await mkdir(nowhere);
   const none = await run(nowhere, ['generate', '--json']);

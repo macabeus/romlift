@@ -24,6 +24,14 @@ function matched(placements: readonly SignaturePlacement[], extra: Partial<Signa
 
 const names = (ps: readonly SignaturePlacement[]): string[] => ps.map((p) => `${p.library}@${p.version} ${p.name}`);
 
+test('a version of a library whose every placement another version of it took is dropped without a warning (final-review clean-clone-6)', () => {
+  const r = resolvePlacements(ROM, matched([pl('a', '1', 'A1', 0x0800_1000), pl('a', '1', 'A2', 0x0800_1010), pl('a', '2', 'A1', 0x0800_1000)]));
+  assert.deepEqual(names(r.placements), ['a@1 A1', 'a@1 A2']);
+  assert.deepEqual(r.diagnostics, [], 'a@2 lost wholly to a@1: the ROM links a@1');
+  const other = resolvePlacements(ROM, matched([pl('a', '1', 'A1', 0x0800_1000), pl('a', '1', 'A2', 0x0800_1010), pl('b', '1', 'B1', 0x0800_1000)]));
+  assert.deepEqual(other.diagnostics.map((d) => d.message), ['b@1: 1 of its 1 placements overlap a version that placed more; dropped'], 'another library is still reported');
+});
+
 test('a placement overlapping a version that placed more is dropped, with counts', () => {
   const r = resolvePlacements(ROM, matched([pl('a', '1', 'A1', 0x0800_1000), pl('a', '1', 'A2', 0x0800_1010), pl('a', '1', 'A3', 0x0800_1020), pl('b', '1', 'B1', 0x0800_1018), pl('b', '1', 'B2', 0x0800_5000)]));
   assert.deepEqual(names(r.placements), ['a@1 A1', 'a@1 A2', 'a@1 A3', 'b@1 B2']);

@@ -58,8 +58,21 @@ test('sig.unique-fit: two fits are ambiguous, counted without addresses', () => 
   assert.equal(m.diagnostics.length, 1);
   const d = m.diagnostics[0];
   assert.equal(d?.code, 'W_SIGNATURE_AMBIGUOUS');
-  assert.equal(d.message, 'lib@1: Twice fits at 2 places and no neighbour settles it');
+  assert.equal(d.message, 'lib@1: Twice fits at 2 places and no neighbour settles it; nothing of lib@1 is placed, so the ROM likely does not link it');
   assert.equal(d.addr, undefined);
+});
+
+test('sig.unique-fit: the ambiguous members of a version are one line, which says when the version placed nothing (final-review clean-clone-6)', () => {
+  const twice = big('Twice', 1);
+  const thrice = big('Thrice', 4);
+  const placedFn = big('Once', 5);
+  const rom = romWith([at(0x0800_1000, twice.bytes), at(0x0800_2000, twice.bytes), at(0x0800_3000, thrice.bytes), at(0x0800_4000, thrice.bytes), at(0x0800_5000, thrice.bytes)]);
+  const alone = run(rom, [signatureFile('lib', { id: '1', members: [twice, thrice] })]);
+  assert.deepEqual(alone.diagnostics.map((d) => [d.code, d.message]), [
+    ['W_SIGNATURE_AMBIGUOUS', 'lib@1: 2 members fit at several places and no neighbour settles them: Twice (2), Thrice (3); nothing of lib@1 is placed, so the ROM likely does not link it'],
+  ]);
+  const anchored = run(romWith([at(0x0800_1000, twice.bytes), at(0x0800_2000, twice.bytes), at(0x0800_6000, placedFn.bytes)]), [signatureFile('lib', { id: '1', members: [twice, placedFn], linkOrder: [] })]);
+  assert.deepEqual(anchored.diagnostics.map((d) => d.message), ['lib@1: Twice fits at 2 places and no neighbour settles it']);
 });
 
 test('sig.unique-fit: fewer than minUnmaskedBytes, or no anchor word, is never searched alone', () => {
@@ -82,7 +95,7 @@ test('the scan: candidates stop at policy.candidateCap', () => {
   const fn = big('Many', 6, 16);
   const rom = romWith([0, 1, 2, 3, 4].map((i) => at(0x0800_1000 + 0x100 * i, fn.bytes)));
   const m = run(rom, [signatureFile('lib', { id: '1', members: [fn] })], { ...SIGNATURE_POLICY, candidateCap: 3 });
-  assert.equal(m.diagnostics[0]?.message, 'lib@1: Many fits at 3 or more places and no neighbour settles it');
+  assert.equal(m.diagnostics[0]?.message, 'lib@1: Many fits at 3 or more places and no neighbour settles it; nothing of lib@1 is placed, so the ROM likely does not link it');
 });
 
 test('sig.link-order-run: members contiguous in link order and on the ROM are placed as a run', () => {

@@ -23,4 +23,7 @@ export const ALL_CODES = {
   ...WorkflowCodes,
 } as const;
 
+/** The verify checks' codes, which the CLI's exit-code rule reads (cli/commands/command-common.ts). */
+export { VerifyCodes };
+
 export type DiagnosticCode = keyof typeof ALL_CODES;

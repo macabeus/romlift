@@ -13,3 +13,6 @@ export type {
   LinkCheckResult,
   ModuleAssembly,
 } from '../shell/toolchain/link-check.ts';
+export { runToolchainChecks, VERIFY_TEMP_PREFIX } from '../shell/project/verify-run.ts';
+export { notRunOutcome, toolchainIds, toolchainPlan, verifyReport } from '../core/workflow/verify.ts';
+export type { ToolchainFlags, ToolchainOutcome, ToolchainPlan } from '../core/workflow/verify.ts';

@@ -12,7 +12,7 @@
 // are `0x` and eight upper-case hex digits; sizes are upper-case hex without padding. parse.ts reads exactly this
 // back: serializeConfig(parseConfig(text).value) === text for every canonical text. Pure.
 import type { Addr } from '../../foundation/rom/span.ts';
-import { hex, hexAddr } from '../../foundation/util/hex.ts';
+import { hex, hexAddr, hexSize } from '../../foundation/util/hex.ts';
 import { sortedEntries } from '../../foundation/util/sorted.ts';
 import { addressKey } from './keys.ts';
 import type { FunctionConfig, ModuleConfig, OverrideConfig, RomliftConfig, SymbolConfig } from './schema.ts';
@@ -39,7 +39,7 @@ function stringArray(items: readonly string[]): string {
 
 /** A size: `0x` and upper-case hex digits, unpadded (`0x3A4`). */
 export function tomlSize(size: number): string {
-  return `0x${(size >>> 0).toString(16).toUpperCase()}`;
+  return hexSize(size >>> 0);
 }
 
 /** An address value: `0x` and eight upper-case hex digits. */

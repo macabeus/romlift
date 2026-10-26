@@ -59,7 +59,7 @@ import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import { pushAll } from '../../foundation/util/arrays.ts';
-import { hexAddr } from '../../foundation/util/hex.ts';
+import { hex, hexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
 import { dataRangeModuleAt, linkerDefinedNames, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
@@ -280,7 +280,7 @@ function compareLayout(rom: Rom, model: Model, job: Job, parseErrors: readonly {
   }
   if (diff >= 0) {
     const addr = job.range.start + diff;
-    const message = `the file lays out 0x${(layout.bytes[diff] ?? 0).toString(16).padStart(2, '0')} where the ROM holds 0x${(rom.bytes[base + diff] ?? 0).toString(16).padStart(2, '0')}`;
+    const message = `the file lays out 0x${hex(layout.bytes[diff] ?? 0, 2)} where the ROM holds 0x${hex(rom.bytes[base + diff] ?? 0, 2)}`;
     out.push(textError(job.path, lineAt(job, addr + job.runOffset), addr, message));
   } else if (got !== expected) {
     const addr = job.range.start + Math.min(expected, got);

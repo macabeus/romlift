@@ -137,6 +137,7 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
         cpuProf: args.flags.has('cpu-prof'),
         scaffold: args.flags.has('scaffold'),
         writeReadabilityFloor: args.flags.has('write-readability-floor'),
+        requireSignatures: !asJson,
         runner: deps.runner,
         ...(deps.emission === undefined ? {} : { emission: deps.emission }),
         ...(deps.largeRom === undefined ? {} : { largeRom: deps.largeRom }),

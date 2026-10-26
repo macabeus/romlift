@@ -6,6 +6,7 @@
 // the cap g3.large-rom measures under (D68 b, D69, D72: the owner's answer to Q7, which replaces Q6's 384;
 // bench/src/large-rom.ts LARGE_ROM_MAX_OLD_SPACE_MIB).
 import { RomliftInvariantError } from '../api/rom.ts';
+import { packageVersion } from '../shell/project/read-inputs.ts';
 import { parseArgs } from './args.ts';
 import { COMMANDS } from './commands/index.ts';
 import { ExitCode, isExitCode } from './exit-codes.ts';
@@ -14,6 +15,11 @@ import type { CliIo, CommandSpec } from './registry.ts';
 
 function isHelpToken(token: string | undefined): boolean {
   return token === `--${HELP_FLAG}` || token === '-h';
+}
+
+/** `romlift --version` (final-review end-to-end-user-12): the version of the package the bin runs from. */
+function isVersionToken(token: string | undefined): boolean {
+  return token === '--version' || token === '-V';
 }
 
 /** One stderr line for an error nothing caught: a bug in romlift, reported without a stack. */
@@ -28,6 +34,15 @@ export async function main(argv: readonly string[], io: CliIo, commands: readonl
   try {
     if (argv.length === 0 || isHelpToken(argv[0])) {
       io.stdout(usageText(commands));
+      return ExitCode.ok;
+    }
+    if (argv.length === 1 && isVersionToken(argv[0])) {
+      const version = await packageVersion();
+      if (!version.ok) {
+        io.stderr(`${PROGRAM}: ${version.diagnostic.message}\n`);
+        return ExitCode.errors;
+      }
+      io.stdout(`${PROGRAM} ${version.value}\n`);
       return ExitCode.ok;
     }
     const parsed = parseArgs(argv, commands);

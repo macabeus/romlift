@@ -7,7 +7,10 @@
 // decompiled, ends with gas's nop padding instead of zeros (fix round 3, correctness-a1-4, D78 b). The owner kept
 // those as orphans (phase-4.md Q8, "Keep as orphans", 21 October 2026, D79 a): byte-exact, one stub line each, a known
 // limitation. So the rule asserted is exactly his: every zero-pad orphan is such a pad, and their number per ROM is the
-// 11 he was shown (fe7j 4, pokeemerald 5, sa2 1, tmc 1, klonoa and sa3 none).
+// 11 he was shown (fe7j 4, pokeemerald 5, sa2 1, tmc 1, klonoa and sa3 none), plus the two the final review's module
+// fix added (D106 g, end-to-end-user-3): a Thumb `bx pc` stub now joins its ARM half in an asm module instead of a C
+// module of its own, so the zero pad before it ends the C module before (klonoa 0x08051BA2, before sub_08051BA4; one
+// on fe7j). The rule is unchanged; 13 in all.
 // Each ROM's orphan files before the fold (the orphans left plus the chunks that folded a pad) and after it are
 // printed as a diagnostic, with the 0x46C0 nop pads that stay orphans (D75 d) and how many of those lie in `c`
 // modules; phase-3.md measured the before counts on the discover model (pokeemerald 3,222, tmc 2,320, fe7j 1,558,
@@ -31,7 +34,7 @@ const REQUIRE = process.env['ROMLIFT_REQUIRE_LOCAL'] === '1';
 const TUNING = ['fe7j', 'klonoa', 'pokeemerald', 'sa2', 'sa3', 'tmc'] as const;
 const WORD = 4;
 /** The zero pads that end a `c` module right after a function, kept as orphans by the owner's answer to Q8 (D79 a). */
-const KEPT_AT_C_END: Readonly<Record<(typeof TUNING)[number], number>> = { fe7j: 4, klonoa: 0, pokeemerald: 5, sa2: 1, sa3: 0, tmc: 1 };
+const KEPT_AT_C_END: Readonly<Record<(typeof TUNING)[number], number>> = { fe7j: 5, klonoa: 1, pokeemerald: 5, sa2: 1, sa3: 0, tmc: 1 };
 
 const profile = profileById('agbcc');
 if (profile === undefined) throw new Error('the agbcc profile is not registered');

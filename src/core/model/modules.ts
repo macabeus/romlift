@@ -20,7 +20,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { spanIndexAt } from '../../foundation/util/arrays.ts';
-import { hexAddr } from '../../foundation/util/hex.ts';
+import { hexAddr, hexSize } from '../../foundation/util/hex.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { buildCompilerOf } from '../config/compilers.ts';
 import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
@@ -109,7 +109,7 @@ function runAddresses(rom: Rom, config: RomliftConfig, spans: readonly { readonl
       continue;
     }
     if (run.end > ADDRESS_SPACE_END) {
-      refuse(`runs at [${hexAddr(run.start)}, 0x${run.end.toString(16).toUpperCase()}), past the end of the 32-bit address space; ld cannot place a section that wraps around`);
+      refuse(`runs at [${hexAddr(run.start)}, ${hexSize(run.end)}), past the end of the 32-bit address space; ld cannot place a section that wraps around`);
       continue;
     }
     if ((run.start - span.start) % RUN_ALIGN !== 0) {

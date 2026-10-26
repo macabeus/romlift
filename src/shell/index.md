@@ -21,3 +21,14 @@ and agbcc, applying a write plan atomically under a lock. (The evidence and trac
 | --- | --- |
 | `signatures/build-from-references.ts`, `signatures/locate.ts` | building a signature file from a spec's reference ELFs, maps and ROMs, and locating the built files (`signatures/` or `ROMLIFT_SIGNATURES`, `W_SIGNATURES_ABSENT`; `loadSignatureFiles`, the one call of the four commands that read them, D95 b), p6-signatures-build |
 | `project/read-inputs.ts` | adds each followed header's real path (`ProjectInputs.headerRealPaths`) for the cpp-exact include resolution, p6-include-links |
+
+## Final review (fix round 1, D106)
+
+| Path | Responsibility |
+| --- | --- |
+| `project/verify-run.ts` | `runToolchainChecks`: carries out `core/workflow/verify.ts`'s toolchain plan (writes the tree into a temporary directory, finds binutils, assembles and links), the composition `verify`, the bench and the gates share (architecture-1) |
+| `fs.ts` | adds `readTextIfPresent` (absent is `undefined`, any other failure E_IO_READ), which `toolchain/corpus-inputs.ts` reads through instead of a catch-all, so an unreadable corpus input stops the digest rather than dropping out of it (architecture-5); `project/lock.ts` reads through it too and keeps reading an unreadable lock (a directory there) as one it cannot take, E_PROJECT_LOCKED, as its test requires; the remaining catch-all sites of `project/disk-state.ts` (`snapshotEntry`, `oneFile`, `readExecutables`) are recorded exceptions, carried past the final review |
+| `project/locate.ts` | adds `projectConfigIgnored` (`W_PROJECT_CONFIG_IGNORED`: `verify`, `model` or `explain --rom` inside a project) |
+| `project/read-inputs.ts` | a missing project ROM is E_IO_READ naming the remedies; `generate --rom` while the project's own ROM is missing warns `W_PROJECT_ROM_ABSENT` |
+| `signatures/locate.ts`, `signatures/build-from-references.ts` | `W_SIGNATURES_ABSENT` and an unreadable reference say that signature files are not shipped and that a build needs the reference decomp checkouts under `ROMLIFT_BENCH_ROOT` |
+| `toolchain/npm.ts` | with `ROMLIFT_CLI` set, init's lock step runs no npm (`W_LOCKFILE_DEFERRED` says so) |
