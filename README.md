@@ -138,7 +138,9 @@ klonoa 130 of 485 functions are not compared at all (objdiff-cli cannot read one
 The final review of the six phases (fix round 1, [docs/final-review.md](docs/final-review.md), D106) made the
 first-run path above work from a checkout, stopped shipping signature specs nobody could build from the package, kept
 `bx pc` veneers out of C modules, added `include/global.h` and `include/gba/*.h` to the scaffold, gave
-`[signatures] libraries` its effect, moved the `verify` composition out of the CLI, and recorded what stays open. Release
+`[signatures] libraries` its effect, moved the `verify` composition out of the CLI, and recorded what stays open. Fix
+round 2 (D107) restored sa2's `g2.speed` headroom with result-neutral speed changes to the analysis (about 81% of its
+limit, from 95 to 101%), made `bench run` refuse to drop a ROM's PoC reference, and fixed the smaller findings. Release
 1 still cannot claim generality: the held-out gate passes only with both family conditions waived (D60, D61).
 
 | Phase | Delivers |
@@ -156,7 +158,7 @@ first-run path above work from a checkout, stopped shipping signature specs nobo
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D106 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D107 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |

@@ -80,9 +80,15 @@ for none, or the fix is a record already made).
 
 ## Owner questions
 
-- **O1. Re-measure `bench/baseline/speed.json` at the current tuning?** (gates-2, gates-3, clean-clone-11) sa2 runs at
-  94 to 99.9% of its limit depending on machine load, with no code regression measured; fe7j and pokeemerald have
-  limits about ten and two times what they measure. Re-measuring gives every ROM a limit 1.5 times today's time.
+- **O1. Re-measure `bench/baseline/speed.json` at the current tuning?** (gates-2, gates-3, clean-clone-11, gates-r1-1)
+  Until fix round 2 sa2 ran at 94 to 101% of its limit depending on machine load (the review of fix round 1 measured
+  100.9% in a plain run, which failed the closing list); fix round 2's result-neutral speed changes (D107 a) bring it
+  to about 81%. fe7j and pokeemerald have limits about ten and two times what they measure. Re-measuring gives every
+  ROM a limit 1.5 times today's time.
+- **O5. May `g3.speed-budget` judge only its own budgets?** (gates-r1-2, D107 b) It fails whenever `bench speed --json`
+  exits 1, which happens when any ROM exceeds the `g2.speed` limit, so one slow sa2 run fails both speed gates while
+  the 3 s, 10 s and 15 s budgets are met with a wide margin. The fix is a gate edit (read the JSON whatever the exit
+  code, or a `bench speed` flag that skips the ratchet's exit).
 - **O2. Ship built signature files?** (clean-clone-2, docs-and-plan-2; D40, architecture §12 item 1) Until then a user
   names libraries only by building them from the reference decomps.
 - **O3. Which fresh-family pair to seal before release 1?** (gates-1) Kirby & the Amazing Mirror or Pokémon Pinball,
@@ -118,3 +124,28 @@ found as the main checkout's build; 26 October 2026, 14:15 to 16:03, every comma
 
 Every gate of phases 1 to 6 passes on both tiers. `bench/results.json` is committed as this run's artifact. The Linux
 CI jobs were not run (docs-and-plan-6, carried).
+
+## Fix round 2
+
+A second review pass over main at `a1a4328` (fix round 1 merged) followed a clean clone and a new user again and re-ran
+the closing list in a fresh clone. It raised 1 blocker, 1 major and 11 minors. Fix round 2 (branch `final-review-2`,
+decision D107) fixed the blocker and the major in code, the cheap minors, and carried or recorded the rest (roadmap.md
+"Carried past phase 6").
+
+| Finding | Severity | Disposition | What was done, or why not |
+| --- | --- | --- | --- |
+| gates-r1-1 (the closing list fails on sa2's `g2.speed` limit) | blocker | fixed | Result-neutral speed changes to the analysis, from a profile of sa2 (D107 a): `insnAligned` by mask instead of `%`, `factFrom`'s code spans merged without an object per instruction, `claim()` writing instruction claims without building a `ClaimEdit`, `claimRuns` scanning equal claims a word at a time. The analysis digests of all six tuning ROMs are unchanged (fe7j `a1e91da5…`, klonoa `518d9572…`, pokeemerald `698343b9…`, sa2 `bfa0a805…`, sa3 `9c0fb964…`, tmc `5c747e55…`, before and after). `bench speed --only sa2`: 728.3 of 746.8 ms (97.5%) before, 610.0 of 751.0 and 624.9 of 769.4 ms (81%) after. No gate, threshold or `speed.json` changed; re-measuring the baseline stays the owner's (O1). The closing list ran again (below) |
+| clean-clone-r1-1 (`bench run` without the PoC dumps writes a degraded artifact) | major | fixed | `bench run` writing the artifact is refused while a committed row's `poc.source` is `dump` (tmc) and its `bench/.local/poc/<rom>/scored.json` is missing, naming the file and `npm run export-poc -- --mode scored`; `--json` runs are not refused (unit test in `test/unit/bench/run.test.ts`). AGENTS.md's real-tier prerequisites and `bench run` rows name the four `export-poc` modes and the gates that need them |
+| gates-r1-2 (`g3.speed-budget` fails on `g2.speed`'s criterion) | minor | carried, owner question O5 | The gate throws on `bench speed --json`'s exit 1, which `test/unit/bench/speed.test.ts` pins and the gate's header states as its contract; changing either is a gate change (D73 c). gates-r1-1's fix removes the trigger for now (D107 b) |
+| gates-r1-3 (D106 g lost `g4.toml-mutations` coverage) | minor | fixed (record), carried (the fixture) | D107 e records it: the bx-pc-veneer and adr-label-and-data fixtures hold no `c` module `move-start` or `split-module` can edit, so the real tier's legal edits went from 273 (move-start 48, split-module 48) to 269 (46, 46) and the ci tier's from 243 to 239 (40, 40). A `c` module after the bx-pc-veneer fixture's veneers is a fixture rebuild, carried |
+| gates-r1-4 (g2.held-out passes only with the family conditions waived) | minor | no change | The finding asks for none; the documents say it (plan.md, README, roadmap, O3). A fresh-family pair is sealed before release 1 |
+| clean-clone-r1-2 (the generated CI workflow fails at `npm install` while romlift is unpublished) | minor | fixed | The project README's pre-release paragraph says `.github/workflows/build.yml`'s `./setup.sh` fails at the npm install once `BASEROM_URL` is set, and how to build there (a romlift checkout and `ROMLIFT_CLI`) or to leave the secret unset; scaffold golden updated |
+| clean-clone-r1-3 (environment variables missing from AGENTS.md) | minor | fixed | `ROMLIFT_SIGNATURES`, `ROMLIFT_AGBCC` and `ROMLIFT_AGBCC_COMMIT` rows in the Environment table; the README's signatures paragraph names `ROMLIFT_SIGNATURES` |
+| clean-clone-r1-4 (a stale count and a loop that hides a failure) | minor | fixed | phase-6.md's plain-clone count reads 2,884 pass, 1 skipped (this round's 2,885 tests); the README's loop uses `\|\| exit 1` |
+| end-to-end-user-r1-1 (ARM `adr r0, X + 1` printed raw) | minor | carried (recorded) | D107 f corrects D69 d: `adr r0, <label> + 1` round-trips through GNU as. Printing it needs a `label + 1` form of the ISA's `target` operand (format and parse), `adrResolverFor` taking a label at target − 1, a local label where only a Thumb function label lies (D72 c's interworking offset), the text-layout check and the corpus: a change to the foundation's instruction syntax for two klonoa instructions, not cheap |
+| end-to-end-user-r1-2 (`rename gUnk_…` gives no remedy) | minor | fixed | `E_RENAME_UNKNOWN` of a default name of the project's model appends ``…is a default name of the project's model at 0x08051C76: add `0x08051C76 = "gUnk_08051C76"` to [symbols] (or to [functions] for a function) first, then rename it``; unit test |
+| end-to-end-user-r1-3 (init still calls the npm registry in the README flow) | minor | fixed | The README exports `ROMLIFT_CLI` before `$ROMLIFT_CLI init baserom.gba`, so init skips the npm lock step; AGENTS.md's `npm run build` row says the same |
+| end-to-end-user-r1-4 (`W_SIGNATURE_POINTERS` of a version that lost) | minor | fixed | `resolvePlacements` drops the warning of a version that kept no placement while another version of its library kept some (D107 d); unit test. `signatures` on klonoa: 2 diagnostics (librfu's ambiguous line, m4aSoundInit's constant), no m4a@2004 line |
+| end-to-end-user-r1-5 (`W_LIBRARY_MODULE_DROPPED` names two ranges) | minor | fixed | The message and the diagnostic's span name the range the module border check read, and say when it adds the region's trailing pad; unit test |
+| end-to-end-user-r1-6 (`model` gives asm and data modules a compiler) | minor | fixed (text), no change (`--json`) | The text table prints `-` for an asm or data module; the `--json` header's `compiler` is the model's field in the public `romlift/model-json@1` schema, left as it is |
+

@@ -1199,6 +1199,14 @@ The final review (docs/final-review.md, D106) carries these, each with its reaso
 | architecture-7 to -12 | fragment includes through the cpp-exact resolver (recorded as lexical, D106 i); `seed.ram-copy`'s evaluator moved to `walk/` with a closed `SpecId` union; the driver's value-import cycle; the signature build's refusals in core; the reconciler's message templates split into statement and hint; explain's JSON encoder in core |
 | architecture-13's remainder | `emptyItemTable` kept for its tests, and the 89 file-private exports narrowed |
 
+Fix round 2 of the final review (docs/final-review.md, D107) carries these:
+
+| Carried item | What is left |
+| --- | --- |
+| gates-r1-2 | `g3.speed-budget` judging only its own budgets, not failing on `bench speed --json`'s exit over the `g2.speed` limit: a gate change, owner question O5 |
+| gates-r1-3 | a `c` module after the bx-pc-veneer fixture's veneers, so `g4.toml-mutations` has a place for `move-start` and `split-module` there again (D107 e) |
+| end-to-end-user-r1-1 | the ARM `adr r0, X + 1` printed as `adr r0, <label> + 1` (D107 f): a `label + 1` target operand in the ISA, a label at target − 1, the text-layout check and the corpus |
+
 ---
 
 ## Component count

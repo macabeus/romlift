@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -2293,7 +2293,9 @@ fe7j and pokeemerald; a Thumb `adr` naming the second halfword of a `bl`, on tmc
   halfword of a 4-byte instruction that names an address (a `bl`), the inside of an ARM word, or the inside of
   a pool or table word. The instruction naming such an address then fails the printing rule and prints raw
   (`no-roundtrip`), counted by the readability family; the m4a mixer's `adr r0, X + 1` prints as `.inst
-  0xE28F002F @ adr r0, 0x0804F3A7 (no-roundtrip)` on klonoa.
+  0xE28F002F @ adr r0, 0x0804F3A7 (no-roundtrip)` on klonoa. **Corrected at the final review's fix round 2 (D107 f):** no label at
+  the odd address is needed, since `adr r0, <label> + 1` with a label at X assembles to the same word; the raw print is
+  the printer's current limit, carried, not a consequence of this rule.
 - (e) **Contract members the components added**, kept: `printChunk(rom, model, chunk, how?: Printer |
   EmitContext)` (default `'readable'`; both callers of D62 d and the brief work); the included chunk files
   start with `.thumb`/`.arm`, not the dialect preamble, which only the unit files (`rom_header.s`, `crt0.s`,
@@ -4960,7 +4962,9 @@ nothing.
   function), so no score moves; the bx-pc-veneer and adr-label-and-data goldens move one module start, and the zero pad
   before a stub now ends the C module before it, so the pads kept at a `c` module's end under the owner's Q8 rule (D79
   a) are 13, not 11 (klonoa 0x08051BA2 and one on fe7j; `test/local/padding-orphans.test.ts`). Rejected: one function
-  spanning both modes, which changes the analysis, the model and the printer.
+  spanning both modes, which changes the analysis, the model and the printer. **Recorded at fix round 2 (D107 e):** the two fixtures
+  no longer offer `g4.toml-mutations` a place for `move-start` or `split-module`, so its legal edits fell from 273 to
+  269 on the real tier and from 243 to 239 on the ci tier.
 - (h) **Signature warnings a user cannot act on are folded** (clean-clone-6, end-to-end-user-16). `W_SIGNATURE_AMBIGUOUS`
   is one line per version, saying when the version placed nothing (the library is likely not linked);
   `W_SIGNATURE_DROPPED` is not raised for a version every placement of which another version of the same library took
@@ -4977,6 +4981,64 @@ nothing.
 
 **Consequences.** Every phase gate runs again (docs/final-review.md, "Gate results"). What stays open is listed in
 roadmap.md "Carried past phase 6" and asked of the owner in docs/final-review.md.
+
+## D107. Final review, fix round 2: the review of fix round 1 (`a1a4328`)
+
+**Context.** A second review pass over main at `a1a4328` (fix round 1 merged) re-ran a clean clone, a new user's
+session and the whole closing list, and raised 1 blocker, 1 major and 11 minors (docs/final-review.md, "Fix round 2").
+The blocker: the closing list failed in a fresh clone because `g3.speed-budget` measured sa2's analysis at 795.3 ms
+against its `g2.speed` limit of 788.0 ms (100.9%), with `g1.provenance` and `bench provenance` failing on that record;
+sa2 had run at 94 to 101% of its limit since phase 3 (D73), with no code regression found (fix round 1, gates-2). The
+major: `bench run` without the PoC's dumps wrote tmc's row with no PoC reference, kept the gate record and exited 0.
+
+**Decision.**
+
+- (a) **sa2's margin is restored by result-neutral speed changes, not by a gate or baseline change** (gates-r1-1). A
+  profile of sa2's analysis showed per-instruction work the result does not need: `insnAligned` took `%` of every walked
+  pc (now a mask, exact for the non-negative integer addresses it is asked about); `factFrom` built a new span object per
+  instruction while merging code spans (now one per merged run); `claim()` built a `ClaimEdit` per instruction (now
+  `writeSpan` with the same `touch` per instruction, and an instruction's few bytes stored without a native fill);
+  `claimRuns` scanned the ROM-sized claim array byte by byte (now four equal claims at a time through a `Uint32Array`
+  view). The analysis digest (sha256 of the canonical result) of all six tuning ROMs is unchanged. `bench speed --only
+  sa2` measured 728.3 ms of a 746.8 ms limit (97.5%) before and 610.0 to 624.9 ms of 751.0 to 769.4 ms (81%) after, at
+  load average 2 to 3. `g2.speed`, its 1.5 ratchet, `bench/baseline/speed.json` and `g3.speed-budget` are unchanged;
+  re-measuring the baseline stays the owner's (O1).
+- (b) **`g3.speed-budget` keeps failing on a non-zero `bench speed --json` exit** (gates-r1-2, not changed). The exit
+  is 1 whenever a ROM exceeds the `g2.speed` limit, so one slow sa2 run fails both speed gates. Judging only the 3 s,
+  10 s and 15 s budgets needs the gate file to read the JSON whatever the exit code, or `bench speed --json` to exit 0
+  over the ratchet, which `test/unit/bench/speed.test.ts` pins as 1 and which `g3.speed-budget`'s header states as its
+  contract: a gate change, the owner's (D73 c). Asked as O5; (a) removes the trigger for now.
+- (c) **`bench run` refuses to write without a committed row's PoC dump** (clean-clone-r1-1). When the committed
+  artifact's row of a tuning ROM has `poc.source` `dump` (tmc, D60) and `bench/.local/poc/<rom>/scored.json` is
+  missing, writing `bench/results.json` is refused, naming the file and `npm run export-poc -- --mode scored`; a `--json`
+  run is not refused. AGENTS.md's real-tier prerequisites and `bench run` rows name the four `export-poc` modes.
+- (d) **Smaller fixes**: `E_RENAME_UNKNOWN` of a default name of the project's model names the `[symbols]` entry to
+  add first (end-to-end-user-r1-2); `W_SIGNATURE_POINTERS` is not raised for a version that kept no placement while
+  another version of its library is placed, as D106 h treats `W_SIGNATURE_DROPPED` (end-to-end-user-r1-4; klonoa's
+  m4a@2004 `gMPlayJumpTableTemplate` line is gone); `W_LIBRARY_MODULE_DROPPED` names one range, the one the module
+  border check read, and says when it adds the region's trailing pad (end-to-end-user-r1-5); `romlift model`'s text
+  prints `-` as the compiler of an asm or data module, while the `--json` header keeps the model's field, a public
+  schema (end-to-end-user-r1-6); the README exports `ROMLIFT_CLI` before `init`, so init skips the npm lock step
+  (end-to-end-user-r1-3); the project README says the CI workflow cannot build until romlift is published
+  (clean-clone-r1-2); AGENTS.md's Environment table gains `ROMLIFT_SIGNATURES`, `ROMLIFT_AGBCC` and
+  `ROMLIFT_AGBCC_COMMIT` (clean-clone-r1-3); the README's signature loop stops with `|| exit 1` (clean-clone-r1-4).
+- (e) **D106 g cost `g4.toml-mutations` coverage** (gates-r1-3, recorded). Since the `bx pc` stubs left the C modules,
+  the bx-pc-veneer and adr-label-and-data fixtures hold no `c` module that `move-start` or `split-module` can edit: the
+  real tier's legal edits went from 273 (move-start 48, split-module 48) to 269 (46, 46), the ci tier's from 243 to 239
+  (move-start 40, split-module 40). Extending the bx-pc-veneer fixture with a `c` module after its veneers is a fixture
+  rebuild and its goldens, carried.
+- (f) **D69 d's raw `adr r0, X + 1` is avoidable** (end-to-end-user-r1-1, recorded and carried). D69 d holds that no
+  label lies at an odd address, but the m4a mixer's two ARM `adr r0, X + 1` need none: `adr r0, <label> + 1` with a
+  label at X assembles to the same word (arm-none-eabi-as 2.45.1: `e28f0001`), and klonoa's `SoundMainTail.s` has
+  `_0804F698` in the same chunk. Printing it needs a `label + 1` form of the ISA's `target` operand (format and parse),
+  `adrResolverFor` accepting a label at target − 1 for an odd ARM target, a local label at X where only a Thumb
+  function label lies (whose link value is X + 1 and which GNU as offsets under interworking, D72 c), the text-layout
+  check and the corpus; carried, since it changes the foundation's instruction syntax for two instructions.
+- (g) **Not changed**: g2.held-out's waived family conditions (gates-r1-4) stay open until a fresh-family pair is
+  sealed (O3).
+
+**Consequences.** Every phase gate runs again (docs/final-review.md, "Fix round 2"). sa2's `g2.speed` headroom is
+about 19% at ordinary load instead of 0 to 5%; the gate, its limit and the baseline are as the owner left them.
 
 ## Review findings index
 
