@@ -4957,8 +4957,10 @@ nothing.
   veneer (`walk.bx-pc-veneer`) the reason `mode-switch`, so the stub joins its ARM half, and a run of veneers, their nop
   orphans and their ARM code is one `asm_<ADDR>` module: klonoa's thunks go from eleven 4-byte modules to one (15
   modules with signatures). The analysis' function boundaries are unchanged (still a 2-byte Thumb function and an ARM
-  function), so no score moves; the bx-pc-veneer and adr-label-and-data goldens move one module start. Rejected: one
-  function spanning both modes, which changes the analysis, the model and the printer.
+  function), so no score moves; the bx-pc-veneer and adr-label-and-data goldens move one module start, and the zero pad
+  before a stub now ends the C module before it, so the pads kept at a `c` module's end under the owner's Q8 rule (D79
+  a) are 13, not 11 (klonoa 0x08051BA2 and one on fe7j; `test/local/padding-orphans.test.ts`). Rejected: one function
+  spanning both modes, which changes the analysis, the model and the printer.
 - (h) **Signature warnings a user cannot act on are folded** (clean-clone-6, end-to-end-user-16). `W_SIGNATURE_AMBIGUOUS`
   is one line per version, saying when the version placed nothing (the library is likely not linked);
   `W_SIGNATURE_DROPPED` is not raised for a version every placement of which another version of the same library took
