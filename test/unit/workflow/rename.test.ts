@@ -98,6 +98,11 @@ test('refusals: an invalid new name, an unknown old one, a name the project has;
     assert.deepEqual(codes(plan), ['E_RENAME_INVALID'], bad);
   }
   assert.deepEqual(codes(planRename(inputs('NoSuchName', 'Other'))), ['E_RENAME_UNKNOWN']);
+  assert.ok(!(planRename(inputs('NoSuchName', 'Other')).diagnostics[0]?.message ?? '').includes('default name'));
+  // A default label of the model: the message names the [symbols] entry to add first (end-to-end-user-r1-2).
+  const label = planRename(inputs('gUnk_0809B670', 'gVision'));
+  assert.deepEqual(codes(label), ['E_RENAME_UNKNOWN']);
+  assert.match(label.diagnostics[0]?.message ?? '', /gUnk_0809B670 is a default name of the project's model at 0x0809B670: add `0x0809B670 = "gUnk_0809B670"` to \[symbols\]/);
   for (const taken of ['Third', 'ThirdAlias', 'gMain', 'main', 'sub_08000100']) assert.deepEqual(codes(planRename(inputs('m4aSoundMain', taken))), ['E_RENAME_EXISTS'], taken);
   assert.deepEqual(codes(planRename(inputs('NoSuchName', 'main'))), ['E_RENAME_UNKNOWN', 'E_RENAME_EXISTS'], 'every refusal at once');
   assert.deepEqual(renameProblems(config(), 'sub_08000100', 'InitGame'), []);

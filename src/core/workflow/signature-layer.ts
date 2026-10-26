@@ -19,7 +19,7 @@
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
-import type { Addr } from '../../foundation/rom/span.ts';
+import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { defaultSpellingAddress } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, sortedEntries } from '../../foundation/util/sorted.ts';
@@ -213,12 +213,23 @@ export interface LibraryModules {
   readonly notes: readonly Diagnostic[];
 }
 
-function droppedRegion(region: LibraryRegion, why: string): Diagnostic {
-  const at = `${region.library}@${region.version} [${hexAddr(region.span.start)}, ${hexAddr(region.span.end)})`;
-  return diagnostic(WorkflowCodes, 'W_LIBRARY_MODULE_DROPPED', `the library region ${at} takes no module: ${why}`, { addr: region.span.start, span: region.span });
+/**
+ * The note of a region that takes no module, naming one range (end-to-end-user-r1-5): `span`, the region's code or, when
+ * the border check used it, the code with its trailing pad.
+ */
+function droppedRegion(region: LibraryRegion, why: string, span: Span = region.span): Diagnostic {
+  const at = `${region.library}@${region.version} [${hexAddr(span.start)}, ${hexAddr(span.end)})`;
+  return diagnostic(WorkflowCodes, 'W_LIBRARY_MODULE_DROPPED', `the library region ${at} takes no module: ${why}`, { addr: span.start, span });
 }
 
 const NO_LEGAL_BORDER = 'no legal module border lies inside it';
+
+/** How the range the module border check read (`checked`, which the note names) relates to the region's code. */
+function checkedSpan(code: Span, checked: Span): string {
+  if (checked.start === code.start && checked.end === code.end) return '';
+  if (checked.start === code.start && checked.end > code.end) return ` (the region's code ends at ${hexAddr(code.end)}; the range adds its trailing pad, as the module border check reads it)`;
+  return ` (the part of the region's code [${hexAddr(code.start)}, ${hexAddr(code.end)}) the module border check read)`;
+}
 
 /**
  * The library [[modules]] a project lacks (architecture §7.3, `analyze --update`): core/layout's planLibraryModules over
@@ -231,7 +242,7 @@ export function libraryModuleProposals(rom: Rom, analysis: AnalysisResult, confi
   const notes = plan.dropped.map(({ region, why }) =>
     why.kind === 'no-legal-border'
       ? droppedRegion(region, NO_LEGAL_BORDER)
-      : droppedRegion(region, `the module ${why.module.name} of romlift.toml starts at ${hexAddr(why.module.start)} in [${hexAddr(why.span.start)}, ${hexAddr(why.span.end)}), and analyze --update only inserts modules`),
+      : droppedRegion(region, `the module ${why.module.name} of romlift.toml starts at ${hexAddr(why.module.start)} inside it, and analyze --update only inserts modules${checkedSpan(region.span, why.span)}`, why.span),
   );
   return { proposals: plan.proposals, notes, replaces: plan.replaces };
 }

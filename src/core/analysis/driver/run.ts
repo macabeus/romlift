@@ -68,6 +68,24 @@ export function runDriver(s: DriverState): StartupRegion {
 
 const OWNED: ReadonlySet<number> = new Set([Claim.code, Claim.pool, Claim.table, Claim.dead]);
 
+/**
+ * The first index from `k` below `limit` whose claim is not `kind` (`limit` when none): byte by byte to a word boundary,
+ * then a word of four equal claims at a time through `words` (a view of the same bytes), then byte by byte (final-review
+ * gates-r1-1: the claim array is as long as the ROM).
+ */
+function sameRunEnd(claims: Uint8Array, words: Uint32Array | undefined, k: number, limit: number, kind: number): number {
+  while (k < limit && (k & 3) !== 0) {
+    if (claims[k] !== kind) return k;
+    k++;
+  }
+  if (words !== undefined) {
+    const four = (kind * 0x01010101) >>> 0;
+    while (k + 4 <= limit && words[k >>> 2] === four) k += 4;
+  }
+  while (k < limit && claims[k] === kind) k++;
+  return k;
+}
+
 /** Runs of equal claims in address order, split at every function extent's start and end. */
 function claimRuns(s: DriverState, functions: readonly FunctionFact[]): readonly ClaimRun[] {
   const B = s.rom.base;
@@ -76,17 +94,19 @@ function claimRuns(s: DriverState, functions: readonly FunctionFact[]): readonly
     .sort(compareNumbers)
     .filter((b, i, all) => i === 0 || all[i - 1] !== b);
   const runs: ClaimRun[] = [];
+  const claims = s.claims;
+  const words = claims.byteOffset % 4 === 0 ? new Uint32Array(claims.buffer, claims.byteOffset, claims.length >>> 2) : undefined;
   let next = 0;
-  for (let k = 0; k < s.claims.length; ) {
-    const kind = (s.claims[k] ?? 0) as ClaimKind;
+  for (let k = 0; k < claims.length; ) {
+    const kind = (claims[k] ?? 0) as ClaimKind;
     if (kind === Claim.free) {
-      k++;
+      k = sameRunEnd(claims, words, k, claims.length, kind);
       continue;
     }
     while (next < bounds.length && (bounds[next] ?? 0) <= k) next++;
-    const limit = Math.min(bounds[next] ?? s.claims.length, s.claims.length);
+    const limit = Math.min(bounds[next] ?? claims.length, claims.length);
     const start = k;
-    while (k < limit && s.claims[k] === kind) k++;
+    k = sameRunEnd(claims, words, k, limit, kind);
     const owner = OWNED.has(kind) ? ownerOf(s, B + start) : undefined;
     runs.push({ span: { start: B + start, end: B + k }, kind, ...(owner === undefined ? {} : { owner }) });
   }

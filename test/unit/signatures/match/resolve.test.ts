@@ -32,6 +32,14 @@ test('a version of a library whose every placement another version of it took is
   assert.deepEqual(other.diagnostics.map((d) => d.message), ['b@1: 1 of its 1 placements overlap a version that placed more; dropped'], 'another library is still reported');
 });
 
+test("a refused pointer table of a version that kept nothing while its library's other version kept placements is not reported (end-to-end-user-r1-4)", () => {
+  const pointers = (key: string, addr: number) => ({ code: 'W_SIGNATURE_POINTERS', severity: 'warning', message: `${key}: gT fits at 0x${addr.toString(16).toUpperCase()} but its pointers do not name the placed functions; not placed`, addr }) as const;
+  const diagnostics = [pointers('a@2', 0x0800_2000), pointers('a@1', 0x0800_3000), pointers('b@1', 0x0800_4000)];
+  const r = resolvePlacements(ROM, matched([pl('a', '1', 'A1', 0x0800_1000), pl('a', '2', 'A1', 0x0800_1000)], { diagnostics }));
+  // a@2 kept nothing and a@1 is placed: its refusal is no news. a@1's own refusal and b@1's (no version of b placed) stay.
+  assert.deepEqual(r.diagnostics.map((d) => d.message.slice(0, d.message.indexOf(':'))), ['a@1', 'b@1']);
+});
+
 test('a placement overlapping a version that placed more is dropped, with counts', () => {
   const r = resolvePlacements(ROM, matched([pl('a', '1', 'A1', 0x0800_1000), pl('a', '1', 'A2', 0x0800_1010), pl('a', '1', 'A3', 0x0800_1020), pl('b', '1', 'B1', 0x0800_1018), pl('b', '1', 'B2', 0x0800_5000)]));
   assert.deepEqual(names(r.placements), ['a@1 A1', 'a@1 A2', 'a@1 A3', 'b@1 B2']);

@@ -49,7 +49,7 @@ import { analyzeDataset, analysisTuning, benchProfile, discoverOptions, isDefaul
 import { parseMemory, readResultsFile, writeResultsFile, type GateEntry, type MemoryMember, type Results, type ResultsMeta, type RomInputs, type SealedEntry, type Toolchain } from './artifact.ts';
 import { baselineRowOf, readBaseline, type Baseline, type JsonRecord } from './baseline.ts';
 import { compareWithBaseline, parseBaselineRow } from './baseline-rows.ts';
-import { datasetDir, resultsPath, timingsPath, type BenchContext } from './context.ts';
+import { datasetDir, resultsPath, scoredPath, timingsPath, type BenchContext } from './context.ts';
 import { cpuProfPath, profiled, writeTopSelfTime } from './cpu-prof.ts';
 import { isSealed, loadDatasets, type Dataset } from './dataset.ts';
 import { currentNodeMajor, sourceDigest } from './digest.ts';
@@ -132,6 +132,22 @@ export async function romliftVersion(repoRoot: string): Promise<string> {
 async function committedSignatures(cx: BenchContext): Promise<boolean> {
   const previous = await readResultsFile(resultsPath(cx)).catch(() => undefined);
   return previous?.meta.inputs['signaturesDigest'] !== undefined;
+}
+
+/**
+ * The tuning datasets whose committed row compares them with the PoC's own dump (`poc.source` 'dump', tmc since D60)
+ * while that dump, bench/.local/poc/<rom>/scored.json, is missing: a run would write the row with no PoC reference
+ * (`poc.source` 'none') and keep the gate record, which only the real-tier gates reject (final-review clean-clone-r1-1).
+ */
+export async function missingPocDumps(cx: BenchContext, datasets: readonly Dataset[]): Promise<readonly string[]> {
+  const previous = await readResultsFile(resultsPath(cx)).catch(() => undefined);
+  if (previous === undefined) return [];
+  const missing: string[] = [];
+  for (const d of datasets) {
+    const row = previous.roms.find((r) => r.name === d.name);
+    if (row?.poc?.source === 'dump' && !(await exists(scoredPath(cx, d.name)))) missing.push(scoredPath(cx, d.name));
+  }
+  return missing;
 }
 
 /** The previous gate record survives only if it was judged on the same sources and inputs. */
@@ -398,6 +414,14 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
   if (writing && options.requireSignatures === true && tuningSet.length > 0 && run.signatures === undefined && (await committedSignatures(cx))) {
     // The committed artifact carries the signatures family; an artifact without it would fail `bench provenance`.
     await readBuiltSignatures(cx);
+  }
+  if (writing && tuningSet.length > 0) {
+    const missing = await missingPocDumps(cx, tuningSet);
+    if (missing.length > 0) {
+      throw new BenchError(
+        `not writing bench/results.json: the committed artifact compares ${missing.length === 1 ? 'a ROM' : 'ROMs'} with the PoC's dump, and ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} missing; run npm run export-poc -- --mode scored (the PoC at ROMLIFT_POC) first`,
+      );
+    }
   }
   if (tuningSet.length > 0 && run.signatures === undefined) {
     log(`signatures: no built signature file in ${join(cx.repoRoot, 'signatures')}, so the signatures family does not run; build them first with\n  ${SIGNATURES_BUILD_LOOP}`);

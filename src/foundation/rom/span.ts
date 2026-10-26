@@ -18,7 +18,9 @@ export function insnUnit(mode: Mode): 2 | 4 {
  * valid.in-rom-unclaimed, seed.ram-copy) and the model's labels.
  */
 export function insnAligned(mode: Mode, addr: Addr): boolean {
-  return addr % insnUnit(mode) === 0;
+  // A mask, not `%`: the walkers ask this of every pc, and an address is a non-negative integer, whose low bits a mask
+  // reads exactly (final-review gates-r1-1).
+  return (addr & (mode === 'arm' ? 3 : 1)) === 0;
 }
 
 /** A half-open address range: `start` is inside, `end` is not; `start <= end`. */

@@ -162,7 +162,11 @@ test('libraryModuleProposals: a missing library module and the module resumed af
   const refused = libraryModuleProposals(rom, an, inside, [region]);
   assert.deepEqual(refused.proposals, []);
   assert.deepEqual(refused.notes.map((d) => d.code), ['W_LIBRARY_MODULE_DROPPED']);
-  assert.match(refused.notes[0]?.message ?? '', /the module main_2 of romlift\.toml starts at 0x08000120/);
+  assert.match(refused.notes[0]?.message ?? '', /the module main_2 of romlift\.toml starts at 0x08000120 inside it, and analyze --update only inserts modules/);
+  // One range, the one the border check read, in the message and the diagnostic's span (end-to-end-user-r1-5).
+  const note = refused.notes[0] ?? assert.fail();
+  assert.equal((note.message.match(/\[0x[0-9A-F]+, 0x[0-9A-F]+\)/g) ?? []).length, 1, note.message);
+  assert.ok(note.message.includes(`[0x${(note.span?.start ?? 0).toString(16).toUpperCase().padStart(8, '0')}, 0x${(note.span?.end ?? 0).toString(16).toUpperCase().padStart(8, '0')})`), note.message);
   // A runs_at border already proposed at the region's end is not proposed twice.
   const ram = { kind: 'module', name: 'ram_03000000', start: BASE + 0x130, moduleKind: 'asm', source: { kind: 'layout', reason: 'runs-at' } } as const;
   assert.deepEqual(libraryModuleProposals(rom, an, cfg, [region], [ram]).proposals.map((p) => p.name), ['m4a']);
