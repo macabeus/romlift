@@ -3,5 +3,6 @@
 export { loadConfig } from '../shell/config/load.ts';
 export type { LoadConfigResult, ProjectConfig } from '../shell/config/load.ts';
 export { saveConfig } from '../shell/config/save.ts';
-export { DECOMP_YAML_NAMES, locateProject } from '../shell/project/locate.ts';
+export { DECOMP_YAML_NAMES } from '../foundation/util/project-files.ts';
+export { locateProject } from '../shell/project/locate.ts';
 export type { LocateResult, ProjectLocation } from '../shell/project/locate.ts';

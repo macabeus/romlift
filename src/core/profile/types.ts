@@ -2,7 +2,7 @@
 // every rule slot, and the compiler idioms as functions. It lives below the analysis so the model and
 // the layout can read alignment from it. Rules read the profile only through the view (`v.profile`).
 import type { Insn } from '../../foundation/isa/types.ts';
-import type { Rom } from '../../foundation/rom/rom.ts';
+import type { Rom, RomBytes } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import type { RuleId } from '../provenance/rule-id.ts';
 
@@ -130,7 +130,7 @@ export interface CompilerProfile {
     /** The unclaimed byte at `a` is padding: zero, or a byte of a `mov r8, r8` (0x46C0) halfword; the caller checks that `a` itself is unclaimed. */
     isPadding(rom: Rom, a: Addr): boolean;
     /** The jump table of the computed jump at insns[cursor], read from the ROM. */
-    matchTableJump(insns: readonly Insn[], cursor: number, rom: Rom): JumpTableMatch | undefined;
+    matchTableJump(insns: readonly Insn[], cursor: number, rom: RomBytes): JumpTableMatch | undefined;
     /** Whether a `bl` may be a jump (call verdicts aside): its distance and the caller's frame. */
     matchFarJump(site: BlSite, caller: ReadingSummary): boolean;
   };

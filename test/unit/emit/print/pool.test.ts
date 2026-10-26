@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { labelForWord, poolLine, poolLoadComment, visibleLabelsAt, wordText } from '../../../../src/core/emit/print/pool.ts';
+import { poolLine, poolLoadComment, visibleLabelsAt, wordScope, wordText } from '../../../../src/core/emit/print/pool.ts';
 import { dataItem, label, modelOf, romWith } from '../../../helpers/model.ts';
 
 const A = 0x0800_1000;
@@ -30,32 +30,32 @@ const model = modelOf(rom, {
 });
 
 test('an odd word equal to a Thumb function + 1 names it; the even word stays numeric', () => {
-  assert.equal(wordText(model, 'alpha', A + 0x11), 'ThumbFn');
-  assert.equal(wordText(model, 'alpha', A + 0x10), '0x08001010');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x11), 'ThumbFn');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x10), '0x08001010');
 });
 
 test('ARM functions, pools, tables and data labels name their exact address; a local label never names a word', () => {
-  assert.equal(wordText(model, 'alpha', A + 0x20), 'ArmFn');
-  assert.equal(wordText(model, 'alpha', A + 0x21), '0x08001021', 'an ARM function + 1 is not what .4byte ArmFn links to');
-  assert.equal(wordText(model, 'alpha', A + 0x30), '_08001030');
-  assert.equal(wordText(model, 'alpha', A + 0x40), '_08001040');
-  assert.equal(wordText(model, 'alpha', A + 0x51), 'gData', 'an odd data address names its label');
-  assert.equal(wordText(model, 'alpha', A + 0x60), '0x08001060');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x20), 'ArmFn');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x21), '0x08001021', 'an ARM function + 1 is not what .4byte ArmFn links to');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x30), '_08001030');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x40), '_08001040');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x51), 'gData', 'an odd data address names its label');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x60), '0x08001060');
 });
 
 test('RAM, I/O and unlabelled ROM words are numeric', () => {
-  assert.equal(wordText(model, 'alpha', 0x0300_0000), '0x03000000');
-  assert.equal(wordText(model, 'alpha', 0x0400_0001), '0x04000001');
-  assert.equal(wordText(model, 'alpha', A + 0x71), '0x08001071');
-  assert.equal(labelForWord(model, 'alpha', 0), undefined);
+  assert.equal(wordText(wordScope(model, 'alpha'), 0x0300_0000), '0x03000000');
+  assert.equal(wordText(wordScope(model, 'alpha'), 0x0400_0001), '0x04000001');
+  assert.equal(wordText(wordScope(model, 'alpha'), A + 0x71), '0x08001071');
+  assert.equal(wordText(wordScope(model, 'alpha'), 0), '0x00000000');
 });
 
 test('a module-scoped label of another module is not a candidate; a global one is, preferred by kind', () => {
-  assert.equal(wordText(model, 'alpha', B + 0x11), '0x08002011');
-  assert.equal(wordText(model, 'beta', B + 0x11), 'BetaStatic');
-  assert.equal(wordText(model, 'alpha', B + 0x21), 'BetaGlobal');
-  assert.deepEqual(visibleLabelsAt(model, 'alpha', B + 0x20).map((l) => l.name), ['BetaGlobal', '_08002020']);
-  assert.deepEqual(visibleLabelsAt(model, 'alpha', B + 0x10), []);
+  assert.equal(wordText(wordScope(model, 'alpha'), B + 0x11), '0x08002011');
+  assert.equal(wordText(wordScope(model, 'beta'), B + 0x11), 'BetaStatic');
+  assert.equal(wordText(wordScope(model, 'alpha'), B + 0x21), 'BetaGlobal');
+  assert.deepEqual(visibleLabelsAt(wordScope(model, 'alpha'), B + 0x20).map((l) => l.name), ['BetaGlobal', '_08002020']);
+  assert.deepEqual(visibleLabelsAt(wordScope(model, 'alpha'), B + 0x10), []);
 });
 
 test('a pool line carries its labels on the same line; a load comment names the word', () => {
@@ -63,4 +63,44 @@ test('a pool line carries its labels on the same line; a load comment names the 
   assert.equal(poolLine(['a', 'b'], '0x00000001'), 'a: b: .4byte 0x00000001');
   assert.equal(poolLine([], 'gFoo'), '\t.4byte gFoo');
   assert.equal(poolLoadComment('gFoo'), '@ =gFoo');
+});
+
+const C = 0x0800_3000;
+const sizedRom = romWith([], { size: 0x4000 });
+const sizedModel = modelOf(sizedRom, {
+  modules: [
+    { name: 'alpha', chunks: [{ name: 'Alpha', items: [dataItem(A, 0x1000)] }] },
+    { name: 'gamma', chunks: [{ name: 'Gamma', items: [dataItem(C, 0x1000)] }] },
+  ],
+  labels: [
+    label('gTable', A + 0x100, { kind: 'data', thumb: false }),
+    label('gUnk_08001108', A + 0x108, { kind: 'data', thumb: false }),
+    label('gNamedInside', A + 0x10c, { kind: 'data', thumb: false }),
+    label('gRam', 0x0300_0000, { kind: 'data', thumb: false, scope: 'global' }),
+    label('SizedFn', A + 0x200),
+    label('gHidden', C + 0x10, { kind: 'data', thumb: false }),
+  ],
+  symbols: [
+    { addr: A + 0x100, name: 'gTable', size: 0x20 },
+    { addr: A + 0x10c, name: 'gNamedInside' },
+    { addr: 0x0300_0000, name: 'gRam', size: 0x40 },
+    { addr: C + 0x10, name: 'gHidden', size: 0x10 },
+  ],
+  functions: [
+    { entry: A + 0x200, extent: { start: A + 0x200, end: A + 0x220 }, mode: 'thumb', name: 'SizedFn', aliases: [], source: { name: { kind: 'toml' }, extent: 'toml-size' } },
+  ],
+});
+
+test('a word inside a named, sized entry prints name + offset; a named entry exactly at the word keeps its name', () => {
+  const alpha = wordScope(sizedModel, 'alpha');
+  assert.equal(wordText(alpha, A + 0x104), 'gTable + 4');
+  assert.equal(wordText(alpha, A + 0x108), 'gTable + 8', 'an unnamed label inside the entry gives way to it');
+  assert.equal(wordText(alpha, A + 0x10c), 'gNamedInside', 'a [symbols] entry at the word is named itself');
+  assert.equal(wordText(alpha, A + 0x100), 'gTable');
+  assert.equal(wordText(alpha, A + 0x120), '0x08001120', 'the end of the entry is not inside it');
+  assert.equal(wordText(alpha, 0x0300_0010), 'gRam + 16', 'a RAM symbol symbols.ld defines');
+  assert.equal(wordText(alpha, A + 0x205), 'SizedFn + 4', 'inside a function sized by the TOML: from the word SizedFn links to');
+  assert.equal(wordText(alpha, A + 0x201), 'SizedFn');
+  assert.equal(wordText(alpha, C + 0x14), '0x08003014', 'a module-scoped entry of another module is not visible');
+  assert.equal(wordText(wordScope(sizedModel, 'gamma'), C + 0x14), 'gHidden + 4');
 });

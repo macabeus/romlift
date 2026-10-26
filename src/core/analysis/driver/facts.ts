@@ -1,11 +1,13 @@
-// The facts the driver derives from its state: the FunctionFact of an accepted entry, the extent end of a
-// reading (cut at the next listed entry in confirm mode, §4.2) and the innermost accepted extent covering
-// an address (§9.3).
+// The facts the driver derives from its state: the FunctionFact of an accepted entry (with the run address of an
+// entry inside a runs_at range, §6.7), the extent end of a reading (cut at the next listed entry in confirm mode,
+// §4.2) and the innermost accepted extent covering an address (§9.3).
 import type { Addr, Span } from '../../../foundation/rom/span.ts';
 import { compareNumbers } from '../../../foundation/util/sorted.ts';
 import { innermost, intervalIndex } from '../../../foundation/util/interval-index.ts';
+import { runsElsewhere, toRun } from '../address-map.ts';
 import { Claim } from '../types.ts';
 import type { FunctionFact, Reading } from '../types.ts';
+import { nextSpanStart } from './seeds.ts';
 import type { Accepted, DriverState } from './state.ts';
 
 /** The FunctionFact of an accepted entry under the current claims. */
@@ -52,6 +54,7 @@ function factFrom(s: DriverState, r: Reading, f: Pick<Accepted, 'origin' | 'acce
   return {
     entry: r.entry,
     mode: r.mode,
+    ...(runsElsewhere(s.addresses, r.entry) ? { runAt: toRun(s.addresses, r.entry) } : {}),
     extent,
     codeEnd: r.codeEnd,
     code,
@@ -73,8 +76,20 @@ function factFrom(s: DriverState, r: Reading, f: Pick<Accepted, 'origin' | 'acce
   };
 }
 
-/** The extent end of a reading; in confirm mode a listed function without a size is cut at the next listed entry that is not a label (§4.2). */
+/**
+ * The extent end of a reading; in confirm mode a listed function without a size is cut at the next listed entry that
+ * is not a label (§4.2). Either way an extent ends at the first data override after its entry (correctness-b0-3): no
+ * function's extent covers one.
+ */
 export function extentEndOf(s: DriverState, r: Reading): Addr {
+  const end = listedExtentEnd(s, r);
+  if (s.dataOverrides.length === 0) return end;
+  const cut = nextSpanStart(s.dataOverrides, r.entry);
+  return cut === undefined ? end : Math.max(r.entry, Math.min(end, cut));
+}
+
+/** extentEndOf before the data overrides cut it. */
+function listedExtentEnd(s: DriverState, r: Reading): Addr {
   const seed = s.listed.get(r.entry);
   if (seed === undefined) return r.end;
   if (seed.size !== undefined) return r.entry + seed.size;

@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77 and D78 what the phase-4 fix rounds changed, D76 the owner's answers to the phase-4 questions); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -536,6 +536,12 @@ table yields `E_TOML_PATCH_REFUSED` with the entries to paste.
 **Consequences.** Comments and hand formatting survive; an unusual layout costs a manual paste, never a
 corrupted file.
 
+**Revision (phase 6, p6-ram-code, merged in wave 2).** `analyze --update` proposes the module borders of a hand-written
+`runs_at` range (layout reason `runs-at`), so `planPatch` now inserts a new `[[modules]]` block in canonical lines,
+before the next module's block (above that block's comment lines) or after the last one. Changing, moving or dropping
+a listed module is still refused with `E_TOML_PATCH_REFUSED` ("edits only to insert a new module"); the refusal rule
+of this decision is otherwise unchanged.
+
 **Rejected.** Re-serialising the whole file (loses comments). A full comment-preserving TOML library
 (none is mature enough to depend on).
 
@@ -780,6 +786,15 @@ phase 5": the gate is `g5.objdiff`, judged in phase 5, where the `expected/` obj
 and applies there as this decision writes it unless the owner amends it then. Phase 3 records the classified counts
 as its measurement, and the committed classifier stays.
 
+**Revision (25 October 2026, the owner's answers to Q6 and Q15 of phase-6.md, D102).** The owner amended this decision:
+the base is romlift's own spelling (the printer spells a word inside a named, sized entry `sym + addend`; the bench
+renames labels by address and rewrites no word); the differences whose two sides are checked to link to the same word
+are reported, not gated (phase-3.md Q1 option (b)); a function objdiff-cli refuses to read (`tool`), like one no
+reference object defines (`missing-symbol`), is counted uncompared and reported (Q6 option (c)); and `g6.objdiff` holds
+the remaining gated count of each tuning ROM to a ceiling committed in `bench/baseline/objdiff-ceiling.json`, which may
+be lowered, never raised without the owner. "Score 0" and "any other difference fails" above are replaced by that
+ceiling. The fixture test that misnames one pool word still fails the verdict (two different words are gated).
+
 ## D35. `explain` re-runs the analysis the command would run, and is composed by layer
 
 **Context.** Storing a full trail costs memory on Emerald-size ROMs; replaying discover explains the wrong
@@ -1011,7 +1026,7 @@ wrong address, and retrofitting it would change types frozen in phases 1 to 3.
 reads bytes at load addresses and computes targets in run space; `FunctionFact`, `Chunk` and `Module`
 carry an optional `runAt`; a `Label` holds the run address. The `ldscript` writer links such a module at
 its run address with `AT(<load>)` and defines `__load_<module>`. Phase 6 only fills the map from
-overrides and traces.
+overrides and traces. (Amended by D91: the trace is dropped, so phase 6 fills the map from hand-written overrides only.)
 
 **Consequences.** No frozen type changes when RAM code arrives; `g6.ram-code-mapped` tests behaviour, not
 a retrofit.
@@ -1103,6 +1118,8 @@ PoC staying put.
 
 ## D51. `import-legacy` keeps every legacy entry by default
 
+**Superseded by D92**: the owner skipped phase 5 and dropped legacy import; nothing below is built.
+
 **Context.** The plan lists, as the owner's decision, whether this repository should adopt the recovered
 boundaries (drop the 283 cfg entries that are not ELF functions, add the 183 the list lacks), in one pull
 request or module by module. The first version reported legacy entries inside found functions and did not
@@ -1121,6 +1138,9 @@ open.
 **Rejected.** Adopting by default (decides an owner question). Silently dropping or importing entries.
 
 ## D52. The Klonoa switch-over pull request is a phase-5 deliverable, pinned by commit
+
+**Superseded by D92**: the owner skipped phase 5 and dropped the Klonoa migration tooling and switch-over; nothing below is
+built, and the Klonoa repository is not touched.
 
 **Context.** The plan's phase-5 gate is that this repository builds without `generate_asm.py` and Luvdis,
 and its work items include the pull request that switches it over. The first version gated a rehearsal in
@@ -4029,6 +4049,872 @@ said. The reviewers' runs found the run itself complete, every command exit 0. N
 **Consequences.** One new unit test (read-inputs, the link above the project); comments in two `src/shell/project`
 files, `src/shell/index.md`, `templates/AGENTS.md` and its golden, `docs/`. The closing list is re-run in a fresh
 worktree with `landed` 4 (phase-4.md, "The closing gate", fix round 14).
+
+## D91. The owner's decision of 20 October 2026: the gba-kit trace is dropped
+
+**Context.** The plan's gba-kit evaluation (plan.md, "gba-kit evaluation") proposed an optional `romlift trace` command
+with `@gba-kit/gba-node` as an optional peer dependency, a trace file read as one more evidence source, the tracing code
+moved into gba-kit as a supported API, and roadmap 6.C built it with `g6.ram-code-mapped` and `g6.evidence-conflict`
+reading a trace. The evaluation itself measured how little a trace reaches: 5.6% of Klonoa's code region in 600 boot
+frames, 8.4% after 440 in-level frames, against 98.8% classified statically in about four seconds. D76 g recorded that
+the owner dropped the integration and left the plan's rewrite to phase 6. Bruno Macabeus's words, given on 20 October
+2026: **"I think we can skip this part of the plan, since very few functions are called and found by gba-kit"**.
+
+**Decision.**
+
+- (a) **Dropped**: the `romlift trace` command, the optional peer dependency `@gba-kit/gba-node`,
+  `src/shell/trace/gba-kit.ts`, `src/foundation/formats/trace-json.ts` (the trace's format) and
+  `src/shell/evidence/read-trace.ts` (its reader), the trace fact kinds (`executed`, `returned-call`,
+  `indirect-target`, `copied-to-ram`, `data-extent`), and any change in the gba-kit repository (the pull request that
+  would have made its tracing code a supported API). None of these files existed in the tree at `89deb54`; only their
+  architecture and roadmap entries go.
+- (b) **Kept, because none depends on a trace**: code run from RAM through hand-written `[[overrides]]` entries with
+  `runs_at` (the non-identity `AddressMap`, the walk's run-space targets, the ldscript's `runs_at` emission with
+  `AT(<load>)` and `__load_<module>`, the RAM-copy fixture's expectations; architecture §6.7, D46).
+- (c) **`g6.ram-code-mapped` is restated without a trace.** ci: every committed fixture whose `expect.json` has
+  `ramCopy` (the override appended by hand after `init`) is mapped and links to its SHA-1, as before. real: on Klonoa the
+  range `0x0804F318 -> 0x03000388` is given as an `[[overrides]]` entry with `runs_at` in the bench config
+  `bench/overrides/klonoa.json` (`{"schema": 1, "overrides": [{start, size, kind: "code", mode?, runsAt}], "source"}`,
+  written by p6-ram-code); the gate appends it after `init`, runs `analyze --update --write`, requires one module
+  spanning exactly the range with `runAt` `0x03000388`, its ldscript `AT(...)` and `__load_<module>`, then `./setup.sh`
+  and `make` to the dataset's SHA-1. Its `needs` no longer name `parseTrace` or `runTrace`.
+- (d) **`g6.evidence-conflict` is restated over the evidence that remains.** With the trace gone and phase 5's legacy,
+  ELF and map importers dropped (D92), library signatures are the only external source of proposals, and they can
+  contradict the analysis and the config, so the gate stays: a signature proposal that contradicts the analysis (a
+  function in the other mode at a found entry) or the config (a listed function in the other mode; a function under a
+  `data` override) gives `W_EVIDENCE_CONFLICT` from `checkProposals` and changes nothing, the kept proposals being
+  exactly those kept without the contradiction (architecture §7.4, §13; D93 freezes `CheckProposals`).
+- (e) **What no producer is left for goes.** With no evidence importer: `core/evidence` (`EvidenceFact`,
+  `EvidenceSource`, `mergeEvidence`), `core/legacy`, `shell/evidence`, the `ProposalSource` variants `{kind: 'legacy'}`
+  and `{kind: 'evidence', id}` with their `from` spellings `legacy` and `evidence:<id>` (the lead's, D93), and the rule
+  `seed.evidence-hint` with its `evidence` origin (p6-analysis-layout's). `W_EVIDENCE_CONFLICT` survives with the
+  proposal screen; `W_LEGACY_ENTRY_INSIDE` and `W_LEGACY_ENTRY_REJECTED` go with legacy import (D92). The plan's
+  gba-kit evaluation stays in plan.md as the measured reason, with its integration marked dropped by the owner.
+
+**Consequences.** romlift has three runtime dependencies and no optional peer dependency (`g1.runtime-deps`); code run
+from RAM needs a hand-written override, which the analysis then honours (the plan's "Phase 6 is where … code run from
+RAM stop[s] needing overrides" no longer holds: release 1 keeps the override); the RAM gate proves the mapping, not its
+discovery. The word "evidence" keeps its meaning (an external fact, AGENTS.md), and signature proposals are the only
+such facts in release 1.
+
+**Rejected.** Keeping a trace importer without the command (a format with no producer). Deleting `g6.evidence-conflict`
+(a source that can conflict remains, so the gate has a subject). Proposing `runs_at` from `seed.ram-copy`'s IWRAM
+copies (a new rule after the gate's restatement; not asked).
+
+## D92. The owner's decision of 20 October 2026: phase 5 is skipped; rename and objdiff move into phase 6
+
+**Context.** Phase 5 (Migration) planned legacy import, the reconciler and `rename`, the `expected/` and `objdiff.json`
+writers, the C data ranges and the Klonoa switch-over (roadmap "Phase 5", D51, D52). D76 g recorded the owner's scope
+decision and left its plan to phase 6. Bruno Macabeus's words, given on 20 October 2026: **"We don't need it. Skip phase
+5"**, and then, asked what to keep, he chose **"Keep rename and objdiff"**.
+
+**Decision.**
+
+- (a) **Phase 5 never runs and never lands**: there is no `docs/phase-5.md`, no `phase-5` tag, and
+  `test/gates/phase.json` goes from `{ "landed": 4 }` to `{ "landed": 6 }` when phase 6 lands. `bench gates --require 6`
+  and every path that reads `landed` (provenance, the gate record) work with no phase-5 gate: architecture §1's phase-5
+  row lists no gate id and says the phase was skipped, which `test/gates-index.test.ts` accepts for a skipped phase
+  only.
+- (b) **Dropped**: 5.B legacy import (the luvdis-cfg, ldscript-symbols and thumb-aliases parsers, renames-toml,
+  `import-legacy`, read-elf, read-map and read-legacy, `analyze --evidence`, the evidence merge), 5.D the Klonoa
+  migration tooling (`bench/migration/`, `bench/src/migration.ts`), 5.I the switch-over pull request. Nothing in the
+  Klonoa repository is touched, created or pushed. The gates `g5.evidence-merge`, `g5.import-legacy`,
+  `g5.klonoa-rehearsal` and `g5.klonoa-switch` are deleted, with the gate input `klonoa` that only they read. D51 and D52
+  are superseded; architecture §12's owner decision 2 (adopting a legacy repository's boundaries) is moot.
+- (c) **Moved into phase 6**, as components of its own waves (D93): 5.A the reconciler's move and remove cases and
+  `romlift rename` (`g5.reconciler`, `g5.rename` become `g6.reconciler`, `g6.rename`, both ci); 5.C the `expected/` and
+  `objdiff.json` writers and the C data ranges, which replace phase 4's C-data assertion for a module that declares a
+  range (`g5.expected-bytes`, `g5.c-data-ranges` become `g6.expected-bytes`, ci and real, and `g6.c-data-ranges`, ci,
+  whose C object is `build/src/<module>.o`, D74 f); and the part of 5.0 they need, the `[[modules]]` key `data_start`
+  (`ModuleConfig.dataStart`).
+- (d) **The objdiff gate moves with them.** The gate the owner moved from phase 3 to phase 5 (phase-3.md Q1, "Move gate
+  to phase 5", D68 a) is `g6.objdiff` (real) and applies as D34 writes it: on every tuning ROM whose readable build
+  links, every agreeing function scores 0 under objdiff-cli but `unnamed-target`. Its baseline is phase-3.md Q1's table,
+  the differences the committed classifier counted that D34 gates: fe7j 200, klonoa 320, pokeemerald 13,788, sa2 1,374,
+  sa3 564, tmc 895 (`unnamed-target`, reported only: 55, 0, 2,758, 143, 44, 357). The carried minors architecture-r2-2
+  (one REL/RELA addend decoder shared with `foundation/formats/elf.ts`, the `R_ARM_*`/`SHT_*` constants in one place) and
+  architecture-r2-3 (fixture tests for `objdiffDifferences`' `sectionBase` and `baseField` plumbing) come with it. If the
+  gate still fails after phase 6's fix rounds, the phase does not land: the measured counts and the options go to the
+  owner (phase-6.md, "Owner questions"); no amendment of D34 is assumed.
+
+**Consequences.** The gate index loses four phase-5 ids and renames five; `g4.cli-contract`'s `rename` recipes apply in
+phase 6; `explain`'s signature part, `analyze --update` and `init` read only `sig:<library>@<version>` from `from`
+(D91 e); the Klonoa decomp keeps its own tooling. Release 1 has no import path for an existing decomp's function list.
+
+**Rejected.** Renumbering phase 6 as phase 5 (every `g6.*` id, the roadmap and the records cite phase 6). Keeping the
+phase-5 gate files as pending (a gate no phase can land is not a gate). Keeping `{kind: 'legacy'}` for a future importer
+(nothing ships before its phase).
+
+## D93. Phase-6 component boundaries as executed, and the contracts frozen for them
+
+**Context.** Roadmap 6.0–6.I splits phase 6 into a lead, four parallel components (6.A signature builder and specs, 6.B
+matcher and placement rules, 6.C trace and code run from RAM, 6.D proposals plumbing and full explain) and an
+integrator. D91 drops the trace half of 6.C, D92 moves phase 5's reconciler, rename, writers, data ranges and objdiff
+gate in, and the section "Carried from phase 4" holds the minors phase 4 carried (D76 h to D90). As in phases 1 to 4
+(D54, D56, D62, D74), the owner asked for no checkpoints: every owner decision of architecture §12 is taken with its
+documented safe default (signature files stay local and gitignored, D40; §12 item 3, a border across a short branch,
+stays as built, D15), and any gate change, waiver or limitation the owner has not authorised in his own words is an
+owner question in phase-6.md, never assumed.
+
+**Decision.** Phase 6 runs as twelve components in three waves on the branch `phase-6` (cut from `main` at `89deb54`,
+`landed` 4), each on its own flat branch and worktree under `romlift-wt/` (the flat `phase-6-<component>` spelling,
+because Git cannot hold `phase-6` and `phase-6/<component>` at once; D55 j); roadmap.md "Phase 6", "As executed
+(D93)", lists them with what they take, and phase-6.md records their merges.
+
+- (a) **Wave 1**: `p6-lead` (this record, the gates, the contracts below, the documents of D91 and D92; then the
+  integration after each wave), `p6-analysis-layout` (the rule `seed.evidence-hint` and its origin deleted, D91 e; the
+  analysis's alignment bit tests through `insnAligned`, architecture-b2-8; one owner of the legal-start rule in
+  core/layout and the gate oracle over it, architecture-r1-3, a0-4, a1-5; the override semantics of correctness-b0-5;
+  `test/gates/g4.toml-mutations.test.ts`), `p6-hygiene` (the carried minors that change no behaviour: architecture-r1-2's
+  aliases, r1-4, r1-6 with a2-8, r1-8's remainder, a2-6) and `p6-reconcile-carried` (the C scanner and include resolution
+  split out of the planner, architecture-b2-9; the closed union of the disk snapshot, b2-11; r1-7's remaining test moves;
+  the shell's walks listing regular files only, gate-honesty-e1-2). **Wave 2**: `p6-signatures-build` (6.A: specs for m4a,
+  libagbsyscall, libgcc and the serial libraries, `extractSignatures`, `buildSignatures`, `locateSignatures`, `romlift
+  signatures build`, the library fixtures, `bench/tools/convert-poc-signatures.ts`), `p6-c-data-expected` (5.C: the
+  `expected` and `objdiff` writers, the C data ranges replacing the ASSERT for a module with `data_start` and its
+  semantic checks, the c-data fixture's ranges, the objdiff gate's classifier minors architecture-r2-2 and r2-3),
+  `p6-ram-code` (6.C without the trace: the non-identity `AddressMap`, run-space walk targets, the ldscript `runs_at`
+  emission, the RAM-copy fixture's `ramCopy`, `bench/overrides/klonoa.json`), `p6-rename` (5.A: `rename-tokens.ts`, the
+  move and remove cases, `planRename`, `rename`, the CLI, the matchings split, correctness-r0-5's remainder) and
+  `p6-include-links` (the cpp-exact include resolution behind a symbolic link through
+  `ProjectInputs.headerRealPaths`, D89 a, D90 a, gate-honesty-e1-1). **Wave 3**: `p6-signatures-match` (6.B: the five
+  placement rules, `matchSignatures`, `resolvePlacements`, `proposeFromSignatures`, `romlift signatures <rom>`,
+  `bench signatures` with its judged, held-out and leave-one-out runs), `p6-proposals` (6.D: `checkProposals`, the
+  signature proposals of `init` and `analyze --update`, `init --no-signatures`, the `LibraryRegion` wiring into module
+  inference, explain's signature part and its `sig/` goldens) and a twelfth component whose name and files the
+  integrator records at its merge (phase-6.md). The waves of the wave-2 and wave-3 components are as planned when
+  wave 1 started; a component that moves is recorded at its merge.
+- (b) **The frozen signature contract** (`core/signatures/schema.ts`, `spec.ts`; plain readonly data, D19):
+  ``MemberId = `${string}@${string}.o` ``; `SignatureRuleId = 'sig.unique-fit' | 'sig.link-order-run' |
+  'sig.neighbour-spacing' | 'sig.pinned-both-sides' | 'sig.short-member-window'` (`SIGNATURE_RULE_IDS` in strength
+  order); `SignatureReference {dataset, commit, romSha1}`; `LinkOrderMember {id, addr}` (the member's address in that
+  reference, which fixes the spacing); `SignatureFunction {id, name, mode, size, bytes, mask}` and `SignatureTable {id,
+  name, size, bytes, mask, names?}` (lower-case hex, two digits per byte; `names` one entry per whole aligned word, a
+  `MemberId` or null); `LibraryVersion {id, idNote, references, linkOrder: {reference, members}[], functions, tables}`;
+  `SignatureFile {schema: 3, library, builtWith, versions}`; `SignaturePlacement {library, version, member, name, kind:
+  'function' | 'table', addr, size, mode?, rule, constants?: {offset, reference, rom}[]}`; `SignatureSpec {library,
+  versions: {id, idNote, references: {dataset, objects, tables?}[]}[], reviewedNames: Record<MemberId, {name,
+  reason}>}`. `parseSignatureFile(json)` and `parseSignatureSpec(json)` return `{ok: true, value} | {ok: false, error}`,
+  validate by hand (core/signatures may not import zod), refuse unknown keys and never throw. Architecture §7.1 wrote a
+  reference as `{project, commit, romSha1}` and a link-order member as a bare `MemberId`; the dataset name (the spec's
+  word) and the member's address (which the spacing rules read) replace them.
+- (c) **The empty registries and codes.** `core/signatures/rules/index.ts` exports `SIGNATURE_RULES: Readonly<Record<string,
+  RuleMeta>> = {}` (to p6-signatures-match); `core/signatures/codes.ts` exports `SignatureCodes = defineCodes({})`, in
+  the `core/diagnostic-codes.ts` union (to p6-signatures-build, then p6-signatures-match).
+- (d) **Proposals** (`core/proposals/types.ts`): `ProposalSource` is `signature | analysis | layout`; `sourceKey`
+  spells `sig:<library>@<version>` or undefined (D91 e). The config, patch and workflow tests that used the dropped
+  sources use a signature source instead.
+- (e) **Config**: the `[[modules]]` key `data_start` (`ModuleConfig.dataStart?: Addr`), TOML spelling `data_start` in
+  the parser's key table and its message spelling, serialised right after `kind`; syntax only (its semantic checks are
+  p6-c-data-expected's); the canonical goldens carry a case.
+- (f) **Workflow types** (`core/workflow/types.ts`): `InitOptions.signatures?: boolean` (false = `--no-signatures`);
+  `InitInputs.signatureFiles?` and `AnalyzeUpdateInputs.signatureFiles?: readonly SignatureFile[]`;
+  `ProjectInputs.headerRealPaths?: ReadonlyMap<string, string>` (a header's project spelling to its real path, for
+  p6-include-links); `CheckProposalsContext {analysis: AnalysisResult; config?: RomliftConfig}`, `ProposalCheck {kept:
+  readonly Proposal[]; conflicts: readonly Diagnostic[]}`, `type CheckProposals = (proposals, cx) => ProposalCheck`.
+  `core/workflow/explain.ts`: `ExplainSignature {library, version, name, rule?: SignatureRuleId}` and `signature?` on
+  `ExplainReport` (the type only; p6-proposals fills it).
+- (g) **Barrels and command lists.** `src/api/signatures-types.ts` (`romlift`: the frozen types, the two validators,
+  `isMemberId`, `SIGNATURE_RULE_IDS`, `SignatureCodes`, the CheckProposals and ExplainSignature types),
+  `src/api/internal-signatures.ts` (`romlift/internal`: `SIGNATURE_RULES`); empty: `src/api/signatures-build.ts`
+  (`romlift`) and `signatures-files.ts` (`romlift/node`) to p6-signatures-build, `signatures-match.ts` (`romlift`) to
+  p6-signatures-match, `rename.ts` (`romlift`) and `rename-files.ts` (`romlift/node`) to p6-rename, `proposals.ts`
+  (`romlift`) to p6-proposals; `cli/commands/lists/signatures.ts` (one command, `signatures build <spec>` and
+  `signatures <rom>`) to p6-signatures-build, `lists/rename.ts` to p6-rename. The edge table of `test/helpers/architecture.ts`
+  drops the `core/evidence`, `core/legacy` and `shell/trace` rows (architecture §2).
+- (h) **The gates.** The g6 files' expected interfaces and `needs` name these contracts; `g6.ram-code-mapped` and
+  `g6.evidence-conflict` as D91 c, d; `g6.signatures-judged` compares names through the placement member's symbol (the
+  `MemberId` before '@'), reports reviewed display names without gating them, takes its floors from
+  `bench/baseline/poc-2026-10-16.json` for the five PoC ROMs and judges tmc by the ELF checks with no floor;
+  `g6.signatures-rebuild` builds with `romlift signatures build <spec> --out <dir> --json` and compares every field but
+  `builtWith`; `g6.explain-coverage` also requires `SIGNATURE_RULES` to hold exactly `SIGNATURE_RULE_IDS` (stricter:
+  it loosens nothing); `g4.cli-contract` gains the `signatures` and `rename` recipes and `init --no-signatures`, each run
+  once its command or option is registered.
+- (i) **The exit loop's build command.** Roadmap 6's exit list built the signature files with `npx romlift signatures
+  build`; romlift is not published (D76 d), and npx would query the registry, so the closing list runs `node
+  --conditions=source src/cli/main.ts signatures build "$s"` instead.
+- (j) **Integration** (the lead after each wave): merge the wave's components in listed order, typecheck, `npm test`,
+  `npm run bench -- gates --require 4 --tier ci`; after wave 2, `UPDATE_GOLDEN=1` only for the library fixtures and the
+  `expected`/`objdiff` writers, every diff reviewed; after wave 3, build the signature files, raise `phase.json` to
+  `{ "landed": 6 }` in its own commit, run the closing list (real tier before ci) in a fresh worktree, commit
+  `bench/results.json` as the run's artifact. A gate that still fails after the fix rounds is recorded with measured
+  numbers as an owner question, and the phase is not merged; a CI job GitHub refuses to start is not a pass.
+
+**Consequences.** Every wave-2 and wave-3 component codes against frozen types and owns files no other component of its
+wave touches; the g6 gates stay `pending` or `fail` until their exports and writers land, and no g5 gate exists.
+
+**Rejected.** Freezing the matcher's internal shapes (candidate, fit) now: they are p6-signatures-match's. A zod schema for
+signature files (forbidden in core/signatures). Keeping the `phase-6/<component>` branch spelling (Git refuses it beside
+`phase-6`).
+
+**Amendment (phase-6 fix round 1, delivery-5).** The phase ran thirteen components, not twelve: `p6-objdiff` merged in
+wave 3 (`11ec05d`) as the thirteenth, unplanned. It delivered `g6.objdiff`'s work (the readable printer's words inside
+named, sized entries and `.inst.n`, the objdiff family's base per reference object, one REL/RELA decoder), took
+architecture-r2-2 and r2-3 from `p6-c-data-expected` and correctness-r0-5's remainder from `p6-rename`, and changed
+readable-printer files outside 6.F's Owns (`src/core/emit/print/pool.ts`, `print/data.ts`, `src/core/model/resolver.ts`);
+roadmap.md "As executed (D93)" and phase-6.md "Deviations from the roadmap" record it.
+
+## D94. Phase-6 closing round: four matcher refinements, and leave-one-out counted by counterpart
+
+**Context.** The wave-3 integration recorded that `g6.signatures-judged` and `g6.signatures-loo` fail on the real tier
+(phase-6.md Q7). Measured at the closing round (`bench signatures`, `bench signatures --loo`, the built files of the six
+specs): on pokeemerald eight 20-byte librfu wrappers that differ only in a masked pool word were all placed at
+`0x082E4A00` by `sig.link-order-run`, each "run" reaching `rfu_CB_pollConnectParent` by skipping the links between them
+inside `librfu_rfu.o`, and the resolver kept `rfu_REQ_RFUStatus` there (`rfu_REQ_pollConnectParent` in the ELF); on sa2
+`Mod.o` (6 bytes) ends off a word and the next object starts on the next word, so sa2's own chain broke there and Fire
+Emblem 7's `DivRem@gba-syscall.o` (8 bytes, its padding counted) took the address; on sa2 and sa3 `sSetupInfos` (agb_flash,
+every byte masked, no word naming a function) was placed by spacing alone inside another object. Leave-one-out failed
+only on member ids: a member a left-out reference shared is renamed in the rebuilt version (Emerald's
+`BgAffineSet@BgAffineSet.o` becomes Fire Emblem 7's `BgAffineSet@gba-syscall.o`, the first remaining reference's id), and
+the bench counted the rename as one added and one missing member at the same address.
+
+**Decision.**
+
+- (a) **No member over a placed member.** Within one library version no rule places a member over the bytes of another
+  placed member (`overlapsPlaced`, core/signatures/rules/state.ts): a library's members are linked side by side.
+- (b) **A fully masked member needs a pointer.** A member whose every byte is masked fits anywhere, so
+  `sig.neighbour-spacing` and `sig.link-order-run` place it only where one of its words names a placed function of the
+  version and holds its address (`evidenced`). m4a's pointer tables (`gMPlayJumpTableTemplate`, `gXcmdTable`) are proved
+  by their functions; `sSetupInfos`, whose words name tables, is not placed by spacing.
+- (c) **Runs.** `sig.link-order-run` weighs the runs of every chain of the version together (the `chains` sweep, which
+  replaces the per-chain `chain` sweep: `ChainRule.place(state)` reads `state.chains`), ties in chain then link order;
+  skips a link only when the skipped member's object is neither the object before nor the one after the gap (an object
+  is linked whole); and lets the next member start at the next word where one object ends and another begins (the
+  linker's section padding). The PoC's step 2 had none of these; its libraries (m4a, libagbsyscall, libgcc) never showed
+  the cases, and every PoC floor of `g6.signatures-judged` still holds.
+- (d) **Leave-one-out by counterpart.** `bench signatures --loo` maps each member of the rebuilt version to the full
+  build's member that a remaining reference links at the same address (`counterparts`), counts `moved` for a member at
+  another address than the full build placed it, `added` for a placement at an address where the full build placed no
+  member of the version, and `missingShared` for a shared member whose counterpart is not placed. The gate file is
+  unchanged; this is how its words ("adds no placement, moves none, and still places every member that another
+  reference of the version also has") are counted. It changes what the gate reads, so phase-6.md puts it to the owner
+  (Q8).
+
+**Consequences.** `bench signatures`: every judged check passes on the six tuning ROMs (no wrong placement, table or
+size, no name differing from a reference's own) with every PoC floor held; the sealed ROMs pass by counts; leave-one-out
+reports 0 added, 0 moved and 0 missing on all seven runs. librfu's two stray placements on fe7j and sa3 (ROMs that do not
+link librfu) are gone. Five rule tests fail on the old matcher and pass on the new one; the explain goldens are unchanged;
+`looCounts`' unit test moves its added member to an address the full build left unplaced, and two cases cover the
+counterparts.
+
+**Rejected.** Preferring, on a reference ROM, that reference's own chain (the matcher would need to know which ROM it
+matches). Trimming a trailing zero halfword from unsized members in the builder so `DivRem` and `Mod` merge
+(`g6.signatures-rebuild` compares the real builds with the PoC's converted files). Counting leave-one-out by member id
+alone (a renamed member is counted as one added and one missing member, against the gate's words).
+
+## D95. Phase-6 fix round 1: the review of the NOT-LANDED closing record
+
+**Context.** The adversarial review of `phase-6` at `1484ab0` (38 findings: 1 blocker, 16 major, 21 minor; their
+dispositions are phase-6.md "Review") agreed with the NOT LANDED verdict and found, besides record errors, five design
+defects in the phase's own code: the objdiff targets do not score an untouched project at 100%, `rename` accepts a
+name `generate` then refuses, the proposal workflow became a god module with the module-planning rule written three
+times, the signature decoders throw for content inside the pure core, and the signature files are located by four
+copies of one call that disagree on `W_SIGNATURES_ABSENT`. None of the answers below changes a gate's threshold; the
+two gate edits (e) restore strictness, and every gate question stays with the owner.
+
+**Decision.**
+
+- (a) **`expected/` is the build unit's assembly with the ROM's bytes** (correctness-2). The `expected` writer emits
+  `expected/<module>.s`, the module as its build unit assembles it (a `c` module's chunk files included in ROM order,
+  at their `asm/matchings` twin once decompiled; an asm or data module's own source included), and
+  `expected/rom/<module>.s`, its ROM range. `make expected` assembles both and writes the ROM's bytes over the first
+  object's `.text` (shell `head`/`cat`/`tail` at the offset `readelf -S` gives, after checking both `.text` sizes are
+  equal), keeping its relocations: the target has the base object's symbols, mapping symbols and relocations, and
+  `g6.expected-bytes` still reads the ROM range from the unlinked object (ci: 225 modules on 54 ROMs). `objcopy
+  --update-section` was measured and rejected: it drops the section's relocations. The orphan-chunk mapping mismatch
+  is gone (sa1: 34 functions below 100% become 33); the rest is objdiff reading a relocated field as its implicit
+  addend (ARM REL): with the ROM's bytes in the field, a base jump-table word or a `bl` to the next function resolves
+  inside the function in the base and outside it in the target (klonoa 51 of 422 functions, every differing row in
+  that class: 3,276 words, 4 calls). No target can hold the ROM's bytes and those addends at once, so the remainder is
+  an owner question (phase-6.md Q12), and `test/local/objdiff-json` pins it on klonoa.
+  **Replaced by D101 a** (fix round 4, step 3): the owner chose Q12's option (b), so the target is the unit's assembly
+  as it is, with no ROM bytes written over it and no `expected/rom/<module>.s`, and `g6.expected-bytes` judges it
+  linked at its module's address.
+- (b) **The signature layer and module planning have one home each** (architecture-1, -2, -4). `core/workflow/proposals.ts`
+  is the screen alone; `signature-layer.ts` holds the layer (`signaturesOver` with the one policy for an analysis that
+  failed, `signaturesOnRom`, `signatureLayer`, `foldSignatures`, `updateProposals`, the library-module notes) and
+  `signatureNotes`: the shell's notes on the files it located (`W_SIGNATURE_FILE_SKIPPED`, `W_SIGNATURES_ABSENT`, from
+  `shell/signatures/locate.ts loadSignatureFiles`, the one locator call of `init`, `analyze --update`, `explain --rom`
+  and `signatures <rom>`) are reported by a run that uses signatures, which the workflow decides (`InitInputs` and
+  `AnalyzeUpdateInputs` gain `signatureNotes`). `core/layout/module-proposals.ts` plans the runs_at borders and the
+  library modules of a project; `freeModuleName` beside `runsAtName` is the one naming rule, which init's inference now
+  uses for library names too (same names: `m4a`, `m4a_2`).
+- (c) **`rename` refuses the model's names and lists what it leaves out** (correctness-1, architecture-5). It reads the
+  project's ROM and refuses (`E_RENAME_EXISTS`) a new name the confirm model emits: a default chunk or symbol name, a
+  local label. A file under `src/` or `include/` it cannot edit (a symbolic link, a file that is not UTF-8, a binary) is
+  `W_RENAME_SKIPPED`, or `E_RENAME_SKIPPED_FILE` when its bytes name the old name as an identifier. `C_KEYWORDS` and
+  `directiveOf` live beside the tokenizer.
+- (d) **The signature decoders are zod schemas** (architecture-3). `core/signatures` may import `zod` (architecture §2's
+  edge table, `test/helpers/architecture.ts`), as `core/config` does; `parseSignatureFile` and `parseSignatureSpec` keep
+  their `{ok, value | error}` results and their refusal texts (`issues.ts`); `Refusal`, `refuse` and `decodeHelpers` are
+  deleted. The spec refuses a library name that is no file name; `isSealedDataset` is core's, read by the builder and
+  the bench (architecture-6).
+- (e) **Two gate edits of D93 h are undone, none loosened** (correctness-4, -10). `g4.cli-contract` fails when a recipe's
+  option is missing from the command's `--help` (D93 h skipped the recipe silently); `g6.signatures-judged` requires
+  every proposed size to be equal, different or `unjudged` and reports the unjudged count. Whether `unjudged` sizes and
+  the member-symbol name rule of D93 h may stand is the owner's (phase-6.md Q13, Q14).
+- (f) **Smaller corrections.** `runs_at` load addresses print as `__load_<module> + n` (correctness-5); a run range over
+  the ROM's load space or another run range is `E_OVERRIDE_INVALID` (correctness-8); `loadSpaceImage` returns a
+  `RomBytes` view, never a `Rom` (architecture-9); one `incbinLine`, `functionAt`, `alignUp`, `le32`, `hexBytes`/
+  `bytesOfHex` and `parseSourceKey` (architecture-7, -8, -12); `renamedFunction` keeps every key but `from`
+  (architecture-13).
+
+**Consequences.** `npm test`: 2,836 tests, 0 fail, 0 todo (the `__load_<module>` todo is a test). The writer goldens of
+`expected` and the scaffold golden (the Makefile's `expected` rule) are regenerated; `generate` after a decompilation
+also rewrites the module's `expected/<module>.s` (its include moves to `asm/matchings`). `test/local` gains
+`listed-invalid-signatures` (init with signatures: 17 `W_LISTED_INVALID` on the six tuning ROMs, Q10) and the klonoa
+case of `objdiff-json`. The phase still does not land: Q1 to Q3, Q5, Q6 and Q8 to Q14 are open.
+
+**Rejected.** Symbolic `expected/` objects with no ROM bytes (objdiff 100%, but `g6.expected-bytes` reads the unlinked
+`.text`: a gate change, offered to the owner as Q12 option b). Adding `.reloc` directives to the byte printer (it would
+have to predict every relocation GNU as emits). Ending Klonoa's `runs_at` range before its ROM-called tail (the RAM code
+loads a pool word there PC-relatively, D63). Leaving `isSealed` as the bench's own copy.
+
+## D96. Phase-6 fix round 2: the review of fix round 1
+
+**Context.** The review of `phase-6` at `ea1dbcb` (fix round 1, D95) raised 16 findings (3 major, 13 minor; their
+dispositions are phase-6.md "Review", fix round 2). Two of them say fix round 1 changed what a gate measures without
+the owner: `make expected` writes the ROM range over the target's `.text`, which `g6.expected-bytes` then compares with
+the same range, so the gate could only catch a wrong size (correctness-r1-1, measured: two chunk files swapped in
+`expected/main.s` of sa1 passed); and the bench's `objectWords` rewrites romlift's pool words as the reference object
+spells them before `g6.objdiff` scores them (delivery-r1-1). A third shows `rename` and the model accepting the name the
+linker script defines for a `runs_at` module (correctness-r1-2).
+
+**Decision.**
+
+- (a) **`g6.expected-bytes` judges the unit's object as assembled** (correctness-r1-1, a tightening). `make expected`
+  keeps `expected/<module>.s` as assembled at `build/expected/<module>.o` and writes the ROM over a copy
+  (`expected/<module>.o`, objdiff's target, unchanged). The gate keeps its comparison of the target's `.text` and adds
+  two on the kept object: its `.text` equals the ROM range at every byte outside a relocated field (`readelf -r`, each
+  ARM relocation type's field width; an unknown type fails), and every symbol it defines that the model places
+  (`model --json`'s chunk names, entries and inner labels) sits at the model's offset. Run against the committed
+  fixtures before it was frozen (225 modules on 54 ROMs pass); a scratch copy of the gate that swaps two includes of
+  c-data's `expected/main.s` fails with the byte at `0x080000F8` and both symbols out of place. Fix round 1's ROM
+  overwrite and Q12 stand as they were.
+  **Replaced by D101 b** (fix round 4, step 3): with the ROM overwrite gone the target is the unit's object as
+  assembled (`build/expected/<module>.o`), and the gate links it at its module's address and compares every byte,
+  relocated fields included, with the symbol check kept and `runs_at` modules judged (Q12 option (b), Q16 option (a)).
+- (b) **The `objectWords` method is the owner's** (delivery-r1-1). The bench's rewrite of pool words into the reference
+  object's spelling is a change to what D34 measures, which no owner words allow; it becomes phase-6.md Q15 with both
+  measurements (`bench/tools/objdiff-classes.ts --own-spelling` scores romlift's own spelling). Nothing is reverted
+  before he answers, so `g6.objdiff`'s committed counts stay the ones measured with the rewrite.
+  **Replaced by D102** (fix round 4, step 4): the owner chose Q15 option (c); `objectWords` and `--own-spelling` are
+  removed and romlift's own spelling is the only one scored.
+- (c) **The linker script's names are the model's** (correctness-r1-2). A config name (function, alias, symbol) equal
+  to a `runs_at` module's `__load_<module>` is `E_NAME_COLLISION` (`names.ts linkerNameCollisions`), and `rename`
+  counts it among the model's names (`modelNamesOf`), so `rename SoundMain __load_ram_03000388` on Klonoa with its
+  override exits 1 with `E_RENAME_EXISTS` and a TOML edit to that name makes `generate` exit 1, where both reached an
+  exit-3 self-check failure before. `loadSymbolOf` moves to `core/model/modules.ts` beside `relocatedModules`.
+- (d) **Two more run ranges are refused** (correctness-r1-3): a `runs_at` that is not its start plus a multiple of 4,
+  and a run range that ends past `0xFFFFFFFF`, are `E_OVERRIDE_INVALID` in `planModules`, so `analyze --update` refuses
+  its patch and `generate` exits 1.
+- (e) **`expected/<module>.s` of a `c` module is `c-unit.ts stubAssemblyText`** (architecture-r1-3), the one encoding of
+  agbcc's output of a stub, over the written chunk paths. The statement parser (D49) reads `.syntax divided` as a
+  no-byte directive under which no instruction or include may follow until `.syntax unified`; the text-layout check
+  has one include resolver and one macro-order rule.
+- (f) **Smaller corrections.** A symbolic link whose target cannot be read is `E_IO_READ` for `rename`, never a link
+  to nothing (architecture-r1-1); `explain --rom` places through `signaturesOver` (architecture-r1-2); one
+  `runsAtOverrides`/`runsAtSpans`, `alignWord` for the word rule, `peek32`/`u32` through `le32`, `compareCodeUnits` in
+  the spec, the bench's `romSignatures` returning core's `RomSignatures` and refusing a run with an error
+  (architecture-r1-6); `zod-helpers.ts` and `sealing.ts` apart from the spec format (architecture-r1-8); the C-data
+  assertion's message names data ranges and still matches `g4.c-data-fails-loud` (correctness-r1-4).
+
+**Consequences.** The writer goldens of `expected` (159 files) and the scaffold golden (the Makefile's `expected` rule)
+are regenerated; `npm test` gains tests for each branch architecture-r1-4 lists. `g6.expected-bytes` is stricter and
+its file changed (the change is a tightening, recorded here and in phase-6.md). The phase still does not land: Q1 to
+Q3, Q5, Q6, Q8 to Q15 are open.
+
+**Rejected.** `objcopy --update-section .text=` for the ROM overwrite (architecture-r1-5): measured again with binutils
+2.45.1, it drops `.rel.text` (one relocation before, none after), which D95 a needs kept; the rule now checks that the
+object has exactly one `.text` instead. Linking each target at its module's address to judge it (it needs every other
+module's symbols, which an `expected/` build does not have; Q12 option b offers it to the owner as a gate change).
+Reverting `objectWords` before the owner answers Q15.
+
+## D97. Phase-6 fix round 3: a runs_at module's section name, and the landing attempt
+
+**Context.** The review of `phase-6` at `b64f0b7` (fix round 2, D96) raised 10 findings (1 major, 9 minor;
+phase-6.md "Review", fix round 3; counts corrected at fix round 6, D105 f). The major (correctness-r2-1): the ldscript writer emits a `runs_at` module as the
+output section `.<module>`, and nothing stopped that name from being another section the script emits. Measured by the
+review on Klonoa with `bench/overrides/klonoa.json`: a module named `text` duplicated the ROM's `.text`, `generate`
+exited 0 and the ROM no longer matched its SHA-1 (`__load_text` resolved to `0x08000000`); one named `c_data_main`
+made `generate` exit 3 (`E_SELF_CHECK_TEXT`). The orchestrator then asked to land the phase with the minors carried.
+
+**Decision.**
+
+- (a) **A `runs_at` module's section may be no other section of the script** (correctness-r2-1). `names.ts
+  sectionNameCollisions` makes a `runs_at` module whose `.<module>` is `.text` (`modules.ts ROM_SECTION`), a `c`
+  module's `.c_data_<m>` or a data range's `.rodata_<m>` (`c-data-assert.ts cDataName`, `cRodataName`)
+  `E_NAME_COLLISION` (exit 1). A module name holds no `.`, so no `.text.<module>` section can be one. The writer and
+  the check build the section and `__load_` names with `runSectionOf` and `loadSymbolOf` (part of architecture-r2-2).
+  The emitted ldscript does not change, so no golden changes; §6.7 and the scaffold AGENTS.md state the rule.
+  Rejected: a reserved prefix for the RAM section (`.ram.<module>`), which would change every `runs_at` project's
+  ldscript and its check for a rule the model can state.
+- (b) **The phase still does not land.** Fourteen owner questions (Q1 to Q3, Q5, Q6, Q8 to Q16) are unanswered and the
+  gates that wait for them still fail (run 4), so no pull request is opened. Of the 9 minors, eight are recorded as
+  carried and one (architecture-r2-1, `g6.expected-bytes` judging no `runs_at` module) is Q16, since its fix changes a
+  frozen gate file.
+
+**Consequences.** Measured on Klonoa with its override (`init --no-signatures`, the override appended, `analyze
+--update --write`, `generate`): the module renamed `text` makes `generate` exit 1 with `E_NAME_COLLISION … would be
+ldscript.txt's section .text`, renamed `c_data_main_6` exit 1 with `… the data check section of c module main_6`; the
+unedited project generates and `verify --link` gives `a0a298d9…`. `npm test` 2,849 of 2,849; `test:local` ram-code,
+config-mutations and emission-real pass; `g6.ram-code-mapped` (ci and real), `g6.expected-bytes`, `g6.c-data-ranges`
+and `g4.c-data-fails-loud` (ci) pass.
+
+## D98. The owner's answers of 25 October 2026 to phase-6 Q1 to Q3, Q5, Q8, Q9, Q11, Q13 and Q14
+
+**Context.** Fix round 3 (D97) left fourteen owner questions open (phase-6.md "Owner questions"). Bruno Macabeus
+answered them on 25 October 2026. This decision records, verbatim with the option each chose, the answers applied in
+the first step of fix round 4: the gate edits and the records. The answers to Q6, Q10, Q12, Q15 and Q16 are applied
+by the later steps of the round and recorded there. Q4 and Q7 need no answer.
+
+**Decision.** In the owner's words:
+
+- (a) **Q1, Q2, Q3, Q5, chosen "Apply all four"**: "Q1 (a) keep f534ddd's parse fix of g6.ram-code-mapped; Q2 (a)
+  g6.reconciler skips the string directly after `INCLUDE_ASM (`, as the golden runner does; Q3 (a) g6.rename selects
+  with /^0x[0-9A-F]{8} = "(sub_[0-9A-F]{8})"$/gm; Q5 (a) g6.evidence-conflict scenario (c) picks a G whose entry lies
+  outside F's extent (or covers only [F.entry, F.entry + 4)). The owner authorises these edits of the gate files."
+  Applied (`fb16a0f`): `g6.ram-code-mapped` keeps `f534ddd` unchanged; `g6.reconciler` leaves out of the untouched
+  tokens exactly the string token whose two predecessors are `(` and `INCLUDE_ASM`, the golden runner's test;
+  `g6.rename` reads the `[functions]` lines with that regular expression; `g6.evidence-conflict` keeps F the first
+  found function and takes G the first found function whose entry lies outside F's extent (the first of Q5's two
+  forms; the data override still covers F's whole extent).
+- (b) **Q8, Q13, Q14, chosen "Accept all three"**: "option (a) each (the leave-one-out counterpart count; `unjudged`
+  sizes accepted and reported; member symbols compared on a reference ROM, the reviewed display name reported).
+  Write each as the owner's rule." The owner's rules, which replace D93 h's and D94 d's standing as the lead's:
+  - *Leave-one-out by counterpart* (Q8): `bench signatures --loo` counts a member that leaving its first reference
+    out renames (its id becomes the first remaining reference's) as its counterpart, the full build's member a
+    remaining reference links at the same address (D94 d).
+  - *Unjudged sizes* (Q13): a proposed size with nothing to compare (no ELF size, a zero ELF size, or a FUNC that
+    spans another FUNC) is `unjudged`, accepted and reported per ROM; equal + differ + unjudged = proposed, and no
+    size may differ.
+  - *Member symbols on a reference ROM* (Q14): on a ROM that is one of the specs' references, every placed member's
+    symbol (its `MemberId` before `@`) equals that reference's own symbol at the placement; a display name the spec
+    reviewed (pokeemerald's `_fpadd_parts_f`) is reported, never gated.
+  The gate files already apply these rules; architecture §8.4 and the roadmap's thresholds now cite them as the
+  owner's.
+- (c) **Q9, chosen "Measured counts as floor"**: "option (b): tmc's floor in g6.signatures-judged is libagbsyscall 13
+  functions, m4a 55 functions and 10 tables, 68 placements with 0 wrong; tmc may not drop below." Applied
+  (`fb16a0f`): `g6.signatures-judged`'s `OWNER_FLOORS` holds tmc's per-library floor and its 68 placements; a ROM
+  with a PoC row keeps the PoC's floor (checked against the pinned baseline as before), and a dataset with neither is
+  still judged by the ELF checks alone, with a note.
+- (d) **Q11, chosen "Tighten"**: "option (a): g4.toml-mutations' add-override edit must be one that changes the
+  model, and an odd [functions] key joins its illegal edits. The owner authorises editing that frozen phase-4 gate
+  file." Applied (`fb16a0f`). A code override that covers a function the config lists is a no-op (the listed seed
+  takes the entry first, `W_OVERRIDE_IGNORED`), and so is one at a function another found function calls (round 0
+  accepts each seed with its own worklist, so `seed.call` takes it before `seed.override`'s seed; measured on the
+  composite fixture at `0x080001C4`). So the edit takes a found function F out of `[functions]` (listed, no label, no
+  module start, no found function's call target, no override over it) and covers F's extent with a `code` override
+  in F's mode; the gate keeps the edit only when the confirm run of the edited config accepts F with origin
+  `override` (at most 32 candidates tried per target, in the target's seeded order), requires `generate` to warn no
+  `W_OVERRIDE_IGNORED`, and fails when no target takes such an edit. The illegal edits gain the first Thumb
+  `[functions]` key plus one (`E_FUNCTION_MISALIGNED`, correctness-b0-4's case). Rejected: a `data` override over a
+  found function (the callers' `bl` would name data, and a `c` module would hold data in its `.text`), and a code
+  override at a place no rule finds code (no general way to find one on a tuning ROM). **Corrected at fix round 5
+  (D104 a):** this edit did not change the model. The gate counted F as accepted when F appeared only among the confirm
+  run's unlisted findings, and a confirm run takes only `[functions]`: what an override's seed finds beyond the list
+  is reported (`W_UNLISTED_FUNCTION`) and claims nothing, so the tree was the delete-function edit's, byte for byte
+  (correctness-o0-1). The sentences above that say the confirm run accepts F are wrong; D104 a replaces the edit.
+
+**Consequences.** Run on `10fe83a` in a fresh worktree: on the ci tier `g6.reconciler` (9 cases, 11 golden tests, 16
+comment and string tokens untouched), `g6.rename` (`sub_080000F4` renamed on the composite fixture),
+`g6.evidence-conflict` (162 contradictions on 54 fixtures) and `g4.toml-mutations` (212 legal edits on 54 fixtures, add-override 23 of them, 215 illegal) pass; on the real tier
+`g6.signatures-judged` (tmc libagbsyscall 13, m4a 55 and 10, 68 placements, 0 wrong: at its floor) and
+`g4.toml-mutations` (242 legal edits on 60 ROMs, add-override 29 of them, all six tuning ROMs among them; 239 illegal) pass. The questions answered here are closed in phase-6.md.
+
+## D99. Phase-6 fix round 4, step 1: fix round 3's eight carried minors
+
+**Context.** Fix round 3 (D97) carried eight minors (nine until fix round 6 corrected the count, D105 f; phase-6.md "Review", fix round 3). The orchestrator asked to fix
+those that are cheap in the first step of fix round 4 and to record each disposition.
+
+**Decision.**
+
+- (a) **One list of the linker-defined names** (architecture-r2-2). `modules.ts linkerDefinedNames(modules)` lists
+  each runs_at module's `__load_<module>` with its load start; names.ts (`linkerNameCollisions`), rename.ts
+  (`modelNamesOf`), text-layout.ts and the ldscript check read it. The check's `LOADADDR` pattern no longer spells
+  the prefix: it reads `<symbol> = LOADADDR(.<section>);` and accepts it only for a name of that list, so a
+  `LOADADDR` line naming no runs_at module is now `unexpected` (it was ignored).
+- (b) **runs_at through its readers, one word** (architecture-r2-3). `runAddresses` reads `runsAtOverrides`,
+  `checkProposals`' module case `runsAtSpans`; `DATA_ALIGN` and chunks.ts's `WORD` are `layout/align.ts`'s `WORD`.
+- (c) **One reading of absence in the shell** (architecture-r2-4). `shell/fs.ts isAbsentError`: ENOENT, ENOTDIR and
+  ELOOP (a link loop is a link to nothing) read as absent, at every stat, lstat, realpath and digest site that read
+  ENOENT with ENOTDIR (`isDirectory`, `isRegularFile`, locate, disk-state, read-inputs, spelling); any other failure
+  stays E_IO_READ. A loop was E_IO_READ in `isDirectory`, `isRegularFile` and `digestOf` and is now absent there.
+  `linkedFileBytes` is `isRegularFile`, then `readBytes`.
+- (d) **`placeSignatures` is module-private** (architecture-r2-5), dropped from `api/proposals.ts`; the explain
+  goldens find a rule's placement through `signaturesOver`.
+- (e) **Texts** (architecture-r2-7): the `.syntax <other>` refusal names the two dialects read; `bytes.ts`' header
+  names its readers. Not done: the header comment of the frozen `g4.c-data-fails-loud`, which quotes the C-data
+  assertion's old text, since editing a gate file is not among the owner's authorised changes (its pattern still
+  matches the new text).
+- (f) **Files behind a symbolic link to a directory** (correctness-r2-3). `readRenameTexts` reads every rename text
+  below such a link (filesUnder following links, as cpp does) and lists each as skipped with its bytes, so
+  `planRename` refuses (`E_RENAME_SKIPPED_FILE`) one that names the old name; a file whose real path is one rename
+  edits through its own path is not listed; a link to nothing, or to a directory with no such file or one the walk
+  does not enter (above the project), stays one `W_RENAME_SKIPPED` without bytes.
+- (g) **Moved to the later steps of this round**: correctness-r2-2 (`make expected`'s objects under `expected/` warn
+  `W_UNOWNED_FILE`) to the step that applies Q12, which changes what `make expected` writes; architecture-r2-6
+  (`nameBase`'s positional `rewriteWords`) to the step that applies Q15, which removes the bench's rewrite (done by
+  D102 c: the parameter went with the rewrite).
+
+**Consequences.** `npm test` 2,850 of 2,850 (`readRenameTexts`' link test: a link to an empty directory; a new test
+for a linked directory's files and a link to an edited directory). `g6.ram-code-mapped` (ci and real),
+`g6.expected-bytes` (225 modules on 54 ROMs), `g3.self-check`, `g3.link` and `g6.explain-coverage` pass on the ci tier
+at `10fe83a`.
+
+## D100. Phase-6 Q10, the owner's answer of 25 October 2026: the confirm run validates a listed extent per mode
+
+**Context.** With the signature layer `init` lists m4a functions with `from = "sig:m4a@<version>"`, which every
+confirm run validates (D76 a), and 17 of them on the six tuning ROMs warned `W_LISTED_INVALID` (phase-6.md Q10,
+pinned by `test/local/listed-invalid-signatures`): umul3232H32 and SoundMainRAM, Thumb entries that switch to ARM in
+place with their ARM code folded in as an inner `label = true` of mode `arm` (`valid.dense`: the Thumb walk leaves
+the ARM code unwalked, walk.inline-arm-switch, so it counted as holes), and ldrb_r3_r2, two bytes that fall through
+into chk_adr_r2 (`valid.returns-or-prologue`). Phase 4's `listed-invalid` premise (no `W_LISTED_INVALID` after
+`init`) held only without signatures, and `test/local/decompiled-c` ran `init --no-signatures`.
+
+**Decision.** In the owner's words (Bruno Macabeus, 25 October 2026), Q10, chosen "Validate per mode": "option (c):
+the confirm run validates a listed extent per inner label's mode (an ARM part folded in as an inner `label = true` of
+mode arm is checked as ARM) and accepts a fall-through into the next listed function, so the 17 m4a entries no longer
+warn W_LISTED_INVALID after init; test/local/listed-invalid-signatures.test.ts pins the empty set; restore phase 4's
+listed-invalid premise for init with signatures if it now holds."
+
+Applied in `src/core/analysis/driver/listed-extent.ts` (`checkListed` calls its `whyListedInvalid`):
+
+- (a) **Per mode.** The listed extent is `extentEndOf`'s (the listed size, else the reading cut at the next listed
+  entry that is not a label). The listed Thumb entry is judged by the validity slot over its Thumb reading with the
+  bytes the ARM readings of the extent's inner labels of mode `arm` cover (instructions, pools, tables) counted as
+  covered; each such label that is not a function yet is then judged as ARM, by the slot over its own ARM reading
+  (`validity.ts firstInvalid`, whose `checkEntry` path stays Thumb-only), its failure reported as "its arm label
+  <addr>: …". A label outside the extent is not judged with it. An extent with no such label and no fall-through is
+  judged exactly as before (`whyInvalid`'s reading).
+- (b) **Fall-through.** A reading falls through into the next listed function when its last instruction ends
+  exactly at the extent's end, that address is a listed entry that is not a label, and the instruction flows on
+  (decoded: an ordinary instruction, `adr`, `bl`, a conditional branch or a pool load not into pc, with no exit of the
+  reading at it). The judged reading then counts that fall-through as a tail exit (rule `seed.listed`), as a branch to
+  the next function would be. Anything else gains nothing and still warns: an extent ending before the next function
+  (a data override there, say), a label at the end, a last instruction that branches, returns or jumps.
+- (c) **The tests.** `test/local/listed-invalid-signatures` pins the empty set on the six tuning ROMs; phase 4's
+  premise now holds with signatures too, so `test/local/decompiled-c` runs `init` with the signature layer again (its
+  `--no-signatures` of fix round 1 removed). `test/unit/analysis/driver/listed-extent.test.ts` covers an ARM inner
+  label (no warning; 12 holes in 16 without the label), an ARM label whose code the rules refuse (warns, naming the
+  label), the labels judged, a fall-through (with and without a listed size) and three non-fall-throughs.
+
+Rejected: cutting the extent into parts at each label and judging each part's reading only up to the next cut.
+SoundMainRAM's Thumb entry branches (`beq`) to Thumb code after its first ARM run, so its Thumb reading spans the
+ARM parts; the parts' coverage has to be counted together (measured: the cut version still warned on SoundMainRAM,
+576 hole bytes in 926; the covered version leaves 2 in 932).
+
+**Consequences.** Measured with ROMLIFT_REQUIRE_LOCAL=1 and the built signature files (rebuilt from the specs: equal
+to the local ones): `listed-invalid-signatures` no `W_LISTED_INVALID` on fe7j (134 signature-named functions), klonoa
+(120), pokeemerald (377), sa2 (147), sa3 (189) and tmc (68), 17 before; `decompiled-c` with signatures passes (141.8
+s); `listed-invalid` (no signatures) still 0 on each ROM, and with every listed entry validated three fewer warnings
+per ROM than phase 3 measured (fe7j 2, klonoa 1, pokeemerald 3, sa2 1, sa3 1, tmc 21); `epoch-reuse` equal. `npm test`
+2,855 of 2,855. Gates passing after the change: ci `g2.determinism`, `g3.self-check`, `g3.link`, `g4.e2e-fixtures`,
+`g4.generate-idempotent`, `g4.toml-mutations`, `g6.explain-coverage`, `g6.evidence-conflict`, `g6.reconciler`; real
+`g2.confirm-equals-discover`, `g4.e2e-real`, `g4.toml-mutations` (phase-6.md "Review", fix round 4, step 2).
+
+## D101. Phase-6 Q12 and Q16, the owner's answers of 25 October 2026: symbolic objdiff targets, judged linked
+
+**Context.** Fix round 1 made each objdiff target the build unit's assembly with the ROM's bytes written over its
+`.text` (D95 a); objdiff then read a relocated field's ROM bytes as an implicit addend, so an untouched project scored
+functions below 100% (klonoa 51 of 422, sa1 33 of 2,013; phase-6.md Q12). Fix round 2 made `g6.expected-bytes` judge
+the unit's object as assembled outside its relocated fields (D96 a), but its one `runs_at` branch returned before the
+symbol check and no target had a `runs_at` module (Q16). Fix round 3's carried correctness-r2-2 (`make expected` wrote
+`expected/*.o`, `expected/rom/*.o` and `expected/rom/*.bin` under a generated root, so each later `generate` warned
+`W_UNOWNED_FILE`: sa1 69, Klonoa 81) was moved to this step (D99 g).
+
+**Decision.** In the owner's words (Bruno Macabeus, 25 October 2026):
+
+- Q12, chosen "Symbolic targets": "option (b): expected/<module>.o is the unit's assembly as it is, without the ROM's
+  bytes written over .text, so objdiff shows 100% on every untouched function; g6.expected-bytes judges the target
+  after relocation, linked at its module's address, against the ROM range, and keeps the symbol-offset check. Measure
+  objdiff on an untouched project (sa1 and klonoa at least) and record the counts below 100% (expected 0)."
+- Q16, chosen "Tighten": "option (a): g6.expected-bytes judges runs_at modules (each symbol at the model address minus
+  the chunk's runAt, or the equivalent under Q12's linked judgment) and its targets include the RAM-copy fixture with
+  its hand-written runs_at override, as g6.ram-code-mapped does."
+
+Applied:
+
+- (a) **The target is the unit's assembly as it is** (Q12). The `expected` writer emits one file per generated module
+  with chunks, `expected/<module>.s` (unchanged: a `c` module's stub assembly over its chunk files in ROM order, an asm
+  or data module's own source included); `expected/rom/<module>.s` and its writer, `paths.ts expectedRomSourcePath` and
+  the text-layout check's `expected-rom` target are gone. The scaffold's `make expected` is one `$(AS)` per module
+  (`build/expected/%.o: expected/%.s FORCE`); the shell splice and `READELF` are gone. The text-layout check lays a
+  `runs_at` module's `expected/<module>.s` out at its run address, as it does the module's source. `objdiff.json` keeps
+  `functionRelocDiffs = none`, the scoring of `objdiff-cli report`.
+- (b) **`g6.expected-bytes` judges each target linked** (Q12, Q16; the owner authorised this edit of the gate file).
+  After `make expected` the gate writes its own linker script, one output section per target at its module's address
+  (`runAt` loaded `AT(start)` for a `runs_at` module, with `__load_<module>` defined; `INCLUDE symbols.ld` for the RAM
+  symbols), links every target with `arm-none-eabi-ld`, and requires each section's bytes (`objcopy -O binary -j`) to
+  equal the module's ROM range, naming the symbols over a first difference, and every `.text` symbol the object defines
+  that the model places to link at the model's address: an inner label at its `addr` (the run address), a chunk name at
+  its entry plus the chunk's `runAt` minus its start (Q16's "model address minus the chunk's runAt", as an offset). The
+  unlinked comparisons of fix rounds 1 and 2 (the target's `.text`, and the unit object outside its relocated fields)
+  are replaced: the linked bytes include every relocated field. The ci targets gain each fixture whose `expect.json`
+  has `ramCopy` (code-copied-to-ram), run a second time with that range appended as an `[[overrides]]` entry with
+  `runs_at`, then `analyze --update --write` and `generate`, as `g6.ram-code-mapped` writes it; the gate fails when no
+  fixture declares one, and when no `runs_at` module starts at the override.
+- (c) **The objects live under `build/`** (correctness-r2-2). `expectedObjectPath` is `build/expected/<module>.o`, so
+  `EXPECTED_OBJS` and `objdiff.json`'s `target_path` name it, `make clean` removes it with `build/`, and nothing `make
+  expected` writes lies under the generated root `expected/`.
+- (d) **Tests.** `test/local/objdiff-json` runs an untouched sa1 (`$ROMLIFT_BENCH_ROOT/sa1.gba`) and klonoa project
+  through `init`, `./setup.sh`, `make` and `make expected` and requires every function objdiff-cli reports at 100%
+  (the class check of fix round 1 is gone); the c-data case is unchanged. The writer's and the text-layout check's unit
+  tests drop the ROM file; the goldens of the `expected`, `modules-mk`, `objdiff` writers and the scaffold follow.
+
+Rejected: linking through the project's `ldscript.txt` with each object path rewritten (ties the gate to that writer's
+text, and a data range's `.rodata` section and assertion would need the C object, D92); adding Klonoa with
+`bench/overrides/klonoa.json` to the gate's real targets (the owner named the RAM-copy fixture; measured instead, below).
+
+**Consequences.** objdiff-cli 3.7.2 on untouched projects: sa1 0 of 2,013 functions below 100% (14 units; 33 before),
+klonoa 0 of 422 (12 units; 51 before), c-data every unit at 100%. `g6.expected-bytes` passes: ci 229 modules on 55
+targets (1 `runs_at`), real 452 modules on 61 targets (1 `runs_at`); a scratch copy that swaps the `sub_080000F8` and
+`sub_0800010C` includes of c-data's `expected/main.s` fails (the byte at `0x080000F8` and both symbols), and a scratch
+copy that links the `runs_at` module at its load address fails (both symbols of the range, and `main`'s pool word at
+`0x08000110`); a scratch copy on Klonoa with its override passes (27 modules, 1 `runs_at`). After `make expected`,
+`generate` warns no `W_UNOWNED_FILE` (sa1 0, Klonoa 0). Measured numbers: phase-6.md "Review", fix round 4, step 3.
+
+## D102. Phase-6 Q6 and Q15, the owner's answers of 25 October 2026: the printer spells `sym + addend`, and `g6.objdiff` gates on a ceiling
+
+**Context.** `g6.objdiff` (D34) gated every objdiff difference but `unnamed-target`, and the bench's `objectWords`
+(`bench/src/objdiff.ts`, `1347bfb`) rewrote romlift's pool words as each reference object spells them before scoring
+(phase-6.md Q15, D96 b). Measured at the start of this step (`bench/tools/objdiff-classes.ts`, all six tuning ROMs, the
+map given), gated fe7j, klonoa, pokeemerald, sa2, sa3, tmc: with the rewrite 19, 131, 157, 4, 55, 17; romlift's own
+spelling 21, 135, 201, 2,665, 1,664, 51, the two rows of Q15 unchanged. The readable printer already spelled a word
+inside a named, sized entry `name + offset` (`574849b`), but only when the entry's label was visible from the word's
+module, and it gave a Thumb function sized by the TOML an even word it cannot link to.
+
+**Decision.** In the owner's words (Bruno Macabeus, 25 October 2026), Q6 and Q15, chosen "Printer spells sym+addend,
+then ceiling": "(1) Q15 option (c): move the `sym + addend` spelling into romlift's printer, as phase-3.md Q1 option
+(a) says (an emission rule; sizes in [symbols] where needed), and remove the bench's objectWords rewrite, so g6.objdiff
+scores romlift's own spelling. (2) Amend D34 by phase-3.md Q1 option (b) (report, not gate, the differences whose two
+sides are checked to link to the same word) and by Q6 option (c) (a function objdiff-cli refuses to read, the `tool`
+class, is counted uncompared and reported, not gated). (3) g6.objdiff then gates on a ceiling: the gated count per
+tuning ROM measured after (1) and (2) on the final product, committed as a baseline file the gate reads; any count
+above its ceiling fails; the ceiling may be lowered, never raised, without the owner. Record every count, before and
+after, in phase-6.md." The owner authorised these changes of `g6.objdiff`.
+
+Applied:
+
+- (a) **One rule for what a word names** (the printer, core). `resolver.ts wordNameOf`: among the labels that link to
+  exactly the word, the first that is a named entry (a function, a `[symbols]` entry) names it; else the innermost
+  named, sized entry holding the word (a `[symbols]` entry with `size`, a function whose extent is the TOML's `size`)
+  names it `name + offset`, the offset from the word its label links to, when `.4byte name + offset` links to the word
+  (`linkedWordOf`, R_ARM_ABS32's (S + A) | T: a Thumb function's name never links to an even word, so an even word
+  inside a Thumb function is never spelled from it; `574849b` spelled it, one below the ROM's word, in a model with
+  TOML sizes); else a label that links to the word, never a local label; else nothing (`__load_<module> + n` or the
+  value, as before). `pool.ts wordText` prints it; `labels.ts` reads the same rule for the label scopes, so the
+  entry's label is global when the word lies in another module (the entry was invisible there before, and the word
+  printed by its own `gUnk_` label or as a value), a local label is never made global by a pool word (it never named
+  one), and a pool word a placed sized entry holds makes no `gUnk_<ADDR>` data label of its own. The rule is
+  deterministic (it reads the model's sorted labels and entries) and changes no byte: the sizes come from `[symbols]`
+  and `[functions]` `size` (the bench's `namedConfig` gives the ELF's; a user's TOML or a signature table's proposed
+  size gives them in a project).
+- (b) **The bench scores romlift's own spelling** (Q15). `objectWords`, `dataNameAt`, the `ownSpelling` input and
+  `bench/tools/objdiff-classes.ts --own-spelling` are removed; `nameBase` renames labels to the reference object's
+  names by address and binds them, as D34 says, and rewrites no word.
+- (c) **D34 amended** (phase-3.md Q1 option (b), Q6 option (c)). `objdiff-classes.ts isGated`: the classes
+  `resolved-call`, `static-callee`, `value-named`, `alias`, `symbol-addend` and `value-for-symbol` (checked to link to
+  the same word) and `missing-symbol` and `tool` (uncompared functions) are reported with `unnamed-target`; `unverified`,
+  `trailing-pad`, `relocation-other`, `instruction-other`, `assemble` and `score` are gated. `value-named` now also
+  reads the base's `name+0x<addend>` (`-0x` below): romlift's `name + offset` against the reference's constant is the
+  same word when the name plus the addend links to it (checked as every same-word class is; with the Thumb bit
+  R_ARM_ABS32 sets). Before, that shape fell to `instruction-other`; the bench's rewrite had turned most such words
+  back into the constant. The verdict (`objdiffVerdict`) classes every difference with the reference ELF's names, and
+  the row's `objdiff` member gains `classes` (`counts`, `gated`, `uncompared`, `gatedExamples`; absent in an artifact
+  written before).
+- (d) **The ceiling** (Q6 and Q15 (3)). `bench/baseline/objdiff-ceiling.json` (`romlift-bench/objdiff-ceiling@1`)
+  holds each tuning ROM's gated count measured on the final product of this step: fe7j 7, klonoa 1, pokeemerald 12,
+  sa2 1, sa3 4, tmc 25. `g6.objdiff` reads it and fails on a count above its ceiling or a ROM without one.
+  `bench/tools/objdiff-classes.ts --write-ceiling` writes a measured count only where it is lower
+  (`objdiff-ceiling.ts lowerCeilings`), so the tool never raises a ceiling; raising one is the owner's. **Pinned at
+  fix round 5 (D104 b):** `g6.objdiff` holds these six values as `OWNER_CEILINGS`, the most a committed ceiling may be,
+  as `g6.signatures-judged` holds tmc's floor; a ceiling file that gives a ROM more than its pinned value, or names a
+  ROM without one, fails the gate, so a lowered file passes and a raised one does not; `--write-ceiling` refuses to
+  add a ROM; a tuning ROM whose readable build does not link fails the gate instead of escaping its ceiling.
+
+**Consequences.** Every fixture and tuning ROM still links to its SHA-1 (`g3.link`, `g3.raw-link` and the init builds
+of `bench run --scaffold`, `g4.e2e-real`, `g6.expected-bytes`), and no golden changed: no committed fixture has a sized
+entry or a pool word naming another module's local label. Measured with `bench/tools/objdiff-classes.ts` (all six, the
+map given), gated under D34 as amended: fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25 (romlift's own
+spelling before this step, classed the same way: 7, 1, 12, 1, 8, 26); uncompared 0, 130, 2, 0, 0, 0; every class but
+`unnamed-target` (D34 as first written) 21, 135, 196, 2,664, 1,658, 50. What stays gated depends on what the
+reference's source chose and the ROM does not hold: a relocation against a symbol with a negative addend or one past
+its ELF size (`gClassData - 84` where romlift names `gCharacterData + 13072`, `gHUD + 52`), and the `.hword 0x0` the
+base adds after `MP2K_event_rept` (`ply_rept`). The per-class counts, before and after, are in phase-6.md, Q6 and Q15.
+
+**Rejected.** Keeping the plain value where the reference holds a constant (which spelling the source chose is not in
+the ROM; the printer follows the model's sizes, and the classifier checks the word); counting an `unnamed-target`
+under the ceiling (D34 reports it); a ceiling per class (the owner named a count per tuning ROM).
+
+## D103. Phase-6 landing, the owner's answer of 25 October 2026: the checks run locally
+
+**Context.** AGENTS.md ("Phases and Git") merges a phase to `main` only when its closing gate passes and the CI
+workflows (`ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml`, `packed.yml`) have run on the phase's pull request,
+and a job GitHub refuses to start is not a pass. GitHub may refuse to start the jobs (billing).
+
+**Decision.** In the owner's words (Bruno Macabeus, 25 October 2026): "You don't need to wait for my review. You can
+land phase 6 normally. Just run the checks locally". Applied to phase 6 only: if GitHub refuses to start the pull
+request's CI jobs, the checks those jobs run are run locally instead, recorded in phase-6.md, and the pull request is
+merged without waiting for the owner's review. Every command of phase-6.md's closing gate still has to exit 0 in a
+fresh worktree at `landed` 6 first (run 5, phase-6.md).
+
+**Consequences.** The rule of AGENTS.md stands for later phases; this answer replaces it for phase 6's merge alone.
+
+**Rejected.** Waiting for the owner's review or for GitHub to start the jobs (the owner said not to).
+
+## D104. Phase-6 fix round 5: the review of fix round 4 (`3befe08`)
+
+**Context.** The review of fix round 4 raised one major and fifteen minors (phase-6.md "Review", fix round 5). The
+major (correctness-o0-1): `g4.toml-mutations`' add-override edit, as D98 d applied Q11, does not change the model
+(D98 d, corrected there). Measured on the 54 fixtures with their discover configs: no `code` override without
+`runs_at` changes a confirm model. Its seed takes nothing a confirm run does not list (it is only reported), it takes
+nothing already listed (the listed seed did), and `placeEntries` gives an extent from it only to a listed entry the
+analysis did not take, which happens only inside a `data` override. A `data` override over the deleted F changes
+nothing either (0 of 54 fixtures): the unlisted bytes are a data chunk without it.
+
+**Decision.**
+
+- (a) **The add-override edit is a `data` override that changes the model** (Q11 option (a), the owner's words "the
+  add-override edit must be one that changes the model", which name no override kind). The edit takes a found function
+  F that `[functions]` lists (no label) with a pool word at or past its code end inside its extent, and adds a `data`
+  override from the first such word to the end of F's extent, F still listed. A confirm run ends every extent at the
+  first data override after its entry (`facts.ts extentEndOf`), so F's extent ends there and the words become a chunk of
+  their own. The gate keeps the edit only when the model `buildModel` builds from the edited config's confirm run
+  differs from the original config's in its functions' extents or its chunks (at most 32 candidates per target), and
+  requires `generate` to warn no `W_OVERRIDE_IGNORED`, the link to reproduce the SHA-1 and `make` to exit 0, as every
+  legal edit; at least one target must take it. Measured on the ci tier: 243 legal edits, add-override 54 (every
+  fixture), 215 illegal. D98 d's objection to a data override over a whole function (a caller's `bl` would name data)
+  does not apply: the override covers pool words, which were data already, and no instruction. The gate's header,
+  D98 d and phase-6.md Q11 say so. The gate gains the call `buildModel` (core/model, exported by `romlift`).
+  **Recorded at fix round 6 (D105 b):** since this edit, no gate exercises a `code` override without `runs_at`;
+  architecture §6.5 and phase-6.md "Known limitations" say what such an override does (only the extent `placeEntries`
+  gives a listed entry the analysis did not take).
+- (b) **The owner's ceilings are pinned** (gate-honesty-o0-1, correctness-o0-4, architecture-o0-7; D102 d). The owner
+  said a ceiling "may be lowered, never raised, without the owner"; nothing checked it. `g6.objdiff` now holds
+  `OWNER_CEILINGS` (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25) and fails on a committed ceiling above
+  its pinned value or a ROM without one; `lowerCeilings` refuses a measured ROM that has no ceiling; a tuning ROM
+  whose readable build does not link fails the gate. Each tightens the gate the owner authorised for Q6 and Q15 toward
+  his own rule; none changes a threshold. **Corrected at fix round 6 (D105 e):** the last one changes the gate's
+  scope: a tuning ROM whose readable build does not link was a note and now fails the gate (the roadmap read "every
+  tuning ROM that links"); it follows the owner's per-ROM rule ("the gated count per tuning ROM … any count above its
+  ceiling fails"), and roadmap.md now says every tuning ROM must link.
+- (c) **One pass rule for objdiff** (gate-honesty-o0-2, architecture-o0-3). `ObjdiffVerdict.pass` ("no gated
+  difference"), which no gate read and which was false on all six tuning ROMs while `g6.objdiff` passed, is removed:
+  the ceiling is the one rule. The fixture tests assert `classes.gated`. The verdict classes each difference once
+  (`countClasses` over one classed array, read by the counts and the gated examples).
+- (d) **An override a confirm run only reports is ignored** (correctness-o0-2). `appliedOverrides` no longer counts a
+  code override whose seed only gave an unlisted finding, so `generate` warns `W_OVERRIDE_IGNORED` for it, naming the
+  unlisted start and `analyze --update`, beside `W_UNLISTED_FUNCTION`.
+- (e) **One R_ARM_ABS32 rule** (architecture-o0-1). `foundation/asm/relocation.ts abs32Word` computes (S + A) | T.
+  The assembler layout reads it for every data value (its resolver now returns a symbol's address and whether it is a
+  Thumb function, `SymbolValue`, instead of a value with the Thumb bit added), core's `linkedWordOf` and the bench's
+  classifier read it (through `romlift`). Before, the layout computed (S | T) + A: `.4byte F + 3` laid out to F + 4
+  while ld writes F + 3 (measured with binutils 2.45.1: F + 3, F + 4, F - 1 give 0x08000003, 0x08000005, 0x07FFFFFF).
+  No emitted file reached the difference (the printer never spells a Thumb function with an odd addend that differs),
+  so no byte changed; the layout's unit test that expected (S | T) - 1 for `Func - 1` now expects ld's word.
+  **Corrected at fix round 6 (D105 a, architecture-o1-1):** the sentence before is wrong. The jump-table printer still
+  found its addend by the old rule and printed `Func - 1` for an even entry whose target is a Thumb function, which ld
+  links to S - 1; a legal TOML edit (an inner label at a case target of table-jump-hoisted) reached it, and since this
+  decision the layout refuses it at `generate` (`E_SELF_CHECK_TEXT`). D105 a gives the table printer the one rule.
+  Also recorded then (architecture-o1-4): the public `LayoutInput.resolve` (`romlift`, api/verify.ts) now returns
+  `SymbolValue | undefined` instead of `number | undefined`, an API change of romlift's unpublished 0.0.0, which is why
+  `abs32Word` and `SymbolValue` are exported from the public root.
+- (f) **One lookup of a sized entry's label** (architecture-o0-5). `resolver.ts entryLabelOf` (the label named as the
+  entry at its run address, not local) is the `entryLabel` of all three readers of `wordNameOf`; `labels.ts` reads the
+  candidates already built, through the run address's load address, instead of the config's map keyed by load
+  address. Byte-neutral today (a `runs_at` entry's addresses are RAM, which no data word in a data module names).
+  **Corrected at fix round 6 (D105 c):** the run-to-load conversion could not change any model `buildModel` accepts,
+  so no test could hold it; `labels.ts` now looks the candidates up at the entry's address, which is what the printer
+  reads.
+- (g) **The emission rule assembled and linked in `npm test`** (architecture-o0-6). `test/unit/emit/sized-entries.test.ts`
+  gives three fixtures one sized entry each (a `[symbols]` entry a pool word of another module points inside; a
+  TOML-sized Thumb function with an odd word inside it, printed `name + 4`; one with an even word, never printed
+  `name + n`) and requires each tree to pass the text-layout check and link to its SHA-1 with binutils. No gate's
+  config has a sized entry (every gate tree is `configFromDiscover`'s), so no gate is changed for it. **Corrected at
+  fix round 6 (D105 f):** only the ci tier's configs have none (`init` places no signature on the synthetic
+  fixtures); the real-tier gates build `init`'s configs, which hold signature sizes and tables (27 `size =` entries on
+  Klonoa), so the real tier exercises the rule. No gate needed a change either way.
+- (h) **Recorded, not changed** (correctness-o0-3, correctness-o0-5, architecture-o0-8): phase-6.md "Known
+  limitations" records that the ci tier's only `runs_at` target of `g6.expected-bytes` has every symbol at offset 0 of
+  its module, that a sized entry drops the default-named `gUnk_` labels inside it (C that names one stops linking,
+  loudly, at `make`), and that the frozen `g4.c-data-fails-loud` header still quotes the C-data assertion's old text
+  (the owner did not authorise editing that file; its pattern matches the new text).
+
+**Consequences.** `npm test` 2,865 tests pass (new or changed: the unlisted code override in `model.test.ts`, `entryLabelOf`, the layout's
+(S + A) | T case, the sized-entry link test; the ceiling and verdict tests rewritten). The closing list ran again in a
+fresh worktree at `d66d802` (phase-6.md, run 6): all 20 commands exit 0; `g4.toml-mutations` takes the data-override
+edit on every target (ci 54 of 54, real 60 of 60: 273 legal edits, 239 illegal); `g6.objdiff` at the pinned ceilings.
+
+**Rejected.** Writing the add-override question to the owner again: his answer names the edit and the property, not
+the override kind, and the data override satisfies both on every fixture. Keeping the nominal code-override edit (it
+changes nothing). Moving the ceilings into the gate file alone (the baseline file stays what `--write-ceiling` lowers;
+the gate pins the maximum).
+
+## D105. Phase-6 fix round 6: the review of fix round 5 (`553a922`)
+
+**Context.** The review of fix round 5 raised two majors and fourteen minors (phase-6.md "Review", fix round 6; two of
+the minors, gate-honesty-o1-3 and correctness-o1-5, are recorded empty scope checks). The first major
+(architecture-o1-1): D104 e left two R_ARM_ABS32 rules. The jump-table printer found its addend as `stored -
+wordValueOf(label)`, the inverse of the old (S | T) + A, so an even entry whose target is a Thumb function printed
+`Func - 1`, which ld links to S - 1. Reproduced on table-jump-hoisted with `0x0800013C = { name = "CaseA", label = true }`
+(a case target of sub_08000108's table): at `553a922` `generate` exits 3 (`E_SELF_CHECK_TEXT … line 17: the file lays
+out 0x3b where the ROM holds 0x3c (at 0x08000124)`), at `3befe08` it exited 0 and the link failed the SHA-1. The second
+(architecture-o1-2): architecture §6.5 still gave the phase-4 override semantics.
+
+**Decision.**
+
+- (a) **One rule for jump-table entries** (architecture-o1-1). `resolver.ts addendTo(label, word)` is the addend from
+  the word the label links to, kept only when `linkedWordOf(label, addend)` (abs32Word) gives the word back, so a Thumb
+  function names an odd word with addend 0 and never an even one. `print/table.ts tableEntryOperand` prints the
+  preferred visible label at the target that `addendTo` accepts, else the stored value. `labels.ts` gives an even
+  entry's target that only Thumb functions name its local label, extending the `adr` rule (D72 c), and the label scopes
+  reference the label the entry prints. On the repro the entry prints `.4byte _0800013C`, `generate` exits 0 and
+  `verify --link` gives `d3ff0e07…`, the fixture's SHA-1. `test/unit/emit/table-function-target.test.ts` holds that case
+  (the model's two labels, the spelling, the text-layout check, both printers' links); `table.test.ts` expects the
+  stored value where it expected `Case - 1`. No committed tree changes: an even entry at a Thumb function never linked
+  before, so no fixture or tuning ROM had one.
+- (b) **Architecture §6.5 gives phase 6's override semantics** (architecture-o1-2, correctness-o1-1). A `data` override
+  is claimed as data and ends every extent at it; a `code` override seeds `seed.override`, which a discover run takes
+  and a confirm run only reports as unlisted, its one confirm effect the extent `placeEntries` gives a listed entry the
+  analysis did not take. phase-6.md "Known limitations" records that a code override without `runs_at` changes no
+  `generate` model on its own and that no gate exercises one since D104 a (noted there). The switch of the gate's edit
+  to a data override stays the reading of Q11 both reviewers accepted.
+- (c) **A sized entry's label is looked up at its address** (architecture-o1-5). D104 f's run-to-load conversion in
+  `labels.ts candidatesOf` changed no model `buildModel` accepts: only a word of a ROM data module is asked about, a
+  function's entry holding one is outside every run range (`modules.ts runAddresses` refuses a run range overlapping
+  the cartridge), where run equals load, and a symbol's candidate is keyed by its own address. So no test could hold
+  it; the lookup now reads the candidates at the entry's address, what the printer reads. `model.test.ts` adds a
+  TOML-sized function of a `runs_at` module whose pool word prints `RamFunc + 4` at the run address;
+  `sized-entries.test.ts` runs the text-layout check without binutils and skips only the link.
+- (d) **`W_OVERRIDE_IGNORED` names the reason that applies** (correctness-o1-2). For a code override: its start is
+  listed (the override is redundant and can be removed), a confirm run reported its start unlisted (list it, `romlift
+  analyze --update` proposes it, after which the override is redundant), another rule started a function there, or its
+  seed added no function and it gave no listed entry its extent. Measured on table-jump-hoisted: with `0x080001A8`
+  unlisted and a code override there the warning says to list it; after `analyze --update --write` it says the
+  override is redundant. `model.test.ts` covers the four reasons.
+- (e) **`g6.objdiff`'s scope is recorded** (architecture-o1-8). D104 b's last tightening, a tuning ROM whose readable
+  build does not link fails the gate, changes the gate's scope (roadmap.md read "every tuning ROM that links"); it
+  follows the owner's per-ROM ceiling rule, so no owner question is needed. D104 b and roadmap.md say so. The gate's
+  `judged === 0` check, which could fire only without datasets, is now "no tuning ROM dataset to judge", within the gate
+  edit the owner authorised for Q6 and Q15.
+- (f) **Records corrected** (gate-honesty-o1-1, o1-2, correctness-o1-3, o1-4, architecture-o1-3, o1-4, o1-7). Run 5's
+  `g4.toml-mutations` cell and verdict carry a note that D104 a superseded them; run 6's window is 03:01 to 04:43;
+  D104 g, the fix round 5 row and `sized-entries.test.ts` say "no ci-tier gate's config" (the real tier builds
+  `init`'s configs, 27 `size =` entries on Klonoa); `relocation.ts` names the public `romlift` export, and D104 e records
+  the public `LayoutInput.resolve` type change and its own wrong sentence; fix round 3 had 10 findings (1 major, 9
+  minor), of which eight were carried and one became Q16 (phase-6.md, D97, D99).
+- (g) **Absence is read once in the shell** (architecture-o1-6). `readInitDir`, `readDigests`, the C-text and rename
+  reads of `read-inputs.ts` and `disk-state.ts readOptionalText` read absence through `isAbsentError`; `init` into a path
+  under a file now fails at the write (`E_IO_WRITE … ENOTDIR`) instead of the read. Only `apply-writes.ts`' removal of a
+  file takes ENOENT alone as already gone; `shell/index.md` says so.
+
+**Consequences.** `npm test` 2,876 tests pass. No gate threshold changed, no golden moved. The closing list ran again in
+a fresh worktree at `74aa225` (phase-6.md, run 7): all 20 commands exit 0, the gate counts and ceilings as run 6.
+
+**Rejected.** Moving `abs32Word` to `romlift/internal` (architecture-o1-4's other option): the public
+`LayoutInput.resolve` returns a `SymbolValue`, so the rule that reads one belongs beside it. A test that holds D104 f's
+conversion on an input `buildModel` refuses.
 
 ## Review findings index
 

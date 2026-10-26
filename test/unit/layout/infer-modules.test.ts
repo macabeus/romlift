@@ -1,4 +1,5 @@
-// Module inference (architecture §6.2, D20, D62 d): rom_header, crt0, one module per library region,
+// Module inference (architecture §6.2, §6.7, D20, D62 d): rom_header, crt0, the runs_at ranges as their own modules,
+// the library regions shrunk to legal borders inside them and cut around runs_at ranges (placeLibraries),
 // assembly-only modules `asm_<ADDR>` for ARM code, 2-mod-4 entries, shared tails and tiled holes (widened to
 // legal borders, adjacent ones merged), the agbcc-shaped rest cut into main, main_2, ... at the first legal
 // border at least moduleSize past each start, data from the code end. Every start is a legal border.
@@ -6,7 +7,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { legalBorders } from '../../../src/core/layout/borders.ts';
-import { asmOnlyName, inferModules, mainName } from '../../../src/core/layout/infer-modules.ts';
+import { codeLayout } from '../../../src/core/layout/borders.ts';
+import { asmOnlyName, inferModules, mainName, placeLibraries, runsAtName } from '../../../src/core/layout/infer-modules.ts';
 import type { AnalysisResult } from '../../../src/core/analysis/types.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import type { InferModulesOptions } from '../../../src/core/layout/types.ts';
@@ -16,11 +18,13 @@ import { analysisOf, BASE, fact, HEADER_END, romWith, thumbAt } from './hand-mad
 function modules(rom: Rom, analysis: AnalysisResult, options: InferModulesOptions = {}): [string, number, string, string][] {
   const proposals = inferModules(rom, analysis, options);
   const borders = legalBorders(rom, analysis);
+  // A runs_at range's borders are the user's (§6.7): they are module starts whether legal or not.
+  const ranges = (options.runsAt ?? []).flatMap((r) => [r.span.start, r.span.end]);
   const out: [string, number, string, string][] = [];
   for (const p of proposals) {
     assert.equal(p.kind, 'module');
     if (p.kind !== 'module') continue;
-    assert.ok(borders.includes(p.start), `${p.name} starts at 0x${p.start.toString(16)}, not a legal border`);
+    assert.ok(borders.includes(p.start) || ranges.includes(p.start), `${p.name} starts at 0x${p.start.toString(16)}, not a legal border`);
     assert.equal(p.source.kind, 'layout');
     out.push([p.name, p.start - BASE, p.moduleKind, p.source.kind === 'layout' ? p.source.reason : '']);
   }
@@ -151,17 +155,85 @@ test('orphan bytes alone make no module: after the header they join the assembly
   ]);
 });
 
-test('a library region becomes its own module, cut on legal borders, named by the library', () => {
+test('a library region becomes its own module, shrunk to the legal borders inside it, named by the library', () => {
   const { rom, analysis } = layout(6);
-  const proposals = inferModules(rom, analysis, { libraries: [{ span: { start: BASE + 0x114, end: BASE + 0x12c }, library: 'm4a', version: '2001' }] });
-  assert.deepEqual(modules(rom, analysis, { libraries: [{ span: { start: BASE + 0x114, end: BASE + 0x12c }, library: 'm4a', version: '2001' }] }), [
+  const m4aRegion = { span: { start: BASE + 0x114, end: BASE + 0x12c }, library: 'm4a', version: '2001' };
+  const proposals = inferModules(rom, analysis, { libraries: [m4aRegion] });
+  // The region starts inside the function at 0x110, which is not the library's: the module starts at 0x120, the
+  // first legal border inside it, and ends at 0x130, the first one past its end (only the function's tail between).
+  assert.deepEqual(modules(rom, analysis, { libraries: [m4aRegion] }), [
     ['rom_header', 0, 'asm', 'header'],
     ['crt0', 0xc0, 'asm', 'startup'],
     ['main', 0xe0, 'c', 'module-size'],
-    ['m4a', 0x110, 'asm', 'asm-only'],
+    ['m4a', 0x120, 'asm', 'asm-only'],
     ['main_2', 0x130, 'c', 'module-size'],
     ['data', 0x160, 'data', 'data'],
   ]);
   const m4a = proposals.find((p) => p.kind === 'module' && p.name === 'm4a');
   assert.deepEqual(m4a?.kind === 'module' ? m4a.library : undefined, { name: 'm4a', version: '2001' });
+});
+
+test('a region ends at the first legal border past its end, unless a function starts before that border', () => {
+  const { rom, analysis } = layout(6);
+  const cl = codeLayout(rom, analysis);
+  // [0x110, 0x134): its last placement holds the start of the function at 0x130, so the module takes all of it.
+  const tail = placeLibraries(cl, [{ span: { start: BASE + 0x110, end: BASE + 0x134 }, library: 'libgcc', version: 'agbcc' }], BASE + 0xe0, BASE + 0x160);
+  assert.deepEqual(tail.map((p) => p.spans), [[{ start: BASE + 0x110, end: BASE + 0x140 }]]);
+  // The same region where 0x140 is no legal border (a short branch from 0x13E to 0x146 crosses it) and a function
+  // starts at 0x140 before the next one at 0x150: the module ends at 0x130, the last legal border at or below its end.
+  const crossed = { ...cl, borders: cl.borders.filter((b) => b !== BASE + 0x140) };
+  const shrunk = placeLibraries(crossed, [{ span: { start: BASE + 0x110, end: BASE + 0x134 }, library: 'libgcc', version: 'agbcc' }], BASE + 0xe0, BASE + 0x160);
+  assert.deepEqual(shrunk.map((p) => p.spans), [[{ start: BASE + 0x110, end: BASE + 0x130 }]]);
+});
+
+test('placeLibraries: a region with no legal border inside it and a region past the code end take no module', () => {
+  const { rom, analysis } = layout(6);
+  const cl = codeLayout(rom, analysis);
+  const inside = { span: { start: BASE + 0x112, end: BASE + 0x11e }, library: 'libagbsyscall', version: 'agb' };
+  const table = { span: { start: BASE + 0x180, end: BASE + 0x190 }, library: 'm4a', version: '2001' };
+  const placed = placeLibraries(cl, [table, inside], BASE + 0xe0, cl.dataStart);
+  assert.deepEqual(
+    placed.map((p) => [p.region.library, p.spans, p.dropped]),
+    [
+      ['libagbsyscall', [], 'no-legal-border'],
+      ['m4a', [], 'outside-code'],
+    ],
+  );
+  assert.deepEqual(modules(rom, analysis, { libraries: [inside, table] }), modules(rom, analysis));
+});
+
+test('a runs_at range is its own module ram_<RUNADDR>, and a library region around it is cut in two', () => {
+  const { rom, analysis } = layout(6);
+  const options: InferModulesOptions = {
+    libraries: [{ span: { start: BASE + 0x110, end: BASE + 0x150 }, library: 'm4a', version: '2001' }],
+    runsAt: [{ span: { start: BASE + 0x120, end: BASE + 0x130 }, runAt: 0x0300_0388 }],
+  };
+  assert.equal(runsAtName(0x0300_0388), 'ram_03000388');
+  assert.deepEqual(modules(rom, analysis, options), [
+    ['rom_header', 0, 'asm', 'header'],
+    ['crt0', 0xc0, 'asm', 'startup'],
+    ['main', 0xe0, 'c', 'module-size'],
+    ['m4a', 0x110, 'asm', 'asm-only'],
+    ['ram_03000388', 0x120, 'asm', 'runs-at'],
+    ['m4a_2', 0x130, 'asm', 'asm-only'],
+    ['main_2', 0x150, 'c', 'module-size'],
+    ['data', 0x160, 'data', 'data'],
+  ]);
+  const libraries = inferModules(rom, analysis, options).flatMap((p) => (p.kind === 'module' && p.library !== undefined ? [p.library] : []));
+  assert.deepEqual(libraries, [
+    { name: 'm4a', version: '2001' },
+    { name: 'm4a', version: '2001' },
+  ]);
+});
+
+test('a runs_at range alone in agbcc-shaped code: the code after it starts a module of its own', () => {
+  const { rom, analysis } = layout(6);
+  assert.deepEqual(modules(rom, analysis, { runsAt: [{ span: { start: BASE + 0x120, end: BASE + 0x130 }, runAt: 0x0300_0000 }] }), [
+    ['rom_header', 0, 'asm', 'header'],
+    ['crt0', 0xc0, 'asm', 'startup'],
+    ['main', 0xe0, 'c', 'module-size'],
+    ['ram_03000000', 0x120, 'asm', 'runs-at'],
+    ['main_2', 0x130, 'c', 'module-size'],
+    ['data', 0x160, 'data', 'data'],
+  ]);
 });

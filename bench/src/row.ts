@@ -1,6 +1,6 @@
 // One ROM's row of bench/results.json: the proof of concept's row fields (architecture §8.2), less
-// the volatile seconds and the signatures (judged from phase 6) and with `scaffold` reduced to its
-// verdict, plus the phase-2 fields the gates read when romlift's own analysis is scored (D24): the
+// the volatile seconds and the PoC's signatures member (romlift's own, `signatures`, is judged from phase 6:
+// signatures.ts) and with `scaffold` reduced to its verdict, plus the phase-2 fields the gates read when romlift's own analysis is scored (D24): the
 // analysis digest, the PoC baseline's true positives, the dataset rows the run no longer needs, the
 // extents that stopped agreeing, and the diff of the rows against the PoC baseline. A row rescored from
 // a PoC dump (poc-check) carries none of the phase-2 fields, so it stays comparable with the baseline.
@@ -10,6 +10,7 @@ import type { ListName } from './dataset.ts';
 import type { ObjdiffSummary } from './objdiff.ts';
 import type { ReadabilityMember } from './readability.ts';
 import type { InitBuildVerdict } from './scaffold.ts';
+import type { SignaturesMember } from './signatures.ts';
 import type { ArtifactCategory } from './vocabulary.ts';
 
 export interface MissRow {
@@ -114,6 +115,8 @@ export interface BenchRow {
   readonly baselineRows?: BaselineRows;
   /** The parity digest of the run against the PoC's (romlift rows only; g2.poc-parity). */
   readonly parity?: RowParity;
+  /** The signatures family judged on the scored run (phase 6, romlift rows, when built signature files are present). */
+  readonly signatures?: SignaturesMember;
 }
 
 /**

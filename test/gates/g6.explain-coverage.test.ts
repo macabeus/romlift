@@ -4,11 +4,13 @@
 // test/golden/explain/; each names a committed fixture by a path segment or a `<fixture>.` file-name prefix;
 // the `sig.*` ids must appear under test/golden/explain/sig/, whose goldens come from the library fixture.
 // Every .json golden has the composed ExplainReport shape (addr, claim, events[], rules[]; a sig/ golden
-// also signature {library, version}); no golden holds the SHA-1 of a real dataset's ROM; and the explain
-// golden tests pass with UPDATE_GOLDEN unset.
+// also signature {library, version, name}); no golden holds the SHA-1 of a real dataset's ROM; and the explain
+// golden tests pass with UPDATE_GOLDEN unset. SIGNATURE_RULES holds exactly the five ids of SIGNATURE_RULE_IDS (D93).
 //
-// Calls, for the phase-6 lead to align (architecture §4.1, §7.2, §9.2):
-//   RULES, SIGNATURE_RULES (romlift/internal): records keyed by rule id
+// Calls, aligned by the phase-6 lead (architecture §4.1, §7.2, §9.2, D93):
+//   RULES, SIGNATURE_RULES (romlift/internal): records keyed by rule id (SIGNATURE_RULES is exported empty by the lead
+//   and filled by p6-signatures-match); explain (romlift): the ExplainReport whose `signature` part
+//   ({library, version, name, rule?}, ExplainSignature) p6-proposals fills; the sig/ goldens are p6-proposals'
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { type ExecResult, byCodeUnit, gate } from './gate.ts';
@@ -56,9 +58,9 @@ function shapeProblem(golden: Golden): string | undefined {
   } catch {
     return 'is not JSON';
   }
-  const report = value as { readonly addr?: unknown; readonly claim?: unknown; readonly events?: unknown; readonly rules?: unknown; readonly signature?: { readonly library?: unknown; readonly version?: unknown } };
+  const report = value as { readonly addr?: unknown; readonly claim?: unknown; readonly events?: unknown; readonly rules?: unknown; readonly signature?: { readonly library?: unknown; readonly version?: unknown; readonly name?: unknown } };
   if (typeof report.addr !== 'number' || report.claim === undefined || !Array.isArray(report.events) || !Array.isArray(report.rules)) return 'lacks addr, claim, events[] or rules[]';
-  if (golden.file.startsWith(SIG_DIR) && (typeof report.signature?.library !== 'string' || typeof report.signature.version !== 'string')) return 'is under sig/ without signature {library, version}';
+  if (golden.file.startsWith(SIG_DIR) && (typeof report.signature?.library !== 'string' || typeof report.signature.version !== 'string' || typeof report.signature.name !== 'string')) return 'is under sig/ without signature {library, version, name}';
   return undefined;
 }
 
@@ -66,7 +68,7 @@ gate({
   id: 'g6.explain-coverage',
   phase: 6,
   tier: 'ci',
-  needs: ['RULES', 'SIGNATURE_RULES', 'explain'],
+  needs: ['RULES', 'SIGNATURE_RULES', 'SIGNATURE_RULE_IDS', 'explain'],
   async run(cx) {
     const analysisIds = Object.keys(cx.need<Rules>('RULES')).sort(byCodeUnit);
     const sigIds = Object.keys(cx.need<Rules>('SIGNATURE_RULES')).sort(byCodeUnit);
@@ -74,6 +76,8 @@ gate({
     const problems: string[] = [];
     const notSig = sigIds.filter((id) => !id.startsWith('sig.'));
     if (notSig.length > 0) problems.push(`SIGNATURE_RULES ids outside sig.*: ${notSig.join(', ')}`);
+    const frozen = [...cx.need<readonly string[]>('SIGNATURE_RULE_IDS')].sort(byCodeUnit);
+    if (JSON.stringify(sigIds) !== JSON.stringify(frozen)) problems.push(`SIGNATURE_RULES holds ${sigIds.join(', ')}, not the frozen SignatureRuleId set ${frozen.join(', ')}`);
 
     const all = await goldens(path.join(cx.repoRoot, ROOT));
     if (all.length === 0) throw new Error(`no golden under ${ROOT}`);

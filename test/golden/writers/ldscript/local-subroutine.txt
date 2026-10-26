@@ -9,5 +9,5 @@ SECTIONS {
         build/asm_08000100.o(.text);
     }
     .c_data_main (NOLOAD) : { *src/main.o(.rodata* .data* .bss* COMMON) }
-    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (romlift does not place C data yet)")
+    ASSERT(SIZEOF(.c_data_main) == 0, "src/main.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)")
 }

@@ -51,7 +51,7 @@
     0x0800013C gap.skip-padding-and-pointers round 6 cites 0x0800013C, 0x08000140: skips to 0x08000140
     0x08000148 gap.skip-padding-and-pointers round 6 cites 0x08000148, 0x0800014C: skips to 0x0800014C
   waits: none
-  claims (7):
+  claims (8):
     0x08000120 claim.dead-code-in-extent round 0 cites 0x08000120: 1 edits
     0x08000124 claim.dead-code-in-extent round 0 cites 0x08000124: 1 edits
     0x08000128 claim.dead-code-in-extent round 0 cites 0x08000128: 1 edits
@@ -59,7 +59,8 @@
     0x08000140 claim.dead-code-in-extent round 0 cites 0x08000140: 1 edits
     0x08000158 claim.dead-code-in-extent round 0 cites 0x08000158: 1 edits
     0x0800014C claim.dead-code-in-extent round 2 cites 0x0800014C: 1 edits
-  rules (7):
+    0x0800015E region.data-after-code round 6 cites 0x0800015E: data to 0x08000160
+  rules (8):
     bl.near-is-call: a bl closer than farJump.minDistance to its target (the far-jump idiom fails) is a call
       rests on: agbcc emits bl as a jump only when the target is beyond the range of `b`; the shortest far jump in five ROMs is 1,960 bytes
       recovers: nearby calls misread as far jumps, which would glue a neighbouring function into the caller
@@ -72,6 +73,9 @@
     gap.skip-padding-and-pointers: the forward chain steps 4 bytes over a zero word or an odd word pointing into the ROM, and stops at anything else
       rests on: between compiled functions sit only alignment zeros and small tables of Thumb code pointers; other bytes are data
       recovers: functions after padding or a callback table inside a gap, without walking through data that would chain false entries
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

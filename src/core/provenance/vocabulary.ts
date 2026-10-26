@@ -1,8 +1,8 @@
 // The two closed vocabularies the analysis rules emit (architecture §3.1, §8.3): why an ELF function
 // was not reported (a miss reason) and what proposed a function that was accepted (an origin). The
-// ids and meanings are the proof of concept's, plus the three origins romlift adds for functions the
-// TOML lists, overrides, or that external evidence supplies. A unit test fails on an id with no
-// definition; g2.vocabulary-emitted fails on an id that no rule emits.
+// ids and meanings are the proof of concept's, plus ram-copy and the two origins romlift adds for functions the
+// TOML lists or overrides (the 'evidence' origin went with seed.evidence-hint, whose producers the owner dropped,
+// D91 e). A unit test fails on an id with no definition; g2.vocabulary-emitted fails on an id that no rule emits.
 
 /** Why a function the reference ELF has was not reported, by id. */
 export const MISS_REASONS = {
@@ -34,7 +34,6 @@ export const ORIGINS = {
   'ram-copy': 'code copied to IWRAM, at the load address of a RAM pointer accepted code jumps through',
   listed: 'listed in the project TOML',
   override: 'an override in the project TOML',
-  evidence: 'an external fact: a trace, an ELF, a map or a legacy cfg',
 } as const;
 export type Origin = keyof typeof ORIGINS;
 

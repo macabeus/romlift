@@ -709,10 +709,12 @@ through setup.sh's duty 5, and `g4.worktree` requires that nothing generated is 
 
 ## Phase 5: Migration
 
-**Skipped by the owner** (20 October 2026: "We don't need it. Skip phase 5", and "Keep rename and objdiff", D76 g).
-Legacy import, the Klonoa migration tooling and the switch-over are dropped; rename and the reconciler, the `expected/`
-and `objdiff.json` writers, the C data ranges and the objdiff gate move into phase 6, which records both decisions and
-rewrites this plan. The sections below are the plan as written before that decision.
+**Skipped by the owner** (20 October 2026: "We don't need it. Skip phase 5", and "Keep rename and objdiff", D76 g,
+D92). Phase 5 never runs or lands: there is no `docs/phase-5.md`, no `phase-5` tag, and `phase.json` goes from 4 to 6.
+Legacy import (5.B), the Klonoa migration tooling (5.D) and the switch-over (5.I) are dropped, and nothing in the Klonoa
+repository is touched; rename and the reconciler (5.A), the `expected/` and `objdiff.json` writers and the C data ranges
+(5.C), the `data_start` key of 5.0 and the objdiff gate move into phase 6 (6.E, 6.F). The sections below are the plan as
+written before that decision; none of it is built here.
 
 Entry: phase 4 landed. Branch `phase/5-migration`. Six components: 5.0, then 5.A–5.D in parallel, then
 5.I, which also produces the Klonoa switch-over pull request.
@@ -814,16 +816,59 @@ links (`g5.objdiff`, D34, D68 a); every earlier gate still passes.
 
 ## Phase 6: Evidence
 
-Entry: phase 4 landed (phase 5 is skipped, D76 g). Branch `phase/6-evidence`. Six components: 6.0, then 6.A–6.D in parallel, then 6.I.
-Signature files stay local and gitignored unless the owner decides otherwise (D40). Since the owner skipped phase 5
-(D76 g), phase 6 takes rename and the reconciler, the `expected/` and `objdiff.json` writers, the C data ranges and the
-objdiff gate from phase 5, drops the gba-kit trace integration, records both decisions and rewrites this plan; its
-entry is phase 4 landed.
+Entry: phase 4 landed (`89deb54`, tag `phase-4`, `landed` 4); phase 5 is skipped by the owner (D92), so phase 6 starts
+from phase 4 and `test/gates/phase.json` goes from 4 to 6. Branch `phase-6`. Signature files stay local and gitignored
+unless the owner decides otherwise (D40). The owner dropped the gba-kit trace (D91: "I think we can skip this part of
+the plan, since very few functions are called and found by gba-kit") and moved phase 5's reconciler, `rename`,
+`expected/` and `objdiff.json` writers, C data ranges and objdiff gate into this phase (D92: "We don't need it. Skip
+phase 5", then "Keep rename and objdiff"). This section is the plan as phase 6 executes it.
+
+### As executed (D93)
+
+Phase 6 ran as thirteen components in three waves on the branch `phase-6` (planned as twelve; `p6-objdiff`, the
+thirteenth, merged in wave 3 and is recorded below and in phase-6.md), each on its own flat branch and worktree
+under `romlift-wt/` (Git cannot hold `phase-6` beside `phase-6/<component>`); [phase-6.md](phase-6.md) records the
+merges, the measured numbers, the owner questions and the closing gate. Every threshold applies to the six tuning ROMs
+(D60). The waves of the wave-2 and wave-3 components are those planned when wave 1 started; one that moves is recorded at
+its merge.
+
+| Component | Wave | Takes from the sections below |
+| --- | --- | --- |
+| `p6-lead` | 1 | 6.0: the frozen contracts (signatures schema and spec, proposal sources, `data_start`, the workflow and explain types, `CheckProposals`), the empty barrels, registries and codes, the gates (four g5 deleted, five renamed g6, `g6.ram-code-mapped` and `g6.evidence-conflict` restated), D91 to D93, the documents; then 6.I after each wave |
+| `p6-analysis-layout` | 1 | carried: `seed.evidence-hint` deleted (D91 e); architecture-b2-8; architecture-r1-3 with a0-4 and a1-5 (one legal-start rule, the gate oracle); correctness-b0-5 (override semantics); `test/gates/g4.toml-mutations.test.ts` |
+| `p6-hygiene` | 1 | carried, no behaviour change: architecture-r1-2 (and its "also" items), r1-4, r1-6 with a2-8, r1-8's remainder, a2-6, the remaining "phase 5" comments |
+| `p6-reconcile-carried` | 1 | carried: architecture-b2-9 (`core/reconcile/c-scan.ts`), b2-11, r1-7's remainder, gate-honesty-e1-2 |
+| `p6-signatures-build` | 2 | 6.A |
+| `p6-c-data-expected` | 2 | 6.F, with the objdiff classifier minors architecture-r2-2 and r2-3 |
+| `p6-ram-code` | 2 | 6.C |
+| `p6-rename` | 2 | 6.E, with correctness-r0-5's remainder |
+| `p6-include-links` | 2 | carried: the cpp-exact include resolution behind a symbolic link (D89 a, D90 a), gate-honesty-e1-1 |
+| `p6-signatures-match` | 3 | 6.B |
+| `p6-proposals` | 3 | 6.D |
+| `p6-signatures-apply` (the twelfth) | 3 | 6.B's remainder: `romlift signatures <rom>`, `bench signatures [--loo]`, the signatures family of `bench run` (`src/cli/commands/signatures.ts`, `bench/src/signatures.ts`) |
+| `p6-objdiff` (the thirteenth, unplanned) | 3 | `g6.objdiff` (D34, D92): the readable printer's words inside named, sized entries and `.inst.n` (`src/core/emit/print/pool.ts`, `print/data.ts`, `model/resolver.ts`, outside 6.F's Owns: recorded as a deviation in phase-6.md), the objdiff family's base per reference object, one REL/RELA decoder; it took architecture-r2-2 and r2-3 from `p6-c-data-expected` and correctness-r0-5's remainder (pool.ts's WordScope) from `p6-rename` |
 
 ### Carried from phase 4 (D76 g, h)
 
-Each changes code without a defect behind it, and phase 6 reworks the same modules. Nothing here depends on
-`g5.import-legacy`.
+Each changes code without a defect behind it, and phase 6 reworks the same modules. Nothing here depends on legacy
+import, which D92 dropped. Their components (D93):
+
+| Carried item | Component |
+| --- | --- |
+| correctness-r0-5's remainder (pool.ts's `moduleAt`, with the matchings split) | `p6-rename` as planned; done by `p6-objdiff` (`574849b`, pool.ts's WordScope) |
+| the C-data ASSERT's text | done in phase 4 (D78 c); 6.F replaces the ASSERT for a module with a range |
+| architecture-r1-2 and its "also" items (aliases of `BASEROM_FILE`, `DECOMP_YAML_NAMES`, `SCAFFOLD_ROM_FILE`) | `p6-hygiene` |
+| architecture-r1-3, its "also" (a0-4) and its gate oracle (a1-5) | `p6-analysis-layout` |
+| architecture-r1-4, r1-6 (a2-8), r1-8's remainder, a2-6 | `p6-hygiene` |
+| architecture-r1-7's remainder, b2-9, b2-11, gate-honesty-e1-2 | `p6-reconcile-carried` |
+| the remaining "phase 5" comments (`g5.*` ids renamed or dropped by the lead, D92) | `p6-hygiene`, `p6-lead` |
+| architecture-a1-4 | done in phase 4 (D78 f) |
+| correctness-b0-5 (override semantics) | `p6-analysis-layout`; its `g4.toml-mutations` edit, a gate change, done at fix round 4 with the owner's leave (phase-6.md Q11, D98 d) |
+| correctness-b0-4's gate case (an odd `[functions]` key among `g4.toml-mutations`' illegal edits) | done at fix round 4 with the owner's leave (Q11, D98 d) |
+| code whose only producers the owner dropped (`seed.evidence-hint`; the `legacy` and `evidence` sources; `read-trace.ts`, `trace-json.ts`) | `p6-analysis-layout` (the rule), `p6-lead` (the sources); the files never existed (D91 a) |
+| architecture-b2-8's remainder | `p6-analysis-layout` |
+| correctness-b2-3's remainder (`ROMLIFT_VERSION` in `modules.mk`) | stays carried: it waits for romlift's publication (D76 d) |
+| the cpp-exact include resolution behind a symbolic link, gate-honesty-e1-1 | `p6-include-links` |
 
 - **correctness-r0-5's remainder** (from phase 3, carried again; phase-4.md, "The carried minors"): pool.ts calls
   `moduleAt` once per address with labels; thread the relocated-module list through `wordText`, `labelForWord` and
@@ -879,11 +924,14 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   analysis rule; phase 4 warns `W_OVERRIDE_IGNORED` for each one that changes nothing (a known limitation). Phase 6
   makes a `data` override claim its span and suppress code there, and a `code` override seed `seed.override` at its
   start (the rule exists; no seed of it is built), and, with the owner's leave since it changes a gate, makes
-  `g4.toml-mutations`' add-override edit one that changes the model (today it covers a found function exactly, a
-  no-op that now warns). Nothing here depends on `g5.import-legacy`.
+  `g4.toml-mutations`' add-override edit one that changes the model (until then it covered a found function
+  exactly, a no-op that warned). Nothing here depends on `g5.import-legacy`. Done: the owner authorised the gate edit
+  on 25 October 2026 (phase-6.md Q11, D98 d); since fix round 5 the edit is a `data` override over a listed
+  function's trailing pool words, since a `code` override without `runs_at` changes no confirm model (D104 a).
 - **correctness-b0-4's gate case** (fix round 5, D81 c): `E_FUNCTION_MISALIGNED` is tested by unit and CLI tests;
   adding an odd `[functions]` key to `g4.toml-mutations`' illegal edits changes a gate, which the owner has not
-  authorised in phase 4. Since fix round 6 the config raises it (D82 d).
+  authorised in phase 4. Since fix round 6 the config raises it (D82 d). Done at phase-6 fix round 4 with the owner's
+  leave (Q11, D98 d).
 - **Code whose only producers the owner dropped** (fix round 6, architecture-b1-8; D76 g): the rule
   `seed.evidence-hint` (`src/core/analysis/rules/seed/evidence-hint.ts`, ordered in `src/core/profile/agbcc.ts`, its
   rule id in `analysis/types.ts` `Seed['rule']` and `codec.ts`) has no seed producer now that the trace integration
@@ -947,78 +995,114 @@ Each changes code without a defect behind it, and phase 6 reworks the same modul
   memory and `E_IO_READ`. `filesFollowing` (`src/shell/project/disk-state.ts`) lists only regular files
   (`isFile()`), with a unit test made with `mkfifo`. Carried: a code change after the closing run, with a rare trigger.
 
-### 6.0 Signature and trace interfaces (lead)
+### 6.0 Phase-6 interfaces (lead)
 
-- **Owns:** `src/core/signatures/{schema,spec}.ts`, `src/core/signatures/rules/index.ts` (empty record),
-  the trace fact kinds in `src/core/evidence/facts.ts`, the `signature` part of `ExplainReport` in
-  `src/core/workflow/explain.ts` (the type only), the empty barrels `src/api/signatures-build.ts` (passed to
-  6.A), `src/api/signatures-match.ts` (6.B), `src/api/trace.ts` (6.C), and the empty command lists
-  `cli/commands/lists/{signatures-build,signatures-match,trace}.ts` (passed likewise).
-- **Public API:** `SignatureFile`, `LibraryVersion`, `MemberId`, `SignatureFunction`, `SignatureTable`,
-  `SignatureSpec`, `SignaturePlacement`; trace `EvidenceFact` kinds.
-- **Gated by:** typecheck.
-- **Ports from the PoC:** the schema-2 types of `signatures/build.ts`, as the starting point of schema 3.
-- **Depends on:** phase 4 (phase 5 is skipped, D76 g).
+- **Owns:** `src/core/signatures/{schema,spec,codes}.ts`, `src/core/signatures/rules/index.ts` (empty record, passed to
+  6.B), `src/core/proposals/types.ts` (sources `signature | analysis | layout`, D91 e), the `data_start` key of
+  `src/core/config/{schema,parse,serialize}.ts`, `src/core/workflow/types.ts` (`InitOptions.signatures`, the
+  `signatureFiles` inputs, `ProjectInputs.headerRealPaths`, `CheckProposals`), the `signature` part of
+  `src/core/workflow/explain.ts` (the type only), `core/diagnostic-codes.ts`, the barrels
+  `src/api/{signatures-types,internal-signatures}.ts` (frozen values) and the empty `src/api/{signatures-build,
+  signatures-files,signatures-match,rename,rename-files,proposals}.ts`, the empty command lists
+  `cli/commands/lists/{signatures,rename}.ts`, the gate files and `test/gates/gate.ts`, `test/helpers/architecture.ts`,
+  the documents.
+- **Public API:** `SignatureFile`, `LibraryVersion`, `SignatureReference`, `LinkOrderMember`, `MemberId`,
+  `SignatureFunction`, `SignatureTable`, `SignatureSpec`, `SignaturePlacement`, `SignatureRuleId`,
+  `parseSignatureFile`, `parseSignatureSpec`, `isMemberId`, `SIGNATURE_RULE_IDS`, `SignatureCodes`, `CheckProposals`,
+  `CheckProposalsContext`, `ProposalCheck`, `ExplainSignature`; `romlift/internal`: `SIGNATURE_RULES`.
+- **Gated by:** typecheck, `npm test`, `bench gates --require 4 --tier ci`.
+- **Ports from the PoC:** the schema-2 types of `signatures/build.ts`, as the starting point of schema 3 (D93 b).
+- **Depends on:** phase 4 (phase 5 is skipped, D92).
 
 ### 6.A Signature builder and specs
 
-- **Owns:** `src/core/signatures/{extract,codes}.ts`, `src/shell/signatures/{build-from-references,locate}.ts`,
-  `src/cli/commands/signatures-build.ts`, `signatures/specs/*.json` (m4a, libagbsyscall, libgcc,
-  agb_flash, siirtc, librfu, with reviewed names), `bench/dataset/synthetic/library/**`,
-  `bench/tools/convert-poc-signatures.ts`, `test/unit/signatures/build/**`.
-- **Public API:** `extractSignatures`; `romlift/node`: `buildSignatures`, `locateSignatures`; CLI
-  `signatures build <spec>`.
+- **Owns:** `src/core/signatures/extract.ts`, the codes it raises, `src/shell/signatures/{build-from-references,locate}.ts`,
+  `src/cli/commands/signatures-build.ts` and `lists/signatures.ts`, `src/api/{signatures-build,signatures-files}.ts`,
+  `signatures/specs/*.json` (m4a, libagbsyscall, libgcc, agb_flash, siirtc, librfu, with reviewed names),
+  `bench/dataset/synthetic/library*/**`, `bench/tools/convert-poc-signatures.ts`, `test/unit/signatures/build/**`.
+- **Public API:** `extractSignatures`; `romlift/node`: `buildSignatures`, `locateSignatures`; CLI `signatures build
+  <spec> [--out <dir>] [--json]`.
 - **Gated by:** `g6.signatures-rebuild`, `g6.no-heldout-references`.
 - **Ports from the PoC:** `signatures/build.ts` (masking, reference merging), its specs.
 - **Depends on:** 6.0.
 
 ### 6.B Matcher and placement rules
 
-- **Owns:** `src/core/signatures/{match,resolve,policy,propose}.ts`, `src/core/signatures/rules/**` (the
-  `index.ts` created empty by 6.0 included), `src/cli/commands/signatures-match.ts`, `bench/src/signatures.ts`
-  (judged, held-out counts, leave-one-reference-out), `test/unit/signatures/match/**`.
+- **Owns:** `src/core/signatures/{match,resolve,policy,propose}.ts`, `src/core/signatures/rules/**` (the `index.ts`
+  created empty by 6.0 included), `src/api/signatures-match.ts`, the `signatures <rom>` form of the CLI command,
+  `bench/src/signatures.ts` (judged, held-out counts, leave-one-reference-out), `test/unit/signatures/match/**`.
 - **Public API:** `matchSignatures`, `resolvePlacements`, `proposeFromSignatures`; CLI `signatures <rom>`.
-- **Gated by:** unit tests per placement rule; `g6.signatures-judged`, `g6.signatures-heldout`,
-  `g6.signatures-loo`.
-- **Ports from the PoC:** `signatures/apply.ts` (`fits`, `wordDiffs`, `applyVersion`, the overlap
-  resolution), minus `applyOverlay`, which becomes proposals.
+- **Gated by:** unit tests per placement rule; `g6.signatures-judged`, `g6.signatures-heldout`, `g6.signatures-loo`.
+- **Ports from the PoC:** `signatures/apply.ts` (`fits`, `wordDiffs`, `applyVersion`, the overlap resolution), minus
+  `applyOverlay`, which becomes proposals.
 - **Depends on:** 6.0; 6.A for built files.
 
-### 6.C Trace and code run from RAM
+### 6.C Code run from RAM
 
-**Dropped in part by D76 g, pending phase 6's rewrite of this plan:** the owner dropped the gba-kit trace integration,
-so `src/shell/trace/gba-kit.ts`, `runTrace`, the CLI `trace` and the gba-kit pull request below are not built, and
-nothing in the plan waits on them; what reads a trace file and maps code run from RAM is phase 6's to re-plan.
+The trace half of the old 6.C (`trace-json.ts`, `read-trace.ts`, `shell/trace/gba-kit.ts`, the CLI `trace`, the gba-kit
+pull request) is dropped by the owner (D91); what does not depend on a trace stays.
 
-- **Owns:** `src/foundation/formats/trace-json.ts`, `src/shell/evidence/read-trace.ts`,
-  `src/shell/trace/gba-kit.ts`, `src/cli/commands/trace.ts`, the non-identity `AddressMap` path in
-  `src/core/analysis/address-map.ts` and the walk cursor's run-space targets, the `runs_at` emission of
-  `src/core/emit/writers/ldscript.ts`, the RAM-copy fixture's phase-6 expectations, and, in the gba-kit
-  repository, the pull request that turns the tracing code into a supported trace API.
-- **Public API:** `parseTrace`; `romlift/node`: `runTrace`; CLI `trace`.
-- **Gated by:** `g6.ram-code-mapped`, `g6.evidence-conflict`.
-- **Ports from the PoC:** nothing (the plan's 150 lines of tracing code live in gba-kit sessions).
+- **Owns:** the non-identity `AddressMap` path in `src/core/analysis/address-map.ts` and the walk cursor's run-space
+  targets, the `runs_at` emission of `src/core/emit/writers/ldscript.ts` (`AT(<load>)`, `__load_<module>`), the
+  RAM-copy fixture's phase-6 expectations (`ramCopy` in its `expect.json`), `bench/overrides/klonoa.json` (Klonoa's
+  `0x0804F318 -> 0x03000388` as a hand-written `[[overrides]]` entry, D91 c).
+- **Public API:** none new.
+- **Gated by:** `g6.ram-code-mapped`.
+- **Ports from the PoC:** nothing.
 - **Depends on:** 6.0.
 
 ### 6.D Proposals plumbing and full explain
 
-- **Owns:** the signature and evidence proposal steps of `src/core/workflow/{init,analyze-update}.ts`,
-  the `LibraryRegion` wiring into `src/core/layout/infer-modules.ts`, the `signature` part of
-  `src/core/workflow/explain.ts` (read from `from`), `test/golden/explain/sig/**` (from the library
-  fixture only).
-- **Public API:** none new; `init` and `analyze --update` gain signature and evidence proposals.
-- **Gated by:** `g6.explain-coverage`.
-- **Ports from the PoC:** the overlay-to-TOML path of `generate.ts`/`emit.ts`, rewritten as proposals
-  written by `init` and `analyze --update` only.
-- **Depends on:** 6.0; 6.A–6.C for whole runs.
+- **Owns:** `src/core/workflow/proposals.ts` (`checkProposals`, `W_EVIDENCE_CONFLICT` in `core/workflow/codes.ts`),
+  `src/api/proposals.ts`, the signature proposal steps of `src/core/workflow/{init,analyze-update}.ts`, `init
+  --no-signatures`, the `LibraryRegion` wiring into `src/core/layout/infer-modules.ts`, the `signature` part of
+  `src/core/workflow/explain.ts` (read from `from`), `test/golden/explain/sig/**` (from the library fixture only).
+- **Public API:** `checkProposals`; `init` and `analyze --update` gain signature proposals, screened.
+- **Gated by:** `g6.evidence-conflict`, `g6.explain-coverage`.
+- **Ports from the PoC:** the overlay-to-TOML path of `generate.ts`/`emit.ts`, rewritten as proposals written by `init`
+  and `analyze --update` only.
+- **Depends on:** 6.0; 6.A and 6.B for whole runs.
+
+### 6.E Reconciler and rename (phase 5's 5.A, D92)
+
+- **Owns:** `src/core/reconcile/rename-tokens.ts`, the move and remove cases of the INCLUDE_ASM planner, the `edit`
+  operations of `src/core/write-plan/plan-writes.ts` it needs, `src/core/workflow/rename.ts`,
+  `src/cli/commands/rename.ts` and `lists/rename.ts`, `src/api/{rename,rename-files}.ts`, the matchings split of
+  `src/core/emit/writers/function.ts`, `test/golden/reconcile/**`.
+- **Public API:** `planRename`, `rename`; CLI `rename <old> <new>`.
+- **Gated by:** `g6.reconciler`, `g6.rename`.
+- **Ports from the PoC:** nothing.
+- **Depends on:** 6.0; `p6-reconcile-carried`'s scanner split (wave 1).
+
+### 6.F objdiff targets, C data ranges and the objdiff gate (phase 5's 5.C, D92)
+
+- **Owns:** `src/core/emit/writers/{expected,objdiff}.ts`, the data-range handling in `src/core/model/modules.ts` and in
+  `src/core/emit/writers/ldscript.ts` (replacing the phase-4 assertion for a module with `data_start`), the semantic
+  checks of `data_start`, `bench/dataset/synthetic/c-data/{expect-ranges.json,overlay/**}`,
+  `test/golden/writers/{expected,objdiff}/**`, and the objdiff classifier minors architecture-r2-2 (one REL/RELA addend
+  decoder with `foundation/formats/elf.ts`, the `R_ARM_*`/`SHT_*` constants in one place) and r2-3 (fixture tests for
+  `objdiffDifferences`' `sectionBase` and `baseField` plumbing).
+- **Public API:** the two writers.
+- **Gated by:** `g6.expected-bytes` (fixtures and tuning ROMs), `g6.c-data-ranges`, `g6.objdiff` (D34, the owner's answer
+  to phase-3 Q1, D68 a, as he amended it by his answers to phase-6 Q6 and Q15, D102; baseline phase-3.md Q1: gated fe7j
+  200, klonoa 320, pokeemerald 13,788, sa2 1,374, sa3 564, tmc 895; ceilings from D102: fe7j 7, klonoa 1, pokeemerald 12,
+  sa2 1, sa3 4, tmc 25).
+- **Ports from the PoC:** nothing.
+- **Depends on:** 6.0.
 
 ### 6.I Integration
 
-- **Owns:** `bench/results.json`, `test/gates/phase.json`.
-- **Does:** merges 6.A, 6.B, 6.C, 6.D; builds every signature file locally from the specs and compares it
-  with the PoC's converted files; runs the judged, held-out and leave-one-out runs; records a Klonoa
-  trace and checks the `0x0804F318 → 0x03000388` mapping; runs every gate of every phase; runs the exit
-  commands.
+- **Owns:** `bench/results.json`, `bench/baseline/speed.json`, `test/gates/phase.json`.
+- **Does:** after each wave, merges its components in the listed order, typechecks, runs `npm test` and `npm run bench
+  -- gates --require 4 --tier ci`; after wave 2 regenerates the goldens the new fixtures and writers need
+  (`UPDATE_GOLDEN=1` only for the library fixtures and the `expected`/`objdiff` writers, every diff reviewed); after
+  wave 3 builds every signature file locally from the specs and compares it with the PoC's converted files, raises
+  `phase.json` to `{ "landed": 6 }` in its own commit, runs the exit list below in a fresh worktree (real tier before
+  ci) and commits `bench/results.json` as the run's artifact; pushes `phase-6` and opens the pull request, whose
+  `ci.yml`, `printer.yml`, `provenance.yml`, `fixtures.yml` and `packed.yml` must run (a job GitHub refuses to start is
+  not a pass). A gate that still fails after the fix rounds is recorded with its measured numbers as an owner question,
+  and the phase is not merged. A gate the lead writes or restates (6.0) is run against the committed fixtures before it
+  is frozen (phase-6 fix round 1, delivery-2: `g6.ram-code-mapped` and `g6.evidence-conflict` were frozen untried).
 - **Gated by:** every `g6.*` gate and every earlier gate.
 
 ### Phase 6 exit
@@ -1026,24 +1110,77 @@ nothing in the plan waits on them; what reads a trace file and maps code run fro
 ```
 npm ci
 npm run typecheck
+npm run lint
 npm test
 npm run fixtures -- check
-for s in signatures/specs/*.json; do npx romlift signatures build "$s"; done
-npm run test:local
+for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || exit 1; done
+npm run build && npm pack --pack-destination "$(mktemp -d)"
+npm pack --dry-run --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const bad=JSON.parse(s)[0].files.map(f=>f.path).filter(p=>p.startsWith("signatures/")&&!p.startsWith("signatures/specs/")&&p.endsWith(".json"));if(bad.length){console.error("built signature files are packed: "+bad.join(", "));process.exit(1)}})'
+npm run export-poc -- --mode raw
+npm run export-poc -- --mode scored
+npm run export-poc -- --mode parity
+npm run export-poc -- --mode queries
+ROMLIFT_REQUIRE_LOCAL=1 npm run test:local
 npm run bench -- doctor-real
+npm run corpus
 npm run bench -- run --scaffold
 npm run bench -- regression
-npm run bench -- gates --require 6 --tier ci
 npm run bench -- gates --require 6 --tier real
+npm run bench -- gates --require 6 --tier ci
+npm run bench -- provenance
 ```
 
-Thresholds: signature placements meet the PoC's table as a floor (Klonoa: 94 m4a functions, 6 syscall
-wrappers, 20 libgcc routines, 10 tables, and the other four ROMs' rows), every placement at an ELF `FUNC`
-or a listed untyped address, every proposed `size` equal to the ELF size, every name on a reference ROM
-equal to that reference's symbol, leave-one-out adding or moving no placement; no spec names a sealed
-dataset; the Klonoa trace maps `0x0804F318` to `0x03000388` and the RAM-copy fixture links; every rule id
-appears in an explain golden; `npm pack --dry-run` lists no built signature file; every gate of phases 1
-to 6 passes.
+The list is the one the closing run executed (phase-6.md, "The closing gate"): phase 4's list with the signature build
+loop and the packed-file check. The signature build runs from source, not `npx romlift signatures build`: romlift is unpublished (D76 d) and npx would
+query the registry (D93 i).
+
+Thresholds, one per gate of the phase (every earlier gate still passes):
+
+- `g6.signatures-judged`: per library, at least the PoC's placements on its five ROMs (klonoa m4a 94 functions and 10
+  tables, libagbsyscall 6, libgcc 20; fe7j 18, 22, 94 and 10; pokeemerald 15, 67, 109 and 10; sa2 12, 24, 94 and 10; sa3
+  13, 65, 94 and 10), and tmc's floor the owner set (phase-6.md Q9, D98 c: libagbsyscall 13 functions, m4a 55
+  functions and 10 tables, 68 placements with 0 wrong); every placement at an ELF `FUNC` or a listed untyped address,
+  every table an `OBJECT` of its size or a label, every proposed `size` the ELF size and every proposed size accounted
+  for (equal, differ or unjudged; an unjudged size accepted and reported, the owner's rule, Q13), on a reference ROM
+  every member's symbol that reference's own, a reviewed display name reported (the owner's rule, Q14, D98 b);
+- `g6.signatures-rebuild`: two builds of each spec identical; the library fixture's file equals its golden; each real
+  build equals the PoC's file converted to schema 3, apart from the reviewed names (every field but `builtWith`);
+- `g6.signatures-heldout`: on every sealed ROM, every placement at an ELF `FUNC` or classified untyped, every table an
+  `OBJECT` or a label; counts only;
+- `g6.signatures-loo`: leave-one-reference-out adds and moves no placement and places every shared member, a member
+  that leaving its reference out renames counted as its counterpart (the owner's rule, Q8, D94 d, D98 b);
+- `g6.no-heldout-references`: no spec names a sealed dataset;
+- `g6.ram-code-mapped`: the RAM-copy fixture and Klonoa (`0x0804F318 -> 0x03000388`, `bench/overrides/klonoa.json`) map
+  to one module at their run address and link to their SHA-1;
+- `g6.evidence-conflict`: each contradiction gives `W_EVIDENCE_CONFLICT` and leaves the kept proposals unchanged;
+- `g6.explain-coverage`: every analysis and `sig.*` rule id in an explain golden built from fixtures;
+- `g6.reconciler`, `g6.rename`: the C-in, C-out goldens and identifier-only renames with their refusals;
+- `g6.expected-bytes`: every `expected/<module>.s`, assembled as it is and linked at its module's address (a `runs_at`
+  module at its run address), equals its ROM range with every symbol where the model places it, on every fixture, the
+  RAM-copy fixture with its hand-written `runs_at` override, and every tuning ROM (the owner's answers to Q12 and Q16,
+  D101 b);
+- `g6.objdiff`: on every agreeing function of every tuning ROM (each must link: a tuning ROM whose readable build does
+  not link fails the gate, under the owner's per-ROM ceiling rule, D104 b), scored in romlift's own spelling, the
+  differences D34 as amended gates (not the same-word classes, not an uncompared function, not `unnamed-target`) at or
+  below the ROM's ceiling in `bench/baseline/objdiff-ceiling.json`, which may be lowered, never raised without the owner
+  (the owner's answers to phase-6.md Q6 and Q15, D102; the gate pins his values and fails a ceiling above them or a
+  tuning ROM it cannot judge, D104 b);
+- `g6.c-data-ranges`: the c-data fixture's array from `build/src/<module>.o` at its ROM address, the build at the
+  SHA-1;
+- `npm pack --dry-run` lists no built signature file.
+
+### Carried past phase 6
+
+The review of fix round 6 (`370744e`, phase-6.md "Review") raised eight minors and no major; phase 6 lands with these
+code minors open, each recorded in phase-6.md "Known limitations". None is a defect of an emitted tree or a gate.
+
+| Carried item | What is left |
+| --- | --- |
+| correctness-o2-1, architecture-o2-1 | a two-module `labels.test.ts` case for D105 a's scope half: an even table entry in module A whose target in module B is a Thumb function; the local label `_<target>` is `global`, the function label stays `module`, and module A prints the local label |
+| correctness-o2-2, architecture-o2-3 | `model.ts codeOverrideIgnoredWhy`'s "listed" branch split three ways: an inner label (`label = true`), a listed entry of the other mode, and the same-mode "redundant" case; two unit cases in `model.test.ts` |
+| architecture-o2-2 | `resolver.ts wordNameOf` calls `addendTo` instead of recomputing it, and `addendTo`'s comment lists it as a reader |
+| architecture-o0-8 (phase-6 fix round 5) | the frozen `g4.c-data-fails-loud` header's stale quote of the C-data assertion (a gate file; an edit needs the owner) |
+| correctness-b2-3's remainder | `ROMLIFT_VERSION` in `modules.mk`, when romlift is published (D76 d) |
 
 ---
 
@@ -1055,6 +1192,6 @@ to 6 passes.
 | 2 Analysis | 7 (2.0, 2.A–2.E, 2.I) | 5 |
 | 3 Emission | 7 (3.0, 3.A–3.E, 3.I) | 5 |
 | 4 One shot | 7 (4.0, 4.A–4.E, 4.I) | 5 |
-| 5 Migration | 6 (5.0, 5.A–5.D, 5.I) | 4 |
-| 6 Evidence | 6 (6.0, 6.A–6.D, 6.I) | 4 |
-| Total | 39 | 27 |
+| 5 Migration | skipped by the owner (D92) | 0 |
+| 6 Evidence | 13 in three waves (D93 planned 12; `p6-objdiff` the thirteenth; 6.0, 6.A–6.F, the carried components, 6.I) | 12 |
+| Total, as planned before D92 | 39 | 27 |

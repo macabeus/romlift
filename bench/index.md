@@ -31,7 +31,7 @@ member with its `floor` from `baseline/readability.json` (`null` when the ROM ha
 
 | Command | Does |
 | --- | --- |
-| `run --scaffold [--json]` | also builds each printer's tree in a temporary directory as a fresh project (`planWrites` without a manifest, `applyWrites`) and links it (`linkCheck`): the raw link is the row's `scaffold: {ok}` (it replaces the PoC dump's verdict from phase 3 on), the readable link is `objdiff.linked`; then the objdiff family (`src/objdiff.ts`, D34) on every function whose entry and extent agree with the ELF, against the dataset's `objectsDir` (its digest checked and recorded in `meta.inputs`) with objdiff-cli at the pinned `tools/objdiff.version` (found by `ROMLIFT_OBJDIFF`, the repository's or the main checkout's `bench/.local/objdiff-target`, the `PATH`, then `$ROMLIFT_BENCH_ROOT/objdiff`); each row gets `objdiff: {linked, scored, differences: {kind: count}, examples}` |
+| `run --scaffold [--json]` | also builds each printer's tree in a temporary directory as a fresh project (`planWrites` without a manifest, `applyWrites`) and links it (`linkCheck`): the raw link is the row's `scaffold: {ok}` (it replaces the PoC dump's verdict from phase 3 on), the readable link is `objdiff.linked`; then the objdiff family (`src/objdiff.ts`, D34) on every function whose entry and extent agree with the ELF, against the dataset's `objectsDir` (its digest checked and recorded in `meta.inputs`) with objdiff-cli at the pinned `tools/objdiff.version` (found by `ROMLIFT_OBJDIFF`, the repository's or the main checkout's `bench/.local/objdiff-target`, the `PATH`, then `$ROMLIFT_BENCH_ROOT/objdiff`); each row gets `objdiff: {linked, scored, differences: {kind: count}, examples, classes: {counts, gated, uncompared, gatedExamples}}` (the classes from D102) |
 | `run --scaffold --write-readability-floor` | the phase lead, once: adds the measured shares of every tuning ROM without a floor to `baseline/readability.json` (schema `romlift-bench/readability-floor@1`); an existing floor is never changed |
 | `large-rom [--json] [--rom <path>]` | runs `src/large-rom.ts` (the memory family, `g3.large-rom`) with the same arguments and relays its output and exit code; each child runs under the `romlift` bin's heap cap, `--max-old-space-size=1024` (D68 b, D69, D72); `--rom` measures that ROM instead of the 32 MiB synthetic one (how the tuning ROMs are recorded); `--bin` runs the `romlift` bin's own commands instead (`src/large-rom-bin.ts`, each under the launcher's Node options, peak RSS through `src/rss-probe.ts`; D70 b) |
 
@@ -45,8 +45,12 @@ A difference has a kind: `instruction`, `resolved-call` (a `bl` the reference's 
 function of its own object at the offset the base relocates against: the same call, counted apart),
 `relocation` (targets differ, or only the base relocates),
 `missing-relocation` (the reference names a symbol where the base holds a plain value), `missing-symbol`,
-`score`, `assemble`, `tool`, and `unnamed-target` (the reference targets a section symbol), which alone is
-reported and not gated.
+`score`, `assemble`, `tool`, and `unnamed-target` (the reference targets a section symbol). Every word keeps
+romlift's printer's spelling (the bench rewrites none, D102). Each difference is also sorted into a class
+(`src/objdiff-classes.ts`); D34 as the owner amended it (D102) reports the classes checked to link to the same word,
+the uncompared functions (`missing-symbol`, `tool`) and `unnamed-target`, and gates the rest, each tuning ROM's gated
+count held by `g6.objdiff` to its ceiling in `baseline/objdiff-ceiling.json` (`src/objdiff-ceiling.ts`; written only
+lower by `tools/objdiff-classes.ts --write-ceiling`).
 
 A lead run (without `--json`) also runs `src/large-rom.ts --json` as a child and writes its ROM SHA-1 and
 each command's exit code, peak RSS and heap cap into the artifact's `memory` member (the global memory family); its
@@ -54,3 +58,23 @@ times, and each ROM's readability, link and objdiff times, go to `timings.json`.
 `readability` for every tuning ROM and `scaffold` only from romlift's own raw link; `meta.toolchain.objdiff`
 is the objdiff-cli version of a `--scaffold` run. `bench regression` fails on a readability share lower than
 the base artifact's (a base without the family is not compared).
+
+## Phase 6: the signatures family
+
+`src/signatures.ts` judges library signatures after the seedless discover run (D24), from the locally built
+`signatures/*.json` (gitignored, D40; built by the exit list's loop over `signatures/specs/*.json`, and refused
+with that loop named when there are none). It matches, settles and proposes through romlift's entry points
+(`matchSignatures`, `resolvePlacements`, `proposeFromSignatures`, D37) and judges every function placement at an
+ELF `FUNC` or a dataset `untyped` row, every table an ELF `OBJECT` of its size or a label (no `OBJECT` there, another
+symbol that is not a mapping symbol), every proposed `size` the ELF's with the 4-byte padding allowance (a FUNC whose
+size runs over another FUNC's start, or an unsized one, gives no size), and, on a ROM a placed version names as a
+reference, every member symbol (the `MemberId` before '@') the ELF's own at the placement.
+
+| Command | Does |
+| --- | --- |
+| `signatures [--only <rom>] [--json]` | each tuning ROM judged (`romlift/bench-signatures@1` `roms[]`: `libraries`, `placements`, `tables`, `sizes`, `names`, with one line per failing placement, table, size or name), each sealed ROM counted (`sealed[]`: `placements {total, atElfFunc, untyped, wrong}` by the §8.4 classifiers, `tables {total, object, label, wrong}`; counts only, `assertCountsOnly`) |
+| `signatures --loo [--only <reference>] [--json]` | per multi-reference version of the specs and per reference R: the version rebuilt in memory without R, matched on R's ROM beside the other built files, against the full build there (`romlift/bench-signatures-loo@1` `runs[]`: `added`, `moved`, `missingShared`, by member id) |
+
+`bench run` records the family on every tuning ROM when signature files are built: the row's `signatures` member
+(the judged counts), `signatures` in `meta.families` (live from phase 6), and their digest as
+`meta.inputs.signaturesDigest`, so a rebuilt file clears a kept gate record.

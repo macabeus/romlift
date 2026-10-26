@@ -3,7 +3,9 @@
 import { analysisCommands } from './lists/analysis.ts';
 import { emissionCommands } from './lists/emission.ts';
 import { oneShotCommands } from './lists/one-shot.ts';
+import { renameCommands } from './lists/rename.ts';
 import { scaffoldCommands } from './lists/scaffold.ts';
+import { signaturesCommands } from './lists/signatures.ts';
 import { toolchainCommands } from './lists/toolchain.ts';
 
-export const COMMANDS: typeof toolchainCommands = [...toolchainCommands, ...analysisCommands, ...emissionCommands, ...oneShotCommands, ...scaffoldCommands];
+export const COMMANDS: typeof toolchainCommands = [...toolchainCommands, ...analysisCommands, ...emissionCommands, ...oneShotCommands, ...scaffoldCommands, ...signaturesCommands, ...renameCommands];

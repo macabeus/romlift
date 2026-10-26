@@ -4,6 +4,10 @@
 // own file: the modules checked against the legal borders (modules.ts), the chunks (chunks.ts), the labels and
 // their scopes (labels.ts), the names checked per module (names.ts), the symbols (symbols.ts), and the items
 // that tile the ROM (items.ts). Pure: content problems are diagnostics, never throws.
+//
+// A C data range (modules.ts, §6.6) is laid out as a `data` module of its own name (layoutModules): its chunks are data
+// chunks split at the [symbols] entries inside it, its labels data labels, global when anything references them (the
+// C object defines them), and they lie in Model.chunks in ROM order, naming the module, outside Module.chunks.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
@@ -14,7 +18,7 @@ import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundatio
 import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import type { FunctionConfig, RomliftConfig } from '../config/schema.ts';
-import { codeLayout, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from '../layout/borders.ts';
+import { appliedOverrides, codeLayout, factsByEntry, headerCoveredEntries, isLabelEntry, placeEntries } from '../layout/borders.ts';
 import type { ListedEntry, PlacedEntry } from '../layout/borders.ts';
 import { ModelCodes } from './codes.ts';
 import type { ChunkPlan } from './chunks.ts';
@@ -22,8 +26,9 @@ import { planChunks } from './chunks.ts';
 import { buildItems } from './items.ts';
 import { segmentsOf } from './segments.ts';
 import { buildLabels, codeRefs } from './labels.ts';
-import { planModules, relocatedModules, runOffsetAt } from './modules.ts';
-import { invalidNames, moduleNameProblems, nameCollisions, nameSourceOf } from './names.ts';
+import { sizedEntries } from './resolver.ts';
+import { modulePieces, planModules, relocatedModules, runOffsetAt } from './modules.ts';
+import { invalidNames, linkerNameCollisions, moduleNameProblems, nameCollisions, nameSourceOf, sectionNameCollisions } from './names.ts';
 import type { DefinedName } from './names.ts';
 import { modelSymbols, romSymbols } from './symbols.ts';
 import type { Chunk, Label, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
@@ -102,18 +107,20 @@ function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
 }
 
 /**
- * W_OVERRIDE_IGNORED for every [[overrides]] entry without runs_at that nothing applied (fix round 5, correctness-b0-3,
- * a known limitation until the analysis applies overrides): derived from what placeEntries reports it used (the
- * override of an entry whose extent it gave, fix round 6, architecture-b1-2), never from the override's kind, so the
- * day a layer applies data overrides it reports them and the warning follows. A range wholly outside the ROM is
- * W_OVERRIDE_OUTSIDE_ROM's alone.
+ * W_OVERRIDE_IGNORED for every [[overrides]] entry without runs_at that nothing applied (fix round 5, correctness-b0-3):
+ * derived from what core/layout reports was used, never from the override's kind: the overrides the analysis applied
+ * (appliedOverrides: a data override's claim, a code override's seed that took its start, never one a confirm run only
+ * reported as unlisted, correctness-o0-2) and the override of an
+ * entry whose extent placeEntries gave (fix round 6, architecture-b1-2). What is left changes nothing, such as a code
+ * override exactly over a function the [functions] list or another rule already starts. A range wholly outside the
+ * ROM is W_OVERRIDE_OUTSIDE_ROM's alone.
  */
-function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly PlacedEntry[]): Diagnostic[] {
-  // Each override placeEntries applied (its own object, however many entries it gave an extent) answers for one
-  // [[overrides]] entry of its kind, span and mode (fix round 7, architecture-b2-6): a data override, or a second
-  // code override, on the span of an applied one is still ignored.
+function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly PlacedEntry[], analysis: AnalysisResult): Diagnostic[] {
+  // Each applied override (its own object, however many entries it gave an extent) answers for one [[overrides]]
+  // entry of its kind, span and mode (fix round 7, architecture-b2-6): a data override, or a second code override, on
+  // the span of an applied one is still ignored.
   const unmatched: NonNullable<PlacedEntry['override']>[] = [];
-  for (const p of placed) if (p.override !== undefined && !unmatched.includes(p.override)) unmatched.push(p.override);
+  for (const o of [...appliedOverrides(analysis), ...placed.flatMap((p) => (p.override === undefined ? [] : [p.override]))]) if (!unmatched.includes(o)) unmatched.push(o);
   const out: Diagnostic[] = [];
   for (const o of config.overrides) {
     if (o.runsAt !== undefined) continue;
@@ -124,10 +131,26 @@ function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly Plac
       unmatched.splice(at, 1);
       continue;
     }
-    const why = o.kind === 'data' ? 'romlift does not apply a data override yet: the analysis still decodes and claims the range as it finds it' : 'it gives the extent only of a listed function the analysis did not find, and none lies in it; add the function to [functions] (with size) instead';
+    const why = o.kind === 'data' ? 'the analysis claimed none of its bytes as data' : codeOverrideIgnoredWhy(o, config, analysis);
     out.push(diagnostic(ModelCodes, 'W_OVERRIDE_IGNORED', `the [[overrides]] range ${hexAddr(span.start)}..${hexAddr(span.end)} (kind = "${o.kind}") changes nothing: ${why}`, { span, addr: o.start }));
   }
   return out;
+}
+
+/**
+ * Why a code override without runs_at changes nothing, the one reason that applies (phase-6 fix round 6,
+ * correctness-o1-2): [functions] lists its start, so the override is redundant; a confirm run only reported its seed as
+ * unlisted (W_UNLISTED_FUNCTION, D104 d), so listing the start is the fix, after which the override is redundant; another
+ * rule already started a function there; or its seed added no function and it gave no listed entry its extent.
+ */
+function codeOverrideIgnoredWhy(o: RomliftConfig['overrides'][number], config: RomliftConfig, analysis: AnalysisResult): string {
+  const at = hexAddr(o.start);
+  if (config.functions.has(o.start)) return `a function already starts at ${at}: [functions] lists it, so the override is redundant and can be removed`;
+  if (analysis.mode === 'confirm' && analysis.unlisted.some((u) => u.entry === o.start)) {
+    return `[functions] does not list ${at}, and a confirm run takes only the listed functions, reporting what the seed finds as W_UNLISTED_FUNCTION; list it (\`romlift analyze --update\` proposes it), after which the override is redundant and can be removed`;
+  }
+  if (analysis.functions.some((f) => f.entry === o.start)) return `a function already starts at ${at}, found by another rule, so the override is redundant and can be removed`;
+  return `its seed adds no function at ${at} (no ${o.mode ?? 'thumb'} instruction the analysis accepts starts there), and it gives no listed entry its extent`;
 }
 
 /** W_SYMBOL_UNPLACED for each [symbols] entry inside the ROM that no file can define. */
@@ -142,11 +165,27 @@ function unplacedSymbols(symbols: readonly ModelSymbol[]): Diagnostic[] {
   );
 }
 
+/**
+ * What the chunks, labels and items are laid out over: every module's span and every data range, in ROM order, a data
+ * range as a `data` module of its owner's name and no data range of its own; with each piece's module index.
+ */
+function layoutModules(modules: readonly Module[]): { readonly pieces: readonly Module[]; readonly owner: readonly number[] } {
+  const laid = modulePieces(modules).flatMap((p) => {
+    const m = modules[p.module];
+    if (m === undefined) return [];
+    const piece: Module = p.part === 'text' ? m : { name: m.name, span: p.span, kind: 'data', generated: m.generated, compiler: m.compiler, cflags: m.cflags, chunks: { first: 0, count: 0 } };
+    return [{ piece, owner: p.module }];
+  });
+  return { pieces: laid.map((l) => l.piece), owner: laid.map((l) => l.owner) };
+}
+
 /** The Model of `rom` under `config`, with the facts of `analysis` (a discover or confirm result). */
 export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftConfig): Model {
   const layout = codeLayout(rom, analysis);
-  const planned = planModules(rom, config, { borders: layout.borders, dataStart: layout.dataStart });
-  const modules = planned.modules;
+  const planned = planModules(rom, config, layout);
+  const { pieces, owner } = layoutModules(planned.modules);
+  // Everything below lays out over the pieces; the Model's modules are planned.modules (finished, below).
+  const modules = pieces;
   const relocated = relocatedModules(modules);
 
   const functions = new Map<Addr, FunctionConfig>(sortedEntries(config.functions).filter(([entry]) => contains(rom, entry)));
@@ -167,16 +206,18 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   });
   const segments = segmentsOf(rom, analysis, layout.headerEnd);
   const refs = codeRefs(rom, segments, relocated);
-  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols, segments, refs });
+  const modelFns = modelFunctions(placed, functions, analysis, planned.modules, relocated);
+  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols, entries: sizedEntries({ symbols, functions: modelFns }), segments, refs });
 
   const defined: DefinedName[] = [...labelled.labels];
   for (const [entry, f] of sortedEntries(functions)) {
     const label = labelled.functions.get(entry);
     if (label !== undefined) for (const alias of f.aliases) defined.push({ name: alias, addr: label.addr, scope: label.scope });
   }
-  const collisions = nameCollisions(defined, modules);
   const named = [...sortedEntries(functions), ...sortedEntries(config.symbols)];
-  const invalid = invalidNames(named.flatMap(([addr, n]) => [n.name, ...n.aliases].map((name) => ({ name, addr }))));
+  const configNames = named.flatMap(([addr, n]) => [n.name, ...n.aliases].map((name) => ({ name, addr })));
+  const collisions = [...nameCollisions(defined, modules), ...linkerNameCollisions([...defined, ...configNames], modules)];
+  const invalid = invalidNames(configNames);
 
   const runOffsets = chunkPlans.map((c) => runOffsetAt(relocated, c.span.start));
   const built = buildItems({ rom, chunks: chunkPlans, modules, segments, labels: labelled.labels, labelStarts: labelled.starts, runOffsets, refs });
@@ -197,9 +238,11 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
       ...(c.entry !== undefined && c.entry !== c.span.start ? { entry: c.entry } : {}),
     };
   });
-  const finished = modules.map((m, i): Module => {
-    const first = chunkPlans.findIndex((c) => c.module === i);
-    const count = chunkPlans.filter((c) => c.module === i).length;
+  // A module's chunks are its text piece's; a data range's lie outside them (types.ts Module.dataRange).
+  const finished = planned.modules.map((m, i): Module => {
+    const piece = pieces.findIndex((p, k) => owner[k] === i && p.span.start === m.span.start);
+    const first = chunkPlans.findIndex((c) => c.module === piece);
+    const count = chunkPlans.filter((c) => c.module === piece).length;
     return { ...m, chunks: { first: first < 0 ? chunks.length : first, count } };
   });
 
@@ -207,13 +250,13 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     schema: 'romlift/model@1',
     rom: { sha1: rom.sha1, end: rom.end },
     build: { name: config.build.name },
-    functions: modelFunctions(placed, functions, analysis, modules, relocated),
+    functions: modelFns,
     chunks,
     modules: finished,
     items: built.items,
     labels: labelled.labels,
     symbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...moduleNameProblems(modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...moduleNameProblems(planned.modules), ...sectionNameCollisions(planned.modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced)].sort(compareDiagnostics),
   };
 }

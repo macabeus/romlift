@@ -1,8 +1,9 @@
 // The in-memory project config (architecture §3.4, §6.5, D9, D22, D47): what `romlift.toml` (schema 1)
 // means once parsed, and a zod schema that validates such a value in memory. Phase 3 builds the config
 // in memory (core/workflow/config-from-discover.ts); phase 4 parses and serialises the TOML into the same
-// shape (parse.ts, serialize.ts, with their codes). The key `data_start` (the C data ranges, phase 6's since D76 g) is not part of schema 1
-// yet (D62). Addresses are numbers here; the TOML spells them '0x' and eight upper-case hex digits.
+// shape (parse.ts, serialize.ts, with their codes). Phase 6 adds the module key `data_start` (`dataStart`, the C data
+// range of a module, D76 g, D92, D93): syntax only here; whether it is legal for its module is the model's question
+// (p6-c-data-expected). Addresses are numbers here; the TOML spells them '0x' and eight upper-case hex digits.
 import { z } from 'zod';
 
 import { isModuleName, isSymbolName, MODULE_NAME_RULE, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
@@ -16,6 +17,11 @@ export interface ModuleConfig {
   /** A legal border (core/layout/borders.ts); starts increase in link order. */
   readonly start: Addr;
   readonly kind: 'asm' | 'c' | 'data';
+  /**
+   * The module's C data range starts here (`data_start`, phase 6, D92): the bytes from it to the module's end are the
+   * `.rodata`/`.data` its C object may define instead of the ROM's slice (architecture §6.6). Syntax only in the config.
+   */
+  readonly dataStart?: Addr;
   /** false: romlift never writes nor deletes the module's files. */
   readonly generated: boolean;
   readonly library?: string;
@@ -107,6 +113,7 @@ const moduleSchema = z
     name: moduleName,
     start: address,
     kind: z.enum(['asm', 'c', 'data']),
+    dataStart: address.exactOptional(),
     generated: z.boolean(),
     library: nonEmpty.exactOptional(),
     version: nonEmpty.exactOptional(),

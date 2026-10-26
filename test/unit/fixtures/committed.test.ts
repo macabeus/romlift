@@ -21,8 +21,10 @@ const FIXTURES = listSyntheticFixtures();
  * The fixtures of architecture §8.1: the thirteen positive ones of the plan, the rule-specific ones that
  * make a rule load-bearing that no other fixture does (seven from the phase-2 brief, four added for
  * g2.rule-coverage, one for the readable printer's adr naming, D72 c), the negative ones (six from the
- * brief, the others added with the rules they bound), and the three of phase 4 (§8.1: composite,
- * multi-compiler, c-data), which the g4 gates build into projects.
+ * brief, the others added with the rules they bound), the three of phase 4 (§8.1: composite,
+ * multi-compiler, c-data), which the g4 gates build into projects, and the three signature fixtures of phase 6
+ * (roadmap 6.A: library, library-ref2, the two references of the self-authored libfix, and library-game, a game
+ * that links it), the only ones built with a GNU map (`MAP := yes`).
  */
 const POSITIVE = [
   'arm-pools-in-front', 'bx-lr-stub-chain', 'bx-pc-veneer', 'code-copied-to-ram', 'data-table-between-functions',
@@ -37,6 +39,7 @@ const RULE_SPECIFIC = [
   'adr-function-label',
 ];
 const PHASE_4 = ['composite', 'multi-compiler', 'c-data'];
+const PHASE_6 = ['library', 'library-ref2', 'library-game'];
 const NEGATIVE = [
   'code-end-data-decodes', 'data-thumb-push-pop', 'false-stub-2byte', 'pointer-table-before-leaf', 'pool-padded-46c0',
   'pool-word-push-lr', 'thumb-pointer-run', 'adr-label-and-data', 'data-frame-not-function', 'ram-copy-args-straight-line',
@@ -85,9 +88,9 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
 
 const hex = (a: number): string => `0x${a.toString(16).toUpperCase().padStart(8, '0')}`;
 
-test('the 51 fixtures are committed, and common/ is not one', () => {
+test('the 54 fixtures are committed, and common/ is not one', () => {
   const names = FIXTURES.map((f) => f.name);
-  assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE, ...PHASE_4].sort(byCodeUnit));
+  assert.deepEqual(names, [...POSITIVE, ...RULE_SPECIFIC, ...NEGATIVE, ...PHASE_4, ...PHASE_6].sort(byCodeUnit));
   assert.ok(!names.includes('common'));
   for (const name of names) assert.match(name, /^[a-z0-9]+(-[a-z0-9]+)*$/, `${name} is not kebab-case`);
   const dirs = readdirSync(SYNTHETIC_ROOT, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
@@ -99,7 +102,7 @@ test('the shared files are in common/: crt0.s, the linker script, the make rules
   assert.ok(!isFile(join(SYNTHETIC_ROOT, 'common', 'build', 'common.gba')));
 });
 
-test('every fixture has its sources, a build.mk with both toolchain records, an expect.json and both build files', () => {
+test('every fixture has its sources, a build.mk with both toolchain records, an expect.json and both build files (and its map, with MAP := yes)', () => {
   for (const f of FIXTURES) {
     assert.ok(isFile(f.buildMk), `${f.name}: build.mk`);
     const mk = readFileSync(f.buildMk, 'utf8');
@@ -118,7 +121,10 @@ test('every fixture has its sources, a build.mk with both toolchain records, an 
     assert.ok(isFile(f.expect), `${f.name}: expect.json`);
     assert.ok(isFile(f.rom) && isFile(f.elf), `${f.name}: build files`);
     const built = readdirSync(join(f.dir, 'build')).sort(byCodeUnit);
-    assert.deepEqual(built, [`${f.name}.elf`, `${f.name}.gba`], `${f.name}: build/ holds only the two build files`);
+    const withMap = buildMkValue(mk, 'MAP') === 'yes';
+    assert.equal(withMap, PHASE_6.includes(f.name), `${f.name}: MAP := yes only on the signature fixtures`);
+    const expected = withMap ? [`${f.name}.elf`, `${f.name}.gba`, `${f.name}.map`] : [`${f.name}.elf`, `${f.name}.gba`];
+    assert.deepEqual(built, expected, `${f.name}: build/ holds only the build files`);
   }
 });
 

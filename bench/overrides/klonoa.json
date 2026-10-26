@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "overrides": [
+    {
+      "start": "0x0804F318",
+      "size": "0x3A4",
+      "kind": "code",
+      "mode": "thumb",
+      "runsAt": "0x03000388"
+    }
+  ],
+  "source": "Measured on kleod's build (klonoa is tuning data): kleod.map places SoundMainRAM at 0x0804f318 in asm/m4a0.o(.text), linked at its ROM address, and the next symbol, SoundMainBTM, at 0x0804f6bc, so the range is [0x0804F318, 0x0804F6BC), 0x3A4 bytes (arm-none-eabi-nm -n kleod.elf gives the same two addresses); its entry is Thumb (asm/m4a0.s: thumb_func_start SoundMainRAM, then ARM from sub_0804F324). kleod.map places SoundMainRAM_Buffer at 0x03000388, which m4aSoundInit's CpuCopy32 (src/m4a.c line 81) fills from SoundMainRAM & ~1 (its pool words 0x0804F319 and 0x03000388 at 0x0804FF98 and 0x0804FF9C), and SoundMain enters it there (ldr r3, =0x03000389; bx r3 at 0x0804F2FC). The copy is sizeof(SoundMainRAM_Buffer) = 0x400 bytes, which also takes SoundMainBTM and the start of the routines after it, but those run from the ROM (SoundMainBTM is called through MPlayJumpTable at its ROM address), so only the bytes up to SoundMainBTM run from RAM. The range keeps its tail [0x0804F6B6, 0x0804F6BC) (sub_0804F6B6, `bx r3`, then the pool word 0x68736D53) although SoundMain also calls sub_0804F6B6 from the ROM, at its load address (bl at 0x0804F2D0 and 0x0804F2D8): SoundMainRAM's own last instructions fall through into it and load that pool word PC-relatively, and a PC-relative load names only a label of its own module (D63), so the range cannot end before it. The cost, measured with the override applied (phase-6 fix round 1, correctness-9): SoundMain's two calls print as `.inst.w 0xF000F9F1 @ bl 0x0804F6B6 (no-roundtrip)` and `.inst.w 0xF000F9ED @ ...`, since no label links to that load address; the tree still links to akle.gba's SHA-1."
+}

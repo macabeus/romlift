@@ -3,6 +3,7 @@
 // the g4 gates.
 export { init, initDirVerdict, replacedProblems, wantsLockStep } from '../core/workflow/init.ts';
 export type { InitDirListing } from '../core/workflow/init.ts';
+export type { InitFile } from '../core/workflow/types.ts';
 export { BUILD_NAME_SUFFIX, builtRomCollides, initBuildName } from '../core/workflow/init-config.ts';
 export { projectScaffold, scaffoldDrift } from '../core/workflow/scaffold-diff.ts';
 export type { ProjectScaffoldInputs, ScaffoldDrift } from '../core/workflow/scaffold-diff.ts';

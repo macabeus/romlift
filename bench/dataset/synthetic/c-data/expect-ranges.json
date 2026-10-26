@@ -1,0 +1,7 @@
+{
+  "module": "main",
+  "dataStart": "0x0800014C",
+  "symbol": "sPrices",
+  "addr": "0x0800014C",
+  "size": 16
+}

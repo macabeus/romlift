@@ -11,7 +11,7 @@ import { parseStatements } from '../../../../src/foundation/asm/statements.ts';
 import type { Statement } from '../../../../src/foundation/asm/statements.ts';
 import type { Rom } from '../../../../src/foundation/rom/rom.ts';
 import type { Addr } from '../../../../src/foundation/rom/span.ts';
-import { resolverFor, wordValueOf } from '../../../../src/core/model/resolver.ts';
+import { resolverFor, symbolValueOf } from '../../../../src/core/model/resolver.ts';
 import type { Label, Model } from '../../../../src/core/model/types.ts';
 import type { FileEntry } from '../../../../src/core/emit/tree.ts';
 import { armAt } from '../../../helpers/arm.ts';
@@ -196,7 +196,7 @@ export function layoutUnit(model: Model, entries: readonly FileEntry[], path: st
     resolve: (name) => {
       const addr = resolver.addressOf(name);
       const found = model.labels.find((l) => l.name === name && l.addr === addr);
-      return found === undefined ? undefined : wordValueOf(found);
+      return found === undefined ? undefined : symbolValueOf(found);
     },
     incbin: () => undefined,
     include: (p) => {

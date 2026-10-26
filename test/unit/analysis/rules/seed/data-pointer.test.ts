@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { addressMap } from '../../../../../src/core/analysis/address-map.ts';
 import dataPointer from '../../../../../src/core/analysis/rules/seed/data-pointer.ts';
 import { Claim } from '../../../../../src/core/analysis/types.ts';
 import type { AnalysisView, ClaimKind } from '../../../../../src/core/analysis/types.ts';
@@ -30,4 +31,9 @@ test('a target whose only referring word is claimed as code is not a candidate',
   const v = view([{ span: { start: W, end: W + 0x1c }, kind: Claim.code }]);
   assert.deepEqual(dataPointer.harvest(v, new Set()), []);
   assert.equal(dataPointer.meta.origin, 'data-pointer');
+});
+
+test('a target inside a runs_at range is no candidate: the word holds the copy source, its code is named by its run address', () => {
+  const v = { ...view([]), addresses: addressMap([{ span: { start: T3, end: T5 }, kind: 'code', runsAt: 0x0300_0000 }]) };
+  assert.deepEqual(dataPointer.harvest(v, new Set()), [T2, T5, T6]);
 });

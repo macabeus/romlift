@@ -53,7 +53,7 @@ const manifest: Manifest = { schema: 1, romlift: '0.0.0', files: { 'asm/main.s':
 const inputs: WritePlanInputs = {
   entries: [generated, scaffold, reconciled],
   manifest,
-  disk: new Map([['asm/main.s', 'absent']]),
+  disk: new Map([['asm/main.s', { kind: 'absent' }]]),
   reconciledTexts: new Map([['src/main.c', '']]),
   hash: (t) => t,
   retained: ['asm/nonmatchings/m4a/', 'asm/m4a.s'],
@@ -86,7 +86,7 @@ test('the frozen shapes hold at runtime too', () => {
   assert.deepEqual([...writer.emit(rom, model, cxDefault, null)], []);
 });
 
-test('the registry holds the eight phase-3 writers and phase 4\'s modules-mk and c-stub, ldscript, symbols and modules-mk global', () => {
+test('the registry holds the eight phase-3 writers, phase 4\'s modules-mk and c-stub and phase 6\'s expected and objdiff; ldscript, symbols, modules-mk and objdiff global', () => {
   assert.deepEqual(
     WRITERS.map((w) => [w.id, w.scope]),
     [
@@ -100,6 +100,8 @@ test('the registry holds the eight phase-3 writers and phase 4\'s modules-mk and
       ['symbols', 'global'],
       ['modules-mk', 'global'],
       ['c-stub', 'module'],
+      ['expected', 'module'],
+      ['objdiff', 'global'],
     ],
   );
   const ids: readonly WriterId[] = WRITERS.map((w) => w.id);

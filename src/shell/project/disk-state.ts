@@ -1,10 +1,10 @@
 // The disk snapshot planWrites reads (architecture §6.4 step 3): the sha1 of every file under the generated
-// roots and of every given path ('absent' when there is none), and the project's manifest and journal.
+// roots and of every given path (absent when there is none), and the project's manifest and journal.
 // Mechanical: the shell lists, reads and hashes; what the digests mean is planWrites'. Directories are
 // listed only through shell/fs.ts's listDir (architecture §2).
 import type { Stats } from 'node:fs';
 import { lstat, readFile, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
@@ -13,9 +13,9 @@ import { decodeJournal } from '../../core/write-plan/journal.ts';
 import type { Journal } from '../../core/write-plan/journal.ts';
 import { decodeManifest, isProjectPath } from '../../core/write-plan/manifest.ts';
 import { GENERATED_ROOTS, JOURNAL_PATH, MANIFEST_PATH } from '../../core/write-plan/types.ts';
-import type { Manifest } from '../../core/write-plan/types.ts';
+import type { DiskFileState, Manifest } from '../../core/write-plan/types.ts';
 import { ShellCodes } from '../codes.ts';
-import { errnoOf, errorReason, listDir } from '../fs.ts';
+import { errorReason, isAbsentError, listDir } from '../fs.ts';
 import type { IoResult } from '../fs.ts';
 import { sha1Of } from '../hash.ts';
 
@@ -34,22 +34,22 @@ async function readOptionalText(dir: string, path: string): Promise<IoResult<str
   try {
     return { ok: true, value: await readFile(file, 'utf8') };
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT') return { ok: true, value: null };
+    if (isAbsentError(error)) return { ok: true, value: null };
     return ioError('E_IO_READ', file, `cannot read ${file}: ${errorReason(error)}`);
   }
 }
 
 /**
- * The sha1 of a project file's bytes, or 'absent' when nothing is there (ENOENT, or ENOTDIR: a file where a directory
- * of its path should be). A directory is an E_IO_READ. The one read-and-hash rule of the disk snapshot and of
+ * What is at a project path: a file with the sha1 of its bytes, or absent when nothing is there (ENOENT, or ENOTDIR: a
+ * file where a directory of its path should be). A directory is an E_IO_READ. The one read-and-hash rule of the disk snapshot and of
  * apply-writes' check right before an edit (fix round 7, architecture-b2-11).
  */
-export async function digestOf(dir: string, path: string): Promise<IoResult<string>> {
+export async function digestOf(dir: string, path: string): Promise<IoResult<DiskFileState>> {
   const file = onDisk(dir, path);
   try {
-    return { ok: true, value: sha1Of(await readFile(file)) };
+    return { ok: true, value: { kind: 'present', sha1: sha1Of(await readFile(file)) } };
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: 'absent' };
+    if (isAbsentError(error)) return { ok: true, value: { kind: 'absent' } };
     return ioError('E_IO_READ', file, `cannot read ${file}: ${errorReason(error)}`);
   }
 }
@@ -57,11 +57,12 @@ export async function digestOf(dir: string, path: string): Promise<IoResult<stri
 /** How filesUnder treats a symbolic link to a directory. */
 export interface FilesUnderOptions {
   /**
-   * Follow it, as the Makefile's cpp and make do, though not exactly as cpp resolves includes (readHeaderTexts, fix
-   * round 12, correctness-d1-1; D89 a, D90 a): a link to a directory is walked under its own project path. A cycle ends
-   * where a directory's real path (realpath) is the project directory's or that of a directory the walk is already
-   * inside, as `find -L` ends one; a dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out. Default false:
-   * listed as one entry, never followed (the disk snapshot, which hashes what romlift wrote).
+   * Follow it, as the Makefile's cpp and make do (readHeaderTexts, fix round 12, correctness-d1-1): a link to a
+   * directory is walked under its own project path. A directory is not entered when its real path (realpath) is the
+   * project directory's, that of a directory the walk is already inside, as `find -L` ends a cycle, or that of a
+   * directory above the project (phase 6, gate-honesty-e1-1: its every file was read): readHeaderTexts reads behind
+   * those only the files an `#include` names. A dangling link or a link loop (ENOENT, ENOTDIR, ELOOP) is left out.
+   * Default false: listed as one entry, never followed (the disk snapshot, which hashes what romlift wrote).
    */
   readonly followLinks?: boolean;
 }
@@ -70,9 +71,12 @@ export interface FilesUnderOptions {
  * Every file below the project directory `path` (no trailing '/'), as project paths, in code-unit order; none when it
  * is absent. The recursive walker of the shell, with two link policies chosen by the caller (fix round 12,
  * architecture-d1-2): the disk snapshot lists a symbolic link as one entry, whatever it points at (lstat), and
- * readHeaderTexts follows a link to a directory (`options.followLinks`; not exactly as cpp does, D89 a, D90 a). The
+ * readHeaderTexts follows a link to a directory (`options.followLinks`). The
  * shell's fixed-depth listings (readCTexts' `src/*.c`, readChunkFiles' `asm/nonmatchings/<module>/`) use stat, which
- * follows a link as well.
+ * follows a link as well. Either way it lists only regular files, a link to one included (gate-honesty-e1-2): a FIFO,
+ * a socket or a device, which readFile would block on (a FIFO with no writer) or read without end, is left out, found
+ * directly or through a link; the snapshot keeps listing a dangling link and a link to a directory, which digestOf
+ * reads as absent and refuses with E_IO_READ.
  */
 export async function filesUnder(dir: string, path: string, out: string[], options: FilesUnderOptions = {}): Promise<IoResult<void>> {
   if (options.followLinks === true) {
@@ -84,15 +88,15 @@ export async function filesUnder(dir: string, path: string, out: string[], optio
     }
     return filesFollowing(dir, path, out, [root]);
   }
-  let stat: Stats;
+  let entry: Stats;
   try {
-    stat = await lstat(onDisk(dir, path));
+    entry = await lstat(onDisk(dir, path));
   } catch (error) {
-    if (errnoOf(error) === 'ENOENT' || errnoOf(error) === 'ENOTDIR') return { ok: true, value: undefined };
+    if (isAbsentError(error)) return { ok: true, value: undefined };
     return ioError('E_IO_READ', onDisk(dir, path), `cannot stat ${onDisk(dir, path)}: ${errorReason(error)}`);
   }
-  if (!stat.isDirectory()) {
-    out.push(path);
+  if (!entry.isDirectory()) {
+    if (await snapshotEntry(onDisk(dir, path), entry)) out.push(path);
     return { ok: true, value: undefined };
   }
   const names = await listDir(onDisk(dir, path));
@@ -104,28 +108,48 @@ export async function filesUnder(dir: string, path: string, out: string[], optio
   return { ok: true, value: undefined };
 }
 
-/** filesUnder following links: `inside` holds the real paths of the project directory and of the directories walked into. */
+/**
+ * Whether the snapshot lists the entry at `file`, which lstat read as `entry` (no directory): a regular file, or a
+ * symbolic link whose target is a regular file, a directory or nothing (digestOf decides: E_IO_READ, absent); not a
+ * FIFO, a socket or a device, nor a link to one (gate-honesty-e1-2).
+ */
+async function snapshotEntry(file: string, entry: Stats): Promise<boolean> {
+  if (entry.isFile()) return true;
+  if (!entry.isSymbolicLink()) return false;
+  try {
+    const target = await stat(file);
+    return target.isFile() || target.isDirectory();
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * filesUnder following links: `inside` holds the real paths of the project directory (first) and of the directories
+ * walked into. After the stat that follows links, a directory is walked unless it is one of those or lies above the
+ * project directory, a regular file listed and anything else (a FIFO, a socket, a device) left out (gate-honesty-e1-2).
+ */
 async function filesFollowing(dir: string, path: string, out: string[], inside: readonly string[]): Promise<IoResult<void>> {
   const file = onDisk(dir, path);
   let found: Stats;
   try {
     found = await stat(file);
   } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP') return { ok: true, value: undefined };
+    if (isAbsentError(error)) return { ok: true, value: undefined };
     return ioError('E_IO_READ', file, `cannot stat ${file}: ${errorReason(error)}`);
   }
-  if (!found.isDirectory()) {
+  if (found.isFile()) {
     out.push(path);
     return { ok: true, value: undefined };
   }
+  if (!found.isDirectory()) return { ok: true, value: undefined };
   let real: string;
   try {
     real = await realpath(file);
   } catch (error) {
     return ioError('E_IO_READ', file, `cannot resolve ${file}: ${errorReason(error)}`);
   }
-  if (inside.includes(real)) return { ok: true, value: undefined };
+  if (inside.includes(real) || isAbove(real, inside[0] ?? real)) return { ok: true, value: undefined };
   const names = await listDir(file);
   if (!names.ok) return names;
   const deeper = [...inside, real];
@@ -134,6 +158,12 @@ async function filesFollowing(dir: string, path: string, out: string[], inside: 
     if (!below.ok) return below;
   }
   return { ok: true, value: undefined };
+}
+
+/** Whether the real directory `real` holds the real directory `root` below it (a link from the project to above it). */
+function isAbove(real: string, root: string): boolean {
+  const down = relative(real, root);
+  return down !== '' && !isAbsolute(down) && down.split(sep)[0] !== '..';
 }
 
 /** Whether two project paths are one directory entry on disk (a case-insensitive file system's two spellings). */
@@ -148,12 +178,13 @@ async function oneFile(dir: string, a: string, b: string): Promise<boolean> {
 
 /**
  * The disk snapshot of `dir` for planWrites: the sha1 of every file under GENERATED_ROOTS and of every path
- * in `paths` (the tree's paths, and the manifest's), 'absent' for a path with no file. Keys in code-unit
+ * in `paths` (the tree's paths, and the manifest's), `{kind: 'absent'}` for a path with no file (digestOf). Keys in code-unit
  * order. A file the walk of the roots finds under another case than a path of `paths` that is the same file (a
  * case-insensitive file system) is listed once, under the spelling `paths` gives. A symbolic link is hashed
- * through to its target; a directory where a file is expected (a link to one included) is E_IO_READ.
+ * through to its target; a directory where a file is expected (a link to one included) is E_IO_READ. A FIFO, a socket
+ * or a device the walk finds, or a link to one, is not listed (filesUnder).
  */
-export async function readDiskState(dir: string, paths: Iterable<string>): Promise<IoResult<ReadonlyMap<string, string | 'absent'>>> {
+export async function readDiskState(dir: string, paths: Iterable<string>): Promise<IoResult<ReadonlyMap<string, DiskFileState>>> {
   const wanted = new Set<string>();
   for (const path of paths) {
     if (!isProjectPath(path)) return ioError('E_IO_READ', path, `${JSON.stringify(path)} is not a project path`);
@@ -171,7 +202,7 @@ export async function readDiskState(dir: string, paths: Iterable<string>): Promi
       wanted.add(path);
     }
   }
-  const out = new Map<string, string | 'absent'>();
+  const out = new Map<string, DiskFileState>();
   for (const path of [...wanted].sort(compareCodeUnits)) {
     const digest = await digestOf(dir, path);
     if (!digest.ok) return digest;

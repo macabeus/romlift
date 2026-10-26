@@ -45,7 +45,7 @@ import { BIOS_COPY_ARGS, biosCopyBytes, isBiosCopy } from '../../../../foundatio
 import { MEMORY_REGIONS, regionOf } from '../../../../foundation/rom/memory-map.ts';
 import { contains, u16, u32 } from '../../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../../foundation/rom/span.ts';
-import { insnUnit } from '../../../../foundation/rom/span.ts';
+import { insnAligned, insnUnit } from '../../../../foundation/rom/span.ts';
 import { compareNumbers, sortedKeys } from '../../../../foundation/util/sorted.ts';
 import type { AnalysisView, Proposal, Reading } from '../../types.ts';
 import { Claim } from '../../types.ts';
@@ -571,9 +571,9 @@ function opensFunction(entry: Addr, mode: Mode, copy: Copy, isPool: (word: Addr)
 function namedEntry(copy: Copy, jump: Jump): { readonly entry: Addr; readonly mode: Mode } | undefined {
   const run = jump.pointer & ~1;
   if (run <= copy.dest || run >= copy.dest + copy.bytes) return undefined;
-  const mode: Mode = (jump.pointer & 1) === 1 ? 'thumb' : 'arm';
+  const mode: Mode = insnAligned('thumb', jump.pointer) ? 'arm' : 'thumb';
   const entry = copy.source + (run - copy.dest);
-  if (mode === 'arm' && (entry & 3) !== 0) return undefined;
+  if (mode === 'arm' && !insnAligned('arm', entry)) return undefined;
   return { entry, mode };
 }
 

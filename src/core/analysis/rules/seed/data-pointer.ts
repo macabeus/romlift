@@ -1,8 +1,10 @@
 // seed.data-pointer (the PoC's pointerCandidates(), its data list): every target of the pointer index
 // that is not a function, not on an earlier harvest list and not intrinsically invalid, when at least
 // one word pointing at it is not claimed as code (a word inside code is an instruction pair, not a
-// pointer). Ascending, as the index keeps its targets.
+// pointer). Ascending, as the index keeps its targets. A target inside a runs_at range is left out: code there is named
+// by its run address, and a word holding its load address is the copy's source (pointers.ts, §6.7).
 import type { Addr } from '../../../../foundation/rom/span.ts';
+import { runsElsewhere } from '../../address-map.ts';
 import { pointersTo, pointerTargets } from '../../pointers.ts';
 import { Claim } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
@@ -21,7 +23,7 @@ export default defineRule({
   harvest(v, earlier) {
     const out: Addr[] = [];
     for (const t of pointerTargets(v.pointers)) {
-      if (v.isFunction(t) || earlier.has(t) || v.neverValid(t)) continue;
+      if (v.isFunction(t) || earlier.has(t) || v.neverValid(t) || runsElsewhere(v.addresses, t)) continue;
       if (pointersTo(v.pointers, t).some((off) => v.claimAt(v.rom.base + off) !== Claim.code)) out.push(t);
     }
     return out;

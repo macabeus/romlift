@@ -11,11 +11,15 @@
 //   ld gives them. It is read as `as` reads it, inside its module file, after that file's include of the
 //   macro file: a chunk file that includes the macro file again redefines every macro, which `as` refuses.
 //   Names it does not define resolve to the model: a label of its module, else a global label (resolver.ts
-//   wordValueOf: a Thumb function carries the Thumb bit), else a [symbols] entry outside the ROM (what
-//   symbols.ld defines); only a label a printer can place counts, one at an item's start or inside a data item
+//   symbolValueOf: a Thumb function is T, and a data value links to (S + A) | T, foundation/asm/relocation.ts), else a [symbols] entry outside the ROM (what
+//   symbols.ld defines), else a runs_at module's `__load_<module>` (the ldscript's, its load start); only a label a
+//   printer can place counts, one at an item's start or inside a data item
 //   (chunk.ts places no other), so a name the tree never defines is an undefined symbol here as for `as`. A
 //   [symbols] entry inside the ROM is defined only by its label, so one no printer can place resolves to nothing. A PC-relative load or
-//   `adr` may name only a label of its own module, the object `as` assembles it into (D63).
+//   `adr` may name only a label of its own module, the object `as` assembles it into (D63). A label in a C data range
+//   (§6.6, phase 6) is defined by that C module's object, as its `.rodata` (core/model/c-data-assert.ts cDataStandIn
+//   stands in for it in `verify --assemble/--link`), so it resolves like a label of that module; no generated file
+//   emits the range's bytes, so there is nothing of it to lay out.
 //   `.incbin "baserom.gba"` reads the ROM.
 // - A module's source (asm/rom_header.s, asm/crt0.s, asm/<module>.s, data/<module>.s; paths.ts
 //   moduleSource) is laid out from the module's start in ARM state (GNU as starts every file in ARM state).
@@ -27,6 +31,10 @@
 //   files in ROM order (every chunk of a C module has a file), and it is laid out as the assembly agbcc emits for
 //   it (core/model/c-unit.ts): from the module's start in Thumb state (`.code 16`), each statement's chunk file
 //   standing for that chunk's ROM bytes, nothing between or after them.
+// - A module's objdiff target (the expected writer's, phase 6, D92, D101 a): expected/<module>.s is laid out from the
+//   module's start in ARM state like a module source; a `c` module's includes the module's chunk files in ROM order
+//   (each at its asm/nonmatchings path or its asm/matchings twin) after the macro file, an asm or data module's only
+//   its own source, which stands for the module's bytes.
 // - Every laid-out file must reproduce its ROM range byte for byte, and every `.align` (and every pad of a
 //   switch to ARM state) that emits bytes must emit exactly the padding item at that address.
 // - Each build unit must start and end on a multiple of its section's alignment (the largest any of its files
@@ -42,6 +50,7 @@
 import { DIALECT } from '../../foundation/asm/dialect.ts';
 import { layoutMemo, layoutStatements } from '../../foundation/asm/layout.ts';
 import type { Layout, LayoutInput, LayoutMemo } from '../../foundation/asm/layout.ts';
+import type { SymbolValue } from '../../foundation/asm/relocation.ts';
 import { parseStatements, stripComment } from '../../foundation/asm/statements.ts';
 import type { Statement } from '../../foundation/asm/statements.ts';
 import { RomliftInvariantError } from '../../foundation/diagnostics/diagnostic.ts';
@@ -53,11 +62,11 @@ import { pushAll } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
-import { moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
-import { isCSource } from '../../foundation/util/project-files.ts';
-import { BASEROM_PATH, chunkPathsOf, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
+import { dataRangeModuleAt, linkerDefinedNames, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
+import { BASEROM_FILE, isCSource, matchingFileOf, nonmatchingFileOf } from '../../foundation/util/project-files.ts';
+import { chunkPathsOf, expectedSourcePath, hasExpectedTarget, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
 import { STUB_UNIT_MODE } from '../model/c-unit.ts';
-import { wordValueOf } from '../model/resolver.ts';
+import { symbolValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
 import type { Label, Model, Module } from '../model/types.ts';
 import { readStub } from './c-stub.ts';
@@ -71,7 +80,7 @@ import { textError } from './text-error.ts';
 export const MAX_PER_ENTRY = 16;
 
 /** The writers whose files this check reads; an unknown path of one of them is an error. */
-const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>(['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'c-stub']);
+const CHECKED_WRITERS: ReadonlySet<WriterId> = new Set<WriterId>(['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'c-stub', 'expected']);
 
 const INCLUDES: ReadonlyMap<string, string> = new Map([[MACROS_PATH, DIALECT.macrosInc]]);
 
@@ -82,6 +91,7 @@ type Target =
   | { readonly kind: 'chunk'; readonly module: number; readonly chunk: number }
   | { readonly kind: 'source'; readonly module: number }
   | { readonly kind: 'c-stub'; readonly module: number }
+  | { readonly kind: 'expected'; readonly module: number }
   | { readonly kind: 'ldscript' }
   | { readonly kind: 'symbols' };
 
@@ -98,6 +108,8 @@ interface IndexData {
   readonly labelsByName: ReadonlyMap<string, readonly Label[]>;
   /** The [symbols] entries outside the ROM, which symbols.ld defines, by name (the first by address). */
   readonly symbolsByName: ReadonlyMap<string, Addr>;
+  /** Each runs_at module's `__load_<module>`, which the ldscript defines as its load start (§6.7). */
+  readonly loadSymbols: ReadonlyMap<string, Addr>;
   /** What every layout of the pass's files remembers of instruction texts (foundation/asm/layout.ts). */
   readonly memo: LayoutMemo;
 }
@@ -109,8 +121,9 @@ interface IndexData {
  */
 function definable(model: Model, relocated: readonly Module[], label: Label): boolean {
   const module = model.modules[moduleIndexAt(model.modules, label.addr, relocated)];
-  if (module === undefined) return false;
-  const load = toLoad(module, label.addr);
+  if (module === undefined && dataRangeModuleAt(model.modules, label.addr) < 0) return false;
+  // A data range is never relocated: its labels hold load addresses.
+  const load = module === undefined ? label.addr : toLoad(module, label.addr);
   const i = findItem(model.items, load);
   return i >= 0 && (model.items.start[i] === load || model.items.kind[i] === ItemKind.data);
 }
@@ -136,6 +149,8 @@ function indexData(model: Model): IndexData {
       targets.set(path, { kind: 'chunk', module: m, chunk: c });
       expected.push({ path, addr: chunk.span.start });
     }
+    // An objdiff target is checked when the stream holds it; no unit's build needs it, so a stream may leave it out.
+    if (hasExpectedTarget(module)) targets.set(expectedSourcePath(module.name), { kind: 'expected', module: m });
   });
   expected.push({ path: LDSCRIPT_PATH, addr: ROM_BASE }, { path: SYMBOLS_PATH, addr: ROM_BASE });
   const relocated = relocatedModules(model.modules);
@@ -146,29 +161,37 @@ function indexData(model: Model): IndexData {
     if (list === undefined) labelsByName.set(label.name, [label]);
     else list.push(label);
   }
-  return { targets, chunkPaths: paths, expected, relocated, labelsByName, symbolsByName: externalSymbolValues(model), memo: layoutMemo() };
+  const loadSymbols = new Map(linkerDefinedNames(model.modules).map((d) => [d.name, d.addr] as const));
+  return { targets, chunkPaths: paths, expected, relocated, labelsByName, symbolsByName: externalSymbolValues(model), loadSymbols, memo: layoutMemo() };
 }
 
 // ---------------------------------------------------------------------------------------------------
 // Laying a file out.
 
-/** The value of a name a file of module `m` does not define (what ld would give it), or undefined. */
-function resolveIn(model: Model, index: IndexData, m: number): (name: string) => number | undefined {
+/** The module whose object defines a label at run address `addr`: the one whose span holds it, else whose data range does; -1 for none. */
+function objectModuleAt(model: Model, index: IndexData, addr: number): number {
+  const m = moduleIndexAt(model.modules, addr, index.relocated);
+  return m >= 0 ? m : dataRangeModuleAt(model.modules, addr);
+}
+
+/** The symbol a file of module `m` names but does not define (what ld would relocate against), or undefined. */
+function resolveIn(model: Model, index: IndexData, m: number): (name: string) => SymbolValue | undefined {
   return (name) => {
     const labels = index.labelsByName.get(name) ?? [];
-    const label = labels.find((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m) ?? labels.find((l) => l.scope === 'global');
-    if (label !== undefined) return wordValueOf(label);
-    return index.symbolsByName.get(name);
+    const label = labels.find((l) => objectModuleAt(model, index, l.addr) === m) ?? labels.find((l) => l.scope === 'global');
+    if (label !== undefined) return symbolValueOf(label);
+    const addr = index.symbolsByName.get(name) ?? index.loadSymbols.get(name);
+    return addr === undefined ? undefined : { addr, thumbFunction: false };
   };
 }
 
 /** Whether a name a file of module `m` does not define is a label of module `m` itself (one object). */
 function inModule(model: Model, index: IndexData, m: number): (name: string) => boolean {
-  return (name) => (index.labelsByName.get(name) ?? []).some((l) => moduleIndexAt(model.modules, l.addr, index.relocated) === m);
+  return (name) => (index.labelsByName.get(name) ?? []).some((l) => objectModuleAt(model, index, l.addr) === m);
 }
 
 function romIncbin(rom: Rom): (file: string, offset: number, length: number) => Uint8Array | undefined {
-  return (file, offset, length) => (file === BASEROM_PATH && offset + length <= rom.bytes.length ? rom.bytes.subarray(offset, offset + length) : undefined);
+  return (file, offset, length) => (file === BASEROM_FILE && offset + length <= rom.bytes.length ? rom.bytes.subarray(offset, offset + length) : undefined);
 }
 
 /** The mode of an item's isa row, or undefined when it names none. */
@@ -326,12 +349,16 @@ function moduleChunkFiles(model: Model, index: IndexData, module: Module): reado
   return order;
 }
 
-/** The layout's include resolver of a unit file: each of the module's chunk files stands for its chunk's ROM bytes. */
-function chunkBytes(order: readonly { readonly path: string; readonly span: Span }[]): (path: string) => readonly Statement[] | undefined {
-  const files = new Map(order.map((f) => [f.path, f.span] as const));
+/** The chunk files of `order` by path, each with its span. */
+function spansByPath(order: readonly { readonly path: string; readonly span: Span }[]): ReadonlyMap<string, Span> {
+  return new Map(order.map((f) => [f.path, f.span] as const));
+}
+
+/** The layout's include resolver of a unit file or an objdiff target: each path of `files` stands for its span's ROM bytes. */
+function chunkBytes(files: ReadonlyMap<string, Span>): (path: string) => readonly Statement[] | undefined {
   return (path) => {
     const span = files.get(path);
-    return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_PATH, offset: span.start - ROM_BASE, length: span.end - span.start }];
+    return span === undefined ? undefined : [{ kind: 'incbin', line: 1, file: BASEROM_FILE, offset: span.start - ROM_BASE, length: span.end - span.start }];
   };
 }
 
@@ -357,6 +384,19 @@ function includeOrderError(path: string, got: readonly { readonly path: string; 
   return undefined;
 }
 
+/**
+ * The refusal of a file that includes a chunk file before the macro file: its chunk files use the macros without
+ * including them (asIncluded), so the module file defines them once, before the first chunk file; undefined when the
+ * macro file comes first or nothing is included.
+ */
+function macrosOrderError(entry: { readonly path: string; readonly text: string }, includes: readonly { readonly line: number }[], module: Module): Diagnostic | undefined {
+  const firstInclude = includes[0];
+  if (firstInclude === undefined) return undefined;
+  const macrosLine = macrosIncludeLine(entry.text);
+  if (macrosLine !== undefined && macrosLine <= firstInclude.line) return undefined;
+  return textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`);
+}
+
 /** The module at `m`, which the path index names. */
 function moduleAtIndex(model: Model, m: number): Module {
   const module = model.modules[m];
@@ -373,19 +413,15 @@ function checkSourceFile(rom: Rom, model: Model, index: IndexData, entry: { read
   const job: Job = {
     path: entry.path,
     statements: parsed.statements,
-    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(order) },
+    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(spansByPath(order)) },
     range: module.span,
     runOffset,
   };
 
   const includes = parsed.statements.filter((s): s is Statement & { readonly kind: 'include' } => s.kind === 'include');
   const lastLine = parsed.statements[parsed.statements.length - 1]?.line ?? 1;
-  const firstInclude = includes[0];
-  const macrosLine = macrosIncludeLine(entry.text);
-  if (firstInclude !== undefined && (macrosLine === undefined || macrosLine > firstInclude.line)) {
-    // Its chunk files use the macros without including them (asIncluded): the module file defines them once.
-    return { diagnostics: [textError(entry.path, firstInclude.line, module.span.start, `includes a chunk file before it includes "${MACROS_PATH}", whose macros the chunk files use`)], sectionAlign: 0 };
-  }
+  const macrosFirst = macrosOrderError(entry, includes, module);
+  if (macrosFirst !== undefined) return { diagnostics: [macrosFirst], sectionAlign: 0 };
   const misordered = includeOrderError(entry.path, includes, order, module, lastLine);
   if (misordered !== undefined) return { diagnostics: [misordered], sectionAlign: 0 };
   return compareLayout(rom, model, job, parsed.errors);
@@ -416,11 +452,44 @@ function checkStubFile(rom: Rom, model: Model, index: IndexData, entry: { readon
   const job: Job = {
     path: entry.path,
     statements,
-    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(order) },
+    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(spansByPath(order)) },
     range: module.span,
     runOffset,
   };
   return compareLayout(rom, model, job, []);
+}
+
+/**
+ * A module's objdiff target, expected/<module>.s (D95 a, D101 a): a `c` module's includes its chunk files in ROM order
+ * (an asm/matchings twin standing for its asm/nonmatchings path) after the macro file; an asm or data module's includes
+ * only its own source. Laid out from the module's start in ARM state (its run address for a runs_at module, as its
+ * source is), each include standing for its bytes.
+ */
+function checkExpectedFile(rom: Rom, model: Model, index: IndexData, entry: { readonly path: string; readonly text: string }, m: number): FileCheck {
+  const module = moduleAtIndex(model, m);
+  const runOffset = runOffsetOf(module);
+  const parsed = parse(entry.text);
+  const includes = parsed.statements.filter((s): s is Statement & { readonly kind: 'include' } => s.kind === 'include');
+  const lastLine = parsed.statements[parsed.statements.length - 1]?.line ?? 1;
+  const order = module.kind === 'c' ? moduleChunkFiles(model, index, module) : [{ path: moduleSource(model, module), span: module.span }];
+  const files = new Map<string, Span>();
+  for (const f of order) {
+    files.set(f.path, f.span);
+    if (module.kind === 'c') files.set(matchingFileOf(f.path), f.span);
+  }
+  const macrosFirst = module.kind === 'c' ? macrosOrderError(entry, includes, module) : undefined;
+  if (macrosFirst !== undefined) return { diagnostics: [macrosFirst], sectionAlign: 0 };
+  const got = includes.map((i) => ({ path: nonmatchingFileOf(i.path), line: i.line }));
+  const misordered = includeOrderError(entry.path, got, order, module, lastLine);
+  if (misordered !== undefined) return { diagnostics: [misordered], sectionAlign: 0 };
+  const job: Job = {
+    path: entry.path,
+    statements: parsed.statements,
+    input: { start: module.span.start + runOffset, mode: 'arm', resolve: resolveIn(model, index, m), incbin: romIncbin(rom), memo: index.memo, include: chunkBytes(files) },
+    range: module.span,
+    runOffset,
+  };
+  return compareLayout(rom, model, job, parsed.errors);
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -451,22 +520,15 @@ function checkOne(rom: Rom, model: Model, index: IndexData, entry: FileEntry): E
     case 'c-stub':
       file = checkStubFile(rom, model, index, entry, target.module);
       break;
+    case 'expected':
+      // Not a build unit's file: its alignment is no unit's.
+      return { diagnostics: checkExpectedFile(rom, model, index, entry, target.module).diagnostics.slice(0, MAX_PER_ENTRY) };
     case 'ldscript':
       return { diagnostics: checkLdscript(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
     case 'symbols':
       return { diagnostics: checkSymbolsFile(model, entry.path, entry.text).slice(0, MAX_PER_ENTRY) };
   }
   return { diagnostics: file.diagnostics.slice(0, MAX_PER_ENTRY), unit: { module: target.module, sectionAlign: file.sectionAlign } };
-}
-
-
-/**
- * The text-layout check of ONE entry against `model`, with an index built for it alone: O(model) per call, so for
- * tests and single files, never for a stream (checkEntries indexes once per pass). [] when it is not this check's or
- * it passes. Not part of romlift's public API.
- */
-export function checkEntry(rom: Rom, model: Model, entry: FileEntry): readonly Diagnostic[] {
-  return checkOne(rom, model, indexData(model), entry).diagnostics;
 }
 
 /**

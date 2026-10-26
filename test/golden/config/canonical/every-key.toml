@@ -18,9 +18,10 @@ start = 0x080000C0
 kind = "asm"
 
 [[modules]]
-name = "legacy"
+name = "kept"
 start = 0x08000400
 kind = "c"
+data_start = 0x08003F00
 generated = false
 compiler = "old_agbcc"
 cflags = ["-O1", "-ftst"]
@@ -41,11 +42,11 @@ kind = "data"
 0x080000C0 = { name = "start", mode = "arm", label = true }
 0x08000400 = "AgbMain"
 0x08004000 = { name = "m4aSoundMain", size = 0x40, aliases = ["SoundMain", "_SoundMain"], from = "sig:m4a@2001" }
-0x08004040 = { name = "Legacy", from = "legacy" }
+0x08004040 = { name = "Kept", from = "sig:libgcc@agbcc" }
 
 [symbols]
 0x03000000 = "gMain"
-0x03000100 = { name = "gBuffer", size = 0x100, type = "bytes", aliases = ["gUnk_03000100"], from = "evidence:map" }
+0x03000100 = { name = "gBuffer", size = 0x100, type = "bytes", aliases = ["gUnk_03000100"], from = "sig:m4a@2001" }
 0x08008000 = { name = "gTable", size = 0x40, type = "pointers" }
 
 [[overrides]]
@@ -54,7 +55,7 @@ size = 0x200
 kind = "code"
 mode = "arm"
 runs_at = 0x03000400
-from = "evidence:trace"
+from = "sig:m4a@2001"
 
 [[overrides]]
 start = 0x08004300

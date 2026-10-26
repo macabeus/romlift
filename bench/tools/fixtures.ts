@@ -2,9 +2,12 @@
 // self-authored synthetic fixtures under bench/dataset/synthetic/<name>/ with agbcc and binutils.
 //
 //   rebuild  builds every fixture into a temporary directory, copies build/<name>.gba and
-//            build/<name>.elf into the fixture, and writes the toolchain record into its build.mk.
+//            build/<name>.elf into the fixture (and build/<name>.map for a build.mk with `MAP := yes`, its
+//            temporary paths spelt build/), and writes the toolchain record into its build.mk.
 //   check    builds every fixture into a temporary directory and compares it with the committed
-//            build: the .gba bytes, the sorted (name, value, size, type) list of the ELF symbol table
+//            build: the .gba bytes, the sorted (name, value, size, type) list of the ELF symbol table,
+//            the input placements of the map where build.mk asks for one (output section, input section,
+//            address, size and object; ld's layout of the text is not compared, so another binutils agrees)
 //            and build.mk's toolchain record. An agbcc commit that differs from the record fails; an
 //            `as --version` line that differs is a note. Exit 0 only when every fixture agrees.
 //
@@ -23,7 +26,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { compareCodeUnits, parseElf, type ElfFile, type ElfSymbolType } from 'romlift';
+import { compareCodeUnits, parseElf, parseGnuMap, type ElfFile, type ElfSymbolType } from 'romlift';
 import { binutilsVersions, findBinutils, type Binutils } from 'romlift/node';
 
 import { parseArgs, UsageError } from '../src/args.ts';
@@ -59,10 +62,11 @@ export interface SymbolRow {
   readonly type: ElfSymbolType;
 }
 
-/** A fixture's build: the cartridge bytes and the compared symbol list of its ELF. */
+/** A fixture's build: the cartridge bytes, the compared symbol list of its ELF and, when it has one, its map's placements. */
 export interface FixtureBuild {
   readonly gba: Uint8Array;
   readonly symbols: readonly SymbolRow[];
+  readonly map?: readonly string[];
 }
 
 export interface FixtureVerdict {
@@ -104,6 +108,35 @@ export function withToolchainRecord(buildMk: string, record: ToolchainRecord): s
 }
 
 const OLD_AGBCC_SRCS_KEY = 'OLD_AGBCC_SRCS';
+
+const MAP_KEY = 'MAP';
+
+/** Whether a build.mk asks for the GNU map (`MAP := yes`, the signature fixtures). */
+export function wantsMap(buildMk: string): boolean {
+  return recordLine(buildMk, MAP_KEY) === 'yes';
+}
+
+/** A map ld wrote under the temporary build directory `out`, with every `<out>/` spelt `build/` (what is committed). */
+export function committedMapText(text: string, out: string): string {
+  return text.split(`${out}/`).join('build/');
+}
+
+/** The compared rows of a map: one per input placement, `<output> <input> <address> <size> <object>`, in map order. */
+export function mapRows(text: string): readonly string[] {
+  const map = parseGnuMap(text);
+  if (!map.ok) return [`unparsable map: ${map.error}`];
+  return map.value.sections.flatMap((section) =>
+    section.inputs.map((i) => `${section.name} ${i.section} ${hex(i.address)} ${hex(i.size)} ${i.member === undefined ? i.file : `${i.file}(${i.member})`}`),
+  );
+}
+
+/** The differences of two maps' rows, at most `limit` of them. */
+export function mapDifferences(committed: readonly string[], rebuilt: readonly string[], limit = 8): readonly string[] {
+  const left = new Set(committed);
+  const right = new Set(rebuilt);
+  const out = [...committed.filter((r) => !right.has(r)).map((r) => `map placement only in the committed map: ${r}`), ...rebuilt.filter((r) => !left.has(r)).map((r) => `map placement only in the rebuilt map: ${r}`)];
+  return out.length > limit ? [...out.slice(0, limit), `${out.length - limit} more map differences`] : out;
+}
 
 /** The sources a build.mk compiles with old_agbcc (its `OLD_AGBCC_SRCS := …` line), in the order it lists them. */
 export function oldAgbccSources(buildMk: string): readonly string[] {
@@ -186,6 +219,7 @@ export function compareFixture(
   const bytes = bytesDifference(committed.gba, rebuilt.gba);
   if (bytes !== undefined) problems.push(bytes);
   problems.push(...symbolDifferences(committed.symbols, rebuilt.symbols));
+  if (committed.map !== undefined || rebuilt.map !== undefined) problems.push(...mapDifferences(committed.map ?? [], rebuilt.map ?? []));
   if ('missing' in record) {
     problems.push(`build.mk has no toolchain record (${record.missing.join(', ')})`);
   } else {
@@ -264,14 +298,16 @@ async function toolchainFromEnv(env: Readonly<Record<string, string | undefined>
   return { agbcc, oldAgbcc: (await exists(oldAgbcc)) ? oldAgbcc : undefined, agbccCommit: await agbccCommit(dir, env), binutils, asVersion: versions.as };
 }
 
-function buildOf(gba: Uint8Array, elfBytes: Uint8Array, what: string): FixtureBuild {
+function buildOf(gba: Uint8Array, elfBytes: Uint8Array, mapText: string | undefined, what: string): FixtureBuild {
   const elf = parseElf(elfBytes);
   if (!elf.ok) throw new BenchError(`${what}: ${elf.error}`);
-  return { gba, symbols: symbolRows(elf.value) };
+  return mapText === undefined ? { gba, symbols: symbolRows(elf.value) } : { gba, symbols: symbolRows(elf.value), map: mapRows(mapText) };
 }
 
-async function readBuild(dir: string, name: string, what: string): Promise<FixtureBuild> {
-  return buildOf(await readFileBytes(join(dir, `${name}.gba`)), await readFileBytes(join(dir, `${name}.elf`)), what);
+/** A build in `dir`; with `mapFrom`, its map too, read with the temporary paths of `mapFrom.out` spelt as committed. */
+async function readBuild(dir: string, name: string, what: string, mapFrom?: { readonly out: string }): Promise<FixtureBuild> {
+  const mapText = mapFrom === undefined ? undefined : committedMapText(await readText(join(dir, `${name}.map`)), mapFrom.out);
+  return buildOf(await readFileBytes(join(dir, `${name}.gba`)), await readFileBytes(join(dir, `${name}.elf`)), mapText, what);
 }
 
 /** Builds fixture `name` into `out` with make; throws with make's output when it fails, or when it needs a missing old_agbcc. */
@@ -298,10 +334,12 @@ async function rebuildOne(name: string, toolchain: ToolchainInUse): Promise<Fixt
   if (toolchain.agbccCommit === undefined) throw new BenchError('the agbcc commit is unknown: set ROMLIFT_AGBCC_COMMIT before rebuilding');
   const record: ToolchainRecord = { agbccCommit: toolchain.agbccCommit, asVersion: toolchain.asVersion };
   const dir = join(SYNTHETIC_DIR, name);
+  const withMap = wantsMap(await readText(join(dir, 'build.mk')));
   await withTemp(async (out) => {
     await make(name, out, toolchain);
     await mkdir(join(dir, 'build'), { recursive: true });
     for (const ext of ['gba', 'elf']) await copyFile(join(out, `${name}.${ext}`), join(dir, 'build', `${name}.${ext}`));
+    if (withMap) await writeText(join(dir, 'build', `${name}.map`), committedMapText(await readText(join(out, `${name}.map`)), out));
   });
   const buildMk = join(dir, 'build.mk');
   await writeText(buildMk, withToolchainRecord(await readText(buildMk), record));
@@ -311,18 +349,20 @@ async function rebuildOne(name: string, toolchain: ToolchainInUse): Promise<Fixt
 async function checkOne(name: string, toolchain: ToolchainInUse): Promise<FixtureVerdict> {
   const dir = join(SYNTHETIC_DIR, name);
   const committedDir = join(dir, 'build');
+  const buildMk = await readText(join(dir, 'build.mk'));
+  const withMap = wantsMap(buildMk);
   const missing = [];
-  for (const ext of ['gba', 'elf']) if (!(await exists(join(committedDir, `${name}.${ext}`)))) missing.push(`build/${name}.${ext}`);
+  for (const ext of withMap ? ['gba', 'elf', 'map'] : ['gba', 'elf']) if (!(await exists(join(committedDir, `${name}.${ext}`)))) missing.push(`build/${name}.${ext}`);
   if (missing.length > 0) return { name, ok: false, problems: [`not committed: ${missing.join(', ')}`], notes: [] };
-  const committed = await readBuild(committedDir, name, `${name} (committed)`);
-  const record = parseToolchainRecord(await readText(join(dir, 'build.mk')));
+  const committed = await readBuild(committedDir, name, `${name} (committed)`, withMap ? { out: committedDir } : undefined);
+  const record = parseToolchainRecord(buildMk);
   return withTemp(async (out) => {
     try {
       await make(name, out, toolchain);
     } catch (error) {
       return { name, ok: false, problems: [error instanceof Error ? error.message : String(error)], notes: [] };
     }
-    return compareFixture(name, committed, record, await readBuild(out, name, `${name} (rebuilt)`), toolchain);
+    return compareFixture(name, committed, record, await readBuild(out, name, `${name} (rebuilt)`, withMap ? { out } : undefined), toolchain);
   });
 }
 

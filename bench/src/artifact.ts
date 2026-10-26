@@ -7,11 +7,12 @@ import { parseCorpusSummary, type CorpusSummary } from 'romlift/internal';
 
 import { BenchError, exists, isRecord, prettyJson, readJson, writeText } from './files.ts';
 import { parseParityEvidence, type ParityEvidence } from './parity-evidence.ts';
-import type { ObjdiffExample, ObjdiffSummary } from './objdiff.ts';
+import type { ObjdiffClassSummary, ObjdiffExample, ObjdiffSummary } from './objdiff.ts';
 import { SHARE_NAMES, type ReadabilityMember, type Shares } from './readability.ts';
 import type { BaselineRows, BenchRow, ExtentRow, FalseRow, MissRow, PocSource, RowDiff, StaleException } from './row.ts';
 import type { InitBuildVerdict } from './scaffold.ts';
 import { assertCountsOnly, type SealedCounts } from './seal.ts';
+import type { LibraryPlacements, SignaturesMember } from './signatures.ts';
 import { isArtifactCategory, type ArtifactCategory } from './vocabulary.ts';
 
 export interface RomInputs {
@@ -52,7 +53,7 @@ export interface ResultsMeta {
   readonly sourceDigest: string;
   readonly nodeMajor: number;
   readonly romliftVersion: string;
-  /** Per ROM its inputs, plus `pocSourceDigest`. */
+  /** Per ROM its inputs, plus `pocSourceDigest` and, when the signatures family ran (phase 6), `signaturesDigest`. */
   readonly inputs: Readonly<Record<string, RomInputs | string>>;
   readonly toolchain: Toolchain;
   /** Per ROM, the metric families that ran, sorted. */
@@ -206,11 +207,49 @@ function objdiffExample(value: unknown, at: string): ObjdiffExample {
   return { function: str(r['function'], `${at}.function`), kind: str(r['kind'], `${at}.kind`), detail: str(r['detail'], `${at}.detail`) };
 }
 
+/** A record of counts by name, each a number. */
+function countsOf(value: unknown, at: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [name, count] of Object.entries(rec(value, at))) out[name] = num(count, `${at}.${name}`);
+  return out;
+}
+
+/** The objdiff member's classes (D102); absent in an artifact written before them. */
+function objdiffClasses(value: unknown, at: string): ObjdiffClassSummary {
+  const r = rec(value, at);
+  return { counts: countsOf(r['counts'], `${at}.counts`), gated: num(r['gated'], `${at}.gated`), uncompared: num(r['uncompared'], `${at}.uncompared`), gatedExamples: list(r['gatedExamples'], `${at}.gatedExamples`, objdiffExample) };
+}
+
 function objdiffField(value: unknown, at: string): ObjdiffSummary {
   const r = rec(value, at);
-  const differences: Record<string, number> = {};
-  for (const [kind, count] of Object.entries(rec(r['differences'], `${at}.differences`))) differences[kind] = num(count, `${at}.differences.${kind}`);
-  return { linked: bool(r['linked'], `${at}.linked`), scored: num(r['scored'], `${at}.scored`), differences, examples: list(r['examples'], `${at}.examples`, objdiffExample) };
+  const summary = { linked: bool(r['linked'], `${at}.linked`), scored: num(r['scored'], `${at}.scored`), differences: countsOf(r['differences'], `${at}.differences`), examples: list(r['examples'], `${at}.examples`, objdiffExample) };
+  return r['classes'] === undefined ? summary : { ...summary, classes: objdiffClasses(r['classes'], `${at}.classes`) };
+}
+
+function libraryPlacementsAt(value: unknown, at: string): LibraryPlacements {
+  const r = rec(value, at);
+  return { library: str(r['library'], `${at}.library`), version: str(r['version'], `${at}.version`), functions: num(r['functions'], `${at}.functions`), objects: num(r['objects'], `${at}.objects`) };
+}
+
+/** The counts `keys` names of the record at `at`, each a number. */
+function countsAt<K extends string>(value: unknown, at: string, keys: readonly K[]): Record<K, number> {
+  const r = rec(value, at);
+  const out = {} as Record<K, number>;
+  for (const k of keys) out[k] = num(r[k], `${at}.${k}`);
+  return out;
+}
+
+/** The signatures family of a romlift row (phase 6, signatures.ts SignaturesMember). */
+function signaturesField(value: unknown, at: string): SignaturesMember {
+  const r = rec(value, at);
+  const names = rec(r['names'], `${at}.names`);
+  return {
+    libraries: list(r['libraries'], `${at}.libraries`, libraryPlacementsAt),
+    placements: countsAt(r['placements'], `${at}.placements`, ['total', 'atElfFunc', 'atUntyped', 'wrong']),
+    tables: countsAt(r['tables'], `${at}.tables`, ['total', 'objectOfSize', 'label', 'wrong']),
+    sizes: countsAt(r['sizes'], `${at}.sizes`, ['proposed', 'equal', 'differ', 'unjudged']),
+    names: { reference: bool(names['reference'], `${at}.names.reference`), ...countsAt(names, `${at}.names`, ['total', 'equal', 'differ', 'reviewed']) },
+  };
 }
 
 /** The optional phase-3 fields of a romlift row. */
@@ -257,10 +296,11 @@ export function parseRow(value: unknown, where: string): BenchRow {
       : { scaffold: { ok: bool(scaffold['ok'], `${at}.scaffold.ok`), ...(scaffold['init'] === undefined ? {} : { init: initVerdictField(scaffold['init'], `${at}.scaffold.init`) }) } }),
     ...romliftFields(r, at),
     ...emissionFields(r, at),
+    ...(r['signatures'] === undefined ? {} : { signatures: signaturesField(r['signatures'], `${at}.signatures`) }),
   };
 }
 
-/** meta.inputs: per ROM its {sha1, elfSha256}, plus the `pocSourceDigest` string. */
+/** meta.inputs: per ROM its {sha1, elfSha256}, plus the `pocSourceDigest` and `signaturesDigest` strings. */
 function parseInputs(value: unknown, at: string): Readonly<Record<string, RomInputs | string>> {
   const out: Record<string, RomInputs | string> = {};
   for (const [key, entry] of Object.entries(rec(value, at))) {

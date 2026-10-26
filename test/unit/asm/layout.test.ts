@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
 import { layoutMemo, layoutStatements, memoSlot } from '../../../src/foundation/asm/layout.ts';
 import type { Layout, LayoutInput, LayoutMemo } from '../../../src/foundation/asm/layout.ts';
+import type { SymbolValue } from '../../../src/foundation/asm/relocation.ts';
 import { parseStatements } from '../../../src/foundation/asm/statements.ts';
 import type { Statement } from '../../../src/foundation/asm/statements.ts';
 import type { Mode } from '../../../src/foundation/rom/span.ts';
@@ -30,6 +31,11 @@ interface Options {
   readonly sameObject?: (name: string) => boolean;
 }
 
+/** A test symbol given as its word value: an odd value is a Thumb function at the value minus one. */
+function symbolOf(value: number | undefined): SymbolValue | undefined {
+  return value === undefined ? undefined : { addr: value - (value & 1), thumbFunction: (value & 1) === 1 };
+}
+
 function lay(text: string, options: Options = {}): Layout {
   const symbols = options.symbols ?? {};
   const files = options.files ?? {};
@@ -38,7 +44,7 @@ function lay(text: string, options: Options = {}): Layout {
     statements: statementsOf(text),
     start: options.start ?? BASE,
     mode: options.mode ?? 'thumb',
-    resolve: (name) => symbols[name],
+    resolve: (name) => symbolOf(symbols[name]),
     incbin: (file, offset, length) => files[file]?.slice(offset, offset + length),
     include: (path) => {
       const inner = includes[path];
@@ -172,7 +178,16 @@ Typed:
 \t.4byte Func, Foo, _08000002, _08000002 + 1, Typed, Func - 1
 `;
   const out = clean(text, { symbols: { Func: 0x0800_1235 } });
-  assert.deepEqual(out.bytes.slice(8), le(w(0x0800_1235), w(BASE + 1), w(BASE + 2), w(BASE + 3), w(BASE + 5), w(0x0800_1234)));
+  // Func - 1 is R_ARM_ABS32's (S + A) | T: (0x08001234 - 1) | 1, as ld writes it (architecture-o0-1).
+  assert.deepEqual(out.bytes.slice(8), le(w(0x0800_1235), w(BASE + 1), w(BASE + 2), w(BASE + 3), w(BASE + 5), w(0x0800_1233)));
+});
+
+test('a data value naming a Thumb function adds the addend before the Thumb bit, as ld does: (S + A) | T (architecture-o0-1)', () => {
+  // Measured with arm-none-eabi-as and ld (binutils 2.45.1): F at 0x08000000 and the external Thumb function G at
+  // 0x0800001C give F + 3 0x08000003, F + 4 0x08000005, F - 1 0x07FFFFFF, F 0x08000001, G - 1 0x0800001B, G + 3 0x0800001F.
+  const text = '.thumb\n.thumb_func\nF:\n\tbx lr\n\tbx lr\n\t.4byte F + 3, F + 4, F - 1, F, G - 1, G + 3\n';
+  const out = clean(text, { symbols: { G: BASE + 0x1d } });
+  assert.deepEqual(out.bytes.slice(4), le(w(BASE + 3), w(BASE + 5), w(0x07ff_ffff), w(BASE + 1), w(BASE + 0x1b), w(BASE + 0x1f)));
 });
 
 test('.inst.n, .inst.w and .inst lay out their raw words; a width suffix in the wrong state is refused', () => {

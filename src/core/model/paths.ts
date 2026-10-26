@@ -8,11 +8,14 @@
 // directory is written `<Name>_<ADDR>.s` (ADDR: eight upper-case hex digits of its load address), never
 // only the second one. core/verify/paths.ts (E_PATH_CASE_COLLISION) guards the result.
 import { DIALECT } from '../../foundation/asm/dialect.ts';
-import { BASEROM_FILE, chunkFileOf, cSourceOf, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
+import { chunkFileOf, cSourceOf, isCSource, nonmatchingDir, NONMATCHINGS_ROOT, stubNameOf } from '../../foundation/util/project-files.ts';
 import { foldPath } from '../../foundation/util/fold.ts';
 import { hex } from '../../foundation/util/hex.ts';
 import { sortedKeys } from '../../foundation/util/sorted.ts';
 import type { Span } from '../../foundation/rom/span.ts';
+import type { BuildCompilerId } from '../config/compilers.ts';
+import { cDataRangeOf } from './c-data-assert.ts';
+import type { CDataRange } from './c-data-assert.ts';
 import type { Chunk, Model, Module } from './types.ts';
 
 export const HEADER_PATH = 'asm/rom_header.s';
@@ -21,8 +24,8 @@ export const LDSCRIPT_PATH = 'ldscript.txt';
 export const SYMBOLS_PATH = 'symbols.ld';
 /** The per-unit build variables the scaffold's Makefile includes (the modules-mk writer, D74 f). */
 export const MODULES_MK_PATH = 'modules.mk';
-/** The user's ROM at the project root: the config's rom.path, and the only file an `.incbin` reads. */
-export const BASEROM_PATH = BASEROM_FILE;
+/** objdiff-cli's project file, the objdiff writer's (phase 6, D92). */
+export const OBJDIFF_JSON_PATH = 'objdiff.json';
 /** The macro file every generated `.s` includes, as the dialect defines it (foundation/asm/dialect.ts DIALECT.macrosPath). */
 export const MACROS_PATH = DIALECT.macrosPath;
 
@@ -38,6 +41,30 @@ export function objectPath(module: string): string {
  */
 export function cObjectPath(module: string): string {
   return `build/src/${module}.o`;
+}
+
+/**
+ * The objdiff target of module `module` (phase 6, D92, D101 a): the expected writer's source, the module as its build
+ * unit assembles it (the build object's symbols, relocations and bytes while nothing is decompiled).
+ */
+export function expectedSourcePath(module: string): string {
+  return `expected/${module}.s`;
+}
+
+/**
+ * Whether module `module` has an objdiff target (the expected writer's file, modules.mk's EXPECTED_OBJS, a unit of
+ * objdiff.json): it is generated (emitTree writes its files) and holds chunks.
+ */
+export function hasExpectedTarget(module: Module | undefined): module is Module {
+  return module !== undefined && module.generated && module.chunks.count > 0;
+}
+
+/**
+ * The object `make expected` assembles expectedSourcePath(module) into, objdiff's target object: under `build/`, which
+ * `make` owns, never under the generated root `expected/`, which `generate` owns (D101 c).
+ */
+export function expectedObjectPath(module: string): string {
+  return `build/expected/${module}.o`;
 }
 
 /** The assembly agbcc writes for C module `module`, which `as` assembles to cObjectPath(module). */
@@ -165,26 +192,39 @@ export interface BuildUnit {
   readonly module: string;
   readonly source: string;
   readonly object: string;
+  /**
+   * The build compiler of a C unit (the module's `compiler`), whose assembly of the stub `verify --assemble/--link`
+   * writes (core/model/c-unit.ts stubAssemblyText); absent for an assembly source.
+   */
+  readonly compiler?: BuildCompilerId;
+  /**
+   * A C unit's data range (Module.dataRange, phase 6) with the labels its object defines there: the ldscript places the
+   * object's `.rodata` at it, and `verify --assemble/--link` stand in for that `.rodata` with the ROM's bytes
+   * (core/model/c-data-assert.ts cDataStandIn). Absent for every other unit.
+   */
+  readonly data?: CDataRange;
 }
 
-/** The link unit of module `m`: a C source builds to build/src/<m>.o, an assembly one to build/<m>.o. */
-function buildUnitOf(model: Pick<Model, 'chunks'>, m: Module): BuildUnit {
+/** The link unit of module `m`: a C source builds to build/src/<m>.o with the module's compiler, an assembly one to build/<m>.o. */
+function buildUnitOf(model: Pick<Model, 'chunks' | 'labels'>, m: Module): BuildUnit {
   const source = moduleSource(model, m);
-  return { module: m.name, source, object: isCSource(source) ? cObjectPath(m.name) : objectPath(m.name) };
+  if (!isCSource(source)) return { module: m.name, source, object: objectPath(m.name) };
+  const unit = { module: m.name, source, object: cObjectPath(m.name), compiler: m.compiler };
+  return m.dataRange === undefined ? unit : { ...unit, data: cDataRangeOf(m.dataRange, model.labels) };
 }
 
 /** One unit per module, in ROM (link) order. */
-export function buildUnits(model: Pick<Model, 'modules' | 'chunks'>): readonly BuildUnit[] {
+export function buildUnits(model: Pick<Model, 'modules' | 'chunks' | 'labels'>): readonly BuildUnit[] {
   return model.modules.map((m) => buildUnitOf(model, m));
 }
 
-/** A build unit with the ROM range its object must reproduce (`verify --assemble`). */
+/** A build unit with the ROM range its object's `.text` must reproduce (`verify --assemble`): its module's span; a data range's is BuildUnit.data. */
 export interface AssembleUnit extends BuildUnit {
   readonly span: Span;
 }
 
 /** One assemble unit per module, in ROM (link) order: buildUnits with each module's own span. */
-export function assembleUnits(model: Pick<Model, 'modules' | 'chunks'>): readonly AssembleUnit[] {
+export function assembleUnits(model: Pick<Model, 'modules' | 'chunks' | 'labels'>): readonly AssembleUnit[] {
   return model.modules.map((m) => ({ ...buildUnitOf(model, m), span: m.span }));
 }
 

@@ -17,3 +17,8 @@ export * from './api/config.ts';
 export * from './api/scaffold.ts';
 export * from './api/reconcile.ts';
 export * from './api/workflow-one-shot.ts';
+export * from './api/signatures-types.ts';
+export * from './api/signatures-build.ts';
+export * from './api/signatures-match.ts';
+export * from './api/rename.ts';
+export * from './api/proposals.ts';

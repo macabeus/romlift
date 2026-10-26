@@ -15,9 +15,11 @@
   verdicts (1):
     0x080000F6 bl.target-pops-unpushed-frame round 0 cites 0x080000F6, 0x08001174: call
   waits: none
-  claims (1):
+  claims (3):
     0x08001174 claim.dead-code-in-extent round 0 cites 0x08001174: 1 edits
-  rules (4):
+    0x08001172 region.padding round 7 cites 0x08001172: padding to 0x08001174
+    0x0800117A region.data-after-code round 7 cites 0x0800117A: data to 0x08001180
+  rules (6):
     accept.prologue-and-end-anchored: a valid candidate with a prologue whose extent ends at an accepted function is a function
       rests on: agbcc opens non-leaf functions with push {.., lr}, and the linker lays functions out back to back
       recovers: data-referenced functions whose neighbour above is already known
@@ -27,6 +29,12 @@
     claim.dead-code-in-extent: a dense function's free bytes inside its extent are claimed as dead code, except unreached copies of its own `movs rX, #k; b T` entry stub
       rests on: a compiled function is one contiguous run, so the few bytes inside it the walk never reached are still its own; a table of entry stubs `movs rX, #k; b T` that share one tail gives each entry its own constant, so an unreached copy of the entry stub is another entry, not dead code
       recovers: functions proposed inside another function's unreached branch arms or alignment padding
+    region.data-after-code: the free bytes after the code end (the greatest extent end of an accepted function) are claimed as data
+      rests on: the linker places .text before .rodata and .data, so past the last function the ROM holds data only
+      recovers: tables and assets after the code decoded or reported as unexplained gaps
+    region.padding: free padding bytes that align the claimed item after them, between claimed bytes below the code end, are claimed as padding
+      rests on: agbcc and as emit .align 2, 0 before every function and literal pool, so the only free bytes between code are the zeros of an alignment
+      recovers: alignment zeros emitted as data slices between functions instead of .align
     seed.call: the targets of the calls of an accepted function are functions
       rests on: a bl (or a bx after mov lr, pc) that settles as a call enters a function
       recovers: the call graph below every accepted function

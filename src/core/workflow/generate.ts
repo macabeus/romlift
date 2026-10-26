@@ -10,8 +10,8 @@
 //
 // Phase 4 (architecture §2.1, §6.3, §6.4, D74 c) adds generateProject, generate over a project as the shell read it
 // (ProjectInputs): the ROM must be the one `[rom] sha1` records (E_ROM_SHA1_MISMATCH, refused before any analysis),
-// the config is the TOML's, DecompState comes from src/*.c through the reconciler's scanner (it changes no output in
-// phase 4: asm/matchings is phase 6's, D76 g), and a config the model refuses (E_MODULE_BORDER and the other model errors)
+// the config is the TOML's, DecompState comes from src/*.c through the reconciler's scanner (from phase 6 it puts a
+// decompiled function's chunk file under asm/matchings, D92), and a config the model refuses (E_MODULE_BORDER and the other model errors)
 // is refused before the check pass. The stream holds the c-stub entries (scaffold: written only when absent) and
 // modules.mk; an existing src/<module>.c is reconciled with the model (c-stubs.ts, D75 b: the stubs of functions the
 // TOML renamed, deleted or moved go, the missing ones come), as edits the write plan applies only to the text it read,
@@ -20,6 +20,7 @@
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import { checkRom } from '../../foundation/rom/rom.ts';
+import { nonmatchingFileOf } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, sortedEntries } from '../../foundation/util/sorted.ts';
 import { analyze } from '../analysis/driver/run.ts';
 import type { AnalysisOptions, AnalysisResult, OverrideFact, Seed } from '../analysis/types.ts';
@@ -30,7 +31,7 @@ import type { DecompState, EmitContext, FileEntry, Printer } from '../emit/tree.
 import { buildModel } from '../model/model.ts';
 import type { Model } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
-import { compiledDefinitions, scanC } from '../reconcile/include-asm.ts';
+import { compiledDefinitions, scanC } from '../reconcile/c-scan.ts';
 import { combineReports } from '../verify/report.ts';
 import type { VerifyReport } from '../verify/report.ts';
 import { checkEntries } from '../verify/text-layout.ts';
@@ -44,7 +45,7 @@ import type { GeneratePlan, ProjectInputs } from './types.ts';
 export interface GenerateInputs {
   readonly rom: Rom;
   readonly config: RomliftConfig;
-  /** The names src/*.c defines; phase 3 has no C, so an empty set. */
+  /** The names src/*.c defines (decompStateOf); empty for a tree with no C of its own (init's, a bare ROM's). */
   readonly decomp: DecompState;
   readonly printer: Printer;
   /** The compiler profile of the analysis; default the discover profile (agbcc). */
@@ -136,11 +137,17 @@ export function confirmModel(inputs: Pick<GenerateInputs, 'rom' | 'config' | 'pr
   return { analysis, model: buildModel(rom, analysis, config) };
 }
 
-/** `entries` as a stream that records each path as it passes. */
+/**
+ * `entries` as a stream that records each path as it passes, as the check pass reads it: a decompiled function's
+ * chunk file, which the function writer puts under asm/matchings (core/emit/unit-text.ts writtenChunkPath, phase 6,
+ * D92), is read at its chunk's model path under asm/nonmatchings (nonmatchingFileOf), where the text-layout check
+ * indexes every chunk file and the C stub the model implies includes it; its text is the same. `paths` records the
+ * path the write pass writes.
+ */
 function* recordingPaths(entries: Iterable<FileEntry>, paths: string[]): Generator<FileEntry> {
   for (const entry of entries) {
     paths.push(entry.path);
-    yield entry;
+    yield entry.ownership === 'generated' && entry.writer === 'function' ? { ...entry, path: nonmatchingFileOf(entry.path) } : entry;
   }
 }
 
@@ -212,10 +219,12 @@ export interface ProjectGenerateOptions {
 /**
  * The DecompState of a project's C: every name a src/*.c defines at file scope that the default build compiles (the
  * reconciler's scanner and its compiledDefinitions, never a regex: a definition inside an `#if` region, the
- * NONMATCHING pattern's, does not count, as for the reconciler, architecture-a2-3), unique, in code-unit order.
- * Policy for a file the scanner cannot split (fix round 5, architecture-b0-2): its definitions as far as the scanner
- * read them, never a refusal, since phase 4 emits nothing differently for the DecompState (asm/matchings is phase
- * 6's, D76 g) and the reconciliation raises the file's own E_C_UNSCANNABLE or W_C_UNSCANNABLE.
+ * NONMATCHING pattern's, does not count, as for the reconciler, architecture-a2-3), unique, in code-unit order. It
+ * decides one thing (phase 6, D92): a function of a `c` module named here is written under asm/matchings
+ * (core/emit/unit-text.ts writtenChunkPath). A name defined in a file that is not its module's source raises
+ * E_C_DEFINITION_MOVED in the reconciliation, so nothing is written while the two disagree. Policy for a file the
+ * scanner cannot split (fix round 5, architecture-b0-2): its definitions as far as the scanner read them, never a
+ * refusal, and the reconciliation raises the file's own E_C_UNSCANNABLE or W_C_UNSCANNABLE.
  */
 export function decompStateOf(cTexts: ReadonlyMap<string, string>): DecompState {
   const names = new Set<string>();
@@ -244,7 +253,7 @@ export function generateProject(inputs: ProjectInputs, options: ProjectGenerateO
   const modelDiagnostics = [...confirmed.analysis.diagnostics, ...confirmed.model.diagnostics];
   if (modelDiagnostics.some((d) => d.severity === 'error')) return { ok: false, diagnostics: modelDiagnostics };
   const checked = checkPass(inputs.rom, confirmed, { decomp: decompStateOf(inputs.cTexts), printer: options.printer ?? 'readable', ...(inputs.configSha1 === undefined ? {} : { configSha1: inputs.configSha1 }) });
-  const stubs = reconcileStubs(confirmed.model, inputs.cTexts, inputs.previousChunkFiles, inputs.headerTexts);
+  const stubs = reconcileStubs(confirmed.model, inputs.cTexts, inputs.previousChunkFiles, inputs.headerTexts, inputs.headerRealPaths);
   const result: GenerateResult = { ...checked, stubs, diagnostics: [...checked.diagnostics, ...stubs.diagnostics] };
   return { ok: true, result, diagnostics: result.diagnostics };
 }

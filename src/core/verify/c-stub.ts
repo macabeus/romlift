@@ -6,10 +6,11 @@
 // core/model/c-unit.ts encodes, so only it can be laid out, assembled or linked without a compiler; anything else
 // is a problem at its line. What the statements must include (the module's chunk files in ROM order) is the
 // text-layout check's.
+import type { BuildCompilerId } from '../config/compilers.ts';
 import { C_STUB_HEADER } from '../../foundation/asm/dialect.ts';
 import { stubAssemblyText } from '../model/c-unit.ts';
 import { chunkFileOf } from '../../foundation/util/project-files.ts';
-import { scanC } from '../reconcile/include-asm.ts';
+import { scanC } from '../reconcile/c-scan.ts';
 
 /** The header include a stub starts with (C_STUB_HEADER without its blank line). */
 const HEADER_INCLUDE = C_STUB_HEADER.trimEnd();
@@ -54,11 +55,12 @@ export function readStub(text: string): StubReading {
   return { includes: scan.statements.map((s) => ({ path: chunkFileOf(s.dir, s.name), line: s.line })), problems };
 }
 
-/** The assembly agbcc emits for a stub-only C text (core/model/c-unit.ts), or why the text is not one. */
+/** The assembly a build compiler emits for a stub-only C text (core/model/c-unit.ts), or why the text is not one. */
 export type StubAssembly = { readonly ok: true; readonly text: string } | { readonly ok: false; readonly problems: readonly StubProblem[] };
 
-export function stubAssemblyOf(text: string): StubAssembly {
+/** The assembly build compiler `compiler` (the module's) emits for C text `text`, or why it is not a stub-only unit. */
+export function stubAssemblyOf(text: string, compiler: BuildCompilerId): StubAssembly {
   const reading = readStub(text);
   if (reading.problems.length > 0) return { ok: false, problems: reading.problems };
-  return { ok: true, text: stubAssemblyText(reading.includes.map((i) => i.path)) };
+  return { ok: true, text: stubAssemblyText(reading.includes.map((i) => i.path), compiler) };
 }

@@ -1,5 +1,5 @@
-// Writer goldens (architecture §5, §6.3, §13 g3.golden-writers; roadmap 3.B, 3.C, 4.C): for every committed fixture
-// and each of the ten writers (phase 3's eight, phase 4's modules-mk and c-stub), the files that writer yields on the fixture's discover-mode model
+// Writer goldens (architecture §5, §6.3, §13 g3.golden-writers; roadmap 3.B, 3.C, 4.C, 6.F): for every committed fixture
+// and each of the twelve writers (phase 3's eight, phase 4's modules-mk and c-stub, phase 6's expected and objdiff), the files that writer yields on the fixture's discover-mode model
 // (the seedless discover run under profileById('agbcc'), configFromDiscover, buildModel), with the readable
 // printer and an empty DecompState, one test/golden/writers/<writer>/<fixture>.txt each. A module-scoped
 // writer runs per generated module in ROM order, a global one once, each module's files sorted by path: the
@@ -30,7 +30,7 @@ const DIR = fileURLToPath(new URL('./', import.meta.url));
 const UPDATE = process.env['UPDATE_GOLDEN'] === '1';
 const FIXTURES = listSyntheticFixtures();
 /** The writers g3.golden-writers requires a golden of, in the order of the writers table of §6.3. */
-const GATED: readonly WriterId[] = ['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'modules-mk', 'c-stub'];
+const GATED: readonly WriterId[] = ['header', 'crt0', 'function', 'orphan', 'module', 'data', 'ldscript', 'symbols', 'modules-mk', 'c-stub', 'expected', 'objdiff'];
 const RAW_SET = 'raw-printer';
 
 const READABLE: EmitContext = { decomp: { defined: [] } };

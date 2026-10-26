@@ -1,6 +1,7 @@
 // Confirm mode (architecture §4.2, D8): the project's [functions] are the function set from round 0.
 // A listed entry whose seed asks for validation (`Seed.validate`, an entry another source proposed) and
-// fails validity is kept and reported (W_LISTED_INVALID); any other listed entry is taken without the
+// fails validity, judged over its listed extent per inner label's mode (listed-extent.ts, phase-6.md Q10), is kept and
+// reported (W_LISTED_INVALID); any other listed entry is taken without the
 // valid.* rules (phase-3.md Q5 c, D74). What discovery would accept beyond the list is reported
 // (W_UNLISTED_FUNCTION) and claims nothing. Extents are cut in view.ts
 // (extentEndOf): a listed size, else the reading cut at the next listed entry that is not a label.
@@ -12,7 +13,7 @@ import { provenance } from '../../provenance/provenance.ts';
 import type { Origin } from '../../provenance/vocabulary.ts';
 import { AnalysisCodes } from '../codes.ts';
 import type { AnalysisOptions, Candidate, OverrideFact, Seed } from '../types.ts';
-import { whyInvalid } from './validity.ts';
+import { whyListedInvalid } from './listed-extent.ts';
 import type { DriverState } from './state.ts';
 
 /** A total order of seeds: entry, mode (Thumb first), rule, then name, size, label and validate. */
@@ -79,13 +80,14 @@ export function recordUnlisted(s: DriverState, c: Candidate, origin: Origin): vo
 }
 
 /**
- * Before a listed Thumb entry whose seed asks for validation is taken: its first validity failure, if any, is
- * recorded and the entry kept. An entry without `validate` is not checked at all (whyInvalid is not called).
+ * Before a listed Thumb entry whose seed asks for validation is taken: the first validity failure of its listed extent,
+ * judged per part in each part's mode with a fall-through into the next listed function as an exit (listed-extent.ts,
+ * Q10), is recorded and the entry kept. An entry without `validate` is not checked at all.
  */
 export function checkListed(s: DriverState, c: Candidate): void {
   if (s.options.mode !== 'confirm' || c.mode !== 'thumb' || s.listedInvalid.has(c.entry)) return;
   if (s.listed.get(c.entry)?.validate !== true) return;
-  const failure = whyInvalid(s, c.entry);
+  const failure = whyListedInvalid(s, c.entry);
   if (failure === undefined) return;
   const rejection = { at: c.entry, mode: c.mode, rule: failure.rule, reason: failure.reason, intrinsic: failure.intrinsic, round: s.round, detail: failure.detail, count: 1 };
   s.listedInvalid.set(c.entry, { entry: c.entry, rejection });

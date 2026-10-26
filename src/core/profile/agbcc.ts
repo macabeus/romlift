@@ -1,7 +1,7 @@
 // The agbcc profile: the proof of concept's numbers (romlift-poc/src/analysis.ts) and its call order of
 // every rule slot (D12, D48). Changing a number or an order here is a reviewed diff with its bench diff.
 import { contains, u16, u32 } from '../../foundation/rom/rom.ts';
-import type { Rom } from '../../foundation/rom/rom.ts';
+import type { Rom, RomBytes } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import type { Insn } from '../../foundation/isa/types.ts';
 import { registerEffect } from '../../foundation/isa/registers.ts';
@@ -10,7 +10,7 @@ import type { BlSite, CompilerProfile, JumpTableMatch, Pipeline, ReadingSummary 
 /** The proof of concept's call order of every rule (§4.1): each analysis rule id in exactly one slot. */
 export const AGBCC_PIPELINE: Pipeline = {
   // run(): the cartridge entry, then the Thumb pointers of the startup code; then what the project lists.
-  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override', 'seed.evidence-hint'],
+  seed: ['seed.rom-entry', 'seed.startup-pointer', 'seed.listed', 'seed.override'],
   // pointerCandidates(): the pool list, then the data list filtered by it.
   harvest: ['seed.pool-pointer', 'seed.data-pointer'],
   // accept(): calls, then veneers, then ARM adr targets, in push order; then the entries of code copied to IWRAM (D60 e).
@@ -98,7 +98,7 @@ function isPadding(rom: Rom, a: Addr): boolean {
 }
 
 /** A word the jump may index: a word-aligned ROM address just ahead of the jump at `pc`. */
-function isTableBase(rom: Rom, v: number, pc: Addr): boolean {
+function isTableBase(rom: RomBytes, v: number, pc: Addr): boolean {
   return contains(rom, v) && (v & 3) === 0 && v - pc > 0 && v - pc < TABLE_JUMP.maxBaseDistance;
 }
 
@@ -108,7 +108,7 @@ function isTableBase(rom: Rom, v: number, pc: Addr): boolean {
  * whose word is a table base names the table; a register written any other way (a constant, other
  * arithmetic, a call) is no longer followed, and the search ends when no register is.
  */
-function tableBase(insns: readonly Insn[], cursor: number, rom: Rom): { readonly base: Addr; readonly load: Addr } | undefined {
+function tableBase(insns: readonly Insn[], cursor: number, rom: RomBytes): { readonly base: Addr; readonly load: Addr } | undefined {
   const jump = insns[cursor];
   if (jump === undefined || jump.flow.kind !== 'indirect') return undefined;
   let tracked = 1 << jump.flow.reg;
@@ -135,7 +135,7 @@ function tableBase(insns: readonly Insn[], cursor: number, rom: Rom): { readonly
  * that base while each is an even ROM address near the jump and the slot stays below the lowest target
  * past the base.
  */
-function matchTableJump(insns: readonly Insn[], cursor: number, rom: Rom): JumpTableMatch | undefined {
+function matchTableJump(insns: readonly Insn[], cursor: number, rom: RomBytes): JumpTableMatch | undefined {
   const jump = insns[cursor];
   const found = tableBase(insns, cursor, rom);
   if (jump === undefined || found === undefined) return undefined;

@@ -20,11 +20,12 @@ export function summaryLine(r: BenchRow): string {
   );
 }
 
-/** The objdiff member in one phrase: not linked, or the scored count and the differences by kind. */
+/** The objdiff member in one phrase: not linked, or the scored count, the differences by kind and what D34 as amended gates (D102). */
 export function objdiffText(o: NonNullable<BenchRow['objdiff']>): string {
   if (!o.linked) return 'not linked';
   const kinds = Object.entries(o.differences).map(([kind, n]) => `${n} ${kind}`);
-  return `${o.scored} scored, ${kinds.length === 0 ? 'no difference' : kinds.join(', ')}`;
+  const gated = o.classes === undefined ? '' : `; gated ${o.classes.gated}, uncompared ${o.classes.uncompared}`;
+  return `${o.scored} scored, ${kinds.length === 0 ? 'no difference' : kinds.join(', ')}${gated}`;
 }
 
 export interface RomDiff {

@@ -59,6 +59,7 @@ function moduleJson(m: Module) {
     cflags: [...m.cflags],
     ...(m.library === undefined ? {} : { library: { name: m.library.name, version: m.library.version } }),
     ...(m.runAt === undefined ? {} : { runAt: hexAddr(m.runAt) }),
+    ...(m.dataRange === undefined ? {} : { dataStart: hexAddr(m.dataRange.start) }),
     chunks: { first: m.chunks.first, count: m.chunks.count },
   } satisfies ModelJsonModule;
 }

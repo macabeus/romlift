@@ -1,9 +1,16 @@
 // The walk cursor a WalkPolicy reads (architecture §4.1), the environment both walkers share (the view,
 // the resolved walk slot, the extent rule), and asking the walk slot.
+//
+// Run space (architecture §3.3, §6.7, D46): both walkers read the ROM at load addresses and decode each instruction
+// at its run address (toRun), so a branch, bl, adr or pool load inside a runs_at range computes its target where the
+// code runs; toLoadInsn maps the target back to the load address that holds it. A target with no load address (RAM
+// outside every range) stays a run address: from code inside a range it is an external reference (externalTarget),
+// never a function candidate, a walk target or an error.
 import type { Flow, Insn } from '../../../foundation/isa/types.ts';
+import { contains } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode } from '../../../foundation/rom/span.ts';
 import type { RuleId } from '../../provenance/rule-id.ts';
-import { toLoad } from '../address-map.ts';
+import { runsElsewhere, toLoad } from '../address-map.ts';
 import type { AddressMap } from '../address-map.ts';
 import type { AnalysisView, ReadingShape, WalkPolicy, WalkStep } from '../types.ts';
 
@@ -96,3 +103,11 @@ export function toLoadInsn(insn: Insn, addresses: AddressMap, load: Addr): Insn 
   return flow === f && insn.addr === load ? insn : { ...insn, addr: load, flow };
 }
 
+/**
+ * Whether `target`, as toLoadInsn left it, is an external reference of the instruction at load address `site`: the
+ * site runs from a runs_at range and no cartridge byte runs at the target (RAM outside every range). Always false on
+ * the identity map, where a target outside the ROM stays the error it was.
+ */
+export function externalTarget(view: AnalysisView, site: Addr, target: Addr): boolean {
+  return runsElsewhere(view.addresses, site) && !contains(view.rom, target);
+}

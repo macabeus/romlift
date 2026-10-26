@@ -4,8 +4,8 @@
 // (neverValid), a 'calls-non-code' failure only for the epoch. An entry outside the ROM, odd or claimed is
 // judged by the slot too (valid.in-rom-unclaimed's checkEntry, before any reading), so its rejection
 // names that rule and disabling it changes the verdict.
-import type { Addr } from '../../../foundation/rom/span.ts';
-import type { ValidityFailure } from '../types.ts';
+import type { Addr, Mode } from '../../../foundation/rom/span.ts';
+import type { Reading, ValidityFailure } from '../types.ts';
 import { read } from './settle.ts';
 import { isFunction } from './state.ts';
 import type { DriverState } from './state.ts';
@@ -13,14 +13,18 @@ import { reject } from './trail.ts';
 
 /** The PoC's whyInvalid(entry): the first failing validity rule, computed now; pure but for the readings it takes. */
 export function whyInvalid(s: DriverState, entry: Addr): ValidityFailure | undefined {
-  let reading;
+  return firstInvalid(s, entry, 'thumb', () => read(s, entry, 'thumb'));
+}
+
+/**
+ * The first validity rule the code at `entry` in `mode` fails, `readingOf` called only when a rule needs the reading:
+ * a Thumb entry is judged by a rule's `checkEntry` before any reading, as whyInvalid; an ARM one (a part of a listed
+ * extent, listed-extent.ts) by every rule's `check` of its ARM reading.
+ */
+export function firstInvalid(s: DriverState, entry: Addr, mode: Mode, readingOf: () => Reading): ValidityFailure | undefined {
+  let reading: Reading | undefined;
   for (const { id, rule } of s.rules.validity) {
-    let detail: string | undefined;
-    if (rule.checkEntry !== undefined) detail = rule.checkEntry(entry, s.view);
-    else {
-      reading ??= read(s, entry, 'thumb');
-      detail = rule.check(reading, s.view);
-    }
+    const detail = rule.checkEntry !== undefined && mode === 'thumb' ? rule.checkEntry(entry, s.view) : rule.check((reading ??= readingOf()), s.view);
     if (detail !== undefined) return { rule: id, reason: rule.reason, intrinsic: rule.intrinsic, detail };
   }
   return undefined;

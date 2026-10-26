@@ -5,7 +5,10 @@
 //   comments    `@` to the end of the line (outside a string); `;` separates statements on a line
 //   labels      `name:`, several on a line, optionally followed by a statement
 //   no bytes    `.syntax unified`, `.text`, `.global`/`.globl`, `.type n, %function`, `.size n, .-n`,
-//               `.thumb_func` (kind 'symbol'; `.thumb_func` also selects Thumb state, as in GNU as)
+//               `.thumb_func` (kind 'symbol'; `.thumb_func` also selects Thumb state, as in GNU as), and
+//               `.syntax divided`, which agbcc prints after each INCLUDE_ASM include of a C unit's assembly
+//               (core/model/c-unit.ts): until the next `.syntax unified` no instruction and no include may follow,
+//               since divided syntax reads instructions otherwise (phase 6, architecture-r1-3)
 //   mode        `.thumb`, `.arm`, `.code 16`, `.code 32`
 //   padding     `.align p` and `.align p, fill` (there is no `.balign`)
 //   data        `.byte`, `.2byte`/`.hword`, `.4byte`/`.word`: comma lists of `number`, `symbol`,
@@ -174,6 +177,8 @@ interface Reader {
   readonly errors: StatementError[];
   readonly macros: Map<string, Macro>;
   readonly includes: ReadonlyMap<string, string>;
+  /** Whether `.syntax divided` is in force: no instruction or include is read until `.syntax unified`. */
+  divided: boolean;
   /** A macro being defined, until its `.endm`. */
   defining: { readonly name: string; readonly params: readonly string[]; readonly body: MacroLine[]; readonly line: number } | undefined;
 }
@@ -257,11 +262,13 @@ function readDirective(r: Reader, directive: string, rest: string, line: number,
       if (path === undefined) return err(`\`.include ${rest}\`: expected one "path"`);
       const text = r.includes.get(path);
       if (text !== undefined && MACRO_FILE.test(text)) return readMacroFile(r, path, text, line, depth);
+      if (r.divided) return err(`\`.include ${rest}\` under \`.syntax divided\`: only unified syntax is supported`);
       return push({ kind: 'include', line, path });
     }
     case '.syntax':
-      if (rest !== 'unified') return err(`\`.syntax ${rest}\`: only unified syntax is supported`);
-      return push({ kind: 'symbol', line, directive, args: ['unified'] });
+      if (rest !== 'unified' && rest !== 'divided') return err(`\`.syntax ${rest}\`: only \`.syntax unified\` and \`.syntax divided\` (agbcc's, after each INCLUDE_ASM include) are read`);
+      r.divided = rest === 'divided';
+      return push({ kind: 'symbol', line, directive, args: [rest] });
     case '.text':
     case '.thumb_func':
       if (rest !== '') return err(`\`${directive}\` takes no argument`);
@@ -298,7 +305,7 @@ function readMacroFile(r: Reader, path: string, text: string, line: number, dept
     r.errors.push({ line, message: `"${path}" is included deeper than ${MAX_MACRO_DEPTH} (an include cycle?)` });
     return;
   }
-  const sub: Reader = { statements: [], errors: [], macros: r.macros, includes: r.includes, defining: undefined };
+  const sub: Reader = { statements: [], errors: [], macros: r.macros, includes: r.includes, divided: false, defining: undefined };
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) readLine(sub, lines[i] ?? '', i + 1, depth + 1);
   if (sub.defining !== undefined) sub.errors.push({ line: sub.defining.line, message: `macro \`${sub.defining.name}\` has no \`.endm\`` });
@@ -339,6 +346,10 @@ function readStatement(r: Reader, text: string, line: number, depth: number): vo
   if (head.startsWith('.')) return readDirective(r, head.toLowerCase(), rest, line, depth);
   const macro = r.macros.get(head);
   if (macro !== undefined) return expand(r, head, macro, rest, line, depth);
+  if (r.divided) {
+    r.errors.push({ line, message: `\`${text}\` under \`.syntax divided\`: only unified syntax is supported` });
+    return;
+  }
   r.statements.push({ kind: 'insn', line, text });
 }
 
@@ -372,7 +383,7 @@ function readLine(r: Reader, raw: string, line: number, depth: number): void {
 
 /** Parses an assembly text of romlift's directive subset into statements and errors. */
 export function parseStatements(text: string, options: ParseOptions): ParsedStatements {
-  const r: Reader = { statements: [], errors: [], macros: new Map(), includes: options.includes, defining: undefined };
+  const r: Reader = { statements: [], errors: [], macros: new Map(), includes: options.includes, divided: false, defining: undefined };
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) readLine(r, lines[i] ?? '', i + 1, 0);
   if (r.defining !== undefined) r.errors.push({ line: r.defining.line, message: `macro \`${r.defining.name}\` has no \`.endm\`` });

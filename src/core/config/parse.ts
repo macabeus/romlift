@@ -1,5 +1,6 @@
 // romlift.toml (schema 1) to the in-memory config (architecture §3.4, §6.5, D22): the address-key checks of keys.ts,
-// then smol-toml, then the TOML spelling to the in-memory shape (snake_case `runs_at` is `runsAt`; a function or
+// then smol-toml, then the TOML spelling to the in-memory shape (snake_case `runs_at` is `runsAt`, `data_start`
+// `dataStart`; a function or
 // symbol written as a bare string is its name; `mode` defaults to thumb, `aliases` to none, `generated` to true),
 // then the zod schema (schema.ts). Codes: E_TOML_KEY_SPELLING and E_DUPLICATE_ADDRESS (keys.ts), E_TOML_PARSE
 // (smol-toml refused the text), E_TOML_SCHEMA (TOML, but not schema 1), E_UNKNOWN_COMPILER (`[build] compiler` or a
@@ -31,14 +32,14 @@ const KEYS = {
   rom: { path: 'path', sha1: 'sha1' },
   build: { name: 'name', compiler: 'compiler' },
   signatures: { enabled: 'enabled', libraries: 'libraries' },
-  module: { name: 'name', start: 'start', kind: 'kind', generated: 'generated', library: 'library', version: 'version', compiler: 'compiler', cflags: 'cflags' },
+  module: { name: 'name', start: 'start', kind: 'kind', data_start: 'dataStart', generated: 'generated', library: 'library', version: 'version', compiler: 'compiler', cflags: 'cflags' },
   function: { name: 'name', mode: 'mode', size: 'size', label: 'label', aliases: 'aliases', from: 'from' },
   symbol: { name: 'name', size: 'size', type: 'type', aliases: 'aliases', from: 'from' },
   override: { start: 'start', size: 'size', kind: 'kind', mode: 'mode', runs_at: 'runsAt', from: 'from' },
 } as const satisfies Readonly<Record<string, Readonly<Record<string, string>>>>;
 
-/** In-memory key -> TOML key, for messages (`runsAt` is written `runs_at`). */
-const TOML_SPELLING: Readonly<Record<string, string>> = { runsAt: 'runs_at' };
+/** In-memory key -> TOML key, for messages (`runsAt` is written `runs_at`, `dataStart` `data_start`). */
+const TOML_SPELLING: Readonly<Record<string, string>> = { runsAt: 'runs_at', dataStart: 'data_start' };
 
 function isTable(value: unknown): value is Table {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;

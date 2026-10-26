@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { printChunk } from '../../../src/core/emit/print/chunk.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { codeRefs } from '../../../src/core/model/labels.ts';
 import { segmentsOf } from '../../../src/core/model/segments.ts';
@@ -79,6 +80,32 @@ test('labels: func, pool, local, data and chunk labels; global only when referen
       [0x180, 'gUnk_08000180', 'data', false, 'global'],
     ],
   );
+});
+
+test('a pool word inside a named, sized entry names the entry: its label global, no gUnk_ label at the word (wordNameOf)', () => {
+  // G's pool word 0x08000180 lies inside gTable [0x170, 0x190) of the data module: it prints `gTable + 16`, so gTable
+  // is referenced from module b and no gUnk_08000180 is made for it.
+  const { rom, analysis, config } = scene();
+  const sized = { ...config, symbols: new Map([[BASE + 0x170, { name: 'gTable', size: 0x20, aliases: [] }]]) };
+  const model = buildModel(rom, analysis, sized);
+  assert.deepEqual(
+    model.labels.filter((l) => l.addr >= BASE + 0x130).map((l) => [l.addr - BASE, l.name, l.kind, l.scope]),
+    [
+      [0x130, 'gUnk_08000130', 'data', 'module'],
+      [0x170, 'gTable', 'data', 'global'],
+    ],
+  );
+  const g = model.chunks.findIndex((c) => c.name === 'G');
+  assert.ok(printChunk(rom, model, g, 'readable').lines.includes('_0800012C: .4byte gTable + 16'));
+  const unsized = buildModel(rom, analysis, { ...config, symbols: new Map([[BASE + 0x170, { name: 'gTable', aliases: [] }]]) });
+  assert.deepEqual(unsized.labels.filter((l) => l.addr >= BASE + 0x170).map((l) => [l.name, l.scope]), [['gTable', 'module'], ['gUnk_08000180', 'global']], 'without a size the word names its own label');
+});
+
+test('a pool word never references a local label: a code address of another module stays module-scoped', () => {
+  // F's pool word holds 0x08000128, G's branch target in module b, which only a local label names: printed as a value.
+  const { rom, analysis, config } = scene(BASE + 0x128);
+  const model = buildModel(rom, analysis, config);
+  assert.deepEqual(model.labels.filter((l) => l.addr === BASE + 0x128).map((l) => [l.name, l.kind, l.scope]), [['_08000128', 'local', 'module']]);
 });
 
 test('a pool word names a Thumb function only in its +1 form; the bare address references nothing', () => {

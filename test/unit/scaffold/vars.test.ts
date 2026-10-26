@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { BUILD_COMPILERS } from '../../../src/core/config/compilers.ts';
-import { BASEROM_PATH, MACROS_PATH } from '../../../src/core/model/paths.ts';
+import { MACROS_PATH } from '../../../src/core/model/paths.ts';
 import {
   decodeAgbccPin,
   decodeScaffoldManifest,
@@ -15,12 +15,11 @@ import {
   placeholderValues,
   ROMLIFT_RENDERED_TARGETS,
   SCAFFOLD_PLACEHOLDERS,
-  SCAFFOLD_ROM_FILE,
   scaffoldVars,
 } from '../../../src/core/scaffold/vars.ts';
 import type { ScaffoldVars } from '../../../src/core/scaffold/vars.ts';
 import { underGeneratedRoot } from '../../../src/core/write-plan/types.ts';
-import { INCLUDE_ASM_HEADER_PATH } from '../../../src/foundation/util/project-files.ts';
+import { BASEROM_FILE, INCLUDE_ASM_HEADER_PATH } from '../../../src/foundation/util/project-files.ts';
 
 const MANIFEST = readFileSync(new URL('../../../templates/MANIFEST.json', import.meta.url), 'utf8');
 const PIN = { url: 'https://github.com/pret/agbcc', commit: 'da598c1d918402c42c0c0d7128ba14567f3175e9' } as const;
@@ -37,8 +36,8 @@ const RENDERED = ROMLIFT_RENDERED_TARGETS.map((target) => ({ target, source: nul
 test('scaffoldVars derives the built ROM and the SHA-1 file from the build name; the ROM is baserom.gba', () => {
   assert.equal(VARS.builtRom, 'klonoa-eod.gba');
   assert.equal(VARS.sha1File, 'klonoa-eod.sha1');
-  assert.equal(VARS.romFile, 'baserom.gba');
-  assert.equal(SCAFFOLD_ROM_FILE, BASEROM_PATH, 'the scaffold and the model name the same ROM file');
+  assert.equal(VARS.romFile, BASEROM_FILE, 'the scaffold names the ROM file every layer reads');
+  assert.equal(BASEROM_FILE, 'baserom.gba');
 });
 
 test('every placeholder has a value, and placeholdersIn reads the @@name@@ spelling', () => {
@@ -69,7 +68,7 @@ test('the committed MANIFEST.json decodes and lists every scaffold file of archi
   }
   for (const target of targets) {
     assert.ok(!underGeneratedRoot(target), `${target} lies under a generated root`);
-    assert.ok(!['romlift.toml', 'decomp.yaml', BASEROM_PATH].includes(target) && !target.startsWith('src/') && !target.startsWith('.romlift/'), target);
+    assert.ok(!['romlift.toml', 'decomp.yaml', BASEROM_FILE].includes(target) && !target.startsWith('src/') && !target.startsWith('.romlift/'), target);
   }
 });
 

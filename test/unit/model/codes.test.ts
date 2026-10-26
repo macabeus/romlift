@@ -56,6 +56,8 @@ function raised(): Diagnostic[] {
       }),
     ).diagnostics,
   );
+  // A data_start on an asm module (phase 6, D92).
+  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'asm', generated: true, dataStart: BASE + 0x180 }] })).diagnostics);
   // A Thumb pointer value pasted as a [functions] key (fix round 5).
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x103, 'Odd']] })).diagnostics);
   return out;

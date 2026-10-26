@@ -3,13 +3,16 @@
 // each build unit once, in ROM order, a runs_at unit at its run address loaded at its load address with its
 // __load_ symbol, and INCLUDE symbols.ld exactly when there are symbols outside the ROM; outside every section it
 // must hold, for each C unit in ROM order and for no other, its C-data check section and its ASSERT, exactly as
-// core/model/c-unit.ts spells them (D21, D74 f); symbols.ld must define each symbol outside the ROM once with the
-// model's value, and nothing else. Failures are E_SELF_CHECK_TEXT.
+// core/model/c-data-assert.ts spells them (D21, D74 f); for each C data range (phase 6, §6.6), in ROM order among the
+// units, its `.rodata_<m>` section line followed by its ASSERT, exactly as spelled there, and the unit after it must
+// open its own section at its load address; symbols.ld must define each symbol outside the ROM once with the model's
+// value, and nothing else. Failures are E_SELF_CHECK_TEXT.
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr, parseHexAddr } from '../../foundation/util/hex.ts';
-import { cDataAssertLine, cDataSectionLine } from '../model/c-data-assert.ts';
+import { cDataAssertLine, cDataSectionLine, cRamDataSectionLine, cRodataAssertLine, cRodataSectionLine } from '../model/c-data-assert.ts';
+import { linkerDefinedNames, loadSymbolOf, modulePieces } from '../model/modules.ts';
 import { isCSource } from '../../foundation/util/project-files.ts';
 import { buildUnits, SYMBOLS_PATH } from '../model/paths.ts';
 import { externalSymbols } from '../model/symbols.ts';
@@ -41,7 +44,8 @@ interface ScriptObject {
 const SECTION_AT = /^\.([A-Za-z0-9_.$]+)\s+(0x[0-9A-Fa-f]+)\s*:\s*AT\(\s*(0x[0-9A-Fa-f]+)\s*\)\s*\{$/;
 const SECTION = /^\.([A-Za-z0-9_.$]+)\s*:\s*\{$/;
 const OBJECT = /^(\S+)\(\.text\);?$/;
-const LOAD_SYMBOL = /^__load_([A-Za-z0-9_.$]+)\s*=\s*LOADADDR\(\s*\.([A-Za-z0-9_.$]+)\s*\);$/;
+/** `<symbol> = LOADADDR(.<section>);`: the symbol is one of modules.ts linkerDefinedNames, never spelt here (architecture-r2-2). */
+const LOAD_SYMBOL = /^([A-Za-z_.$][A-Za-z0-9_.$]*)\s*=\s*LOADADDR\(\s*\.([A-Za-z0-9_.$]+)\s*\);$/;
 const START = /^\.\s*=\s*(0x[0-9A-Fa-f]+)\s*;$/;
 const ASSIGNMENT = /^([A-Za-z_.$][A-Za-z0-9_.$]*)\s*=\s*(0x[0-9A-Fa-f]+)\s*;$/;
 
@@ -57,7 +61,7 @@ function expectedCDataLines(model: Model): readonly { readonly text: string; rea
   return model.modules.flatMap((module, i) =>
     isCSource(units[i]?.source ?? '')
       ? [
-          { text: cDataSectionLine(module.name), addr: module.span.start, module: module.name },
+          { text: module.dataRange === undefined ? cDataSectionLine(module.name) : cRamDataSectionLine(module.name), addr: module.span.start, module: module.name },
           { text: cDataAssertLine(module.name), addr: module.span.start, module: module.name },
         ]
       : [],
@@ -82,6 +86,51 @@ function checkCDataLines(model: Model, path: string, got: readonly CDataLine[], 
   return [];
 }
 
+/** A data range's section line in the script: its text, the ASSERT line after it, and how many objects precede it. */
+interface RodataLine {
+  readonly text: string;
+  readonly line: number;
+  assert?: { readonly text: string; readonly line: number };
+  readonly objectsBefore: number;
+}
+
+/** What each data range of the model needs in the script, in ROM order: its two lines and how many units precede it. */
+function expectedRodataLines(model: Model): readonly { readonly section: string; readonly assert: string; readonly module: string; readonly addr: Addr; readonly unitsBefore: number }[] {
+  const units = buildUnits(model);
+  let unitsBefore = 0;
+  const out: { readonly section: string; readonly assert: string; readonly module: string; readonly addr: Addr; readonly unitsBefore: number }[] = [];
+  for (const piece of modulePieces(model.modules)) {
+    const module = model.modules[piece.module];
+    if (module === undefined) continue;
+    if (piece.part === 'text') {
+      unitsBefore++;
+      continue;
+    }
+    out.push({ section: cRodataSectionLine(module.name, units[piece.module]?.object ?? '', piece.span), assert: cRodataAssertLine(module.name, piece.span), module: module.name, addr: piece.span.start, unitsBefore });
+  }
+  return out;
+}
+
+/** The first place the script's data-range lines differ from the model's, or nothing. */
+function checkRodataLines(model: Model, path: string, got: readonly RodataLine[], lastLine: number): Diagnostic[] {
+  const want = expectedRodataLines(model);
+  for (let k = 0; k < Math.max(want.length, got.length); k++) {
+    const w = want[k];
+    const g = got[k];
+    if (w === undefined) return [textError(path, g?.line ?? lastLine, ROM_BASE, `holds \`${g?.text ?? ''}\`, which no data range of the model needs`)];
+    if (g === undefined) return [textError(path, lastLine, w.addr, `lacks \`${w.section}\`, the data range of C unit ${w.module}`)];
+    if (g.text !== w.section) return [textError(path, g.line, w.addr, `holds \`${g.text}\` where the data range of C unit ${w.module} needs \`${w.section}\``)];
+    if (g.assert?.text !== w.assert) return [textError(path, g.assert?.line ?? g.line, w.addr, `does not follow \`${w.section}\` with \`${w.assert}\``)];
+    if (g.objectsBefore !== w.unitsBefore) return [textError(path, g.line, w.addr, `places the data range of C unit ${w.module} after ${g.objectsBefore} units, where ROM order puts it after ${w.unitsBefore}`)];
+  }
+  return [];
+}
+
+/** Whether a line outside every section is a data range's section line, by its form. */
+function isRodataLine(s: string): boolean {
+  return s.startsWith('.rodata_');
+}
+
 /** Whether a line outside every section is a C-data line (a check section or its ASSERT), by its form. */
 function isCDataLine(s: string): boolean {
   return s.startsWith('.c_data_') || s.startsWith('ASSERT(');
@@ -92,7 +141,11 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
   const lines = withoutComments(text).split('\n');
   const objects: ScriptObject[] = [];
   const cData: CDataLine[] = [];
+  const rodata: RodataLine[] = [];
+  let pendingAssert: RodataLine | undefined;
+  /** The script's load symbols by name, each with the section it names. */
   const loads = new Map<string, string>();
+  const loadNames = new Set(linkerDefinedNames(model.modules).map((d) => d.name));
   let includesSymbols = false;
   let start: Addr | undefined;
   let inSections = false;
@@ -126,6 +179,18 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
       else err(`unexpected \`${s}\` inside section .${section.name}`);
       return;
     }
+    const after = pendingAssert;
+    pendingAssert = undefined;
+    if (after !== undefined && s.startsWith('ASSERT(')) {
+      after.assert = { text: s, line };
+      return;
+    }
+    if (isRodataLine(s)) {
+      const entry: RodataLine = { text: s, line, objectsBefore: objects.length };
+      rodata.push(entry);
+      pendingAssert = entry;
+      return;
+    }
     if (isCDataLine(s)) {
       cData.push({ text: s, line });
       return;
@@ -138,7 +203,7 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
     else if (plain !== null) {
       if (start === undefined) err(`section .${plain[1] ?? ''} has no address and no \`. = ${hexAddr(ROM_BASE)};\` precedes it`);
       section = { name: plain[1] ?? '', count: 0 };
-    } else if (loadSymbol !== null) loads.set(loadSymbol[1] ?? '', loadSymbol[2] ?? '');
+    } else if (loadSymbol !== null && loadNames.has(loadSymbol[1] ?? '')) loads.set(loadSymbol[1] ?? '', loadSymbol[2] ?? '');
     else if (startAt !== null) {
       start = parseHexAddr(startAt[1] ?? '');
       if (start !== ROM_BASE) err(`the link starts at ${startAt[1] ?? ''}, not ${hexAddr(ROM_BASE)}`);
@@ -152,7 +217,15 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
     out.push(textError(path, 1, ROM_BASE, wantSymbols ? `does not INCLUDE ${SYMBOLS_PATH}, which defines symbols the code names` : `INCLUDEs ${SYMBOLS_PATH}, which defines nothing`));
   }
   out.push(...checkCDataLines(model, path, cData, lastLine));
+  out.push(...checkRodataLines(model, path, rodata, lastLine));
   const units = buildUnits(model);
+  // The units that follow a data range in ROM order, each of which must open its own section at its load address.
+  const afterRange = new Set<number>();
+  const pieces = modulePieces(model.modules);
+  pieces.forEach((p, i) => {
+    const next = pieces[i + 1];
+    if (p.part === 'data' && next !== undefined && next.part === 'text') afterRange.add(next.module);
+  });
   for (let k = 0; k < Math.max(units.length, objects.length); k++) {
     const unit = units[k];
     const got = objects[k];
@@ -174,7 +247,9 @@ export function checkLdscript(model: Model, path: string, text: string): Diagnos
       if (!got.first || got.vma !== module.runAt || got.lma !== at) {
         out.push(textError(path, got.line, at, `${unit.object} runs from ${hexAddr(module.runAt)} and must open its own section at ${hexAddr(module.runAt)} : AT(${hexAddr(at)})`));
       }
-      if (loads.get(module.name) !== got.section) out.push(textError(path, got.line, at, `no \`__load_${module.name} = LOADADDR(.${got.section});\` names where ${unit.object} is loaded`));
+      if (loads.get(loadSymbolOf(module)) !== got.section) out.push(textError(path, got.line, at, `no \`${loadSymbolOf(module)} = LOADADDR(.${got.section});\` names where ${unit.object} is loaded`));
+    } else if (afterRange.has(k) && (!got.first || got.lma !== at || got.vma !== at)) {
+      out.push(textError(path, got.line, at, `${unit.object} follows a data range and must open its own section at ${hexAddr(at)} : AT(${hexAddr(at)})`));
     } else if (got.first && got.lma !== undefined && (got.lma !== at || got.vma !== at)) {
       out.push(textError(path, got.line, at, `section .${got.section} opens at ${hexAddr(got.vma ?? 0)} : AT(${hexAddr(got.lma)}), but ${unit.object} loads at ${hexAddr(at)}`));
     } else if (got.vma !== undefined && got.vma !== got.lma) {

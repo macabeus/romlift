@@ -4,8 +4,11 @@
 // score.ts) and the PoC baseline (baseline-rows.ts, accepted-diffs.ts), measures the emission families of
 // phase 3 on it (scaffold.ts: the readability shares and the tree digest on every run; with --scaffold both
 // printers' trees built and linked, the raw link as the row's `scaffold` verdict, and the objdiff family
-// over the readable build), and runs the sealed held-out datasets through the classifiers, keeping counts
-// only (seal.ts, classify.ts); a sealed dataset gets no emission family.
+// over the readable build), judges the locally built signature files on the same scored run when any are present
+// (signatures.ts, the `signatures` family of phase 6, D24: the row's `signatures` member and meta.families; their
+// digest in meta.inputs `signaturesDigest`), and runs the sealed held-out datasets through the classifiers, keeping
+// counts only (seal.ts, classify.ts); a sealed dataset gets no emission or signatures family (`bench signatures`
+// counts its placements).
 //
 //   --json   prints one last line {schema: 'romlift/bench-run@1', roms, sealed, failed} and writes no
 //            committed file (bench/timings.json only). Without --only it runs the tuning datasets.
@@ -39,7 +42,7 @@ import { arch, cpus, platform } from 'node:os';
 import { join, posix } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
-import { compareCodeUnits, hexAddr, parseElf, parseGnuMap, type ElfSymbol } from 'romlift';
+import { compareCodeUnits, hexAddr, parseElf, parseGnuMap, type ElfSymbol, type GnuMap, type SignatureFile } from 'romlift';
 
 import { acceptedFor, readAcceptedDiffs, type AcceptedDiffs } from './accepted-diffs.ts';
 import { analyzeDataset, analysisTuning, benchProfile, discoverOptions, isDefaultTuning, readRealInputs, sealedInput, type AnalysisRunner, type DatasetAnalysis, type RealInputs, type RunTuning, DEFAULT_RUN_TUNING } from './analysis-run.ts';
@@ -50,7 +53,7 @@ import { datasetDir, resultsPath, timingsPath, type BenchContext } from './conte
 import { cpuProfPath, profiled, writeTopSelfTime } from './cpu-prof.ts';
 import { isSealed, loadDatasets, type Dataset } from './dataset.ts';
 import { currentNodeMajor, sourceDigest } from './digest.ts';
-import { phase3RomFamilies } from './families.ts';
+import { phase6RomFamilies } from './families.ts';
 import { BenchError, exists, isRecord, prettyJson, readFileBytes, readJson, readText, writeText } from './files.ts';
 import { gitDirty, gitHead } from './git.ts';
 import type { ObjdiffSummary } from './objdiff.ts';
@@ -67,6 +70,7 @@ import type { PocSource, RomliftRow } from './row.ts';
 import { initVerdict, NOT_RUN, ROMLIFT_FAMILIES, type EmissionFamilies, type InitBuild, type InitBuildVerdict } from './scaffold.ts';
 import { analysisFunctions, scoreAnalysis, staleExceptions } from './score.ts';
 import { appendReveal, assertCountsOnly, sealedCounts, sealedPasses } from './seal.ts';
+import { locateBuiltSignatures, signaturesDigest, tuningSignatures, type SignaturesMember } from './signatures.ts';
 import { readSpeedBaseline } from './speed.ts';
 import { objdiffTool, toolchainVersions } from './toolchain.ts';
 
@@ -234,10 +238,14 @@ export async function elfSymbols(cx: BenchContext, d: Dataset): Promise<readonly
 
 /**
  * The reference objects of a tuning dataset, refused when the dataset records none or their digest differs
- * (D50), with the objects its map links when it records a map (doctor-real's `<rom>.objects-linked` checks
- * they are the linked ones).
+ * (D50), with the objects its map links and the map itself when it records one (doctor-real's
+ * `<rom>.objects-linked` checks they are the linked ones; the objdiff family reads each function's object from the
+ * map, as bench/tools/objdiff-classes.ts does).
  */
-export async function referenceObjects(cx: BenchContext, d: Dataset): Promise<{ readonly dir: string; readonly digest: string; readonly linked?: ReadonlySet<string> }> {
+export async function referenceObjects(
+  cx: BenchContext,
+  d: Dataset,
+): Promise<{ readonly dir: string; readonly digest: string; readonly linked?: ReadonlySet<string>; readonly map?: GnuMap }> {
   if (d.objectsDir === undefined || d.objectsDigest === undefined) throw new BenchError(`${d.name}: the dataset records no objectsDir and objectsDigest, which --scaffold's objdiff family needs`);
   const dir = join(cx.benchRoot, d.objectsDir);
   const digest = await objectsDigest(dir).catch((error: unknown) => {
@@ -247,7 +255,7 @@ export async function referenceObjects(cx: BenchContext, d: Dataset): Promise<{ 
   if (d.map === undefined) return { dir, digest };
   const map = parseGnuMap(await readText(join(cx.benchRoot, d.map)));
   if (!map.ok) throw new BenchError(`${d.name}: ${d.map}: ${map.error}`);
-  return { dir, digest, linked: new Set(mapObjects(map.value).objects.map((o) => posix.normalize(o.file))) };
+  return { dir, digest, linked: new Set(mapObjects(map.value).objects.map((o) => posix.normalize(o.file))), map: map.value };
 }
 
 /** One tuning ROM's emission families: the readability shares always, the scaffold and objdiff with a tool. */
@@ -269,6 +277,7 @@ async function emissionOf(cx: BenchContext, inputs: RealInputs, analysis: Datase
     objectsDir: objects.dir,
     objdiff: run.objdiff,
     ...(objects.linked === undefined ? {} : { linkedObjects: objects.linked }),
+    ...(objects.map === undefined ? {} : { map: objects.map }),
   });
   Object.assign(timings, built.timings, { scaffoldMs: Math.round(performance.now() - started) });
   const init = await emission.initBuild({ cx, rom: inputs.rom, withhold: false });
@@ -284,6 +293,15 @@ interface TuningRun {
   readonly floors: ReadabilityFloors | undefined;
   /** The objdiff-cli binary; undefined without --scaffold. */
   readonly objdiff: string | undefined;
+  /** The locally built signature files (signatures/*.json); undefined when none are built, and the family does not run. */
+  readonly signatures: readonly SignatureFile[] | undefined;
+}
+
+/** The signatures family of one tuning ROM on its scored run, when signature files are built. */
+async function signaturesOf(cx: BenchContext, inputs: RealInputs, analysis: DatasetAnalysis, run: TuningRun): Promise<SignaturesMember | undefined> {
+  if (run.signatures === undefined) return undefined;
+  const judged = tuningSignatures(inputs, analysis.result, await elfSymbols(cx, inputs.dataset), run.signatures);
+  return judged.member;
 }
 
 /** One tuning dataset analysed (profiled with --cpu-prof), scored, compared and emitted. */
@@ -307,8 +325,10 @@ async function runTuning(
     analysis = analyzeDataset(inputs, options.runner, tuning);
   }
   const emitted = await emissionOf(cx, inputs, analysis, run);
+  const signatures = await signaturesOf(cx, inputs, analysis, run);
+  const row = romliftRow(inputs, analysis, tc, emitted.emission, dump?.pocRow);
   return {
-    row: romliftRow(inputs, analysis, tc, emitted.emission, dump?.pocRow),
+    row: signatures === undefined ? row : { ...row, signatures },
     inputs,
     analysis,
     ...(emitted.objectsDigest === undefined ? {} : { objectsDigest: emitted.objectsDigest }),
@@ -361,6 +381,7 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
     tuning,
     floors: await readReadabilityFloors(cx),
     objdiff: scaffolding ? await (options.objdiffTool ?? objdiffTool)(cx) : undefined,
+    signatures: tuningSet.length > 0 ? await locateBuiltSignatures(cx) : undefined,
   };
 
   let roms: RomliftRow[] = [];
@@ -377,7 +398,12 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
       const out = await runTuning(cx, d, tc, run);
       roms.push(out.row);
       inputs[d.name] = { sha1: out.inputs.sha1, elfSha256: out.inputs.elfSha256, ...(out.objectsDigest === undefined ? {} : { objectsDigest: out.objectsDigest }) };
-      families[d.name] = phase3RomFamilies({ deterministic: out.analysis.deterministic, speedBaseline: speed?.roms[d.name] !== undefined, scaffold: out.row.scaffold !== undefined });
+      families[d.name] = phase6RomFamilies({
+        deterministic: out.analysis.deterministic,
+        speedBaseline: speed?.roms[d.name] !== undefined,
+        scaffold: out.row.scaffold !== undefined,
+        signatures: out.row.signatures !== undefined,
+      });
       timings[d.name] = { scoreMs: Math.round(performance.now() - started), analysisCpuMs: Math.round(out.analysis.cpuMs), analysisWallMs: Math.round(out.analysis.wallMs), ...out.timings };
       log(`${summaryText(out.row)}`);
     } catch (error) {
@@ -424,6 +450,7 @@ export async function benchRun(cx: BenchContext, options: RunOptions): Promise<R
     throw new BenchError(`not writing bench/results.json: the analysis failed on ${failed.map((f) => f.name).join(', ')}`);
   }
   if (tc !== undefined) inputs['pocSourceDigest'] = tc.pinnedPocDigest;
+  if (run.signatures !== undefined) inputs['signaturesDigest'] = signaturesDigest(run.signatures);
   const largeRom = await (options.largeRom ?? runLargeRom)(cx);
   log(memoryText(largeRom.member));
   await writeTimings(cx, { ...timings, ...(largeRom.timings === undefined ? {} : { 'large-rom': largeRom.timings }) });
@@ -549,8 +576,14 @@ export function summaryText(r: RomliftRow): string {
     `extents ${r.extents.agree}/${r.extents.sized} (${r.extents.lost.length} lost), code end ${r.codeEnd.delta >= 0 ? '+' : ''}${r.codeEnd.delta}, ` +
     `${r.deterministic ? 'deterministic' : 'NOT DETERMINISTIC'}, baseline diffs ${r.baselineRows.diffs.length} (${r.baselineRows.unaccepted.length} unaccepted, ${r.baselineRows.staleAccepted.length} stale), ` +
     `stale exceptions ${r.staleExceptions.length}, readability ${shareText(r.readability)}${r.readability.floor === null ? ' (no floor)' : ` (floor ${shareText(r.readability.floor)})`}` +
-    `${r.scaffold === undefined ? '' : `, scaffold ${r.scaffold.ok ? 'SHA-1' : 'FAILED'}`}${r.scaffold?.init === undefined ? '' : `, init build ${initText(r.scaffold.init)}`}`
+    `${r.scaffold === undefined ? '' : `, scaffold ${r.scaffold.ok ? 'SHA-1' : 'FAILED'}`}${r.scaffold?.init === undefined ? '' : `, init build ${initText(r.scaffold.init)}`}` +
+    `${r.signatures === undefined ? '' : `, signatures ${signaturesSummary(r.signatures)}`}`
   );
+}
+
+/** The signatures family in a few words: placements and tables with their wrong ones, sizes and names that differ. */
+export function signaturesSummary(m: SignaturesMember): string {
+  return `${m.placements.total} placements (${m.placements.wrong} wrong), ${m.tables.total} tables (${m.tables.wrong} wrong), ${m.sizes.differ} sizes and ${m.names.differ} reference names differ`;
 }
 
 const shareText = (s: Shares): string => `${pct(s.mnemonicShare)}/${pct(s.symbolicBranchShare)}/${pct(s.symbolicPoolShare)}`;
@@ -624,7 +657,7 @@ export async function revealDataset(cx: BenchContext, name: string, options: Rev
   await writeText(file, prettyJson({ ...raw, revealed: revealed.revealed }));
   options.log?.(`${name}: revealed (${file}); it is tuning data from now on and never counts toward g2.held-out again`);
   const tc = await tuningContext(cx);
-  const run: TuningRun = { options: { runner: options.runner, json: true }, tuning: DEFAULT_RUN_TUNING, floors: await readReadabilityFloors(cx), objdiff: undefined };
+  const run: TuningRun = { options: { runner: options.runner, json: true }, tuning: DEFAULT_RUN_TUNING, floors: await readReadabilityFloors(cx), objdiff: undefined, signatures: await locateBuiltSignatures(cx) };
   const { row } = await runTuning(cx, revealed, tc, run);
   return row;
 }

@@ -109,7 +109,9 @@ was created by [romlift](https://github.com/macabeus/romlift) 0.4.0 (`package.js
 | `make` | builds `klonoa-eod.gba` and compares its SHA-1 with `klonoa-eod.sha1`; exits 0 only on a match, the only verdict that counts |
 | `make rom` | builds `klonoa-eod.gba` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
-| `make clean` | removes `build/` and the built ROM |
+| `make expected` | builds each module's objdiff target, `build/expected/<module>.o` (no compiler; `objdiff.json` lists the C modules') |
+| `npx romlift rename <old> <new>` | renames a function or symbol in `romlift.toml` and in the C of `src/` and `include/` together |
+| `make clean` | removes `build/` (the objdiff targets with it) and the built ROM |
 
 `baserom.gba` is the original ROM. It is never committed (`.gitignore`); bring your own copy.
 
@@ -122,8 +124,9 @@ generate`).
 
 ## What is generated and what is yours
 
-- **Tool-owned, never edit:** `asm/`, `data/`, `ldscript.txt`, `symbols.ld`, `modules.mk`. `romlift generate`
-  rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next run. They are not committed
+- **Tool-owned, never edit:** `asm/`, `data/`, `expected/`, `ldscript.txt`, `symbols.ld`, `modules.mk`,
+  `objdiff.json`. `romlift generate` rewrites them from `romlift.toml` and the ROM, and a hand edit is lost on the next
+  run. They are not committed
   (`.gitignore`): `./setup.sh` generates them in a fresh clone or worktree, where `asm/` is absent. **After a `git
   pull` or a checkout that changes `romlift.toml`, run `npx romlift generate` (or `./setup.sh`) before `make`:**
   `modules.mk` records the SHA-1 of the `romlift.toml` it was generated from, and `make` stops with a message while
@@ -147,8 +150,8 @@ to the same bytes, then run `make`; never edit the `.s` file. To rename a functi
 in `[functions]` of `romlift.toml` and run `npx romlift generate`: it rewrites the generated files and brings the
 `INCLUDE_ASM` lines of `src/*.c` in line with them (it adds the line of a function the module gained and removes the
 line of one it lost or renamed), and it never touches a line of C you wrote. A function you have already decompiled
-is the exception: rename its C definition to the new name before (or together with) the `romlift.toml` edit, and move
-its C to the other module's file when the edit moves it. Otherwise `romlift generate` refuses and writes nothing
+is the exception: rename its C definition to the new name before (or together with) the `romlift.toml` edit (or let
+`npx romlift rename` do both, below), and move its C to the other module's file when the edit moves it. Otherwise `romlift generate` refuses and writes nothing
 (`E_C_STALE_DEFINITION`, `E_C_DEFINITION_MOVED`), since the new `INCLUDE_ASM` line would define the function twice.
 When the other module's file does not exist yet (a new module), create it with only the C: `romlift generate` adds
 its `#include "include_asm.h"` and the module's other `INCLUDE_ASM` lines around it.
@@ -159,6 +162,22 @@ build: the function keeps its `INCLUDE_ASM` line, in the block's `#else` branch 
 branch of a block with an `#else` defines it (`#ifdef NONMATCHING` C `#else` a `NAKED` definition `#endif`). To rename a
 decompiled function, change both its C name and `romlift.toml`; renamed in C alone, `romlift generate` refuses
 (`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again.
+
+**`npx romlift rename <old> <new>`** makes both edits at once: it renames the entry of `romlift.toml` named (or aliased)
+`<old>` on its one line, drops its `from` key (the name is yours from then on), and renames every identifier `<old>` of
+`src/` and `include/` (never a comment, a string or a character literal; the `INCLUDE_ASM` line included). It never runs
+`romlift generate`: run it next, and the chunk file follows. It refuses, changing nothing, when `<new>` is already a
+name of the project (an entry, an alias or a module of `romlift.toml`, or a name the generated files use, such as a
+default `unk_…`, `gUnk_…` or `_0800…` label), when `<old>` names nothing, or when a file it cannot edit names `<old>`:
+a symbolic link (an edit would replace the link with a file), a file that is not UTF-8 text, or a binary. It warns
+(`W_RENAME_SKIPPED`) of every other such file it left alone.
+
+**Entries named by library signatures.** romlift recognises library code (m4a, libgcc, the BIOS call stubs, …) by its
+bytes and names it: such an entry of `[functions]` or `[symbols]` carries `from = "sig:<library>@<version>"`, and the
+library gets an `asm` module of its own (`[[modules]]` with `library` and `version`). Every `romlift generate` checks an
+entry with `from` against the code it finds (a warning, `W_LISTED_INVALID`, when they disagree); the TOML still
+decides. Rename such an entry like any other: the rename drops its `from`. `npx romlift analyze --update --write`
+renames only entries that still carry a default name, so a name you gave is never replaced.
 
 Write decompiled C in `src/<module>.c` itself, or in a `src/*.c` file directly under `src/` that it `#include`s at
 file scope (romlift reads that file, and the `src/*.c` files directly under `src/` it includes, as part of the module:
@@ -174,14 +193,13 @@ compiles it on its own, so its functions would be built twice, and `romlift gene
 the same step as you add the module to `romlift.toml`; `romlift generate` then gives the file the new module's
 `INCLUDE_ASM` lines and, unless the file gets `INCLUDE_ASM` from its own lines, from a `src/*.c` it includes or from a
 header either includes (one that `#define`s it or includes `include_asm.h`, at any depth), that header, which its old
-lines took from the file that included it. romlift finds a header as the Makefile's `cpp -nostdinc -I include` does:
-`#include "…"` in the including file's own directory first, then in `include/`; `#include <…>` in `include/` only.
-It follows a symbolic link, whether `include/` itself, a directory under it or under `src/` is the link, but not exactly
-as `cpp` does: a `..` in an include, in a header reached through a linked directory, is resolved against the link's
-path, not its target; a link whose target is the project directory, or a directory the walk is already inside (one of
-the link's own parent directories), is not entered; and a link to a directory above the project is entered, all of it
-but the project directory below it, so every file there is read (slow on a large directory, `E_IO_READ` on an unreadable
-file). It does not evaluate an `#if` around an `#include`, an `#include` spelled with a macro, or an include directory
+lines took from the file that included it. romlift finds a header as the Makefile's `cpp -nostdinc -I include` does,
+symbolic links included: `#include "…"` in the including file's own directory first (the directory the file was
+opened in, its links followed, so a `..` in a header behind a linked directory leads to the parent of the link's
+target), then in `include/`; `#include <…>` in `include/` only. It reads every file under `include/` and every `.h`
+under `src/`, through a linked `include/` or a linked directory under it or under `src/` too, and through a link to the
+project directory, to one of the link's own parent directories or to a directory above the project only the files an
+`#include` names. It does not evaluate an `#if` around an `#include`, an `#include` spelled with a macro, or an include directory
 you add to `CPPFLAGS`. When a header that romlift does not reach for one of these reasons defines `INCLUDE_ASM` and
 romlift adds `#include "include_asm.h"` anyway, `make` stops in the assembler (`Macro … was already defined`): delete
 that line (romlift adds it only to a file that has no `INCLUDE_ASM` line left of its own, as a rename leaves it).
@@ -205,31 +223,91 @@ when they would have to change it refuses (`E_C_UNSCANNABLE`): change them yours
 Each C module is compiled by `tools/agbcc/bin/<compiler>` (`[[modules]] compiler` in `romlift.toml`, default
 `[build] compiler`), with the flags `modules.mk` lists; `mk/<compiler>.mk` holds the recipe.
 
-## Data defined in C fails the link
+## Comparing a function with objdiff
 
-The linker script places only the code (`.text`) of a C object. A C file that defines data (a `const` array, a
-string table, an initialised or zero-initialised global) fails the link with:
+`romlift generate` writes, for each module, `expected/<module>.s`: the module as its build unit assembles it while
+every function is `INCLUDE_ASM` (a C module's generated `.s` files, each included as `INCLUDE_ASM` would include it).
+`make expected` assembles it as it is into `build/expected/<module>.o`, the target object: the symbols, relocations and
+bytes `build/src/<module>.o` had before you decompiled anything. `objdiff.json` lists one unit per C module, in ROM order,
+with that target and the object `make` builds from `src/<module>.c`, `build/src/<module>.o`. Open the project in objdiff
+(or run `objdiff-cli`) after `make expected`: it runs `make build/src/<module>.o` itself before each diff
+(`build_base`), never `make expected` (`build_target` is false), so run `make expected` again after a `romlift
+generate` that changed `expected/`. Before you change anything, objdiff scores every function at 100%.
+
+## Code that runs from RAM
+
+Some code is copied from the ROM to RAM and runs there (m4a's `SoundMainRAM`, an interrupt handler). romlift does not
+find it by itself: declare each such range in `romlift.toml` by hand, with its load address in the ROM, its size and the
+address it runs at,
+
+```toml
+[[overrides]]
+start = 0x0804F318
+size = 0x3A4
+kind = "code"
+mode = "thumb"
+runs_at = 0x03000388
+```
+
+then run `npx romlift analyze --update --write` (it adds the module borders the range needs: a range that runs from RAM
+is a module of its own, `ram_<RUNADDR>`) and `npx romlift generate`. The linker script places that module at its run
+address, loaded at its ROM address, and defines `__load_<module>`, its load address, which the code that copies it
+names. `runs_at` must lie outside the ROM and away from every other range's run addresses, keep its ROM start's word
+alignment (`runs_at` minus `start` a multiple of 4) and end inside the 32-bit address space; `romlift generate` refuses
+anything else with `E_OVERRIDE_INVALID`. No function or symbol may be named `__load_<module>`, the linker script's name
+for a range's load address, and the range's module may not be named `text`, `c_data_<m>` for a C module `m`, or
+`rodata_<m>` for a C module with `data_start`: the linker script names the module's section `.<module>`, and those are
+its other sections' names (`E_NAME_COLLISION`).
+
+## Data defined in C
+
+The linker script places the code (`.text`) of a C object. A C file that defines data (a `const` array, a string table,
+an initialised or zero-initialised global) fails the link with:
 
 ```
-src/<module>.c defines data; see AGENTS.md (romlift does not place C data yet)
+src/<module>.c defines data; see AGENTS.md (only read-only data is placed, in a data range: data_start)
 ```
 
-That is deliberate: romlift cannot yet place a C object's data at its address in the ROM. Keep the data in the
-generated `data/` files and refer to it by its symbol (`extern`), until a later romlift release's data ranges let a C
-array replace its slice of the ROM.
+unless its module declares a **data range**: the bytes from `data_start` to the next module's start (or the ROM's end)
+are then that C file's read-only data, and a `const` array defined there replaces its slice of the ROM. Declare it in
+`romlift.toml` on the `c` module whose C defines the data, then run `npx romlift generate`:
+
+```toml
+[[modules]]
+name = "main"
+start = 0x080000F4
+kind = "c"
+data_start = 0x0800014C
+```
+
+`data_start` must be word-aligned, lie past the module's start and in the data at the end of the code (`romlift
+generate` refuses an address where code lies, inside a module that runs from RAM, or overlapping another module's
+range, with `E_DATA_RANGE_INVALID`), and the range cuts only its own module or a `data` module: a `data` module starting
+at `data_start` is dropped, one that holds it ends there. The linker script then places `src/<module>.c`'s `.rodata` at
+`data_start` and checks that it is the range's exact size:
+
+```
+src/<module>.c's read-only data is not the <size> bytes of its data range [<data_start>, <end>); see AGENTS.md
+```
+
+So the C file must define every byte of the range, in ROM order, with nothing between: no generated file holds those
+bytes any more. Every label of the range that assembly still names (`gUnk_<ADDR>`, or its `[symbols]` name) must be a
+symbol of that C file, under the same name. Data the C file puts in RAM (initialised or zero-initialised globals) still
+fails the link with the first message: keep it in assembly and refer to it by its symbol (`extern`).
 ==> Makefile (scaffold, scaffold) <==
 # Makefile: builds klonoa-eod.gba from this project's sources and checks it against klonoa-eod.sha1.
 #
 #   make            build klonoa-eod.gba and compare its SHA-1 with klonoa-eod.sha1 (exit 0 only on a match)
 #   make rom        build klonoa-eod.gba without the comparison
+#   make expected   build each module's objdiff target, build/expected/<module>.o (objdiff.json lists the C modules')
 #   make clean      remove everything the build wrote
 #
 # romlift init wrote this file once and never overwrites it; `npx romlift scaffold --diff` shows how it differs
 # from the template of the romlift version package.json pins. What it builds is generated by `romlift generate`:
 # modules.mk (the objects in link order and each C object's compiler and flags), ldscript.txt, symbols.ld,
-# asm/ and data/. Never edit those; change romlift.toml and run `npx romlift generate`. They are not in Git: after a
-# pull or a checkout that changes romlift.toml, run `npx romlift generate` (or ./setup.sh) again; make stops until
-# you do.
+# asm/, data/, expected/ and objdiff.json. Never edit those; change romlift.toml and run `npx romlift generate`.
+# They are not in Git: after a pull or a checkout that changes romlift.toml, run `npx romlift generate` (or
+# ./setup.sh) again; make stops until you do.
 #
 # To build one object differently, give it an explicit rule (here or in a file you include): an explicit rule
 # for build/src/<module>.o or build/<module>.o wins over the pattern rules below.
@@ -256,12 +334,13 @@ CPPFLAGS := -E -x c -nostdinc -undef -I include
 SHA1SUM  := $(shell command -v sha1sum >/dev/null 2>&1 && echo sha1sum || echo 'shasum -a 1')
 
 .DEFAULT_GOAL := compare
-.PHONY: all compare rom clean
+.PHONY: all compare rom expected clean FORCE
 .SUFFIXES:
 
 all: compare
 
-# OBJS (every object in link order), C_OBJS (the C objects) and, per C object, CC1 and CFLAGS.
+# OBJS (every object in link order), C_OBJS (the C objects), EXPECTED_OBJS (their objdiff targets) and, per C object,
+# CC1 and CFLAGS.
 ifneq ($(wildcard modules.mk),)
 include modules.mk
 else ifeq ($(filter clean,$(MAKECMDGOALS)),)
@@ -335,6 +414,18 @@ build/src/%.s: ;
 
 -include $(OBJS:.o=.d) $(C_OBJS:.o=.c.d)
 
+# objdiff's targets (objdiff.json): expected/<module>.s is the module as its unit assembles it while every function is
+# INCLUDE_ASM (a C module's chunk files included in order), and build/expected/<module>.o is that, assembled as it is:
+# the base object's symbols, relocations and bytes before anything is decompiled, whatever has been decompiled since.
+# They are cheap, so every `make expected` builds them again (FORCE), whatever the modification times say.
+expected: $(EXPECTED_OBJS)
+
+build/expected/%.o: expected/%.s FORCE
+	@mkdir -p $(@D)
+	$(AS) $(ASFLAGS) -o $@ $<
+
+FORCE:
+
 clean:
 	rm -rf build $(ROM) $(ELF) $(MAP)
 ==> README.md (scaffold, scaffold) <==
@@ -385,12 +476,18 @@ generate`).
 | `src/<module>.c` | the C of each `c` module: `INCLUDE_ASM` lines until a function is decompiled |
 | `asm/`, `data/` | the disassembly and the data, generated by `npx romlift generate` (not in Git: `./setup.sh` generates them) |
 | `ldscript.txt`, `symbols.ld`, `modules.mk` | the link order, the RAM symbols and each C module's compiler, generated (not in Git) |
+| `expected/`, `objdiff.json` | each module's objdiff target source (`make expected` assembles it into `build/expected/`) and objdiff's project file, generated (not in Git) |
 | `include/` | `include_asm.h` (the `INCLUDE_ASM` macro) and `macros.inc` (the assembler macros) |
 | `Makefile`, `mk/*.mk` | the build, and the recipe of each C compiler |
 | `tools/agbcc` | the compiler, a submodule of [pret/agbcc](https://github.com/pret/agbcc) |
 
 Never edit the generated files: change `romlift.toml` and run `npx romlift generate`. Decompiled C goes in
-`src/<module>.c` (or a `src/*.c` file it `#include`s). `AGENTS.md` has the details.
+`src/<module>.c` (or a `src/*.c` file it `#include`s); a `const` array in C needs its module's data range (`data_start`
+in `romlift.toml`). `npx romlift rename <old> <new>` renames a function in `romlift.toml` and in the C together;
+entries with `from = "sig:…"` were named by library signatures; code that runs from RAM is declared by hand as an
+`[[overrides]]` entry with `runs_at`. To compare a function with the original in objdiff, run `make expected` and open
+the project:
+`objdiff.json` lists the C modules. `AGENTS.md` has the details.
 ==> include/include_asm.h (scaffold, scaffold) <==
 #ifndef GUARD_INCLUDE_ASM_H
 #define GUARD_INCLUDE_ASM_H

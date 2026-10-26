@@ -21,12 +21,19 @@ export type WriteOp =
   | { readonly op: 'delete'; readonly path: string }
   | { readonly op: 'keep'; readonly path: string; readonly sha1: string };
 
+/**
+ * What the disk snapshot read at one project path (WritePlanInputs.disk): a file, with the sha1 of its bytes, or no file
+ * (ENOENT, or ENOTDIR: a file where a directory of its path should be). A closed union, as EditedFileState is
+ * (architecture-b2-11's remainder): `string | 'absent'` widened to `string`, so a sha1 and the absence were one type.
+ */
+export type DiskFileState = { readonly kind: 'present'; readonly sha1: string } | { readonly kind: 'absent' };
+
 export interface WritePlanInputs {
   /** The emission stream, consumed once. */
   readonly entries: Iterable<FileEntry>;
   readonly manifest: Manifest | null;
-  /** The sha1 of every path under the generated roots and of every tree path, or 'absent'. */
-  readonly disk: ReadonlyMap<string, string | 'absent'>;
+  /** What is on disk at every path under the generated roots and at every tree path. */
+  readonly disk: ReadonlyMap<string, DiskFileState>;
   /** The current text of each reconciled file. */
   readonly reconciledTexts: ReadonlyMap<string, string>;
   /** sha1 of a text, injected by the shell (D44). */

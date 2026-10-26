@@ -255,7 +255,7 @@ const functionFact = record<FunctionFact>({
 const seed = record<Seed>({
   entry: required(addr),
   mode: required(mode),
-  rule: required(oneOf<Seed['rule']>(['seed.listed', 'seed.override', 'seed.evidence-hint'])),
+  rule: required(oneOf<Seed['rule']>(['seed.listed', 'seed.override'])),
   name: optional(text),
   size: optional(count),
   label: optional(bool),

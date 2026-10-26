@@ -4,29 +4,35 @@
 // every jump table, a `local` label `_<ADDR>` at every branch, bl, adr and pool-load target and table target
 // that has no other label and that an item can start at (D63: never an odd address in code, the second
 // halfword of a bl, the inside of an ARM word or of a pool or table word, which the printer could not place,
-// so the instruction naming it fails the printing rule and prints raw), and a `data` label `gUnk_<ADDR>` where a pool word or a table points into a data
-// module. A label holds its run address (the load address outside runs_at).
+// so the instruction naming it fails the printing rule and prints raw), and a `data` label `gUnk_<ADDR>` where a table,
+// or a pool word that no named, sized entry holds (resolver.ts wordNameOf: such a word prints `name + offset`), points
+// into a data module. A label holds its run address (the load address outside runs_at).
 //
 // An adr target whose only labels are Thumb functions gets its local label too: an adr names a label that links to
 // the target itself (resolver.ts adrResolverFor), never a Thumb function's, which links to the target plus one
-// (the owner's answer to Q7 of phase 3, D72 c). Every other reference still names the function.
+// (the owner's answer to Q7 of phase 3, D72 c). So does the target of a jump-table entry without the Thumb bit: no
+// addend makes a Thumb function's name link to an even word (resolver.ts addendTo, phase-6 fix round 6,
+// architecture-o1-1). Every other reference still names the function.
 //
 // Scope: a label is 'global' when something in another module references it (a call, a branch, an adr, a
-// pool load, a pool word naming it, its Thumb form included, a table entry), else 'module'. A short Thumb
+// pool load, a pool word naming it, its Thumb form included, a table entry), else 'module'. What a pool word names is
+// resolver.ts wordNameOf, the rule the printer reads: a named entry at the word, else the sized entry holding it (its
+// label, which `name + offset` names), else a label that links to the word; never a local label. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
 import { decode, isThumbBlPrefix, isThumbBlSuffix, thumbMayName } from '../../foundation/isa/decode.ts';
 import type { Insn, SpecId } from '../../foundation/isa/types.ts';
 import { contains, peek16, peek32 } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
+import { insnAligned } from '../../foundation/rom/span.ts';
 import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { FunctionConfig } from '../config/schema.ts';
 import type { ChunkPlan } from './chunks.ts';
 import type { Segments } from './segments.ts';
 import { loadAddressOf, loadModuleAt, moduleIndexAt, runOffsetAt } from './modules.ts';
-import { dataName, localName } from './names.ts';
-import { compareLabels, isExactLabel, wordValueOf } from './resolver.ts';
+import { dataName, localName } from '../../foundation/util/project-files.ts';
+import { addendTo, compareLabels, entryLabelOf, isExactLabel, wordNameOf, wordValueOf, type SizedEntries, type SizedEntry } from './resolver.ts';
 import type { Label, LabelKind, ModelSymbol, Module } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -119,6 +125,8 @@ export interface LabelInputs {
    * equal to its address prints as its name (§5: `ldr r0, _08001A3C @ =gFoo`).
    */
   readonly symbols: readonly ModelSymbol[];
+  /** The named, sized entries of the model (resolver.ts sizedEntries), which name the pool words inside them. */
+  readonly entries: SizedEntries;
   readonly segments: Segments;
   readonly refs: readonly CodeRef[];
 }
@@ -191,7 +199,7 @@ function insideAnItem(segments: Segments, refs: readonly CodeRef[]): (a: Addr) =
     if (s === undefined || a < s.start) return false;
     switch (s.kind) {
       case 'code':
-        return a % 2 !== 0 || (s.mode === 'arm' && (a - s.start) % 4 !== 0) || secondHalves.has(a);
+        return !insnAligned('thumb', a) || !insnAligned(s.mode, a - s.start) || secondHalves.has(a);
       case 'pool':
       case 'table':
         return a !== s.start;
@@ -219,30 +227,45 @@ function candidatesOf(inputs: LabelInputs): { readonly candidates: Candidate[]; 
     else add({ load: s.addr, name: s.name, kind: 'data', thumb: false });
   }
   const isData = (a: Addr): boolean => contains(rom, a) && modules[loadModuleAt(modules, a)]?.kind === 'data';
+  // A pool word a placed sized entry holds prints `name + offset` (wordNameOf), so it names no label of its own. The
+  // entry's label is a candidate already added (a function, a chunk or a placed symbol), looked up as the printer looks
+  // it up (entryLabelOf) at the entry's address: an unplaced symbol has none. Only a word of a ROM data module is asked
+  // about. A function's entry lies at its run address, so one that can hold such a word is outside every run range
+  // (modules.ts runAddresses refuses a run range that overlaps the cartridge), where its run address is its load
+  // address; a symbol's candidate is keyed by its own address. So the candidates at the entry's address are the labels
+  // the printer finds there (phase-6 fix round 6, architecture-o1-5).
+  const byLoad = new Map<Addr, Candidate[]>();
+  for (const c of out) byLoad.set(c.load, [...(byLoad.get(c.load) ?? []), c]);
+  const candidateLabelsAt = (addr: Addr): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'>[] => (byLoad.get(addr) ?? []).map((c) => ({ addr, name: c.name, kind: c.kind, thumb: c.thumb }));
+  const entryLabel = (entry: SizedEntry): Pick<Label, 'addr' | 'name' | 'kind' | 'thumb'> | undefined => entryLabelOf(entry, candidateLabelsAt);
+  const heldByEntry = (a: Addr): boolean => wordNameOf(inputs.entries, a, [], entryLabel)?.kind === 'inside';
   const data: Addr[] = [];
   const targets: Addr[] = [];
+  // The targets a reference must name with a label that links to the address itself: adr targets, and the targets of
+  // jump-table entries without the Thumb bit.
+  const exactTargets: Addr[] = [];
   for (const s of segments.concrete) {
     if (s.kind === 'pool') {
       add({ load: s.start, name: localName(s.start), kind: 'pool', thumb: false });
-      if (isData(s.value)) data.push(s.value);
+      if (isData(s.value) && !heldByEntry(s.value)) data.push(s.value);
     } else if (s.kind === 'table') {
       if (s.first) add({ load: s.start, name: localName(s.start), kind: 'table', thumb: false });
       if (isData(s.target)) data.push(s.target);
       else targets.push(s.target);
+      if (!s.thumbBit) exactTargets.push(s.target);
     }
   }
-  const adrs: Addr[] = [];
   for (const r of inputs.refs) {
     const load = loadAddressOf(inputs.relocated, r.target);
     targets.push(load);
-    if (r.kind === 'adr') adrs.push(load);
+    if (r.kind === 'adr') exactTargets.push(load);
   }
   // A data or local label only where no other label names the address yet, once per address.
   for (const a of data) if (!named.has(a)) add({ load: a, name: dataName(a), kind: 'data', thumb: false });
   for (const a of targets) if (!named.has(a) && contains(rom, a) && !inside(a)) add({ load: a, name: localName(a), kind: 'local', thumb: false });
-  // An adr target named only by Thumb functions: its local label too, which the adr names.
+  // Such a target named only by Thumb functions: its local label too, which the adr or the table entry names.
   const exact = new Set(out.filter(isExact).map((c) => c.load));
-  for (const a of adrs) {
+  for (const a of exactTargets) {
     if (exact.has(a) || !contains(rom, a) || inside(a)) continue;
     add({ load: a, name: localName(a), kind: 'local', thumb: false });
     exact.add(a);
@@ -258,6 +281,13 @@ interface LabelIndex {
 
 function firstAt(labels: readonly Label[], addr: Addr): number {
   return lowerBound(labels, addr, (l) => l.addr);
+}
+
+/** The indexes in index.byAddr of the labels at run address `addr`, preferred first. */
+function labelsAt(index: LabelIndex, addr: Addr): number[] {
+  const out: number[] = [];
+  for (let i = firstAt(index.byAddr, addr); i < index.byAddr.length && index.byAddr[i]?.addr === addr; i++) out.push(i);
+  return out;
 }
 
 /** The index in index.byAddr of the preferred label at run address `addr` that `match` accepts, or -1. */
@@ -280,10 +310,16 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
     if (loadModuleAt(modules, site) !== moduleIndexAt(modules, label.addr, inputs.relocated)) global[i] = true;
   };
   const exact = (site: Addr, run: Addr): void => reference(site, preferredAt(index, run, () => true));
+  const position = new Map(index.byAddr.map((l, i) => [l, i] as const));
   const word = (site: Addr, value: number): void => {
-    const matches = (l: Label): boolean => wordValueOf(l) === value;
-    const at = preferredAt(index, value, matches);
-    reference(site, at >= 0 || (value & 1) === 0 ? at : preferredAt(index, value - 1, matches));
+    const at = [...(insnAligned('thumb', value) ? [] : labelsAt(index, value - 1)), ...labelsAt(index, value)];
+    const linking = at.flatMap((i) => {
+      const l = index.byAddr[i];
+      return l !== undefined && l.kind !== 'local' && wordValueOf(l) === value ? [l] : [];
+    });
+    const entryLabel = (entry: SizedEntry): Label | undefined => entryLabelOf(entry, (a) => labelsAt(index, a).flatMap((i) => index.byAddr[i] ?? []));
+    const named = wordNameOf(inputs.entries, value, linking, entryLabel);
+    if (named !== undefined) reference(site, position.get(named.label) ?? -1);
   };
   for (const r of inputs.refs) {
     if (r.kind === 'short-branch' && loadModuleAt(modules, r.site) !== moduleIndexAt(modules, r.target, inputs.relocated)) continue;
@@ -292,7 +328,12 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
   }
   for (const s of segments.concrete) {
     if (s.kind === 'pool') word(s.start, s.value);
-    else if (s.kind === 'table') exact(s.start, s.target + runOffsetAt(inputs.relocated, s.target));
+    else if (s.kind === 'table') {
+      // The label the entry prints (core/emit/print/table.ts): the preferred one some addend of which links to the entry.
+      const run = s.target + runOffsetAt(inputs.relocated, s.target);
+      const stored = (run | (s.thumbBit ? 1 : 0)) >>> 0;
+      reference(s.start, preferredAt(index, run, (l) => addendTo(l, stored) !== undefined));
+    }
   }
   return global;
 }

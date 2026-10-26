@@ -9,6 +9,12 @@ OBJS := \
 C_OBJS := \
 	build/src/main.o \
 	build/src/main_2.o
+EXPECTED_OBJS := \
+	build/expected/rom_header.o \
+	build/expected/crt0.o \
+	build/expected/main.o \
+	build/expected/asm_08000100.o \
+	build/expected/main_2.o
 build/src/main.o: CC1 := tools/agbcc/bin/agbcc
 build/src/main.o: CFLAGS := -mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm
 build/src/main_2.o: CC1 := tools/agbcc/bin/agbcc

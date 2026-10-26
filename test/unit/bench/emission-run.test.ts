@@ -32,7 +32,8 @@ function renamedStartup(rom: Rom): RomliftConfig {
 
 test('configOf is configFromDiscover over the discover analysis', () => {
   const rom = readFixtureRom(FAR_JUMP);
-  assert.deepEqual(configOf(rom), configFromDiscover(rom, discover(rom)));
+  // As init writes it without a signature file: the signature layer enabled (phase 6), which configFromDiscover leaves off.
+  assert.deepEqual(configOf(rom), { ...configFromDiscover(rom, discover(rom)), signatures: { enabled: true } });
   assert.equal(ROMLIFT_EMISSION.prepare, configOf);
 });
 

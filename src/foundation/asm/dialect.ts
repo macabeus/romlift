@@ -3,8 +3,9 @@
 // writers, the macros.inc template and the text-layout check all take it from here, so the corpus
 // tests the dialect the writers emit. The macro names are the proof of concept's (src/emit.ts).
 import type { Dialect } from '../isa/types.ts';
+import { ROM_BASE } from '../rom/rom.ts';
 import type { Mode } from '../rom/span.ts';
-import { INCLUDE_ASM_HEADER_NAME, nonmatchingDir } from '../util/project-files.ts';
+import { BASEROM_FILE, INCLUDE_ASM_HEADER_NAME, nonmatchingDir } from '../util/project-files.ts';
 
 /** A function-start macro: word alignment (unless the entry is at 2 mod 4), visibility, mode and type. */
 function startMacro(name: string, mode: Mode, aligned: boolean, global: boolean): string {
@@ -72,6 +73,15 @@ export const MODULE_NAME_RULE = `letters, digits and _, not starting with a digi
 /** The macro file's project path, the one definition (core/model/paths.ts re-exports it as MACROS_PATH). */
 const MACROS_PATH = 'include/macros.inc';
 const MACROS_INCLUDE = `.include "${MACROS_PATH}"`;
+
+/**
+ * `\t.incbin "baserom.gba", 0x<OFFSET>, 0x<LENGTH>`: the ROM's bytes [from, to) (load addresses; OFFSET from the ROM base,
+ * both in upper-case hex without leading zeros). The one spelling the data writer, the expected writer and the C-data
+ * stand-in share (architecture-7).
+ */
+export function incbinLine(from: number, to: number): string {
+  return `\t.incbin "${BASEROM_FILE}", 0x${(from - ROM_BASE).toString(16).toUpperCase()}, 0x${(to - from).toString(16).toUpperCase()}`;
+}
 
 export const DIALECT: Dialect = {
   preamble: (mode) => `.syntax unified\n${MACROS_INCLUDE}\n${mode === 'arm' ? '.arm' : '.thumb'}\n`,

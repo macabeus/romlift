@@ -7,6 +7,7 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Insn } from '../../foundation/isa/types.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
+import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { BlSite, CompilerProfile, ProfileId } from '../profile/types.ts';
 import type { Provenance, Rejection } from '../provenance/provenance.ts';
 import type { RuleId, RuleMeta } from '../provenance/rule-id.ts';
@@ -69,7 +70,7 @@ export const DECODER_FLOW: RuleId = 'walk.decoder-flow';
 export interface FunctionFact {
   readonly entry: Addr;
   readonly mode: Mode;
-  /** Set only inside a runs_at range. */
+  /** The run address of `entry`, set only inside a runs_at range (the entry and every other address are load addresses, D46). */
   readonly runAt?: Addr;
   /** Code plus adjacent pools and tables (claim.adjacent-pools). */
   readonly extent: Span;
@@ -99,6 +100,12 @@ export interface FunctionFact {
   readonly accepted: Provenance;
   /** Later proposals of the same entry, one per proposing rule. */
   readonly also: readonly Provenance[];
+}
+
+/** The function of `functions` (sorted by entry, as AnalysisResult.functions is) whose entry is `addr`, or undefined. */
+export function functionAt<F extends Pick<FunctionFact, 'entry'>>(functions: readonly F[], addr: Addr): F | undefined {
+  const f = functions[lowerBound(functions, addr, (g) => g.entry)];
+  return f?.entry === addr ? f : undefined;
 }
 
 export interface UnlistedFinding {
@@ -155,7 +162,7 @@ export type AnalysisResult =
 export interface Seed {
   readonly entry: Addr;
   readonly mode: Mode;
-  readonly rule: 'seed.listed' | 'seed.override' | 'seed.evidence-hint';
+  readonly rule: 'seed.listed' | 'seed.override';
   readonly name?: string;
   readonly size?: number;
   readonly label?: boolean;
@@ -304,9 +311,14 @@ export interface AnalysisView {
   readonly addresses: AddressMap;
   readonly round: number;
   readonly epoch: number;
-  /** The options' seeds and overrides, for the seed rules (D56). */
+  /** The run's seeds (the options' own, and a seed.override seed per code override, runs_at or not) and the options' overrides, for the seed rules (D56). */
   readonly seeds: readonly Seed[];
   readonly overrides: readonly OverrideFact[];
+  /**
+   * Whether `a` lies in a data override (runs_at or not): claimed data from round 0, which no walk enters (a path that
+   * reaches it ends there, as at the next function) and no claim overwrites (correctness-b0-3).
+   */
+  inDataOverride(a: Addr): boolean;
   /** The claim of a byte; free outside the ROM. */
   claimAt(a: Addr): ClaimKind;
   /** The innermost accepted extent covering a (§9.3). */
@@ -356,8 +368,8 @@ export interface Candidate extends Proposal {
  * target, both ARM. seed.startup-pointer (origin startup-pointer): for each accepted ARM function in
  * acceptance order (v.functions()), each pool value of its accepted reading in walk order that is an odd
  * pointer to a word-aligned ROM address, as Thumb.
- * seed.listed / seed.override / seed.evidence-hint (origins listed, override, evidence): the
- * options' seeds whose `rule` is the rule's id, sorted by entry.
+ * seed.listed / seed.override (origins listed, override): the run's seeds whose `rule` is the rule's id, sorted
+ * by entry; the seed.override seeds are the options' own and one at the start of each code override (driver/seeds.ts).
  */
 export interface SeedRule {
   readonly kind: 'seed';
@@ -466,7 +478,9 @@ export interface ValidityFailure {
 
 /**
  * whyInvalid(), in pipeline.validity order; `check` returns the detail of a failure. A rule with
- * `checkEntry` judges the entry before any reading exists, and its `check` is never called (D56).
+ * `checkEntry` judges a Thumb entry before any reading exists, and its `check` is not called for that entry (D56);
+ * an ARM part of a listed extent is judged by every rule's `check`, this rule's included (driver/validity.ts
+ * firstInvalid, listed-extent.ts, D100).
  * Reasons: valid.in-rom-unclaimed 'inside-code' (checkEntry: outside the ROM, odd, or claimed);
  * valid.decodes 'decode-error' (no instruction, or an error); valid.balanced-stack 'pops-frame';
  * valid.returns-or-prologue 'no-return-no-prologue' (no return and !idioms.opensWithPushLr);

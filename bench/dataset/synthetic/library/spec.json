@@ -1,0 +1,19 @@
+{
+  "library": "libfix",
+  "versions": [
+    {
+      "id": "1.0",
+      "idNote": "the one release of libfix, the self-authored library of the signature fixtures (library/build.mk names each member's rule); the library fixture links all of it but fix_short.o, library-ref2 adds FixShort",
+      "references": [
+        { "dataset": "library", "objects": ["fix_*.o"], "tables": ["gFixTable"] },
+        { "dataset": "library-ref2", "objects": ["fix_*.o"] }
+      ]
+    }
+  ],
+  "reviewedNames": {
+    "FixSwiHalt@fix_stub.o": {
+      "name": "Halt",
+      "reason": "the BIOS call the stub wraps (swi 0x02) is Halt, the name libagbsyscall gives it; the fixture's own symbol says FixSwiHalt so the reviewed name differs from it, as the builder must apply"
+    }
+  }
+}

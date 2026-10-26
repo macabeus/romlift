@@ -1,6 +1,7 @@
 // bench/src/objects.ts: the objects digest equals the gates' (test/gates/gate.ts objectsDigest over nodeIo)
 // on one directory, the symbol index and objectFor, the relocation reader on the committed objdiff fixture
-// objects, and the map-against-objects comparison.
+// objects, the map-against-objects comparison, the map's linked input sections, and the names an object gives
+// addresses.
 import assert from 'node:assert/strict';
 import { copyFile, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -11,13 +12,17 @@ import { parseElf, parseGnuMap, type ElfSymbol } from 'romlift';
 import {
   definitionsOf,
   indexObjectSymbols,
+  inputAt,
+  linkedInputs,
   linkedSectionMismatches,
   listObjectFiles,
   mapObjects,
+  memberKey,
   objectFor,
-  implicitAddend,
+  objectNames,
   objectRelocations,
   objectsDigest,
+  parseMemberKey,
   readObjectSymbolIndex,
 } from '../../../bench/src/objects.ts';
 import { nodeIo, objectsDigest as gateObjectsDigest } from '../../gates/gate.ts';
@@ -152,17 +157,49 @@ test('mapObjects lists the linked objects and archive members; linkedSectionMism
   assert.deepEqual(linkedSectionMismatches(other, elf.value), ['ref/reference.o .text is 0x2c bytes, the map links 0x30']);
 });
 
-test('implicitAddend reads the addend each ARM REL type keeps in its field (architecture-r1-1)', () => {
-  const view = (bytes: readonly number[]): DataView => new DataView(Uint8Array.from(bytes).buffer);
-  assert.equal(implicitAddend(2, view([0x10, 0, 0, 0]), 0), 0x10, 'R_ARM_ABS32: the word');
-  assert.equal(implicitAddend(2, view([0xfc, 0xff, 0xff, 0xff]), 0), -4);
-  // R_ARM_THM_CALL: `bl .` as GNU as leaves it for a relocation, 0xF7FF 0xFFFE, is -4.
-  assert.equal(implicitAddend(10, view([0xff, 0xf7, 0xfe, 0xff]), 0), -4);
-  assert.equal(implicitAddend(10, view([0x00, 0xf0, 0x04, 0xf8]), 0), 8);
-  assert.equal(implicitAddend(28, view([0xfe, 0xff, 0xff, 0xeb]), 0), -8, 'R_ARM_CALL: bl . in ARM state');
-  assert.equal(implicitAddend(102, view([0xfe, 0xe7]), 0), -4, 'R_ARM_THM_JUMP11: b .');
-  assert.equal(implicitAddend(103, view([0xfe, 0xd0]), 0), -4, 'R_ARM_THM_JUMP8: beq .');
-  assert.equal(implicitAddend(5, view([0xff, 0xff]), 0), -1);
-  assert.equal(implicitAddend(8, view([0x80]), 0), -128);
-  assert.equal(implicitAddend(40, view([0, 0, 0, 0]), 0), undefined, 'R_ARM_V4BX changes no addend this reader knows');
+test('linkedInputs lists every non-empty linked input section, an archive member by its key; inputAt finds the one holding an address', () => {
+  const parsed = parseGnuMap(mapText(0x2c));
+  assert.ok(parsed.ok);
+  const inputs = linkedInputs(parsed.value);
+  assert.deepEqual(inputs, [
+    { object: 'ref/reference.o', section: '.text', start: 0x0800_0000, end: 0x0800_002c },
+    { object: 'lib/libgcc.a(_divsi3.o)', section: '.text', start: 0x0800_0030, end: 0x0800_0038 },
+    { object: 'ref/reference.o', section: '.rodata', start: 0x0800_0038, end: 0x0800_003c },
+    { object: 'ref/reference.o', section: '.debug_info', start: 0, end: 0x100 },
+  ].sort((a, b) => a.start - b.start));
+  assert.equal(inputAt(inputs, 0x0800_0010)?.object, 'ref/reference.o');
+  assert.equal(inputAt(inputs, 0x0800_0034)?.object, 'lib/libgcc.a(_divsi3.o)');
+  assert.equal(inputAt(inputs, 0x0800_002e), undefined, 'between two inputs');
+  assert.equal(inputAt(inputs, 0x0900_0000), undefined);
+  assert.equal(memberKey('../tools/./lib/libgcc.a', '_divsi3.o'), '../tools/lib/libgcc.a(_divsi3.o)');
+  assert.deepEqual(parseMemberKey('../tools/lib/libgcc.a(_divsi3.o)'), { archive: '../tools/lib/libgcc.a', member: '_divsi3.o' });
+  assert.equal(parseMemberKey('src/main.o'), undefined);
+});
+
+test('objectNames: own symbols where their section is linked, a global where the ELF puts it, externals from relocations; preferred first', () => {
+  const symbols: ElfSymbol[] = [
+    { ...sym('Global', 'global'), value: 0x11, addr: 0x10, thumb: true, sectionName: '.text' },
+    { ...sym('sStatic', 'local'), value: 0x21, addr: 0x20, thumb: true, sectionName: '.text', size: 8 },
+    { ...sym('gData', 'global', 'object'), value: 0x4, addr: 0x4, sectionName: '.bss', size: 4 },
+    { ...sym('sNoSection', 'local', 'object'), sectionName: '.unlinked' },
+  ];
+  const reloc = (name: string, defined: boolean): { readonly symbol: { readonly name: string; readonly type: 'notype'; readonly bind: 'global'; readonly defined: boolean } } => ({ symbol: { name, type: 'notype', bind: 'global', defined } });
+  const relocations = [reloc('gExternA', false), reloc('gExternB', false), reloc('gExternB', false), reloc('gCommon', true), reloc('gMissing', false)];
+  const starts = new Map([['.text', 0x0800_1000], ['.bss', 0x0300_0000]]);
+  const elf = new Map([
+    ['Global', { addr: 0x0800_1010, size: 4 }],
+    ['gData', { addr: 0x0300_0100, size: 4 }],
+    ['gExternA', { addr: 0x0200_0000, size: 8 }],
+    ['gExternB', { addr: 0x0200_0000, size: 8 }],
+    ['gCommon', { addr: 0x0300_0200, size: 0x10 }],
+  ]);
+  const names = objectNames({ symbols, relocations }, (s) => starts.get(s), (n) => elf.get(n));
+  assert.deepEqual(names.map((n) => [n.name, n.addr, n.bind, n.defined, n.func]), [
+    ['gExternB', 0x0200_0000, 'global', false, false],
+    ['gExternA', 0x0200_0000, 'global', false, false],
+    ['gData', 0x0300_0100, 'global', true, false],
+    ['gCommon', 0x0300_0200, 'global', false, false],
+    ['Global', 0x0800_1010, 'global', true, true],
+    ['sStatic', 0x0800_1020, 'local', true, true],
+  ], 'gExternB first at its address: its object refers to it twice');
 });

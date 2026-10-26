@@ -4,6 +4,7 @@
 import { join } from 'node:path';
 
 import { parseHexAddr } from 'romlift';
+import { isSealedDataset } from 'romlift/internal';
 
 import { datasetDir, type BenchContext } from './context.ts';
 import { isDirectory, isRecord, listFiles, readJson } from './files.ts';
@@ -82,9 +83,9 @@ export interface DatasetProblem {
 
 const ADDR = /^0x[0-9A-F]{8}$/;
 
-/** Sealed: held out and never revealed. Its rows never reach results.json (D25). */
+/** Sealed: held out and never revealed. Its rows never reach results.json (D25); romlift's one rule (architecture-6). */
 export function isSealed(d: Pick<Dataset, 'heldout' | 'revealed'>): boolean {
-  return d.heldout && d.revealed.length === 0;
+  return isSealedDataset(d);
 }
 
 /** The address of a well-formed row (0x and eight upper-case hex digits). */

@@ -14,7 +14,7 @@ test('romlift exports the frozen phase-4 values', () => {
     'placeholderText',
     'placeholdersIn',
     'SCAFFOLD_PLACEHOLDERS',
-    'SCAFFOLD_ROM_FILE',
+    'BASEROM_FILE',
     'ROMLIFT_RENDERED_TARGETS',
     'includeAsmStatement',
     'INCLUDE_ASM_HEADER',

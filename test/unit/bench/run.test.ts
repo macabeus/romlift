@@ -1,8 +1,8 @@
 // `bench run` on the synthetic real tier with a hand-built romlift analysis (harness.ts): the artifact it
-// writes, the --json line the g2 gates read, the refusals, the sealed path (counts only), --reveal, and
-// the CLI's command set. No ROM is needed.
+// writes, the --json line the g2 gates read, the refusals, the sealed path (counts only), --reveal, the
+// signatures family when a signature file is built (phase 6), and the CLI's command set. No ROM is needed.
 import assert from 'node:assert/strict';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -17,8 +17,11 @@ import { resultParityDigest } from '../../../bench/src/parity.ts';
 import { LOCKSTEP_SETS, PARITY_EVIDENCE_SCHEMA } from '../../../bench/src/parity-evidence.ts';
 import { pocSourceDigest } from '../../../bench/src/poc-source.ts';
 import { assertCountsOnly } from '../../../bench/src/seal.ts';
+import { signaturesDigest } from '../../../bench/src/signatures.ts';
+import { parseResultsText } from '../../../bench/src/artifact.ts';
+import { signatureFile } from '../../helpers/signatures.ts';
 import { failingRunner, withTempDir } from './fixtures.ts';
-import { EXPECTED_ROMLIFT_ROW, runWith, syntheticTier, TINY_DEPS, tinyDeps, tinyDump, TINY_MEMORY, tinyResult } from './harness.ts';
+import { EXPECTED_ROMLIFT_ROW, ROM_BYTES, runWith, syntheticTier, TINY_DEPS, tinyDeps, tinyDump, TINY_MEMORY, tinyResult } from './harness.ts';
 
 function capture(): BenchIo & { readonly lines: string[]; readonly errors: string[] } {
   const lines: string[] = [];
@@ -61,6 +64,33 @@ test("bench run scores romlift's analysis and writes results.json without volati
     // A second run on the same sources and inputs writes the same artifact.
     await benchRun(cx, runWith());
     assert.equal(await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8'), text);
+  });
+});
+
+test('with a built signature file the run judges it on the scored run: the row member, the family, the digest in meta.inputs', async () => {
+  await withTempDir('romlift-run-', async (root) => {
+    const cx = await syntheticTier(root);
+    // A 12-byte member on the bytes at 0x08000008, where the ELF has thumb_one (6 bytes) and the run a 6-byte function.
+    const file = signatureFile('tinylib', { id: '1', members: [{ name: 'thumb_one', bytes: ROM_BYTES.slice(0x08, 0x14) }] });
+    await mkdir(join(cx.repoRoot, 'signatures'), { recursive: true });
+    await writeFile(join(cx.repoRoot, 'signatures', 'tinylib.json'), JSON.stringify(file));
+    const { results, report } = await benchRun(cx, runWith());
+    const member = {
+      libraries: [{ library: 'tinylib', version: '1', functions: 1, objects: 0 }],
+      placements: { total: 1, atElfFunc: 1, atUntyped: 0, wrong: 0 },
+      tables: { total: 0, objectOfSize: 0, label: 0, wrong: 0 },
+      // The member restores 12 bytes where the run found 6: a size proposal, which the ELF's 6 does not match.
+      sizes: { proposed: 1, equal: 0, differ: 1, unjudged: 0 },
+      names: { reference: false, total: 0, equal: 0, differ: 0, reviewed: 0 },
+    };
+    assert.deepEqual(report.roms, [{ ...EXPECTED_ROMLIFT_ROW, signatures: member }]);
+    assert.deepEqual(results?.meta.families, { tiny: ['code-end', 'determinism', 'entries', 'extents', 'readability', 'signatures'] });
+    assert.equal(results?.meta.inputs['signaturesDigest'], signaturesDigest([file]));
+    const text = await readFile(join(cx.repoRoot, 'bench', 'results.json'), 'utf8');
+    assert.deepEqual(parseResultsText(text, 'results.json').roms[0]?.signatures, member, 'the artifact reads the member back');
+    // A file the locator cannot read stops the run rather than dropping the family.
+    await writeFile(join(cx.repoRoot, 'signatures', 'broken.json'), '{}');
+    await assert.rejects(benchRun(cx, runWith()), /signatures: .*broken\.json/);
   });
 });
 
@@ -240,7 +270,7 @@ test('poc-check reports a dump whose rescored row differs from the baseline', as
 });
 
 test('the CLI dispatches the phase-2 commands and prints the frozen --json lines', async () => {
-  assert.deepEqual(Object.keys(COMMANDS).sort(), ['ablate', 'adopt', 'baseline', 'dataset-check', 'diff', 'doctor-real', 'explain', 'gates', 'large-rom', 'poc-check', 'provenance', 'regression', 'run', 'speed', 'stale-check', 'web']);
+  assert.deepEqual(Object.keys(COMMANDS).sort(), ['ablate', 'adopt', 'baseline', 'dataset-check', 'diff', 'doctor-real', 'explain', 'gates', 'large-rom', 'poc-check', 'provenance', 'regression', 'run', 'signatures', 'speed', 'stale-check', 'web']);
   await withTempDir('romlift-cli-', async (root) => {
     const cx = await syntheticTier(root);
     let io = capture();

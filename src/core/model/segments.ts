@@ -11,7 +11,7 @@ import { pushAll } from '../../foundation/util/arrays.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import { Claim } from '../analysis/types.ts';
-import { alignUp } from '../layout/borders.ts';
+import { alignWord } from '../layout/borders.ts';
 import type { DataNote } from './types.ts';
 
 export type Segment =
@@ -57,7 +57,7 @@ function merged(spans: readonly Span[]): Span[] {
 
 /** A padding claim: the zeros from its start up to the next word boundary are padding, the rest data. */
 function paddingSegments(rom: Rom, span: Span): Segment[] {
-  const boundary = Math.min(alignUp(span.start), span.end);
+  const boundary = Math.min(alignWord(span.start), span.end);
   let zeros = boundary > span.start && boundary % 4 === 0;
   for (let a = span.start; zeros && a < boundary; a++) zeros = rom.bytes[a - rom.base] === 0;
   if (!zeros) return [{ kind: 'data', start: span.start, end: span.end }];

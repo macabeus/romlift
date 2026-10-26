@@ -1,0 +1,9 @@
+{
+  "module": "main",
+  "path": "src/main.c",
+  "chunks": ["Init", "Run", "Stop"],
+  "tree": {
+    "files": ["asm/nonmatchings/boot/Boot.s", "asm/nonmatchings/main/Init.s", "asm/nonmatchings/main/Run.s", "asm/nonmatchings/main/Stop.s"],
+    "userDirs": []
+  }
+}

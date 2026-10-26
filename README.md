@@ -49,11 +49,11 @@ ROM, the six tuning ROMs and the doubled ROM. The landing run after Q7's answer 
 whole closing list again unchanged with no gate change, and every command exited 0 at `landed` 3 (`0784b4e`), and the
 phase pull request's CI passed before the merge.
 
-Phase 4 (One shot) passes its closing gate at `landed` 4 ([docs/phase-4.md](docs/phase-4.md)), last re-run after fix
-round 14 (D90) at `76eacdb`; its merge to `main` waits for the phase pull request's CI. The owner answered its questions (D76, D79): `g2.speed` takes the median of nine runs per
+Phase 4 (One shot) has landed ([docs/phase-4.md](docs/phase-4.md)): its closing gate passed at `landed` 4, last re-run
+after fix round 14 (D90) at `76eacdb`, and its pull request (#4) is merged to `main` (`89deb54`), tagged `phase-4`. The owner answered its questions (D76, D79): `g2.speed` takes the median of nine runs per
 ROM, the scaffold gitignores the generated tree as R4 says (a clone gets it from `setup.sh`), and the `env -S` launcher, `ROMLIFT_CLI` until romlift is published, listed entries without `from` taken without
 validation, tmc's `W_UNLISTED_FUNCTION` after `init`, the 0x46C0 nop-pad orphans and the zero pads kept at a `c` module's end are recorded limitations. He also
-skipped phase 5: rename, the reconciler, `expected/`, `objdiff.json`, the C data ranges and the objdiff gate move into
+skipped phase 5 (D92): rename, the reconciler, `expected/`, `objdiff.json`, the C data ranges and the objdiff gate move into
 phase 6, and legacy import and the Klonoa switch-over are dropped. `romlift init <rom>` writes `romlift.toml`, `decomp.yaml`, the build
 scaffold (`Makefile`, `setup.sh`, …), `INCLUDE_ASM` C stubs and the generated tree, and `./setup.sh && make` then
 rebuilds the ROM to its SHA-1 with no file edited, on 50 committed fixtures and all six tuning ROMs (from the source
@@ -64,14 +64,44 @@ it and keeps the `INCLUDE_ASM` lines of `src/*.c` in line with it, so every seed
 `analyze --update` proposes TOML patches that keep comments. Every gate of phases 1 to 4 passes on both tiers.
 The commands are `doctor`, `analyze`, `explain`, `model`, `verify`, `init`, `generate` and `scaffold`.
 
+Phase 5 (Migration) was skipped by the owner and never lands (D92). Phase 6 (Evidence) is built on the branch
+`phase-6` but has not landed ([docs/phase-6.md](docs/phase-6.md)): library signatures (`signatures build <spec>`,
+`signatures <rom>`) that propose names, sizes and library modules to `init` (`--no-signatures` skips them) and `analyze
+--update`, screened for conflicts with the analysis and the config; code run from RAM through hand-written `runs_at`
+overrides (the owner dropped the gba-kit trace, D91); the full `explain`; and from phase 5 the reconciler, `rename <old>
+<new>`, the `expected/` and `objdiff.json` writers, C data ranges (`data_start`) and the objdiff gate. Its closing list
+passed every signature gate (the matcher refined at the closing round, D94) and the other gates but these: `g6.objdiff`
+failed on the real tier as D34 then read (phase-6.md Q6), and with it `g1.provenance` and `bench provenance`, which
+read the committed artifact's failing `g6.objdiff` record until the closing run regenerates it. The owner answered every open question
+of phase-6.md on 25 October 2026; the first step of fix round 4 applied his gate edits (D98): `g6.reconciler`,
+`g6.rename` and `g6.evidence-conflict`, which could not pass as written (Q2, Q3, Q5), now pass on the ci tier,
+`g6.signatures-judged` holds tmc to the measured floor (Q9) and `g4.toml-mutations` makes an add-override edit that
+changes the model and refuses an odd `[functions]` key (Q11). Its second step applied Q10 (D100), and its third Q12
+and Q16 (D101): each objdiff target is now its unit's assembly as it is, so objdiff scores every function of an
+untouched project at 100%, and `g6.expected-bytes` judges each target linked at its module's address, `runs_at` modules
+included. Its fourth step applied Q6 and Q15 (D102): the printer spells a word inside a named, sized entry `sym +
+addend` by one rule the label scopes share, the bench's `objectWords` rewrite is gone, D34 reports the same-word
+differences and the uncompared functions, and `g6.objdiff` passes on the real tier with each tuning ROM's gated count at
+its committed ceiling (fe7j 7, klonoa 1, pokeemerald 12, sa2 1, sa3 4, tmc 25). Fix round 1 of the
+review (D95) changed no gate threshold, but its ROM overwrite of the objdiff targets left `g6.expected-bytes` able to
+catch only a wrong size; fix round 2 (D96) tightened that gate to judge each unit's object as assembled, and put the
+bench's `objectWords` rewrite, which changes what `g6.objdiff` measures, to the owner as Q15. Fix round 3 (D97) refuses a `runs_at`
+module whose linker-script section is another section's name, and put `g6.expected-bytes`' `runs_at` exemption to the
+owner as Q16. The closing list's fifth run, in a fresh worktree at `fa5d7ab`, exits 0 on every command (both gate
+tiers, `bench provenance`), so phase 6 passes its closing gate. Fix round 5 (D104) made `g4.toml-mutations`'
+add-override edit a data override that changes the model (the code override changed nothing), pinned the owner's
+objdiff ceilings in `g6.objdiff` and put one R_ARM_ABS32 rule under the layout and the printer; the sixth run, at
+`d66d802`, exits 0 on every command too; it lands when its pull request merges, the CI checks run
+locally if GitHub refuses to start them (the owner's landing answer, D103).
+
 | Phase | Delivers |
 | --- | --- |
 | 1 Decoder | instruction table, decoder, encoder, formatter and parser; `doctor`; the bench harness |
 | 2 Analysis | function-boundary rules, compiler profile, `analyze`, `explain`, held-out runs |
 | 3 Emission | the ROM model, writers, write plan, `verify`, `model --json` |
 | 4 One shot | config, scaffold, C stubs, `init`, `generate` |
-| 5 Migration | `import-legacy`, the `INCLUDE_ASM` reconciler, `rename`, objdiff targets |
-| 6 Evidence | library signatures, `trace`, code run from RAM, full `explain` |
+| 5 Migration | skipped by the owner (D92); its reconciler, `rename` and objdiff targets moved to phase 6 |
+| 6 Evidence | library signatures, code run from RAM (hand-written overrides; no trace, D91), full `explain`; the reconciler, `rename`, `expected/`, `objdiff.json`, C data ranges |
 
 ## Documentation
 
@@ -79,12 +109,13 @@ The commands are `doctor`, `analyze`, `explain`, `model`, `verify`, `init`, `gen
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D76 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D94 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
 | [docs/phase-3.md](docs/phase-3.md) | the record of phase 3: components in three waves, the closing fix round, the measured numbers, the closing gate runs, deviations, the owner questions Q1 to Q8 with the owner's answers, the review fix rounds, and known limitations |
 | [docs/phase-4.md](docs/phase-4.md) | the record of phase 4: components in three waves, what the phase delivered (commands, scaffold, C stubs, formats), the closing round and the closing gate run, deviations, the owner questions Q1 to Q9 with the owner's answers, the review fix rounds, and known limitations |
+| [docs/phase-6.md](docs/phase-6.md) | the record of phase 6 (phase 5 was skipped, D92; not landed): what it delivered (signatures, proposals, code run from RAM, the reconciler and `rename`, objdiff targets, C data ranges), components in three waves, the closing round, deviations, the owner questions Q1 to Q15, known limitations, measured numbers, the closing gate runs and the review's dispositions |
 | [docs/architecture-review.md](docs/architecture-review.md) | the disposition of the 60 review findings against revision 1 |
 | [docs/benchmark-roms.md](docs/benchmark-roms.md) | the tuning and held-out ROM + ELF pairs, and the rule that ROMs are never committed |
 | [docs/proof-of-concept.md](docs/proof-of-concept.md) | the proof of concept's rules, numbers and lessons |

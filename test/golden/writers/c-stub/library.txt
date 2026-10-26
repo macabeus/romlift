@@ -1,0 +1,16 @@
+==> src/main.c (scaffold, c-stub) <==
+#include "include_asm.h"
+
+INCLUDE_ASM("asm/nonmatchings/main", sub_080000F4);
+INCLUDE_ASM("asm/nonmatchings/main", sub_08000140);
+INCLUDE_ASM("asm/nonmatchings/main", sub_0800015C);
+INCLUDE_ASM("asm/nonmatchings/main", sub_08000168);
+INCLUDE_ASM("asm/nonmatchings/main", sub_08000184);
+INCLUDE_ASM("asm/nonmatchings/main", sub_080001A8);
+INCLUDE_ASM("asm/nonmatchings/main", sub_080001C0);
+INCLUDE_ASM("asm/nonmatchings/main", sub_080001C4);
+INCLUDE_ASM("asm/nonmatchings/main", sub_080001C8);
+INCLUDE_ASM("asm/nonmatchings/main", sub_080001CC);
+INCLUDE_ASM("asm/nonmatchings/main", sub_080001D0);
+INCLUDE_ASM("asm/nonmatchings/main", sub_080001E0);
+INCLUDE_ASM("asm/nonmatchings/main", sub_080001E4);

@@ -8,7 +8,10 @@
 // move a `c` module's start to another legal border between its neighbours, rename a function that still has its
 // default name, delete a listed function that starts no module (always the last one too, whose deletion moves the
 // confirm run's data start below the data module's start, which stays legal, D75 a), add a `code` override that covers one found function
-// exactly, and split a `c` module at a legal border inside it. No toolchain, no file; the seed is fixed.
+// exactly, and split a `c` module at a legal border inside it. A legal start is what generate accepts: core/layout's
+// one predicate, isLegalStart, over the code layout of the confirm run of the unedited config (init's), so a start in
+// the data-start range D75 a made legal is a candidate too (architecture-r1-3, a1-5). No toolchain, no file; the seed
+// is fixed.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -17,8 +20,9 @@ import { parseConfig } from '../../../src/core/config/parse.ts';
 import type { ModuleConfig, OverrideConfig, RomliftConfig } from '../../../src/core/config/schema.ts';
 import { serializeConfig } from '../../../src/core/config/serialize.ts';
 import { emitTree } from '../../../src/core/emit/emit-tree.ts';
-import { legalBorders } from '../../../src/core/layout/borders.ts';
-import { functionName } from '../../../src/core/model/names.ts';
+import { codeLayout, isLegalStart, legalStartsBetween } from '../../../src/core/layout/borders.ts';
+import type { BorderRule } from '../../../src/core/layout/borders.ts';
+import { defaultFunctionName } from '../../../src/foundation/util/project-files.ts';
 import { combineReports } from '../../../src/core/verify/report.ts';
 import { checkEntries } from '../../../src/core/verify/text-layout.ts';
 import { verifyModel } from '../../../src/core/verify/tiling.ts';
@@ -45,7 +49,8 @@ interface Facts {
   readonly rom: Rom;
   readonly config: RomliftConfig;
   readonly discovered: AnalysisResult;
-  readonly borders: readonly Addr[];
+  /** The border rule generate checks the unedited config's modules with: the code layout of its confirm run. */
+  readonly rule: BorderRule;
 }
 
 interface Edit {
@@ -92,21 +97,21 @@ const byNumber = (a: number, b: number): number => a - b;
 
 /** The legal edits of `kind` the config offers, up to EDITS_PER_KIND of them, each applied alone to the original. */
 function legalEdits(kind: LegalKind, facts: Facts, draw: Draw): readonly Edit[] {
-  const { config, borders } = facts;
+  const { config, rule } = facts;
   const modules = config.modules;
   const starts = new Set(modules.map((m) => m.start));
   const nextStart = (i: number): Addr => modules[i + 1]?.start ?? facts.rom.end;
   const cModules = modules.flatMap((m, i) => (m.kind === 'c' && i > 0 ? [{ m, i }] : []));
   switch (kind) {
     case 'move-start': {
-      const options = cModules.flatMap(({ m, i }) => borders.filter((b) => b > (modules[i - 1]?.start ?? facts.rom.base) && b < nextStart(i) && b !== m.start).map((b) => ({ m, i, b })));
+      const options = cModules.flatMap(({ m, i }) => legalStartsBetween(rule, modules[i - 1]?.start ?? facts.rom.base, nextStart(i)).filter((b) => b !== m.start).map((b) => ({ m, i, b })));
       return drawSome(draw, options, EDITS_PER_KIND).map(({ m, i, b }) => ({
         what: `move ${m.name} from 0x${hex(m.start)} to 0x${hex(b)}`,
         config: { ...config, modules: modules.map((x, j) => (j === i ? { ...x, start: b } : x)) },
       }));
     }
     case 'rename': {
-      const entries = [...config.functions.keys()].sort(byNumber).filter((a) => config.functions.get(a)?.name === functionName(a));
+      const entries = [...config.functions.keys()].sort(byNumber).filter((a) => config.functions.get(a)?.name === defaultFunctionName(a));
       return drawSome(draw, entries, EDITS_PER_KIND).flatMap((addr) => {
         const fn = config.functions.get(addr);
         if (fn === undefined) return [];
@@ -142,7 +147,7 @@ function legalEdits(kind: LegalKind, facts: Facts, draw: Draw): readonly Edit[] 
       });
     }
     case 'split-module': {
-      const options = cModules.flatMap(({ m, i }) => borders.filter((b) => b > m.start && b < nextStart(i) && !starts.has(b)).map((b) => ({ m, i, b })));
+      const options = cModules.flatMap(({ m, i }) => legalStartsBetween(rule, m.start, nextStart(i)).filter((b) => !starts.has(b)).map((b) => ({ m, i, b })));
       return drawSome(draw, options, EDITS_PER_KIND).map(({ m, i, b }) => {
         const added: ModuleConfig = { ...m, name: `${m.name}_split_${hex(b)}`, start: b };
         return { what: `split ${m.name} at 0x${hex(b)}`, config: { ...config, modules: [...modules.slice(0, i + 1), added, ...modules.slice(i + 1)] } };
@@ -178,7 +183,8 @@ const legalCounts = new Map<LegalKind, number>(LEGAL_KINDS.map((k) => [k, 0]));
 
 function factsOf(rom: Rom): Facts {
   const discovered = discover(rom);
-  return { rom, discovered, config: configFromDiscover(rom, discovered), borders: legalBorders(rom, discovered) };
+  const config = configFromDiscover(rom, discovered);
+  return { rom, discovered, config, rule: codeLayout(rom, confirmModel({ rom, config }).analysis) };
 }
 
 for (const fixture of fixtures) {
@@ -202,7 +208,7 @@ for (const fixture of fixtures) {
     }
 
     // A `c` module's start moved by 2 bytes is never a legal border (borders rest on the ARM word, D63).
-    const moved = facts.config.modules.findIndex((m, i) => i > 0 && m.kind === 'c' && !facts.borders.includes(m.start + 2));
+    const moved = facts.config.modules.findIndex((m, i) => i > 0 && m.kind === 'c' && !isLegalStart(facts.rule, m.start + 2));
     const module = facts.config.modules[moved];
     if (module !== undefined) {
       const illegal = { ...facts.config, modules: facts.config.modules.map((m, i) => (i === moved ? { ...m, start: m.start + 2 } : m)) };

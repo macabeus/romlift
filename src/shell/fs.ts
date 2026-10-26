@@ -23,6 +23,16 @@ export function errnoOf(error: unknown): string | undefined {
   return error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
 }
 
+/**
+ * Whether a failure to reach `path` means nothing is there: it is absent (ENOENT), a component of its path is no
+ * directory (ENOTDIR), or a symbolic link on it loops (ELOOP, a link to nothing). The one reading of absence in the
+ * shell (architecture-r2-4); any other failure (a permission, an I/O error) is E_IO_READ, never read as absent.
+ */
+export function isAbsentError(error: unknown): boolean {
+  const code = errnoOf(error);
+  return code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP';
+}
+
 /** The error's message, led by its code once (Node's own message often starts with it): what every shell diagnostic quotes. */
 export function errorReason(error: unknown): string {
   if (error instanceof Error) {
@@ -47,17 +57,55 @@ export async function listDir(path: string): Promise<IoResult<readonly string[]>
 }
 
 /**
- * Whether `path` is a directory: false when it is absent or a path component is no directory (ENOENT, ENOTDIR) or it
- * is another kind of file; any other failure (a permission, an I/O error) is E_IO_READ, never read as absent.
+ * Whether `path` is a directory: false when nothing is there (isAbsentError) or it is another kind of file; any other
+ * failure (a permission, an I/O error) is E_IO_READ, never read as absent.
  */
 export async function isDirectory(path: string): Promise<IoResult<boolean>> {
   try {
     return { ok: true, value: (await stat(path)).isDirectory() };
   } catch (error) {
-    const code = errnoOf(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, value: false };
+    if (isAbsentError(error)) return { ok: true, value: false };
     return failure('E_IO_READ', path, 'cannot examine', error);
   }
+}
+
+/**
+ * Whether `path` is a regular file (a link to one counts): false when nothing is there (isAbsentError) or it is
+ * another kind of file; any other failure is E_IO_READ, never read as absent (architecture-6).
+ */
+export async function isRegularFile(path: string): Promise<IoResult<boolean>> {
+  try {
+    return { ok: true, value: (await stat(path)).isFile() };
+  } catch (error) {
+    if (isAbsentError(error)) return { ok: true, value: false };
+    return failure('E_IO_READ', path, 'cannot examine', error);
+  }
+}
+
+/** The text of file `path` as UTF-8. */
+export async function readText(path: string): Promise<IoResult<string>> {
+  const read = await readBytes(path);
+  return read.ok ? { ok: true, value: new TextDecoder('utf-8').decode(read.value) } : read;
+}
+
+/** What readJson's caller decodes the parsed JSON with: the value, or why it is refused. */
+export type JsonDecode<T> = (json: unknown) => { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
+
+/**
+ * The JSON file at `path` read, parsed and decoded with `decode`: E_IO_READ when it cannot be read, `invalid` (the
+ * caller's code) when it is not JSON (`<path> is not JSON: …`) or `decode` refuses it (`<path>: <why>`).
+ */
+export async function readJson<T>(path: string, decode: JsonDecode<T>, invalid: ShellCode): Promise<IoResult<T>> {
+  const text = await readText(path);
+  if (!text.ok) return text;
+  let json: unknown;
+  try {
+    json = JSON.parse(text.value);
+  } catch (error) {
+    return { ok: false, diagnostic: diagnostic(ShellCodes, invalid, `${path} is not JSON: ${errorReason(error)}`, { path }) };
+  }
+  const decoded = decode(json);
+  return decoded.ok ? decoded : { ok: false, diagnostic: diagnostic(ShellCodes, invalid, `${path}: ${decoded.error}`, { path }) };
 }
 
 /** The bytes of file `path`. */

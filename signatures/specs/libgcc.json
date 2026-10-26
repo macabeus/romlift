@@ -1,0 +1,20 @@
+{
+  "library": "libgcc",
+  "versions": [
+    {
+      "id": "agbcc",
+      "idNote": "agbcc's libgcc.a; references merged so members one game does not link (fp-bit, __ashrdi3, __ashldi3) come from another",
+      "references": [
+        { "dataset": "pokeemerald", "objects": ["libgcc.a(*)"] },
+        { "dataset": "sa2", "objects": ["libgcc.a(*)"] },
+        { "dataset": "fe7j", "objects": ["libgcc.a(*)"] }
+      ]
+    }
+  ],
+  "reviewedNames": {
+    "_fpadd_parts@fp-bit.o": {
+      "name": "_fpadd_parts_f",
+      "reason": "fp-bit.o (single precision) and dp-bit.o (double precision) each define a static _fpadd_parts; every label of a version must be unique, so the single-precision one takes the _f suffix fp-bit.o gives its other helpers (__pack_f, __unpack_f, __fpcmp_parts_f); the PoC called it _fpadd_parts_2"
+    }
+  }
+}

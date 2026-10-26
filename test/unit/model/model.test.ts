@@ -4,9 +4,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { Claim } from '../../../src/core/analysis/types.ts';
+import { printChunk } from '../../../src/core/emit/print/chunk.ts';
 import { itemAt } from '../../../src/core/model/item-table.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
-import type { RomliftConfig } from '../../../src/core/config/schema.ts';
+import { modelNamesOf } from '../../../src/core/workflow/rename.ts';
+import type { ModuleConfig, RomliftConfig } from '../../../src/core/config/schema.ts';
 import { analysisOf, BASE, configOf, fact, HEADER_END, romWith, thumbAt, tiles, words } from '../layout/hand-made.ts';
 
 const ROM = romWith([], { size: 0x400 });
@@ -72,8 +75,8 @@ test('a confirm result carries its unlisted findings; a listed entry the analysi
   assert.equal(model.functions.find((f) => f.name === 'B')?.source.extent, 'next-listed');
 });
 
-/** A function copied to IWRAM: load 0x140, run 0x03000000, with a pool load and a branch inside. */
-function ramCode() {
+/** A function copied to IWRAM: load 0x140, run 0x03000000, with a pool load (holding `poolWord`) and a branch inside. */
+function ramCode(poolWord = 0x1234_5678) {
   const code = thumbAt(0x0300_0000)`
     push {lr}
     ldr r0, _0300000C
@@ -82,7 +85,7 @@ function ramCode() {
     pop {r0}
     bx r0
   `;
-  const rom = romWith([{ at: BASE + 0x140, bytes: code }, { at: BASE + 0x14c, bytes: words(0x1234_5678) }], { size: 0x200 });
+  const rom = romWith([{ at: BASE + 0x140, bytes: code }, { at: BASE + 0x14c, bytes: words(poolWord) }], { size: 0x200 });
   const analysis = analysisOf(rom, { functions: [fact({ entry: BASE + 0x140, end: BASE + 0x150, code: [{ start: BASE + 0x140, end: BASE + 0x14c }], pools: [BASE + 0x14c] })] });
   const config = (runsAt: number): RomliftConfig =>
     configOf({
@@ -133,6 +136,28 @@ test('runs_at plumbing: a moved run address puts the labels at run addresses and
   ]);
 });
 
+// Fix round 6 (architecture-o1-5): a TOML-sized function of a runs_at module is a sized entry at its run address, so a
+// pool word holding an odd run address inside it prints `name + offset` (resolver.ts entryLabelOf over the labels at the
+// run address), the function label stays module-scoped, and no other label takes the word.
+test('a pool word inside a TOML-sized function of a runs_at module prints `name + offset` at the run address', () => {
+  const { rom, analysis, config } = ramCode(0x0300_0005);
+  const base = config(0x0300_0000);
+  const sized = { ...base, functions: new Map([...base.functions].map(([a, f]) => [a, { ...f, size: 0x10 }])) };
+  const model = buildModel(rom, analysis, sized);
+  assert.deepEqual(model.diagnostics, []);
+  assert.equal(model.functions[0]?.source.extent, 'toml-size');
+  const i = model.chunks.findIndex((c) => c.name === 'RamFunc');
+  const lines = printChunk(rom, model, i).lines;
+  assert.ok(lines.includes('_0800014C: .4byte RamFunc + 4'), lines.join('\n'));
+  assert.deepEqual(model.labels.filter((l) => l.addr >= 0x0300_0000 && l.addr < 0x0300_0010).map((l) => [l.name, l.addr, l.scope]), [
+    ['RamFunc', 0x0300_0000, 'module'],
+    ['_08000148', 0x0300_0008, 'module'],
+    ['_0800014C', 0x0300_000c, 'module'],
+  ]);
+  const unsized = printChunk(rom, buildModel(rom, analysis, base), i).lines;
+  assert.ok(unsized.includes('_0800014C: .4byte 0x03000005'), unsized.join('\n'));
+});
+
 test('a runs_at range off the module borders is E_OVERRIDE_INVALID; the model is still built', () => {
   const { rom, analysis } = ramCode();
   const bad = configOf({
@@ -144,6 +169,42 @@ test('a runs_at range off the module borders is E_OVERRIDE_INVALID; the model is
   assert.deepEqual(model.diagnostics.map((d) => d.code), ['E_OVERRIDE_INVALID']);
   assert.ok(model.modules.every((m) => m.runAt === undefined));
   assert.ok(tiles(model.items, rom.base, rom.end));
+});
+
+// Fix round 2 (correctness-r1-2): the ldscript defines __load_<module> for every runs_at module, so no name of the
+// config may take it, and rename refuses it as a model name.
+test('a config name equal to a runs_at module\'s __load_<module> is E_NAME_COLLISION; rename counts it a model name', () => {
+  const { rom, analysis, config } = ramCode();
+  const base = config(0x0300_0000);
+  const named = buildModel(rom, analysis, { ...base, functions: new Map([...base.functions].map(([a, f]) => [a, { ...f, name: '__load_iwram' }])) });
+  assert.deepEqual(named.diagnostics.map((d) => d.code), ['E_NAME_COLLISION']);
+  assert.match(named.diagnostics[0]?.message ?? '', /the name __load_iwram at 0x03000000 is the symbol ldscript\.txt defines as the load address of runs_at module iwram/);
+  const symbol = buildModel(rom, analysis, { ...base, symbols: new Map([[0x0300_1000, { name: '__load_iwram', aliases: [] }]]) });
+  assert.ok(symbol.diagnostics.some((d) => d.code === 'E_NAME_COLLISION' && d.message.includes('__load_iwram')), JSON.stringify(symbol.diagnostics));
+  const identity = buildModel(rom, analysis, { ...config(BASE + 0x140), functions: new Map([...base.functions].map(([a, f]) => [a, { ...f, name: '__load_main' }])) });
+  assert.ok(!identity.diagnostics.some((d) => d.code === 'E_NAME_COLLISION'), 'a module that is not runs_at has no __load_ symbol');
+  const model = buildModel(rom, analysis, base);
+  assert.equal(modelNamesOf(model).get('__load_iwram'), BASE + 0x140);
+  assert.equal(modelNamesOf(model).get('__load_main'), undefined);
+});
+
+// The review of fix round 2 (correctness-r2-1): a runs_at module's section `.<module>` may be no other section the
+// ldscript emits, or `__load_<module>` names the other one's load address (`text`) or the script does not parse
+// (`c_data_<m>`).
+test('a runs_at module whose section is .text, .c_data_<c module> or .rodata_<data range> is E_NAME_COLLISION', () => {
+  const { rom, analysis, config } = ramCode();
+  const base = config(0x0300_0000);
+  const named = (name: string, main: Partial<ModuleConfig> = {}, data: Partial<ModuleConfig> = {}): RomliftConfig => ({
+    ...base,
+    modules: base.modules.map((m) => (m.name === 'iwram' ? { ...m, name } : m.name === 'main' ? { ...m, ...main } : m.name === 'data' ? { ...m, ...data } : m)),
+  });
+  const refused = (c: RomliftConfig): string[] => buildModel(rom, analysis, c).diagnostics.filter((d) => d.code === 'E_NAME_COLLISION').map((d) => d.message);
+  assert.deepEqual(refused(named('text')), ['the runs_at module text at 0x08000140 would be ldscript.txt\'s section .text, which is the section of the ROM\'s first units; rename the module']);
+  assert.match(refused(named('c_data_main', { kind: 'c' })).join(), /section \.c_data_main, which is the data check section of c module main/);
+  assert.deepEqual(refused(named('c_data_main')), [], 'an asm module main has no check section');
+  assert.match(refused(named('rodata_data', {}, { kind: 'c', dataStart: BASE + 0x180 })).join(), /section \.rodata_data, which is the data range section of c module data/);
+  assert.deepEqual(refused(named('rodata_data', {}, { kind: 'c' })), [], 'a c module without data_start has no data range section');
+  assert.equal(refused({ ...named('text'), overrides: [] }).length, 0, 'a module that is not runs_at opens no section of its own name');
 });
 
 test('deterministic: the same model whatever order the config maps were filled in; diagnostics sorted by address', () => {
@@ -179,8 +240,10 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })] });
   const ignored = (overrides: NonNullable<Parameters<typeof configOf>[0]['overrides']>, functions: NonNullable<Parameters<typeof configOf>[0]['functions']> = [[BASE + 0x100, 'A']]): readonly string[] =>
     buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions, overrides })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => d.message);
-  assert.equal(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'data' }]).length, 1, 'a data override');
-  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: it gives the extent only of a listed function the analysis did not find/);
+  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'data' }])[0] ?? '', /changes nothing: the analysis claimed none of its bytes as data/, 'a data override the analysis did not apply');
+  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: a function already starts at 0x08000100: \[functions\] lists it, so the override is redundant and can be removed$/);
+  assert.match(ignored([{ start: BASE + 0x100, size: 0x10, kind: 'code', mode: 'thumb' }], [])[0] ?? '', /changes nothing: a function already starts at 0x08000100, found by another rule, so the override is redundant/);
+  assert.match(ignored([{ start: BASE + 0x200, size: 0x10, kind: 'code', mode: 'thumb' }])[0] ?? '', /changes nothing: its seed adds no function at 0x08000200 \(no thumb instruction the analysis accepts starts there\)/);
   // A listed entry the analysis did not find, inside a code override the run read: its extent comes from the override.
   const override = { start: BASE + 0x120, size: 0x10, kind: 'code' as const, mode: 'thumb' as const };
   const read = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], overrides: [{ span: { start: override.start, end: override.start + override.size }, kind: 'code', mode: 'thumb' }] });
@@ -196,6 +259,35 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   assert.deepEqual(sameSpan([override, { start: override.start, size: override.size, kind: 'data' }]), ['data']);
   assert.deepEqual(sameSpan([{ start: override.start, size: override.size, kind: 'data' }, override]), ['data']);
   assert.deepEqual(sameSpan([override, override]), ['code']);
+  // What the analysis applied (correctness-b0-3, core/layout appliedOverrides): a data override whose span holds a data
+  // claim, a code override whose start the run took from its seed (origin override), a second identical one ignored.
+  const data = { start: BASE + 0x130, size: 0x10, kind: 'data' as const };
+  const code = { start: BASE + 0x150, size: 0x10, kind: 'code' as const, mode: 'thumb' as const };
+  const facts = [data, code].map((o) => ({ span: { start: o.start, end: o.start + o.size }, kind: o.kind, ...('mode' in o ? { mode: o.mode } : {}) }));
+  const seeded = { ...fact({ entry: code.start, end: code.start + 0x10 }), origin: 'override' as const, accepted: { rule: 'seed.override' as const, round: 0, cites: [] } };
+  const applied = analysisOf(ROM, {
+    functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 }), seeded],
+    claims: [{ span: { start: data.start, end: data.start + data.size }, kind: Claim.data }],
+    overrides: [...facts, ...facts],
+  });
+  const both = buildModel(ROM, applied, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [data, code] }));
+  assert.deepEqual(both.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED'), [], 'both applied');
+  const twice = buildModel(ROM, applied, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [data, data, code, code] }));
+  assert.deepEqual(twice.diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED').map((d) => [d.addr, /kind = "(\w+)"/.exec(d.message)?.[1]]), [[data.start, 'data'], [code.start, 'code']], 'a second identical entry changes nothing');
+  // In confirm mode a code override at an unlisted start is only reported unlisted from its seed (W_UNLISTED_FUNCTION),
+  // which claims nothing: it changes nothing and is ignored, the message naming the unlisted start (correctness-o0-2).
+  const confirm = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 })], seeds: [{ entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed' }], overrides: [facts[1] ?? assert.fail()] });
+  const unlisted = { ...confirm, unlisted: [{ entry: code.start, mode: 'thumb' as const, origin: 'override' as const, provenance: { rule: 'seed.override' as const, round: 0, cites: [] } }] };
+  const unlistedIgnored = buildModel(ROM, unlisted, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED');
+  assert.deepEqual(unlistedIgnored.map((d) => d.addr), [code.start]);
+  assert.match(unlistedIgnored[0]?.message ?? '', /changes nothing: \[functions\] does not list 0x08000150, .*`romlift analyze --update` proposes it/);
+  // After `analyze --update` lists the start, the warning says the override is redundant (fix round 6, correctness-o1-2).
+  const listedConfirm = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 }), fact({ entry: code.start, end: code.start + 0x10 })], seeds: [{ entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed' }, { entry: code.start, mode: 'thumb', rule: 'seed.listed' }], overrides: [facts[1] ?? assert.fail()] });
+  const listed = { ...listedConfirm, unlisted: [] };
+  const listedIgnored = buildModel(ROM, listed, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [code.start, 'Listed']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED');
+  assert.deepEqual(listedIgnored.map((d) => d.addr), [code.start]);
+  assert.match(listedIgnored[0]?.message ?? '', /a function already starts at 0x08000150: \[functions\] lists it, so the override is redundant and can be removed$/);
+  assert.doesNotMatch(listedIgnored[0]?.message ?? '', /does not list/);
   // A range wholly outside the ROM is W_OVERRIDE_OUTSIDE_ROM's alone (fix round 6, architecture-b1-2).
   const outside = buildModel(ROM, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [{ start: 0x0900_0000, size: 4, kind: 'code', mode: 'thumb' }] }));
   assert.deepEqual(outside.diagnostics.map((d) => d.code), ['W_OVERRIDE_OUTSIDE_ROM']);
@@ -226,4 +318,39 @@ test('a [symbols] entry inside an instruction gets no label and W_SYMBOL_UNPLACE
   assert.deepEqual(model.labels.filter((l) => l.name.startsWith('g')).map((l) => [l.name, l.addr - BASE, l.kind]), [['gAtPop', 0x102, 'data']]);
   assert.deepEqual(model.diagnostics.filter((d) => d.code === 'W_SYMBOL_UNPLACED').map((d) => d.addr), [BASE + 0x101]);
   assert.deepEqual(model.symbols.map((s) => s.name), ['gOdd', 'gAtPop']);
+});
+
+test('a C data range (phase 6, D92): its data chunks split at [symbols] entries name the module; an illegal data_start is E_DATA_RANGE_INVALID and changes no span', () => {
+  const analysis = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x120 })] });
+  const modules = (dataStart: number): RomliftConfig['modules'] => [
+    { name: 'rom_header', start: BASE, kind: 'asm', generated: true },
+    { name: 'main', start: HEADER_END, kind: 'c', generated: true, dataStart },
+    { name: 'data', start: BASE + 0x200, kind: 'data', generated: true },
+  ];
+  const config = configOf({ modules: modules(BASE + 0x300), functions: [[BASE + 0x100, 'Main']], symbols: [[BASE + 0x340, { name: 'gTable', aliases: [] }]] });
+  const model = buildModel(ROM, analysis, config);
+  assert.deepEqual(model.diagnostics.filter((d) => d.severity === 'error'), []);
+  assert.deepEqual(model.modules.map((m) => [m.name, m.span.start - BASE, m.span.end - BASE, m.dataRange === undefined ? null : m.dataRange.start - BASE]), [
+    ['rom_header', 0, 0xc0, null],
+    ['main', 0xc0, 0x200, 0x300],
+    ['data', 0x200, 0x300, null],
+  ]);
+  assert.deepEqual(
+    model.chunks.filter((c) => c.span.start >= BASE + 0x300).map((c) => [c.name, c.kind, c.module, c.span.start - BASE, c.span.end - BASE]),
+    [
+      ['gUnk_08000300', 'data', 'main', 0x300, 0x340],
+      ['gTable', 'data', 'main', 0x340, 0x400],
+    ],
+  );
+  assert.ok(tiles(model.items, BASE, ROM.end));
+  const main = model.modules[1];
+  assert.ok(main !== undefined && model.chunks.slice(main.chunks.first, main.chunks.first + main.chunks.count).every((c) => c.span.end <= BASE + 0x200), 'the range\'s chunks lie outside Module.chunks');
+
+  const refused = buildModel(ROM, analysis, configOf({ modules: modules(BASE + 0x302), functions: [[BASE + 0x100, 'Main']] }));
+  assert.deepEqual(refused.diagnostics.filter((d) => d.code === 'E_DATA_RANGE_INVALID').map((d) => d.addr), [BASE + 0x302]);
+  assert.deepEqual(refused.modules.map((m) => [m.name, m.span.end - BASE, m.dataRange]), [
+    ['rom_header', 0xc0, undefined],
+    ['main', 0x200, undefined],
+    ['data', 0x400, undefined],
+  ]);
 });

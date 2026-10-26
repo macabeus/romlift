@@ -2,9 +2,11 @@
 // the address, filtered afterwards to explainFilter (the 256-byte bucket around the address widened to the
 // extents covering it); a second run only when an extent reaches past the window. explainAnalysis composes
 // it with the registered rules' metadata; phase 3 adds the item and chunk of the model configFromDiscover and
-// buildModel make of the same discover result (D35).
+// buildModel make of the same discover result (D35); phase 6 the signature part, from the placement holding the
+// address on a bare ROM and from the TOML's `from` key in a project.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { RULES } from '../../../src/core/analysis/driver/rules.ts';
@@ -15,12 +17,15 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import { buildModel } from '../../../src/core/model/model.ts';
 import { findItem, itemAt } from '../../../src/core/model/item-table.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
-import { explain, explainOutcome, explainProject, modelPart, namePart } from '../../../src/core/workflow/explain.ts';
+import { explain, explainOutcome, explainProject, modelPart, namePart, signatureFromConfig, signatureOfKey } from '../../../src/core/workflow/explain.ts';
+import { initConfigOf } from '../../../src/core/workflow/init-config.ts';
+import { parseSignatureFile } from '../../../src/core/signatures/schema.ts';
+import type { SignatureFile } from '../../../src/core/signatures/schema.ts';
 import type { Rom } from '../../../src/foundation/rom/rom.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
 import { DUMMY_PROFILE } from '../../helpers/dummy-profile.ts';
-import { listSyntheticFixtures } from '../../helpers/fixtures.ts';
+import { listSyntheticFixtures, SYNTHETIC_ROOT } from '../../helpers/fixtures.ts';
 
 function fixtureRom(name: string): Rom {
   const fixture = listSyntheticFixtures().find((f) => f.name === name);
@@ -195,4 +200,48 @@ test('phase 4: inside a project, another ROM than [rom] sha1 records is E_ROM_SH
   const refused = explainProject({ rom, config: { ...config, rom: { ...config.rom, sha1: '0'.repeat(40) } } }, 0x0800_0104);
   assert.equal(refused.ok, false);
   assert.deepEqual(refused.ok ? [] : refused.diagnostics.map((d) => d.code), ['E_ROM_SHA1_MISMATCH']);
+});
+
+// ---------------------------------------------------------------------------------------------------
+// The signature part (phase 6, D35): from a placement on a bare ROM, from the TOML's `from` key in a project.
+
+const LIBFIX = ((): SignatureFile => {
+  const parsed = parseSignatureFile(JSON.parse(readFileSync(join(SYNTHETIC_ROOT, 'library', 'signatures.golden.json'), 'utf8')));
+  assert.ok(parsed.ok);
+  return parsed.value;
+})();
+
+test('signatureOfKey reads sig:<library>@<version> and nothing else', () => {
+  assert.deepEqual(signatureOfKey('sig:m4a@2001', 'SoundMain'), { library: 'm4a', version: '2001', name: 'SoundMain' });
+  assert.deepEqual(signatureOfKey('sig:libgcc@agbcc', '__divsi3'), { library: 'libgcc', version: 'agbcc', name: '__divsi3' });
+  for (const bad of [undefined, 'legacy', 'sig:', 'sig:m4a', 'sig:@1', 'sig:m4a@']) assert.equal(signatureOfKey(bad, 'X'), undefined, String(bad));
+});
+
+test('a bare ROM: the placement holding the address, with its rule; none without files or outside every placement', () => {
+  const rom = fixtureRom('library-game');
+  const inside = explainOutcome(rom, 0x0800_0246, { signatureFiles: [LIBFIX] }).report;
+  assert.deepEqual(inside.signature, { library: 'libfix', version: '1.0', name: 'FixAbs', rule: 'sig.unique-fit' });
+  assert.deepEqual(explainOutcome(rom, 0x0800_0278, { signatureFiles: [LIBFIX] }).report.signature, { library: 'libfix', version: '1.0', name: 'gFixTable', rule: 'sig.short-member-window' });
+  assert.equal(explainOutcome(rom, 0x0800_0246).report.signature, undefined);
+  assert.equal(explainOutcome(rom, 0x0800_0160, { signatureFiles: [LIBFIX] }).report.signature, undefined, 'GameFiller is no member');
+});
+
+test("a project: the from key of the function or the symbol holding the address, never the matcher's rule", () => {
+  const rom = fixtureRom('library-game');
+  const made = initConfigOf(rom, { signatureFiles: [LIBFIX] });
+  assert.ok(made.ok);
+  const at = (addr: number) => {
+    const out = explainProject({ rom, config: made.config }, addr);
+    assert.ok(out.ok);
+    return out.report.signature;
+  };
+  assert.deepEqual(at(0x0800_0246), { library: 'libfix', version: '1.0', name: 'FixAbs' });
+  assert.deepEqual(at(0x0800_0278), { library: 'libfix', version: '1.0', name: 'gFixTable' });
+  assert.equal(at(0x0800_0160), undefined);
+  const plain = initConfigOf(rom);
+  assert.ok(plain.ok);
+  const out = explainProject({ rom, config: plain.config }, 0x0800_0246);
+  assert.ok(out.ok && out.report.signature === undefined, 'no from key, no signature: the matcher is not run');
+  const model = buildModel(rom, discover(rom), made.config);
+  assert.deepEqual(signatureFromConfig(model, made.config, 0x0800_0246).signature?.name, 'FixAbs');
 });

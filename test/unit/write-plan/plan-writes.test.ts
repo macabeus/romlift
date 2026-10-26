@@ -7,7 +7,7 @@ import { RomliftInvariantError } from '../../../src/foundation/diagnostics/diagn
 import type { FileEntry, TextEdit } from '../../../src/core/emit/tree.ts';
 import type { Journal } from '../../../src/core/write-plan/journal.ts';
 import { applyTextEdits, planHasErrors, planWrites, staleEdit, UNKNOWN_ROMLIFT_VERSION } from '../../../src/core/write-plan/plan-writes.ts';
-import type { Manifest, WritePlan, WritePlanInputs } from '../../../src/core/write-plan/types.ts';
+import type { DiskFileState, Manifest, WritePlan, WritePlanInputs } from '../../../src/core/write-plan/types.ts';
 
 /** A deterministic 40-hex-digit stand-in for SHA-1: five FNV-1a lanes with different seeds. */
 function fakeHash(text: string): string {
@@ -30,9 +30,9 @@ function manifestOf(files: Readonly<Record<string, string>>, romlift = '1.0.0'):
   return { schema: 1, romlift, files: out };
 }
 
-/** A disk snapshot from texts ('absent' marks a path the snapshot names with no file). */
-function diskOf(files: Readonly<Record<string, string | null>>): ReadonlyMap<string, string> {
-  return new Map(Object.entries(files).map(([path, text]) => [path, text === null ? 'absent' : fakeHash(text)]));
+/** A disk snapshot from texts (null marks a path the snapshot names with no file). */
+function diskOf(files: Readonly<Record<string, string | null>>): ReadonlyMap<string, DiskFileState> {
+  return new Map(Object.entries(files).map(([path, text]): [string, DiskFileState] => [path, text === null ? { kind: 'absent' } : { kind: 'present', sha1: fakeHash(text) }]));
 }
 
 function plan(partial: Partial<WritePlanInputs> & Pick<WritePlanInputs, 'entries'>): WritePlan {
@@ -294,7 +294,7 @@ test('a broken caller contract throws RomliftInvariantError', () => {
   assert.throws(() => plan({ entries: [gen('asm/a.s', 'A'), gen('asm/a.s', 'B')], disk: diskOf({ 'asm/a.s': null }) }), RomliftInvariantError);
   assert.throws(() => plan({ entries: [gen('asm/a.s', 'A')] }), RomliftInvariantError);
   for (const bad of ['../x.s', '/abs.s', 'asm//a.s', 'asm\\a.s', 'asm/./a.s', '']) {
-    assert.throws(() => plan({ entries: [gen(bad, 'A')], disk: new Map([[bad, 'absent']]) }), RomliftInvariantError, bad);
+    assert.throws(() => plan({ entries: [gen(bad, 'A')], disk: diskOf({ [bad]: null }) }), RomliftInvariantError, bad);
   }
 });
 

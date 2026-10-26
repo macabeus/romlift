@@ -12,7 +12,7 @@ import { rawReason } from '../../foundation/isa/roundtrip.ts';
 import { specOf } from '../../foundation/isa/rows.ts';
 import type { Flow, Insn, RawReason, SpecId, SymbolResolver } from '../../foundation/isa/types.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
-import { isDefaultSpelling } from './names.ts';
+import { isDefaultSpelling } from '../../foundation/util/project-files.ts';
 
 /** Per isa row: the bits of its word that hold a pc-relative offset (pc-rel and bl-off fields), 0 for none. */
 const OFFSET_MASK = new Map<SpecId, number>();

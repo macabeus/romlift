@@ -48,6 +48,7 @@ kind = "c"
 name = "eeprom"
 start = 0x0804E800
 kind = "c"
+data_start = 0x0804EF00       # its C data range (§6.6, phase 6)
 compiler = "old_agbcc"        # per-module build compiler and extra flags (D47)
 cflags = ["-O1"]
 
@@ -93,7 +94,6 @@ start = 0x0804F318
 size = 0x400
 kind = "code"
 runs_at = 0x03000388
-from = "evidence:trace"
 `;
 
 function golden(file: string, actual: string): void {

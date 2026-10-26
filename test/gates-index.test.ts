@@ -1,7 +1,8 @@
 // The gate set equals the gate index of docs/architecture.md §13 (D29, D54 e). The index table is parsed
 // strictly: each row is `| \`<id>\` | <tier> | <asserts> |` with a tier of `ci`, `real` or `ci and real`,
 // optionally annotated `(historical after phase <n>)` or `(sealed)`, and its ids are those §1 lists per
-// phase. Then:
+// phase. A §1 phase row may list no gate id only when it says the phase was skipped (phase 5, D92), and then §13 has
+// no gate of that phase. Then:
 //   - test/gates/ holds exactly one `<id>.test.ts` per index id and no other g*.test.ts;
 //   - every gate file loads without throwing in a child process (ROMLIFT_GATE_TIER unset), whose resolve
 //     hook hands the gate files a stub `./gate.ts` that records each gate() spec instead of registering a
@@ -50,7 +51,7 @@ const gatesDir = path.join(repoRoot, 'test', 'gates');
 const GATE_FILE = /^g\d.*\.test\.ts$/;
 const ROW = /^\| `(g([1-6])\.[a-z0-9-]+)` \| ([^|]+?) \| (.+) \|$/;
 const TIER_TEXT = /^(ci and real|ci|real)(?: \((?:historical after phase ([1-6])|(sealed))\))?$/;
-const GATE_INPUTS: ReadonlySet<string> = new Set(['roms', 'elfs', 'objects', 'poc', 'toolchain', 'klonoa']);
+const GATE_INPUTS: ReadonlySet<string> = new Set(['roms', 'elfs', 'objects', 'poc', 'toolchain']);
 const SPEC_KEYS: ReadonlySet<string> = new Set(['id', 'phase', 'tier', 'needs', 'inputs', 'realInputs', 'historicalAfter', 'run']);
 
 function architecture(): string {
@@ -86,17 +87,28 @@ function gateIndex(): readonly IndexRow[] {
   return rows;
 }
 
-/** The gate ids §1's phase table lists, by phase. */
-function phaseTableIds(): ReadonlyMap<number, readonly string[]> {
-  const out = new Map<number, readonly string[]>();
+interface PhaseRow {
+  readonly ids: readonly string[];
+  /** The row says the phase was skipped (a phase the owner skipped lists no gate, D92). */
+  readonly skipped: boolean;
+}
+
+/** §1's phase table, by phase: the gate ids its last cell lists, and whether the row says the phase was skipped. */
+function phaseRows(): ReadonlyMap<number, PhaseRow> {
+  const out = new Map<number, PhaseRow>();
   for (const line of section(architecture(), '## 1. Goals and non-goals').split('\n')) {
     const phase = /^\| ([1-6]) [A-Z]/.exec(line)?.[1];
     if (phase === undefined) continue;
     const cells = line.split('|');
     const ids = [...(cells[cells.length - 2] ?? '').matchAll(/`(g[1-6]\.[a-z0-9-]+)`/g)].flatMap((m) => (m[1] === undefined ? [] : [m[1]]));
-    out.set(Number(phase), ids);
+    out.set(Number(phase), { ids, skipped: /\bskipped\b/.test(line) });
   }
   return out;
+}
+
+/** The gate ids §1's phase table lists, by phase. */
+function phaseTableIds(): ReadonlyMap<number, readonly string[]> {
+  return new Map([...phaseRows()].map(([phase, row]) => [phase, row.ids]));
 }
 
 function byCodeUnit(a: string, b: string): number {
@@ -173,6 +185,17 @@ test('the §13 gate index parses strictly and agrees with the phase table of §1
     const indexed = index.filter((row) => row.phase === phase).map((row) => row.id).sort(byCodeUnit);
     assert.deepEqual(indexed, listed, `phase ${phase}: §13 and §1 list different gates`);
   }
+});
+
+test('every phase has its §1 row; a row with no gate id is a skipped phase, and the others list gates', () => {
+  const rows = phaseRows();
+  for (const phase of [1, 2, 3, 4, 5, 6]) {
+    const row = rows.get(phase);
+    assert.ok(row, `§1 has no row for phase ${phase}`);
+    if (row.ids.length === 0) assert.ok(row.skipped, `phase ${phase}'s §1 row lists no gate id and does not say the phase was skipped`);
+  }
+  assert.deepEqual(rows.get(5)?.ids, [], 'phase 5 was skipped by the owner (D92): its row lists no gate');
+  assert.equal(rows.get(5)?.skipped, true, 'phase 5\'s row says it was skipped (D92)');
 });
 
 test('test/gates holds exactly one file per §13 gate and no other gate file', () => {

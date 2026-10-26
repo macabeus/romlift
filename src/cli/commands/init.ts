@@ -1,12 +1,15 @@
-// `romlift init <rom> [dir] [--name <name>] [--module-size <bytes>] [--json]` (architecture §2.1, §6.3 to §6.5, D17,
-// D74 c): a new project from a ROM. `dir` defaults to the working directory; it is accepted when it is absent or
+// `romlift init <rom> [dir] [--name <name>] [--module-size <bytes>] [--no-signatures] [--json]` (architecture §2.1,
+// §6.3 to §6.5, §7.3, D17, D74 c, D93, D95 b): a new project from a ROM. The built signature files are located first
+// (shell/signatures/locate.ts loadSignatureFiles: $ROMLIFT_SIGNATURES or the package's signatures/; a file it skips is
+// W_SIGNATURE_FILE_SKIPPED, none found W_SIGNATURES_ABSENT) and handed to the workflow, which, unless --no-signatures,
+// names the libraries they place and reports those notes; --no-signatures writes `[signatures] enabled = false`. `dir` defaults to the working directory; it is accepted when it is absent or
 // empty, when it holds only the given ROM plus `.git` and dot-files, or when it is a romlift project whose
 // romlift.toml, decomp.yaml and baserom.gba init would write unchanged (an interrupted init run again); anything else
 // is E_DIR_NOT_EMPTY. The workflow (core/workflow/init.ts) plans everything first: the build name, the discover
-// analysis and its config, the TOML, decomp.yaml, the checked generate over that config and the scaffold; a refusal
-// writes nothing (exit 1, or 3 for a failed self-check). Then, holding the project lock: the ROM is copied to
-// baserom.gba when it has another name (the original stays), romlift.toml and decomp.yaml are saved
-// (shell/project/write-project.ts), the tree and the scaffold are planned (planWrites: generated files in the
+// analysis and its config (with the screened signature proposals), the TOML, decomp.yaml, the checked generate over
+// that config and the scaffold; a refusal writes nothing (exit 1, or 3 for a failed self-check). Then, holding the
+// project lock: the ROM is copied to the plan's romCopy (baserom.gba) when it has another name (the original stays),
+// the plan's own files (romlift.toml, decomp.yaml) are saved (shell/project/write-project.ts), the tree and the scaffold are planned (planWrites: generated files in the
 // manifest, scaffold files written when absent) and applied, and setup.sh made executable. Last, the lock step writes package-lock.json
 // (shell/toolchain/npm.ts), or defers it with W_LOCKFILE_DEFERRED. Output: the diagnostics, then a summary with the
 // counts (functions, modules, files written); with --json, NDJSON. Never reads stdin.
@@ -15,6 +18,7 @@ import type { Diagnostic } from '../../api/rom.ts';
 import { init, initDirVerdict, wantsLockStep } from '../../core/workflow/init.ts';
 import type { InitOptions } from '../../core/workflow/types.ts';
 import { readInitDir, readScaffoldInputs, resolveFrom } from '../../shell/project/read-inputs.ts';
+import { loadSignatureFiles } from '../../shell/signatures/locate.ts';
 import { hasPackageLock, writeInitProject } from '../../shell/project/write-project.ts';
 import { readRom } from '../../shell/rom.ts';
 import { sha1Of } from '../../shell/hash.ts';
@@ -44,21 +48,23 @@ function print(io: CliIo, json: boolean, diagnostics: readonly Diagnostic[], sum
 export const initCommand: CommandSpec = {
   name: 'init',
   summary: 'Creates a matching-decompilation project from a ROM: romlift.toml, decomp.yaml, the scaffold, src/*.c and the generated tree',
-  usage: 'init <rom> [dir] [--name <name>] [--module-size <bytes>] [--json]',
+  usage: 'init <rom> [dir] [--name <name>] [--module-size <bytes>] [--no-signatures] [--json]',
   positionals: [{ name: '<rom>' }, { name: '[dir]', optional: true }],
   options: [
     { name: 'name', kind: 'string', summary: 'The build name (<name>.gba, <name>.elf, <name>.sha1); default the header game code in lower case', value: '<name>' },
     { name: 'module-size', kind: 'string', summary: 'The size past which a C module closes at the next legal border (0x… or decimal); default 0x10000', value: '<bytes>' },
+    { name: 'no-signatures', kind: 'boolean', summary: 'Skips the library signatures: no library is named, and romlift.toml says [signatures] enabled = false' },
     { name: 'json', kind: 'boolean', summary: 'Prints NDJSON: the diagnostics, then a summary' },
   ],
   async run(args, io) {
     const json = args.flags['json'] === true;
+    const signatures = args.flags['no-signatures'] !== true;
     const romArg = args.positionals[0] ?? '';
     const sizeText = args.options['module-size'];
     const moduleSize = sizeText === undefined ? undefined : parseModuleSize(sizeText);
     if (sizeText !== undefined && moduleSize === undefined) return usageError(io, 'init', `--module-size is a positive multiple of 4 (0x… or decimal), not '${sizeText}'`);
     const name = args.options['name'];
-    const options: InitOptions = { ...(name === undefined ? {} : { name }), ...(moduleSize === undefined ? {} : { moduleSize }) };
+    const options: InitOptions = { ...(name === undefined ? {} : { name }), ...(moduleSize === undefined ? {} : { moduleSize }), ...(signatures ? {} : { signatures: false }) };
     const romPath = resolveFrom(io.cwd, romArg);
     const dirArg = args.positionals[1];
     const refuse = (diagnostics: readonly Diagnostic[], exitCode: ExitCode = ExitCode.errors): ExitCode => {
@@ -75,10 +81,12 @@ export const initCommand: CommandSpec = {
     if (!rom.ok) return refuse([rom.diagnostic]);
     const scaffold = await readScaffoldInputs();
     if (!scaffold.ok) return refuse(scaffold.diagnostics);
-    const plan = init({ rom: rom.value, romFile: listing.value.romInside ?? romArg, options, templates: scaffold.value.templates, romliftVersion: scaffold.value.romliftVersion, agbcc: scaffold.value.agbcc }, (text) => sha1Of(text));
+    const located = await loadSignatureFiles(io);
+    const inputs = { rom: rom.value, romFile: listing.value.romInside ?? romArg, options, templates: scaffold.value.templates, romliftVersion: scaffold.value.romliftVersion, agbcc: scaffold.value.agbcc };
+    const plan = init({ ...inputs, signatureFiles: located.files, signatureNotes: located.diagnostics }, (text) => sha1Of(text));
     if (!plan.ok) return refuse(plan.diagnostics, refusedExitCode(plan.diagnostics));
     // writeInitProject checks init's own files under the lock (absent or what init writes); a refusal wrote nothing.
-    const files = { romPath, tomlText: plan.tomlText, decompYamlText: plan.decompYamlText };
+    const files = { romPath, romCopy: plan.romCopy, files: plan.files };
     const written = await writeInitProject(dir, files, { result: plan.result, rom: rom.value, extra: plan.scaffold }, scaffold.value.romliftVersion);
     if (!written.ok && written.refused) return refuse(written.diagnostics);
     let diagnostics: readonly Diagnostic[] = [...plan.diagnostics, ...(written.ok ? written.value.diagnostics : written.diagnostics)];

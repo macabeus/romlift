@@ -2,15 +2,28 @@
 // initialised project's romlift.toml keep the self-checks and the link green, and each illegal edit gives
 // its documented code and writes nothing. Per target (every committed fixture on the ci tier, plus the six
 // tuning ROMs on the real tier, D60, D62 h, D74), from the TOML `init` wrote:
-//   legal:   move a `c` module's start to another legal border between its neighbours; rename a function that
-//            still has its default name; delete a listed function that starts no module; add a `code`
-//            override that covers one found function exactly; split a `c` module at a legal border inside it.
+//   legal:   move a `c` module's start to another legal start between its neighbours; rename a function that
+//            still has its default name; delete a listed function that starts no module; add an override that
+//            changes the model: a `data` override over the pool words after a found function F's last instruction
+//            (from F's first pool word at or past its code end to the end of its extent), F still listed, so the
+//            confirm run ends F's extent at the override and the model built from the edited config differs from the
+//            original config's in its functions' extents or its chunks, and `generate` warns no W_OVERRIDE_IGNORED
+//            (the owner's answer to phase-6.md Q11, option (a), 25 October 2026, D98 d, as fix round 5 applied it,
+//            D104 a: a `code` override without runs_at changes no confirm model, since the confirm run takes only
+//            [functions] and reports what an override's seed finds beyond it, measured; until fix round 5 the edit
+//            unlisted F and covered it with a code override, which only moved F to W_UNLISTED_FUNCTION; until D98 d
+//            it covered a listed function, a no-op that warned, D81 c); at least one target must take it; split a
+//            `c` module at a legal start inside it. A legal start is what generate accepts: core/layout's one
+//            predicate, isLegalStart, over the code layout of the confirm run of init's config, so a start in the
+//            data-start range D75 a made legal is a candidate too (architecture-r1-3, a1-5); the found functions of
+//            add-override are the discover run's.
 //            Each edit is applied alone to the original config and serialised; then `generate --json` and
 //            `verify --link --json` must exit 0 and the link must reproduce the ROM's SHA-1, and `make` (the user's
 //            build, from the project's own src/*.c, after `./setup.sh` once per target) must exit 0, which it does
 //            only when `<name>.gba` has the SHA-1 `<name>.sha1` records (D75 b).
 //   illegal: a module start moved by 2 bytes (E_MODULE_BORDER), a [functions] line repeated
-//            (E_DUPLICATE_ADDRESS), a [functions] key without its leading zero (E_TOML_KEY_SPELLING); each
+//            (E_DUPLICATE_ADDRESS), a [functions] key without its leading zero (E_TOML_KEY_SPELLING), a Thumb
+//            [functions] key made odd (E_FUNCTION_MISALIGNED; Q11 option (a), D98 d, correctness-b0-4's case); each
 //            makes `generate --json` exit 1 with that code and leaves every file but romlift.toml unchanged (the
 //            snapshot leaves out only .git and tools/agbcc, the compiler checkout setup.sh's duty 2 built, which
 //            romlift never writes and which is too large to hash per edit; fix round 6, gate-honesty-b1-2).
@@ -18,9 +31,12 @@
 // Calls, frozen by D74 (architecture §3.3, §3.4, §6.2; parseConfig and serializeConfig are p4-config's):
 //   parseConfig(text) -> {ok: true, value: RomliftConfig, diagnostics} | {ok: false, diagnostics}
 //   serializeConfig(config) -> string (the canonical layout `init` writes)
-//   legalBorders(rom, analysis) -> sorted Addr[] (no profile: the borders rest on the ARM word, D63)
+//   codeLayout(rom, analysis) -> CodeLayout (a BorderRule: borders, dataStart, end; no profile, D63)
+//   isLegalStart(rule, addr) -> boolean; legalStartsBetween(rule, after, before) -> the legal starts strictly between, ascending
+//   confirmOptions(config) -> the confirm run's options generate uses
 //   romFromBytes, sha1Of, profileById('agbcc'), analyze(rom, profile, {mode: 'discover', seeds: [],
-//   overrides: [], trail: 'off'})
+//   overrides: [], trail: 'off'}) and analyze(rom, profile, confirmOptions(config))
+//   buildModel(rom, analysis, config) -> Model (core/model; add-override reads its functions' extents and its chunks, D104 a)
 // CLI: generate --json and verify --link --json print NDJSON whose last line is
 //   {"type":"summary","ok":boolean,"exitCode":number,"sha1"?:string} (sha1 of the linked ROM with --link).
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set (the source CLI here); the first target builds agbcc through
@@ -69,14 +85,42 @@ interface Rom {
 }
 
 interface AnalysisResult {
-  readonly functions: readonly { readonly entry: Addr; readonly mode: Mode; readonly extent: { readonly start: Addr; readonly end: Addr } }[];
+  readonly functions: readonly {
+    readonly entry: Addr;
+    readonly mode: Mode;
+    readonly extent: { readonly start: Addr; readonly end: Addr };
+    readonly codeEnd: Addr;
+    /** The pool words inside the extent. */
+    readonly pools: readonly Addr[];
+  }[];
 }
+
+/** What add-override compares of a model (core/model's Model): its functions' extents and its chunks. */
+interface Model {
+  readonly functions: readonly { readonly entry: Addr; readonly extent: { readonly start: Addr; readonly end: Addr } }[];
+  readonly chunks: readonly { readonly span: { readonly start: Addr; readonly end: Addr }; readonly kind: string }[];
+}
+type BuildModel = (rom: Rom, analysis: AnalysisResult, config: RomliftConfig) => Model;
 
 type RomFromBytes = (bytes: Uint8Array, sha1: string) => Rom;
 type Sha1Of = (data: Uint8Array) => string;
 type ProfileById = (id: string) => object | undefined;
-type Analyze = (rom: Rom, profile: object, options: { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' }) => AnalysisResult;
-type LegalBorders = (rom: Rom, analysis: AnalysisResult) => readonly Addr[];
+type AnalysisOptions = { readonly mode: 'discover'; readonly seeds: readonly never[]; readonly overrides: readonly never[]; readonly trail: 'off' } | ConfirmOptions;
+/** The confirm options confirmOptions returns: opaque here, passed back to analyze. */
+interface ConfirmOptions {
+  readonly mode: 'confirm';
+}
+type Analyze = (rom: Rom, profile: object, options: AnalysisOptions) => AnalysisResult;
+type ConfirmOptionsOf = (config: RomliftConfig) => ConfirmOptions;
+/** What a module start is checked against (core/layout's BorderRule; a CodeLayout is one). */
+interface BorderRule {
+  readonly borders: readonly Addr[];
+  readonly dataStart: Addr;
+  readonly end: Addr;
+}
+type CodeLayoutOf = (rom: Rom, analysis: AnalysisResult) => BorderRule;
+type IsLegalStart = (rule: BorderRule, addr: Addr) => boolean;
+type LegalStartsBetween = (rule: BorderRule, after: Addr, before: Addr) => readonly Addr[];
 
 interface CliLine {
   readonly type: string;
@@ -97,8 +141,12 @@ interface Api {
 
 interface Facts {
   readonly config: RomliftConfig;
-  readonly borders: readonly Addr[];
+  /** The legal starts strictly between two addresses, by isLegalStart over the confirm run's layout. */
+  readonly legalBetween: (after: Addr, before: Addr) => readonly Addr[];
+  /** The discover run, whose found functions add-override covers. */
   readonly analysis: AnalysisResult;
+  /** The functions' extents and the chunks of the model `generate` builds from `config` (its confirm run), as one text. */
+  readonly modelShape: (config: RomliftConfig) => string;
   readonly end: Addr;
 }
 
@@ -107,6 +155,8 @@ const LEGAL_KINDS: readonly LegalKind[] = ['move-start', 'rename', 'delete-funct
 const SEED = 0x6734_0001;
 const DEFAULT_NAME = /^(sub|unk|gUnk)_[0-9A-F]{8}$|^_[0-9A-F]{8}$/;
 const FUNCTION_LINE = /^(0x)0([0-9A-F]{7})(\s*=.*)$/;
+/** add-override tries at most this many candidates, each through one confirm run and model, before it finds no place. */
+const OVERRIDE_TRIES = 32;
 
 function hex(addr: Addr): string {
   return `0x${addr.toString(16).toUpperCase().padStart(8, '0')}`;
@@ -140,14 +190,14 @@ function nameSeed(name: string): number {
 
 /** One legal edit of `kind`, or undefined when the config offers no place for it. */
 function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { readonly config: RomliftConfig; readonly what: string } | undefined {
-  const { config, borders } = facts;
+  const { config, legalBetween } = facts;
   const modules = config.modules;
   const starts = new Set(modules.map((m) => m.start));
   const nextStart = (i: number): Addr => modules[i + 1]?.start ?? facts.end;
   const cModules = modules.map((m, i) => ({ m, i })).filter(({ m, i }) => m.kind === 'c' && i > 0);
   switch (kind) {
     case 'move-start': {
-      const options = cModules.flatMap(({ m, i }) => borders.filter((b) => b > (modules[i - 1]?.start ?? 0) && b < nextStart(i) && b !== m.start).map((b) => ({ i, b })));
+      const options = cModules.flatMap(({ m, i }) => legalBetween(modules[i - 1]?.start ?? 0, nextStart(i)).filter((b) => b !== m.start).map((b) => ({ i, b })));
       const choice = pick(random, options);
       if (choice === undefined) return undefined;
       const moved = modules[choice.i];
@@ -171,15 +221,29 @@ function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { reado
       return { config: { ...config, functions }, what: `delete ${hex(addr)}` };
     }
     case 'add-override': {
-      const listed = facts.analysis.functions.filter((f) => config.functions.has(f.entry) && !config.overrides.some((o) => o.start < f.extent.end && f.extent.start < o.start + o.size));
-      const fn = pick(random, listed);
-      if (fn === undefined) return undefined;
-      const override: OverrideConfig = { start: fn.extent.start, size: fn.extent.end - fn.extent.start, kind: 'code', mode: fn.mode };
-      const overrides = [...config.overrides, override].sort((a, b) => a.start - b.start);
-      return { config: { ...config, overrides }, what: `code override over ${hex(fn.entry)}` };
+      // An override that changes the model (Q11 option a, D98 d, D104 a): a data override over F's trailing pool
+      // words, F still listed. The confirm run ends F's extent at the first data override after its entry, so the
+      // model changes unless F's confirm extent already ends before the words; modelShape decides.
+      const original = facts.modelShape(config);
+      const candidates = facts.analysis.functions.flatMap((f) => {
+        const listed = config.functions.get(f.entry);
+        const pool = f.pools.filter((p) => p >= f.codeEnd && p < f.extent.end).sort((a, b) => a - b)[0];
+        if (listed === undefined || listed.label === true || pool === undefined) return [];
+        if (config.overrides.some((o) => o.start < f.extent.end && pool < o.start + o.size)) return [];
+        return [{ entry: f.entry, start: pool, end: f.extent.end }];
+      });
+      for (let tries = 0; tries < OVERRIDE_TRIES && candidates.length > 0; tries++) {
+        const at = Math.floor(random() * candidates.length);
+        const [c] = candidates.splice(at, 1);
+        if (c === undefined) break;
+        const override: OverrideConfig = { start: c.start, size: c.end - c.start, kind: 'data' };
+        const edited = { ...config, overrides: [...config.overrides, override].sort((a, b) => a.start - b.start) };
+        if (facts.modelShape(edited) !== original) return { config: edited, what: `data override over ${hex(c.start)}..${hex(c.end)}, the pool words of ${hex(c.entry)}` };
+      }
+      return undefined;
     }
     case 'split-module': {
-      const options = cModules.flatMap(({ m, i }) => borders.filter((b) => b > m.start && b < nextStart(i) && !starts.has(b)).map((b) => ({ i, b })));
+      const options = cModules.flatMap(({ m, i }) => legalBetween(m.start, nextStart(i)).filter((b) => !starts.has(b)).map((b) => ({ i, b })));
       const choice = pick(random, options);
       if (choice === undefined) return undefined;
       const parent = modules[choice.i];
@@ -206,6 +270,12 @@ function illegalEdits(text: string, api: Api, facts: Facts): readonly { readonly
   if (line === undefined) throw new Error('romlift.toml has no [functions] entry in the canonical layout');
   out.push({ text: [...lines.slice(0, at + 1), line, ...lines.slice(at + 1)].join('\n'), code: 'E_DUPLICATE_ADDRESS', what: 'a repeated [functions] line' });
   out.push({ text: [...lines.slice(0, at), line.replace(FUNCTION_LINE, '$1$2$3'), ...lines.slice(at + 1)].join('\n'), code: 'E_TOML_KEY_SPELLING', what: 'a key with seven hex digits' });
+  // An odd key on a Thumb [functions] line (Q11 option a, D98 d): no instruction address of its mode.
+  const thumb = [...facts.config.functions].sort((a, b) => a[0] - b[0]).find(([, f]) => f.mode === 'thumb');
+  const oddAt = thumb === undefined ? -1 : lines.findIndex((l, i) => i > header && l.startsWith(`${hex(thumb[0])} =`));
+  const oddLine = lines[oddAt];
+  if (thumb === undefined || oddLine === undefined) throw new Error('romlift.toml lists no Thumb function in the canonical layout');
+  out.push({ text: [...lines.slice(0, oddAt), `${hex(thumb[0] + 1)}${oddLine.slice(hex(thumb[0]).length)}`, ...lines.slice(oddAt + 1)].join('\n'), code: 'E_FUNCTION_MISALIGNED', what: `the Thumb key ${hex(thumb[0])} made odd` });
   return out;
 }
 
@@ -257,13 +327,17 @@ gate({
   tier: 'both',
   inputs: ['toolchain'],
   realInputs: ['roms'],
-  needs: ['init', 'generate', 'parseConfig', 'serializeConfig', 'legalBorders', 'romFromBytes', 'sha1Of', 'profileById', 'analyze'],
+  needs: ['init', 'generate', 'parseConfig', 'serializeConfig', 'codeLayout', 'isLegalStart', 'legalStartsBetween', 'confirmOptions', 'romFromBytes', 'sha1Of', 'profileById', 'analyze', 'buildModel'],
   async run(cx) {
     const api: Api = { parse: cx.need<ParseConfig>('parseConfig'), serialize: cx.need<SerializeConfig>('serializeConfig') };
-    const legalBorders = cx.need<LegalBorders>('legalBorders');
+    const codeLayout = cx.need<CodeLayoutOf>('codeLayout');
+    const isLegalStart = cx.need<IsLegalStart>('isLegalStart');
+    const legalStartsBetween = cx.need<LegalStartsBetween>('legalStartsBetween');
+    const confirmOptions = cx.need<ConfirmOptionsOf>('confirmOptions');
     const romFromBytes = cx.need<RomFromBytes>('romFromBytes');
     const sha1Of = cx.need<Sha1Of>('sha1Of');
     const analyze = cx.need<Analyze>('analyze');
+    const buildModel = cx.need<BuildModel>('buildModel');
     const profile = cx.need<ProfileById>('profileById')('agbcc');
     if (profile === undefined) throw new Error("profileById('agbcc') returned nothing");
 
@@ -275,7 +349,7 @@ gate({
     const env = { ROMLIFT_CLI: cli };
     const problems: string[] = [];
     let legal = 0;
-    /** The legal edits that built, by kind: the add-override one changes nothing until phase 6 (D81 c), which the note says. */
+    /** The legal edits that built, by kind (the note reports each count). */
     const byKind = new Map<LegalKind, number>(LEGAL_KINDS.map((k) => [k, 0]));
     let illegal = 0;
     let agbcc: string | undefined;
@@ -292,7 +366,20 @@ gate({
       const bytes = new Uint8Array(await readFile(target.rom));
       const rom = romFromBytes(bytes, sha1Of(bytes));
       const analysis = analyze(rom, profile, { mode: 'discover', seeds: [], overrides: [], trail: 'off' });
-      const facts: Facts = { config: parsed.value, borders: legalBorders(rom, analysis), analysis, end: rom.end };
+      // generate's rule: the code layout of the confirm run of init's config; legalStartsBetween is checked against
+      // the predicate it enumerates, so the candidates are exactly the starts isLegalStart allows.
+      const rule = codeLayout(rom, analyze(rom, profile, confirmOptions(parsed.value)));
+      const legalBetween = (after: Addr, before: Addr): readonly Addr[] => {
+        const starts = legalStartsBetween(rule, after, before);
+        const wrong = starts.find((a) => !isLegalStart(rule, a));
+        if (wrong !== undefined) throw new Error(`${target.name}: legalStartsBetween names ${hex(wrong)}, which isLegalStart refuses`);
+        return starts;
+      };
+      const modelShape = (config: RomliftConfig): string => {
+        const model = buildModel(rom, analyze(rom, profile, confirmOptions(config)), config);
+        return JSON.stringify([model.functions.map((f) => [f.entry, f.extent.start, f.extent.end]), model.chunks.map((c) => [c.span.start, c.span.end, c.kind])]);
+      };
+      const facts: Facts = { config: parsed.value, legalBetween, analysis, modelShape, end: rom.end };
       const random = prng(nameSeed(target.name));
       if (agbcc !== undefined) await cp(agbcc, path.join(dir, 'tools', 'agbcc'), { recursive: true });
       const setup = await cx.exec('./setup.sh', [], { cwd: dir, env });
@@ -310,7 +397,9 @@ gate({
         const verify = generate.run.code === 0 ? await romlift(cx, dir, ['verify', '--link']) : undefined;
         const linked = verify?.lines.at(-1)?.sha1;
         const make = generate.run.code === 0 ? await cx.exec('make', [], { cwd: dir, env }) : undefined;
-        if (generate.run.code !== 0 || verify?.run.code !== 0 || linked !== rom.sha1 || make?.code !== 0) {
+        const ignored = kind === 'add-override' && generate.lines.some((l) => l.type === 'diagnostic' && l.code === 'W_OVERRIDE_IGNORED');
+        if (ignored) problems.push(`${target.name}: ${edit.what}: generate warns W_OVERRIDE_IGNORED, so the override changes nothing`);
+        else if (generate.run.code !== 0 || verify?.run.code !== 0 || linked !== rom.sha1 || make?.code !== 0) {
           const codes = [...generate.lines, ...(verify?.lines ?? [])].filter((l) => l.type === 'diagnostic').map((l) => l.code ?? '?');
           const built = make === undefined ? 'not run' : make.code === 0 ? '0' : `${make.code}: ${tail(make, 4).replace(/\n/g, ' / ')}`;
           problems.push(`${target.name}: ${edit.what}: generate exit ${generate.run.code}, verify exit ${verify?.run.code ?? 'not run'}, linked ${linked ?? 'nothing'}, make exit ${built}, codes [${codes.join(', ')}]`);
@@ -331,8 +420,9 @@ gate({
       }
       await writeFile(tomlPath, text);
     }
+    if ((byKind.get('add-override') ?? 0) === 0) problems.push('no target took an add-override edit that changes the model');
     if (problems.length > 0) throw new Error(`TOML mutations: ${problems.join(' | ')}`);
-    const kinds = LEGAL_KINDS.map((k) => `${k} ${byKind.get(k) ?? 0}${k === 'add-override' ? ' (each a no-op that warns W_OVERRIDE_IGNORED, D81 c)' : ''}`).join(', ');
+    const kinds = LEGAL_KINDS.map((k) => `${k} ${byKind.get(k) ?? 0}${k === 'add-override' ? ' (each a data override that changes the model, no W_OVERRIDE_IGNORED, D98 d, D104 a)' : ''}`).join(', ');
     cx.note(`${legal} legal edits link to the SHA-1 and build with make to it (${kinds}), and ${illegal} illegal edits give their codes, on ${targets.length} ROMs`);
   },
 });

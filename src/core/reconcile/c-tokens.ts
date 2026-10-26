@@ -240,3 +240,37 @@ export function tokenizeC(text: string): readonly CToken[] {
 export function isTrivia(token: CToken): boolean {
   return token.kind === 'comment' || token.kind === 'preprocessor';
 }
+
+/**
+ * The keywords of C (C99 and C11, with GCC's spellings agbcc reads), which no identifier the planner or `rename` writes
+ * may be (architecture-14: the one table of C's lexical rules lives beside the tokenizer).
+ */
+export const C_KEYWORDS: ReadonlySet<string> = new Set([
+  'asm', 'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern',
+  'float', 'for', 'goto', 'if', 'inline', 'int', 'long', 'register', 'restrict', 'return', 'short', 'signed', 'sizeof',
+  'static', 'struct', 'switch', 'typedef', 'typeof', 'union', 'unsigned', 'void', 'volatile', 'while', '_Bool',
+  '_Complex', '_Imaginary', '_Alignas', '_Alignof', '_Atomic', '_Generic', '_Noreturn', '_Static_assert',
+  '_Thread_local', '__asm__', '__attribute__', '__inline__', '__typeof__', '__volatile__', '__const__', '__signed__',
+  '__extension__', '__label__', '__restrict__',
+]);
+
+/** A preprocessor line read as a directive: its name, and the tokens of its body after the name. */
+export interface CDirective {
+  /** The directive's name (`define`, `ifdef`, …); '' for a null directive or a line whose first token is no identifier. */
+  readonly name: string;
+  /** Every token after the name (all past the `#` when there is none), at their offsets in the whole text. */
+  readonly body: readonly CToken[];
+}
+
+/**
+ * A preprocessor line (a `preprocessor` token, or any `{ text, start }` whose text starts with `#`) as a directive,
+ * read with the tokenizer from just past its `#`, so a comment or a line splice between the `#` and the name is
+ * whitespace, as the preprocessor reads it: `#  ifdef X` is `ifdef` with the body `X`.
+ */
+export function directiveOf(line: { readonly text: string; readonly start: number }): CDirective {
+  const tokens = tokenizeC(line.text.slice(1)).map((t) => ({ ...t, start: t.start + line.start + 1, end: t.end + line.start + 1 }));
+  const first = tokens.findIndex((t) => t.kind !== 'comment');
+  const head = tokens[first];
+  if (head === undefined || head.kind !== 'identifier') return { name: '', body: tokens };
+  return { name: head.text, body: tokens.slice(first + 1) };
+}

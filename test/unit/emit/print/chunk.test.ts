@@ -48,7 +48,7 @@ test('a Thumb function: its macro and label, mnemonics, local labels, pool loads
     '_08000118: .4byte 0x08000100',
     '_0800011C: .4byte 0x03000000',
     '_08000120: .4byte ArmFunc',
-    '\t.2byte 0xEEFF @ dead',
+    '\t.inst.n 0xEEFF @ dead',
     '\tthumb_func_end Main',
   ]);
 });

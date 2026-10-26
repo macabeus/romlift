@@ -47,7 +47,7 @@ kind = "data"
 0x08000108 = "sub_08000108"
 0x0800010C = { name = "sub_0800010C", label = true }
 0x08000110 = { name = "sub_08000110", label = true }
-0x08000118 = { name = "IntrStub", mode = "arm", from = "evidence:map" }
+0x08000118 = { name = "IntrStub", mode = "arm", from = "sig:m4a@2001" }
 
 [symbols]                     # data and RAM
-0x03000000 = { name = "gMain", size = 0x40, from = "legacy" }
+0x03000000 = { name = "gMain", size = 0x40, from = "sig:gate@0" }

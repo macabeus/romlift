@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { buildPointerIndex, isPointedAt, isThumbPointer, pointersTo, pointerTargets } from '../../../src/core/analysis/pointers.ts';
+import { addressMap } from '../../../src/core/analysis/address-map.ts';
+import { buildPointerIndex, isPointedAt, isThumbPointer, pointersTo, pointerTargets, thumbPointerTarget } from '../../../src/core/analysis/pointers.ts';
 import { romWith, words } from '../../helpers/analysis.ts';
 
 test("the index holds every aligned Thumb pointer to a word-aligned ROM address (the PoC's dataRefs)", () => {
@@ -29,4 +30,17 @@ test('a value below the ROM, an even value or a misaligned target is no Thumb po
   assert.equal(isThumbPointer(rom, 0x0800_0300), false, 'even');
   assert.equal(isThumbPointer(rom, 0x0800_0303), false, 'target not word-aligned');
   assert.equal(isThumbPointer(rom, rom.end - 7), true);
+});
+
+test('thumbPointerTarget: isThumbPointer on the identity map; through a runs_at range by run address, never by load address', () => {
+  const rom = romWith([], { size: 0x800 });
+  const identity = addressMap([]);
+  for (const v of [0x0800_0301, 0x0800_0300, 0x0800_0303, 0x0300_0001, rom.end + 1]) assert.equal(thumbPointerTarget(rom, identity, v), isThumbPointer(rom, v) ? v - 1 : undefined);
+  const m = addressMap([{ span: { start: 0x0800_0400, end: 0x0800_0500 }, kind: 'code', runsAt: 0x0300_0000 }]);
+  assert.equal(thumbPointerTarget(rom, m, 0x0300_0011), 0x0800_0410);
+  assert.equal(thumbPointerTarget(rom, m, 0x0300_0013), undefined, 'a load address off its word');
+  assert.equal(thumbPointerTarget(rom, m, 0x0300_0010), undefined, 'even');
+  assert.equal(thumbPointerTarget(rom, m, 0x0300_0101), undefined, 'RAM past the range');
+  assert.equal(thumbPointerTarget(rom, m, 0x0800_0401), undefined, 'the copy source');
+  assert.equal(thumbPointerTarget(rom, m, 0x0800_0301), 0x0800_0300, 'outside the range, as before');
 });

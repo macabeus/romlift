@@ -6,10 +6,14 @@
 //     ([symbols]): the key and value are replaced, the indentation and a trailing comment kept.
 //   - A new entry is inserted after the listed entry with the next lower address, or right after the table's
 //     header, with the indentation of its neighbour.
+//   - A new [[modules]] block (a module proposal at a start no module has: a border of a runs_at range, analyze
+//     --update, §6.7) is inserted in its canonical lines before the block of the next module (above the comment
+//     lines right over its header), or after the last module's block, with one blank line on each side.
 //   - Anything else is refused with E_TOML_PATCH_REFUSED and the canonical text to paste, never guessed: an entry
 //     restructured by hand (a `[functions.0x…]` table, dotted keys, a value over several lines), a missing table,
-//     a module or override proposal ([[modules]] and [[overrides]] are blocks, not lines), and a result that does
-//     not re-parse to the intended config (for example when `config` is not what `text` says).
+//     a module proposal that changes, moves or drops a listed module, an override proposal ([[modules]] and
+//     [[overrides]] are blocks, not lines), and a result that does not re-parse to the intended config (for example
+//     when `config` is not what `text` says).
 //
 // The intended config is applyProposals(config, proposals): a function or symbol proposal sets the fields it
 // carries over the listed entry (name, mode, size, label, type), keeps its aliases, and records its source in
@@ -262,12 +266,83 @@ function applyEdits(text: string, edits: readonly LineEdit[]): string {
   return pieces.join('');
 }
 
-function blockRefusals(config: RomliftConfig, intended: RomliftConfig): Diagnostic<ConfigCode>[] {
+/** The canonical text of one module block. */
+function moduleText(m: ModuleConfig): string {
+  return moduleLines(m).join('\n');
+}
+
+/** The line ending of the line before offset `at` (a line start), or the text's own at its end. */
+function eolBefore(text: string, at: number): string {
+  if (at < text.length) return text.startsWith('\r\n', at - 2) ? '\r\n' : '\n';
+  return text.includes('\r\n') ? '\r\n' : '\n';
+}
+
+/** The start of the comment lines right above the line starting at `at` (they belong to its block), else `at`. */
+function leadingCommentStart(text: string, at: number): number {
+  let start = at;
+  while (start > 0) {
+    const prev = text.lastIndexOf('\n', start - 2) + 1;
+    if (!text.slice(prev, start).trimStart().startsWith('#')) break;
+    start = prev;
+  }
+  return start;
+}
+
+/** The offset of the first character of 1-based line `line` of `text`. */
+function lineOffset(text: string, line: number): number {
+  let at = 0;
+  for (let n = 1; n < line; n++) {
+    const next = text.indexOf('\n', at);
+    if (next < 0) return text.length;
+    at = next + 1;
+  }
+  return at;
+}
+
+/**
+ * The insertions of the new [[modules]] blocks: every module of `intended` whose start no module of `config` has, the
+ * modules of `config` kept as they are and in their order. Undefined when the change is anything else (a listed module
+ * changed, moved or dropped) or the text's [[modules]] headers are not one per module of `config`: blockRefusals then
+ * refuses it.
+ */
+function moduleInsertions(text: string, outline: TomlOutline, config: RomliftConfig, intended: RomliftConfig): LineEdit[] | undefined {
+  const listed = new Set(config.modules.map((m) => m.start));
+  const kept = intended.modules.filter((m) => listed.has(m.start));
+  const same = (m: ModuleConfig, i: number): boolean => {
+    const listedModule = config.modules[i];
+    return listedModule !== undefined && moduleText(m) === moduleText(listedModule);
+  };
+  if (kept.length !== config.modules.length || !kept.every(same)) return undefined;
+  const headers = outline.headers.filter((h) => h.array && h.path.length === 1 && h.path[0] === 'modules');
+  const last = headers[headers.length - 1];
+  if (last === undefined || headers.length !== config.modules.length) return undefined;
+  const afterLast = outline.headers.find((h) => h.line > last.line);
+  const blocks = new Map<number, string[]>();
+  for (const m of intended.modules) {
+    if (listed.has(m.start)) continue;
+    const next = config.modules.findIndex((c) => c.start > m.start);
+    const header = next < 0 ? afterLast : headers[next];
+    const at = header === undefined ? text.length : leadingCommentStart(text, lineOffset(text, header.line));
+    const slot = blocks.get(at);
+    if (slot === undefined) blocks.set(at, [moduleText(m)]);
+    else slot.push(moduleText(m));
+  }
+  const edits: LineEdit[] = [];
+  for (const at of sortedKeys(blocks)) {
+    const eol = eolBefore(text, at);
+    const body = (blocks.get(at) ?? []).map((b) => b.split('\n').join(eol)).join(`${eol}${eol}`);
+    if (at < text.length) edits.push({ start: at, end: at, text: `${body}${eol}${eol}` });
+    else edits.push({ start: at, end: at, text: `${text.endsWith('\n') ? '' : eol}${eol}${body}${eol}` });
+  }
+  return edits;
+}
+
+function blockRefusals(config: RomliftConfig, intended: RomliftConfig, moduleEdits: readonly LineEdit[] | undefined): Diagnostic<ConfigCode>[] {
   const out: Diagnostic<ConfigCode>[] = [];
-  const modules = (c: RomliftConfig): string => c.modules.map((m) => moduleLines(m).join('\n')).join('\n\n');
+  const modules = (c: RomliftConfig): string => c.modules.map(moduleText).join('\n\n');
   const overrides = (c: RomliftConfig): string => c.overrides.map((o) => overrideLines(o).join('\n')).join('\n\n');
-  if (modules(intended) !== modules(config)) {
-    out.push(refused(`[[modules]] are blocks, which the planner does not edit; make the [[modules]] read, in link order:\n${modules(intended)}`));
+  if (moduleEdits === undefined && modules(intended) !== modules(config)) {
+    out.push(refused(`[[modules]] are blocks, which the planner edits only to insert a new module; make the [[modules]] read, in link order:\n${modules(intended)}`));
   }
   if (overrides(intended) !== overrides(config)) {
     out.push(refused(`[[overrides]] are blocks, which the planner does not edit; make the [[overrides]] read:\n${overrides(intended)}`));
@@ -281,14 +356,15 @@ function blockRefusals(config: RomliftConfig, intended: RomliftConfig): Diagnost
  */
 export function planLineEdits(text: string, config: RomliftConfig, proposals: readonly Proposal[]): LineEditResult {
   const intended = applyProposals(config, proposals);
-  const refusals = blockRefusals(config, intended);
   const outline = outlineToml(text);
+  const modules = moduleInsertions(text, outline, config, intended);
+  const refusals = blockRefusals(config, intended, modules);
   const uses = addressKeyUses(outline);
   const functions = tableEdits(text, outline, uses, 'functions', changedEntries('functions', config.functions, intended.functions, functionLine));
   const symbols = tableEdits(text, outline, uses, 'symbols', changedEntries('symbols', config.symbols, intended.symbols, symbolLine));
   refusals.push(...functions.refusals, ...symbols.refusals);
   if (refusals.length > 0) return { ok: false, diagnostics: refusals };
-  const edits = [...functions.edits, ...symbols.edits];
+  const edits = [...(modules ?? []), ...functions.edits, ...symbols.edits];
   return { ok: true, text: applyEdits(text, edits), intended, changed: edits.length };
 }
 

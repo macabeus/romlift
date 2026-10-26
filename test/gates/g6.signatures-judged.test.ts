@@ -1,20 +1,30 @@
-// g6.signatures-judged (architecture §7.2, §8.4 "Signatures", §13, D24): the signatures family, judged on
+// g6.signatures-judged (architecture §7.2, §8.4 "Signatures", §13, D24, D31, D93): the signatures family, judged on
 // every tuning ROM after a seedless discover run, with the PoC's placements as the floor. Per ROM:
 //   - per library, at least as many functions and tables (objects) placed as the PoC's row in
-//     bench/baseline/poc-2026-10-16.json (`signatures.versions`, summed per library; Klonoa: m4a 94
-//     functions and 10 tables, libagbsyscall 6, libgcc 20);
-//   - every placement at an ELF FUNC or at a listed untyped address; every table an ELF OBJECT of that size
-//     or a label; every proposed `size` equal to the ELF size (the bench applies the 4-byte padding
-//     allowance); on a ROM that is one of the specs' references, every name equal to that reference's symbol.
+//     bench/baseline/poc-2026-10-16.json (`signatures.versions`, summed per library), for the five ROMs the PoC
+//     judged: klonoa m4a 94 functions and 10 tables, libagbsyscall 6, libgcc 20; fe7j libagbsyscall 18, libgcc 22,
+//     m4a 94 and 10; pokeemerald 15, 67, 109 and 10; sa2 12, 24, 94 and 10; sa3 13, 65, 94 and 10 (FLOORS below,
+//     which the baseline must agree with). tmc, revealed after the baseline was pinned (D60), has no PoC row: its floor
+//     is the owner's, the counts measured at the phase-6 closing round (phase-6.md Q9, option (b), 25 October 2026,
+//     D98 c): libagbsyscall 13 functions, m4a 55 functions and 10 tables, 68 placements with 0 wrong (OWNER_FLOORS);
+//   - every placement at an ELF FUNC or at a listed untyped address; every table an ELF OBJECT of that size or a label;
+//     every proposed `size` equal to the ELF size (the bench applies the 4-byte padding allowance), and every proposed
+//     size accounted for: equal, differ or `unjudged` (no ELF size, a zero ELF size, or a FUNC spanning another FUNC:
+//     nothing to compare with, reported per ROM; phase-6 fix round 1, correctness-4; the owner's rule, Q13, D98 b); on a ROM that is
+//     one of the specs' references, every placed member's symbol (its MemberId before '@') equal to that reference's
+//     own symbol at the placement. A display name the spec reviewed differs from the symbol on purpose: it is counted
+//     and reported, never gated (the owner's rule, Q14, D98 b).
 //
-// Expected output, for the phase-6 lead to align (architecture §8.5):
+// Expected output, aligned by the phase-6 lead (architecture §8.5, D93; bench/src/signatures.ts is p6-signatures-match's):
 //   npm run bench -- signatures --json   exit 0; the last stdout line is
 //   {"schema":"romlift/bench-signatures@1","roms":[{"name",
 //     "libraries":[{"library","version","functions","objects"}],
 //     "placements":{"total","atElfFunc","atUntyped","wrong"},
 //     "tables":{"total","objectOfSize","label","wrong"},
-//     "sizes":{"proposed","equal","differ"},
-//     "names":{"reference":boolean,"total","equal","differ"}}]}
+//     "sizes":{"proposed","equal","differ","unjudged"},
+//     "names":{"reference":boolean,"total","equal","differ","reviewed"}}]}
+//   names.equal/differ compare the member's symbol with the reference's; names.reviewed counts the placements whose
+//   display name is a reviewed one.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { type ExecResult, byCodeUnit, gate } from './gate.ts';
@@ -31,8 +41,8 @@ interface JudgedRom {
   readonly libraries: readonly LibraryCount[];
   readonly placements: { readonly total: number; readonly atElfFunc: number; readonly atUntyped: number; readonly wrong: number };
   readonly tables: { readonly total: number; readonly objectOfSize: number; readonly label: number; readonly wrong: number };
-  readonly sizes: { readonly proposed: number; readonly equal: number; readonly differ: number };
-  readonly names: { readonly reference: boolean; readonly total: number; readonly equal: number; readonly differ: number };
+  readonly sizes: { readonly proposed: number; readonly equal: number; readonly differ: number; readonly unjudged: number };
+  readonly names: { readonly reference: boolean; readonly total: number; readonly equal: number; readonly differ: number; readonly reviewed: number };
 }
 
 interface BenchSignatures {
@@ -45,11 +55,20 @@ interface BaselineRow {
   readonly signatures?: { readonly versions: readonly LibraryCount[] };
 }
 
-/** The floor architecture §13 quotes for Klonoa; the baseline file must agree with it. */
-const KLONOA_FLOOR: Readonly<Record<string, { readonly functions: number; readonly objects: number }>> = {
-  m4a: { functions: 94, objects: 10 },
-  libagbsyscall: { functions: 6, objects: 0 },
-  libgcc: { functions: 20, objects: 0 },
+type Floor = Readonly<Record<string, { readonly functions: number; readonly objects: number }>>;
+
+/** The floors architecture §13 and the roadmap quote, per PoC-judged ROM; the baseline file must agree with them. */
+const FLOORS: Readonly<Record<string, Floor>> = {
+  fe7j: { libagbsyscall: { functions: 18, objects: 0 }, libgcc: { functions: 22, objects: 0 }, m4a: { functions: 94, objects: 10 } },
+  klonoa: { libagbsyscall: { functions: 6, objects: 0 }, libgcc: { functions: 20, objects: 0 }, m4a: { functions: 94, objects: 10 } },
+  pokeemerald: { libagbsyscall: { functions: 15, objects: 0 }, libgcc: { functions: 67, objects: 0 }, m4a: { functions: 109, objects: 10 } },
+  sa2: { libagbsyscall: { functions: 12, objects: 0 }, libgcc: { functions: 24, objects: 0 }, m4a: { functions: 94, objects: 10 } },
+  sa3: { libagbsyscall: { functions: 13, objects: 0 }, libgcc: { functions: 65, objects: 0 }, m4a: { functions: 94, objects: 10 } },
+};
+
+/** The owner's floors for a tuning ROM the PoC never judged (Q9 option b, D98 c): per library, and the placements. */
+const OWNER_FLOORS: Readonly<Record<string, { readonly libraries: Floor; readonly placements: number }>> = {
+  tmc: { libraries: { libagbsyscall: { functions: 13, objects: 0 }, m4a: { functions: 55, objects: 10 } }, placements: 68 },
 };
 
 function tail(run: ExecResult, lines = 30): string {
@@ -75,11 +94,15 @@ gate({
   async run(cx) {
     const baseline = JSON.parse(await readFile(path.join(cx.repoRoot, 'bench', 'baseline', 'poc-2026-10-16.json'), 'utf8')) as { readonly roms: readonly BaselineRow[] };
     const floors = new Map(baseline.roms.map((r) => [r.name, perLibrary(r.signatures?.versions ?? [])]));
-    const klonoa = floors.get('klonoa');
-    for (const library of Object.keys(KLONOA_FLOOR).sort(byCodeUnit)) {
-      const want = KLONOA_FLOOR[library];
-      const have = klonoa?.get(library);
-      if (want === undefined || have?.functions !== want.functions || have.objects !== want.objects) throw new Error(`the baseline's klonoa ${library} row is not the architecture's floor ${JSON.stringify(want)}`);
+    for (const rom of Object.keys(FLOORS).sort(byCodeUnit)) {
+      const want = FLOORS[rom] ?? {};
+      const have = floors.get(rom);
+      const libraries = [...new Set([...Object.keys(want), ...(have?.keys() ?? [])])].sort(byCodeUnit);
+      for (const library of libraries) {
+        const w = want[library];
+        const h = have?.get(library);
+        if (w === undefined || h?.functions !== w.functions || h.objects !== w.objects) throw new Error(`the baseline's ${rom} ${library} row ${JSON.stringify(h ?? null)} is not the architecture's floor ${JSON.stringify(w ?? null)}`);
+      }
     }
 
     const run = await cx.npm('bench', ['signatures', '--json']);
@@ -94,19 +117,24 @@ gate({
         continue;
       }
       const placed = perLibrary(rom.libraries);
-      const floor = floors.get(dataset.name);
-      if (floor === undefined) problems.push(`${dataset.name}: no PoC signatures row in the baseline`);
+      const owner = OWNER_FLOORS[dataset.name];
+      const pocFloor = FLOORS[dataset.name] === undefined ? undefined : floors.get(dataset.name);
+      const floor = pocFloor ?? (owner === undefined ? undefined : new Map(Object.entries(owner.libraries)));
+      const whose = pocFloor === undefined ? "the owner's" : "the PoC's";
+      if (floor === undefined) cx.note(`${dataset.name}: neither a PoC signatures row nor an owner's floor, judged by the ELF checks with no floor`);
       for (const [library, want] of [...(floor ?? new Map())].sort((a, b) => byCodeUnit(a[0], b[0]))) {
         const have = placed.get(library) ?? { functions: 0, objects: 0 };
-        if (have.functions < want.functions) problems.push(`${dataset.name}: ${library} ${have.functions} functions < the PoC's ${want.functions}`);
-        if (have.objects < want.objects) problems.push(`${dataset.name}: ${library} ${have.objects} tables < the PoC's ${want.objects}`);
+        if (have.functions < want.functions) problems.push(`${dataset.name}: ${library} ${have.functions} functions < ${whose} ${want.functions}`);
+        if (have.objects < want.objects) problems.push(`${dataset.name}: ${library} ${have.objects} tables < ${whose} ${want.objects}`);
       }
+      if (owner !== undefined && rom.placements.total < owner.placements) problems.push(`${dataset.name}: ${rom.placements.total} placements < the owner's ${owner.placements}`);
       if (rom.placements.wrong > 0 || rom.placements.atElfFunc + rom.placements.atUntyped !== rom.placements.total) problems.push(`${dataset.name}: ${rom.placements.wrong} placements at neither an ELF FUNC nor a listed untyped address`);
       if (rom.tables.wrong > 0 || rom.tables.objectOfSize + rom.tables.label !== rom.tables.total) problems.push(`${dataset.name}: ${rom.tables.wrong} tables are neither an OBJECT of their size nor a label`);
       if (rom.sizes.differ > 0) problems.push(`${dataset.name}: ${rom.sizes.differ} proposed sizes differ from the ELF`);
-      if (rom.names.reference && rom.names.differ > 0) problems.push(`${dataset.name}: ${rom.names.differ} names differ from this reference's own symbols`);
+      if (rom.sizes.equal + rom.sizes.differ + rom.sizes.unjudged !== rom.sizes.proposed) problems.push(`${dataset.name}: ${rom.sizes.proposed} proposed sizes, but ${rom.sizes.equal} equal + ${rom.sizes.differ} differ + ${rom.sizes.unjudged} unjudged`);
+      if (rom.names.reference && rom.names.differ > 0) problems.push(`${dataset.name}: ${rom.names.differ} placed members' symbols differ from this reference's own symbols`);
       const summary = [...placed].sort((a, b) => byCodeUnit(a[0], b[0])).map(([l, c]) => `${l} ${c.functions}/${c.objects}`).join(', ');
-      cx.note(`${dataset.name}: ${summary}; ${rom.placements.total} placements, ${rom.sizes.proposed} sizes${rom.names.reference ? `, ${rom.names.equal} reference names` : ''}`);
+      cx.note(`${dataset.name}: ${summary}; ${rom.placements.total} placements, ${rom.sizes.proposed} sizes (${rom.sizes.equal} equal, ${rom.sizes.unjudged} unjudged)${rom.names.reference ? `, ${rom.names.equal} reference symbols` : ''}, ${rom.names.reviewed} reviewed names (reported)`);
     }
     if (problems.length > 0) throw new Error(`signatures judged: ${problems.join('; ')}`);
   },

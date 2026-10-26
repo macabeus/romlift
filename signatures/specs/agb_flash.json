@@ -1,0 +1,17 @@
+{
+  "library": "agb_flash",
+  "versions": [
+    {
+      "id": "2004",
+      "idNote": "the flash save library Pokémon Emerald links: agb_flash.o (the shared core, 0x500 bytes), agb_flash_1m.o (0x140) and agb_flash_mx.o (0x2B4); its agb_flash_le.o has no code and is left out. The id is the release year of Pokémon Emerald (2004), the earliest release among the tuning references that ships these bytes, not an SDK label. Sonic Advance 2 and 3 link agb_flash.o with a 512K revision of the chip objects (agb_flash_512k.o, agb_flash_le_512k.o, agb_flash_mx_512k.o in Sonic Advance 2; agb_flash_1m.o, agb_flash_mx.o and agb_flash_sst.o of other sizes in Sonic Advance 3) whose symbols repeat Emerald's names (IdentifyFlash, EraseFlashChip_MX) over other bytes, so they are not merged into this version",
+      "references": [
+        {
+          "dataset": "pokeemerald",
+          "objects": ["src/agb_flash.o", "src/agb_flash_1m.o", "src/agb_flash_mx.o"],
+          "tables": ["AgbLibFlashVersion", "sSetupInfos", "mxMaxTime", "MX29L010", "DefaultFlash"]
+        }
+      ]
+    }
+  ],
+  "reviewedNames": {}
+}

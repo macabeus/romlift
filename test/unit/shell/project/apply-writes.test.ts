@@ -274,7 +274,7 @@ test('an op path that is not a project path is refused before anything is writte
 test('an executable entry is written executable before its rename; a mode op restores the bits a crash or a checkout lost (architecture-4)', async () => {
   const dir = await tempDir();
   const setup: FileEntry = { ownership: 'scaffold', path: 'setup.sh', text: '#!/bin/sh\n', writer: 'scaffold', executable: true };
-  const plan1 = planWrites({ entries: [setup], manifest: null, disk: new Map([['setup.sh', 'absent']]), reconciledTexts: new Map(), hash: sha1Of, retained: [] });
+  const plan1 = planWrites({ entries: [setup], manifest: null, disk: new Map([['setup.sh', { kind: 'absent' }]]), reconciledTexts: new Map(), hash: sha1Of, retained: [] });
   assert.equal((await applyWrites(dir, plan1)).ok, true);
   assert.equal((await stat(join(dir, 'setup.sh'))).mode & 0o777, 0o755);
   await chmod(join(dir, 'setup.sh'), 0o644);
@@ -385,7 +385,7 @@ test('readDiskState lists a file once, under the spelling it is asked for, when 
     caseInsensitive = false;
   }
   if (caseInsensitive) assert.deepEqual([...state.value.keys()], ['asm/nonmatchings/Main/f.s']);
-  else assert.deepEqual([...state.value.entries()], [['asm/nonmatchings/Main/f.s', 'absent'], ['asm/nonmatchings/main/f.s', sha1Of('F\n')]]);
+  else assert.deepEqual([...state.value.entries()], [['asm/nonmatchings/Main/f.s', { kind: 'absent' }], ['asm/nonmatchings/main/f.s', { kind: 'present', sha1: sha1Of('F\n') }]]);
 });
 
 /** A module tree whose module name a later run changes by case only (architecture-r2-4). */

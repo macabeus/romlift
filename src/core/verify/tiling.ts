@@ -2,7 +2,9 @@
 // address order, the chunks tile the items (each chunk spans exactly its items, chunk after chunk), and the
 // modules tile the ROM (each module spans exactly its chunks, module after module, from the ROM base to its
 // end). Each level reports its first gap or overlap as E_SELF_CHECK_TILING, naming the address; the levels
-// are checked independently, so one broken chunk does not hide a broken module.
+// are checked independently, so one broken chunk does not hide a broken module. A module's C data range (§6.6) counts
+// as the C unit's: the module spans and the data ranges tile the ROM together (core/model/modules.ts modulePieces),
+// and the chunks between a range's ends are data chunks that name its module.
 //
 // verifyModel runs the three model checks (tiling, re-encode, module size) and lives here because the other
 // two read the item table this check validates.
@@ -12,6 +14,8 @@ import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
+import { modulePieces } from '../model/modules.ts';
+import type { ModulePiece } from '../model/modules.ts';
 import type { Chunk, Model, Module } from '../model/types.ts';
 import { checkResult } from './report.ts';
 import type { CheckResult, VerifyReport } from './report.ts';
@@ -101,28 +105,57 @@ function chunksSpan(model: Model, module: Module): Span | undefined {
   return { start: head.span.start, end: tail.span.end };
 }
 
-/** Modules: each spans exactly its chunks, which name it; the modules tile the ROM. */
+/** The problem of one module's text piece: it spans exactly its chunks, which name it, from chunk `chunk`. */
+function textPieceProblem(model: Model, module: Module, chunk: number): Diagnostic | undefined {
+  const what = `module ${module.name} (${range(module.span)})`;
+  if (module.chunks.first !== chunk) {
+    return tilingError(`${what} holds chunks from ${module.chunks.first}, but the module before it ends at chunk ${chunk}`, module.span.start, module.span);
+  }
+  const covered = chunksSpan(model, module);
+  if (covered === undefined) return tilingError(`${what} holds no chunks`, module.span.start, module.span);
+  if (covered.start !== module.span.start || covered.end !== module.span.end) {
+    return tilingError(`${what} does not span its chunks, ${range(covered)}`, module.span.start, module.span);
+  }
+  const stranger = model.chunks.slice(module.chunks.first, module.chunks.first + module.chunks.count).find((c) => c.module !== module.name);
+  if (stranger !== undefined) {
+    return tilingError(`chunk ${stranger.name} lies in ${what} but names module ${stranger.module}`, stranger.span.start, stranger.span);
+  }
+  return undefined;
+}
+
+/** How many chunks a data range holds from chunk `chunk` on: data chunks that name its module, back to back up to its end; or its problem. */
+function dataPieceChunks(model: Model, module: Module, piece: ModulePiece, chunk: number): number | Diagnostic {
+  const what = `module ${module.name}'s data range (${range(piece.span)})`;
+  let at = piece.span.start;
+  let count = 0;
+  for (let c = chunk; c < model.chunks.length && at < piece.span.end; c++) {
+    const next = model.chunks[c];
+    if (next === undefined) break;
+    if (next.span.start !== at || next.span.end > piece.span.end) break;
+    if (next.module !== module.name || next.kind !== 'data') {
+      return tilingError(`chunk ${next.name} lies in ${what} but is a ${next.kind} chunk of module ${next.module}`, next.span.start, next.span);
+    }
+    at = next.span.end;
+    count++;
+  }
+  if (count === 0 || at !== piece.span.end) return tilingError(`${what} is not spanned by data chunks from chunk ${chunk}`, piece.span.start, piece.span);
+  return count;
+}
+
+/** Modules: each spans exactly its chunks, which name it; with the data ranges, the modules tile the ROM. */
 function modulesProblem(rom: Rom, model: Model): Diagnostic | undefined {
   let chunk = 0;
   let at = ROM_BASE;
-  for (const module of model.modules) {
-    const what = `module ${module.name} (${range(module.span)})`;
-    if (module.chunks.first !== chunk) {
-      return tilingError(`${what} holds chunks from ${module.chunks.first}, but the module before it ends at chunk ${chunk}`, module.span.start, module.span);
-    }
-    const covered = chunksSpan(model, module);
-    if (covered === undefined) return tilingError(`${what} holds no chunks`, module.span.start, module.span);
-    if (covered.start !== module.span.start || covered.end !== module.span.end) {
-      return tilingError(`${what} does not span its chunks, ${range(covered)}`, module.span.start, module.span);
-    }
-    const stranger = model.chunks.slice(module.chunks.first, module.chunks.first + module.chunks.count).find((c) => c.module !== module.name);
-    if (stranger !== undefined) {
-      return tilingError(`chunk ${stranger.name} lies in ${what} but names module ${stranger.module}`, stranger.span.start, stranger.span);
-    }
-    const problem = seam(what, at, module.span.start);
+  for (const piece of modulePieces(model.modules)) {
+    const module = model.modules[piece.module];
+    if (module === undefined) continue;
+    const what = piece.part === 'text' ? `module ${module.name} (${range(piece.span)})` : `module ${module.name}'s data range (${range(piece.span)})`;
+    const held = piece.part === 'text' ? (textPieceProblem(model, module, chunk) ?? module.chunks.count) : dataPieceChunks(model, module, piece, chunk);
+    if (typeof held !== 'number') return held;
+    const problem = seam(what, at, piece.span.start);
     if (problem !== undefined) return problem;
-    chunk += module.chunks.count;
-    at = module.span.end;
+    chunk += held;
+    at = piece.span.end;
   }
   if (chunk !== model.chunks.length) {
     const orphan = model.chunks[chunk];

@@ -6,3 +6,8 @@ OBJS := \
 	build/asm_080000F4.o \
 	build/data.o
 C_OBJS :=
+EXPECTED_OBJS := \
+	build/expected/rom_header.o \
+	build/expected/crt0.o \
+	build/expected/asm_080000F4.o \
+	build/expected/data.o
