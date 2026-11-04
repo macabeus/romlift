@@ -1,6 +1,6 @@
-// Legal borders (architecture §6.2, D15, D20): the code region tiled like the PoC's tile(), word-aligned chunk
-// starts, none that a short Thumb branch or a PC-relative load or adr crosses (D63), none strictly inside an
-// assembly-only range; the cartridge
+// Legal borders (architecture §6.2, D15, D20, D109): the code region tiled like the PoC's tile(), word-aligned chunk
+// starts, none that a short Thumb branch or a PC-relative load or adr crosses (D63); a start inside an assembly-only
+// range is legal too (D109), and the layout says why a start is refused; the cartridge
 // entry's extent over the header clipped when nesting entries (correctness-6).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -192,12 +192,11 @@ test('legalBorders: no PC-relative load or adr crosses a border, since as cannot
     [HEADER_END, BASE + 0x100, BASE + 0x104, BASE + 0x110, BASE + 0x118, BASE + 0x120, BASE + 0x122],
   );
   // The load at 0x100 names 0x108, past the orphan's start 0x104; the adr at 0x110 names 0x118, the orphan after
-  // its extent. 0x118 itself stays illegal (in (0x110, 0x118]); 0x110 and 0x120 are legal, and the ARM range
-  // [0x110, 0x118) has no border strictly inside.
+  // its extent. 0x118 itself stays illegal (in (0x110, 0x118]); 0x110 and 0x120 are legal.
   assert.deepEqual(legalBorders(rom, analysis), [BASE, HEADER_END, BASE + 0x100, BASE + 0x110, BASE + 0x120, BASE + 0x124]);
 });
 
-test('legalBorders: no border strictly inside an assembly-only range; its two ends stay legal', () => {
+test('legalBorders: a chunk start inside an assembly-only range that nothing crosses is legal (D109)', () => {
   const armCode = armAt(BASE + 0x100)`
     mov r0, #1
     bx lr
@@ -214,8 +213,30 @@ test('legalBorders: no border strictly inside an assembly-only range; its two en
     functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108, mode: 'arm' }), fact({ entry: BASE + 0x108, end: BASE + 0x110, mode: 'arm' }), fact({ entry: BASE + 0x110, end: BASE + 0x116 })],
   });
   const layout = codeLayout(rom, analysis);
+  // Inference still sees one assembly-only run of the two ARM functions; the border between them is legal all the same.
   assert.deepEqual(layout.asmOnly, [{ start: BASE + 0x100, end: BASE + 0x110 }]);
-  assert.deepEqual(layout.borders, [BASE, HEADER_END, BASE + 0x100, BASE + 0x110, BASE + 0x118]);
+  assert.deepEqual(layout.borders, [BASE, HEADER_END, BASE + 0x100, BASE + 0x108, BASE + 0x110, BASE + 0x118]);
+  assert.ok(isLegalStart(layout, BASE + 0x108));
+  assert.equal(layout.why?.(BASE + 0x108), undefined);
+});
+
+test('why: an illegal start is named as unaligned, as no chunk start, or by the first reference that crosses it', () => {
+  const code = thumbAt(BASE + 0x100)`
+    movs r0, #0
+    b _0800010A
+    movs r0, #1
+    bx lr
+    movs r0, #2
+    bx lr
+  `;
+  const rom = romWith([{ at: BASE + 0x100, bytes: code }], { size: 0x200 });
+  const analysis = analysisOf(rom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x108 }), fact({ entry: BASE + 0x108, end: BASE + 0x10c })] });
+  const layout = codeLayout(rom, analysis);
+  assert.ok(!isLegalStart(layout, BASE + 0x108));
+  assert.match(layout.why?.(BASE + 0x108) ?? '', /^the short branch at 0x08000102 to 0x0800010A crosses it/);
+  assert.match(layout.why?.(BASE + 0x102) ?? '', /^it is not word-aligned/);
+  assert.match(layout.why?.(BASE + 0x104) ?? '', /^no function or orphan chunk starts there/);
+  assert.equal(layout.why?.(BASE + 0x100), undefined);
 });
 
 test('asmOnlyReasons: ARM code, a Thumb entry at 2 mod 4, a shared tail, a tiled hole, a Thumb bx pc', () => {

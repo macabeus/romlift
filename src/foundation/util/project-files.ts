@@ -114,6 +114,18 @@ export function stubNameOf(file: string): string {
   return base.endsWith(CHUNK_FILE_EXTENSION) ? base.slice(0, -CHUNK_FILE_EXTENSION.length) : base;
 }
 
+/**
+ * The tool-owned roots of a project (architecture §6.4): a path absent from the manifest that exists on disk with other
+ * content is overwritten only under one of them, and no hand-written source may lie under one (D109). A root ending in
+ * '/' is a directory; the others are files.
+ */
+export const GENERATED_ROOTS: readonly string[] = ['asm/', 'data/', 'expected/', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json'];
+
+/** Whether `path` lies under one of GENERATED_ROOTS. */
+export function underGeneratedRoot(path: string): boolean {
+  return GENERATED_ROOTS.some((root) => (root.endsWith('/') ? path.startsWith(root) : path === root));
+}
+
 /** The directory of a project's C sources: `src/<module>.c`, the only C files romlift reads (directly under it). */
 export const C_SOURCE_DIR = 'src';
 

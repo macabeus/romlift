@@ -1,10 +1,12 @@
 // Legal module borders (architecture §6.2, D15, D20, D62). A module is its own object, and ld word-aligns every
 // object, so a border must be a word-aligned chunk start; a short Thumb branch (b, bcc) cannot reach across
-// objects on every binutils version, so no such branch may cross a border; a PC-relative load or adr (Thumb
+// objects on every binutils version, so no such branch may cross a border; and a PC-relative load or adr (Thumb
 // `ldr rd, [pc, #]` and `add rd, pc, #`, ARM `ldr rd, [pc, #]` and `adr`) has no relocation GNU as can emit
-// for a symbol in another object, so none may cross a border either (D63); and a run of code agbcc cannot have
-// produced (ARM code, a Thumb entry at 2 mod 4, a shared tail, a tiled hole) stays in one assembly-only
-// module, so no border falls strictly inside one.
+// for a symbol in another object, so none may cross a border either (D63). That is the whole rule (D109): a border
+// inside a run of code agbcc cannot have produced (ARM code, a Thumb entry at 2 mod 4, a shared tail, a tiled hole,
+// a `bx pc` stub) is legal too when nothing crosses it, since the modules link back to back and every reference
+// across them is a relocation `ld` resolves. Module inference still proposes one assembly-only module per such run
+// (asm-only.ts, infer-modules.ts); the user may split it, as a project mirroring the original files does.
 //
 // The code region is tiled exactly as the model tiles it (tiling.ts tileCode, which core/model/chunks.ts calls):
 // the cartridge header [base, base + 0xC0), then from the header's end to the data start one function chunk per
@@ -26,6 +28,7 @@
 import { HEADER_END } from '../../foundation/rom/rom.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
+import { hexAddr } from '../../foundation/util/hex.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
@@ -62,6 +65,12 @@ export interface BorderRule {
   readonly dataStart: Addr;
   /** The ROM end, where no module starts. */
   readonly end: Addr;
+  /**
+   * Why `a` is no legal start, for E_MODULE_BORDER's message: it is not word-aligned, it is no chunk start, or a
+   * reference crosses it (the first one, by site); undefined when it is legal or the rule cannot tell (a rule built by
+   * hand, in a test).
+   */
+  readonly why?: (a: Addr) => string | undefined;
 }
 
 export interface CodeLayout extends BorderRule {
@@ -77,7 +86,7 @@ export interface CodeLayout extends BorderRule {
   readonly dataStart: Addr;
   /** The chunks of [headerEnd, dataStart), in address order. */
   readonly chunks: readonly TiledChunk[];
-  /** The assembly-only ranges past the startup region. */
+  /** The assembly-only ranges past the startup region: what module inference proposes as asm modules; no border rule (D109). */
   readonly asmOnly: readonly Span[];
 }
 
@@ -122,9 +131,20 @@ export function codeLayout(rom: Rom, analysis: AnalysisResult): CodeLayout {
     .sort(compareNumbers)
     .filter((a, i, all) => i === 0 || all[i - 1] !== a);
   const free = uncrossed(candidates, [...refs.shortBranches, ...pcRelative]);
-  const inside = (a: Addr): boolean => asmOnly.some((r) => a > r.start && a < r.end);
-  const borders = candidates.filter((a, i) => a % WORD === 0 && free[i] === true && !inside(a));
-  return { headerEnd, startupEnd, dataStart, end: rom.end, chunks, asmOnly, borders };
+  const borders = candidates.filter((a, i) => a % WORD === 0 && free[i] === true);
+  const rule: BorderRule = { borders, dataStart, end: rom.end };
+  const why = (a: Addr): string | undefined => {
+    if (isLegalStart(rule, a)) return undefined;
+    if (a % WORD !== 0) return 'it is not word-aligned, and ld word-aligns every object';
+    if (candidates[firstAbove(candidates, a) - 1] !== a) return 'no function or orphan chunk starts there';
+    const crosses = (r: ShortBranch): boolean => a > Math.min(r.site, r.target) && a <= Math.max(r.site, r.target);
+    const branch = refs.shortBranches.find(crosses);
+    if (branch !== undefined) return `the short branch at ${hexAddr(branch.site)} to ${hexAddr(branch.target)} crosses it, and a short branch cannot reach another object`;
+    const load = pcRelative.find(crosses);
+    if (load !== undefined) return `the PC-relative load or adr at ${hexAddr(load.site)} of ${hexAddr(load.target)} crosses it, and as has no relocation for one into another object`;
+    return undefined;
+  };
+  return { headerEnd, startupEnd, dataStart, end: rom.end, chunks, asmOnly, borders, why };
 }
 
 /** Whether `a` is a word in the data region of `rule`: at or past the data start, before the ROM end (D75 a). */
@@ -153,7 +173,7 @@ export function legalStartsBetween(rule: BorderRule, after: Addr, before: Addr):
 /**
  * The legal module borders of an analysis below its data region, ascending, and the data start: the ROM base, the
  * header's end, the word-aligned chunk starts of the code region and the data start, without those a short Thumb
- * branch or a PC-relative load or adr crosses (D63) or that fall strictly inside an assembly-only range. These are
+ * branch or a PC-relative load or adr crosses (D63, D109). These are
  * the starts isLegalStart allows below the data start; past it every word is legal too, which no list holds.
  */
 export function legalBorders(rom: Rom, analysis: AnalysisResult): readonly Addr[] {

@@ -206,6 +206,15 @@ test('readChunkFiles lists asm/matchings too, the decompiled functions\' chunk f
   assert.deepEqual(read.value, ['asm/matchings/main/Decompiled.s', 'asm/nonmatchings/main/sub_08000100.s']);
 });
 
+test("readRenameTexts: the modules' hand-written sources too, under src/ or elsewhere; an absent one is left out (D109)", async () => {
+  const dir = await dirWith({ 'src/main.c': 'int A;\n', 'src/asm/hand.s': '\t.global A\n', 'src/asm/other.s': 'not read\n', 'handwritten/rand.s': '@ rand\n' });
+  const read = await readRenameTexts(dir, ['src/asm/hand.s', 'handwritten/rand.s', 'handwritten/absent.s']);
+  assert.ok(read.ok);
+  assert.deepEqual([...read.value.texts.keys()], ['handwritten/rand.s', 'src/asm/hand.s', 'src/main.c']);
+  assert.equal(read.value.sha1s.get('handwritten/rand.s'), sha1Of('@ rand\n'));
+  assert.deepEqual(read.value.skipped, []);
+});
+
 test('readRenameTexts: every .c and .h under src/ and every file under include/, with the sha1 of its bytes; a link and a binary listed as skipped', async () => {
   const dir = await dirWith({
     'src/main.c': '\ufeffint A;\r\n',

@@ -1,6 +1,6 @@
-// The assembly-only ranges (architecture §6.2, D20): a run of code agbcc cannot have produced (ARM code, a Thumb
-// entry at 2 mod 4, a shared tail, a tiled hole, a Thumb `bx pc` mode switch) stays in one assembly-only module, so
-// no border falls strictly inside one.
+// The assembly-only ranges (architecture §6.2, D20, D109): a run of code agbcc cannot have produced (ARM code, a Thumb
+// entry at 2 mod 4, a shared tail, a tiled hole, a Thumb `bx pc` mode switch), which module inference proposes as one
+// assembly-only module. They do not bound the legal borders (D109): the user may split a run where nothing crosses.
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import type { FunctionFact } from '../analysis/types.ts';
 import { WORD } from './align.ts';

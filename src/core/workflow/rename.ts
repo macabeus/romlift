@@ -2,7 +2,8 @@
 // shell read, a plan it applies. The plan is a one-line patch of romlift.toml (core/config/rename-patch.ts: the entry
 // named or aliased `from` gets `to`, its `from` key dropped, since the name is now the user's) and, for every C text
 // of the project (src/**/*.c, src/**/*.h and every file under include/), the edits that rename its identifier tokens
-// `from` (core/reconcile/rename-tokens.ts: never a comment, string or character literal), each a `reconciled` entry
+// `from` (core/reconcile/rename-tokens.ts: never a comment, string or character literal), and for every module's
+// hand-written `source` (D109) its GNU as symbol tokens `from` (core/reconcile/rename-asm.ts), each a `reconciled` entry
 // whose base sha1 is the one the shell read, so planWrites and applyWrites write it only over that text
 // (E_STALE_EDIT). The stub `INCLUDE_ASM("asm/nonmatchings/<m>", <old>);` is one of those identifiers: renamed here, its
 // chunk file follows at the next `generate`, which rename never runs.
@@ -28,6 +29,7 @@ import { linkerDefinedNames } from '../model/modules.ts';
 import type { Model } from '../model/types.ts';
 import type { CompilerProfile } from '../profile/types.ts';
 import { C_KEYWORDS } from '../reconcile/c-tokens.ts';
+import { renameAsmIdentifiers } from '../reconcile/rename-asm.ts';
 import { renameIdentifiers } from '../reconcile/rename-tokens.ts';
 import type { Journal } from '../write-plan/journal.ts';
 import { WorkflowCodes } from './codes.ts';
@@ -43,7 +45,10 @@ export interface RenameInputs {
   readonly from: string;
   /** The new name. */
   readonly to: string;
-  /** Every src/**\/*.c, src/**\/*.h and include/** file by project path -> its text. */
+  /**
+   * Every src/**\/*.c, src/**\/*.h and include/** file, and every module's hand-written `source` (D109), by project
+   * path -> its text.
+   */
   readonly texts: ReadonlyMap<string, string>;
   /** The sha1 of each text of `texts` (the shell's hash of the bytes it decoded), by the same project paths. */
   readonly sha1s: ReadonlyMap<string, string>;
@@ -176,8 +181,11 @@ export function planRename(inputs: RenameInputs): RenamePlan {
   const patch = planRenamePatch(inputs.configText, config, from, to);
   if (!patch.ok) return { ok: false, diagnostics: patch.diagnostics };
   const edits: RenameEdit[] = [];
+  const asmSources = new Set(config.modules.flatMap((m) => (m.source === undefined ? [] : [m.source])));
   for (const path of [...inputs.texts.keys()].sort(compareCodeUnits)) {
-    const textEdits = renameIdentifiers(inputs.texts.get(path) ?? '', from, to);
+    const text = inputs.texts.get(path) ?? '';
+    // A hand-written source is assembly, renamed by GNU as's symbol tokens (rename-asm.ts); every other text is C.
+    const textEdits = asmSources.has(path) ? renameAsmIdentifiers(text, from, to) : renameIdentifiers(text, from, to);
     if (textEdits.length === 0) continue;
     const baseSha1 = inputs.sha1s.get(path);
     if (baseSha1 === undefined) throw new RomliftInvariantError(`rename was given ${path} without its sha1`);

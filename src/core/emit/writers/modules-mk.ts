@@ -7,6 +7,11 @@
 //   EXPECTED_OBJS := <each generated module's objdiff target, in link order>  (build/expected/<module>.o, `make expected`; D92, D101 c)
 //   build/src/<module>.o: CC1 := <the module's compiler's cc1>              per C module, in link order
 //   build/src/<module>.o: CFLAGS := <its default flags, then the module's cflags>
+//   SOURCE_build/<module>.o := <its source>                                  per module with a hand-written source (D109),
+//   asm/<module>.s: ;                                                        in link order: the source the Makefile's
+//   build/<module>.o: <its source>                                           stale check reads, the generated source an old
+//   	<the asm unit's recipe>                                               dependency list may name, and an explicit rule
+//                                                                            that wins over the asm/%.s and data/%.s patterns
 //
 // The compiler is the module's (`[[modules]] compiler`, default `[build] compiler`, resolved on the Model) and its cc1
 // comes from core/config/compilers.ts BUILD_COMPILERS (core/model/c-unit.ts moduleCompile); the flags are the Model's
@@ -30,6 +35,24 @@ function listVariable(name: string, values: readonly string[]): string {
 }
 
 /**
+ * The rule of a module built from its hand-written source (D109): the Makefile's asm-unit recipe, with the source as
+ * its prerequisite, and SOURCE_<object>, which the Makefile's stale check reads (OBJ_SOURCE). The rule lives here, not
+ * in the Makefile, so a project whose Makefile init wrote before the key existed builds it too. `asm/<module>.s: ;`
+ * lets make pass over the generated source a build before the key named (its object's dependency list still does, and
+ * generate deleted it), as the Makefile does for a removed chunk file.
+ */
+function handWrittenRule(module: string, object: string, source: string): string {
+  return [
+    `SOURCE_${object} := ${source}`,
+    `asm/${module}.s: ;`,
+    `${object}: ${source}`,
+    '\t@mkdir -p $(@D)',
+    '\t$(AS) $(ASFLAGS) --MD $(@:.o=.d) -o $@ $<',
+    '\t@$(call OBJ_SUM,$@,$<) > $(@:.o=.sum)',
+  ].join('\n') + '\n';
+}
+
+/**
  * The text of modules.mk; `configSha1`, in a project, the SHA-1 of the romlift.toml it is generated from, which the
  * scaffold's Makefile compares with the file's (fix round 6, correctness-b1-1: a pull that changed the TOML leaves
  * a stale tree, which make then refuses with the command that regenerates it).
@@ -50,6 +73,10 @@ export function modulesMkText(model: Pick<Model, 'modules' | 'chunks'>, configSh
     ...cUnits.map(({ unit, module }) => {
       const { cc1, flags } = moduleCompile(module);
       return `${unit.object}: CC1 := ${cc1}\n${unit.object}: CFLAGS :=${flags.map((f) => ` ${f}`).join('')}\n`;
+    }),
+    ...model.modules.flatMap((m, i) => {
+      const unit = units[i];
+      return m.source === undefined || unit === undefined ? [] : [handWrittenRule(m.name, unit.object, m.source)];
     }),
   ];
   return parts.join('');

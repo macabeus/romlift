@@ -32,7 +32,7 @@ const KEYS = {
   rom: { path: 'path', sha1: 'sha1' },
   build: { name: 'name', compiler: 'compiler' },
   signatures: { enabled: 'enabled', libraries: 'libraries' },
-  module: { name: 'name', start: 'start', kind: 'kind', data_start: 'dataStart', generated: 'generated', library: 'library', version: 'version', compiler: 'compiler', cflags: 'cflags' },
+  module: { name: 'name', start: 'start', kind: 'kind', data_start: 'dataStart', generated: 'generated', source: 'source', library: 'library', version: 'version', compiler: 'compiler', cflags: 'cflags' },
   function: { name: 'name', mode: 'mode', size: 'size', label: 'label', aliases: 'aliases', from: 'from' },
   symbol: { name: 'name', size: 'size', type: 'type', aliases: 'aliases', from: 'from' },
   override: { start: 'start', size: 'size', kind: 'kind', mode: 'mode', runs_at: 'runsAt', from: 'from' },

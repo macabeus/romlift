@@ -91,6 +91,19 @@ test("the entry's from key is dropped; an alias and a symbol rename too; a name 
   assert.ok(symbol.ok && symbol.tomlText.includes('0x03000000 = "gMainState"\n'));
 });
 
+test("a module's hand-written source is renamed as assembly, by its GNU as symbol tokens (D109)", () => {
+  const toml = TOML.replace('[functions]', '[[modules]]\nname = "hand"\nstart = 0x08000100\nkind = "asm"\nsource = "src/asm/hand.s"\n\n[functions]');
+  const asm = '@ sub_08000100 by hand\n\t.global sub_08000100\nsub_08000100:\n\tbx lr\n';
+  // The same text under a path that is no source is read as C: the `@` is no comment there.
+  const texts = new Map([['src/asm/hand.s', asm], ['src/main.c', 'void sub_08000100(void); /* @ sub_08000100 */\n']]);
+  const plan = planRename({ configText: toml, config: config(toml), from: 'sub_08000100', to: 'InitGame', texts, sha1s: new Map([...texts.keys()].map((p) => [p, `sha1-of-${p}`] as const)), modelNames: MODEL_NAMES });
+  assert.ok(plan.ok);
+  const hand = plan.edits.find((e) => e.path === 'src/asm/hand.s');
+  assert.equal(applyTextEdits(asm, hand?.edits ?? []), '@ sub_08000100 by hand\n\t.global InitGame\nInitGame:\n\tbx lr\n');
+  const main = plan.edits.find((e) => e.path === 'src/main.c');
+  assert.equal(applyTextEdits(texts.get('src/main.c') ?? '', main?.edits ?? []), 'void InitGame(void); /* @ sub_08000100 */\n');
+});
+
 test('refusals: an invalid new name, an unknown old one, a name the project has; each plans nothing', () => {
   for (const bad of ['', '1abc', 'with space', 'a.b', 'int', 'static', '__attribute__', 'a'.repeat(201), 'naïve']) {
     const plan = planRename(inputs('sub_08000100', bad));

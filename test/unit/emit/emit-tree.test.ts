@@ -57,6 +57,23 @@ test('a module whose generated is false yields nothing', () => {
   assert.deepEqual(mine(emitTree(r, m, cx)).map((e) => e.path), ['asm/kept.s', 'asm/nonmatchings/kept/unk_08000200.s']);
 });
 
+test('a module with a hand-written source yields no file of its own; the global files name its source and no objdiff target (D109)', () => {
+  const r = romWith([]);
+  const m = modelOf(r, {
+    modules: [
+      { name: 'kept', chunks: [{ kind: 'orphan', name: 'unk_08000200', items: [dataItem(0x0800_0200, 4)] }] },
+      { name: 'hand', source: 'src/asm/hand.s', chunks: [{ kind: 'orphan', name: 'unk_08000204', items: [dataItem(0x0800_0204, 4)] }] },
+    ],
+  });
+  const entries = [...emitTree(r, m, cx)];
+  assert.deepEqual(mine(entries).map((e) => e.path), ['asm/kept.s', 'asm/nonmatchings/kept/unk_08000200.s']);
+  assert.ok(!entries.some((e) => e.path.includes('/hand') || e.path.startsWith('expected/hand')), entries.map((e) => e.path).join(' '));
+  const ldscript = entries.find((e) => e.path === 'ldscript.txt');
+  assert.ok(ldscript?.ownership === 'generated' && ldscript.text.includes('build/hand.o(.text);'));
+  const objdiff = entries.find((e) => e.path === 'objdiff.json');
+  assert.ok(objdiff?.ownership === 'generated' && !objdiff.text.includes('hand'));
+});
+
 test('the stream is lazy: the first module\'s entries come without printing a later module', () => {
   const at = 0x0800_0200;
   const r = romWith([{ at, bytes: thumbAt(at)`bx lr` }]);

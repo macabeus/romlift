@@ -24,6 +24,11 @@ export interface ModuleConfig {
   readonly dataStart?: Addr;
   /** false: romlift never writes nor deletes the module's files. */
   readonly generated: boolean;
+  /**
+   * A hand-written assembly source the module builds from instead of a generated one (`source`, D109): a project path
+   * the user owns. Syntax only in the config; whether it is legal for its module is the model's question.
+   */
+  readonly source?: string;
   readonly library?: string;
   readonly version?: string;
   /** Default: build.compiler (D47). */
@@ -115,6 +120,7 @@ const moduleSchema = z
     kind: z.enum(['asm', 'c', 'data']),
     dataStart: address.exactOptional(),
     generated: z.boolean(),
+    source: nonEmpty.exactOptional(),
     library: nonEmpty.exactOptional(),
     version: nonEmpty.exactOptional(),
     compiler: compilerId.exactOptional(),

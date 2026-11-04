@@ -29,6 +29,11 @@ export const ModelCodes = defineCodes({
     meaning:
       'a [[modules]] data_start that cannot start a C data range (§6.6): on a module that is not kind = "c", not word-aligned, below the data start (code lies there) or at or past the ROM end, not past its module\'s start, inside a runs_at range, cutting a module that is neither its own nor a data module, or overlapping another module\'s range',
   },
+  E_MODULE_SOURCE_INVALID: {
+    severity: 'error',
+    meaning:
+      'a [[modules]] source that cannot be a hand-written source (D109): on a module that is not kind = "asm" or is generated = false, not a relative path to a .s file of letters, digits and _ . + - (no segment starting with a dot), under a directory or file romlift generates (asm/, data/, expected/, ...) or build/, or the source of another module too',
+  },
   W_OVERRIDE_IGNORED: {
     severity: 'warning',
     meaning: 'an [[overrides]] entry without runs_at changes nothing romlift builds: a data override whose bytes the analysis did not claim, or a code override whose seed added no function (one already starts there, or in a confirm run [functions] does not list its start, which the run only reports) and that gives no listed entry its extent (fix round 5, D81 c; applied since phase 6, correctness-b0-3; the unlisted case since phase-6 fix round 5, correctness-o0-2)',

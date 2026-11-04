@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux, D109 the owner's module borders inside assembly-only runs and hand-written sources); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -493,6 +493,8 @@ never an analysis constant; `start` stays easy to move; no circular phase depend
 
 **Rejected.** The PoC's `main`/`main_2` split. An unmeasured default. One C module per contiguous agbcc
 run. Inference inside the model.
+
+**Revision (4 November 2026, D109).** The assembly-only ranges no longer bound the legal borders: a start inside one is legal when it is a word-aligned chunk start no short branch or PC-relative load crosses. Inference still proposes one asm module per range.
 
 ## D21. C-defined data fails the link until phase 5
 
@@ -5091,6 +5093,63 @@ roadmap) and the decisions before this one describe the commands as they were an
 **Rejected.** Keeping the removed commands as maintainer commands of the bin (they would ship in the package for no
 user). Replacing `doctor`'s probe with an `R_ARM_THM_JUMP8` one (the owner dropped `doctor`). An `analyze` alias for
 `update` (no backward compatibility, the owner's words).
+
+## D109. Module borders inside assembly-only runs, and hand-written sources (`[[modules]] source`); the owner's words of 4 November 2026
+
+**Context.** Dogfooding romlift on a new project (Klonoa 2, kl2dct) mirrored the original developers' files for
+hand-written ARM code: kleod's `heap_arm.s` at 0x080001D0 and `rand_arm.s` at 0x08000278. `generate` refused the second
+module's start with `E_MODULE_BORDER` while nothing crossed it: no short branch, no PC-relative load or adr. The only
+reason was D20's third border rule, no border strictly inside a run of consecutive assembly-only functions (here nine
+ARM functions, 0x080001D0 to 0x08000318), and the message did not say so. That rule was module inference's default (one
+asm module per run) turned into legality. A border needs only what rules 1 and 2 give: a word-aligned chunk start (`ld`
+word-aligns every object) that no short Thumb branch and no PC-relative load or adr crosses (D63). Every other reference
+across it is a relocation `ld` resolves (ARM `b` and `bl`, Thumb `bl`, `.4byte` words), and code that falls through or a
+`bx pc` that jumps to the next word runs the same bytes, since the modules link back to back. The project also had no
+home for a hand-written source: romlift owns `asm/`, and the only way to build a module from a user's file was an explicit
+Makefile rule (`generated = false` keeps romlift's own files, under `asm/`, which is gitignored).
+
+**Decision.** The owner dropped the rule for ARM and Thumb functions alike ("What about dropping rule 3, for both ARM and
+Thumb functions?", then "Go ahead, and merge once CI passes"), and chose a TOML key for hand-written sources over a
+directory convention or explicit Makefile rules ("A toml key"):
+
+- (a) **Borders** (`core/layout/borders.ts`): a legal border is a word-aligned chunk start that no short Thumb branch and
+  no PC-relative load or adr crosses; the assembly-only check is gone. `CodeLayout.asmOnly` stays, for module inference,
+  which still proposes one asm module per run, so `init`, `generate` and `update` write what they wrote before. A start
+  below the data start that is no legal border is refused with its reason (`BorderRule.why`): not word-aligned, no chunk
+  start, or the first short branch or PC-relative load that crosses it, by site; `E_MODULE_BORDER` carries it.
+- (b) **`[[modules]] source = "<path>"`**: an `asm` module builds from a hand-written assembly file the user owns.
+  romlift writes no file for the module (no `asm/<module>.s`, no chunk files, no objdiff target; `generate` deletes
+  those it wrote before), `moduleSource` is the path, and `modules.mk` holds the module's build rule (the asm unit's
+  recipe with the source as its prerequisite) and `SOURCE_build/<module>.o`, which the scaffold Makefile's stale check
+  reads (`OBJ_SOURCE`); the rule lives in `modules.mk` so a project whose Makefile `init` wrote earlier builds it too.
+  The file must define, globally, every label of the module the rest of the tree names, in `.text`; `make` names a
+  missing one. The key is syntax in the config; the model refuses (`E_MODULE_SOURCE_INVALID`, the module then building
+  as generated) a source on a module that is not `kind = "asm"` or is `generated = false`, a path that is not a relative
+  `.s` path of letters, digits and `_ . + -` with no segment starting with a dot, one under a tool-owned root (`asm/`,
+  `data/`, `expected/`, the generated files, moved to `foundation/util/project-files.ts` for it) or `build/`, and one
+  that another module already names. `update` keeps the key.
+- (c) **`rename`** edits the hand-written sources too: the shell reads each module's `source` as a text, and
+  `core/reconcile/rename-asm.ts` renames its GNU as symbol tokens (never one in an `@`, line-opening `#` or `/* */`
+  comment, a string, a character constant, a number, a local label or a longer symbol).
+- (d) **Proof and gates.** Before landing, every asm module of every committed fixture and of the six tuning ROMs was
+  split at every legal start inside it at once (pokeemerald 12, fe7j 20, klonoa 12, tmc 20 of which 7 inside runs, sa2 1,
+  sa3 1, ten fixtures 1 to 4), and the tree passed the self-checks and the assemble check and linked to the ROM's SHA-1.
+  `g4.toml-mutations` gains a `split-asm-module` edit (an asm module other than the header's and crt0 split at a legal
+  start, which at least one target must take; last in its kind list, so the other kinds' seeded draws are unchanged),
+  and `g4.e2e-fixtures` builds the composite fixture's assembly-only module from the fixture's own `hand.s` through
+  `source`, its functions renamed to hand.s's names with `romlift rename`, to the ROM's SHA-1.
+
+**Consequences.** A project can mirror the original split of hand-written code, and keep that code in its own files
+under its own names. The proof found a fault D109 does not touch: a module start inside the startup region (pokeemerald
+0x08000204 in `crt0`) is legal by the border rule, but both halves claim `asm/crt0.s`, so `generate` refuses with
+`E_SELF_CHECK_TEXT` and `E_PATH_CASE_COLLISION` rather than a border message; it is the same on the commit before this
+decision, and is left open.
+
+**Rejected.** Keeping the rule for the other assembly-only reasons (unaligned entry, shared tail, tiled hole, `bx pc`): a
+border at a 2-mod-4 entry is not word-aligned, a shared tail's branch is a short branch, and a tiled hole's or a veneer's
+bytes run the same in two objects. A directory convention for hand-written files (a path is the user's choice, and a TOML
+key names it where the module is). Making `source` imply `generated = false` or combining the two (a module with a
+source has no generated file to keep).
 
 ## Review findings index
 

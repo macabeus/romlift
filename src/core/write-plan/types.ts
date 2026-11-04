@@ -65,11 +65,10 @@ export interface WritePlan {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-/**
- * The tool-owned roots (§6.4): a path absent from the manifest that exists on disk with other content is
- * overwritten only under one of them. A root ending in '/' is a directory; the others are files.
- */
-export const GENERATED_ROOTS: readonly string[] = ['asm/', 'data/', 'expected/', 'ldscript.txt', 'symbols.ld', 'modules.mk', 'objdiff.json'];
+// The tool-owned roots (§6.4): a path absent from the manifest that exists on disk with other content is overwritten
+// only under one of them. They live in foundation/util/project-files.ts, where core/model reads them too (a
+// hand-written source may not lie under one, D109).
+export { GENERATED_ROOTS, underGeneratedRoot } from '../../foundation/util/project-files.ts';
 
 /** romlift's own state directory in a project (gitignored). */
 export const ROMLIFT_DIR = '.romlift';
@@ -78,7 +77,3 @@ export const JOURNAL_PATH = '.romlift/journal.json';
 /** Taken with O_EXCL by the shell; holds the pid and host (§6.4). */
 export const LOCK_PATH = '.romlift/lock';
 
-/** Whether `path` lies under one of GENERATED_ROOTS. */
-export function underGeneratedRoot(path: string): boolean {
-  return GENERATED_ROOTS.some((root) => (root.endsWith('/') ? path.startsWith(root) : path === root));
-}

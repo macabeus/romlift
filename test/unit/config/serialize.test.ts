@@ -144,6 +144,9 @@ test('every optional key is written only when set, in its fixed order', () => {
   assert.ok(text.includes('[signatures]\nenabled = false\nlibraries = ["m4a"]\n\n'), text);
   assert.ok(text.includes('[[modules]]\nname = "kept"\nstart = 0x08000000\nkind = "c"\ndata_start = 0x08000F00\ngenerated = false\ncompiler = "old_agbcc"\ncflags = []\nlibrary = "agb"\nversion = "1"\n\n'), text);
   assert.ok(text.endsWith('[functions]\n\n[symbols]\n\n[[overrides]]\nstart = 0x08000100\nsize = 0x20\nkind = "data"\n'), text);
+  // A hand-written source (D109) follows `generated`, before the compiler.
+  const hand = serializeConfig({ ...EXAMPLE, modules: [{ name: 'hand', start: 0x0800_0000, kind: 'asm', generated: true, source: 'src/asm/hand.s', library: 'agb', version: '1' }] });
+  assert.ok(hand.includes('[[modules]]\nname = "hand"\nstart = 0x08000000\nkind = "asm"\nsource = "src/asm/hand.s"\nlibrary = "agb"\nversion = "1"\n'), hand);
 });
 
 test('strings are TOML basic strings, escaped where they must be', () => {

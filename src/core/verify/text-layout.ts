@@ -64,7 +64,7 @@ import type { FileEntry, WriterId } from '../emit/tree.ts';
 import { findItem, modeOfSpec, specIdAt } from '../model/item-table.ts';
 import { dataRangeModuleAt, linkerDefinedNames, moduleIndexAt, relocatedModules, runOffsetOf, toLoad } from '../model/modules.ts';
 import { BASEROM_FILE, isCSource, matchingFileOf, nonmatchingFileOf } from '../../foundation/util/project-files.ts';
-import { chunkPathsOf, expectedSourcePath, hasExpectedTarget, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH } from '../model/paths.ts';
+import { chunkPathsOf, expectedSourcePath, hasExpectedTarget, LDSCRIPT_PATH, MACROS_PATH, moduleSource, SYMBOLS_PATH, writesModuleFiles } from '../model/paths.ts';
 import { STUB_UNIT_MODE } from '../model/c-unit.ts';
 import { symbolValueOf } from '../model/resolver.ts';
 import { ItemKind } from '../model/types.ts';
@@ -137,7 +137,7 @@ function indexData(model: Model): IndexData {
   ]);
   const expected: { readonly path: string; readonly addr: Addr }[] = [];
   model.modules.forEach((module, m) => {
-    if (!module.generated) return;
+    if (!writesModuleFiles(module)) return;
     // A C module's source is the c-stub writer's stub, laid out as agbcc compiles it (checkStubFile).
     const source = moduleSource(model, module);
     targets.set(source, isCSource(source) ? { kind: 'c-stub', module: m } : { kind: 'source', module: m });
@@ -540,7 +540,7 @@ function unitAlignment(model: Model, aligns: ReadonlyMap<number, number>): Diagn
   const out: Diagnostic[] = [];
   model.modules.forEach((module, m) => {
     const power = aligns.get(m);
-    if (power === undefined || !module.generated) return;
+    if (power === undefined || !writesModuleFiles(module)) return;
     const unit = 2 ** power;
     const source = moduleSource(model, module);
     const length = module.span.end - module.span.start;

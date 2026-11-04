@@ -1,8 +1,11 @@
 // g4.e2e-fixtures (architecture §1, §8.1, §13, R1): in a directory that holds only a fixture's ROM,
 // `romlift init <rom> && ./setup.sh && make` ends at the ROM's SHA-1 with no file edited by hand, on every
 // committed fixture except c-data (whose C array must fail the link: g4.c-data-fails-loud); `setup.sh` and
-// `make` leave romlift.toml as `init` wrote it; and the composite fixture's illegal border makes `generate`
-// fail with E_MODULE_BORDER and write nothing.
+// `make` leave romlift.toml as `init` wrote it; the composite fixture's illegal border makes `generate`
+// fail with E_MODULE_BORDER and write nothing; and the composite's assembly-only module builds from the fixture's own
+// hand-written source (D109): its [[modules]] block gets `source = "hand/hand.s"` (hand.s and the macros it includes
+// copied into the project), `romlift rename` gives its functions hand.s's names, and `generate` then `make` end at
+// the ROM's SHA-1 with no generated file for that module.
 //
 // Interfaces, frozen by D74 (architecture §2.1, §6.3, §6.5, §8.1):
 //   romlift init <rom> [<expect.json init.args>…] --json   run where the ROM is; exit 0
@@ -125,6 +128,70 @@ function setModuleStart(text: string, module: string, start: string): string {
   throw new Error(`romlift.toml has no [[modules]] block named ${module}`);
 }
 
+/** The `[[modules]]` blocks of a canonical romlift.toml: each one's name, start, kind and the line its kind is on. */
+function moduleBlocks(text: string): readonly { readonly name: string; readonly start: number; readonly kind: string; readonly kindLine: number }[] {
+  const lines = text.split('\n');
+  const out: { name: string; start: number; kind: string; kindLine: number }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]?.trim() !== '[[modules]]') continue;
+    let end = i + 1;
+    while (end < lines.length && !/^\s*\[/.test(lines[end] ?? '')) end++;
+    const value = (key: string): { readonly text: string; readonly line: number } | undefined => {
+      for (let k = i + 1; k < end; k++) {
+        const match = new RegExp(`^\\s*${key}\\s*=\\s*"?([^"]*)"?\\s*$`).exec(lines[k] ?? '');
+        if (match?.[1] !== undefined) return { text: match[1], line: k };
+      }
+      return undefined;
+    };
+    const name = value('name');
+    const start = value('start');
+    const kind = value('kind');
+    if (name !== undefined && start !== undefined && kind !== undefined) out.push({ name: name.text, start: Number(start.text), kind: kind.text, kindLine: kind.line });
+  }
+  return out;
+}
+
+/**
+ * The composite's assembly-only module built from the fixture's own hand-written source, hand.s (D109), in the project
+ * `dir` whose romlift.toml is `toml` (init's): the module gets `source`, its functions get hand.s's names through
+ * `romlift rename`, then `generate` and `make` must reach the ROM's SHA-1. Returns why not, or undefined.
+ */
+async function handWritten(cx: GateContext, cli: string, fixture: FixtureRef, dir: string, toml: string): Promise<string | undefined> {
+  const blocks = moduleBlocks(toml);
+  const asm = blocks.filter((b) => b.kind === 'asm' && b.name !== 'rom_header' && b.name !== 'crt0');
+  const module = asm[0];
+  if (asm.length !== 1 || module === undefined) return `hand-written source: expected one assembly-only module, init wrote ${asm.length} (${asm.map((b) => b.name).join(', ')})`;
+  const end = blocks.find((b) => b.start > module.start)?.start ?? Infinity;
+  // hand.s, its include rewritten to the copy of the macros beside it.
+  const source = (await readFile(path.join(fixture.dir, 'hand.s'), 'utf8')).replace('.include "../common/macros.inc"', '.include "hand/macros.inc"');
+  if (!source.includes('.include "hand/macros.inc"')) return 'hand-written source: hand.s no longer includes ../common/macros.inc';
+  await mkdir(path.join(dir, 'hand'), { recursive: true });
+  await writeFile(path.join(dir, 'hand', 'hand.s'), source);
+  await copyFile(path.join(fixture.dir, '..', 'common', 'macros.inc'), path.join(dir, 'hand', 'macros.inc'));
+  const lines = toml.split('\n');
+  lines.splice(module.kindLine + 1, 0, 'source = "hand/hand.s"');
+  await writeFile(path.join(dir, 'romlift.toml'), lines.join('\n'));
+  // hand.s's functions in its order, which is their ROM order; the module's [functions] entries in address order.
+  const names = [...source.matchAll(/^\s*(?:thumb_func_start|non_word_aligned_thumb_func_start|arm_func_start)\s+(\w+)/gm)].map((m) => m[1] ?? '');
+  const listed = [...toml.matchAll(/^(0x[0-9A-F]{8}) = (?:"(\w+)"|\{ name = "(\w+)")/gm)]
+    .map((m) => ({ addr: Number(m[1]), name: m[2] ?? m[3] ?? '' }))
+    .filter((f) => f.addr >= module.start && f.addr < end)
+    .sort((a, b) => a.addr - b.addr);
+  if (names.length === 0 || names.length !== listed.length) return `hand-written source: hand.s defines ${names.length} functions, ${module.name} lists ${listed.length}`;
+  for (const [i, f] of listed.entries()) {
+    const renamed = await romlift(cx, cli, dir, ['rename', f.name, names[i] ?? '']);
+    if (renamed.run.code !== 0) return `rename ${f.name} ${names[i] ?? ''} exited ${renamed.run.code}:\n${tail(renamed.run)}`;
+  }
+  const generate = await romlift(cx, cli, dir, ['generate']);
+  if (generate.run.code !== 0) return `generate with ${module.name}'s hand-written source exited ${generate.run.code}:\n${tail(generate.run)}`;
+  if (await exists(path.join(dir, 'asm', `${module.name}.s`))) return `generate left asm/${module.name}.s beside the hand-written source`;
+  const make = await cx.exec('make', [], { cwd: dir, env: { ROMLIFT_CLI: cli } });
+  if (make.code !== 0) return `make with ${module.name}'s hand-written source exited ${make.code}:\n${tail(make)}`;
+  const target = await sha1File(dir);
+  const actual = sha1(await readFile(path.join(dir, target.file)));
+  return actual === target.sha1 ? undefined : `make with ${module.name}'s hand-written source built SHA-1 ${actual}, expected ${target.sha1}`;
+}
+
 /** init, setup.sh and make in `dir`; returns why the build did not reach the SHA-1, or undefined. */
 async function build(cx: GateContext, cli: string, fixture: FixtureRef, dir: string, args: readonly string[], agbcc: string | undefined): Promise<string | undefined> {
   const expected = sha1(await readFile(fixture.rom));
@@ -186,7 +253,8 @@ gate({
       const dir = path.join(base, COMPOSITE);
       if (await exists(path.join(dir, 'romlift.toml'))) {
         const file = path.join(dir, 'romlift.toml');
-        await writeFile(file, setModuleStart(await readFile(file, 'utf8'), border.module, border.start));
+        const original = await readFile(file, 'utf8');
+        await writeFile(file, setModuleStart(original, border.module, border.start));
         const before = await snapshot(dir);
         const generate = await romlift(cx, cli, dir, ['generate']);
         const codes = generate.lines.filter((l) => l.type === 'diagnostic').map((l) => l.code ?? '');
@@ -195,11 +263,14 @@ gate({
         }
         const touched = changed(before, await snapshot(dir));
         if (touched.length > 0) problems.push(`${COMPOSITE}: the refused generate changed ${touched.slice(0, 8).join(', ')}`);
+        await writeFile(file, original);
+        const hand = await handWritten(cx, cli, composite, dir, original);
+        if (hand !== undefined) problems.push(`${COMPOSITE}: ${hand}`);
       } else {
         problems.push(`${COMPOSITE}: no project to move the border in`);
       }
     }
     if (problems.length > 0) throw new Error(`end to end on the fixtures: ${problems.join(' | ')}`);
-    cx.note(`${built} fixtures built to their SHA-1 from init, setup.sh and make; the composite's illegal border fails with E_MODULE_BORDER`);
+    cx.note(`${built} fixtures built to their SHA-1 from init, setup.sh and make; the composite's illegal border fails with E_MODULE_BORDER; its assembly-only module builds from its hand-written source`);
   },
 });

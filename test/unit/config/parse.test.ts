@@ -187,6 +187,14 @@ from = "sig:m4a@2001"
   assert.deepEqual(config.overrides, [{ start: 0x0800_0100, size: 0x20, kind: 'data', mode: 'thumb', runsAt: 0x0300_0000, from: 'sig:m4a@2001' }]);
 });
 
+test('source is a module string, syntax only: its legality is the model\'s (D109)', () => {
+  const module = (value: string): string => `${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "asm"\nsource = ${value}\n`;
+  assert.deepEqual(ok(module('"src/asm/m.s"')).modules, [{ name: 'm', start: 0x0800_0000, kind: 'asm', generated: true, source: 'src/asm/m.s' }]);
+  assert.deepEqual(ok(module('"asm/m.s"')).modules[0]?.source, 'asm/m.s', 'a path under asm/ parses; the model refuses it');
+  assert.equal(messages(module('7')).length, 1);
+  assert.equal(messages(module('""')).length, 1);
+});
+
 test('data_start is a module address, syntax only, reported under its TOML spelling (phase 6, D92)', () => {
   const module = (value: string): string => `${MINIMAL}\n[[modules]]\nname = "m"\nstart = 0x08000000\nkind = "c"\ndata_start = ${value}\n`;
   assert.deepEqual(ok(module('0x08000100')).modules, [{ name: 'm', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0100, generated: true }]);

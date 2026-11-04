@@ -87,6 +87,7 @@ export function moduleLines(module: ModuleConfig): string[] {
   const lines = ['[[modules]]', `name = ${tomlString(module.name)}`, `start = ${tomlAddress(module.start)}`, `kind = ${tomlString(module.kind)}`];
   if (module.dataStart !== undefined) lines.push(`data_start = ${tomlAddress(module.dataStart)}`);
   if (!module.generated) lines.push('generated = false');
+  if (module.source !== undefined) lines.push(`source = ${tomlString(module.source)}`);
   if (module.compiler !== undefined) lines.push(`compiler = ${tomlString(module.compiler)}`);
   if (module.cflags !== undefined) lines.push(`cflags = ${stringArray(module.cflags)}`);
   if (module.library !== undefined) lines.push(`library = ${tomlString(module.library)}`);
