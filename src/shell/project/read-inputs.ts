@@ -300,9 +300,12 @@ export interface RenameTexts {
 /** UTF-8, refusing a byte sequence that is not, and keeping a leading byte order mark (its bytes are hashed). */
 const RENAME_UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
-/** Whether project path `path` is a text rename reads: a `.c` or `.h` under src/, or any file under include/. */
-function isRenameText(path: string): boolean {
-  if (path.startsWith(`${INCLUDE_DIR}/`)) return true;
+/**
+ * Whether project path `path` is a text rename reads: a `.c` or `.h` under src/, any file under include/, or one of
+ * `asmSources`, the modules' hand-written sources (D109).
+ */
+function isRenameText(path: string, asmSources: ReadonlySet<string>): boolean {
+  if (asmSources.has(path) || path.startsWith(`${INCLUDE_DIR}/`)) return true;
   return path.startsWith(`${C_SOURCE_DIR}/`) && (isCSource(path) || isHeaderPath(path));
 }
 
@@ -323,11 +326,11 @@ async function linkedFileBytes(file: string): Promise<IoResult<Uint8Array | unde
  * bytes, unless its real path is one of `edited` (a file rename edits through its own path); the link alone, without
  * bytes, for a link to nothing or a directory with no such file (one filesUnder does not enter, above the project).
  */
-async function skippedAtLink(dir: string, path: string, edited: ReadonlySet<string>): Promise<IoResult<readonly RenameSkipped[]>> {
+async function skippedAtLink(dir: string, path: string, edited: ReadonlySet<string>, asmSources: ReadonlySet<string>): Promise<IoResult<readonly RenameSkipped[]>> {
   const file = join(dir, ...path.split('/'));
   const linked = await linkedFileBytes(file);
   if (!linked.ok) return { ok: false, diagnostic: { ...linked.diagnostic, path } };
-  if (linked.value !== undefined) return { ok: true, value: isRenameText(path) ? [{ path, reason: 'link', bytes: linked.value }] : [] };
+  if (linked.value !== undefined) return { ok: true, value: isRenameText(path, asmSources) ? [{ path, reason: 'link', bytes: linked.value }] : [] };
   const isDir = await isDirectory(file);
   if (!isDir.ok) return { ok: false, diagnostic: { ...isDir.diagnostic, path } };
   const below: string[] = [];
@@ -345,7 +348,7 @@ async function skippedAtLink(dir: string, path: string, edited: ReadonlySet<stri
       if (isAbsentError(error)) continue;
       return { ok: false, diagnostic: diagnostic(ShellCodes, 'E_IO_READ', `cannot resolve ${innerFile}: ${errorReason(error)}`, { path: inner }) };
     }
-    if (!isRenameText(inner) || edited.has(real)) continue;
+    if (!isRenameText(inner, asmSources) || edited.has(real)) continue;
     const bytes = await readBytes(innerFile);
     if (!bytes.ok) return { ok: false, diagnostic: { ...bytes.diagnostic, path: inner } };
     out.push({ path: inner, reason: 'link', bytes: bytes.value });
@@ -354,20 +357,24 @@ async function skippedAtLink(dir: string, path: string, edited: ReadonlySet<stri
 }
 
 /**
- * The texts `rename` reads (architecture §6.6, phase 6, D92, D95 c): every `.c` and `.h` under the project's src/ and
- * every file under include/, at any depth, with the sha1 of each one's bytes (RenameTexts). What it does not edit it
+ * The texts `rename` reads (architecture §6.6, phase 6, D92, D95 c): every `.c` and `.h` under the project's src/,
+ * every file under include/, at any depth, and each of `sources`, the modules' hand-written sources (D109), with the
+ * sha1 of each one's bytes (RenameTexts). What it does not edit it
  * lists in `skipped`, never silently: a symbolic link (file or directory, under src/ or include/), since an edit
  * written through a temporary file and a rename would replace the link with a file (the link's target's bytes when it
  * is a file), and a file that is not UTF-8 text or holds a NUL (a binary under include/), which an edit could not write
  * back as it was (its bytes). planRename warns of each, or refuses when one names the old name. Empty when neither
  * directory exists; any other failure to list or read is E_IO_READ.
  */
-export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTexts>> {
+export async function readRenameTexts(dir: string, sources: readonly string[] = []): Promise<ReadResult<RenameTexts>> {
   const listed: string[] = [];
   for (const root of [C_SOURCE_DIR, INCLUDE_DIR]) {
     const under = await filesUnder(dir, root, listed);
     if (!under.ok) return fromIo(under);
   }
+  // The modules' hand-written sources (D109) outside src/ and include/; one that is absent is left out below.
+  const asmSources = new Set(sources);
+  for (const source of asmSources) if (!listed.includes(source)) listed.push(source);
   const texts = new Map<string, string>();
   const sha1s = new Map<string, string>();
   const skipped: RenameSkipped[] = [];
@@ -387,7 +394,7 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
         links.push(path);
         continue;
       }
-      if (!isRenameText(path)) continue;
+      if (!isRenameText(path, asmSources)) continue;
       bytes = await readFile(file);
     } catch (error) {
       if (isAbsentError(error)) continue;
@@ -409,7 +416,7 @@ export async function readRenameTexts(dir: string): Promise<ReadResult<RenameTex
     sha1s.set(path, sha1Of(bytes));
   }
   for (const path of links) {
-    const atLink = await skippedAtLink(dir, path, edited);
+    const atLink = await skippedAtLink(dir, path, edited, asmSources);
     if (!atLink.ok) return fromIo(atLink);
     skipped.push(...atLink.value);
   }

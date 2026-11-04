@@ -55,6 +55,7 @@ function moduleJson(m: Module) {
     span: span(m.span),
     kind: m.kind,
     generated: m.generated,
+    ...(m.source === undefined ? {} : { source: m.source }),
     compiler: m.compiler,
     cflags: [...m.cflags],
     ...(m.library === undefined ? {} : { library: { name: m.library.name, version: m.library.version } }),

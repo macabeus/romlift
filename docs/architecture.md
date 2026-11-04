@@ -633,6 +633,7 @@ export interface ModuleConfig {
   readonly compiler?: BuildCompilerId;           // default: build.compiler (D47)
   readonly cflags?: readonly string[];           // appended to the compiler's default flags
   readonly dataStart?: Addr;                     // phase 6 (`data_start`): the module's C data range starts here (§6.6, D92, D93)
+  readonly source?: string;                      // D109: an asm module's hand-written source, a project path the user owns
 }
 export interface FunctionConfig { readonly name: string; readonly mode: Mode; readonly size?: number;
   readonly label?: boolean;                      // a typed global label inside the containing function, not a chunk start
@@ -1319,8 +1320,10 @@ earlier gates.
 **Legal borders** (`core/layout/borders.ts`). A module border is legal when it is a word-aligned chunk
 start (`ld` word-aligns every object), when no short Thumb branch (`b`, `bcc`) crosses it, when no
 PC-relative load or `adr` (Thumb `ldr rd, [pc, #]` and `add rd, pc, #`, ARM `ldr rd, [pc, #]` and `adr`)
-crosses it, since `as` has no relocation for one that names a symbol in another object (D63), and when it
-does not fall inside an assembly-only range (below). The data start is the code end rounded up to a word,
+crosses it, since `as` has no relocation for one that names a symbol in another object (D63). A start inside an
+assembly-only range (below) is legal too: those ranges shape module inference, not legality (D109). A start that is no
+legal border is refused with its reason (`BorderRule.why`, in `E_MODULE_BORDER`'s message): not word-aligned, no
+chunk start, or the first short branch or PC-relative load that crosses it. The data start is the code end rounded up to a word,
 moved past every word the code loads PC-relative beyond it (D63). At or past the data start every word-aligned
 address is a legal module start too, since no instruction lies there (D75 a): a `data` module the TOML starts above
 the confirm run's data start (after the last listed function is deleted) keeps its start, and the bytes between
@@ -1438,7 +1441,9 @@ only `update --write` and `rename` patch the TOML.
   -undef -I include`), compiled by `tools/agbcc/bin/<compiler>` with its flags and the module's `cflags` into
   `build/src/<m>.s` and assembled to `build/src/<m>.o`; asm and data units build to `build/<m>.o`. `modules.mk` holds
   `OBJS` (every unit object in link order), `C_OBJS`, and per C object `build/src/<m>.o: CC1 := …` and
-  `build/src/<m>.o: CFLAGS := …`. A generated `src/<m>.c` is `#include "include_asm.h"` and one
+  `build/src/<m>.o: CFLAGS := …`, and per module with a hand-written `source` (D109) `SOURCE_build/<m>.o := <source>`
+  and the rule that assembles `build/<m>.o` from it, with `asm/<m>.s: ;` for the generated source an older build's
+  dependency list still names. A generated `src/<m>.c` is `#include "include_asm.h"` and one
   `INCLUDE_ASM("asm/nonmatchings/<m>", <Name>);` per chunk file in ROM order (`foundation/asm/dialect.ts`).
 
 ### 6.4 Writing safely
@@ -1634,6 +1639,13 @@ The keys the example does not show in full (final-review docs-and-plan-9):
   module's end are what its C object's `.rodata` replaces (§6.6; the linker script places only `.rodata .rodata.*`,
   and data the C file puts in RAM still fails the link). The config reads it as a syntax only
   (an address); whether it is legal for its module is the model's question.
+- `source` (D109) on an `asm` `[[modules]]` entry names a hand-written assembly file the module builds from instead of
+  a generated one: a relative `.s` path (letters, digits and `_ . + -`, no segment starting with a dot) outside the
+  tool-owned roots and `build/`, named by one module only. romlift writes no file for that module (`generate` deletes
+  the ones it wrote before) and gives it no objdiff target; `modules.mk` holds its build rule and its
+  `SOURCE_build/<module>.o`; `rename` renames its symbols too (`core/reconcile/rename-asm.ts`). The file must define,
+  globally and in `.text`, every label of the module that another module names. The config reads it as syntax only;
+  the model refuses any other use with `E_MODULE_SOURCE_INVALID`.
 - `from` records where a proposed entry came from, as a `sourceKey`: `sig:<library>@<version>`, the only persisted
   source since the evidence importers and legacy import were dropped (D91, D92). It is data, not a comment: `explain` reads it, and `rename` removes it
   because the name is then the user's (D9). An entry without `from` was written by the analysis or by
@@ -2231,7 +2243,7 @@ architecture-2). The codes:
 | --- | --- |
 | `E_ROM_NOT_GBA` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_FUNCTION_MISALIGNED`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER`, `E_DECOMP_YAML_INVALID`, `E_ROM_SHA1_MISMATCH` | `core/config` |
-| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_DATA_RANGE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED` | `core/model` (`E_DATA_RANGE_INVALID`: a C data range, phase 6, D92) |
+| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_DATA_RANGE_INVALID`, `E_MODULE_SOURCE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED` | `core/model` (`E_DATA_RANGE_INVALID`: a C data range, phase 6, D92; `E_MODULE_SOURCE_INVALID`: a hand-written source, D109) |
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET`, `E_ANALYSIS_JSON` | `core/analysis` (`E_ANALYSIS_JSON`: the analysis codec's refusal; `W_PROFILE_MISFIT` and `W_UNDECODED_GAP` are not defined: each lands with its first raiser, D59 g) |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` (`E_STALE_EDIT` through `staleEdit`, which the shell's `applyWrites` also calls at write time, D81 b) |
@@ -2519,11 +2531,11 @@ one is missing.
 | `g3.speed-budget` | real | the budgets of §9.3 (calibrated); the analysis budget reads the median of the first five of `g2.speed`'s nine runs, as many as before D76 b (D77 f) |
 | `g3.large-rom` | ci | §9.4: under the `romlift` bin's heap cap, 1,024 MiB (D68 b, D72) |
 | `g3.checks-fail` | ci | mutation tests of the four self-checks and of `planWrites` |
-| `g4.e2e-fixtures` | ci | in a directory holding only the fixture ROM, `npx romlift init <rom> && ./setup.sh && make` ends at the SHA-1; the composite fixture's illegal border fails with `E_MODULE_BORDER` |
+| `g4.e2e-fixtures` | ci | in a directory holding only the fixture ROM, `npx romlift init <rom> && ./setup.sh && make` ends at the SHA-1; the composite fixture's illegal border fails with `E_MODULE_BORDER`; the composite's assembly-only module builds from the fixture's own `hand.s` through `[[modules]] source`, renamed with `romlift rename`, to the SHA-1 (D109) |
 | `g4.e2e-real` | real | the same command on every tuning ROM; sealed ROMs report counts only |
 | `g4.packed-e2e` | ci | the same command from the packed and installed tarball (`packed.yml`) |
 | `g4.generate-idempotent` | ci and real | `generate` right after `init` gives an identical tree on every fixture and every tuning ROM |
-| `g4.toml-mutations` | ci and real | seeded random legal TOML edits (move a module start to another legal border, rename, delete a listed function, add an override that changes the model: a `data` override over a listed function's trailing pool words, the owner's answer to phase-6.md Q11, D98 d, D104 a; split a module) keep the self-checks and the link green; each illegal edit (unaligned start, duplicate key, bad key spelling, an odd Thumb `[functions]` key) gives its documented code and writes nothing |
+| `g4.toml-mutations` | ci and real | seeded random legal TOML edits (move a module start to another legal border, rename, delete a listed function, add an override that changes the model: a `data` override over a listed function's trailing pool words, the owner's answer to phase-6.md Q11, D98 d, D104 a; split a module; split an `asm` module inside it, D109) keep the self-checks and the link green; each illegal edit (unaligned start, duplicate key, bad key spelling, an odd Thumb `[functions]` key) gives its documented code and writes nothing |
 | `g4.no-toml-write` | ci | `generate` never opens the TOML for writing |
 | `g4.worktree` | ci and real | in a fresh `git worktree` of an initialised project, `./setup.sh` copies the ROM from the main checkout and `make` ends at the SHA-1 |
 | `g4.toml-canonical` | ci | `serialize∘parse` is the identity on canonical files; patches keep comments and re-parse |

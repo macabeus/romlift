@@ -49,7 +49,7 @@ async function renameLocked(dir: string, from: string, to: string): Promise<Rena
   const loaded = await loadConfig(dir);
   if (!loaded.ok) return refusal(loaded.diagnostics);
   const configPath = loaded.value.project.config;
-  const read = await readRenameTexts(dir);
+  const read = await readRenameTexts(dir, loaded.value.value.modules.flatMap((m) => (m.source === undefined ? [] : [m.source])));
   if (!read.ok) return refusal(read.diagnostics, configPath);
   const rom = await readRom(join(dir, ...loaded.value.value.rom.path.split('/')));
   if (!rom.ok) return refusal([rom.diagnostic], configPath);

@@ -40,7 +40,8 @@ generate`).
 - **Yours:** `romlift.toml` (modules, function names and boundaries, symbols; the one place to change what is
   generated), `src/*.c`, `include/` (`global.h` with `gba/types.h` and `gba/io_reg.h`, the types and I/O registers
   decompiled C includes; `include_asm.h` and `macros.inc`, which the stubs need), `Makefile`, `mk/*.mk`, `setup.sh` and
-  this file. romlift wrote them once and does not overwrite them.
+  this file. romlift wrote them once and does not overwrite them. Also yours: any hand-written assembly a module builds
+  from (`source`, below).
 
 ## Decompiling a function
 
@@ -167,6 +168,29 @@ with that target and the object `make` builds from `src/<module>.c`, `build/src/
 generate` that changed `expected/`. Before you change anything, objdiff scores every function at 100%. Use objdiff
 3.7.2 or later (the version romlift is tested with): older releases cannot load the targets (`Unsupported ARM implicit
 relocation`).
+
+## Hand-written assembly
+
+Code the original developers wrote in assembly (ARM handlers, interrupt code, `crt0`-like stubs) has no C to find.
+`init` puts each run of it in an `asm` module, and you may split one where the original files were split: any start
+`generate` accepts is a legal border, including one between two hand-written functions (`romlift explain <addr>`
+says what lies there; `E_MODULE_BORDER` says why a start is refused). To keep the code in a file of your own, under
+its real names, give its module a `source`:
+
+```toml
+[[modules]]
+name = "rand_arm"
+start = 0x08000278
+kind = "asm"
+source = "src/asm/rand_arm.s"
+```
+
+romlift then writes nothing for that module (no `asm/rand_arm.s`, no chunk files) and `make` assembles
+`build/rand_arm.o` from your file. The path is relative to the project, ends in `.s` and lies outside the tool-owned
+directories and `build/`. The file must put its bytes in `.text` and define, with `.global`, every label of the module
+that other code names (`make` reports a missing one as an undefined reference): use romlift's names, or rename them
+with `npx romlift rename <old> <new>`, which edits your `source` files as well as the C and `romlift.toml`. Give a
+Thumb function `.thumb_func` and `.type <name>, %function`, an ARM one `.arm` and `.type`, as the generated files do.
 
 ## Code that runs from RAM
 

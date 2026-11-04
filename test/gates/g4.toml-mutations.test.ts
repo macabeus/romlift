@@ -13,7 +13,9 @@
 //            [functions] and reports what an override's seed finds beyond it, measured; until fix round 5 the edit
 //            unlisted F and covered it with a code override, which only moved F to W_UNLISTED_FUNCTION; until D98 d
 //            it covered a listed function, a no-op that warned, D81 c); at least one target must take it; split a
-//            `c` module at a legal start inside it. A legal start is what generate accepts: core/layout's one
+//            `c` module at a legal start inside it; split an `asm` module other than the header's and crt0 at a legal
+//            start inside it, below the data start (D109: a start inside a run of code agbcc cannot have produced is
+//            legal when nothing crosses it), which at least one target must take. A legal start is what generate accepts: core/layout's one
 //            predicate, isLegalStart, over the code layout of the confirm run of init's config, so a start in the
 //            data-start range D75 a made legal is a candidate too (architecture-r1-3, a1-5); the found functions of
 //            add-override are the discover run's.
@@ -145,11 +147,14 @@ interface Facts {
   readonly analysis: AnalysisResult;
   /** The functions' extents and the chunks of the model `generate` builds from `config` (its confirm run), as one text. */
   readonly modelShape: (config: RomliftConfig) => string;
+  /** The confirm run's data start: split-asm-module splits code, below it. */
+  readonly dataStart: Addr;
   readonly end: Addr;
 }
 
-type LegalKind = 'move-start' | 'rename' | 'delete-function' | 'add-override' | 'split-module';
-const LEGAL_KINDS: readonly LegalKind[] = ['move-start', 'rename', 'delete-function', 'add-override', 'split-module'];
+type LegalKind = 'move-start' | 'rename' | 'delete-function' | 'add-override' | 'split-module' | 'split-asm-module';
+// split-asm-module is last, so the seeded draws of the others are what they were before it (D109).
+const LEGAL_KINDS: readonly LegalKind[] = ['move-start', 'rename', 'delete-function', 'add-override', 'split-module', 'split-asm-module'];
 const SEED = 0x6734_0001;
 const DEFAULT_NAME = /^(sub|unk|gUnk)_[0-9A-F]{8}$|^_[0-9A-F]{8}$/;
 const FUNCTION_LINE = /^(0x)0([0-9A-F]{7})(\s*=.*)$/;
@@ -248,6 +253,18 @@ function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { reado
       if (parent === undefined) return undefined;
       const added: ModuleConfig = { ...parent, name: `${parent.name}_split_${hex(choice.b).slice(2)}`, start: choice.b };
       return { config: { ...config, modules: [...modules.slice(0, choice.i + 1), added, ...modules.slice(choice.i + 1)] }, what: `split ${parent.name} at ${hex(choice.b)}` };
+    }
+    case 'split-asm-module': {
+      // An assembly-only or library module split at a legal start inside it (D109: no longer refused inside a run of
+      // code agbcc cannot have produced). The header's and the startup region's modules are left whole.
+      const asmModules = modules.map((m, i) => ({ m, i })).filter(({ m, i }) => m.kind === 'asm' && i > 0 && m.name !== 'crt0');
+      const options = asmModules.flatMap(({ i }) => legalBetween(modules[i]?.start ?? 0, nextStart(i)).filter((b) => !starts.has(b) && b < facts.dataStart).map((b) => ({ i, b })));
+      const choice = pick(random, options);
+      if (choice === undefined) return undefined;
+      const parent = modules[choice.i];
+      if (parent === undefined) return undefined;
+      const added: ModuleConfig = { ...parent, name: `${parent.name}_split_${hex(choice.b).slice(2)}`, start: choice.b };
+      return { config: { ...config, modules: [...modules.slice(0, choice.i + 1), added, ...modules.slice(choice.i + 1)] }, what: `split asm module ${parent.name} at ${hex(choice.b)}` };
     }
   }
 }
@@ -377,7 +394,7 @@ gate({
         const model = buildModel(rom, analyze(rom, profile, confirmOptions(config)), config);
         return JSON.stringify([model.functions.map((f) => [f.entry, f.extent.start, f.extent.end]), model.chunks.map((c) => [c.span.start, c.span.end, c.kind])]);
       };
-      const facts: Facts = { config: parsed.value, legalBetween, analysis, modelShape, end: rom.end };
+      const facts: Facts = { config: parsed.value, legalBetween, analysis, modelShape, dataStart: rule.dataStart, end: rom.end };
       const random = prng(nameSeed(target.name));
       if (agbcc !== undefined) await cp(agbcc, path.join(dir, 'tools', 'agbcc'), { recursive: true });
       const setup = await cx.exec('./setup.sh', [], { cwd: dir, env });
@@ -417,6 +434,7 @@ gate({
       await writeFile(tomlPath, text);
     }
     if ((byKind.get('add-override') ?? 0) === 0) problems.push('no target took an add-override edit that changes the model');
+    if ((byKind.get('split-asm-module') ?? 0) === 0) problems.push('no target took a split-asm-module edit');
     if (problems.length > 0) throw new Error(`TOML mutations: ${problems.join(' | ')}`);
     const kinds = LEGAL_KINDS.map((k) => `${k} ${byKind.get(k) ?? 0}${k === 'add-override' ? ' (each a data override that changes the model, no W_OVERRIDE_IGNORED, D98 d, D104 a)' : ''}`).join(', ');
     cx.note(`${legal} legal edits link to the SHA-1 and build with make to it (${kinds}), and ${illegal} illegal edits give their codes, on ${targets.length} ROMs`);

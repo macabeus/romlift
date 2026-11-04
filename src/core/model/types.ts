@@ -104,6 +104,11 @@ export interface Module {
   readonly kind: 'asm' | 'c' | 'data';
   /** false: its files are never written nor deleted (WritePlanInputs.retained). */
   readonly generated: boolean;
+  /**
+   * The hand-written assembly source it builds from (`[[modules]] source`, D109), a project path the user owns: no
+   * generated file is written for the module, and modules.mk builds its object from this file.
+   */
+  readonly source?: string;
   readonly compiler: BuildCompilerId;
   readonly cflags: readonly string[];
   readonly library?: { readonly name: string; readonly version: string };
@@ -194,6 +199,8 @@ export interface ModelJsonModule {
   readonly span: ModelJsonSpan;
   readonly kind: Module['kind'];
   readonly generated: boolean;
+  /** Module.source; present only for a module built from a hand-written source. */
+  readonly source?: string;
   readonly compiler: BuildCompilerId;
   readonly cflags: readonly string[];
   readonly library?: { readonly name: string; readonly version: string };

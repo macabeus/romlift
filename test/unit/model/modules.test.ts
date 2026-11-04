@@ -17,6 +17,37 @@ const BORDERS = [BASE, HEADER_END, BASE + 0x100, BASE + 0x200, BASE + 0x300];
 /** The border rule of BORDERS with no data region past them (the data start at the ROM end). */
 const RULE = { borders: BORDERS, dataStart: ROM.end, end: ROM.end };
 
+test('a hand-written source (D109): an asm module keeps it; every other source is E_MODULE_SOURCE_INVALID and dropped', () => {
+  const asm = (name: string, start: number, source: string, extra: Partial<ModuleConfig> = {}): ModuleConfig => ({ name, start, kind: 'asm', generated: true, source, ...extra });
+  const config = configOf({
+    modules: [
+      ['rom_header', BASE],
+      asm('hand', HEADER_END, 'src/asm/hand.s'),
+      asm('c_mod', BASE + 0x100, 'src/asm/c.s', { kind: 'c' }),
+      asm('kept', BASE + 0x200, 'src/asm/kept.s', { generated: false }),
+      asm('twice', BASE + 0x300, 'src/asm/hand.s'),
+    ],
+  });
+  const { modules, diagnostics } = planModules(ROM, config, RULE);
+  assert.deepEqual(modules.map((m) => [m.name, m.source]), [['rom_header', undefined], ['hand', 'src/asm/hand.s'], ['c_mod', undefined], ['kept', undefined], ['twice', undefined]]);
+  assert.deepEqual(diagnostics.map((d) => [d.code, d.addr]), [
+    ['E_MODULE_SOURCE_INVALID', BASE + 0x100],
+    ['E_MODULE_SOURCE_INVALID', BASE + 0x200],
+    ['E_MODULE_SOURCE_INVALID', BASE + 0x300],
+  ]);
+  assert.match(diagnostics[0]?.message ?? '', /c_mod is kind = "c"/);
+  assert.match(diagnostics[1]?.message ?? '', /generated = false/);
+  assert.match(diagnostics[2]?.message ?? '', /already the source of module hand/);
+  for (const bad of ['/abs/hand.s', '../hand.s', 'src/./hand.s', 'src/.hidden.s', 'src/hand.S', 'src/hand.c', 'src/my hand.s', 'src\\hand.s', 'asm/hand.s', 'data/hand.s', 'expected/hand.s', 'build/hand.s']) {
+    const one = planModules(ROM, configOf({ modules: [['rom_header', BASE], asm('hand', HEADER_END, bad)] }), RULE);
+    assert.deepEqual(one.diagnostics.map((d) => d.code), ['E_MODULE_SOURCE_INVALID'], bad);
+    assert.equal(one.modules[1]?.source, undefined, bad);
+  }
+  for (const good of ['hand.s', 'src/asm/hand.s', 'handwritten/arm/rand_arm.s', 'src/m4a_1.s', 'lib/x+y-z.s']) {
+    assert.deepEqual(planModules(ROM, configOf({ modules: [['rom_header', BASE], asm('hand', HEADER_END, good)] }), RULE).diagnostics, [], good);
+  }
+});
+
 test('modules span from their start to the next one, the last to the ROM end, with the build compiler resolved', () => {
   const config = configOf({
     modules: [

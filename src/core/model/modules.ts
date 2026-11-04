@@ -21,6 +21,7 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { spanIndexAt } from '../../foundation/util/arrays.ts';
 import { hexAddr, hexSize } from '../../foundation/util/hex.ts';
+import { underGeneratedRoot } from '../../foundation/util/project-files.ts';
 import { compareNumbers } from '../../foundation/util/sorted.ts';
 import { buildCompilerOf } from '../config/compilers.ts';
 import type { ModuleConfig, RomliftConfig } from '../config/schema.ts';
@@ -60,7 +61,8 @@ function orderedModules(rom: Rom, config: RomliftConfig, rule: BorderRule, diagn
     }
     if (!isLegalStart(rule, m.start)) {
       const near = nearestLegalStarts(rule, m.start);
-      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_BORDER', `module ${m.name} starts at ${hexAddr(m.start)}, which is not a legal border: ${describeBorders(rule, m.start)}`, { addr: m.start, cites: [near.below, near.above].filter((a): a is Addr => a !== undefined) }));
+      const why = rule.why?.(m.start);
+      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_BORDER', `module ${m.name} starts at ${hexAddr(m.start)}, which is not a legal border${why === undefined ? '' : ` (${why})`}: ${describeBorders(rule, m.start)}`, { addr: m.start, cites: [near.below, near.above].filter((a): a is Addr => a !== undefined) }));
     }
     kept.push(m);
   }
@@ -201,6 +203,37 @@ function dataRanges(rom: Rom, config: RomliftConfig, kept: readonly ModuleConfig
   return out;
 }
 
+/** A path a hand-written source may have: relative, forward slashes, no segment starting with a dot, a `.s` file. */
+const SOURCE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_.+-]*(\/[A-Za-z0-9_][A-Za-z0-9_.+-]*)*\.s$/;
+
+/** Why module `m`'s `source` cannot be its hand-written source (D109), or undefined when it can. */
+function sourceProblem(m: ModuleConfig, source: string, taken: ReadonlyMap<string, string>): string | undefined {
+  if (m.kind !== 'asm') return `module ${m.name} is kind = "${m.kind}"; only an asm module builds from a hand-written source`;
+  if (!m.generated) return `module ${m.name} is generated = false; a module with a source has no generated file, so it needs no generated = false`;
+  if (!SOURCE_PATH.test(source)) return `${JSON.stringify(source)} is not a relative path to a .s file of letters, digits and _ . + - (no segment may start with a dot)`;
+  if (underGeneratedRoot(source) || source.startsWith('build/')) return `${source} lies where romlift or make writes (asm/, data/, expected/, build/ and the generated files), which would overwrite or delete it`;
+  const other = taken.get(source);
+  if (other !== undefined) return `${source} is already the source of module ${other}`;
+  return undefined;
+}
+
+/** The hand-written source of each module that may have one, by name; E_MODULE_SOURCE_INVALID for every other `source`. */
+function moduleSources(kept: readonly ModuleConfig[], diagnostics: Diagnostic[]): ReadonlyMap<string, string> {
+  const taken = new Map<string, string>();
+  const sources = new Map<string, string>();
+  for (const m of kept) {
+    if (m.source === undefined) continue;
+    const problem = sourceProblem(m, m.source, taken);
+    if (problem === undefined) {
+      taken.set(m.source, m.name);
+      sources.set(m.name, m.source);
+    } else {
+      diagnostics.push(diagnostic(ModelCodes, 'E_MODULE_SOURCE_INVALID', `module ${m.name}'s source cannot be its hand-written source: ${problem}`, { addr: m.start }));
+    }
+  }
+  return sources;
+}
+
 /** The modules of `config` over `rom`, each start checked with core/layout's isLegalStart under `rule` (a CodeLayout is one). */
 export function planModules(rom: Rom, config: RomliftConfig, rule: BorderRule): ModulesPlan {
   const diagnostics: Diagnostic[] = [];
@@ -213,16 +246,19 @@ export function planModules(rom: Rom, config: RomliftConfig, rule: BorderRule): 
   const boundaries = [...kept.map((m) => m.start), ...planned.map((r) => r.span.start), rom.end].sort(compareNumbers);
   const spans = kept.map((m) => ({ start: m.start, end: boundaries.find((b) => b > m.start) ?? rom.end }));
   const runAt = runAddresses(rom, config, spans, diagnostics);
+  const sources = moduleSources(kept, diagnostics);
   const modules = kept.map((m, i): Module => {
     const compilerId = m.compiler ?? config.build.compiler;
     const compiler = buildCompilerOf(compilerId);
     const run = runAt[i];
     const dataRange = rangeOf.get(keptIndexes[i] ?? -1);
+    const source = sources.get(m.name);
     return {
       name: m.name,
       span: spans[i] ?? { start: m.start, end: rom.end },
       kind: m.kind,
       generated: m.generated,
+      ...(source === undefined ? {} : { source }),
       compiler: compilerId,
       cflags: [...(compiler?.flags ?? []), ...(m.cflags ?? [])],
       ...(m.library === undefined || m.version === undefined ? {} : { library: { name: m.library, version: m.version } }),

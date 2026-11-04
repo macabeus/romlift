@@ -11,8 +11,10 @@
 # They are not in Git: after a pull or a checkout that changes romlift.toml, run `npx romlift generate` (or
 # ./setup.sh) again; make stops until you do.
 #
-# To build one object differently, give it an explicit rule (here or in a file you include): an explicit rule
-# for build/src/<module>.o or build/<module>.o wins over the pattern rules below.
+# An asm module whose code you write by hand names its file in romlift.toml (`source = "src/asm/<file>.s"`): romlift
+# then generates nothing for it, and modules.mk builds build/<module>.o from that file. To build one object
+# differently still, give it an explicit rule (here or in a file you include): an explicit rule for
+# build/src/<module>.o or build/<module>.o wins over the pattern rules below.
 
 NAME     := @@name@@
 ROM      := @@builtRom@@
@@ -94,7 +96,7 @@ $(ELF): $(OBJS) ldscript.txt symbols.ld
 # compares modification times, GNU make 3.81 (macOS) only to the second, so a file `romlift generate` rewrote or a
 # source changed within the second of the last build would otherwise leave the old object in the ROM.
 OBJ_SUM = { sed -e 's/^[^:]*://' -e 's/\\$$//' $(1:.o=.d) $(1:.o=.c.d) 2>/dev/null | tr ' ' '\n' | grep -v '^$$' | sort -u | xargs cat; cat $(2); grep -v '^ROMLIFT_TOML_SHA1' modules.mk; } 2>/dev/null | $(SHA1SUM) | cut -d ' ' -f 1
-OBJ_SOURCE = $(if $(filter $(C_OBJS),$(1)),$(1:build/%.o=%.c),$(if $(wildcard $(1:build/%.o=asm/%.s)),$(1:build/%.o=asm/%.s),$(1:build/%.o=data/%.s)))
+OBJ_SOURCE = $(or $(SOURCE_$(1)),$(if $(filter $(C_OBJS),$(1)),$(1:build/%.o=%.c),$(if $(wildcard $(1:build/%.o=asm/%.s)),$(1:build/%.o=asm/%.s),$(1:build/%.o=data/%.s))))
 OBJ_STALE := $(strip $(foreach o,$(OBJS),$(if $(wildcard $(o)),$(if $(filter $(shell $(call OBJ_SUM,$(o),$(call OBJ_SOURCE,$(o)))),$(shell cat $(o:.o=.sum) 2>/dev/null)),,$(o)))))
 ifneq ($(OBJ_STALE),)
 OBJ_REMOVED := $(shell rm -f $(OBJ_STALE) $(ELF))

@@ -21,7 +21,8 @@ and the NDJSON helpers. The CLI may take values from only some `src/api` barrels
 `init` writes a new project (`core/workflow/init.ts` plans it, `shell/project/write-project.ts` writes it).
 `generate` regenerates the tree and reconciles `src/*.c` (`generateProject`, `core/workflow/c-stubs.ts`), writes
 through the write plan under the project lock and never writes `romlift.toml`. `update` prints (and with `--write`
-saves) the patch of `core/workflow/update.ts`. `rename` edits `romlift.toml` and the C together
+saves) the patch of `core/workflow/update.ts`. `rename` edits `romlift.toml`, the C and the modules' hand-written
+assembly sources (`[[modules]] source`, D109) together
 (`core/workflow/rename.ts`, `shell/project/rename-project.ts`). A project is found from the working directory upward
 (`shell/project/locate.ts`).
 

@@ -31,7 +31,7 @@ with phase 5 and the gba-kit trace, D91, D92: `core/evidence` and `core/legacy` 
 | --- | --- |
 | `config/` | the in-memory project config and its zod schema (`schema.ts`), the build compilers (`compilers.ts`, D47) |
 | `proposals/types.ts` | the one proposal shape, its sources (signature, analysis, layout; D91 e) and `sourceKey` |
-| `layout/` | module inference options (`types.ts`); legal borders and `inferModules` (D20) |
+| `layout/` | module inference options (`types.ts`); legal borders, with why a start is refused, and `inferModules` (D20, D109) |
 | `model/` | the frozen model (`types.ts`), the struct-of-arrays item table and `itemAt` (`item-table.ts`), labels per module (`resolver.ts`), the paths writers and checks share (`paths.ts`), and `buildModel` with its parts and codes (D62 b) |
 | `emit/` | the emission stream's data and writer contract (`tree.ts`), `emitTree`, the printer (`print/`) and one file per writer (`writers/`, registry in `writers/index.ts`) |
 | `verify/` | the self-checks (tiling, re-encode, module size, text layout, paths) and their report (`report.ts`) |
@@ -59,7 +59,7 @@ Frozen by the lead (D93); the parts marked with an owner land in waves 2 and 3.
 | `signatures/codes.ts`, `signatures/rules/` | the signature codes (the matcher's four `W_SIGNATURE_*`; the builder's land with p6-signatures-build) and the five placement rules, one file each, with their registry (`SIGNATURE_RULES`, the metadata; `PLACEMENT_RULES`, the rules match.ts runs) and the state they share (`rules/state.ts`) |
 | `signatures/{extract,match,resolve,policy,propose}.ts` | the builder's pure part (p6-signatures-build), the matcher, overlap resolution, its policy and the proposals (p6-signatures-match) |
 | `config/` | adds the `[[modules]]` key `data_start` (`dataStart`), syntax only |
-| `reconcile/c-scan.ts`, `reconcile/rename-tokens.ts` | the file-scope scanner and include resolution split out of the planner (p6-reconcile-carried); identifier-only renames (p6-rename) |
+| `reconcile/c-scan.ts`, `reconcile/rename-tokens.ts`, `reconcile/rename-asm.ts` | the file-scope scanner and include resolution split out of the planner (p6-reconcile-carried); identifier-only renames (p6-rename), in C and in a module's hand-written assembly source (D109) |
 | `workflow/types.ts` | adds the signature files `init` and `update` read, `InitOptions.signatures`, `ProjectInputs.headerRealPaths` and the `CheckProposals` contract |
 | `workflow/proposals.ts`, `workflow/signature-layer.ts`, `workflow/rename.ts`, `workflow/explain.ts` | the proposal screen alone (`checkProposals`, p6-proposals); the signature layer (`signaturesOver`, `signatureLayer`, `foldSignatures`, `updateProposals`, the library-module notes, `signatureNotes`; D95 b); `planRename` and `renameModelNames` (p6-rename, D95 c); explain's signature part (`ExplainSignature`, filled by p6-proposals) |
 | `layout/module-proposals.ts` | the runs_at borders and library modules a project lacks (`planRunsAtBorders`, `planLibraryModules`, `regionsWithoutModule`), with infer-modules.ts's `freeModuleName` the one naming rule (D95 b) |

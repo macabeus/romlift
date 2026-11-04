@@ -52,11 +52,20 @@ export function expectedSourcePath(module: string): string {
 }
 
 /**
+ * Whether romlift writes module `module`'s files (emitTree's module-scoped writers, the text-layout check): it is
+ * generated and has no hand-written source (D109). A module with a source has no generated file; generate deletes
+ * any it wrote before, since nothing retains them.
+ */
+export function writesModuleFiles(module: Module): boolean {
+  return module.generated && module.source === undefined;
+}
+
+/**
  * Whether module `module` has an objdiff target (the expected writer's file, modules.mk's EXPECTED_OBJS, a unit of
- * objdiff.json): it is generated (emitTree writes its files) and holds chunks.
+ * objdiff.json): romlift writes its files (writesModuleFiles) and it holds chunks.
  */
 export function hasExpectedTarget(module: Module | undefined): module is Module {
-  return module !== undefined && module.generated && module.chunks.count > 0;
+  return module !== undefined && writesModuleFiles(module) && module.chunks.count > 0;
 }
 
 /**
@@ -169,11 +178,12 @@ function chunksOf(model: Pick<Model, 'chunks'>, module: Module): readonly Chunk[
 }
 
 /**
- * The source a module builds from: asm/rom_header.s for the module holding the header chunk, asm/crt0.s for
- * the one holding the startup chunk, `asm/<module>.s` for another asm module (its includes in ROM order),
- * `data/<module>.s` for a data module, `src/<module>.c` for a C module (phase 4).
+ * The source a module builds from: its hand-written `source` when it has one (D109), else asm/rom_header.s for the
+ * module holding the header chunk, asm/crt0.s for the one holding the startup chunk, `asm/<module>.s` for another asm
+ * module (its includes in ROM order), `data/<module>.s` for a data module, `src/<module>.c` for a C module (phase 4).
  */
 export function moduleSource(model: Pick<Model, 'chunks'>, module: Module): string {
+  if (module.source !== undefined) return module.source;
   const kinds = chunksOf(model, module).map((c) => c.kind);
   if (kinds.includes('header')) return HEADER_PATH;
   if (kinds.includes('startup')) return CRT0_PATH;

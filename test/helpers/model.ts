@@ -33,6 +33,8 @@ export interface ModuleSpec {
   readonly kind?: Module['kind'];
   /** Default true. */
   readonly generated?: boolean;
+  /** A hand-written source (Module.source, D109). */
+  readonly source?: string;
   /** Default 'agbcc'. */
   readonly compiler?: string;
   readonly cflags?: readonly string[];
@@ -101,6 +103,7 @@ export function modelOf(rom: Rom, spec: ModelSpec): Model {
       span: { start: head.span.start, end: tail.span.end },
       kind: m.kind ?? 'asm',
       generated: m.generated ?? true,
+      ...(m.source === undefined ? {} : { source: m.source }),
       compiler: m.compiler ?? 'agbcc',
       cflags: m.cflags ?? [],
       ...(m.library === undefined ? {} : { library: m.library }),
