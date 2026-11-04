@@ -20,11 +20,11 @@ function message(argv: readonly string[]): string {
 }
 
 test('a bare command gets every declared option at its default', () => {
-  const outcome = parseArgs(['analyze'], FAKE_COMMANDS);
+  const outcome = parseArgs(['scan'], FAKE_COMMANDS);
   assert.ok(outcome.ok);
-  assert.equal(outcome.spec.name, 'analyze');
+  assert.equal(outcome.spec.name, 'scan');
   assert.deepEqual(outcome.args, {
-    command: 'analyze',
+    command: 'scan',
     positionals: [],
     flags: { help: false, json: false },
     options: {},
@@ -34,9 +34,9 @@ test('a bare command gets every declared option at its default', () => {
 
 test('boolean flags, string options in both spellings, repeats in order, positionals', () => {
   assert.deepEqual(
-    parsed(['analyze', 'a.gba', '--json', '--rom', 'r.gba', '--disable', 'b', 'b.gba', '--disable=a', '--out=o', '--disable', 'b']),
+    parsed(['scan', 'a.gba', '--json', '--rom', 'r.gba', '--disable', 'b', 'b.gba', '--disable=a', '--out=o', '--disable', 'b']),
     {
-      command: 'analyze',
+      command: 'scan',
       positionals: ['a.gba', 'b.gba'],
       flags: { help: false, json: true },
       options: { rom: 'r.gba', out: 'o' },
@@ -46,27 +46,27 @@ test('boolean flags, string options in both spellings, repeats in order, positio
 });
 
 test('flags before the command are read against the command', () => {
-  assert.deepEqual(parsed(['--json', 'analyze', 'x']).flags, { help: false, json: true });
-  assert.deepEqual(parsed(['--json', 'analyze', 'x']).positionals, ['x']);
+  assert.deepEqual(parsed(['--json', 'scan', 'x']).flags, { help: false, json: true });
+  assert.deepEqual(parsed(['--json', 'scan', 'x']).positionals, ['x']);
 });
 
 test('--rom=<value> keeps every later = sign; a lone - is a positional', () => {
-  assert.deepEqual(parsed(['analyze', '--rom=a=b', '-']).options, { rom: 'a=b' });
-  assert.deepEqual(parsed(['analyze', '--rom=a=b', '-']).positionals, ['-']);
+  assert.deepEqual(parsed(['scan', '--rom=a=b', '-']).options, { rom: 'a=b' });
+  assert.deepEqual(parsed(['scan', '--rom=a=b', '-']).positionals, ['-']);
 });
 
 test('-- ends the options: later tokens are positionals even when they look like options', () => {
-  const args = parsed(['analyze', 'a', '--', '--json', '--nope', '--']);
+  const args = parsed(['scan', 'a', '--', '--json', '--nope', '--']);
   assert.deepEqual(args.positionals, ['a', '--json', '--nope', '--']);
   assert.equal(args.flags['json'], false);
 });
 
 test('a value may start with a single dash', () => {
-  assert.deepEqual(parsed(['analyze', '--rom', '-x.gba']).options, { rom: '-x.gba' });
+  assert.deepEqual(parsed(['scan', '--rom', '-x.gba']).options, { rom: '-x.gba' });
 });
 
 test('--help and -h set flags.help for any command', () => {
-  assert.equal(parsed(['analyze', '--help'])['flags']['help'], true);
+  assert.equal(parsed(['scan', '--help'])['flags']['help'], true);
   assert.equal(parsed(['zeta', '-h'])['flags']['help'], true);
   assert.equal(parsed(['zeta'])['flags']['help'], false);
 });
@@ -74,35 +74,35 @@ test('--help and -h set flags.help for any command', () => {
 test('every parse error has a precise message', () => {
   assert.equal(message([]), 'no command given');
   assert.equal(message(['--json']), 'no command given');
-  assert.equal(message(['--', 'analyze']), 'no command given');
+  assert.equal(message(['--', 'scan']), 'no command given');
   assert.equal(message(['nope']), "unknown command 'nope'");
-  assert.equal(message(['--rom', 'x.gba', 'analyze']), "unknown command 'x.gba'");
-  assert.equal(message(['analyze', '--nope']), "unknown option '--nope' for command 'analyze'");
-  assert.equal(message(['analyze', '--nope=1']), "unknown option '--nope' for command 'analyze'");
-  assert.equal(message(['analyze', '-x']), "unknown option '-x' for command 'analyze'");
+  assert.equal(message(['--rom', 'x.gba', 'scan']), "unknown command 'x.gba'");
+  assert.equal(message(['scan', '--nope']), "unknown option '--nope' for command 'scan'");
+  assert.equal(message(['scan', '--nope=1']), "unknown option '--nope' for command 'scan'");
+  assert.equal(message(['scan', '-x']), "unknown option '-x' for command 'scan'");
   assert.equal(message(['zeta', '--json']), "unknown option '--json' for command 'zeta'");
-  assert.equal(message(['analyze', '--json=true']), "option '--json' takes no value");
-  assert.equal(message(['analyze', '--rom']), "option '--rom' needs a value <path>");
-  assert.equal(message(['analyze', '--rom', '--json']), "option '--rom' needs a value <path>");
-  assert.equal(message(['analyze', '--rom=']), "option '--rom' needs a value <path>");
-  assert.equal(message(['analyze', '--out']), "option '--out' needs a value <value>");
-  assert.equal(message(['analyze', '--disable']), "option '--disable' needs a value <rule>");
-  assert.equal(message(['analyze', '--rom', 'a', '--rom=b']), "option '--rom' given more than once");
+  assert.equal(message(['scan', '--json=true']), "option '--json' takes no value");
+  assert.equal(message(['scan', '--rom']), "option '--rom' needs a value <path>");
+  assert.equal(message(['scan', '--rom', '--json']), "option '--rom' needs a value <path>");
+  assert.equal(message(['scan', '--rom=']), "option '--rom' needs a value <path>");
+  assert.equal(message(['scan', '--out']), "option '--out' needs a value <value>");
+  assert.equal(message(['scan', '--disable']), "option '--disable' needs a value <rule>");
+  assert.equal(message(['scan', '--rom', 'a', '--rom=b']), "option '--rom' given more than once");
 });
 
 test('a boolean flag given twice stays true', () => {
-  assert.equal(parsed(['analyze', '--json', '--json']).flags['json'], true);
+  assert.equal(parsed(['scan', '--json', '--json']).flags['json'], true);
 });
 
 test('parsing does not mutate argv', () => {
-  const argv = Object.freeze(['analyze', '--disable', 'x', 'a']);
+  const argv = Object.freeze(['scan', '--disable', 'x', 'a']);
   parsed(argv);
-  assert.deepEqual(argv, ['analyze', '--disable', 'x', 'a']);
+  assert.deepEqual(argv, ['scan', '--disable', 'x', 'a']);
 });
 
 test('positionals are checked against the declared ones: an extra or a missing one is a usage error', () => {
   assert.equal(message(['zeta', 'extra']), "unexpected argument 'extra' for command 'zeta'");
-  assert.equal(message(['analyze', 'a', 'b', 'c', 'd', 'e']), "unexpected argument 'e' for command 'analyze'");
+  assert.equal(message(['scan', 'a', 'b', 'c', 'd', 'e']), "unexpected argument 'e' for command 'scan'");
   const needsRom: CommandSpec = { name: 'needs', summary: 'Needs a ROM', usage: 'needs <rom> [<dir>]', positionals: [{ name: '<rom>' }, { name: '<dir>', optional: true }], options: [], run: async () => ExitCode.ok };
   const outcome = parseArgs(['needs'], [needsRom]);
   assert.ok(!outcome.ok);

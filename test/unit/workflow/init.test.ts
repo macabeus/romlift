@@ -23,7 +23,6 @@ import { discover } from '../../../src/core/workflow/discover.ts';
 import { init, initDirVerdict, replacedProblems, wantsLockStep } from '../../../src/core/workflow/init.ts';
 import type { InitDirListing } from '../../../src/core/workflow/init.ts';
 import { BUILD_NAME_SUFFIX, builtRomCollides, initBuildName } from '../../../src/core/workflow/init-config.ts';
-import { projectScaffold, scaffoldDrift } from '../../../src/core/workflow/scaffold-diff.ts';
 import type { InitInputs } from '../../../src/core/workflow/types.ts';
 import type { DiskFileState } from '../../../src/core/write-plan/types.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
@@ -135,23 +134,6 @@ test('an image that is not a cartridge is E_ROM_NOT_GBA, and nothing is planned'
   const plan = init(inputs(rom));
   assert.equal(plan.ok, false);
   assert.ok(!plan.ok && plan.diagnostics.every((d) => d.code === 'E_ROM_NOT_GBA'));
-});
-
-test('scaffoldDrift: same, differs (with a unified diff) and absent, in entry order', () => {
-  const rom = fixtureRom('far-jump');
-  const entries = projectScaffold({ name: 'demo', sha1: rom.sha1, title: rom.header.title, ...SCAFFOLD });
-  const current = new Map<string, string>();
-  for (const e of entries) if ('text' in e) current.set(e.path, e.text);
-  current.set('Makefile', `${current.get('Makefile') ?? ''}# mine\n`);
-  current.delete('README.md');
-  const drift = scaffoldDrift(entries, current);
-  assert.deepEqual(drift.map((d) => d.path), paths(entries));
-  assert.equal(drift.find((d) => d.path === 'README.md')?.status, 'absent');
-  const makefile = drift.find((d) => d.path === 'Makefile');
-  assert.equal(makefile?.status, 'differs');
-  assert.match(makefile?.diff ?? '', /^--- a\/Makefile\n\+\+\+ b\/Makefile\n@@ .* @@\n/);
-  assert.match(makefile?.diff ?? '', /\n-# mine\n$/);
-  assert.equal(drift.filter((d) => d.status === 'same').length, entries.length - 2);
 });
 
 test('wantsLockStep: only after a write without an error, and only while no package-lock.json exists', () => {

@@ -1,4 +1,4 @@
-// The `analyze --update` workflow (architecture §2.1, §6.5, D9, D23; roadmap 4.D): what the analysis says now about a
+// The `update` workflow (architecture §2.1, §6.5, D9, D23; roadmap 4.D): what the analysis says now about a
 // project whose config may be older than romlift or than the user's edits, as a TOML patch. Two analyses, one at a
 // time so their results never share the bin's heap cap:
 //
@@ -68,7 +68,7 @@ import { planRunsAtBorders } from '../layout/module-proposals.ts';
 import type { ModuleProposal } from '../proposals/types.ts';
 import { filesFor, libraryModuleProposals, signatureLayer, signatureNotes, updateProposals } from './signature-layer.ts';
 import type { SignatureFile } from '../signatures/schema.ts';
-import type { AnalyzeUpdateInputs, AnalyzeUpdatePlan } from './types.ts';
+import type { UpdateInputs, UpdatePlan } from './types.ts';
 
 /** The report a listed entry that fails validity gets. */
 const LISTED_INVALID: AnalysisCode = 'W_LISTED_INVALID';
@@ -135,7 +135,7 @@ interface RunsAtBorders {
 /** E_OVERRIDE_INVALID for a runs_at range that cannot be its own module, with the model's message and why. */
 function rangeRefusal(start: Addr, end: Addr, why: string): Diagnostic {
   const message = `the runs_at range [${hexAddr(start)}, ${hexAddr(end)}) does not start and end on module borders; a range that runs from RAM is its own module`;
-  return diagnostic(ModelCodes, OVERRIDE_INVALID, `analyze --update cannot propose its borders, so nothing is saved: ${message}, and ${why}`, { span: { start, end }, addr: start });
+  return diagnostic(ModelCodes, OVERRIDE_INVALID, `update cannot propose its borders, so nothing is saved: ${message}, and ${why}`, { span: { start, end }, addr: start });
 }
 
 /**
@@ -196,14 +196,14 @@ function patchedBorderProblems(rom: Rom, text: string, profile: CompilerProfile,
   const after = confirmed(rom, parsed.value, profile, entries);
   const ranges = after.borders
     .filter((d) => d.code === OVERRIDE_INVALID)
-    .map((d) => diagnostic(ModelCodes, OVERRIDE_INVALID, `analyze --update refuses its patch, so nothing is saved: ${d.message}`, { ...(d.span === undefined ? {} : { span: d.span }), ...(d.addr === undefined ? {} : { addr: d.addr }) }));
+    .map((d) => diagnostic(ModelCodes, OVERRIDE_INVALID, `update refuses its patch, so nothing is saved: ${d.message}`, { ...(d.span === undefined ? {} : { span: d.span }), ...(d.addr === undefined ? {} : { addr: d.addr }) }));
   const starts = after.borders
     .filter((d) => d.code === MODULE_BORDER && !known.has(d.addr))
     .map((d) => {
       const at = d.addr ?? 0;
       const named = responsible(at, after.covering.get(at) ?? [], proposals);
       const who = named.length === 0 ? 'the patch' : `the proposed function${named.length === 1 ? '' : 's'} ${named.map(hexAddr).join(', ')}`;
-      return diagnostic(ModelCodes, MODULE_BORDER, `analyze --update refuses its patch, so nothing is saved: with ${who}, generate would refuse romlift.toml: ${d.message}`, {
+      return diagnostic(ModelCodes, MODULE_BORDER, `update refuses its patch, so nothing is saved: with ${who}, generate would refuse romlift.toml: ${d.message}`, {
         addr: at,
         cites: [...named, ...(d.cites ?? [])],
       });
@@ -212,13 +212,13 @@ function patchedBorderProblems(rom: Rom, text: string, profile: CompilerProfile,
 }
 
 /**
- * The plan of `analyze --update` (architecture §2.1): the proposals, the patched TOML text and whether it changed,
+ * The plan of `update` (architecture §2.1): the proposals, the patched TOML text and whether it changed,
  * with the reports. Refused (`ok: false`) for another ROM than the config's, an image that is not a cartridge, a
  * discover error, a runs_at range that cannot be its own module (E_OVERRIDE_INVALID), a patch planPatch refuses
  * (E_TOML_PATCH_REFUSED, whose message holds the entries to paste), or a patch whose module starts generate would
  * refuse (E_MODULE_BORDER naming the proposals, E_OVERRIDE_INVALID, step 3).
  */
-export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
+export function updateProject(inputs: UpdateInputs): UpdatePlan {
   const { rom, config } = inputs;
   const refused = romSha1Problems(inputs.rom, inputs.config);
   if (refused.length > 0) return { ok: false, diagnostics: refused };
@@ -251,5 +251,5 @@ export function analyzeUpdate(inputs: AnalyzeUpdateInputs): AnalyzeUpdatePlan {
  */
 export function staleConfigProblems(path: string, read: string, now: string): readonly Diagnostic[] {
   if (read === now) return [];
-  return [diagnostic(WorkflowCodes, 'E_STALE_CONFIG', `${path} changed on disk since analyze --update read it; nothing was saved: run analyze --update --write again`, { path })];
+  return [diagnostic(WorkflowCodes, 'E_STALE_CONFIG', `${path} changed on disk since update read it; nothing was saved: run update --write again`, { path })];
 }

@@ -1,10 +1,10 @@
 // The module proposals a project's config lacks (architecture §6.7, §7.3, D91, D95 b; architecture-1, architecture-2):
-// the borders that make each hand-written runs_at range its own module (`analyze --update`), and the library modules of
+// the borders that make each hand-written runs_at range its own module (`update`), and the library modules of
 // the signature regions placed in the code. One naming rule for both and for init's module inference
 // (infer-modules.ts, where the names are spelled): a runs_at range's module is runsAtName(<run address>), a library's its
 // library name, and a name already taken gets `_2`, `_3`, … (freeModuleName); the module that held a range resumes after it as
 // `<that module>_<ENDADDR>` with its kind, library and version (resumedModule). Pure; the diagnostics are the workflow's
-// (core/workflow/signature-layer.ts, analyze-update.ts), which reads the reasons returned here. core/layout imports no
+// (core/workflow/signature-layer.ts, update.ts), which reads the reasons returned here. core/layout imports no
 // config: a module of the config is read as a ModuleAt, which core/config's ModuleConfig satisfies.
 import type { Addr, Span } from '../../foundation/rom/span.ts';
 import { hex } from '../../foundation/util/hex.ts';

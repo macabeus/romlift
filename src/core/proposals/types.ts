@@ -7,7 +7,7 @@ import type { Addr, Mode, Span } from '../../foundation/rom/span.ts';
 import type { RuleId } from '../provenance/rule-id.ts';
 
 /**
- * Why module inference (core/layout/infer-modules.ts) proposed a module, or, for 'runs-at', analyze --update: a border
+ * Why module inference (core/layout/infer-modules.ts) proposed a module, or, for 'runs-at', update: a border
  * of a hand-written runs_at range, which is its own module (§6.7).
  */
 export type LayoutReason = 'header' | 'startup' | 'asm-only' | 'module-size' | 'data' | 'runs-at';
@@ -53,7 +53,7 @@ export type Proposal =
       readonly source: ProposalSource;
     };
 
-/** A module proposal (module inference, the runs_at borders, the library modules of analyze --update). */
+/** A module proposal (module inference, the runs_at borders, the library modules of update). */
 export type ModuleProposal = Extract<Proposal, { readonly kind: 'module' }>;
 
 /** A recognised library's range, as the signature matcher reports it (phase 6) and module inference reads it. */

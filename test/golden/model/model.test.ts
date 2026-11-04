@@ -1,4 +1,4 @@
-// Golden models (architecture §3.4, D19, D62): for every committed fixture, the NDJSON `model --json` prints
+// Golden models (architecture §3.4, D19, D62): for every committed fixture, the NDJSON encodeModel prints
 // for the seedless discover run under profileById('agbcc'), the config configFromDiscover builds from it and
 // buildModel; one test/golden/model/<fixture>.ndjson each. A change to the model, the analysis or the printing
 // rule shows up here as a diff. UPDATE_GOLDEN=1 rewrites them and removes a file no fixture produces.

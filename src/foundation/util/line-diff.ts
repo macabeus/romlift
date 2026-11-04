@@ -1,5 +1,5 @@
 // The unified diff of two texts, by line (Myers' O((N+M)D) shortest edit script), for printing a change: a patch of
-// romlift.toml (`analyze --update`) or the drift of a scaffold file (`scaffold --diff`). Pure and generic: it knows
+// romlift.toml (`update`). Pure and generic: it knows
 // lines, not projects.
 
 /** How many unchanged lines a hunk shows around each change. */

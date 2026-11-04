@@ -33,7 +33,7 @@ export function allDiagnostics(outcome: { readonly report: VerifyReport; readonl
 }
 
 /**
- * The exit code of a checked run (`verify`, and `generate`'s check pass): 1 when an error diagnostic is not a
+ * The exit code of a checked run (`generate`'s check pass): 1 when an error diagnostic is not a
  * self-check's (the input, the model or the toolchain is wrong), else 3 when a check failed, else 0 (architecture
  * §2.1, D33). The diagnostics are allDiagnostics'.
  */

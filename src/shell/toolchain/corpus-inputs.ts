@@ -14,7 +14,7 @@ import { sha256Stream } from '../hash.ts';
 /** Where the closure starts (repository-relative): the corpus core, its verdict, its runner, this digest and the driver. */
 export const CORPUS_INPUT_ROOTS: readonly string[] = [
   'src/foundation/corpus/corpus.ts',
-  'src/core/workflow/doctor.ts',
+  'src/foundation/corpus/threshold.ts',
   'src/shell/toolchain/corpus.ts',
   'src/shell/toolchain/corpus-inputs.ts',
   'test/corpus/generate.ts',

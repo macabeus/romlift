@@ -10,8 +10,8 @@ import { decodeScaffoldManifest } from '../../../src/core/scaffold/vars.ts';
 import type { AgbccPin, ScaffoldTemplates } from '../../../src/core/scaffold/vars.ts';
 import type { GenerateResult } from '../../../src/core/workflow/generate.ts';
 import type {
-  AnalyzeUpdateInputs,
-  AnalyzeUpdatePlan,
+  UpdateInputs,
+  UpdatePlan,
   GeneratePlan,
   InitInputs,
   InitOptions,
@@ -43,7 +43,7 @@ test('the frozen inputs are assignable from plain data', () => {
   const init: InitInputs = { rom, romFile: 'sample.gba', options, templates, romliftVersion: '0.4.0', agbcc };
   const bare: InitInputs = { rom, romFile: 'baserom.gba', options: {}, templates, romliftVersion: '0.4.0', agbcc };
   const project: ProjectInputs = { rom, configText: 'schema = 1\n', config, cTexts: new Map([['src/main.c', '#include "include_asm.h"\n']]) };
-  const update: AnalyzeUpdateInputs = { rom, configText: 'schema = 1\n', config };
+  const update: UpdateInputs = { rom, configText: 'schema = 1\n', config };
   assert.equal(init.options.moduleSize, 0x200);
   assert.deepEqual(bare.options, {});
   assert.equal(project.cTexts.size, 1);
@@ -54,9 +54,9 @@ test('the frozen inputs are assignable from plain data', () => {
 test('every plan is ok with its data or a refusal with diagnostics only', () => {
   const refusedInit: InitPlan = { ok: false, diagnostics: refusal };
   const refusedGenerate: GeneratePlan = { ok: false, diagnostics: refusal };
-  const refusedUpdate: AnalyzeUpdatePlan = { ok: false, diagnostics: refusal };
+  const refusedUpdate: UpdatePlan = { ok: false, diagnostics: refusal };
   const proposal: Proposal = { kind: 'function', addr: 0x080000c0, mode: 'thumb', name: 'Renamed', source: { kind: 'signature', library: 'gate', version: '0', rule: 'sig.unique-fit' } };
-  const update: AnalyzeUpdatePlan = { ok: true, proposals: [proposal], text: 'schema = 1\n', changed: false, diagnostics: [] };
+  const update: UpdatePlan = { ok: true, proposals: [proposal], text: 'schema = 1\n', changed: false, diagnostics: [] };
   for (const plan of [refusedInit, refusedGenerate, refusedUpdate]) assert.deepEqual(Object.keys(plan).sort(), ['diagnostics', 'ok']);
   assert.equal(update.ok && update.proposals.length, 1);
   // The ok variants, built only as types (a GenerateResult needs a whole run): they must stay assignable.

@@ -2,8 +2,8 @@
 // the ROM into its own project directory and emits the tree from there; the second runs from another
 // working directory and project path with TZ=Pacific/Kiritimati and LANG/LC_ALL=tr_TR.UTF-8. The tree
 // digests must be equal and no emitted file may contain either project's absolute path. The ci tier runs
-// every committed fixture; the real tier adds the tuning ROMs. Digests are recorded so CI can compare Linux
-// and macOS.
+// every committed fixture; the real tier adds the tuning ROMs. Digests are recorded so CI can compare both
+// Node versions.
 //
 // Each process runs CHILD below, which loads the package through its own entry points (`romlift`,
 // `romlift/node`, resolved from the repository's package.json, as D37 requires) and calls the phase-3 API as

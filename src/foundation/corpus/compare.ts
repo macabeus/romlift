@@ -1,6 +1,6 @@
 // Compares what `as` made of a corpus file with the original bytes, case by case, and folds the
 // per-file comparisons into the counts of a run (CorpusCounts). It decides nothing: whether the counts
-// meet the threshold is core/workflow/doctor.ts's corpusOk. A case agrees when the
+// meet the threshold is foundation/corpus/threshold.ts's corpusOk. A case agrees when the
 // bytes at its offset are its original word; a mnemonic also checks that `assemble` gave the same
 // word in process (encoder agreement); a probe agrees when `as` rejected its file and `assemble`
 // refused its text.

@@ -1,5 +1,5 @@
 // buildModel (architecture §3.4, §6.2, D9, D19, D46, D62): the ROM, its analysis (discover or confirm) and the
-// config become the plain-data Model every writer, self-check and `model --json` reads. The config decides
+// config become the plain-data Model every writer, self-check and encodeModel reads. The config decides
 // (modules, functions, names, symbols, overrides); the analysis says what the bytes are. The steps, each in its
 // own file: the modules checked against the legal borders (modules.ts), the chunks (chunks.ts), the labels and
 // their scopes (labels.ts), the names checked per module (names.ts), the symbols (symbols.ts), and the items
@@ -147,7 +147,7 @@ function codeOverrideIgnoredWhy(o: RomliftConfig['overrides'][number], config: R
   const at = hexAddr(o.start);
   if (config.functions.has(o.start)) return `a function already starts at ${at}: [functions] lists it, so the override is redundant and can be removed`;
   if (analysis.mode === 'confirm' && analysis.unlisted.some((u) => u.entry === o.start)) {
-    return `[functions] does not list ${at}, and a confirm run takes only the listed functions, reporting what the seed finds as W_UNLISTED_FUNCTION; list it (\`romlift analyze --update\` proposes it), after which the override is redundant and can be removed`;
+    return `[functions] does not list ${at}, and a confirm run takes only the listed functions, reporting what the seed finds as W_UNLISTED_FUNCTION; list it (\`romlift update\` proposes it), after which the override is redundant and can be removed`;
   }
   if (analysis.functions.some((f) => f.entry === o.start)) return `a function already starts at ${at}, found by another rule, so the override is redundant and can be removed`;
   return `its seed adds no function at ${at} (no ${o.mode ?? 'thumb'} instruction the analysis accepts starts there), and it gives no listed entry its extent`;

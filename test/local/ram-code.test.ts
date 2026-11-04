@@ -2,7 +2,7 @@
 // entry with runs_at, appended to the romlift.toml `init` wrote, the way g6.ram-code-mapped appends it, on the RAM-copy
 // fixture (its expect.json's `ramCopy`, IwramDouble loaded at 0x0800012C and run at 0x03000000) and on klonoa
 // (bench/overrides/klonoa.json, SoundMainRAM loaded at 0x0804F318 and run at 0x03000388). For each: `init`,
-// `analyze --update --write --json` (exit 0), `model --json` (one module spans exactly the range, with its runAt, and
+// `update --write --json` (exit 0), the project's model (encodeModel in process; one module spans exactly the range, with its runAt, and
 // the functions inside it carry their run address), `generate`, `./setup.sh` and `make` to the ROM's SHA-1.
 //
 // The words that hold a load address inside the range (the copy's source: klonoa's m4aSoundInit loads 0x0804F319,
@@ -118,7 +118,18 @@ interface ModelModule {
   readonly runAt?: number;
 }
 
-/** The modules and functions of `model --json`'s header line, addresses as numbers. */
+/** The modules and functions of the model's header line, addresses as numbers. */
+/** The project's model in `dir` as romlift/model-json@1 NDJSON, in process (readProject, confirmProject, encodeModel; D108). */
+async function projectModel(dir: string): Promise<string> {
+  const { confirmProject, encodeModel } = await import('romlift');
+  const { readProject } = await import('romlift/node');
+  const read = await readProject(dir, { withoutC: true });
+  assert.ok(read.ok, `readProject ${dir}: ${read.ok ? '' : read.diagnostics.map((d) => d.message).join('; ')}`);
+  const confirmed = confirmProject(read.value.inputs);
+  assert.ok(confirmed.ok, `confirmProject ${dir}: ${confirmed.ok ? '' : confirmed.diagnostics.map((d) => d.message).join('; ')}`);
+  return [...encodeModel(confirmed.model, read.value.inputs.rom)].join('');
+}
+
 function modelOf(stdout: string): { readonly modules: readonly ModelModule[]; readonly functions: readonly { readonly entry: number; readonly runAt?: number }[] } {
   const header = JSON.parse(stdout.split('\n')[0] ?? '{}') as {
     readonly modules: readonly { readonly name: string; readonly span: { readonly start: unknown; readonly end: unknown }; readonly runAt?: unknown }[];
@@ -156,12 +167,10 @@ async function rebuild(name: string, romPath: string, ranges: readonly RamRange[
   const init = await run(cli, ['init', 'baserom.gba', '--json'], dir);
   assert.equal(init.code, 0, tail(init));
   for (const r of ranges) await appendFile(path.join(dir, 'romlift.toml'), overrideBlock(r));
-  const update = await run(cli, ['analyze', '--update', '--write', '--json'], dir, env);
+  const update = await run(cli, ['update', '--write', '--json'], dir, env);
   assert.equal(update.code, 0, tail(update));
 
-  const model = await run(cli, ['model', '--json'], dir, env);
-  assert.equal(model.code, 0, tail(model));
-  const { modules, functions } = modelOf(model.out);
+  const { modules, functions } = modelOf(await projectModel(dir));
   const end = range.start + range.size;
   const own = modules.filter((m) => m.start < end && m.end > range.start);
   assert.deepEqual(own.map((m) => [m.start, m.end, m.runAt]), [[range.start, end, range.runAt]], `${name}: one module spans exactly ${hex(range.start)}..${hex(end)}, run at ${hex(range.runAt)}`);

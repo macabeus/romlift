@@ -1,6 +1,6 @@
 # The as round-trip corpus (architecture §5, roadmap 1.C, D54 c): every Thumb halfword, bl pairs and
 # 2^20 seeded ARM words printed by romlift, assembled by the runner's arm-none-eabi-as and compared
-# byte for byte, on two binutils builds: Ubuntu's apt package and Homebrew's. The job fails unless
+# byte for byte, with Ubuntu's apt binutils (the Homebrew job went with macOS, D108). The job fails unless
 # every printed mnemonic, every raw line, the in-process encoder and every address-dependent form
 # agree with that as. The summary (romlift/corpus-summary@1) is uploaded; corpus text never is.
 name: printer
@@ -15,16 +15,8 @@ permissions:
 
 jobs:
   corpus:
-    name: corpus, ${{ matrix.binutils }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            binutils: apt
-          - os: macos-latest
-            binutils: homebrew
-    runs-on: ${{ matrix.os }}
+    name: corpus, apt
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,11 +24,7 @@ jobs:
           node-version: '24'
           cache: npm
       - name: Install binutils (apt)
-        if: matrix.binutils == 'apt'
         run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
-      - name: Install binutils (Homebrew)
-        if: matrix.binutils == 'homebrew'
-        run: brew install arm-none-eabi-binutils
       - name: Install exactly the lock file
         run: npm ci --ignore-scripts
       - name: Assemble and compare the corpus
@@ -45,6 +33,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: corpus-summary-${{ matrix.binutils }}
+          name: corpus-summary-apt
           path: bench/.local/corpus/summary.json
           if-no-files-found: error

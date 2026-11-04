@@ -33,7 +33,6 @@ interface Report {
     readonly maxRssMiB: number | null;
     readonly peakLiveHeapMiB: number | null;
     readonly summaryOk?: boolean;
-    readonly sha1?: string;
     readonly detail: string;
   }[];
 }
@@ -49,23 +48,14 @@ test('the romlift bin completes every command, init and generate among them, on 
   assert.deepEqual(
     report.runs.map((r) => r.command),
     [
-      'analyze',
-      'analyze --json',
       'explain',
       'explain --json',
-      'model',
-      'model --json',
-      'verify --json',
-      'verify --assemble',
-      'verify --assemble --json',
-      'verify --assemble --link --json',
-      'verify --printer raw --assemble --json',
-      'verify --printer raw --link --json',
       'init --json',
       'generate --json',
+      'update --json',
     ],
   );
-  const failed = report.runs.filter((r) => r.exitCode !== 0 || r.summaryOk === false || (r.command.includes('--link') && r.sha1 !== report.sha1));
+  const failed = report.runs.filter((r) => r.exitCode !== 0 || r.summaryOk === false);
   assert.deepEqual(failed.map((r) => `${r.command}: exit ${r.exitCode}, ${r.detail}`), []);
   assert.equal(ran.status, 0, ran.stderr.slice(-2000));
 });

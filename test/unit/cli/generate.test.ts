@@ -12,6 +12,9 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
+import { encodeModel } from '../../../src/core/model/codec.ts';
+import { confirmProject } from '../../../src/core/workflow/generate.ts';
+import { readProject } from '../../../src/shell/project/read-inputs.ts';
 import { main } from '../../../src/cli/main.ts';
 import { listSyntheticFixtures } from '../../helpers/fixtures.ts';
 import { capturingIo } from './fake.ts';
@@ -781,7 +784,7 @@ test('decomp.yaml naming a config other than romlift.toml is refused, nothing wr
   await copyFile(path.join(dir, 'romlift.toml'), path.join(dir, 'cfg', 'romlift.toml'));
   await writeFile(path.join(dir, 'decomp.yaml'), yaml.replace('config: "romlift.toml"', 'config: "cfg/romlift.toml"'));
   const before = await snapshot(dir);
-  for (const command of [['generate', '--json'], ['analyze', '--update', '--json'], ['model', '--json']]) {
+  for (const command of [['generate', '--json'], ['update', '--json']]) {
     const out = await run(dir, command);
     assert.equal(out.code, ExitCode.errors, `${command.join(' ')}: ${out.stdout}`);
     const diagnostics = lines(out.stdout).filter((l) => l['type'] === 'diagnostic');
@@ -793,7 +796,7 @@ test('decomp.yaml naming a config other than romlift.toml is refused, nothing wr
 
 // Fix round 5 (D81 c): an odd [functions] key is refused naming it; an override that changes nothing warns.
 
-test('a misaligned [functions] key, with or without `from`, is E_FUNCTION_MISALIGNED alone, naming the key, in generate and analyze --update (exit 1), and no file changes', async () => {
+test('a misaligned [functions] key, with or without `from`, is E_FUNCTION_MISALIGNED alone, naming the key, in generate and update (exit 1), and no file changes', async () => {
   const dir = await initProject(FAR_JUMP.rom, []);
   const file = path.join(dir, 'romlift.toml');
   const text = await readFile(file, 'utf8');
@@ -807,7 +810,7 @@ test('a misaligned [functions] key, with or without `from`, is E_FUNCTION_MISALI
   for (const entry of entries) {
     await writeFile(file, text.replace(line, `${line}\n${entry}`));
     const before = await snapshot(dir);
-    for (const command of [['generate', '--json'], ['analyze', '--update', '--json']]) {
+    for (const command of [['generate', '--json'], ['update', '--json']]) {
       const out = await run(dir, command);
       assert.equal(out.code, ExitCode.errors, out.stdout);
       // The config refuses it before any analysis: no W_LISTED_INVALID beside it (architecture-b1-1).
@@ -828,8 +831,14 @@ test('an [[overrides]] entry without runs_at: a code override over a listed func
   const start = line.slice(0, 10);
   const name = /"(sub_[0-9A-F]{8})"/.exec(line)?.[1] ?? assert.fail('no name');
   const withOverride = (kind: string): string => `${text.trimEnd()}\n\n[[overrides]]\nstart = ${start}\nsize = 0x4\nkind = "${kind}"\n`;
-  /** The first item of the function's chunk in `model --json`: [kind, addr, size, mnemonic, value]. */
-  const firstItem = async (): Promise<unknown> => lines((await run(dir, ['model', '--json'])).stdout).find((l) => l['name'] === name && l['kind'] === 'function')?.['items'];
+  /** The first item of the function's chunk in the project's model (encodeModel): [kind, addr, size, mnemonic, value]. */
+  const firstItem = async (): Promise<unknown> => {
+    const read = await readProject(dir, { withoutC: true });
+    assert.ok(read.ok);
+    const confirmed = confirmProject(read.value.inputs);
+    assert.ok(confirmed.ok);
+    return lines([...encodeModel(confirmed.model, read.value.inputs.rom)].join('')).find((l) => l['name'] === name && l['kind'] === 'function')?.['items'];
+  };
   const plain = await firstItem();
   assert.ok(Array.isArray(plain) && Array.isArray(plain[0]) && typeof plain[0][3] === 'string', 'without an override the chunk starts with an instruction');
 

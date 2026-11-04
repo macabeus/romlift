@@ -1,4 +1,4 @@
-// A scratch directory for a command that writes a tree only to check it (`verify --assemble`, `verify --link`,
+// A scratch directory for a command that writes a tree only to check it (the assemble and link checks,
 // architecture §2.1: "a temporary directory only"): a fresh directory under os.tmpdir(), never the working
 // directory, removed afterwards whatever the callback does. Creating it can fail (E_IO_WRITE); removing it is
 // best effort, because the check's verdict is already known by then.

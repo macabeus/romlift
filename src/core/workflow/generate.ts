@@ -54,7 +54,7 @@ export interface GenerateInputs {
   readonly configSha1?: string;
 }
 
-/** The confirm analysis of a config and the Model built from it: what `model --json` prints. */
+/** The confirm analysis of a config and the Model built from it. */
 export interface ConfirmedModel {
   readonly analysis: AnalysisResult;
   readonly model: Model;
@@ -170,7 +170,7 @@ function checkPass(rom: Rom, confirmed: ConfirmedModel, cx: EmitContext): Genera
 
 /**
  * The emission stream of a generate result again, as a directory other than the project receives it (a fresh tree,
- * `verify`'s temporary directory, `generate --out`): entry for entry what its check pass read, but an existing C
+ * the tree checks' temporary directory, `generate --out`): entry for entry what its check pass read, but an existing C
  * file's entry holds its reconciled text (c-stubs.ts resolvedEntries), the C `make` compiles.
  */
 export function generatedEntries(rom: Rom, result: Pick<GenerateResult, 'model' | 'cx' | 'stubs'>): Iterable<FileEntry> {
@@ -234,7 +234,7 @@ export function decompStateOf(cTexts: ReadonlyMap<string, string>): DecompState 
   return { defined: [...names].sort(compareCodeUnits) };
 }
 
-/** The confirm analysis and Model of a project's config, or the refusal of another ROM (`model` and `explain` in a project). */
+/** The confirm analysis and Model of a project's config, or the refusal of another ROM (`explain` in a project, and the gates). */
 export function confirmProject(inputs: Pick<ProjectInputs, 'rom' | 'config' | 'profile'>): ({ readonly ok: true } & ConfirmedModel) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] } {
   const refused = romSha1Problems(inputs.rom, inputs.config);
   if (refused.length > 0) return { ok: false, diagnostics: refused };

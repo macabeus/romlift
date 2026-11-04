@@ -30,7 +30,7 @@
 // Three views of one reconciliation:
 // - projectEntries: the stream written into the project; an existing C file's c-stub entry becomes a `reconciled`
 //   entry (its base sha1 and its edits), every other entry is the emission's own.
-// - resolvedEntries: the stream written into a fresh directory (`verify --assemble/--link`'s temporary tree, the
+// - resolvedEntries: the stream written into a fresh directory (the temporary tree of the assemble and link checks, the
 //   bench); an existing C file's entry is the reconciled text, so the tree holds the C `make` compiles.
 // - outTreeEntries (over resolvedEntries): `generate --out <dir>`'s stream, where every C file is `generated`, so a
 //   second run into the same directory rewrites it (or deletes it) as it does asm/ (correctness-a0-4).

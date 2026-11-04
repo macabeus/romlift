@@ -26,7 +26,7 @@ sha1 = "a0a298d9dba1ba15d04a42fc2eb35893d1a9569b"
 name = "klonoa-eod"
 compiler = "agbcc"            # the default build compiler of every module
 
-[signatures]                  # read by init and analyze --update only (phase 6)
+[signatures]                  # read by init and update only (phase 6)
 enabled = true
 
 [[modules]]                   # link order; start addresses increase; each start is a legal border

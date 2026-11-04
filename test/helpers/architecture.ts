@@ -143,7 +143,7 @@ export const EDGE_TABLE: readonly EdgeRow[] = [
   // Any other core file has no row: the table must be extended in the commit that adds the module.
   { from: 'src/core/**', allow: [] },
   { from: 'src/shell/**', allow: ['src/core/**', FOUNDATION, 'src/shell/**', 'node:**', ...RUNTIME_DEPS] },
-  { from: 'src/cli/commands/index.ts', allow: ['src/cli/commands/lists/*.ts'], rule: 'barrel' },
+  { from: 'src/cli/commands/index.ts', allow: ['src/cli/commands/*.ts', 'src/cli/registry.ts'], rule: 'barrel' },
   {
     from: 'src/cli/**',
     allow: [
@@ -151,7 +151,7 @@ export const EDGE_TABLE: readonly EdgeRow[] = [
       'src/core/workflow/**',
       'src/core/diagnostic-codes.ts',
       'src/foundation/diagnostics/**',
-      // The api files whose values the CLI may use: reading files and ROMs, formatting, codecs and doctor. The
+      // The api files whose values the CLI may use: reading files and ROMs, formatting and codecs. The
       // verify, project and write-plan barrels are composition, which lives in core/workflow and the shell's runners
       // (D36; final-review architecture-1), so the CLI reaches them only for types.
       'src/api/{analysis,config,config-types,files,formats,isa,model,rom,toolchain,workflow-one-shot}.ts',

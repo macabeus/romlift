@@ -1,5 +1,5 @@
 // The model (architecture §3.4, §6.2, D19, D62): the plain-data result of buildModel, everything a writer,
-// a self-check or `model --json` reads. Items are a struct of typed arrays (ItemTable), decoded on demand by
+// a self-check or encodeModel reads. Items are a struct of typed arrays (ItemTable), decoded on demand by
 // itemAt (item-table.ts); every other member is plain, deeply readonly data. Addresses are load addresses
 // unless a member is named `runAt`; a Label holds the run address, which equals the load address outside a
 // runs_at range (D46).
@@ -176,7 +176,7 @@ export interface Model {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// The public JSON contract of `model --json` (D19): NDJSON, one ModelJsonHeader line, then one
+// The public JSON contract of encodeModel (D19): NDJSON, one ModelJsonHeader line, then one
 // ModelJsonChunk line per chunk in ROM order. Addresses are spelled as the analysis codec spells them:
 // '0x' and eight upper-case hex digits. Object keys are canonical (sorted by code unit); optional members
 // are left out when absent.
@@ -245,7 +245,7 @@ export interface ModelJsonDiagnostic {
   readonly rule?: string;
 }
 
-/** The first line of `model --json`. */
+/** The first line of encodeModel's NDJSON. */
 export interface ModelJsonHeader {
   readonly schema: 'romlift/model-json@1';
   readonly rom: { readonly sha1: string; readonly end: HexAddr };

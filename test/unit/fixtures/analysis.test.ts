@@ -1,7 +1,7 @@
 // The merged analysis on the committed synthetic fixtures (architecture §8.1, §4.3, §4.4, §8.4): each
 // fixture's expect.json holds under agbcc (what g2.synthetic-analysis asserts), the dummy profile runs on
 // every fixture (g2.second-profile), two runs give one canonical analysis (the in-process half of
-// g2.determinism; the two-process half needs `romlift analyze --json`), and the suppressed split of
+// g2.determinism; the two-process half is the gate's own), and the suppressed split of
 // unreferenced-leaf is a glued miss for the held-out classifier.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

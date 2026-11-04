@@ -1,9 +1,9 @@
 // Where the built signature files are (architecture §7.1, D40): `$ROMLIFT_SIGNATURES` when it names a directory, else
-// `<packageRoot>/signatures/`, whose `<library>.json` files `romlift signatures build` writes (gitignored; the committed
+// `<packageRoot>/signatures/`, whose `<library>.json` files `npm run signatures -- build` writes (gitignored; the committed
 // specs live in its `specs/` subdirectory, which is not read). Every `*.json` regular file of the directory is read and
 // validated with parseSignatureFile; one that cannot be read, is not of schema 3 or repeats a library already read is
 // skipped with W_SIGNATURE_FILE_SKIPPED, so a bad local file never stops `init`. No directory, or none holding a file,
-// gives no file and no diagnostic: the caller decides, with signaturesAbsent (W_SIGNATURES_ABSENT; `signatures <rom>`
+// gives no file and no diagnostic: the caller decides, with signaturesAbsent (W_SIGNATURES_ABSENT;
 // and `init` proceed without signatures).
 import { join, resolve } from 'node:path';
 
@@ -25,7 +25,7 @@ export const SIGNATURES_ENV = 'ROMLIFT_SIGNATURES';
  * none is shipped (D40), and building one needs a romlift source checkout and the reference decomp checkouts.
  */
 export const SIGNATURES_HOWTO =
-  `signature files are not shipped (D40): build them in a romlift source checkout with \`romlift signatures build signatures/specs/<library>.json\`, which needs each spec's reference decomp checkouts (ROM, ELF and map) under ROMLIFT_BENCH_ROOT (docs/benchmark-roms.md), or set ${SIGNATURES_ENV} to a directory of built files`;
+  `signature files are not shipped (D40): build them in a romlift source checkout with \`npm run signatures -- build signatures/specs/<library>.json\`, which needs each spec's reference decomp checkouts (ROM, ELF and map) under ROMLIFT_BENCH_ROOT (docs/benchmark-roms.md), or set ${SIGNATURES_ENV} to a directory of built files`;
 
 export interface LocateSignaturesOptions {
   /** The package whose `signatures/` directory is the default. */
@@ -89,7 +89,7 @@ export async function locateSignatures(options: LocateSignaturesOptions): Promis
 
 /**
  * W_SIGNATURES_ABSENT when the locator found no valid file (the directory it read is named), else undefined: what a
- * caller that proceeds without signatures reports (`signatures <rom>`, `init`).
+ * caller that proceeds without signatures reports (`init`, `update`, `explain --rom`).
  */
 export function signaturesAbsent(located: LocatedSignatures): Diagnostic | undefined {
   if (located.files.length > 0) return undefined;
@@ -105,7 +105,7 @@ export interface LoadedSignatures {
 /**
  * The built signature files of a command run in `io` (architecture-4): `dir` when given (a command's `--signatures`),
  * else `$ROMLIFT_SIGNATURES`, else the package's signatures/; the notes include W_SIGNATURES_ABSENT when none is found.
- * The one locator call of `init`, `analyze --update`, `explain --rom` and `signatures <rom>`; whether a run uses the
+ * The one locator call of `init`, `update` and `explain --rom`; whether a run uses the
  * files (and so reports the notes) is the workflow's decision (core/workflow/signature-layer.ts signatureNotes).
  */
 export async function loadSignatureFiles(io: { readonly env: Readonly<Record<string, string | undefined>>; readonly cwd: string }, options: { readonly dir?: string } = {}): Promise<LoadedSignatures> {

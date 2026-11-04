@@ -1,14 +1,13 @@
 // runCorpus (architecture §5, D55): assembles every file of the round-trip corpus with the user's
-// arm-none-eabi-as, compares the bytes case by case and returns the counts with their verdict. Both
-// `romlift doctor` and the corpus driver (`npm run corpus`) run it; the driver persists the files
-// through `onFile` and writes the summary. At most `limit` assemblers run at once; file order is kept.
+// arm-none-eabi-as, compares the bytes case by case and returns the counts with their verdict. The corpus
+// driver (`npm run corpus`) runs it, persists the files through `onFile` and writes the summary. At most `limit` assemblers run at once; file order is kept.
 import { availableParallelism } from 'node:os';
 
 import { DIALECT } from '../../foundation/asm/dialect.ts';
 import { MACROS_PATH } from '../../core/model/paths.ts';
 import { armCoverage, compareCorpusFile, corpusFiles, summarizeCorpus } from '../../foundation/corpus/corpus.ts';
 import type { CorpusAssembly, CorpusComparison, CorpusCounts, CorpusFile, CorpusOptions } from '../../foundation/corpus/corpus.ts';
-import { corpusOk } from '../../core/workflow/doctor.ts';
+import { corpusOk } from '../../foundation/corpus/threshold.ts';
 import { assembleWithBinutils } from './binutils.ts';
 import type { AssembleResult, Binutils } from './binutils.ts';
 
@@ -23,7 +22,7 @@ export interface CorpusRunOptions {
 
 export interface CorpusRun {
   readonly counts: CorpusCounts;
-  /** corpusOk(counts, options): the threshold of core/workflow/doctor.ts. */
+  /** corpusOk(counts, options): the threshold of foundation/corpus/threshold.ts. */
   readonly ok: boolean;
 }
 

@@ -45,20 +45,25 @@ test('importing main.ts does not run it', async () => {
   assert.equal(typeof module.main, 'function');
 });
 
-test('a reader that closes the pipe early is no error: analyze | head exits quietly, with no EPIPE trace', async () => {
-  const { spawn } = await import('node:child_process');
+test('a reader that closes the pipe early is no error: generate --dry-run | head exits quietly, with no EPIPE trace', async () => {
+  const { spawn, spawnSync } = await import('node:child_process');
   const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const { romWith, words } = await import('../../helpers/analysis.ts');
-  // 4,096 Thumb pointers to undecodable halfwords: one rejection line each, far more than a pipe buffer.
+  // 4,096 Thumb pointers to `bx lr; nop` stubs: 4,096 functions, so one op line per chunk file, far more than a pipe buffer.
   const targets = Array.from({ length: 4096 }, (_, i) => 0x0801_0000 + 4 * i + 1);
-  const rom = romWith([{ at: 0x0800_1000, bytes: words(...targets) }, { at: 0x0801_0000, bytes: new Uint8Array(4 * 4096).fill(0xff) }]);
+  const stubs = new Uint8Array(4 * 4096);
+  for (let i = 0; i < 4096; i++) stubs.set([0x70, 0x47, 0xc0, 0x46], 4 * i);
+  const rom = romWith([{ at: 0x0800_1000, bytes: words(...targets) }, { at: 0x0801_0000, bytes: stubs }]);
   const dir = mkdtempSync(join(tmpdir(), 'romlift-epipe-'));
   try {
-    const path = join(dir, 'many.gba');
-    writeFileSync(path, rom.bytes);
-    const child = spawn(process.execPath, ['--conditions=source', 'src/cli/main.ts', 'analyze', path, '--json'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    writeFileSync(join(dir, 'baserom.gba'), rom.bytes);
+    // ROMLIFT_CLI set: init skips the npm lock step, as a romlift checkout runs it.
+    const env = { ...process.env, ROMLIFT_CLI: 'romlift' };
+    const init = spawnSync(process.execPath, ['--conditions=source', join(ROOT, 'src/cli/main.ts'), 'init', 'baserom.gba', '--json'], { cwd: dir, env, encoding: 'utf8' });
+    assert.equal(init.status, 0, init.stdout + init.stderr);
+    const child = spawn(process.execPath, ['--conditions=source', join(ROOT, 'src/cli/main.ts'), 'generate', '--dry-run', '--json'], { cwd: dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')));
     child.stdout.once('data', () => child.stdout.destroy());

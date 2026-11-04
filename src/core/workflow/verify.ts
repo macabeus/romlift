@@ -1,4 +1,4 @@
-// The verify workflow (architecture §2.1, §6.4, D36, D49): which toolchain checks a `verify` run makes, whether they
+// The verify workflow (architecture §2.1, §6.4, D36, D49): which toolchain checks a run of the tree checks makes (the gates and the bench, D108), whether they
 // run at all, the units each one is given, and the report the run prints. Pure: the shell's runner
 // (shell/project/verify-run.ts) writes the tree, finds binutils and runs `as` and `ld` as this plan says, and
 // decides nothing (final-review architecture-1: the composition used to live in the CLI, which D36 rejects).

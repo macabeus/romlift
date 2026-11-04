@@ -280,8 +280,8 @@ test('an [[overrides]] entry without runs_at that changes nothing is W_OVERRIDE_
   const unlisted = { ...confirm, unlisted: [{ entry: code.start, mode: 'thumb' as const, origin: 'override' as const, provenance: { rule: 'seed.override' as const, round: 0, cites: [] } }] };
   const unlistedIgnored = buildModel(ROM, unlisted, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED');
   assert.deepEqual(unlistedIgnored.map((d) => d.addr), [code.start]);
-  assert.match(unlistedIgnored[0]?.message ?? '', /changes nothing: \[functions\] does not list 0x08000150, .*`romlift analyze --update` proposes it/);
-  // After `analyze --update` lists the start, the warning says the override is redundant (fix round 6, correctness-o1-2).
+  assert.match(unlistedIgnored[0]?.message ?? '', /changes nothing: \[functions\] does not list 0x08000150, .*`romlift update` proposes it/);
+  // After `update` lists the start, the warning says the override is redundant (fix round 6, correctness-o1-2).
   const listedConfirm = analysisOf(ROM, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110 }), fact({ entry: code.start, end: code.start + 0x10 })], seeds: [{ entry: BASE + 0x100, mode: 'thumb', rule: 'seed.listed' }, { entry: code.start, mode: 'thumb', rule: 'seed.listed' }], overrides: [facts[1] ?? assert.fail()] });
   const listed = { ...listedConfirm, unlisted: [] };
   const listedIgnored = buildModel(ROM, listed, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [code.start, 'Listed']], overrides: [code] })).diagnostics.filter((d) => d.code === 'W_OVERRIDE_IGNORED');

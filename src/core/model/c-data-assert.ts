@@ -9,7 +9,7 @@
 // - A C unit with a data range (Module.dataRange, phase 6) has its object's `.rodata` placed at the range, loaded where
 //   it runs, with an ASSERT that it is exactly the range's size; its check section then collects only `.data*`, `.bss*`
 //   and COMMON, so C data in RAM still fails the link loudly (a known limitation of phase 6).
-// - `verify --assemble/--link` build a C unit from its stub's assembly (core/model/c-unit.ts), without a compiler; for a
+// - the assemble and link checks build a C unit from its stub's assembly (core/model/c-unit.ts), without a compiler; for a
 //   unit with a data range they append cDataStandIn: the range's ROM bytes as `.rodata`, `.incbin` of baserom.gba as the
 //   stub assembly stands in for the C code, with every label of the range defined global at its address, as the C object
 //   must define them.
@@ -60,7 +60,7 @@ export function cRodataAssertLine(module: string, range: Span): string {
   return `ASSERT(SIZEOF(${cRodataName(module)}) == ${size}, "${cSourceOf(`${module}.c`)}'s read-only data is not the ${size} bytes of its data range [${hexAddr(range.start)}, ${hexAddr(range.end)}); see AGENTS.md")`;
 }
 
-/** A C unit's data range as `verify` builds it: the span and the labels its object defines there. */
+/** A C unit's data range as the link check builds it: the span and the labels its object defines there. */
 export interface CDataRange {
   readonly span: Span;
   /** Sorted by address, then name. */

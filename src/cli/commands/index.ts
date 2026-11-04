@@ -1,11 +1,9 @@
-// Every implemented command, concatenated from the per-component lists (D43). This file imports only
-// `./lists/*.ts`, so parallel components never edit it after the phase lead adds their list.
-import { analysisCommands } from './lists/analysis.ts';
-import { emissionCommands } from './lists/emission.ts';
-import { oneShotCommands } from './lists/one-shot.ts';
-import { renameCommands } from './lists/rename.ts';
-import { scaffoldCommands } from './lists/scaffold.ts';
-import { signaturesCommands } from './lists/signatures.ts';
-import { toolchainCommands } from './lists/toolchain.ts';
+// Every command of the `romlift` CLI, in the order `romlift --help` lists them (D108).
+import type { CommandSpec } from '../registry.ts';
+import { explainCommand } from './explain.ts';
+import { generateCommand } from './generate.ts';
+import { initCommand } from './init.ts';
+import { renameCommand } from './rename.ts';
+import { updateCommand } from './update.ts';
 
-export const COMMANDS: typeof toolchainCommands = [...toolchainCommands, ...analysisCommands, ...emissionCommands, ...oneShotCommands, ...scaffoldCommands, ...signaturesCommands, ...renameCommands];
+export const COMMANDS: readonly CommandSpec[] = [initCommand, generateCommand, updateCommand, renameCommand, explainCommand];

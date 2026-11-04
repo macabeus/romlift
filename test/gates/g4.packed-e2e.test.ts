@@ -1,13 +1,13 @@
 // g4.packed-e2e (architecture §2, §8.6 `packed.yml`, §13): the published tarball works on its own. The gate
 // builds dist/, packs the package, checks that the tarball lists templates/** and dist/** and no ROM, ELF,
-// map or built signature file, installs it with --ignore-scripts into an empty directory, runs `romlift
-// doctor` from it, and then, for every committed fixture except c-data, runs `npx romlift init <rom>` in a
+// map or built signature file, installs it with --ignore-scripts into an empty directory, and then, for every
+// committed fixture except c-data, runs `npx romlift init <rom>` in a
 // directory below the install that holds only the ROM, `./setup.sh` and `make`, which must end at the
 // fixture's SHA-1.
 //
 // Interfaces, frozen by D74 (as in g4.e2e-fixtures):
 //   npm pack --json                                      a JSON array whose [0] has filename and files[].path
-//   romlift doctor --json, romlift init <rom> --json     NDJSON, last line {"type":"summary","exitCode":0}
+//   romlift init <rom> --json                            NDJSON, last line {"type":"summary","exitCode":0}
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set and then skips its npm duty; the gate sets it
 //   to the installed bin, since the pinned version is not on the registry.
 //   <name>.sha1 holds `<sha1>  <file>` (sha1sum format), <file> being the ROM `make` builds.
@@ -156,8 +156,6 @@ gate({
     if (install.code !== 0) throw new Error(`npm install --ignore-scripts <tarball> exited ${install.code}:\n${tail(install)}`);
     const bin = path.join(tool, 'node_modules', '.bin', 'romlift');
     if (!(await exists(bin))) throw new Error('the installed package has no romlift bin');
-    const doctor = await cx.exec(bin, ['doctor', '--json'], { cwd: tool });
-    if (!summaryOk(cx, doctor)) throw new Error(`romlift doctor from the tarball exited ${doctor.code}:\n${tail(doctor)}`);
 
     const problems: string[] = [];
     let agbcc: string | undefined;
@@ -174,6 +172,6 @@ gate({
       if (agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc')))) agbcc = path.join(dir, 'tools', 'agbcc');
     }
     if (problems.length > 0) throw new Error(`end to end from the tarball: ${problems.join(' | ')}`);
-    cx.note(`${path.basename(tarball)}: ${files.length} files, no ROM, ELF, map or built signature file; doctor runs; ${built} fixtures reach their SHA-1`);
+    cx.note(`${path.basename(tarball)}: ${files.length} files, no ROM, ELF, map or built signature file; ${built} fixtures reach their SHA-1`);
   },
 });

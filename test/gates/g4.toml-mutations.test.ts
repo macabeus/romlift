@@ -17,10 +17,9 @@
 //            predicate, isLegalStart, over the code layout of the confirm run of init's config, so a start in the
 //            data-start range D75 a made legal is a candidate too (architecture-r1-3, a1-5); the found functions of
 //            add-override are the discover run's.
-//            Each edit is applied alone to the original config and serialised; then `generate --json` and
-//            `verify --link --json` must exit 0 and the link must reproduce the ROM's SHA-1, and `make` (the user's
-//            build, from the project's own src/*.c, after `./setup.sh` once per target) must exit 0, which it does
-//            only when `<name>.gba` has the SHA-1 `<name>.sha1` records (D75 b).
+//            Each edit is applied alone to the original config and serialised; then `generate --json` must exit 0,
+//            and `make` (the user's build, from the project's own src/*.c, after `./setup.sh` once per target) must
+//            exit 0, which it does only when `<name>.gba` has the SHA-1 `<name>.sha1` records (D75 b).
 //   illegal: a module start moved by 2 bytes (E_MODULE_BORDER), a [functions] line repeated
 //            (E_DUPLICATE_ADDRESS), a [functions] key without its leading zero (E_TOML_KEY_SPELLING), a Thumb
 //            [functions] key made odd (E_FUNCTION_MISALIGNED; Q11 option (a), D98 d, correctness-b0-4's case); each
@@ -37,8 +36,7 @@
 //   romFromBytes, sha1Of, profileById('agbcc'), analyze(rom, profile, {mode: 'discover', seeds: [],
 //   overrides: [], trail: 'off'}) and analyze(rom, profile, confirmOptions(config))
 //   buildModel(rom, analysis, config) -> Model (core/model; add-override reads its functions' extents and its chunks, D104 a)
-// CLI: generate --json and verify --link --json print NDJSON whose last line is
-//   {"type":"summary","ok":boolean,"exitCode":number,"sha1"?:string} (sha1 of the linked ROM with --link).
+// CLI: generate --json prints NDJSON whose last line is {"type":"summary","ok":boolean,"exitCode":number}.
 //   setup.sh runs romlift as `$ROMLIFT_CLI` when it is set (the source CLI here); the first target builds agbcc through
 //   its duty (2) and later targets get a copy of that tools/agbcc, as g4.e2e-fixtures does.
 import { createHash } from 'node:crypto';
@@ -394,15 +392,13 @@ gate({
         }
         await writeFile(tomlPath, api.serialize(edit.config));
         const generate = await romlift(cx, dir, ['generate']);
-        const verify = generate.run.code === 0 ? await romlift(cx, dir, ['verify', '--link']) : undefined;
-        const linked = verify?.lines.at(-1)?.sha1;
         const make = generate.run.code === 0 ? await cx.exec('make', [], { cwd: dir, env }) : undefined;
         const ignored = kind === 'add-override' && generate.lines.some((l) => l.type === 'diagnostic' && l.code === 'W_OVERRIDE_IGNORED');
         if (ignored) problems.push(`${target.name}: ${edit.what}: generate warns W_OVERRIDE_IGNORED, so the override changes nothing`);
-        else if (generate.run.code !== 0 || verify?.run.code !== 0 || linked !== rom.sha1 || make?.code !== 0) {
-          const codes = [...generate.lines, ...(verify?.lines ?? [])].filter((l) => l.type === 'diagnostic').map((l) => l.code ?? '?');
+        else if (generate.run.code !== 0 || make?.code !== 0) {
+          const codes = generate.lines.filter((l) => l.type === 'diagnostic').map((l) => l.code ?? '?');
           const built = make === undefined ? 'not run' : make.code === 0 ? '0' : `${make.code}: ${tail(make, 4).replace(/\n/g, ' / ')}`;
-          problems.push(`${target.name}: ${edit.what}: generate exit ${generate.run.code}, verify exit ${verify?.run.code ?? 'not run'}, linked ${linked ?? 'nothing'}, make exit ${built}, codes [${codes.join(', ')}]`);
+          problems.push(`${target.name}: ${edit.what}: generate exit ${generate.run.code}, make exit ${built}, codes [${codes.join(', ')}]`);
         } else {
           legal++;
           byKind.set(kind, (byKind.get(kind) ?? 0) + 1);

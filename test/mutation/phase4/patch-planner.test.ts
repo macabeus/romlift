@@ -1,5 +1,5 @@
 // Fault injection into the TOML patch planner (g4.checks-fail, architecture §6.5, §10, D23). A project on disk is
-// loaded and patched as `analyze --update --write` will do it (loadConfig, planPatch, saveConfig only when the patch
+// loaded and patched as `update --write` will do it (loadConfig, planPatch, saveConfig only when the patch
 // is accepted): a hand-restructured [functions.0x…] table is E_TOML_PATCH_REFUSED and romlift.toml is left byte for
 // byte as it was. Then two mutants show that the re-parse comparison carries weight: a planner that skips it
 // (planLineEdits alone) accepts a patch whose text does not mean the config it was asked for, which the contract
@@ -95,7 +95,7 @@ async function project(toml: string): Promise<string> {
   return dir;
 }
 
-/** analyze --update --write's flow: load, plan, save only an accepted patch. */
+/** update --write's flow: load, plan, save only an accepted patch. */
 async function updateWrite(dir: string, proposals: readonly Proposal[]): Promise<ConfigPatchResult> {
   const loaded = await loadConfig(dir);
   assert.ok(loaded.ok, loaded.ok ? '' : JSON.stringify(loaded.diagnostics));

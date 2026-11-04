@@ -1,6 +1,6 @@
 // A C unit's build, as the writers and the checks share it (architecture §6.3, §6.4, §6.6, D21, D65 a, D74 f): what
 // agbcc emits for a stub-only `src/<module>.c`, the one encoding of the assembly a generated stub compiles to, so
-// the text-layout check lays a C unit out without a compiler and `verify --assemble/--link` builds its object with
+// the text-layout check lays a C unit out without a compiler and the assemble and link checks build its object with
 // binutils alone; the chunk files a C module's stub includes; and the compiler and flags a C module builds with
 // (moduleCompile, modules.mk's). The banner each compiler prints is the module's build compiler's
 // (core/config/compilers.ts), taken from the compiler a module names, never from a default (architecture-r1-4);

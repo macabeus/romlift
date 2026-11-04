@@ -41,7 +41,7 @@ checkouts each spec names (sa2, pokeemerald, fe7j, klonoa; [docs/benchmark-roms.
 their ROMs, ELFs and maps under `ROMLIFT_BENCH_ROOT`:
 
 ```sh
-for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s" || exit 1; done
+for s in signatures/specs/*.json; do npm run signatures -- build "$s" || exit 1; done
 ```
 
 They land in this checkout's `signatures/`, which a romlift run from it reads; point any other romlift at them with
@@ -55,12 +55,13 @@ Whether built files ship with the package is the owner's open decision (D40, arc
 `2499afa`; the report is [docs/final-review.md](docs/final-review.md). Every gate of phases 1 to 6 passes on both
 tiers, all six tuning ROMs and both sealed held-out ROMs go from `init` through `./setup.sh` and `make` to their SHA-1,
 and the five ROMs of the proof of concept reproduce its function boundaries exactly. Nine minor findings stay open
-(among them: the "Try it before it is published" commands need bash, not zsh), with the owner questions O1 to O5. The
-history of each phase follows.
+(among them: the "Try it before it is published" commands need bash, not zsh), with the owner questions O1 to O5. After
+the review the owner cut the CLI to the five commands a project's user runs, `init`, `generate`, `update`,
+`rename` and `explain`, and CI to Linux (D108). The history of each phase follows.
 
 Phase 1 of 6 (Decoder) has landed ([docs/phase-1.md](docs/phase-1.md)): the Thumb and ARM instruction
 table with its decoder, encoder, formatter and parser round-trips 100% of printed mnemonics through GNU
-`as`, `romlift doctor` checks the user's toolchain, and the bench harness rescores the proof of concept.
+`as`, and the bench harness rescores the proof of concept.
 
 Phase 2 (Analysis) passes its closing gate ([docs/phase-2.md](docs/phase-2.md)): romlift's own
 function-boundary analysis reproduces the proof of concept's results on the five ROMs the PoC was tuned on
@@ -79,15 +80,15 @@ its pull request (#2) is merged to `main`, tagged `phase-2`.
 
 Phase 3 (Emission) has landed ([docs/phase-3.md](docs/phase-3.md)): its pull request (#3) is merged to `main`, tagged
 `phase-3`. The model, both printers, the writers, the
-write plan, `model --json` and `verify` turn every committed fixture and all six tuning ROMs into trees that pass the
+write plan and the tree checks turn every committed fixture and all six tuning ROMs into trees that pass the
 four self-checks and link to the ROM's SHA-1 with both the raw and the readable printer, with pokeemerald's `generate`
 within its speed budget. The owner answered the phase's eight questions (D68, D69, D72, D73): the objdiff gate moves to phase
 5 (`g5.objdiff`); the `romlift` bin and `g3.large-rom` run Node with `--max-old-space-size=1024` (Q7's answer; the 256
 MiB first chosen did not hold the 32 MiB synthetic ROM, and Q6's 384 MiB did not hold a 32 MiB ROM of real code
 density, pokeemerald twice over), with the memory budget set again from the runs under that cap (1,536 MiB);
 unflushed generated files and the narrowed raw-printer parity are accepted; and three limitations become phase-4 work,
-among them the readable printer's `adr` naming a function label, which makes the readable `verify` of that doubled ROM
-exit 3 (its raw tree links to its SHA-1). Under the 1,024 MiB cap every command of the bin completes on the synthetic
+among them the readable printer's `adr` naming a function label, which made the readable tree of that doubled ROM fail
+its text-layout check (its raw tree links to its SHA-1). Under the 1,024 MiB cap every command of the bin completes on the synthetic
 ROM, the six tuning ROMs and the doubled ROM. The landing run after Q7's answer failed one phase-2 timing gate,
 `g2.speed`, by 0.5 ms on sa2 with the analysis unchanged; the owner's answer to Q8, "Re-run the gate list", ran the
 whole closing list again unchanged with no gate change, and every command exited 0 at `landed` 3 (`0784b4e`), and the
@@ -105,13 +106,12 @@ tree, the packed tarball and fresh git worktrees); `generate` regenerates the tr
 it and keeps the `INCLUDE_ASM` lines of `src/*.c` in line with it, so every seeded legal TOML edit still builds with
 `make` (one of its five kinds, a code override over a found function, changes nothing until phase 6 and warns
 `W_OVERRIDE_IGNORED`), and `make` stops on a tree older than the TOML, as after a pull, until `generate` runs;
-`analyze --update` proposes TOML patches that keep comments. Every gate of phases 1 to 4 passes on both tiers.
-The commands are `doctor`, `analyze`, `explain`, `model`, `verify`, `init`, `generate` and `scaffold`.
+`update` proposes TOML patches that keep comments. Every gate of phases 1 to 4 passes on both tiers.
 
 Phase 5 (Migration) was skipped by the owner and never lands (D92). Phase 6 (Evidence) has landed
-(pull request #5, tag `phase-6`, [docs/phase-6.md](docs/phase-6.md)): library signatures (`signatures build <spec>`,
-`signatures <rom>`) that propose names, sizes and library modules to `init` (`--no-signatures` skips them) and `analyze
---update`, screened for conflicts with the analysis and the config; code run from RAM through hand-written `runs_at`
+(pull request #5, tag `phase-6`, [docs/phase-6.md](docs/phase-6.md)): library signatures (built with `npm run signatures
+-- build <spec>`) that propose names, sizes and library modules to `init` (`--no-signatures` skips them) and `update`,
+screened for conflicts with the analysis and the config; code run from RAM through hand-written `runs_at`
 overrides (the owner dropped the gba-kit trace, D91); the full `explain`; and from phase 5 the reconciler, `rename <old>
 <new>`, the `expected/` and `objdiff.json` writers, C data ranges (`data_start`) and the objdiff gate. Its closing list
 passed every signature gate (the matcher refined at the closing round, D94) and the other gates but these: `g6.objdiff`
@@ -145,16 +145,16 @@ klonoa 130 of 485 functions are not compared at all (objdiff-cli cannot read one
 The final review of the six phases (fix round 1, [docs/final-review.md](docs/final-review.md), D106) made the
 first-run path above work from a checkout, stopped shipping signature specs nobody could build from the package, kept
 `bx pc` veneers out of C modules, added `include/global.h` and `include/gba/*.h` to the scaffold, gave
-`[signatures] libraries` its effect, moved the `verify` composition out of the CLI, and recorded what stays open. Fix
+`[signatures] libraries` its effect, moved the tree checks' composition out of the CLI, and recorded what stays open. Fix
 round 2 (D107) restored sa2's `g2.speed` headroom with result-neutral speed changes to the analysis (about 81% of its
 limit, from 95 to 101%), made `bench run` refuse to drop a ROM's PoC reference, and fixed the smaller findings. Release
 1 still cannot claim generality: the held-out gate passes only with both family conditions waived (D60, D61).
 
 | Phase | Delivers |
 | --- | --- |
-| 1 Decoder | instruction table, decoder, encoder, formatter and parser; `doctor`; the bench harness |
-| 2 Analysis | function-boundary rules, compiler profile, `analyze`, `explain`, held-out runs |
-| 3 Emission | the ROM model, writers, write plan, `verify`, `model --json` |
+| 1 Decoder | instruction table, decoder, encoder, formatter and parser; the bench harness |
+| 2 Analysis | function-boundary rules, compiler profile, `explain`, held-out runs |
+| 3 Emission | the ROM model, writers, write plan, the tree checks |
 | 4 One shot | config, scaffold, C stubs, `init`, `generate` |
 | 5 Migration | skipped by the owner (D92); its reconciler, `rename` and objdiff targets moved to phase 6 |
 | 6 Evidence | library signatures, code run from RAM (hand-written overrides; no trace, D91), full `explain`; the reconciler, `rename`, `expected/`, `objdiff.json`, C data ranges |
@@ -165,7 +165,7 @@ limit, from 95 to 101%), made `bench run` refuse to drop a ROM's PoC reference, 
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D107 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D108 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |
@@ -187,7 +187,7 @@ Contributors and agents: read [AGENTS.md](AGENTS.md).
 npm ci
 npm run typecheck
 npm test
-node --conditions=source src/cli/main.ts doctor
+npm run corpus
 ```
 
 ## License

@@ -193,13 +193,13 @@ export interface BuildUnit {
   readonly source: string;
   readonly object: string;
   /**
-   * The build compiler of a C unit (the module's `compiler`), whose assembly of the stub `verify --assemble/--link`
+   * The build compiler of a C unit (the module's `compiler`), whose assembly of the stub the assemble and link checks
    * writes (core/model/c-unit.ts stubAssemblyText); absent for an assembly source.
    */
   readonly compiler?: BuildCompilerId;
   /**
    * A C unit's data range (Module.dataRange, phase 6) with the labels its object defines there: the ldscript places the
-   * object's `.rodata` at it, and `verify --assemble/--link` stand in for that `.rodata` with the ROM's bytes
+   * object's `.rodata` at it, and the assemble and link checks stand in for that `.rodata` with the ROM's bytes
    * (core/model/c-data-assert.ts cDataStandIn). Absent for every other unit.
    */
   readonly data?: CDataRange;
@@ -218,7 +218,7 @@ export function buildUnits(model: Pick<Model, 'modules' | 'chunks' | 'labels'>):
   return model.modules.map((m) => buildUnitOf(model, m));
 }
 
-/** A build unit with the ROM range its object's `.text` must reproduce (`verify --assemble`): its module's span; a data range's is BuildUnit.data. */
+/** A build unit with the ROM range its object's `.text` must reproduce (the assemble check): its module's span; a data range's is BuildUnit.data. */
 export interface AssembleUnit extends BuildUnit {
   readonly span: Span;
 }

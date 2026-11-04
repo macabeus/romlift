@@ -1,6 +1,6 @@
 // A signature spec (`signatures/specs/<library>.json`, committed; architecture §7.1, D31, D32, D40, D93): which
 // reference datasets and objects each version of a library is built from, and the display names a reviewer chose.
-// It holds no bytes, so it is committed and published; `romlift signatures build <spec>` turns it into a signature
+// It holds no bytes, so it is committed and published; `npm run signatures -- build <spec>` turns it into a signature
 // file (schema.ts) by reading each reference's ELF, map and ROM. A reference names a bench dataset, never a sealed
 // one (g6.no-heldout-references). Frozen by the phase-6 lead (D93).
 //

@@ -7,7 +7,7 @@
 // init owns as data (romlift.toml and decomp.yaml with their texts, the ROM's project path; architecture-a2-6),
 // decomp.yaml (renderDecompYaml), the checked generate over that config (its tree, the c stubs and modules.mk; §6.4
 // step 2: a failed self-check or a model error refuses the plan, nothing is written), and the scaffold
-// (scaffold-diff.ts projectScaffold).
+// (renderScaffold over the project's ScaffoldVars).
 //
 // Whether a directory may receive `init` is decided here too, from what the shell lists and reads (initDirVerdict,
 // replacedProblems, D75 j): the shell decides nothing. Pure: the shell reads the ROM, the templates, the pin and the
@@ -16,12 +16,13 @@ import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import { BASEROM_FILE, DECOMP_YAML_FILE, DECOMP_YAML_NAMES, ROMLIFT_CONFIG_FILE } from '../../foundation/util/project-files.ts';
 import { renderDecompYaml } from '../config/decomp-yaml.ts';
+import { renderScaffold } from '../scaffold/render.ts';
+import { scaffoldVars } from '../scaffold/vars.ts';
 import { ROMLIFT_DIR } from '../write-plan/types.ts';
 import type { DiskFileState } from '../write-plan/types.ts';
 import { WorkflowCodes } from './codes.ts';
 import { generate, writable } from './generate.ts';
 import { initConfigOf } from './init-config.ts';
-import { projectScaffold } from './scaffold-diff.ts';
 import { signatureNotes } from './signature-layer.ts';
 import type { InitFile, InitInputs, InitPlan } from './types.ts';
 
@@ -52,7 +53,8 @@ export function init(inputs: InitInputs, hash?: (text: string) => string): InitP
     return { ok: false, diagnostics: [...result.diagnostics, ...result.report.checks.flatMap((c) => c.diagnostics), ...notes] };
   }
   const decompYamlText = renderDecompYaml({ name: config.build.name, title: rom.header.title, gameCode: rom.header.gameCode, sha1: rom.sha1, compiler: config.build.compiler });
-  const scaffold = projectScaffold({ name: config.build.name, sha1: rom.sha1, title: rom.header.title, romliftVersion: inputs.romliftVersion, agbcc: inputs.agbcc, templates: inputs.templates });
+  const vars = scaffoldVars({ name: config.build.name, sha1: rom.sha1, romliftVersion: inputs.romliftVersion, agbcc: inputs.agbcc, title: rom.header.title });
+  const scaffold = renderScaffold(vars, inputs.templates);
   const owned: readonly InitFile[] = [
     [ROMLIFT_CONFIG_FILE, tomlText],
     [DECOMP_YAML_FILE, decompYamlText],

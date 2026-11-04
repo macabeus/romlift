@@ -1,6 +1,6 @@
 // The `--json` reporter (architecture §2.1, §9.1): one canonical JSON object per line, keys sorted by
-// code unit, each line ending in '\n'. A command prints its diagnostics, its own records (e.g. doctor's
-// `{"type":"check",...}`) and, last, one summary object.
+// code unit, each line ending in '\n'. A command prints its diagnostics, its own records (e.g. update's
+// `{"type":"proposal",...}`) and, last, one summary object.
 import { canonicalJson } from '../../api/formats.ts';
 import type { JsonValue } from '../../api/formats.ts';
 import { hexAddr, RomliftInvariantError } from '../../api/rom.ts';

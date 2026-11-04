@@ -2,7 +2,7 @@
 // §8.4 "Signatures", §8.5, D24, D25, D31, D32, D37, roadmap 6.B). The bench always scores a seedless discover run and
 // judges the signatures afterwards, on that same run (D24): the locally built signature files (signatures/*.json,
 // gitignored, D40; refused with the build loop named when there are none) are matched on the ROM, settled and turned
-// into proposals by romlift's own composition (signaturesOver, the workflow `signatures <rom>` and the signature layer
+// into proposals by romlift's own composition (signaturesOver, the one the signature layer
 // use; architecture-4), through romlift's entry points (D37), then judged against the reference ELF:
 //
 // - a function placement is `atElfFunc` (an ELF FUNC starts there), `atUntyped` (the dataset lists the address as
@@ -68,7 +68,7 @@ export const BENCH_SIGNATURES_SCHEMA = 'romlift/bench-signatures@1';
 export const BENCH_SIGNATURES_LOO_SCHEMA = 'romlift/bench-signatures-loo@1';
 
 /** The loop that builds every signature file locally (the phase-6 exit list, D93 i). */
-export const SIGNATURES_BUILD_LOOP = 'for s in signatures/specs/*.json; do node --conditions=source src/cli/main.ts signatures build "$s"; done';
+export const SIGNATURES_BUILD_LOOP = 'for s in signatures/specs/*.json; do npm run signatures -- build "$s"; done';
 
 // ---------------------------------------------------------------------------------------------------
 // The judged counts (pure).

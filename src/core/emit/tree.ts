@@ -73,7 +73,7 @@ export interface EmitContext {
   /**
    * The SHA-1 of the project's romlift.toml the tree is generated from (the shell's hash of its bytes; fix round 6,
    * correctness-b1-1): modules.mk records it as ROMLIFT_TOML_SHA1, so the scaffold's Makefile and setup.sh tell a
-   * tree older than the TOML (a pull, a checkout) from a current one. Absent outside a project (`verify --rom`, the
+   * tree older than the TOML (a pull, a checkout) from a current one. Absent outside a project (the gates' tree checks, the
    * bench), where modules.mk has no such line.
    */
   readonly configSha1?: string;

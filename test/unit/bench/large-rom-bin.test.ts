@@ -1,5 +1,5 @@
 // bench/src/large-rom-bin.ts: the launcher's Node options, what one finished CLI process reports, and the verdict of
-// `large-rom --bin` (phase-3.md, fix round 4), with phase 4's init and generate in a project directory (roadmap 4.E).
+// `large-rom --bin` (phase-3.md, fix round 4), with init, generate and update in a project directory (roadmap 4.E).
 // The real runs are test/local/large-rom-bin.test.ts's.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,8 +9,7 @@ import { test } from 'node:test';
 
 import { allCompleted, BIN_RUNS, binRunOf, CLI_MAIN, completed, largeRomBin, launcherOptions, type BinRun } from '../../../bench/src/large-rom-bin.ts';
 
-const SHA = 'b846b9453414ce93afc5e8fd559eaac582dc570e';
-const VERIFY_LINK: BinRun = { command: 'verify --link', args: [], json: true, link: true };
+const EXPLAIN_JSON: BinRun = { command: 'explain --json', args: [], json: true };
 
 test("launcherOptions reads the bin's first line; src/cli/main.ts caps the old space at 1,024 MiB (D72)", () => {
   assert.deepEqual(launcherOptions('#!/usr/bin/env -S node --max-old-space-size=384\n// x'), ['--max-old-space-size=384']);
@@ -19,21 +18,17 @@ test("launcherOptions reads the bin's first line; src/cli/main.ts caps the old s
   assert.deepEqual(launcherOptions(readFileSync(CLI_MAIN, 'utf8')), ['--max-old-space-size=1024']);
 });
 
-test('binRunOf: the RSS and live-heap lines, the summary, the linked SHA-1; an aborted process has neither and its FATAL line', () => {
-  const done = binRunOf(
-    VERIFY_LINK,
-    { code: 0, stdout: `{"type":"check"}\n{"type":"summary","ok":true,"sha1":"${SHA}"}\n`, stderr: 'warn\n\nromlift-bench-rss 838860\nromlift-bench-live-heap 352.25\n' },
-    SHA,
-  );
-  assert.deepEqual(done, { command: 'verify --link', exitCode: 0, maxRssMiB: 819.2, peakLiveHeapMiB: 352.25, summaryOk: true, sha1: SHA, detail: 'ok summary' });
-  assert.ok(completed(VERIFY_LINK, done, SHA));
-  const other = binRunOf(VERIFY_LINK, { code: 0, stdout: '{"type":"summary","ok":true,"sha1":"00"}\n', stderr: '' }, SHA);
-  assert.equal(other.detail, 'ok summary, linked 00');
-  assert.ok(!completed(VERIFY_LINK, other, SHA));
-  const aborted = binRunOf(VERIFY_LINK, { code: 128, stdout: '', stderr: 'FATAL ERROR: Reached heap limit Allocation failed\nkilled by SIGABRT\n' }, SHA);
-  assert.deepEqual(aborted, { command: 'verify --link', exitCode: 128, maxRssMiB: null, peakLiveHeapMiB: null, summaryOk: false, detail: 'FATAL ERROR: Reached heap limit Allocation failed' });
-  const text = binRunOf({ command: 'analyze', args: [], json: false }, { code: 0, stdout: 'analyze: ok\n', stderr: '\nromlift-bench-rss 1024\nromlift-bench-live-heap -\n' }, SHA);
-  assert.deepEqual(text, { command: 'analyze', exitCode: 0, maxRssMiB: 1, peakLiveHeapMiB: null, detail: 'completed' });
+test('binRunOf: the RSS and live-heap lines and the summary; an aborted process has neither and its FATAL line', () => {
+  const done = binRunOf(EXPLAIN_JSON, { code: 0, stdout: '{"type":"explain"}\n{"type":"summary","ok":true}\n', stderr: 'warn\n\nromlift-bench-rss 838860\nromlift-bench-live-heap 352.25\n' });
+  assert.deepEqual(done, { command: 'explain --json', exitCode: 0, maxRssMiB: 819.2, peakLiveHeapMiB: 352.25, summaryOk: true, detail: 'ok summary' });
+  assert.ok(completed(EXPLAIN_JSON, done));
+  const failed = binRunOf(EXPLAIN_JSON, { code: 0, stdout: '{"type":"summary","ok":false}\n', stderr: '' });
+  assert.equal(failed.detail, 'no ok summary');
+  assert.ok(!completed(EXPLAIN_JSON, failed));
+  const aborted = binRunOf(EXPLAIN_JSON, { code: 128, stdout: '', stderr: 'FATAL ERROR: Reached heap limit Allocation failed\nkilled by SIGABRT\n' });
+  assert.deepEqual(aborted, { command: 'explain --json', exitCode: 128, maxRssMiB: null, peakLiveHeapMiB: null, summaryOk: false, detail: 'FATAL ERROR: Reached heap limit Allocation failed' });
+  const text = binRunOf({ command: 'explain', args: [], json: false }, { code: 0, stdout: 'explain: ok\n', stderr: '\nromlift-bench-rss 1024\nromlift-bench-live-heap -\n' });
+  assert.deepEqual(text, { command: 'explain', exitCode: 0, maxRssMiB: 1, peakLiveHeapMiB: null, detail: 'completed' });
 });
 
 test('largeRomBin runs every command with the launcher options and the RSS probe, and allCompleted judges them', async () => {
@@ -46,18 +41,23 @@ test('largeRomBin runs every command with the launcher options and the RSS probe
       calls.push(args);
       places.push({ command: args.slice(5).join(' '), cwd, files: cwd === undefined ? [] : await readdir(cwd) });
       if (cwd !== undefined && args[5] === 'init') await writeFile(join(cwd, 'romlift.toml'), '');
-      return { code: 0, stdout: '{"type":"summary","ok":true,"sha1":"c6138d514ffa2135bfce0ed0b8fac65669917ec7"}\n', stderr: 'romlift-bench-rss 2048\nromlift-bench-live-heap 1.50\n' };
+      return { code: 0, stdout: '{"type":"summary","ok":true}\n', stderr: 'romlift-bench-rss 2048\nromlift-bench-live-heap 1.50\n' };
     },
     log: () => {},
   });
-  // The project runs come last, in one directory: init finds only the ROM as baserom.gba, generate the project init wrote.
+  // The project runs come last, in one directory: init finds only the ROM as baserom.gba, generate and update the project
+  // init wrote.
   const project = places.filter((p) => p.cwd !== undefined);
-  assert.deepEqual(project.map((p) => [p.command, p.files]), [['init baserom.gba --json', ['baserom.gba']], ['generate --json', ['baserom.gba', 'romlift.toml']]]);
-  assert.equal(project[0]?.cwd, project[1]?.cwd);
-  assert.deepEqual(places.slice(-2), project, 'every other command runs in the bench\'s own directory');
+  assert.deepEqual(project.map((p) => [p.command, p.files]), [
+    ['init baserom.gba --json', ['baserom.gba']],
+    ['generate --json', ['baserom.gba', 'romlift.toml']],
+    ['update --json', ['baserom.gba', 'romlift.toml']],
+  ]);
+  assert.ok(project.every((p) => p.cwd === project[0]?.cwd));
+  assert.deepEqual(places.slice(-3), project, 'every other command runs in the bench\'s own directory');
   assert.deepEqual(report.nodeOptions, ['--max-old-space-size=1024']);
   assert.deepEqual(report.runs.map((r) => r.command), BIN_RUNS.map((r) => r.command));
-  assert.deepEqual(BIN_RUNS.slice(-2).map((r) => [r.command, r.inProject]), [['init --json', true], ['generate --json', true]]);
+  assert.deepEqual(BIN_RUNS.slice(-3).map((r) => [r.command, r.inProject]), [['init --json', true], ['generate --json', true], ['update --json', true]]);
   assert.ok(report.runs.every((r) => r.peakLiveHeapMiB === 1.5));
   assert.ok(calls.every((a) => a[0] === '--conditions=source' && a[1] === '--max-old-space-size=1024' && a[2] === '--import' && a[4] === CLI_MAIN));
   assert.ok(calls.every((a) => !a.includes('{rom}')), 'the ROM path replaces the placeholder');

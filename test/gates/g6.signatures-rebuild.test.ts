@@ -9,7 +9,7 @@
 // committed or converted file. Built files go to temporary directories: nothing is written into signatures/.
 //
 // Expected interfaces, aligned by the phase-6 lead (architecture §2.1, §7.1, §8.5, D93; all p6-signatures-build's):
-//   romlift signatures build <spec> --out <dir> --json   exit 0; writes <dir>/<library>.json, a SignatureFile of
+//   npm run signatures -- build <spec> --out <dir> --json   exit 0; writes <dir>/<library>.json, a SignatureFile of
 //     schema 3 (src/core/signatures/schema.ts, frozen by D93)
 //   node --conditions=source bench/tools/convert-poc-signatures.ts --out <dir>   exit 0; writes
 //     <dir>/<library>.json for each PoC signature file, in schema 3
@@ -54,8 +54,8 @@ function reviewed(file: SignatureFile, spec: Spec): SignatureFile {
 
 async function build(cx: GateContext, spec: string, label: string): Promise<{ readonly text: string; readonly file: SignatureFile }> {
   const out = await cx.tmpDir(`romlift-signatures-${label}-`);
-  const main = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
-  const run = await cx.exec(process.execPath, ['--conditions=source', main, 'signatures', 'build', spec, '--out', out, '--json'], { cwd: cx.repoRoot });
+  const tool = path.join(cx.repoRoot, 'bench', 'tools', 'signatures.ts');
+  const run = await cx.exec(process.execPath, ['--conditions=source', tool, 'build', spec, '--out', out, '--json'], { cwd: cx.repoRoot });
   if (run.code !== 0) throw new Error(`signatures build ${path.relative(cx.repoRoot, spec)} exited ${run.code}:\n${tail(run)}`);
   const names = (await readdir(out)).filter((n) => n.endsWith('.json'));
   if (names.length !== 1 || names[0] === undefined) throw new Error(`signatures build ${path.relative(cx.repoRoot, spec)} wrote ${names.length} files, expected one`);

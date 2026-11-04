@@ -25,12 +25,8 @@ env:
 
 jobs:
   rebuild:
-    name: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    name: Rebuild and end to end
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,11 +34,7 @@ jobs:
           node-version: '24'
           cache: npm
       - name: Install binutils (apt)
-        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
-      - name: Install binutils (Homebrew)
-        if: runner.os == 'macOS'
-        run: brew install arm-none-eabi-binutils
       # Both compilers from the one commit, in the order of pret/agbcc's build.sh (old_agbcc first, each
       # after a clean, since they share the object files) and installed side by side as its install.sh does:
       # the fixture build takes old_agbcc from beside agbcc (OLD_AGBCC_SRCS in a build.mk).

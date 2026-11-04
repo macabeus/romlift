@@ -1,7 +1,7 @@
 // The round-trip corpus core (architecture §5, D54 c, D55): the cases that prove the printer against a
 // real `as`, laid out as assembly files, and the comparison of what `as` produced with the original
 // bytes. Pure: the shell's runCorpus (shell/toolchain/corpus.ts) assembles the files and hands the
-// bytes back to `compareCorpusFile`; test/corpus/generate.ts and `doctor` both call it.
+// bytes back to `compareCorpusFile`; test/corpus/generate.ts calls it.
 //
 // Layout. Each file opens with DIALECT.preamble, aligns to 4 and defines `corpus_base`, which stands
 // for address 0x08000000; case n sits at corpus_base + its offset. Every label a case prints is

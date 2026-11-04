@@ -1,5 +1,5 @@
 // The config `init` writes for a ROM, by the one path every command that needs it takes (architecture §2.1, §6.2,
-// §6.5, D62 c, D75 f): `init` itself, `verify --rom`, `model --rom` and the bench's "as init would write it".
+// §6.5, D62 c, D75 f): `init` itself, the gates' tree checks (generateFromRom) and the bench's "as init would write it".
 //
 //   1. the build name: `--name`, or the header's game code (buildNameOf); `<name>.gba`, the ROM `make` builds, must not
 //      be the user's ROM file nor `baserom.gba`, so a default name that would be gets BUILD_NAME_SUFFIX and a `--name`
@@ -12,7 +12,7 @@
 //      and the libraries used. The discover result is garbage before any confirm run starts, so the two never share
 //      the bin's 1,024 MiB heap cap (D69, D72);
 //   3. the config serialised (serializeConfig, the canonical layout) and parsed back: what romlift.toml says is what
-//      every caller generates from, so `generate` right after `init` changes nothing and `verify --rom` checks the
+//      every caller generates from, so `generate` right after `init` changes nothing and the gates' tree checks check the
 //      config `init` writes.
 //
 // initModel and generateFromRom are that config's confirm model and checked generate. Pure.
@@ -114,7 +114,7 @@ function configBeforeSerialising(
   return { ok: true, config, diagnostics: [...layer.diagnostics, ...droppedRegionNotes(config, layer.regions)] };
 }
 
-/** What `model --rom` prints for a ROM: initConfigOf, then the confirm analysis over that config and its Model. */
+/** The model init's config gives a ROM: initConfigOf, then the confirm analysis over that config and its Model. */
 export type InitModel = ({ readonly ok: true; readonly config: RomliftConfig } & ConfirmedModel) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 export function initModel(rom: Rom, options: InitConfigOptions = {}): InitModel {
@@ -123,7 +123,7 @@ export function initModel(rom: Rom, options: InitConfigOptions = {}): InitModel 
   return { ok: true, config: init.config, ...confirmModel({ rom, config: init.config, ...(options.profile === undefined ? {} : { profile: options.profile }) }) };
 }
 
-/** generate over the config initConfigOf builds: what `verify --rom` checks and writes. */
+/** generate over the config initConfigOf builds: what the gates' tree checks check. */
 export type GenerateFromRom = ({ readonly ok: true; readonly config: RomliftConfig } & GenerateResult) | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
 export function generateFromRom(rom: Rom, inputs: Omit<GenerateInputs, 'rom' | 'config'>): GenerateFromRom {

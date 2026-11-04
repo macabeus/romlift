@@ -1,7 +1,7 @@
 // bench/tools/ci-digests.ts: one job's synthetic-tier analysis and tree digests (every committed fixture,
 // the sha256 of encodeAnalysis of its discover analysis and the g3.tree-determinism digest of the tree
-// emitted from it), the reader of an uploaded file, and the comparison the final CI job makes across Linux,
-// macOS and both Node versions.
+// emitted from it), the reader of an uploaded file, and the comparison the final CI job makes across
+// both Node versions.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';

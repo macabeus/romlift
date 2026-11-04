@@ -1,4 +1,4 @@
-// The runner of `verify --assemble/--link` (architecture §2.1, §6.4): carries out core/workflow/verify.ts's
+// The runner of the tree checks' assemble and link (architecture §2.1, §6.4, D108): carries out core/workflow/verify.ts's
 // toolchainPlan in a fresh directory under the system temporary directory, never the working directory. It writes
 // the tree (writeFreshTree), finds binutils, assembles each unit against its ROM range and links the image against
 // the ROM's SHA-1, as the plan lists them; it decides nothing (D36). Exported from `romlift/node` so the bench and
