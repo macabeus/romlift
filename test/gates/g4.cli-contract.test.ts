@@ -1,7 +1,7 @@
 // g4.cli-contract (architecture §2.1, §9.1, §13, R8, D33): every command in the registry runs with stdin
 // closed, prints NDJSON with --json, and exits with a code of §2.1. The registry is read from the CLI itself
-// (`romlift` with no arguments prints every implemented command); it must hold at least the phase-4
-// commands. For each command:
+// (`romlift` with no arguments prints every implemented command); it must be exactly the five commands of D108
+// (init, generate, update, rename, explain). For each command:
 //   - `<command> --help` exits 0 and prints `Usage: romlift <command>` and its options, which include --json;
 //   - `<command> --romlift-gate-no-such-option` exits 2 (usage);
 //   - a contract run with --json, stdin closed and a time limit (a prompt would hang): every stdout line
@@ -17,9 +17,7 @@
 //   exit codes 0 ok, 1 errors, 2 usage, 3 verifyFailed, 70 internal; NDJSON as in g4.e2e-fixtures.
 //   init's options are [dir], --name, --module-size and --json in phase 4, and --no-signatures from phase 6 (D74, D93);
 //   init in a directory holding another file than the given ROM, .git and dot-files is E_DIR_NOT_EMPTY, exit 1.
-//   `signatures build <spec>` exits 1 when the spec does not exist; `signatures <rom>` exits 0 (no signature file
-//   built: W_SIGNATURES_ABSENT, a warning); `rename <old> <new>` exits 1 when <old> is unknown, 0 for a listed
-//   default name (phase 6, D92, D93).
+//   `rename <old> <new>` exits 1 when <old> is unknown, 0 for a listed default name (phase 6, D92, D93).
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gate, type ExecResult, type GateContext } from './gate.ts';
@@ -47,23 +45,17 @@ interface Project {
 }
 
 const EXIT_CODES: ReadonlySet<number> = new Set([0, 1, 2, 3, 70]);
-const PHASE_4_COMMANDS: readonly string[] = ['analyze', 'doctor', 'explain', 'generate', 'init', 'model', 'scaffold', 'verify'];
+const COMMANDS: readonly string[] = ['explain', 'generate', 'init', 'rename', 'update'];
 const ROM = 'baserom.gba';
 const TIME_LIMIT_MS = 300_000;
 
 /** How each command is run for the contract; a command may have several runs. */
 const RECIPES: Readonly<Record<string, readonly Recipe[]>> = {
-  doctor: [{ label: 'doctor', args: () => [], place: 'project', exits: [0] }],
-  analyze: [
-    { label: 'analyze <rom>', args: () => [ROM], place: 'bare', exits: [0] },
-    { label: 'analyze --update', args: () => ['--update'], place: 'project', exits: [0] },
-  ],
+  update: [{ label: 'update', args: () => [], place: 'project', exits: [0] }],
   explain: [
     { label: 'explain <addr> --rom <rom>', args: () => ['0x080000C0', '--rom', ROM], place: 'bare', exits: [0] },
     { label: 'explain <addr> in a project', args: () => ['0x080000C0'], place: 'project', exits: [0] },
   ],
-  model: [{ label: 'model', args: () => [], place: 'project', exits: [0] }],
-  verify: [{ label: 'verify', args: () => [], place: 'project', exits: [0] }],
   init: [
     { label: 'init <rom>', args: () => [ROM], place: 'bare', exits: [0] },
     { label: 'init <rom> in a non-empty directory', args: () => [ROM], place: 'empty', exits: [1] },
@@ -73,14 +65,9 @@ const RECIPES: Readonly<Record<string, readonly Recipe[]>> = {
     { label: 'generate', args: () => [], place: 'project', exits: [0] },
     { label: 'generate --dry-run', args: () => ['--dry-run'], place: 'project', exits: [0] },
   ],
-  scaffold: [{ label: 'scaffold --diff', args: () => ['--diff'], place: 'project', exits: [0] }],
   rename: [
     { label: 'rename <unknown> X', args: () => ['RomliftGateUnknownName', 'X'], place: 'project', exits: [1] },
     { label: 'rename <default name> GateCli', args: (p) => [p.defaultName, 'GateCli'], place: 'project', exits: [0] },
-  ],
-  signatures: [
-    { label: 'signatures build <missing spec>', args: () => ['build', 'romlift-gate-no-such-spec.json'], place: 'bare', exits: [1] },
-    { label: 'signatures <rom>', args: () => [ROM], place: 'bare', exits: [0] },
   ],
 };
 
@@ -151,8 +138,7 @@ gate({
     const usage = await romlift([], base);
     if (usage.code !== 0) throw new Error(`romlift with no arguments exited ${usage.code}:\n${tail(usage)}`);
     const commands = registry(usage.stdout);
-    const absent = PHASE_4_COMMANDS.filter((c) => !commands.includes(c));
-    if (absent.length > 0) throw new Error(`the registry lacks the phase-4 commands ${absent.join(', ')}`);
+    if ([...commands].sort().join(' ') !== COMMANDS.join(' ')) throw new Error(`the registry lists ${commands.join(', ')}, not exactly ${COMMANDS.join(', ')} (D108)`);
 
     const projectDir = await place('bare');
     const init = await romlift(['init', ROM, '--json'], projectDir);

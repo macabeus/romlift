@@ -18,7 +18,7 @@
 //   [symbols] entry inside the ROM is defined only by its label, so one no printer can place resolves to nothing. A PC-relative load or
 //   `adr` may name only a label of its own module, the object `as` assembles it into (D63). A label in a C data range
 //   (§6.6, phase 6) is defined by that C module's object, as its `.rodata` (core/model/c-data-assert.ts cDataStandIn
-//   stands in for it in `verify --assemble/--link`), so it resolves like a label of that module; no generated file
+//   stands in for it in the assemble and link checks), so it resolves like a label of that module; no generated file
 //   emits the range's bytes, so there is nothing of it to lay out.
 //   `.incbin "baserom.gba"` reads the ROM.
 // - A module's source (asm/rom_header.s, asm/crt0.s, asm/<module>.s, data/<module>.s; paths.ts

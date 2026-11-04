@@ -1,5 +1,5 @@
 // The stub assembly against the real compilers (architecture §6.4, §6.6, D74 f; roadmap 4.C, p4-c-modules): the
-// proof the text-layout check and `verify --assemble/--link` rely on when they lay out and assemble a C unit without
+// proof the text-layout check and the assemble and link checks rely on when they lay out and assemble a C unit without
 // a compiler. For two committed fixtures (mixer-tiled-hole, three C modules; pops-unpushed-frame, two) and klonoa, the
 // tree of the discover-mode model (configFromDiscover's config, so every agbcc-shaped module is a C unit) is written
 // with include/include_asm.h and include/macros.inc; then every emitted src/<m>.c goes through the frozen pipeline,

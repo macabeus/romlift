@@ -1,7 +1,7 @@
-// The proposal screen and the signature layer of init and analyze --update (architecture §7.3, §7.4, roadmap 6.D),
+// The proposal screen and the signature layer of init and update (architecture §7.3, §7.4, roadmap 6.D),
 // exported from `romlift` by its owner, p6-proposals (D93): checkProposals (the CheckProposals of
 // core/workflow/types.ts, whose types api/signatures-types.ts exports; core/workflow/proposals.ts), the signature layer
-// (signatureLayer, signaturesOver, signaturesOnRom, foldSignatures and the helpers init and analyze --update share;
+// (signatureLayer, signaturesOver, foldSignatures and the helpers init and update share;
 // core/workflow/signature-layer.ts, D95 b), core/layout's module planning; the explain signature part's readers.
 export { checkProposals, proposalAddr } from '../core/workflow/proposals.ts';
 export {
@@ -11,7 +11,6 @@ export {
   librariesOf,
   libraryModuleProposals,
   signatureLayer,
-  signaturesOnRom,
   signaturesOver,
   updateProposals,
 } from '../core/workflow/signature-layer.ts';

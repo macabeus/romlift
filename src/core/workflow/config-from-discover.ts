@@ -1,4 +1,4 @@
-// The in-memory config of a discover run (architecture §6.1, §6.2, D62 c): what `generate`, `model` and `verify --rom`
+// The in-memory config of a discover run (architecture §6.1, §6.2, D62 c): what `generate` and the gates' tree checks
 // run on, and what phase 4's init serialises. Every function the analysis found is listed with its mode and default
 // name (an entry inside another found function's extent with `label = true`, the startup code inside the cartridge
 // entry's included, so the confirm run equals the discover run: coveredEntries); the modules are inferModules'

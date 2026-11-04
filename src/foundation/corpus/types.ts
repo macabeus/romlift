@@ -1,7 +1,7 @@
 // The data of the round-trip corpus: options, cases, files, the counts a run produces and the frozen
 // summary contract (`romlift/corpus-summary@1`). corpus.ts is the entry point; this file holds what
 // every corpus module shares. The corpus holds counts only: whether they meet the phase-1 threshold
-// is decided by core/workflow/doctor.ts (corpusOk).
+// is decided by foundation/corpus/threshold.ts (corpusOk).
 import type { Mode } from '../rom/span.ts';
 import type { RawReason, SpecId } from '../isa/types.ts';
 
@@ -116,7 +116,7 @@ export interface CorpusSummary extends CorpusCounts {
   readonly inputsDigest: string;
   readonly as: string;
   readonly options: CorpusOptions;
-  /** Whether the counts meet the threshold (core/workflow/doctor.ts corpusOk). */
+  /** Whether the counts meet the threshold (foundation/corpus/threshold.ts corpusOk). */
   readonly ok: boolean;
 }
 

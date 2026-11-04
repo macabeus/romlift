@@ -1,16 +1,16 @@
-// The signature layer of `init`, `analyze --update`, `explain --rom` and `signatures <rom>` (architecture §7.3, D9,
+// The signature layer of `init`, `update` and `explain --rom` (architecture §7.3, D9,
 // D93, D95 b; roadmap 6.D; split out of proposals.ts, architecture-1). Signatures propose; the TOML decides: the only
-// writers of their proposals are `init` (which folds them into the config it serialises) and `analyze --update` (which
+// writers of their proposals are `init` (which folds them into the config it serialises) and `update` (which
 // patches them in); `generate` never loads signatures (R3, g4.no-toml-write).
 //
-//   - signaturesOver / signaturesOnRom: the settled placements of the built files on a ROM (matchSignatures over its
+//   - signaturesOver: the settled placements of the built files on a ROM (matchSignatures over its
 //     discover result, then resolvePlacements), their library regions and their unscreened proposals. The one policy
 //     for a discover result with an error: nothing is matched (architecture-4).
 //   - signatureLayer: those proposals screened against the analysis and the config (proposals.ts checkProposals), and
 //     the regions narrowed to the kept placements, which module inference reads.
 //   - foldSignatures: the kept proposals written into a config as init writes them; librariesOf, init's [signatures]
 //     libraries.
-//   - updateProposals: the proposals analyze --update keeps (only entries that still carry a default name, D9).
+//   - updateProposals: the proposals update keeps (only entries that still carry a default name, D9).
 //   - libraryModuleProposals, droppedRegionNotes: the library [[modules]] a project lacks, planned by core/layout
 //     (module-proposals.ts), and the W_LIBRARY_MODULE_DROPPED notes of the regions that take none.
 //   - signatureNotes: the shell's notes on the files it located (W_SIGNATURE_FILE_SKIPPED, W_SIGNATURES_ABSENT), kept
@@ -36,7 +36,6 @@ import { proposeFromSignatures } from '../signatures/propose.ts';
 import { resolvePlacements } from '../signatures/resolve.ts';
 import type { SignatureFile, SignaturePlacement } from '../signatures/schema.ts';
 import { WorkflowCodes } from './codes.ts';
-import { discover } from './discover.ts';
 import { checkProposals } from './proposals.ts';
 
 // ---------------------------------------------------------------------------------------------------
@@ -68,13 +67,6 @@ export function signaturesOver(rom: Rom, analysis: AnalysisResult, files: readon
   if (files.length === 0 || analysis.diagnostics.some((d) => d.severity === 'error')) return NOTHING;
   const resolved = placeSignatures(rom, analysis, files);
   return { placements: resolved.placements, regions: resolved.regions, proposals: proposeFromSignatures(resolved, analysis), diagnostics: resolved.diagnostics };
-}
-
-/** `signatures <rom>`: the discover run of `rom`, then signaturesOver; the analysis' diagnostics first. */
-export function signaturesOnRom(rom: Rom, files: readonly SignatureFile[]): RomSignatures {
-  const analysis = discover(rom);
-  const found = signaturesOver(rom, analysis, files);
-  return { ...found, diagnostics: [...analysis.diagnostics, ...found.diagnostics] };
 }
 
 /** The shell's notes on the files it located, kept when the run uses signatures (`used`), else dropped. */
@@ -173,7 +165,7 @@ export function isDefaultName(name: string, addr: Addr): boolean {
 }
 
 /**
- * The proposals `analyze --update` takes from the signatures against a project's config: a function or symbol
+ * The proposals `update` takes from the signatures against a project's config: a function or symbol
  * proposal for an entry the config lists under another than its default name is left out (the TOML decides, and
  * `--write` renames only entries that still carry a default name, D9), and for each function kept that restores an
  * extent, a `label = true` proposal for every listed entry it holds (source the analysis's, so `from` is not written
@@ -205,7 +197,7 @@ export function updateProposals(config: RomliftConfig, analysis: AnalysisResult,
 }
 
 // ---------------------------------------------------------------------------------------------------
-// The library modules of a project (`analyze --update`).
+// The library modules of a project (`update`).
 
 /** What libraryModuleProposals leaves: the module proposals and the notes of the regions that take none. */
 export interface LibraryModules {
@@ -232,7 +224,7 @@ function checkedSpan(code: Span, checked: Span): string {
 }
 
 /**
- * The library [[modules]] a project lacks (architecture §7.3, `analyze --update`): core/layout's planLibraryModules over
+ * The library [[modules]] a project lacks (architecture §7.3, `update`): core/layout's planLibraryModules over
  * the discover run's code layout, the config's modules and its runs_at ranges, with W_LIBRARY_MODULE_DROPPED for each
  * region that takes none. `proposed` are the module proposals already made (the runs_at borders); `replaces` the
  * starts of those a library module replaces.
@@ -242,7 +234,7 @@ export function libraryModuleProposals(rom: Rom, analysis: AnalysisResult, confi
   const notes = plan.dropped.map(({ region, why }) =>
     why.kind === 'no-legal-border'
       ? droppedRegion(region, NO_LEGAL_BORDER)
-      : droppedRegion(region, `the module ${why.module.name} of romlift.toml starts at ${hexAddr(why.module.start)} inside it, and analyze --update only inserts modules${checkedSpan(region.span, why.span)}`, why.span),
+      : droppedRegion(region, `the module ${why.module.name} of romlift.toml starts at ${hexAddr(why.module.start)} inside it, and update only inserts modules${checkedSpan(region.span, why.span)}`, why.span),
   );
   return { proposals: plan.proposals, notes, replaces: plan.replaces };
 }

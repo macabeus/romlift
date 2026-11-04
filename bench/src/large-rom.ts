@@ -14,7 +14,7 @@
 // process.resourceUsage().maxRSS at its end, maxOldSpaceSizeMiB the heap cap its own command line gave Node (null
 // without one), peakLiveHeapMiB the largest heap V8 found live after a full mark-compact (node:v8 GCProfiler; null
 // when none ran), which is what runs into the cap, the tree digest the sha256 over path NUL text NUL of every entry in stream order (written trees only), and
-// its exit code that of `romlift verify` (0 written, 3 a failed check, 1 an error). The parent prints, last,
+// its exit code that of `romlift generate` (0 written, 3 a failed check, 1 an error). The parent prints, last,
 //   {schema: 'romlift/bench-large-rom@1', romBytes, sha1, runs: [{command, exitCode, maxRssMiB, maxOldSpaceSizeMiB,
 //    treeDigest?}]}
 // and exits 0 when both children reported, whatever they measured: the gate judges exit 0, the cap and maxRssMiB
@@ -111,7 +111,7 @@ export function decodeConfig(text: string): RomliftConfig {
 // ---------------------------------------------------------------------------------------------------
 // The child.
 
-/** `romlift verify`'s exit code for an emission outcome: 0 written, 3 a failed check, 1 an error or a failed write. */
+/** `romlift generate`'s exit code for an emission outcome: 0 written, 3 a failed check, 1 an error or a failed write. */
 export function outcomeExitCode(outcome: EmissionOutcome): number {
   if (outcome.ok) return 0;
   return outcome.failure === 'check' ? 3 : 1;

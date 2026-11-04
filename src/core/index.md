@@ -46,7 +46,7 @@ with phase 5 and the gba-kit trace, D91, D92: `core/evidence` and `core/legacy` 
 | `reconcile/` | the C tokenizer (`c-tokens.ts`), the file-scope scanner, `compiledDefinitions` and the include resolution (`c-scan.ts`), the INCLUDE_ASM planner (`include-asm.ts`), text edits (`text-edit.ts`) and their codes |
 | `model/` | adds the C units (`c-unit.ts`: stub chunks, compile settings, the stub assembly), the C-data ASSERT lines (`c-data-assert.ts`) and the chunk-file readers of a tree on disk (`paths.ts`: `chunkNamesOf`, `moduleChunkStubs`) |
 | `scaffold/` | the scaffold's variables and placeholders (`vars.ts`) and its rendering (`render.ts`) |
-| `workflow/` | `generateProject` (`generate.ts`), the C stubs reconciled with the model (`c-stubs.ts`), `init`'s plan and directory verdict (`init.ts`, `init-config.ts`), `analyze --update` (`analyze-update.ts`), `scaffold --diff` (`scaffold-diff.ts`), the project inputs (`types.ts`) |
+| `workflow/` | `generateProject` (`generate.ts`), the C stubs reconciled with the model (`c-stubs.ts`), `init`'s plan and directory verdict (`init.ts`, `init-config.ts`), `update` (`update.ts`), the toolchain plan of the tree checks the gates and the bench run (`verify.ts`), the project inputs (`types.ts`) |
 | `write-plan/` | adds `reconciled` edits and the one staleness rule of an edit (`staleEdit`, read by the shell at write time too), and the project's write plan (`project-plan.ts`) |
 
 ## Phase 6: evidence
@@ -60,6 +60,6 @@ Frozen by the lead (D93); the parts marked with an owner land in waves 2 and 3.
 | `signatures/{extract,match,resolve,policy,propose}.ts` | the builder's pure part (p6-signatures-build), the matcher, overlap resolution, its policy and the proposals (p6-signatures-match) |
 | `config/` | adds the `[[modules]]` key `data_start` (`dataStart`), syntax only |
 | `reconcile/c-scan.ts`, `reconcile/rename-tokens.ts` | the file-scope scanner and include resolution split out of the planner (p6-reconcile-carried); identifier-only renames (p6-rename) |
-| `workflow/types.ts` | adds the signature files `init` and `analyze --update` read, `InitOptions.signatures`, `ProjectInputs.headerRealPaths` and the `CheckProposals` contract |
-| `workflow/proposals.ts`, `workflow/signature-layer.ts`, `workflow/rename.ts`, `workflow/explain.ts` | the proposal screen alone (`checkProposals`, p6-proposals); the signature layer (`signaturesOver`, `signaturesOnRom`, `signatureLayer`, `foldSignatures`, `updateProposals`, the library-module notes, `signatureNotes`; D95 b); `planRename` and `renameModelNames` (p6-rename, D95 c); explain's signature part (`ExplainSignature`, filled by p6-proposals) |
+| `workflow/types.ts` | adds the signature files `init` and `update` read, `InitOptions.signatures`, `ProjectInputs.headerRealPaths` and the `CheckProposals` contract |
+| `workflow/proposals.ts`, `workflow/signature-layer.ts`, `workflow/rename.ts`, `workflow/explain.ts` | the proposal screen alone (`checkProposals`, p6-proposals); the signature layer (`signaturesOver`, `signatureLayer`, `foldSignatures`, `updateProposals`, the library-module notes, `signatureNotes`; D95 b); `planRename` and `renameModelNames` (p6-rename, D95 c); explain's signature part (`ExplainSignature`, filled by p6-proposals) |
 | `layout/module-proposals.ts` | the runs_at borders and library modules a project lacks (`planRunsAtBorders`, `planLibraryModules`, `regionsWithoutModule`), with infer-modules.ts's `freeModuleName` the one naming rule (D95 b) |

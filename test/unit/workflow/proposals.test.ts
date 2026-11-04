@@ -4,7 +4,7 @@
 // override over a table, a module border inside a runs_at range; a name taken at another address), one
 // W_EVIDENCE_CONFLICT per dropped proposal at its address, and every other proposal kept unchanged in its order; the
 // fold init makes (names, `from`, `size` and inner labels, tables as symbols, the libraries used); the proposals
-// analyze --update keeps (default names only); its library modules, and the notes of a region no module could take.
+// update keeps (default names only); its library modules, and the notes of a region no module could take.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -162,7 +162,7 @@ test('libraryModuleProposals: a missing library module and the module resumed af
   const refused = libraryModuleProposals(rom, an, inside, [region]);
   assert.deepEqual(refused.proposals, []);
   assert.deepEqual(refused.notes.map((d) => d.code), ['W_LIBRARY_MODULE_DROPPED']);
-  assert.match(refused.notes[0]?.message ?? '', /the module main_2 of romlift\.toml starts at 0x08000120 inside it, and analyze --update only inserts modules/);
+  assert.match(refused.notes[0]?.message ?? '', /the module main_2 of romlift\.toml starts at 0x08000120 inside it, and update only inserts modules/);
   // One range, the one the border check read, in the message and the diagnostic's span (end-to-end-user-r1-5).
   const note = refused.notes[0] ?? assert.fail();
   assert.equal((note.message.match(/\[0x[0-9A-F]+, 0x[0-9A-F]+\)/g) ?? []).length, 1, note.message);

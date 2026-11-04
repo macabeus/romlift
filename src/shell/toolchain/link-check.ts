@@ -1,7 +1,7 @@
-// The toolchain runs of `verify` (architecture §2.1, §6.4): in a directory holding an emitted tree,
+// The toolchain runs of the tree checks (architecture §2.1, §6.4): in a directory holding an emitted tree,
 // `linkCheck` assembles every build unit with arm-none-eabi-as, links them with the tree's ldscript.txt,
-// copies the image out with objcopy -O binary and hashes it (`verify --link`, the final proof);
-// `assembleCheck` assembles each unit and reads its object (`verify --assemble`). Mechanical: it runs the
+// copies the image out with objcopy -O binary and hashes it (the link check, the final proof);
+// `assembleCheck` assembles each unit and reads its object (the assemble check). Mechanical: it runs the
 // programs, writes the files a link needs and reads what the programs wrote; every verdict on those bytes
 // is core/verify/toolchain.ts's, and the tree, the units and their spans come from the caller
 // (core/model/paths.ts buildUnits).
@@ -9,7 +9,7 @@
 // A C unit (source `src/<module>.c`, object `build/src/<module>.o`, D74 f) needs no compiler here: its stub is read
 // back (core/verify/c-stub.ts stubAssemblyOf) into the assembly agbcc emits for it (core/model/c-unit.ts, measured
 // and proved by test/local/c-stub-agbcc.test.ts), which is written to `build/src/<module>.s` and assembled like an
-// asm unit, so `verify --assemble/--link` and the g3 gates still need only binutils. A C file that is not a
+// asm unit, so the assemble and link checks and the g3 gates still need only binutils. A C file that is not a
 // stub-only unit (a decompiled function, a declaration) is refused with its first problem. A C unit with a data range
 // (BuildUnit.data, phase 6) gets core/model/c-data-assert.ts cDataStandIn appended: the range's ROM bytes as its
 // `.rodata`, which the ldscript places at the range, so the image still links to the ROM's SHA-1.
@@ -159,7 +159,7 @@ function toolsOf(tools: Binutils | undefined): Tools {
 }
 
 /**
- * `verify --link` in `dir`: writes include/macros.inc and baserom.gba when absent, assembles every unit to
+ * The link check in `dir`: writes include/macros.inc and baserom.gba when absent, assembles every unit to
  * its object, links them in unit order with ldscript.txt into build/link-check.elf, copies it out with
  * objcopy -O binary into build/link-check.gba, hashes it, and returns core/verify/toolchain.ts linkVerdict.
  */
@@ -184,7 +184,7 @@ export async function linkCheck(options: LinkCheckOptions): Promise<LinkCheckRes
 }
 
 /**
- * `verify --assemble` in `dir`: writes include/macros.inc and baserom.gba when absent, assembles every unit,
+ * The assemble check in `dir`: writes include/macros.inc and baserom.gba when absent, assembles every unit,
  * reads each object and returns core/verify/toolchain.ts's verdict on it (compareObject, assembleVerdict).
  * Every unit is checked, also after one fails, so the result names every module that differs.
  */

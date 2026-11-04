@@ -20,11 +20,11 @@
 //
 // Expected interfaces, aligned by the phase-6 lead (architecture §2.1, §3.4, §6.3, §6.7, D93, D101):
 //   romlift init baserom.gba --json      exit 0
-//   romlift analyze --update --write --json, romlift generate --json   exit 0 (the runs_at targets, after the
+//   romlift update --write --json, romlift generate --json   exit 0 (the runs_at targets, after the
 //     [[overrides]] entry is appended to romlift.toml)
-//   romlift model --json                 the first line is the header {"schema":"romlift/model-json@1",
-//     "modules":[{"name":string,"kind":"asm"|"c"|"data","span":{"start","end"},"runAt"?},…],…}
-//   model --json chunk lines             {"name","module","span":{"start","end"},"entry"?,"runAt"?,"innerLabels":[{"addr","name"}]}
+//   the project's model                  readProject, confirmProject and encodeModel (D108), whose first line is the header
+//     {"schema":"romlift/model-json@1","modules":[{"name":string,"kind":"asm"|"c"|"data","span":{"start","end"},"runAt"?},…],…}
+//   its chunk lines                      {"name","module","span":{"start","end"},"entry"?,"runAt"?,"innerLabels":[{"addr","name"}]}
 //   make expected                        assembles expected/<module>.s into build/expected/<module>.o (no agbcc), the
 //     scaffold's Makefile target, written with the writer
 //   symbols.ld                           the project's RAM and absolute symbols, a linker script fragment
@@ -89,7 +89,7 @@ function tail(run: ExecResult, lines = 30): string {
   return `${run.stdout}${run.stderr}`.trimEnd().split('\n').slice(-lines).join('\n');
 }
 
-/** A model --json or expect.json address: a number, or a "0x…" string. */
+/** An encodeModel or expect.json address: a number, or a "0x…" string. */
 function num(v: unknown, what: string): number {
   if (typeof v === 'number' && Number.isInteger(v)) return v;
   if (typeof v === 'string' && /^0x[0-9A-Fa-f]+$/.test(v)) return Number.parseInt(v.slice(2), 16);
@@ -212,6 +212,19 @@ async function checkLinked(cx: GateContext, p: Placed, i: number, chunks: readon
   return problems;
 }
 
+type ReadProject = (dir: string, options: { readonly withoutC: boolean }) => Promise<{ readonly ok: true; readonly value: { readonly inputs: { readonly rom: unknown } } } | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] }>;
+type ConfirmProject = (inputs: unknown) => { readonly ok: true; readonly model: unknown } | { readonly ok: false; readonly diagnostics: readonly { readonly message: string }[] };
+type EncodeModel = (model: unknown, rom: unknown) => Iterable<string>;
+
+/** The project's model in `dir` as romlift/model-json@1 NDJSON: readProject, confirmProject, encodeModel (D108). */
+async function projectModel(cx: GateContext, dir: string): Promise<string> {
+  const read = await cx.need<ReadProject>('readProject')(dir, { withoutC: true });
+  if (!read.ok) throw new Error(`readProject ${dir}: ${read.diagnostics.map((d) => d.message).join('; ')}`);
+  const confirmed = cx.need<ConfirmProject>('confirmProject')(read.value.inputs);
+  if (!confirmed.ok) throw new Error(`confirmProject ${dir}: ${confirmed.diagnostics.map((d) => d.message).join('; ')}`);
+  return [...cx.need<EncodeModel>('encodeModel')(confirmed.model, read.value.inputs.rom)].join('');
+}
+
 async function checkTarget(cx: GateContext, target: Target, dir: string): Promise<{ readonly problems: readonly string[]; readonly modules: number; readonly runsAt: number }> {
   const main = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
   const cli = (what: string, ...args: string[]): Promise<ExecResult> => step(cx, what, process.execPath, ['--conditions=source', main, ...args], dir);
@@ -220,13 +233,12 @@ async function checkTarget(cx: GateContext, target: Target, dir: string): Promis
   await cli('init', 'init', 'baserom.gba', '--json');
   if (target.override !== undefined) {
     await appendFile(path.join(dir, 'romlift.toml'), overrideBlock(target.override));
-    await cli('analyze --update --write', 'analyze', '--update', '--write', '--json');
+    await cli('update --write', 'update', '--write', '--json');
     await cli('generate', 'generate', '--json');
   }
-  const model = await cli('model --json', 'model', '--json');
-  const modelLines = model.stdout.split('\n');
+  const modelLines = (await projectModel(cx, dir)).split('\n');
   const header = JSON.parse(modelLines[0] ?? '{}') as ModelHeader;
-  if (header.schema !== 'romlift/model-json@1') throw new Error(`model --json printed schema ${String(header.schema)} first`);
+  if (header.schema !== 'romlift/model-json@1') throw new Error(`the model's NDJSON has schema ${String(header.schema)} first`);
   const chunks = modelLines.slice(1).flatMap((line): ChunkLine[] => {
     if (!line.startsWith('{')) return [];
     const parsed = JSON.parse(line) as ChunkLine & { readonly type?: string };
@@ -272,7 +284,7 @@ gate({
   tier: 'both',
   inputs: ['toolchain'],
   realInputs: ['roms'],
-  needs: ['init', 'generate', 'emitTree', 'analyzeUpdate'],
+  needs: ['init', 'generate', 'emitTree', 'updateProject', 'readProject', 'confirmProject', 'encodeModel'],
   async run(cx) {
     const targets: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
     if (targets.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');

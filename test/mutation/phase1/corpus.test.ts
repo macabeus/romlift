@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
-import { corpusOk } from '../../../src/core/workflow/doctor.ts';
+import { corpusOk } from '../../../src/foundation/corpus/threshold.ts';
 import { armCoverage, compareCorpusFile, corpusFiles, summarizeCorpus } from '../../../src/foundation/corpus/corpus.ts';
 import type { CorpusAssembly, CorpusOptions } from '../../../src/foundation/corpus/corpus.ts';
 import { assembleWithBinutils, findBinutils } from '../../../src/shell/toolchain/binutils.ts';

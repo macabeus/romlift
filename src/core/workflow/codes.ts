@@ -1,9 +1,9 @@
 // Diagnostic codes raised by core/workflow (architecture §9.1, D45): `init`'s verdict on the directory it is given
 // (init.ts initDirVerdict and replacedProblems, D75 j), which the shell only lists and hashes, the refusal of `analyze
-// --update --write` and of `rename` to save over a config that changed since it was read (analyze-update.ts
+// --update --write` and of `rename` to save over a config that changed since it was read (update.ts
 // staleConfigProblems, rename.ts staleRenameConfig), what the reconciliation of a project's C files cannot fix
 // (c-stubs.ts, D77 a), `rename`'s refusals (rename.ts planRename, renameJournalProblems; phase 6, D92), and the
-// signature layer of `init` and `analyze --update` (phase 6, architecture §7.3, §7.4): the proposal screen's
+// signature layer of `init` and `update` (phase 6, architecture §7.3, §7.4): the proposal screen's
 // contradictions (proposals.ts checkProposals), the library regions no module could take (signature-layer.ts), and init's
 // note that signatures are enabled but no built file was found (init.ts).
 import { defineCodes } from '../../foundation/diagnostics/diagnostic.ts';
@@ -23,7 +23,7 @@ export const WorkflowCodes = defineCodes({
   },
   E_STALE_CONFIG: {
     severity: 'error',
-    meaning: 'romlift.toml changed on disk while analyze --update or rename ran, so its patch, made from the text it read, is not saved',
+    meaning: 'romlift.toml changed on disk while update or rename ran, so its patch, made from the text it read, is not saved',
   },
   E_RENAME_UNKNOWN: {
     severity: 'error',

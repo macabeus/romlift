@@ -1,5 +1,5 @@
 // A fixed-seed xorshift32 generator (Marsaglia 2003, shifts 13, 17, 5) as plain functions over a state
-// number. It backs every seeded sample: the corpus, `doctor`'s re-assembly sample and the property
+// number. It backs every seeded sample: the corpus and the property
 // tests (D2), so a sample depends on its seed alone. Not cryptographic, and never `Math.random`.
 
 /**

@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -5039,6 +5039,58 @@ major: `bench run` without the PoC's dumps wrote tmc's row with no PoC reference
 
 **Consequences.** Every phase gate runs again (docs/final-review.md, "Fix round 2"). sa2's `g2.speed` headroom is
 about 19% at ordinary load instead of 0 to 5%; the gate, its limit and the baseline are as the owner left them.
+
+## D108. The CLI keeps the five commands a project's user runs, and CI runs on Linux only; the owner's words of 4 November 2026
+
+**Context.** After the final review the CLI had ten commands. Only five are what a user of a generated project runs, and
+only those five are named by the scaffold (`AGENTS.md`, `Makefile`, `setup.sh`): `init`, `generate`, `rename`, `analyze
+--update` and `explain`. The others were used by the gates, the bench and the repository's own docs, never by a project:
+`verify` ran the self-checks `init` and `generate` already run and an `as`/`ld` pass that `make` repeats; `model --json`
+printed what `romlift.toml` and the tree already show, read only by gates; `analyze <rom>` was the harness of
+`g2.determinism`, and its `--disable` duplicated `bench run --disable`; `signatures <rom>` was used by nothing but its own
+test and `g4.cli-contract`; `signatures build` needs a romlift source checkout and the reference decomps, so it cannot
+run from the package; `doctor` overlapped `setup.sh`'s toolchain check, and its `R_ARM_THM_JUMP11` probe tested a
+cross-object `b` that D15 rules out; `scaffold --diff` compares against templates of a version romlift has not
+published.
+
+**Decision.** The owner kept `init`, `generate`, `rename` and `explain`, renamed `analyze --update` to `update` ("Let's use
+`romlift update`"), dropped `doctor` and `scaffold --diff` ("Drop them"), and for the rest followed the review's
+suggestion with no code, documentation or compatibility kept for a removed command ("Follow your suggestion. Do not keep
+documentation or any code for the removed commands, don't do backward compatibility"):
+
+- (a) **Removed**: `verify`, `model`, `analyze <rom>` (with `--disable`), `signatures <rom>`, `doctor`, `scaffold --diff`,
+  their command files, the per-component command lists (`cli/commands/lists/`, D43's pattern for parallel phases), the
+  workflow and shell code only they used (`core/workflow/doctor.ts`, `shell/toolchain/doctor.ts`,
+  `core/workflow/scaffold-diff.ts`, `signaturesOnRom`, `discoverTuned`, `disabledTuning`, `parseRuleIds`), their tests,
+  and `g1.doctor`. The corpus threshold `corpusOk` moved from `core/workflow/doctor.ts` to
+  `foundation/corpus/threshold.ts`, where the corpus run and `npm run corpus` read it.
+- (b) **Renamed**: `analyze --update [--write]` is `update [--write]` (`commands/update.ts`); its workflow is
+  `core/workflow/update.ts`, `updateProject`.
+- (c) **Moved**: `signatures build <spec>` is `npm run signatures -- build <spec> [--out <dir>] [--json]`
+  (`bench/tools/signatures.ts`, over romlift/node's `buildSignatures`), a maintainer's tool like `npm run fixtures`.
+- (d) **The checks stay; the gates call them through romlift/node.** `g3.self-check`, `g3.text-layout`, `g3.link` and
+  `g3.raw-link` run `generateFromRom` and `runToolchainChecks` in process (`test/gates/verify-rom.ts`);
+  `g2.determinism` runs `encodeAnalysis(discover(rom))` in two child processes with the varied environment;
+  `g6.expected-bytes`, `g6.ram-code-mapped` and the local `objdiff-json` and `ram-code` tests read the project's model
+  through `readProject`, `confirmProject` and `encodeModel`; `g4.toml-mutations` drops its `verify --link` step, since
+  `make` already ends at the SHA-1; `g4.packed-e2e` drops its `doctor` run; `g4.cli-contract` requires exactly the five
+  commands. `encodeModel` stays: it is the model goldens' format. `bench large-rom --bin` measures `explain --rom`,
+  `init`, `generate` and `update`.
+- (e) **CI on Linux only** ("Remove from GitHub Actions the `macOS` job. Keep only Linux"): `ci.yml`, `packed.yml` and
+  `fixtures.yml` lose their macOS matrix entry and `printer.yml` its Homebrew binutils job; the digests job compares the
+  two Node versions' files (`--expect 2`).
+- (f) **The scaffold** names `update` and `explain` in its `AGENTS.md` command table and no longer names `scaffold --diff`.
+
+**Consequences.** The `romlift` bin has five commands. The CLI's NDJSON contracts of `verify --json`, `model --json`,
+`analyze --json`, `doctor --json` and `signatures <rom> --json` are gone; `encodeModel` (`romlift/model-json@1`) remains
+in the API. The corpus runs in CI with one binutils build (Ubuntu's apt), so an encoding that differs on another binutils
+is found only by `npm run corpus` run with it or by `make`; the Linux/macOS byte-identity comparison of D30 is gone
+(the tool still supports macOS, untested in CI). The phase records (docs/phase-*.md, docs/final-review.md, the
+roadmap) and the decisions before this one describe the commands as they were and are not rewritten.
+
+**Rejected.** Keeping the removed commands as maintainer commands of the bin (they would ship in the package for no
+user). Replacing `doctor`'s probe with an `R_ARM_THM_JUMP8` one (the owner dropped `doctor`). An `analyze` alias for
+`update` (no backward compatibility, the owner's words).
 
 ## Review findings index
 

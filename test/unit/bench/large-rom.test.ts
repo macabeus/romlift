@@ -116,7 +116,7 @@ test('the heap cap: the children run under the one the romlift bin passes, and r
   }
 });
 
-test('an outcome maps to the exit code of romlift verify', () => {
+test('an outcome maps to the exit code of romlift generate', () => {
   assert.equal(outcomeExitCode({ ok: true, detail: '', files: 1 }), 0);
   assert.equal(outcomeExitCode({ ok: false, failure: 'check', detail: '', files: 1 }), 3);
   assert.equal(outcomeExitCode({ ok: false, failure: 'error', detail: '', files: 1 }), 1);
@@ -130,7 +130,7 @@ test('the config survives the trip from the init child to the generate child', (
   assert.throws(() => decodeConfig('{"schema":2}'), /not schema 1/);
 });
 
-/** The fixture's config with its startup module renamed (sidesteps the confirm-mode startup defect, see verify.test.ts). */
+/** The fixture's config with its startup module renamed (sidesteps the confirm-mode startup defect). */
 function renamedStartup(rom: Rom): RomliftConfig {
   const config = configFromDiscover(rom, discover(rom));
   return { ...config, modules: config.modules.map((m) => (m.name === 'crt0' ? { ...m, name: 'startup' } : m)) };

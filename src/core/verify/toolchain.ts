@@ -1,4 +1,4 @@
-// The verdicts of the toolchain checks (architecture §2.1, §6.4): what `verify --link` and `verify --assemble`
+// The verdicts of the toolchain checks (architecture §2.1, §6.4): what the link and assemble checks (runToolchainChecks)
 // conclude from the bytes the toolchain produced. Pure: shell/toolchain/link-check.ts runs `as`, `ld` and
 // objcopy, reads their output and hashes it; everything decided about those bytes is here.
 //

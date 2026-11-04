@@ -47,6 +47,17 @@ interface Ran {
   readonly stdout: string;
 }
 
+/** The project's model in `dir` as romlift/model-json@1 NDJSON, in process (readProject, confirmProject, encodeModel; D108). */
+async function projectModel(dir: string): Promise<string> {
+  const { confirmProject, encodeModel } = await import('romlift');
+  const { readProject } = await import('romlift/node');
+  const read = await readProject(dir, { withoutC: true });
+  assert.ok(read.ok, `readProject ${dir}: ${read.ok ? '' : read.diagnostics.map((d) => d.message).join('; ')}`);
+  const confirmed = confirmProject(read.value.inputs);
+  assert.ok(confirmed.ok, `confirmProject ${dir}: ${confirmed.ok ? '' : confirmed.diagnostics.map((d) => d.message).join('; ')}`);
+  return [...encodeModel(confirmed.model, read.value.inputs.rom)].join('');
+}
+
 function run(command: string, args: readonly string[], cwd: string, env: Readonly<Record<string, string>> = {}): Promise<Ran> {
   return new Promise((resolve) => {
     execFile(command, [...args], { cwd, env: { ...process.env, ...env }, maxBuffer: 256 * 1024 * 1024 }, (error, stdout, stderr) => {
@@ -114,9 +125,7 @@ test('c-data: init, ./setup.sh, make and make expected, then objdiff-cli reports
   }
 
   const config = JSON.parse(await readFile(path.join(dir, 'objdiff.json'), 'utf8')) as ObjdiffJson;
-  const model = await run(cli, ['model', '--json'], dir);
-  assert.equal(model.code, 0, tail(model));
-  const header = JSON.parse(model.stdout.split('\n')[0] ?? '{}') as { readonly modules: readonly { readonly name: string; readonly kind: string }[] };
+  const header = JSON.parse((await projectModel(dir)).split('\n')[0] ?? '{}') as { readonly modules: readonly { readonly name: string; readonly kind: string }[] };
   assert.deepEqual(
     config.units.map((u) => u.name),
     header.modules.filter((m) => m.kind === 'c').map((m) => m.name),

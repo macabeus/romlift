@@ -51,7 +51,7 @@ export function packageRoot(): string {
   return fileURLToPath(new URL('../../../', import.meta.url));
 }
 
-/** What `init` and `scaffold --diff` render the scaffold from: the package's templates, its agbcc pin and its version. */
+/** What `init` renders the scaffold from: the package's templates, its agbcc pin and its version. */
 export interface ScaffoldInputs {
   readonly templates: ScaffoldTemplates;
   readonly agbcc: AgbccPin;
@@ -488,7 +488,7 @@ export async function readWriteState(dir: string, paths: Iterable<string>): Prom
   return { ok: true, value: { manifest: manifest.value, journal: journal.value, disk: disk.value, reconciledTexts: new Map() } };
 }
 
-/** The current text of each project path of `paths` under `dir` that exists (`scaffold --diff` compares them). */
+/** The current text of each project path of `paths` under `dir` that exists (`update` and `rename` re-read the config through it). */
 export async function readProjectTexts(dir: string, paths: Iterable<string>): Promise<ReadResult<ReadonlyMap<string, string>>> {
   return fromIo(await readReconciledTexts(dir, paths));
 }

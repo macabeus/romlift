@@ -1,5 +1,5 @@
 // The discover workflow (architecture §2.1, D36): the analysis of a bare ROM in discover mode under agbcc
-// with no seeds, equal to the frozen `analyze` call the gates make; an image that is not a cartridge gets
+// with no seeds, equal to the frozen `analyze` function call the gates make; an image that is not a cartridge gets
 // E_ROM_NOT_GBA diagnostics and an empty result, never a throw; the profile, the trail and the disabled
 // rules pass through.
 import assert from 'node:assert/strict';
@@ -7,11 +7,9 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { analyze } from '../../../src/core/analysis/driver/run.ts';
-import { RULES } from '../../../src/core/analysis/driver/rules.ts';
 import { AGBCC } from '../../../src/core/profile/agbcc.ts';
 import type { TrailEvent } from '../../../src/core/provenance/trail.ts';
-import { DEFAULT_TUNING } from '../../../src/core/analysis/driver/run.ts';
-import { DISCOVER_PROFILE, disabledTuning, discover, discoverOptions, discoverTuned, parseRuleIds } from '../../../src/core/workflow/discover.ts';
+import { DISCOVER_PROFILE, discover, discoverOptions } from '../../../src/core/workflow/discover.ts';
 import { romFromBytes } from '../../../src/foundation/rom/rom.ts';
 import { sha1Of } from '../../../src/shell/hash.ts';
 import { romWith } from '../../helpers/analysis.ts';
@@ -93,24 +91,4 @@ test('the trail level and filter reach the sink; off streams nothing', () => {
   assert.deepEqual(result.options, { mode: 'discover', seeds: [], overrides: [], trail: 'full', trailFilter: filter });
   const inside = (a: number): boolean => a >= filter.start && a < filter.end;
   assert.ok(full.every((e) => inside(e.at) || e.cites.some(inside)));
-});
-
-test('parseRuleIds splits registered rule ids from the rest, the unknown sorted and unique', () => {
-  const known = Object.keys(RULES).sort()[0] ?? '';
-  assert.ok(known !== '');
-  assert.deepEqual(parseRuleIds([known, 'walk.no-such-rule', 'nonsense', 'walk.no-such-rule']), {
-    known: [known],
-    unknown: ['nonsense', 'walk.no-such-rule'],
-  });
-  assert.deepEqual(parseRuleIds([]), { known: [], unknown: [] });
-});
-
-test('disabled rules pass through the tuning: DEFAULT_TUNING with the list', () => {
-  assert.deepEqual(disabledTuning([]), DEFAULT_TUNING);
-  assert.deepEqual(disabledTuning(['seed.call']), { ...DEFAULT_TUNING, disabled: ['seed.call'] });
-  const rom = fixtureRom('far-jump');
-  const all = discover(rom);
-  const without = discoverTuned(rom, {}, disabledTuning(['seed.call']));
-  assert.ok(without.functions.every((f) => f.origin !== 'call'));
-  assert.ok(all.functions.some((f) => f.origin === 'call'));
 });

@@ -1,5 +1,5 @@
 // The verify report (architecture §2.1, §6.4, D49, D62): one result per self-check, and the report
-// `verify` prints and `generate` gates on. The checks themselves are p3-data-verify's (wave 2), with these
+// the gates read and `generate` gates on. The checks themselves are p3-data-verify's (wave 2), with these
 // signatures:
 //
 //   verifyModel(rom: Rom, model: Model): VerifyReport
@@ -14,7 +14,7 @@
 //     core/verify/paths.ts: duplicates and case-folded collisions among the stream's paths
 //     (E_PATH_CASE_COLLISION); the 'paths' CheckResult.
 //
-// 'assemble' and 'link' are the shell's toolchain checks (`verify --assemble`, `verify --link`).
+// 'assemble' and 'link' are the shell's toolchain checks (runToolchainChecks' assemble and link).
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 
 export type CheckId = 'tiling' | 'reencode' | 'module-size' | 'text-layout' | 'paths' | 'assemble' | 'link';

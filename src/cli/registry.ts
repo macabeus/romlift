@@ -58,7 +58,7 @@ export interface CommandSpec {
 }
 
 // Helpers. `usage` is read as the synopsis that follows the program name, starting with the command
-// name (e.g. `analyze <rom> [--json]`). Every command accepts `--help`, which the parser records as
+// name (e.g. `init <rom> [dir] [--json]`). Every command accepts `--help`, which the parser records as
 // `flags.help`; a command never declares it.
 
 /** The program name printed in usage text. */

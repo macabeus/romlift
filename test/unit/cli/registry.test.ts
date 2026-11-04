@@ -3,11 +3,11 @@ import { test } from 'node:test';
 
 import { COMMANDS } from '../../../src/cli/commands/index.ts';
 import { commandHelp, findCommand, usageText } from '../../../src/cli/registry.ts';
-import { analyzeFake, FAKE_COMMANDS } from './fake.ts';
+import { scanFake, FAKE_COMMANDS } from './fake.ts';
 
 test('findCommand finds by exact name', () => {
-  assert.equal(findCommand(FAKE_COMMANDS, 'analyze'), analyzeFake);
-  assert.equal(findCommand(FAKE_COMMANDS, 'Analyze'), undefined);
+  assert.equal(findCommand(FAKE_COMMANDS, 'scan'), scanFake);
+  assert.equal(findCommand(FAKE_COMMANDS, 'Scan'), undefined);
   assert.equal(findCommand(FAKE_COMMANDS, ''), undefined);
 });
 
@@ -18,13 +18,13 @@ test('usageText lists commands sorted by name', () => {
       'Usage: romlift <command> [options]',
       '',
       'Commands:',
-      '  analyze     Analyzes a ROM',
       '  bogus       Returns a number that is not an exit code',
+      '  check       Fails its self-check',
       '  crash       Throws a TypeError',
       '  fails       Reports error diagnostics',
       '  invariant   Throws RomliftInvariantError',
+      '  scan        Scans a ROM',
       '  usage-fail  Rejects its positionals',
-      '  verify      Fails its self-check',
       '  zeta        Last by name',
       '',
       "Run 'romlift <command> --help' for the options of a command, 'romlift --version' for the version.",
@@ -42,11 +42,11 @@ test('usageText with no commands', () => {
 
 test('commandHelp shows the synopsis, summary and options in declared order', () => {
   assert.equal(
-    commandHelp(analyzeFake),
+    commandHelp(scanFake),
     [
-      'Usage: romlift analyze [<rom>…] [--json] [--rom <path>] [--disable <rule>...]',
+      'Usage: romlift scan [<rom>…] [--json] [--rom <path>] [--disable <rule>...]',
       '',
-      'Analyzes a ROM',
+      'Scans a ROM',
       '',
       'Options:',
       '  --json            Prints NDJSON',

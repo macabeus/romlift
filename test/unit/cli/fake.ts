@@ -42,10 +42,10 @@ function recording(name: string, code: ExitCode, summary: string): CommandSpec {
   };
 }
 
-export const analyzeFake: CommandSpec = {
-  name: 'analyze',
-  summary: 'Analyzes a ROM',
-  usage: 'analyze [<rom>…] [--json] [--rom <path>] [--disable <rule>...]',
+export const scanFake: CommandSpec = {
+  name: 'scan',
+  summary: 'Scans a ROM',
+  usage: 'scan [<rom>…] [--json] [--rom <path>] [--disable <rule>...]',
   positionals: ['<rom>', '<rom2>', '<rom3>', '<rom4>'].map((name) => ({ name, optional: true })),
   options: [
     { name: 'json', kind: 'boolean', summary: 'Prints NDJSON' },
@@ -55,16 +55,16 @@ export const analyzeFake: CommandSpec = {
   ],
   run: async (args, io) => {
     (io as CapturedIo).calls.push(args);
-    io.stdout(`analyzed ${args.positionals.join(',')}\n`);
+    io.stdout(`scanned ${args.positionals.join(',')}\n`);
     return ExitCode.ok;
   },
 };
 
 export const FAKE_COMMANDS: readonly CommandSpec[] = [
   recording('zeta', ExitCode.ok, 'Last by name'),
-  analyzeFake,
+  scanFake,
   recording('fails', ExitCode.errors, 'Reports error diagnostics'),
-  recording('verify', ExitCode.verifyFailed, 'Fails its self-check'),
+  recording('check', ExitCode.verifyFailed, 'Fails its self-check'),
   recording('usage-fail', ExitCode.usage, 'Rejects its positionals'),
   {
     name: 'invariant',

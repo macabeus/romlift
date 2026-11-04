@@ -1,5 +1,5 @@
-// foundation/util/line-diff.ts (architecture-5, architecture-r1-7, D76 h): the unified diff `analyze --update` and
-// `scaffold --diff` print, by line, with three lines of context; equal texts give no diff.
+// foundation/util/line-diff.ts (architecture-5, architecture-r1-7, D76 h): the unified diff `update`
+// prints, by line, with three lines of context; equal texts give no diff.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 

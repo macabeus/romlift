@@ -33,7 +33,7 @@ import { createDriver } from './state.ts';
 import type { DriverState } from './state.ts';
 import { emit } from './trail.ts';
 
-/** The tuning `analyze` runs with: epoch caching, nothing disabled (the worklist is always ascending, D10, D59). */
+/** The tuning the analysis runs with: epoch caching, nothing disabled (the worklist is always ascending, D10, D59). */
 export const DEFAULT_TUNING: AnalysisTuning = { cache: 'epoch', disabled: [] };
 
 /** Runs the seeds, the passes and the regions on `s`; returns the startup region. */

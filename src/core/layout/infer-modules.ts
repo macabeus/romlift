@@ -178,7 +178,7 @@ export function runsAtName(runAt: Addr): string {
 
 /**
  * `base`, or `base_2`, `base_3`, … : the first name not in `taken`, which it then holds. The one rule for a library's
- * module name (init's inference and analyze --update, module-proposals.ts) and for a name a proposal finds taken.
+ * module name (init's inference and update, module-proposals.ts) and for a name a proposal finds taken.
  */
 export function freeModuleName(base: string, taken: Set<string>): string {
   let name = base;

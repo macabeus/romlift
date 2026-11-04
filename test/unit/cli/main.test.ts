@@ -4,10 +4,10 @@ import { test } from 'node:test';
 import { ExitCode } from '../../../src/cli/exit-codes.ts';
 import { main } from '../../../src/cli/main.ts';
 import { commandHelp, usageText } from '../../../src/cli/registry.ts';
-import { analyzeFake, capturingIo, FAKE_COMMANDS } from './fake.ts';
+import { scanFake, capturingIo, FAKE_COMMANDS } from './fake.ts';
 
 test('no arguments, --help and -h print usage to stdout and exit 0', async () => {
-  for (const argv of [[], ['--help'], ['-h'], ['--help', 'analyze']]) {
+  for (const argv of [[], ['--help'], ['-h'], ['--help', 'scan']]) {
     const io = capturingIo();
     assert.equal(await main(argv, io, FAKE_COMMANDS), ExitCode.ok);
     assert.deepEqual(io.out, [usageText(FAKE_COMMANDS)]);
@@ -17,8 +17,8 @@ test('no arguments, --help and -h print usage to stdout and exit 0', async () =>
 
 test('<command> --help prints that command help and does not run it', async () => {
   const io = capturingIo();
-  assert.equal(await main(['analyze', 'x.gba', '--help'], io, FAKE_COMMANDS), ExitCode.ok);
-  assert.deepEqual(io.out, [commandHelp(analyzeFake)]);
+  assert.equal(await main(['scan', 'x.gba', '--help'], io, FAKE_COMMANDS), ExitCode.ok);
+  assert.deepEqual(io.out, [commandHelp(scanFake)]);
   assert.deepEqual(io.calls, []);
 });
 
@@ -28,14 +28,14 @@ test('a parse error prints the message and usage to stderr and exits 2', async (
   assert.deepEqual(io.out, []);
   assert.deepEqual(io.err, [`romlift: unknown command 'nope'\n\n${usageText(FAKE_COMMANDS)}`]);
   const io2 = capturingIo();
-  assert.equal(await main(['analyze', '--rom'], io2, FAKE_COMMANDS), ExitCode.usage);
+  assert.equal(await main(['scan', '--rom'], io2, FAKE_COMMANDS), ExitCode.usage);
   assert.match(io2.err[0] ?? '', /^romlift: option '--rom' needs a value <path>\n\nUsage: romlift /);
 });
 
 test('the command runs with its parsed arguments and the io', async () => {
   const io = capturingIo();
-  assert.equal(await main(['analyze', 'a.gba', '--disable', 'r'], io, FAKE_COMMANDS), ExitCode.ok);
-  assert.deepEqual(io.out, ['analyzed a.gba\n']);
+  assert.equal(await main(['scan', 'a.gba', '--disable', 'r'], io, FAKE_COMMANDS), ExitCode.ok);
+  assert.deepEqual(io.out, ['scanned a.gba\n']);
   assert.equal(io.calls.length, 1);
   assert.deepEqual(io.calls[0]?.repeated, { disable: ['r'] });
 });
@@ -45,7 +45,7 @@ test('exit codes 0, 1, 2 and 3 propagate from the command', async () => {
     ['zeta', ExitCode.ok],
     ['fails', ExitCode.errors],
     ['usage-fail', ExitCode.usage],
-    ['verify', ExitCode.verifyFailed],
+    ['check', ExitCode.verifyFailed],
   ];
   for (const [name, code] of cases) {
     const io = capturingIo();

@@ -75,7 +75,7 @@ export interface ErrorEmitter {
 }
 
 /**
- * A reader that closes the pipe early (`romlift analyze rom.gba | head`) is not an error of romlift: on
+ * A reader that closes the pipe early (`romlift generate --dry-run --json | head`) is not an error of romlift: on
  * EPIPE or ENOTCONN the process exits quietly with the code it has so far (0 while the command still runs).
  * Any other error is thrown. `exit` is the process's own, replaced only by the unit test.
  */

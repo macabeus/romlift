@@ -1,6 +1,6 @@
 export type {
-  AnalyzeUpdateInputs,
-  AnalyzeUpdatePlan,
+  UpdateInputs,
+  UpdatePlan,
   GeneratePlan,
   InitInputs,
   InitOptions,

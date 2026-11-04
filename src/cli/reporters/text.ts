@@ -30,8 +30,7 @@ export function columns(rows: readonly (readonly string[])[], indent = ''): stri
 
 /**
  * columns' lines one at a time, for a table too large to hold whole: row `k` of `count` is built by `rowAt(k)` twice,
- * once for the column widths and once to print it, so no more than one row is ever held (the text output of
- * `analyze` on a 32 MiB ROM has over 600,000 rejection rows).
+ * once for the column widths and once to print it, so no more than one row is ever held.
  */
 export function* columnLines(count: number, rowAt: (k: number) => readonly string[], indent = ''): Generator<string> {
   const widths: number[] = [];

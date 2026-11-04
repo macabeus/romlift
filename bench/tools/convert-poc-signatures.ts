@@ -1,7 +1,7 @@
 // `node --conditions=source bench/tools/convert-poc-signatures.ts [--out <dir>]` (architecture §7.1, D31, roadmap 6.A):
 // converts the PoC's built signature files (`$ROMLIFT_POC/signatures/<library>.json`, schema 2) to schema 3, one
 // `<out>/<library>.json` each (default bench/.local/signatures-poc/, gitignored), so that g6.signatures-rebuild can
-// require `romlift signatures build` to reproduce the PoC's validated bytes and masks, apart from the names a spec
+// require `npm run signatures -- build` to reproduce the PoC's validated bytes and masks, apart from the names a spec
 // reviews. Never writes into the PoC checkout.
 //
 // The conversion is mechanical. The PoC's project names become dataset names (kleod -> klonoa, FireEmblem7J -> fe7j,

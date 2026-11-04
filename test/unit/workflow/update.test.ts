@@ -1,4 +1,4 @@
-// The analyze --update workflow (architecture §2.1, §6.5, D9, D23), pure: on init's config nothing is proposed and
+// The update workflow (architecture §2.1, §6.5, D9, D23), pure: on init's config nothing is proposed and
 // the text is unchanged; an entry deleted by hand comes back as a function proposal (source analysis, no `from`) that
 // planPatch inserts in place, keeping the user's comments; a listed entry with `from` is validated and, when it fails,
 // reported (W_LISTED_INVALID) and kept, one without `from` is taken as it is (D76 a, D77 e); another ROM is refused; a nested discovery is proposed as a label;
@@ -16,7 +16,7 @@ import { test } from 'node:test';
 
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import { serializeConfig } from '../../../src/core/config/serialize.ts';
-import { analyzeUpdate, runsAtBorders, staleConfigProblems, unlistedProposals } from '../../../src/core/workflow/analyze-update.ts';
+import { updateProject, runsAtBorders, staleConfigProblems, unlistedProposals } from '../../../src/core/workflow/update.ts';
 import { unifiedDiff } from '../../../src/foundation/util/line-diff.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
@@ -42,7 +42,7 @@ test("on init's config nothing is proposed and the TOML is unchanged, on every c
   for (const fixture of listSyntheticFixtures()) {
     const rom = readFixtureRom(fixture);
     const { text, config } = project(rom);
-    const plan = analyzeUpdate({ rom, configText: text, config });
+    const plan = updateProject({ rom, configText: text, config });
     assert.ok(plan.ok, fixture.name);
     assert.deepEqual(plan.proposals, [], fixture.name);
     assert.equal(plan.changed, false, fixture.name);
@@ -59,7 +59,7 @@ test('an entry deleted by hand is proposed again and patched back in place; comm
   const edited = ['# my project', ...lines.slice(0, at), ...lines.slice(at + 1)].join('\n').replace('[functions]', '[functions]  # every entry');
   const parsed = parseConfig(edited);
   assert.ok(parsed.ok);
-  const plan = analyzeUpdate({ rom, configText: edited, config: parsed.value });
+  const plan = updateProject({ rom, configText: edited, config: parsed.value });
   assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.message).join('; '));
   assert.equal(plan.proposals.length, 1);
   const proposal = plan.proposals[0];
@@ -75,7 +75,7 @@ test('an entry deleted by hand is proposed again and patched back in place; comm
 test('another ROM than [rom] sha1 records is E_ROM_SHA1_MISMATCH', () => {
   const rom = fixtureRom('far-jump');
   const { text, config } = project(rom);
-  const plan = analyzeUpdate({ rom, configText: text, config: { ...config, rom: { ...config.rom, sha1: '1'.repeat(40) } } });
+  const plan = updateProject({ rom, configText: text, config: { ...config, rom: { ...config.rom, sha1: '1'.repeat(40) } } });
   assert.equal(plan.ok, false);
   assert.deepEqual(plan.ok ? [] : plan.diagnostics.map((d) => d.code), ['E_ROM_SHA1_MISMATCH']);
 });
@@ -90,12 +90,12 @@ test('the confirm run validates only listed entries with `from` (D76 a, D77 e): 
     return { ...config, functions };
   };
   const proposed = withEntry('evidence:trace');
-  const plan = analyzeUpdate({ rom, configText: serializeConfig(proposed), config: proposed });
+  const plan = updateProject({ rom, configText: serializeConfig(proposed), config: proposed });
   assert.ok(plan.ok);
   assert.equal(plan.changed, false);
   assert.ok(plan.diagnostics.some((d) => d.code === 'W_LISTED_INVALID' && d.addr === 0x0800_0020), plan.diagnostics.map((d) => d.code).join(', '));
   const byHand = withEntry();
-  const quiet = analyzeUpdate({ rom, configText: serializeConfig(byHand), config: byHand });
+  const quiet = updateProject({ rom, configText: serializeConfig(byHand), config: byHand });
   assert.ok(quiet.ok);
   assert.ok(!quiet.diagnostics.some((d) => d.code === 'W_LISTED_INVALID'), 'an entry without `from` is taken as it is, found or not');
 });
@@ -138,7 +138,7 @@ test('a patch whose module starts generate would refuse is E_MODULE_BORDER namin
   assert.ok(found?.case !== undefined, 'some committed fixture has a short forward branch to a word to split at');
   const { rom, case: { config, f, x } } = found;
   const text = serializeConfig(config);
-  const plan = analyzeUpdate({ rom, configText: text, config });
+  const plan = updateProject({ rom, configText: text, config });
   assert.equal(plan.ok, false, `${found.fixture.name}: the patch adding ${f.toString(16)} is refused`);
   const borders = plan.ok ? [] : plan.diagnostics.filter((d) => d.code === 'E_MODULE_BORDER');
   assert.equal(borders.length, 1, plan.ok ? '' : plan.diagnostics.map((d) => d.message).join('; '));
@@ -237,7 +237,7 @@ function ramCopyProject(dropData: boolean): { readonly rom: Rom; readonly text: 
 test('the RAM-copy fixture: its range already starts a module, so the code inside it is the only proposal; the model runs it at 0x03000000', () => {
   const { rom, text, config } = ramCopyProject(false);
   assert.ok(config.modules.some((m) => m.start === 0x0800_012c), 'init ends the code before the copied bytes');
-  const plan = analyzeUpdate({ rom, configText: text, config });
+  const plan = updateProject({ rom, configText: text, config });
   assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.message).join('; '));
   assert.deepEqual(plan.proposals.map((p) => [p.kind, p.kind === 'function' ? p.addr : 0, p.source]), [['function', 0x0800_012c, { kind: 'analysis', rule: 'seed.override' }]]);
   const patched = parseConfig(plan.text);
@@ -251,7 +251,7 @@ test('the RAM-copy fixture: its range already starts a module, so the code insid
 test('a range inside a module: its start border is proposed and patched in as a [[modules]] block, and generate accepts the result', () => {
   const { rom, text, config } = ramCopyProject(true);
   assert.equal(confirmModel({ rom, config }).model.diagnostics.map((d) => d.code).includes('E_OVERRIDE_INVALID'), true, 'off the module borders on disk');
-  const plan = analyzeUpdate({ rom, configText: text, config });
+  const plan = updateProject({ rom, configText: text, config });
   assert.ok(plan.ok, plan.ok ? '' : plan.diagnostics.map((d) => d.message).join('; '));
   assert.deepEqual(
     plan.proposals.filter((p) => p.kind === 'module').map((p) => (p.kind === 'module' ? [p.name, p.start, p.moduleKind] : [])),
@@ -265,10 +265,10 @@ test('a range inside a module: its start border is proposed and patched in as a 
   assert.deepEqual(model.modules.map((m) => [m.name, m.kind, m.runAt]).at(-1), ['ram_03000000', 'asm', 0x0300_0000]);
 });
 
-test('a range analyze --update cannot make its own module is refused with E_OVERRIDE_INVALID, and nothing is offered', () => {
+test('a range update cannot make its own module is refused with E_OVERRIDE_INVALID, and nothing is offered', () => {
   const { rom, config } = ramCopyProject(false);
   const bad: RomliftConfig = { ...config, overrides: [{ start: 0x0800_00f0, size: 0x10, kind: 'code', mode: 'thumb', runsAt: 0x0300_0000 }] };
-  const plan = analyzeUpdate({ rom, configText: serializeConfig(bad), config: bad });
+  const plan = updateProject({ rom, configText: serializeConfig(bad), config: bad });
   assert.equal(plan.ok, false);
   assert.deepEqual(plan.ok ? [] : plan.diagnostics.map((d) => d.code), ['E_OVERRIDE_INVALID']);
 });
@@ -290,10 +290,10 @@ function gameProject(): { readonly rom: Rom; readonly text: string; readonly con
   return { rom, text: made.tomlText, config: made.config };
 }
 
-function update(rom: Rom, text: string): ReturnType<typeof analyzeUpdate> {
+function update(rom: Rom, text: string): ReturnType<typeof updateProject> {
   const parsed = parseConfig(text);
   assert.ok(parsed.ok, parsed.ok ? '' : parsed.diagnostics.map((d) => d.message).join('; '));
-  return analyzeUpdate({ rom, configText: text, config: parsed.value, signatureFiles: [LIBFIX] });
+  return updateProject({ rom, configText: text, config: parsed.value, signatureFiles: [LIBFIX] });
 }
 
 test('signatures: default names are renamed with from, the table added, the missing library module inserted; a second run changes nothing', () => {

@@ -1,8 +1,8 @@
 // The frozen inputs and plans of the phase-4 workflows (architecture §2.1, §3.4, §6.3 to §6.5, D17, D36, D74):
-// `init`, `generate` over a project and `analyze --update` each take in-memory inputs the shell read and return
+// `init`, `generate` over a project and `update` each take in-memory inputs the shell read and return
 // a plan the shell applies (planWrites, saveConfig). Plain readonly data (D19); the functions live in
-// init.ts, generate.ts and analyze-update.ts. GenerateInputs and GenerateResult stay in generate.ts (phase 3).
-// Phase 6 adds, frozen by its lead (D93): the signature files `init` and `analyze --update` read, `init
+// init.ts, generate.ts and update.ts. GenerateInputs and GenerateResult stay in generate.ts (phase 3).
+// Phase 6 adds, frozen by its lead (D93): the signature files `init` and `update` read, `init
 // --no-signatures`, the headers' real paths for the cpp-exact include resolution, and the CheckProposals contract that
 // screens proposals against the analysis and the config (architecture §7.3, §7.4).
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
@@ -78,7 +78,7 @@ export type InitPlan =
     }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
-/** A project as `generate` and the project mode of `model`, `verify` and `explain` read it. */
+/** A project as `generate`, `update`, `rename` and the project mode of `explain` read it. */
 export interface ProjectInputs {
   readonly rom: Rom;
   /** romlift.toml as it is on disk; generate never writes it (g4.no-toml-write). */
@@ -126,8 +126,8 @@ export type GeneratePlan =
   | { readonly ok: true; readonly result: GenerateResult; readonly diagnostics: readonly Diagnostic[] }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
-/** What `analyze --update` reads: the project's ROM and its TOML, and from phase 6 the built signature files. */
-export interface AnalyzeUpdateInputs {
+/** What `update` reads: the project's ROM and its TOML, and from phase 6 the built signature files. */
+export interface UpdateInputs {
   readonly rom: Rom;
   readonly configText: string;
   readonly config: RomliftConfig;
@@ -139,11 +139,11 @@ export interface AnalyzeUpdateInputs {
 }
 
 /**
- * `analyze --update`'s plan: the proposals the discover run makes against the config, and the patched TOML
+ * `update`'s plan: the proposals the discover run makes against the config, and the patched TOML
  * (planPatch); `changed` is false when the text is unchanged. `--write` saves `text`; a refused patch
  * (E_TOML_PATCH_REFUSED) is `ok: false`.
  */
-export type AnalyzeUpdatePlan =
+export type UpdatePlan =
   | {
       readonly ok: true;
       readonly proposals: readonly Proposal[];
@@ -169,5 +169,5 @@ export interface ProposalCheck {
   readonly conflicts: readonly Diagnostic[];
 }
 
-/** The screen every external proposal passes before `init` folds it or `analyze --update` patches it (p6-proposals). */
+/** The screen every external proposal passes before `init` folds it or `update` patches it (p6-proposals). */
 export type CheckProposals = (proposals: readonly Proposal[], cx: CheckProposalsContext) => ProposalCheck;

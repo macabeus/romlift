@@ -2,7 +2,7 @@
 //
 //   npm run corpus [-- --json] [--out <dir>] [--arm-sample <n>] [--reuse]
 //
-// Runs the corpus through romlift's runCorpus (the same run `romlift doctor` makes) with the PATH's
+// Runs the corpus through romlift's runCorpus with the PATH's
 // arm-none-eabi-as, writing every corpus file into bench/.local/corpus/ (gitignored; corpus text is
 // never committed), then writes summary.json (the frozen `romlift/corpus-summary@1` contract) and
 // prints a human summary, or with --json the summary as one JSON line (§2.1: --json output parses

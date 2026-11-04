@@ -1,5 +1,5 @@
 // The ROM a project was made from (architecture §6.5, §9.1, D75 h): romlift.toml's `[rom] sha1` names it, and every
-// command that reads a project (generate, analyze --update, and the project mode of model, verify and explain)
+// command that reads a project (generate, update, and the project mode of model, verify and explain)
 // refuses another ROM before any analysis, since a tree emitted from it would not rebuild the recorded image. A
 // question about the config, so core/config's, not foundation/rom's.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';

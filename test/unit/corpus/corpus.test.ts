@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { corpusOk } from '../../../src/core/workflow/doctor.ts';
+import { corpusOk } from '../../../src/foundation/corpus/threshold.ts';
 import { DIALECT } from '../../../src/foundation/asm/dialect.ts';
 import { armCoverage, CASES_PER_FILE, compareCorpusFile, CORPUS_BASE, corpusFiles, corpusSummary, parseCorpusSummary, summarizeCorpus } from '../../../src/foundation/corpus/corpus.ts';
 import type { CorpusFile, CorpusOptions } from '../../../src/foundation/corpus/corpus.ts';

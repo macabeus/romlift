@@ -15,7 +15,7 @@
 // A module may also start anywhere in the data region (D75 a): at or past the data start no instruction lies, so no
 // branch, PC-relative load or adr can cross a word-aligned start there. isLegalStart is the whole rule, the code
 // region's borders and that data-start clause together, and every reader of a module start asks it: core/model's
-// E_MODULE_BORDER and its nearest-border message, `analyze --update`'s check of its patch, g4.toml-mutations and its
+// E_MODULE_BORDER and its nearest-border message, `update`'s check of its patch, g4.toml-mutations and its
 // property test (architecture-r1-3).
 //
 // This file is core/model's one entry into core/layout (architecture §2): it re-exports what the model uses of

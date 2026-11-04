@@ -1,4 +1,4 @@
-// The model's public JSON (architecture §3.4, §9.4, D19, D62 d): `model --json` is NDJSON, the ModelJsonHeader
+// The model's public JSON (architecture §3.4, §9.4, D19, D62 d): encodeModel is NDJSON, the ModelJsonHeader
 // line, then one ModelJsonChunk line per chunk in ROM order, each with its items inline as
 // [kind, start, length, specId | null, aux]. Every line is canonical JSON (keys sorted by code unit, addresses
 // '0x' and eight upper-case hex digits, optional members left out when absent), so equal models encode to the

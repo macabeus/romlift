@@ -24,7 +24,7 @@ async function inTemp<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
-/** The fixture's config with its startup module renamed (sidesteps the confirm-mode startup defect, see verify.test.ts). */
+/** The fixture's config with its startup module renamed (sidesteps the confirm-mode startup defect). */
 function renamedStartup(rom: Rom): RomliftConfig {
   const config = configFromDiscover(rom, discover(rom));
   return { ...config, modules: config.modules.map((m) => (m.name === 'crt0' ? { ...m, name: 'startup' } : m)) };

@@ -64,7 +64,7 @@ export async function locateProject(from: string = process.cwd()): Promise<Locat
 }
 
 /**
- * W_PROJECT_CONFIG_IGNORED when `from` lies inside a project (final-review end-to-end-user-5): `verify`, `model` and
+ * W_PROJECT_CONFIG_IGNORED when `from` lies inside a project (final-review end-to-end-user-5):
  * `explain` with `--rom` analyse that bare ROM under the config its discover run builds, not the project's
  * romlift.toml, which a user inside the project would otherwise not learn. Undefined outside a project.
  */
