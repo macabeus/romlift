@@ -58,7 +58,8 @@ and the five ROMs of the proof of concept reproduce its function boundaries exac
 (among them: the "Try it before it is published" commands need bash, not zsh), with the owner questions O1 to O5. After
 the review the owner cut the CLI to the five commands a project's user runs, `init`, `generate`, `update`,
 `rename` and `explain`, and CI to Linux (D108); then let a module start between hand-written functions and an `asm`
-module build from a hand-written source, `[[modules]] source` (D109). The history of each phase follows.
+module build from a hand-written source, `[[modules]] source` (D109); and sized an unsized RAM symbol by what its
+accesses prove, so the words inside it print `name + offset` (D110). The history of each phase follows.
 
 Phase 1 of 6 (Decoder) has landed ([docs/phase-1.md](docs/phase-1.md)): the Thumb and ARM instruction
 table with its decoder, encoder, formatter and parser round-trips 100% of printed mnemonics through GNU
@@ -166,7 +167,7 @@ limit, from 95 to 101%), made `bench run` refuse to drop a ROM's PoC reference, 
 | --- | --- |
 | [docs/plan.md](docs/plan.md) | the plan: requirements R1–R9, phases, gates, risks |
 | [docs/architecture.md](docs/architecture.md) | the definitive architecture: layers, types, analysis, printer, emission, signatures, bench, gates |
-| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D109 with the alternatives rejected |
+| [docs/decisions.md](docs/decisions.md) | architecture decision records D1–D110 with the alternatives rejected |
 | [docs/roadmap.md](docs/roadmap.md) | build order, file ownership and exit commands of each phase |
 | [docs/phase-1.md](docs/phase-1.md) | the record of phase 1: what it delivered, the gate run, deviations and known limitations |
 | [docs/phase-2.md](docs/phase-2.md) | the record of phase 2: components, commands, the milestones M1–M7 with their numbers, the closing gate run, deviations, and the owner's answers that let the phase land |

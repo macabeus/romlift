@@ -60,6 +60,16 @@ function raised(): Diagnostic[] {
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'asm', generated: true, dataStart: BASE + 0x180 }] })).diagnostics);
   // A hand-written source on a C module (D109).
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'c', generated: true, source: 'src/asm/main.s' }] })).diagnostics);
+  // A function loading an unsized RAM symbol and a word past what its accesses prove (D110): W_POOL_WORD_PAST_SYMBOL.
+  const ram = thumbAt(BASE + 0x100)`
+    ldr r1, _08000110
+    ldrb r0, [r1, #1]
+    ldr r2, _08000114
+    bx lr
+  `;
+  const ramRom = romWith([{ at: BASE + 0x100, bytes: ram }, { at: BASE + 0x110, bytes: Uint8Array.from([0x00, 0x01, 0x00, 0x03, 0x80, 0x01, 0x00, 0x03]) }], { size: 0x200 });
+  const ramAnalysis = analysisOf(ramRom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x118, pools: [BASE + 0x110, BASE + 0x114] })] });
+  out.push(...buildModel(ramRom, ramAnalysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], symbols: [[0x0300_0100, { name: 'gRam', aliases: [] }]] })).diagnostics);
   // A Thumb pointer value pasted as a [functions] key (fix round 5).
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x103, 'Odd']] })).diagnostics);
   return out;

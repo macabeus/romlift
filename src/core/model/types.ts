@@ -158,7 +158,13 @@ export interface ModelFunction {
 export interface ModelSymbol {
   readonly addr: Addr;
   readonly name: string;
+  /** The config's size. */
   readonly size?: number;
+  /**
+   * The least size the code proves for an unsized work-RAM entry (extents.ts, D110): a pool word inside it prints
+   * `name + offset`. Never set beside `size`.
+   */
+  readonly inferredSize?: number;
 }
 
 export interface Model {
@@ -232,6 +238,8 @@ export interface ModelJsonSymbol {
   readonly addr: HexAddr;
   readonly name: string;
   readonly size?: number;
+  /** ModelSymbol.inferredSize (D110). */
+  readonly inferredSize?: number;
 }
 
 export interface ModelJsonUnlisted {
