@@ -73,7 +73,7 @@ test('a function that folded the pad before it: its file opens with the start ma
   assert.deepEqual(entries.map((e) => e.path), ['asm/nonmatchings/main/A.s', 'asm/nonmatchings/main/B.s']);
   const b = entries[1];
   assert.ok(b !== undefined && b.ownership === 'generated');
-  assert.equal(b.text, '.thumb\n\tthumb_func_start_local B\nB: @ 0800010C\n\tmovs r0, #1\n\tbx lr\n\tthumb_func_end B\n');
+  assert.equal(b.text, '.thumb\n\tthumb_func_start B\nB: @ 0800010C\n\tmovs r0, #1\n\tbx lr\n\tthumb_func_end B\n');
 });
 
 // The matchings split (architecture §6.3 function row, phase 6, D92): a function of a `c` module that the C defines

@@ -28,11 +28,11 @@ sub_0800074C: @ 0800074C
 	adds r4, r4, r0
 	push {r0}
 	bl sub_08000DC4
-	ldr r0, _0800076C @ =0x02000000
+	ldr r0, _0800076C @ =gUnk_02000000
 	str r4, [r0]
 	bl _08000DB0
 	.align 2, 0
-_0800076C: .4byte 0x02000000
+_0800076C: .4byte gUnk_02000000
 	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
 	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole
 	.4byte 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF @ mixer hole

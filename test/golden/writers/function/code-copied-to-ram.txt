@@ -4,22 +4,22 @@
 sub_080000F4: @ 080000F4
 	push {lr}
 	ldr r0, _0800010C @ =gUnk_0800012C
-	ldr r1, _08000110 @ =0x03000000
-	ldr r2, _08000114 @ =0x0300000C
+	ldr r1, _08000110 @ =gUnk_03000000
+	ldr r2, _08000114 @ =gUnk_0300000C
 	bl sub_0800011C
 	movs r0, #7
-	ldr r3, _08000118 @ =0x03000000
+	ldr r3, _08000118 @ =gUnk_03000000
 	bl sub_08000128
 	pop {r1}
 	bx r1
 _0800010C: .4byte gUnk_0800012C
-_08000110: .4byte 0x03000000
-_08000114: .4byte 0x0300000C
-_08000118: .4byte 0x03000000
+_08000110: .4byte gUnk_03000000
+_08000114: .4byte gUnk_0300000C
+_08000118: .4byte gUnk_03000000
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/main/sub_0800011C.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_0800011C
+	thumb_func_start sub_0800011C
 sub_0800011C: @ 0800011C
 	cmp r1, r2
 	bcs _08000126
@@ -31,7 +31,7 @@ _08000126:
 	thumb_func_end sub_0800011C
 ==> asm/nonmatchings/main/sub_08000128.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000128
+	thumb_func_start sub_08000128
 sub_08000128: @ 08000128
 	bx r3
 	thumb_func_end sub_08000128

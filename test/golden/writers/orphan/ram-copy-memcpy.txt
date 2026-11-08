@@ -3,4 +3,4 @@
 @ bytes between functions: 4 bytes
 .global unk_08000148
 unk_08000148: @ 08000148
-_08000148: .4byte 0x03000018
+_08000148: .4byte gUnk_03000018

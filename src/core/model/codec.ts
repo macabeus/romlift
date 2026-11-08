@@ -85,6 +85,7 @@ function functionJson(f: ModelFunction) {
 function symbolJson(s: ModelSymbol) {
   return {
     addr: hexAddr(s.addr),
+    ...(s.default === true ? { default: true as const } : {}),
     ...(s.inferredSize === undefined ? {} : { inferredSize: s.inferredSize }),
     name: s.name,
     ...(s.size === undefined ? {} : { size: s.size }),

@@ -54,7 +54,7 @@ export const ModelCodes = defineCodes({
   W_POOL_WORD_PAST_SYMBOL: {
     severity: 'warning',
     meaning:
-      'functions that load an unsized work-RAM [symbols] entry also load words past what its code-proven extent covers, before the next named start, which print as numbers; a size on the entry prints them as name + offset (D110)',
+      'functions that load an unsized work-RAM [symbols] entry also load words past what its code-proven extent covers, before the next named start, which print as objects of their own (gUnk_<ADDR>, D111); a size on the entry prints them as name + offset (D110)',
   },
   W_CROSS_MODULE_SHORT_BRANCH: {
     severity: 'warning',

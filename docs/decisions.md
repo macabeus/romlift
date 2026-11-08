@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux, D109 the owner's module borders inside assembly-only runs and hand-written sources, D110 the least extents of unsized work-RAM symbols); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux, D109 the owner's module borders inside assembly-only runs and hand-written sources, D110 the least extents of unsized work-RAM symbols, D111 default RAM names, global function labels and the restored-stub warning); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -5194,6 +5194,53 @@ project named. ARM code is not read (its rows carry no register effects); nor is
 unnamed object after a named one would be named after it with nothing to show, and naming a symbol would move the
 spelling of words far from it. Reading sizes from a built ELF or map (proposal 2). Raising the diagnostic per word
 (kl2dct's 92 words would be 92 lines).
+
+## D111. Default names for RAM, function labels global unless their name repeats, and a warning for a restored stub; the owner's words of 8 November 2026
+
+**Context.** The kl2dct session reported, after porting 74 functions (`kl2dct-handoff/romlift-feedback.md`, 8 November
+2026), what cost it time. Three points are this decision's:
+
+- (1) A work-RAM address got a name only from `[symbols]`, so its pool words printed as numbers (1,163 words, 156
+  addresses in kl2dct): C could not name a variable until someone wrote its entry, the two PRs needed about 40 by hand,
+  asmlift's C read `*(s32 *)50352084`, and AGENTS.md implied a default RAM label existed.
+- (3) 369 of kl2dct's 580 function files opened with `thumb_func_start_local`: a function nothing outside its module
+  referenced was module-scoped, so `as` resolved a call to it from its own module with no relocation, while the object
+  built from C keeps an `R_ARM_THM_CALL` for a call to a C function. objdiff scored an untouched caller below 100% once
+  its callee was decompiled, and asmlift did not read the `_local` macro.
+- (6) A decompiled function's chunk file moves to `asm/matchings/` (D92), so an `INCLUDE_ASM` line restored by hand
+  failed in the assembler until `generate` ran.
+
+**Decision.** The owner, on the recommendation that ranked them first ("Yes, do 1–3 next, and merge once CI passes"):
+
+- (a) **Default RAM names** (`core/model/symbols.ts withDefaultRamSymbols`, `ModelSymbol.default`). Every work-RAM word
+  of a pool that no symbol is at, no sized entry holds (D102, D110) and no runs_at range runs over gets a model symbol
+  `gUnk_<ADDR>`, the ROM's default data spelling, so the word prints the name, symbols.ld defines it and the label is
+  global. It is no knowledge: the inferred extents of D110 read the config's symbols only, so a default name bounds
+  none. The model JSON marks it `default: true`.
+- (b) **`rename` of a default data name** (`core/workflow/rename.ts defaultDataAddress`): `gUnk_<ADDR>` that the model
+  emits at that address (a ROM data label or a RAM default) and no entry carries renames directly, adding
+  `<ADDR> = "<new>"` to `[symbols]` (the patch planner, so every comment is kept) and renaming the identifiers of `src/`
+  and `include/` as before. Any other default name still needs its entry first.
+- (c) **Function labels** (`core/model/labels.ts uniqueFunctionNames`): a `func` label is global when no label or alias
+  of another module carries its name, referenced or not; a repeated name stays module-scoped unless referenced, as
+  before (static functions repeat in real decomps), and prints with the `_local` macros. Only the relocations of the
+  objects change: every byte links as before. The report's alternative, `.global` in `expected/` only, was rejected: a
+  decompiled caller of a function still in assembly would then differ the other way.
+- (d) **The restored-stub warning** (`modules.mk`): with C units, make reads the C sources' `INCLUDE_ASM` lines and
+  warns, before building, of each whose `asm/nonmatchings/` file is gone while its `asm/matchings/` twin exists, naming
+  `romlift generate`. It is in modules.mk, a generated file, so every project gets it at its next `generate`; a warning,
+  since a stub inside `#if 0` can name such a file harmlessly. The report's other option, keeping the file under
+  `asm/nonmatchings/`, was rejected: that directory is the list of what is left to decompile.
+
+**Consequences.** On a copy of kl2dct, every RAM pool word prints a name (none is left a number), symbols.ld grows to
+222 names, no function file uses a `_local` macro (654 files), a restored stub warns before the assembler's error, and
+the tree builds to the SHA-1. The goldens of every fixture change accordingly. W_POOL_WORD_PAST_SYMBOL's words now print
+as their own default names, and its message says to rename them when they are other objects. A pool word that is a
+constant in work RAM's range, never an address, now prints as a name too; its bytes are the same.
+
+**Rejected.** A `romlift symbol add` command (the five commands of D108 stay; the default names and `rename` cover the
+need). Default names only for words that a load or store uses as a base (a RAM address passed to a function, a DMA
+source, is an address too).
 
 ## Review findings index
 

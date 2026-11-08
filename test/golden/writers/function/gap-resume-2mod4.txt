@@ -12,7 +12,7 @@ _08000104: .4byte sub_08000108
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/main/sub_08000108.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000108
+	thumb_func_start sub_08000108
 sub_08000108: @ 08000108
 	movs r0, #1
 	bx lr
@@ -25,19 +25,19 @@ sub_0800010C: @ 0800010C
 	thumb_func_end sub_0800010C
 ==> asm/nonmatchings/asm_0800010C/sub_0800010E.s (generated, function) <==
 .thumb
-	non_word_aligned_thumb_func_start_local sub_0800010E
+	non_word_aligned_thumb_func_start sub_0800010E
 sub_0800010E: @ 0800010E
 	bx r1
 	thumb_func_end sub_0800010E
 ==> asm/nonmatchings/asm_0800010C/sub_08000110.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000110
+	thumb_func_start sub_08000110
 sub_08000110: @ 08000110
 	bx r2
 	thumb_func_end sub_08000110
 ==> asm/nonmatchings/asm_0800010C/sub_08000112.s (generated, function) <==
 .thumb
-	non_word_aligned_thumb_func_start_local sub_08000112
+	non_word_aligned_thumb_func_start sub_08000112
 sub_08000112: @ 08000112
 	bx r3
 	thumb_func_end sub_08000112

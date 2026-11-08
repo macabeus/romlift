@@ -17,7 +17,7 @@ sub_08000104: @ 08000104
 	thumb_func_end sub_08000104
 ==> asm/nonmatchings/asm_08000104/sub_08000108.s (generated, function) <==
 .arm
-	arm_func_start_local sub_08000108
+	arm_func_start sub_08000108
 sub_08000108: @ 08000108
 	add r0, r0, #1
 	bx lr

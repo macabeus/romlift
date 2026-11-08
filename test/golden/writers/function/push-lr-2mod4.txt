@@ -10,7 +10,7 @@ sub_080000F4: @ 080000F4
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/asm_08000100/sub_0800010A.s (generated, function) <==
 .thumb
-	non_word_aligned_thumb_func_start_local sub_0800010A
+	non_word_aligned_thumb_func_start sub_0800010A
 sub_0800010A: @ 0800010A
 	push {r4, lr}
 	movs r4, #3

@@ -31,7 +31,7 @@ import { modulePieces, planModules, relocatedModules, runOffsetAt } from './modu
 import { invalidNames, linkerNameCollisions, moduleNameProblems, nameCollisions, nameSourceOf, sectionNameCollisions } from './names.ts';
 import type { DefinedName } from './names.ts';
 import { inferSymbolExtents } from './extents.ts';
-import { modelSymbols, romSymbols } from './symbols.ts';
+import { modelSymbols, romSymbols, withDefaultRamSymbols } from './symbols.ts';
 import type { Chunk, Label, Model, ModelFunction, ModelSymbol, Module } from './types.ts';
 
 /** Diagnostics by address (span start for a span), then code, then message. */
@@ -209,7 +209,9 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   const refs = codeRefs(rom, segments, relocated);
   const modelFns = modelFunctions(placed, functions, analysis, planned.modules, relocated);
   const extents = inferSymbolExtents(rom, analysis, symbols, modelFns, relocated);
-  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols: extents.symbols, entries: sizedEntries({ symbols: extents.symbols, functions: modelFns }), segments, refs });
+  const poolWords = segments.concrete.flatMap((s) => (s.kind === 'pool' ? [s.value] : []));
+  const allSymbols = withDefaultRamSymbols(poolWords, extents.symbols, sizedEntries({ symbols: extents.symbols, functions: modelFns }), relocated);
+  const labelled = buildLabels({ rom, modules, relocated, chunks: chunkPlans, functions, symbols: allSymbols, entries: sizedEntries({ symbols: allSymbols, functions: modelFns }), segments, refs });
 
   const defined: DefinedName[] = [...labelled.labels];
   for (const [entry, f] of sortedEntries(functions)) {
@@ -257,7 +259,7 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     modules: finished,
     items: built.items,
     labels: labelled.labels,
-    symbols: extents.symbols,
+    symbols: allSymbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
     diagnostics: [...planned.diagnostics, ...moduleNameProblems(planned.modules), ...sectionNameCollisions(planned.modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced), ...extents.diagnostics].sort(compareDiagnostics),
   };

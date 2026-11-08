@@ -11,7 +11,7 @@ sub_080000F4: @ 080000F4
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/main/sub_08000104.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000104
+	thumb_func_start sub_08000104
 sub_08000104: @ 08000104
 	lsls r0, r0, #2
 	ldr r1, _08000110 @ =_08000114
@@ -32,7 +32,7 @@ _08000120:
 	thumb_func_end sub_08000104
 ==> asm/nonmatchings/main/sub_08000128.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000128
+	thumb_func_start sub_08000128
 sub_08000128: @ 08000128
 	movs r0, #0
 	adds r0, #4

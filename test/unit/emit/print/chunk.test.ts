@@ -253,8 +253,8 @@ test('a folded pad: both printers put the start macro and label at the entry and
   const { rom: r, model: m } = folded('push {lr}; movs r0, #0');
   const b = m.chunks.findIndex((c) => c.name === 'B');
   assert.deepEqual(m.chunks[b]?.span, { start: BASE + 0x10a, end: BASE + 0x110 });
-  assert.deepEqual(printChunk(r, m, b).lines, ['.thumb', '\tthumb_func_start_local B', 'B: @ 0800010C', '\tmovs r0, #1', '\tbx lr', '\tthumb_func_end B']);
-  assert.deepEqual(printChunk(r, m, b, 'raw').lines, ['.thumb', '\tthumb_func_start_local B', 'B: @ 0800010C', '\t.2byte 0x2001, 0x4770', '\tthumb_func_end B']);
+  assert.deepEqual(printChunk(r, m, b).lines, ['.thumb', '\tthumb_func_start B', 'B: @ 0800010C', '\tmovs r0, #1', '\tbx lr', '\tthumb_func_end B']);
+  assert.deepEqual(printChunk(r, m, b, 'raw').lines, ['.thumb', '\tthumb_func_start B', 'B: @ 0800010C', '\t.2byte 0x2001, 0x4770', '\tthumb_func_end B']);
   assert.equal(m.chunks.some((c) => c.kind === 'orphan' && c.span.start === BASE + 0x10a), false);
   assert.deepEqual(selfChecks(r, m, 'readable'), []);
   assert.deepEqual(selfChecks(r, m, 'raw'), []);
@@ -263,8 +263,8 @@ test('a folded pad: both printers put the start macro and label at the entry and
 test('a label inside a folded pad: the pad prints before the start macro (readable: with its local label), so the macro aligns nothing', () => {
   const { rom: r, model: m } = folded('push {lr}; beq _0800010A');
   const b = m.chunks.findIndex((c) => c.name === 'B');
-  assert.deepEqual(printChunk(r, m, b).lines, ['.thumb', '_0800010A:', '\t.2byte 0x0000', '\tthumb_func_start_local B', 'B: @ 0800010C', '\tmovs r0, #1', '\tbx lr', '\tthumb_func_end B']);
-  assert.deepEqual(printChunk(r, m, b, 'raw').lines, ['.thumb', '\t.2byte 0x0000', '\tthumb_func_start_local B', 'B: @ 0800010C', '\t.2byte 0x2001, 0x4770', '\tthumb_func_end B']);
+  assert.deepEqual(printChunk(r, m, b).lines, ['.thumb', '_0800010A:', '\t.2byte 0x0000', '\tthumb_func_start B', 'B: @ 0800010C', '\tmovs r0, #1', '\tbx lr', '\tthumb_func_end B']);
+  assert.deepEqual(printChunk(r, m, b, 'raw').lines, ['.thumb', '\t.2byte 0x0000', '\tthumb_func_start B', 'B: @ 0800010C', '\t.2byte 0x2001, 0x4770', '\tthumb_func_end B']);
   assert.ok(printChunk(r, m, m.chunks.findIndex((c) => c.name === 'A')).lines.includes('\tbeq _0800010A'));
   assert.deepEqual(selfChecks(r, m, 'readable'), []);
   assert.deepEqual(selfChecks(r, m, 'raw'), []);

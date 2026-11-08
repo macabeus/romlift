@@ -13,7 +13,7 @@ was created by [romlift](https://github.com/macabeus/romlift) @@romliftVersion@@
 | `make rom` | builds `@@builtRom@@` without the comparison |
 | `npx romlift generate` | rewrites the generated files from `romlift.toml` and the ROM |
 | `make expected` | builds each module's objdiff target, `build/expected/<module>.o` (no compiler; `objdiff.json` lists the C modules') |
-| `npx romlift rename <old> <new>` | renames a function or symbol of `romlift.toml` in it and in the C of `src/` and `include/` together (a default data label such as `gUnk_<ADDR>` needs a `[symbols]` entry first, below) |
+| `npx romlift rename <old> <new>` | renames a function or symbol of `romlift.toml`, or a default data name `gUnk_<ADDR>`, in it and in the C of `src/` and `include/` together |
 | `npx romlift update [--write]` | proposes what the analysis finds that `romlift.toml` lacks, as a patch that keeps its comments; `--write` saves it |
 | `npx romlift explain <addr>` | explains what romlift decided about one address: which function owns it, why (the rules), its chunk and item |
 | `make clean` | removes `build/` (the objdiff targets with it) and the built ROM |
@@ -53,7 +53,10 @@ INCLUDE_ASM("asm/nonmatchings/<module>", FunctionName);
 
 `INCLUDE_ASM` (`include/include_asm.h`) assembles the function's generated file,
 `asm/nonmatchings/<module>/FunctionName.s`, in place. To decompile the function, replace that line with C that compiles
-to the same bytes, then run `make`; never edit the `.s` file. To rename a function or move a boundary, change its entry
+to the same bytes, then run `make`; never edit the `.s` file. Once the C defines it, `romlift generate` moves that file to
+`asm/matchings/<module>/`, so `asm/nonmatchings/` lists only what is left. To go back to the assembly, delete the C and
+run `npx romlift generate`, which writes the `INCLUDE_ASM` line and the file back; a line put back by hand fails in the
+assembler until then, and `make` warns which. To rename a function or move a boundary, change its entry
 in `[functions]` of `romlift.toml` and run `npx romlift generate`: it rewrites the generated files and brings the
 `INCLUDE_ASM` lines of `src/*.c` in line with them (it adds the line of a function the module gained and removes the
 line of one it lost or renamed), and it never touches a line of C you wrote. A function you have already decompiled
@@ -77,10 +80,12 @@ decompiled function, change both its C name and `romlift.toml`; renamed in C alo
 name of the project (an entry, an alias or a module of `romlift.toml`, or a name the generated files use, such as a
 default `unk_…`, `gUnk_…` or `_0800…` label), when `<old>` names nothing, or when a file it cannot edit names `<old>`:
 a symbolic link (an edit would replace the link with a file), a file that is not UTF-8 text, or a binary. It warns
-(`W_RENAME_SKIPPED`) of every other such file it left alone. It renames only what `romlift.toml` lists: every function
-is listed, but a default data or RAM label (`gUnk_<ADDR>`, `unk_<ADDR>`) is not, so `rename` refuses it
-(`E_RENAME_UNKNOWN`). Add its entry to `[symbols]` first, under the default name (`0x08051C76 = "gUnk_08051C76"`, with
-`size` when you know it), then rename it.
+(`W_RENAME_SKIPPED`) of every other such file it left alone. It renames what `romlift.toml` lists (every function is
+listed) and the default data names `gUnk_<ADDR>`: renaming one adds its `[symbols]` entry under the new name
+(`0x03004FD4 = "gPlayer"`); add `size` to that entry when you know it. Every RAM address the code loads has such a name
+until you give it one: `symbols.ld` defines `gUnk_<ADDR>`, so C can name it at once (`extern u32 gUnk_03004FD4;`). A
+word inside a sized symbol prints as `name + offset` instead, and a symbol without `size` is sized by the furthest
+access the code makes through its address. Any other default name (`unk_<ADDR>`, a chunk's) needs its entry first.
 
 **Entries named by library signatures.** romlift recognises library code (m4a, libgcc, the BIOS call stubs, …) by its
 bytes and names it: such an entry of `[functions]` or `[symbols]` carries `from = "sig:<library>@<version>"`, and the

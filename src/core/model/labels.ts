@@ -15,7 +15,8 @@
 // architecture-o1-1). Every other reference still names the function.
 //
 // Scope: a label is 'global' when something in another module references it (a call, a branch, an adr, a
-// pool load, a pool word naming it, its Thumb form included, a table entry), else 'module'. What a pool word names is
+// pool load, a pool word naming it, its Thumb form included, a table entry), or when it is a function whose name no
+// other module defines (D111, uniqueFunctionNames), else 'module'. What a pool word names is
 // resolver.ts wordNameOf, the rule the printer reads: a named entry at the word, else the sized entry holding it (its
 // label, which `name + offset` names), else a label that links to the word; never a local label. A short Thumb
 // branch into another module prints raw (items.ts), so it references nothing.
@@ -338,6 +339,30 @@ function scopes(inputs: LabelInputs, index: LabelIndex): boolean[] {
   return global;
 }
 
+/**
+ * Which labels are functions whose name no other module defines (D111): such a function is global even when nothing
+ * outside its module references it, so a call from its own module keeps its relocation as a call to C does (`as`
+ * resolves a call to a local symbol itself), and objdiff's targets agree with the objects built from C. A name another
+ * module defines too (a label, or a function's alias) stays module-scoped unless referenced, as static functions repeat
+ * in real decomps (names.ts).
+ */
+function uniqueFunctionNames(inputs: LabelInputs, loads: readonly Addr[], index: LabelIndex): boolean[] {
+  const moduleOf = index.byAddr.map((l) => moduleIndexAt(inputs.modules, l.addr, inputs.relocated));
+  const modulesOf = new Map<string, number[]>();
+  const define = (name: string, module: number): void => {
+    const list = modulesOf.get(name) ?? [];
+    if (!list.includes(module)) list.push(module);
+    modulesOf.set(name, list);
+  };
+  index.byAddr.forEach((l, i) => {
+    const module = moduleOf[i] ?? -1;
+    define(l.name, module);
+    const f = l.kind === 'func' ? inputs.functions.get(loads[i] ?? -1) : undefined;
+    if (f !== undefined && f.name === l.name) for (const alias of f.aliases) define(alias, module);
+  });
+  return index.byAddr.map((l) => l.kind === 'func' && (modulesOf.get(l.name)?.length ?? 0) === 1);
+}
+
 /** The labels of the model. */
 export function buildLabels(inputs: LabelInputs): LabelsResult {
   const { candidates, unplaced } = candidatesOf(inputs);
@@ -353,9 +378,10 @@ export function buildLabels(inputs: LabelInputs): LabelsResult {
   if (inputs.relocated.length > 0) pairs.sort((a, b) => compareLabels(a.label, b.label));
   const index: LabelIndex = { byAddr: pairs.map((p) => p.label) };
   const global = scopes(inputs, index);
+  const unique = uniqueFunctionNames(inputs, pairs.map((p) => p.load), index);
   const functions = new Map<Addr, Label>();
   const labels = pairs.map((p, i): Label => {
-    const label: Label = global[i] === true || !contains(inputs.rom, p.load) ? { ...p.label, scope: 'global' } : p.label;
+    const label: Label = global[i] === true || unique[i] === true || !contains(inputs.rom, p.load) ? { ...p.label, scope: 'global' } : p.label;
     if (label.kind === 'func' && inputs.functions.get(p.load)?.name === label.name) functions.set(p.load, label);
     return label;
   });

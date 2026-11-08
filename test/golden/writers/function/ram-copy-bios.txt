@@ -4,11 +4,11 @@
 sub_080000F4: @ 080000F4
 	push {lr}
 	ldr r0, _08000120 @ =sub_08000148
-	ldr r1, _08000124 @ =0x03000000
+	ldr r1, _08000124 @ =gUnk_03000000
 	ldr r2, _08000118 @ =0x04000006
 	bl sub_08000130
 	ldr r0, _08000128 @ =sub_08000160
-	ldr r1, _0800012C @ =0x03000400
+	ldr r1, _0800012C @ =gUnk_03000400
 	ldr r2, _0800011C @ =0x0000000A
 	bl sub_08000134
 	movs r0, #7
@@ -19,20 +19,20 @@ sub_080000F4: @ 080000F4
 _08000118: .4byte 0x04000006
 _0800011C: .4byte 0x0000000A
 _08000120: .4byte sub_08000148
-_08000124: .4byte 0x03000000
+_08000124: .4byte gUnk_03000000
 _08000128: .4byte sub_08000160
-_0800012C: .4byte 0x03000400
+_0800012C: .4byte gUnk_03000400
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/main/sub_08000130.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000130
+	thumb_func_start sub_08000130
 sub_08000130: @ 08000130
 	swi #0xb
 	bx lr
 	thumb_func_end sub_08000130
 ==> asm/nonmatchings/main/sub_08000134.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000134
+	thumb_func_start sub_08000134
 sub_08000134: @ 08000134
 	swi #0xc
 	bx lr
@@ -41,15 +41,15 @@ sub_08000134: @ 08000134
 .thumb
 	thumb_func_start sub_08000138
 sub_08000138: @ 08000138
-	ldr r3, _08000140 @ =0x0300000C
+	ldr r3, _08000140 @ =gUnk_0300000C
 	bx r3
 .global sub_0800013C
 .type sub_0800013C, %function
 .thumb_func
 sub_0800013C:
-	ldr r3, _08000144 @ =0x0300040C
+	ldr r3, _08000144 @ =gUnk_0300040C
 	bx r3
-_08000140: .4byte 0x0300000C
+_08000140: .4byte gUnk_0300000C
 	thumb_func_end sub_08000138
 ==> asm/nonmatchings/asm_08000138/sub_08000148.s (generated, function) <==
 .arm
@@ -61,7 +61,7 @@ sub_08000148: @ 08000148
 	arm_func_end sub_08000148
 ==> asm/nonmatchings/asm_08000138/sub_08000154.s (generated, function) <==
 .arm
-	arm_func_start_local sub_08000154
+	arm_func_start sub_08000154
 sub_08000154: @ 08000154
 	add r0, r0, r0
 	add r0, r0, #1
@@ -77,7 +77,7 @@ sub_08000160: @ 08000160
 	arm_func_end sub_08000160
 ==> asm/nonmatchings/asm_08000138/sub_0800016C.s (generated, function) <==
 .arm
-	arm_func_start_local sub_0800016C
+	arm_func_start sub_0800016C
 sub_0800016C: @ 0800016C
 	add r1, r0, r0
 	add r0, r0, r1

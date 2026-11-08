@@ -46,6 +46,7 @@ with phase 5 and the gba-kit trace, D91, D92: `core/evidence` and `core/legacy` 
 | `reconcile/` | the C tokenizer (`c-tokens.ts`), the file-scope scanner, `compiledDefinitions` and the include resolution (`c-scan.ts`), the INCLUDE_ASM planner (`include-asm.ts`), text edits (`text-edit.ts`) and their codes |
 | `model/` | adds the C units (`c-unit.ts`: stub chunks, compile settings, the stub assembly), the C-data ASSERT lines (`c-data-assert.ts`) and the chunk-file readers of a tree on disk (`paths.ts`: `chunkNamesOf`, `moduleChunkStubs`) |
 | `model/extents.ts` | the least extents of the unsized work-RAM symbols, from the accesses Thumb code makes through their addresses, and `W_POOL_WORD_PAST_SYMBOL` (D110) |
+| `model/symbols.ts`, `model/labels.ts` | the default `gUnk_<ADDR>` symbols of the work-RAM pool words nothing names, and function labels global unless their name repeats (D111) |
 | `scaffold/` | the scaffold's variables and placeholders (`vars.ts`) and its rendering (`render.ts`) |
 | `workflow/` | `generateProject` (`generate.ts`), the C stubs reconciled with the model (`c-stubs.ts`), `init`'s plan and directory verdict (`init.ts`, `init-config.ts`), `update` (`update.ts`), the toolchain plan of the tree checks the gates and the bench run (`verify.ts`), the project inputs (`types.ts`) |
 | `write-plan/` | adds `reconciled` edits and the one staleness rule of an edit (`staleEdit`, read by the shell at write time too), and the project's write plan (`project-plan.ts`) |

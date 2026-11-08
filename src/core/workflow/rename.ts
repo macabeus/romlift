@@ -21,7 +21,9 @@ import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
+import { dataName } from '../../foundation/util/project-files.ts';
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
+import { planPatch } from '../config/patch.ts';
 import { entriesNamed, planRenamePatch } from '../config/rename-patch.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import type { FileEntry } from '../emit/tree.ts';
@@ -143,6 +145,17 @@ export function skippedFileProblems(skipped: readonly RenameSkipped[], from: str
 }
 
 /**
+ * The address of `from` when it is a default data name the model emits (`gUnk_<ADDR>`: a ROM data label, or a work-RAM
+ * address a pool word holds, D111) that no [functions] or [symbols] entry carries and no [symbols] entry is at: renaming
+ * it adds `<ADDR> = "<to>"` to [symbols] (D111), which is what the user would otherwise add by hand first.
+ */
+export function defaultDataAddress(config: RomliftConfig, from: string, modelNames: ReadonlyMap<string, Addr>): Addr | undefined {
+  const at = modelNames.get(from);
+  if (at === undefined || dataName(at) !== from || entriesNamed(config, from).length > 0 || config.symbols.has(at)) return undefined;
+  return at;
+}
+
+/**
  * The refusals of renaming `from` to `to` in `config`, in a fixed order (invalid, unknown, exists); empty when it may.
  * `modelNames` (renameModelNames) are the names the project's model emits, which `to` may not take either.
  */
@@ -151,7 +164,7 @@ export function renameProblems(config: RomliftConfig, from: string, to: string, 
   if (!isRenameTarget(to)) {
     out.push(diagnostic(WorkflowCodes, 'E_RENAME_INVALID', `${JSON.stringify(to)} cannot be a function or symbol name: it must be a C identifier (a letter or _, then letters, digits and _, not a C keyword) of at most 200 characters; nothing was changed`));
   }
-  if (entriesNamed(config, from).length === 0) {
+  if (entriesNamed(config, from).length === 0 && defaultDataAddress(config, from, modelNames) === undefined) {
     // A default name of the model (a gUnk_ data or RAM label, a default chunk name) has a fixed remedy (end-to-end-user-r1-2).
     const at = modelNames.get(from);
     const hint =
@@ -178,7 +191,11 @@ export function planRename(inputs: RenameInputs): RenamePlan {
   const skipped = skippedFileProblems(inputs.skipped ?? [], from);
   const problems = [...renameProblems(config, from, to, inputs.modelNames), ...skipped.filter((d) => d.severity === 'error')];
   if (problems.length > 0) return { ok: false, diagnostics: problems };
-  const patch = planRenamePatch(inputs.configText, config, from, to);
+  const at = defaultDataAddress(config, from, inputs.modelNames);
+  const patch =
+    at === undefined
+      ? planRenamePatch(inputs.configText, config, from, to)
+      : planPatch(inputs.configText, config, [{ kind: 'symbol', addr: at, name: to, source: { kind: 'layout', reason: 'data' } }]);
   if (!patch.ok) return { ok: false, diagnostics: patch.diagnostics };
   const edits: RenameEdit[] = [];
   const asmSources = new Set(config.modules.flatMap((m) => (m.source === undefined ? [] : [m.source])));

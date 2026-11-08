@@ -15,6 +15,7 @@ sub_08000100: @ 08000100
 	push {lr}
 	bl sub_08000108
 	b _0800010C
+.global sub_08000108
 .type sub_08000108, %function
 .thumb_func
 sub_08000108:

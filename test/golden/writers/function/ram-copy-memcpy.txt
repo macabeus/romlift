@@ -6,7 +6,7 @@ sub_080000F4: @ 080000F4
 	ldr r1, _08000110 @ =sub_0800014C
 	ldr r0, _08000114 @ =gUnk_08000174
 	subs r2, r0, r1
-	ldr r0, _08000118 @ =0x03000000
+	ldr r0, _08000118 @ =gUnk_03000000
 	bl sub_0800011C
 	movs r0, #7
 	bl sub_0800013C
@@ -15,11 +15,11 @@ sub_080000F4: @ 080000F4
 	bx r1
 _08000110: .4byte sub_0800014C
 _08000114: .4byte gUnk_08000174
-_08000118: .4byte 0x03000000
+_08000118: .4byte gUnk_03000000
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/main/sub_0800011C.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_0800011C
+	thumb_func_start sub_0800011C
 sub_0800011C: @ 0800011C
 	push {r4, lr}
 	adds r4, r0, #0
@@ -44,15 +44,15 @@ _08000134:
 .thumb
 	thumb_func_start sub_0800013C
 sub_0800013C: @ 0800013C
-	ldr r3, _08000144 @ =0x0300000C
+	ldr r3, _08000144 @ =gUnk_0300000C
 	bx r3
 .global sub_08000140
 .type sub_08000140, %function
 .thumb_func
 sub_08000140:
-	ldr r3, _08000148 @ =0x03000018
+	ldr r3, _08000148 @ =gUnk_03000018
 	bx r3
-_08000144: .4byte 0x0300000C
+_08000144: .4byte gUnk_0300000C
 	thumb_func_end sub_0800013C
 ==> asm/nonmatchings/asm_0800013C/sub_0800014C.s (generated, function) <==
 .arm
@@ -64,7 +64,7 @@ sub_0800014C: @ 0800014C
 	arm_func_end sub_0800014C
 ==> asm/nonmatchings/asm_0800013C/sub_08000158.s (generated, function) <==
 .arm
-	arm_func_start_local sub_08000158
+	arm_func_start sub_08000158
 sub_08000158: @ 08000158
 	add r0, r0, r0
 	add r0, r0, #1
@@ -72,7 +72,7 @@ sub_08000158: @ 08000158
 	arm_func_end sub_08000158
 ==> asm/nonmatchings/asm_0800013C/sub_08000164.s (generated, function) <==
 .arm
-	arm_func_start_local sub_08000164
+	arm_func_start sub_08000164
 sub_08000164: @ 08000164
 	add r1, r0, r0
 	add r0, r0, r1
