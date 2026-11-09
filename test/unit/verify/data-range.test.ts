@@ -90,7 +90,10 @@ async function writeTree(entries: readonly FileEntry[]): Promise<string> {
 
 test('the three layouts: the data module dropped, clipped, or clipped with a module after the range', () => {
   assert.equal(base.modules.find((m) => m.name === 'data')?.start, TABLE, 'the fixture as this test knows it');
-  for (const model of Object.values(LAYOUTS)) assert.deepEqual(model.diagnostics, []);
+  // A range nothing ends runs to the ROM end, and says so (D112); the range a module after it ends does not.
+  assert.deepEqual(LAYOUTS.at.diagnostics.map((d) => d.code), ['W_DATA_RANGE_TO_ROM_END']);
+  assert.deepEqual(LAYOUTS.inside.diagnostics.map((d) => d.code), ['W_DATA_RANGE_TO_ROM_END']);
+  assert.deepEqual(LAYOUTS.between.diagnostics, []);
   const mainStart = LAYOUTS.at.modules.find((m) => m.name === 'main')?.span.start ?? 0;
   assert.deepEqual(spans(LAYOUTS.at).slice(2), [['main', mainStart, TABLE, TABLE, rom.end]]);
   assert.deepEqual(spans(LAYOUTS.inside).slice(2), [
@@ -138,7 +141,7 @@ test('the ldscript places main\'s .rodata at its range, in ROM order, with its A
         build/data.o(.text);
     }
     .rodata_main 0x08000150 : AT(0x08000150) { build/src/main.o(.rodata .rodata.*) }
-    ASSERT(SIZEOF(.rodata_main) == 8, "src/main.c's read-only data is not the 8 bytes of its data range [0x08000150, 0x08000158); see AGENTS.md")
+    ASSERT(SIZEOF(.rodata_main) == 8, "src/main.c's read-only data is not the 8 bytes of its data range [0x08000150, 0x08000158); if the range ends in the zero padding before an aligned object, extend it over that object, as the original file did; see AGENTS.md")
     .text.tail 0x08000158 : AT(0x08000158) {
         build/tail.o(.text);
     }

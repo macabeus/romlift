@@ -1451,7 +1451,9 @@ only `update --write` and `rename` patch the TOML.
   dependency list still names; with C units, a `$(warning)` for each `INCLUDE_ASM` line naming an `asm/nonmatchings/`
   file that is gone while its `asm/matchings/` twin exists, a stub put back by hand over a decompiled function, with the
   command that writes the file back (D111). A generated `src/<m>.c` is `#include "include_asm.h"` and one
-  `INCLUDE_ASM("asm/nonmatchings/<m>", <Name>);` per chunk file in ROM order (`foundation/asm/dialect.ts`).
+  `INCLUDE_ASM("asm/nonmatchings/<m>", <Name>);` per chunk file in ROM order (`foundation/asm/dialect.ts`); the macro
+  wraps each include in `.pushsection .text` and `.popsection`, so a stub after a `const` definition, where agbcc is
+  still in `.rodata`, assembles into `.text` (D112).
 
 ### 6.4 Writing safely
 
@@ -2251,7 +2253,7 @@ architecture-2). The codes:
 | --- | --- |
 | `E_ROM_NOT_GBA` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_FUNCTION_MISALIGNED`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER`, `E_DECOMP_YAML_INVALID`, `E_ROM_SHA1_MISMATCH` | `core/config` |
-| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_DATA_RANGE_INVALID`, `E_MODULE_SOURCE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED`, `W_POOL_WORD_PAST_SYMBOL` | `core/model` (`E_DATA_RANGE_INVALID`: a C data range, phase 6, D92; `E_MODULE_SOURCE_INVALID`: a hand-written source, D109; `W_POOL_WORD_PAST_SYMBOL`: words past an unsized RAM symbol, D110) |
+| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_DATA_RANGE_INVALID`, `E_MODULE_SOURCE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED`, `W_POOL_WORD_PAST_SYMBOL`, `W_DATA_RANGE_TO_ROM_END` | `core/model` (`E_DATA_RANGE_INVALID`: a C data range, phase 6, D92; `E_MODULE_SOURCE_INVALID`: a hand-written source, D109; `W_POOL_WORD_PAST_SYMBOL`: words past an unsized RAM symbol, D110; `W_DATA_RANGE_TO_ROM_END`: a data range nothing ends, D112) |
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET`, `E_ANALYSIS_JSON` | `core/analysis` (`E_ANALYSIS_JSON`: the analysis codec's refusal; `W_PROFILE_MISFIT` and `W_UNDECODED_GAP` are not defined: each lands with its first raiser, D59 g) |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` (`E_STALE_EDIT` through `staleEdit`, which the shell's `applyWrites` also calls at write time, D81 b) |

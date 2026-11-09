@@ -16,9 +16,11 @@
 //   .gcc2_compiled.:
 //   \t.include "include/macros.inc"            the header's file-scope asm, then a blank line
 //
-//   \t.syntax unified                          per INCLUDE_ASM, in source order, then a blank line
+//   \t.pushsection .text                       per INCLUDE_ASM, in source order, then a blank line (D112)
+//   .syntax unified
 //   .include "asm/nonmatchings/<m>/<name>.s"
 //   .syntax divided
+//   .popsection
 //
 // Every file-scope `asm("<body>")` becomes a tab, its body (which ends with a newline) and a newline. Nothing else:
 // no `.text` (the unit stays in `.text`, as `as` starts), no `.align` and nothing appended at the end, so the object's
@@ -61,7 +63,7 @@ function fileScopeAsm(body: string): string {
 
 /** The body of INCLUDE_ASM(DIR, NAME) after the preprocessor (foundation/asm/dialect.ts INCLUDE_ASM_HEADER), for the file `<DIR>/<NAME>.s`. */
 function includeAsmBody(chunkFile: string): string {
-  return `.syntax unified\n.include "${chunkFile}"\n.syntax divided\n`;
+  return `.pushsection .text\n.syntax unified\n.include "${chunkFile}"\n.syntax divided\n.popsection\n`;
 }
 
 /**

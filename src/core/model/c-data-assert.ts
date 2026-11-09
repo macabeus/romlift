@@ -57,7 +57,7 @@ export function cRodataSectionLine(module: string, object: string, range: Span):
 /** The assertion that C module `module`'s `.rodata` is exactly the bytes of its data range. */
 export function cRodataAssertLine(module: string, range: Span): string {
   const size = range.end - range.start;
-  return `ASSERT(SIZEOF(${cRodataName(module)}) == ${size}, "${cSourceOf(`${module}.c`)}'s read-only data is not the ${size} bytes of its data range [${hexAddr(range.start)}, ${hexAddr(range.end)}); see AGENTS.md")`;
+  return `ASSERT(SIZEOF(${cRodataName(module)}) == ${size}, "${cSourceOf(`${module}.c`)}'s read-only data is not the ${size} bytes of its data range [${hexAddr(range.start)}, ${hexAddr(range.end)}); if the range ends in the zero padding before an aligned object, extend it over that object, as the original file did; see AGENTS.md")`;
 }
 
 /** A C unit's data range as the link check builds it: the span and the labels its object defines there. */

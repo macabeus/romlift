@@ -59,9 +59,11 @@ sub_080000F4: @ 080000F4
 .gcc2_compiled.:
 	.include "include/macros.inc"
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_080000F4.s"
 .syntax divided
+.popsection
 
 ==> src/main.c (scaffold, c-stub) <==
 #include "include_asm.h"
@@ -107,13 +109,17 @@ unk_08000126: @ 08000126
 .gcc2_compiled.:
 	.include "include/macros.inc"
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main_2/sub_08000120.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main_2/unk_08000126.s"
 .syntax divided
+.popsection
 
 ==> src/main_2.c (scaffold, c-stub) <==
 #include "include_asm.h"

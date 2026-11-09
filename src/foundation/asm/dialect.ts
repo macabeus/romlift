@@ -114,15 +114,18 @@ function cStringBody(text: string): string {
 
 /**
  * include/include_asm.h. INCLUDE_ASM expands, after the host C preprocessor, to a file-scope `asm` statement
- * that agbcc copies into its output: `.syntax unified` (the dialect of romlift's `.s` files), the `.include` of
- * the chunk file, then `.syntax divided` (the dialect agbcc emits its own code in). The header's own file-scope
+ * that agbcc copies into its output: `.pushsection .text`, `.syntax unified` (the dialect of romlift's `.s` files), the
+ * `.include` of the chunk file, `.syntax divided` (the dialect agbcc emits its own code in), then `.popsection`. The
+ * section is the stub's own (D112): after a `const` definition agbcc stays in `.rodata` until its next C function, which
+ * a file-scope `asm` is not, so a bare include would assemble the function into `.rodata`; push and pop, rather than a
+ * bare `.text`, leave agbcc's record of its current section true. The header's own file-scope
  * `asm` includes the macro file once per translation unit, as the preamble of an `asm` module does.
  */
 export const INCLUDE_ASM_HEADER = [
   '#ifndef GUARD_INCLUDE_ASM_H',
   '#define GUARD_INCLUDE_ASM_H',
   '',
-  `#define INCLUDE_ASM(DIR, NAME) asm(".syntax unified\\n.include \\"" DIR "/" #NAME ".s\\"\\n.syntax divided\\n")`,
+  `#define INCLUDE_ASM(DIR, NAME) asm(".pushsection .text\\n.syntax unified\\n.include \\"" DIR "/" #NAME ".s\\"\\n.syntax divided\\n.popsection\\n")`,
   '',
   `asm("${cStringBody(`${MACROS_INCLUDE}\n`)}");`,
   '',

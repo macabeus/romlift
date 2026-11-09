@@ -58,6 +58,8 @@ function raised(): Diagnostic[] {
   );
   // A data_start on an asm module (phase 6, D92).
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'asm', generated: true, dataStart: BASE + 0x180 }] })).diagnostics);
+  // A data range nothing ends, which runs to the ROM end (D112): W_DATA_RANGE_TO_ROM_END.
+  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'c', generated: true, dataStart: BASE + 0x180 }] })).diagnostics);
   // A hand-written source on a C module (D109).
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], { name: 'main', start: HEADER_END, kind: 'c', generated: true, source: 'src/asm/main.s' }] })).diagnostics);
   // A function loading an unsized RAM symbol and a word past what its accesses prove (D110): W_POOL_WORD_PAST_SYMBOL.

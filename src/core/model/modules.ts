@@ -196,6 +196,17 @@ function dataRanges(rom: Rom, config: RomliftConfig, kept: readonly ModuleConfig
     const problem = rangeProblem(rom, kept, i, span, rule, config, out);
     if (problem === undefined) {
       out.push({ owner: i, span });
+      // Nothing after the range ends it (D112): it takes every byte to the ROM end, which C rarely defines on purpose.
+      if (!kept.some((k) => k.start > start)) {
+        diagnostics.push(
+          diagnostic(
+            ModelCodes,
+            'W_DATA_RANGE_TO_ROM_END',
+            `module ${m.name}'s data range ${rangeText(span)} runs to the ROM end (${hexSize(span.end - span.start)} bytes), since no module starts after its data_start ${hexAddr(start)}; if its C defines less, end the range with a \`data\` module where it should stop`,
+            { addr: start },
+          ),
+        );
+      }
       return;
     }
     diagnostics.push(diagnostic(ModelCodes, 'E_DATA_RANGE_INVALID', `module ${m.name}'s data_start ${hexAddr(start)} cannot start a C data range: ${problem}`, { addr: start }));

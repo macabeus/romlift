@@ -214,7 +214,8 @@ function spans(modules: readonly { readonly name: string; readonly span: { reado
 test('a data range at a data module\'s start drops that module; the C module\'s span is its text', () => {
   const config = configOf({ modules: [['rom_header', BASE], cModule('main', HEADER_END, BASE + 0x300), { name: 'data', start: BASE + 0x300, kind: 'data', generated: true }] });
   const { modules, diagnostics } = planModules(ROM, config, DATA_RULE);
-  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(diagnostics.map((d) => [d.code, d.addr]), [['W_DATA_RANGE_TO_ROM_END', BASE + 0x300]], 'nothing after the range ends it (D112)');
+  assert.match(diagnostics[0]?.message ?? '', /runs to the ROM end \(0x100 bytes\).*end the range with a `data` module/);
   assert.deepEqual(spans(modules), [
     ['rom_header', 0, 0xc0],
     ['main', 0xc0, 0x300, 0x300, 0x400],
@@ -234,7 +235,7 @@ test('a data range at a data module\'s start drops that module; the C module\'s 
 
 test('a data range inside a data module clips it at the range start; the range ends at the next module start', () => {
   const clipped = planModules(ROM, configOf({ modules: [['rom_header', BASE], cModule('main', HEADER_END, BASE + 0x340), { name: 'data', start: BASE + 0x300, kind: 'data', generated: true }] }), DATA_RULE);
-  assert.deepEqual(clipped.diagnostics, []);
+  assert.deepEqual(clipped.diagnostics.map((d) => d.code), ['W_DATA_RANGE_TO_ROM_END']);
   assert.deepEqual(spans(clipped.modules), [
     ['rom_header', 0, 0xc0],
     ['main', 0xc0, 0x300, 0x340, 0x400],
@@ -261,7 +262,7 @@ test('a data range inside a data module clips it at the range start; the range e
     ['tail', 0x380, 0x400],
   ]);
   const own = planModules(ROM, configOf({ modules: [['rom_header', BASE], cModule('main', HEADER_END, BASE + 0x340)] }), DATA_RULE);
-  assert.deepEqual(own.diagnostics, []);
+  assert.deepEqual(own.diagnostics.map((d) => d.code), ['W_DATA_RANGE_TO_ROM_END']);
   assert.deepEqual(spans(own.modules), [
     ['rom_header', 0, 0xc0],
     ['main', 0xc0, 0x340, 0x340, 0x400],
