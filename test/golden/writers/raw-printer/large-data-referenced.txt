@@ -342,25 +342,35 @@ unk_0800117A: @ 0800117A
 .gcc2_compiled.:
 	.include "include/macros.inc"
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_080000F4.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_080000FE.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000104.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08001174.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_0800117A.s"
 .syntax divided
+.popsection
 
 ==> src/main.c (scaffold, c-stub) <==
 #include "include_asm.h"

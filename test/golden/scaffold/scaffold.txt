@@ -340,15 +340,21 @@ kind = "c"
 data_start = 0x0800014C
 ```
 
-`data_start` must be word-aligned, lie past the module's start and in the data at the end of the code (`romlift
-generate` refuses an address where code lies, inside a module that runs from RAM, or overlapping another module's
+`data_start` must be word-aligned, lie past the module's start and anywhere in the data after the code, not only right
+after the module's own code (`romlift generate` refuses an address where code lies, inside a module that runs from RAM, or overlapping another module's
 range, with `E_DATA_RANGE_INVALID`), and the range cuts only its own module or a `data` module: a `data` module starting
-at `data_start` is dropped, one that holds it ends there. The linker script then places `src/<module>.c`'s `.rodata` at
+at `data_start` is dropped, one that holds it ends there. The range ends at the next module of any kind, or at the ROM
+end when none follows, which `romlift generate` warns of (`W_DATA_RANGE_TO_ROM_END`): to end it where the file's data
+ends, add a `data` module there. The linker script then places `src/<module>.c`'s `.rodata` at
 `data_start` and checks that it is the range's exact size:
 
 ```
-src/<module>.c's read-only data is not the <size> bytes of its data range [<data_start>, <end>); see AGENTS.md
+src/<module>.c's read-only data is not the <size> bytes of its data range [<data_start>, <end>); if the range ends in the zero padding before an aligned object, extend it over that object, as the original file did; see AGENTS.md
 ```
+
+The size counts only what the C defines, so a range that ends in the zeros padding the next object to its alignment can
+never match: the padding belongs to that object's file, and the C gets it only by defining that object too. Move the
+range's end (the `data` module after it) past the next object and define it in the same file.
 
 So the C file must define every byte of the range, in ROM order, with nothing between: no generated file holds those
 bytes any more. Every label of the range that assembly still names (`gUnk_<ADDR>`, or its `[symbols]` name) must be a
@@ -865,7 +871,7 @@ typedef u32 bool32;
 #ifndef GUARD_INCLUDE_ASM_H
 #define GUARD_INCLUDE_ASM_H
 
-#define INCLUDE_ASM(DIR, NAME) asm(".syntax unified\n.include \"" DIR "/" #NAME ".s\"\n.syntax divided\n")
+#define INCLUDE_ASM(DIR, NAME) asm(".pushsection .text\n.syntax unified\n.include \"" DIR "/" #NAME ".s\"\n.syntax divided\n.popsection\n")
 
 asm(".include \"include/macros.inc\"\n");
 

@@ -4,7 +4,7 @@
 //
 //   comments    `@` to the end of the line (outside a string); `;` separates statements on a line
 //   labels      `name:`, several on a line, optionally followed by a statement
-//   no bytes    `.syntax unified`, `.text`, `.global`/`.globl`, `.type n, %function`, `.size n, .-n`,
+//   no bytes    `.syntax unified`, `.text`, `.pushsection .text`, `.popsection`, `.global`/`.globl`, `.type n, %function`, `.size n, .-n`,
 //               `.thumb_func` (kind 'symbol'; `.thumb_func` also selects Thumb state, as in GNU as), and
 //               `.syntax divided`, which agbcc prints after each INCLUDE_ASM include of a C unit's assembly
 //               (core/model/c-unit.ts): until the next `.syntax unified` no instruction and no include may follow,
@@ -271,8 +271,13 @@ function readDirective(r: Reader, directive: string, rest: string, line: number,
       return push({ kind: 'symbol', line, directive, args: [rest] });
     case '.text':
     case '.thumb_func':
+    case '.popsection':
       if (rest !== '') return err(`\`${directive}\` takes no argument`);
       return push({ kind: 'symbol', line, directive, args: [] });
+    case '.pushsection':
+      // What INCLUDE_ASM wraps each include in (D112): every byte romlift lays out is `.text`'s.
+      if (rest !== '.text') return err(`\`.pushsection ${rest}\`: only \`.pushsection .text\` (INCLUDE_ASM's) is read`);
+      return push({ kind: 'symbol', line, directive, args: [rest] });
     case '.global':
     case '.globl': {
       const bad = args.length === 0 ? '' : args.find((a) => !NAME.test(a));

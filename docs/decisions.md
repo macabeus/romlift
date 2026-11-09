@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux, D109 the owner's module borders inside assembly-only runs and hand-written sources, D110 the least extents of unsized work-RAM symbols, D111 default RAM names, global function labels and the restored-stub warning); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux, D109 the owner's module borders inside assembly-only runs and hand-written sources, D110 the least extents of unsized work-RAM symbols, D111 default RAM names, global function labels and the restored-stub warning, D112 the stub's section and the data range's two messages); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -5251,6 +5251,50 @@ constant in work RAM's range, never an address, now prints as a name too; its by
 **Rejected.** A `romlift symbol add` command (the five commands of D108 stay; the default names and `rename` cover the
 need). Default names only for words that a load or store uses as a base (a RAM address passed to a function, a DMA
 source, is an address too).
+
+## D112. INCLUDE_ASM selects `.text`, and the data range says why it fails; the owner's words of 9 November 2026
+
+**Context.** The kl2dct session's second report (`kl2dct-handoff/romlift-report-2026-11-09.txt`, after five PRs on
+`ad340c3`) found what blocked its first C data range (D92, `data_start`):
+
+- (8) include/include_asm.h emitted `.syntax unified`, the `.include` and `.syntax divided`, with no section. After a
+  `const` definition agbcc stays in `.rodata` until its next C function, which a file-scope `asm` is not, so every
+  stub between a `const` and the next C function assembled into `.rodata`. Only a module with a data range has a
+  `const`, and its size ASSERT was the only symptom: kl2dct's main_4.o had 0xB28 bytes of `.rodata` for a 0x14-byte
+  range, three functions and the data. No gate saw it: the c-data fixture's overlay decompiled every function.
+- (9) The size ASSERT compares the C's `.rodata` with the range; a range ending in the zeros that pad the next object
+  to its alignment can never match, since the padding is the next object's, and nothing said so.
+- (10) A `data_start` with no module after it ran to the ROM end (3.86 MB in kl2dct) without a word; AGENTS.md said the
+  range lies "in the data at the end of the code", which reads as right after the module's own code.
+- (12 a) It asked that `generate` warn of absent signature files, since entries with `from = "sig:…"` would go unchecked.
+
+**Decision.** The owner, on the recommendation (findings 8, 9, 10 and 12 a in one PR; "Follow your suggestion, and
+merge the PR fixing them as soon as the test passes locally"):
+
+- (a) **INCLUDE_ASM** (`foundation/asm/dialect.ts INCLUDE_ASM_HEADER`) wraps each include in `.pushsection .text` and
+  `.popsection`, as the report proposed: a bare `.text` would leave agbcc's record of its section wrong, so its next
+  `const` would land in `.text`. The stub assembly the checks lay out (`core/model/c-unit.ts`) follows, and the layout
+  reader (`foundation/asm/statements.ts`) reads both as no bytes (`.pushsection` only with `.text`). Measured: agbcc
+  prints the two lines inside the stub's file-scope `asm` like the others, byte for byte as the unit tests encode it.
+  The c-data fixture's overlay keeps its first function as a stub right after the array, so `g6.c-data-ranges` fails
+  with the old macro and passes with the new one. A project keeps the include/include_asm.h `init` wrote; kl2dct
+  carries the fix already.
+- (b) **The size ASSERT's message** adds: "if the range ends in the zero padding before an aligned object, extend it
+  over that object, as the original file did" (report option b: the check stays exact). The linker script and its
+  check read one function, so they agree; the ROM's bytes are not known there, so the hint is conditional, and
+  AGENTS.md explains it.
+- (c) **`W_DATA_RANGE_TO_ROM_END`** when no module starts after a data range's start, so it runs to the ROM end; it
+  says to end the range with a `data` module. AGENTS.md now says the range may lie anywhere in the data after the code
+  and ends at the next module of any kind.
+- (d) **12 a is not done**: `generate` reads no signature file. The check of a listed entry that carries `from` is
+  `W_LISTED_INVALID` (the validity rules over the code, core/analysis/driver/confirm.ts), which runs with or without the
+  files, so a warning on every `generate` would report a gap that is not there.
+
+**Consequences.** Every C module's stub assembly and the scaffold golden change by the two lines; the c-data fixture's
+gate now covers a stub after a `const`. The data-range unit tests whose range runs to the ROM end expect the warning.
+
+**Rejected.** Accepting a shortfall below the range end's alignment (report option a): it would pass a size error that
+happens to be small. A post-link check that `.rodata_<m>` holds no function symbol: (a) removes the cause.
 
 ## Review findings index
 

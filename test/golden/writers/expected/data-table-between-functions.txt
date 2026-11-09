@@ -11,43 +11,63 @@
 .gcc2_compiled.:
 	.include "include/macros.inc"
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_080000F4.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_08000110.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_0800011C.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_08000128.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000130.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000138.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_0800013E.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000148.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_0800014C.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_08000152.s"
 .syntax divided
+.popsection
 

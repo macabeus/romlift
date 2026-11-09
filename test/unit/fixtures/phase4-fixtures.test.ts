@@ -186,7 +186,7 @@ test('multi-compiler: each source is its own C module, and overlay/src holds eve
   assert.match(mk, /^CFLAGS_old := -mno-thumb-interwork$/m);
 });
 
-test('c-data: one C module, whose overlay defines its functions and a const array', () => {
+test('c-data: one C module, whose overlay defines its functions and a const array, with a stub right after the array', () => {
   const p = load('c-data');
   assert.equal(p.raw['init'], undefined);
   const modules = modulesOf(p);
@@ -198,5 +198,8 @@ test('c-data: one C module, whose overlay defines its functions and a const arra
   assert.match(text, /^const unsigned short \w+\[\d+\] = \{[^}]+\};$/m);
   const main = c[0];
   assert.ok(main !== undefined);
-  assert.deepEqual(definedFunctions(text), functionsIn(p, main));
+  // Its first function stays an INCLUDE_ASM right after the const array, where agbcc is still in .rodata (D112).
+  const stub = /^INCLUDE_ASM\("asm\/nonmatchings\/main", (\w+)\);$/m.exec(text)?.[1];
+  assert.equal(stub, functionsIn(p, main)[0]);
+  assert.deepEqual([stub, ...definedFunctions(text)], functionsIn(p, main));
 });

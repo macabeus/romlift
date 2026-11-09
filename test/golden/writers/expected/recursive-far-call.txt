@@ -11,19 +11,27 @@
 .gcc2_compiled.:
 	.include "include/macros.inc"
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_080000F4.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000100.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_08000102.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000104.s"
 .syntax divided
+.popsection
 

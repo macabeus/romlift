@@ -93,13 +93,17 @@ unk_08000122: @ 08000122
 .gcc2_compiled.:
 	.include "include/macros.inc"
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_0800011C.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_08000122.s"
 .syntax divided
+.popsection
 
 ==> src/main.c (scaffold, c-stub) <==
 #include "include_asm.h"

@@ -125,53 +125,77 @@ unk_08000182: @ 08000182
 .gcc2_compiled.:
 	.include "include/macros.inc"
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_080000F4.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_0800010E.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000120.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_08000126.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000134.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_0800013A.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000154.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_0800015A.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_08000168.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_0800016E.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_0800017C.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/unk_08000182.s"
 .syntax divided
+.popsection
 
 ==> src/main.c (scaffold, c-stub) <==
 #include "include_asm.h"

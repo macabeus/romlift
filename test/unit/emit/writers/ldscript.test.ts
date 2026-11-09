@@ -154,7 +154,7 @@ SECTIONS {
         build/data.o(.text);
     }
     .rodata_main 0x08000280 : AT(0x08000280) { build/src/main.o(.rodata .rodata.*) }
-    ASSERT(SIZEOF(.rodata_main) == 128, "src/main.c's read-only data is not the 128 bytes of its data range [0x08000280, 0x08000300); see AGENTS.md")
+    ASSERT(SIZEOF(.rodata_main) == 128, "src/main.c's read-only data is not the 128 bytes of its data range [0x08000280, 0x08000300); if the range ends in the zero padding before an aligned object, extend it over that object, as the original file did; see AGENTS.md")
     .text.end 0x08000300 : AT(0x08000300) {
         build/end.o(.text);
     }

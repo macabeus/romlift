@@ -67,13 +67,17 @@ sub_0800011C: @ 0800011C
 .gcc2_compiled.:
 	.include "include/macros.inc"
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_080000F4.s"
 .syntax divided
+.popsection
 
-	.syntax unified
+	.pushsection .text
+.syntax unified
 .include "asm/nonmatchings/main/sub_0800011C.s"
 .syntax divided
+.popsection
 
 ==> src/main.c (scaffold, c-stub) <==
 #include "include_asm.h"

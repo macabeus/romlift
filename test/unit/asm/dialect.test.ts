@@ -47,6 +47,6 @@ function expand(statement: string): string {
   return literals.join('').replace(/\\(["\\n])/g, (_, c: string) => (c === 'n' ? '\n' : c));
 }
 
-test('an INCLUDE_ASM statement expands to the include of its chunk file in unified syntax, then back to divided', () => {
-  assert.equal(expand(includeAsmStatement('main', 'AgbMain')), '.syntax unified\n.include "asm/nonmatchings/main/AgbMain.s"\n.syntax divided\n');
+test('an INCLUDE_ASM statement expands to the include of its chunk file in .text and unified syntax, then back to divided and the section before', () => {
+  assert.equal(expand(includeAsmStatement('main', 'AgbMain')), '.pushsection .text\n.syntax unified\n.include "asm/nonmatchings/main/AgbMain.s"\n.syntax divided\n.popsection\n');
 });
