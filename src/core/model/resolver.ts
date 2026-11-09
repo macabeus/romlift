@@ -89,7 +89,10 @@ export function addendTo(label: Pick<Label, 'addr' | 'kind' | 'thumb'>, word: nu
 // Named, sized entries: what a word inside one prints as (wordNameOf, read by core/emit/print/pool.ts wordText and the
 // label scopes of labels.ts).
 
-/** A named entry with a size: a [symbols] entry with `size`, or a function whose extent is the TOML's `size`. */
+/**
+ * A named entry with a size: a [symbols] entry with `size` or an inferred size (extents.ts, D110), or a function whose
+ * extent is the TOML's `size`.
+ */
 export interface SizedEntry {
   readonly addr: Addr;
   readonly name: string;
@@ -113,7 +116,8 @@ function buildEntries(symbols: readonly ModelSymbol[], functions: readonly Model
   const named = new Set<string>();
   for (const s of symbols) {
     named.add(`${String(s.addr)}:${s.name}`);
-    if (s.size !== undefined && s.size > 0) sized.push({ addr: s.addr, name: s.name, size: s.size });
+    const size = s.size ?? s.inferredSize;
+    if (size !== undefined && size > 0) sized.push({ addr: s.addr, name: s.name, size });
   }
   for (const f of functions) {
     const at = f.runAt ?? f.entry;

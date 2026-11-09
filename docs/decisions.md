@@ -6,7 +6,7 @@ only through a new commit to this file that says what replaced it and why. The l
 every weakness the design review raised to the decision that answers it.
 
 Revision 2 (17 October 2026) revises the decisions the four adversarial reviews of that day contested and adds
-D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux, D109 the owner's module borders inside assembly-only runs and hand-written sources); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
+D45 to D53 (D54 records how phase 1 was split as executed, D55 what the phase-1 review changed, D56 how phase 2 is split and which contract members its driver added, D57 which rules `g2.rule-coverage` exempts, D58 how the trail cites the acceptance, walk and gap-slot rules, D59 what the phase-2 review changed, D60 the owner's answer to §12 item 4 and the tmc tuning it led to, D61 the owner's answers to the phase-2 questions, D62 how phase 3 is split and which contract members emission adds, D63 what the wave-2 integration found, D64 what closing phase 3 changed, D65 to D67, D70 and D71 what the phase-3 review fix rounds changed, D68, D69, D72 and D73 the owner's answers to the phase-3 questions, D74 how phase 4 is split and which contract members it freezes, D75, D77, D78 and D80 to D90 what the phase-4 fix rounds changed, D76 and D79 the owner's answers to the phase-4 questions, D91 and D92 the owner's decisions dropping the gba-kit trace and skipping phase 5, D93 how phase 6 is split and which contracts it freezes, D94 what the phase-6 closing round changed, D95 what phase 6's fix round 1 changed, D96 to D105 its later fix rounds and landing, D106 and D107 the final review's fix rounds 1 and 2, D108 the owner's cut of the CLI to five commands and of CI to Linux, D109 the owner's module borders inside assembly-only runs and hand-written sources, D110 the least extents of unsized work-RAM symbols); each revised decision carries a **Revision** paragraph naming the findings and what it replaced.
 The disposition of every finding is in [architecture-review.md](architecture-review.md).
 
 Sources of the alternatives: the three architecture proposals of 17 October 2026 (layered core,
@@ -787,6 +787,8 @@ ELF without relocations (every relocated word would differ).
 phase 5": the gate is `g5.objdiff`, judged in phase 5, where the `expected/` objects and objdiff targets are built,
 and applies there as this decision writes it unless the owner amends it then. Phase 3 records the classified counts
 as its measurement, and the committed classifier stays.
+
+**Revision (8 November 2026, D110).** An unsized work-RAM `[symbols]` entry is sized by what the code proves, a lower bound, so the words inside it print `name + offset` too.
 
 **Revision (25 October 2026, the owner's answers to Q6 and Q15 of phase-6.md, D102).** The owner amended this decision:
 the base is romlift's own spelling (the printer spells a word inside a named, sized entry `sym + addend`; the bench
@@ -5150,6 +5152,48 @@ border at a 2-mod-4 entry is not word-aligned, a shared tail's branch is a short
 bytes run the same in two objects. A directory convention for hand-written files (a path is the user's choice, and a TOML
 key names it where the module is). Making `source` imply `generated = false` or combining the two (a module with a
 source has no generated file to keep).
+
+## D110. Least extents of unsized work-RAM symbols, and `W_POOL_WORD_PAST_SYMBOL`; the owner's words of 8 November 2026
+
+**Context.** D102 made the printer spell a word inside a named, sized entry `name + offset`, with sizes from `[symbols]`
+"where needed". A project's RAM symbols rarely have one: in kl2dct none does, so a pool word 0x39 bytes into
+`gUnk_03005220` printed `.4byte 0x03005259`, while the same function loaded `gUnk_03005220` by name. agbcc emits
+`.word g+0x39` for `((u8 *)&g)[0x39]`, `(u8 *)&g + 0x39` and a held `&g.f39`, so the number is a relocation whose name
+was lost. Downstream the object has two spellings: asmlift refuses such a function, since a symbol and a cast number are
+two objects to agbcc (the asmlift coordinator's report of 8 November 2026 counted 33 kl2dct functions with both). The
+report proposed sizes in the TOML, sizes from an ELF, an extent running to the next named symbol, and a diagnostic.
+
+**Decision.** In the owner's words (Bruno Macabeus, 8 November 2026), after the proposals were weighed ("Do the romlift
+part, and merge once CI passes"): sizes stay the project's to give (proposal 1; an ELF is built from romlift's own
+output, proposal 2), and romlift adds what the code proves and a diagnostic, not an extent to the next named symbol.
+
+- (a) **The least extent** (`core/model/extents.ts`, `ModelSymbol.inferredSize`). For a `[symbols]` entry without `size`
+  in work RAM (EWRAM, IWRAM; never I/O, never inside a runs_at range), a straight-line constant propagation over each
+  Thumb function's code follows the registers a pool load sets to the entry's address, through `movs`, `mov`, `adds`,
+  `subs`, `add` (hi) and the constants `movs` and `lsls` build, and records each load or store through them, at an
+  immediate or a constant register offset, and each `ldmia`/`stmia`. The largest end of such an access is the entry's
+  inferred size, cut at the next named start in work RAM (another `[symbols]` entry, a function's run address, a runs_at
+  range) and at its region's end. Registers are forgotten at every branch target, jump-table target and code span,
+  after every instruction that does not fall through, and as each row's register effect says (a `bl` clobbers r0-r3,
+  r12 and lr). `resolver.ts buildEntries` reads `size ?? inferredSize`, so a word inside prints `name + offset` and the
+  label scopes agree. The size is a lower bound: GCC 2.95 has no section anchors, so it never reaches one object through
+  another's address, and an access proves the object reaches at least that far; it can leave a word of a larger object
+  numeric, never name one past the object's end. No byte changes: `name + offset` links to the same word.
+- (b) **`W_POOL_WORD_PAST_SYMBOL`**, one per entry: the functions that load an unsized work-RAM entry also load words past
+  its inferred size and before the next named start; the message lists them with their offsets (eight, then a count)
+  and says to give the entry a size, or to name them when they are other objects.
+- (c) The model JSON's symbol line carries `inferredSize` when set.
+
+**Consequences.** On kl2dct (local checkout `fd6ceb9`), 32 pool words gained names, `sub_0801E528`'s word prints
+`gUnk_03005220 + 57`, the tree still builds to the SHA-1, and 16 entries get the diagnostic. The inferred sizes also
+expose a misread layout: kl2dct declares `u8 gEntitySlotCount`, while hundreds of accesses reach 0x22 bytes past it
+through its address and the word 0x30 past it is a separate pool literal, the shape of a struct whose first member the
+project named. ARM code is not read (its rows carry no register effects); nor is the code of a runs_at range.
+
+**Rejected.** An extent running to the next named symbol, or to the end of the region (proposal 3 as written): an
+unnamed object after a named one would be named after it with nothing to show, and naming a symbol would move the
+spelling of words far from it. Reading sizes from a built ELF or map (proposal 2). Raising the diagnostic per word
+(kl2dct's 92 words would be 92 lines).
 
 ## Review findings index
 

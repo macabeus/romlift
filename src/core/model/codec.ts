@@ -83,7 +83,12 @@ function functionJson(f: ModelFunction) {
 }
 
 function symbolJson(s: ModelSymbol) {
-  return { addr: hexAddr(s.addr), name: s.name, ...(s.size === undefined ? {} : { size: s.size }) } satisfies ModelJsonSymbol;
+  return {
+    addr: hexAddr(s.addr),
+    ...(s.inferredSize === undefined ? {} : { inferredSize: s.inferredSize }),
+    name: s.name,
+    ...(s.size === undefined ? {} : { size: s.size }),
+  } satisfies ModelJsonSymbol;
 }
 
 function unlistedJson(u: UnlistedFinding) {

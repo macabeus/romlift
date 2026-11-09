@@ -51,6 +51,11 @@ export const ModelCodes = defineCodes({
     meaning:
       'a [symbols] entry inside the ROM lies inside an instruction, a pool word or a table entry, where no file can define a label (D63 d), so its name is not printed',
   },
+  W_POOL_WORD_PAST_SYMBOL: {
+    severity: 'warning',
+    meaning:
+      'functions that load an unsized work-RAM [symbols] entry also load words past what its code-proven extent covers, before the next named start, which print as numbers; a size on the entry prints them as name + offset (D110)',
+  },
   W_CROSS_MODULE_SHORT_BRANCH: {
     severity: 'warning',
     meaning: 'a short Thumb branch (b, bcc) crosses a module border moved by hand, so it prints raw (D15)',
