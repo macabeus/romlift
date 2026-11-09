@@ -5231,10 +5231,20 @@ spelling of words far from it. Reading sizes from a built ELF or map (proposal 2
   `romlift generate`. It is in modules.mk, a generated file, so every project gets it at its next `generate`; a warning,
   since a stub inside `#if 0` can name such a file harmlessly. The report's other option, keeping the file under
   `asm/nonmatchings/`, was rejected: that directory is the list of what is left to decompile.
+- (e) **`g6.objdiff`'s `default-name` class** (`bench/src/objdiff-classes.ts`), the owner's answer of 9 November 2026
+  ("Yes", to counting default names as same-word). The closing run found one new gated difference, on sa2, above its
+  ceiling of 1: `OamMalloc`'s pool word 0x030022C8, which the reference relocates as `gOamMallocBuffer - 8` (8 bytes
+  before the array, where no object is) and which (a) now names `gUnk_030022C8`. It was a plain value before, the
+  same-word `value-for-symbol`; as a relocation to a name outside the reference's symbol it fell to the gated
+  `relocation-other`. A relocation whose base symbol is a default data name `gUnk_<ADDR>`, with both sides linking to the
+  same word, is now `default-name`, a SAME_WORD class: reported, not gated. A real name outside the reference's symbol
+  stays `relocation-other`, and no ceiling changes. Raising sa2's ceiling to 2 was rejected (a number with no rule
+  behind it, which would let a real regression through), as was dropping (a).
 
 **Consequences.** On a copy of kl2dct, every RAM pool word prints a name (none is left a number), symbols.ld grows to
 222 names, no function file uses a `_local` macro (654 files), a restored stub warns before the assembler's error, and
-the tree builds to the SHA-1. The goldens of every fixture change accordingly. W_POOL_WORD_PAST_SYMBOL's words now print
+the tree builds to the SHA-1. The goldens of every fixture change accordingly. A default name can still mislead: sa2's
+`gUnk_030022C8` is `gOamMallocBuffer - 8`, which no forward extent (D110) can prove. W_POOL_WORD_PAST_SYMBOL's words now print
 as their own default names, and its message says to rename them when they are other objects. A pool word that is a
 constant in work RAM's range, never an address, now prints as a name too; its bytes are the same.
 

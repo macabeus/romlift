@@ -2138,7 +2138,8 @@ it (§5: `name + offset` inside a named, sized entry; the bench gives the model 
 word). Only functions whose entry and extent agree with the ELF are scored; the others are already rows of the entries
 and extents families. Each difference is sorted into a class (`bench/src/objdiff-classes.ts`); a class that says both
 sides link to the same word is given only when the word each side links to is checked. The same-word classes
-(`resolved-call`, `static-callee`, `value-named`, `alias`, `symbol-addend`, `value-for-symbol`, phase-3.md Q1 option (b)),
+(`resolved-call`, `static-callee`, `value-named`, `alias`, `symbol-addend`, `value-for-symbol`, phase-3.md Q1 option (b);
+`default-name`, D111),
 the functions objdiff did not compare (`missing-symbol`, and `tool`, a reference object objdiff-cli refuses, Q6 option
 (c)) and `unnamed-target` (a relocation whose reference side targets a section symbol) are reported, not gated; every
 other difference is gated, and each tuning ROM's gated count must not exceed its ceiling in

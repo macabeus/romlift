@@ -60,7 +60,12 @@ test('every detail shape goes to its class when its facts check out', () => {
     [ex('relocation', '+0x1f64 R_ARM_ABS32: gBg0Tm | gBg1Tm', { relocationType: ABS32, referenceAddend: 0x7fc, baseAddend: 0 }), 'relocation-other'],
     [ex('relocation', '+0x1f64 R_ARM_ABS32: gBg0Tm | gBg1Tm', { relocationType: ABS32, baseAddend: 0 }), 'unverified'],
     [ex('relocation', '+0x1f64 R_ARM_ABS32: gBg1Tm | gBg0Tm', { relocationType: ABS32, referenceAddend: -0x800, baseAddend: 0 }), 'relocation-other'],
-    [ex('relocation', '+0x10 R_ARM_ABS32: gScreen | gUnk_03000002', { relocationType: ABS32, referenceAddend: 2, baseAddend: 0 }), 'relocation-other'],
+    // romlift's default name of the address (D111) where the reference's symbol plus addend lands: the same word, as
+    // the plain value it stands for; a default name of another word, or a real name outside the symbol, stays gated.
+    [ex('relocation', '+0x10 R_ARM_ABS32: gScreen | gUnk_03000002', { relocationType: ABS32, referenceAddend: 2, baseAddend: 0 }), 'default-name'],
+    [ex('relocation', '+0x1530 R_ARM_ABS32: gBg1Tm | gUnk_020007F8', { relocationType: ABS32, referenceAddend: -8, baseAddend: 0 }), 'default-name'],
+    [ex('relocation', '+0x10 R_ARM_ABS32: gScreen | gUnk_03000004', { relocationType: ABS32, referenceAddend: 2, baseAddend: 0 }), 'relocation-other'],
+    [ex('relocation', '+0x10 R_ARM_ABS32: gScreen | sTalkText', { relocationType: ABS32, referenceAddend: 0xc8, baseAddend: 0 }), 'relocation-other'],
     [ex('relocation', '+0x10 R_ARM_ABS32: gScreen | gUnk_03000002', { relocationType: 40, referenceAddend: 2, baseAddend: 0 }), 'unverified'],
     [ex('missing-relocation', '+0x9c R_ARM_ABS32: gScreen | a plain value', { relocationType: ABS32, referenceAddend: 0x10, baseField: 0x0300_0010 }), 'value-for-symbol'],
     [ex('missing-relocation', '+0x9c R_ARM_ABS32: gScreen | a plain value', { relocationType: ABS32, referenceAddend: 0x10, baseField: 0x0300_0014 }), 'relocation-other'],
@@ -104,7 +109,7 @@ test('the totals: D34 as amended (D102) gates the classes that differ in a word,
   assert.equal(counts['static-callee'], 0);
   assert.deepEqual(classTotals(counts), { gated: 3, uncompared: 1, sameWord: 2, beforeAmendment: 6 });
   assert.deepEqual(
-    (['resolved-call', 'value-named', 'value-for-symbol', 'missing-symbol', 'tool', 'unnamed-target', 'unverified', 'trailing-pad', 'relocation-other', 'instruction-other', 'assemble', 'score'] as const).filter(isGated),
+    (['resolved-call', 'value-named', 'value-for-symbol', 'default-name', 'missing-symbol', 'tool', 'unnamed-target', 'unverified', 'trailing-pad', 'relocation-other', 'instruction-other', 'assemble', 'score'] as const).filter(isGated),
     ['unverified', 'trailing-pad', 'relocation-other', 'instruction-other', 'assemble', 'score'],
   );
 });
