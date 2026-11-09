@@ -1,7 +1,7 @@
 // The model's labels (architecture §5, §6.2 step 4): func labels with the config's names, pool labels at pool
 // words, table labels, local labels at targets no other label names, gUnk_ data labels where a pool word points
-// into a data module, chunk labels; scope 'global' only when another module references the label (a call, a
-// pool word in its Thumb form, ...).
+// into a data module, chunk labels; scope 'global' when another module references the label (a call, a pool word in
+// its Thumb form, ...), and for a function whose name no other module defines (D111).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -61,7 +61,7 @@ test('codeRefs: every branch, bl and pool load of the code, at its site', () => 
   ]);
 });
 
-test('labels: func, pool, local, data and chunk labels; global only when referenced from another module', () => {
+test('labels: func, pool, local, data and chunk labels; global when referenced from another module or a uniquely named function', () => {
   const { rom, analysis, config } = scene();
   const model = buildModel(rom, analysis, config);
   assert.deepEqual(model.diagnostics, []);
@@ -70,7 +70,7 @@ test('labels: func, pool, local, data and chunk labels; global only when referen
     [
       [0, 'rom_header', 'data', false, 'module'],
       [0xc0, 'unk_080000C0', 'data', false, 'module'],
-      [0x100, 'F', 'func', true, 'module'],
+      [0x100, 'F', 'func', true, 'global'],
       [0x10c, '_0800010C', 'pool', false, 'module'],
       [0x110, 'unk_08000110', 'data', false, 'module'],
       [0x120, 'G', 'func', true, 'global'],
@@ -113,7 +113,9 @@ test('a pool word names a Thumb function only in its +1 form; the bare address r
   const model = buildModel(rom, analysis, config);
   // Still global: the bl at 0x102 calls G from module a.
   assert.equal(model.labels.find((l) => l.name === 'G')?.scope, 'global');
-  const noCall = buildModel(rom, { ...analysis, functions: analysis.functions.map((f) => (f.entry === BASE + 0x100 ? { ...f, code: [{ start: BASE + 0x106, end: BASE + 0x10c }] } : f)) }, config);
+  // G's name is defined in module a too (an alias of F), so G is global only when module a references it (D111).
+  const repeated = { ...config, functions: new Map([...config.functions].map(([a, f]) => [a, a === BASE + 0x100 ? { ...f, aliases: ['G'] } : f])) };
+  const noCall = buildModel(rom, { ...analysis, functions: analysis.functions.map((f) => (f.entry === BASE + 0x100 ? { ...f, code: [{ start: BASE + 0x106, end: BASE + 0x10c }] } : f)) }, repeated);
   assert.equal(noCall.labels.find((l) => l.name === 'G')?.scope, 'module', 'the pool word holds G without the Thumb bit');
   const viaPool = scene();
   const thumbForm = buildModel(viaPool.rom, { ...viaPool.analysis, functions: viaPool.analysis.functions.map((f) => (f.entry === BASE + 0x100 ? { ...f, code: [{ start: BASE + 0x106, end: BASE + 0x10c }] } : f)) }, viaPool.config);
@@ -230,9 +232,9 @@ test('an adr of a Thumb function gets a local label it names (D72 c); an adr of 
   assert.deepEqual(
     model.labels.filter((l) => l.addr === BASE + 0x140 || l.addr === BASE + 0x148).map((l) => [l.name, l.kind, l.thumb, l.scope]),
     [
-      ['G', 'func', true, 'module'],
+      ['G', 'func', true, 'global'],
       ['_08000140', 'local', false, 'module'],
-      ['H', 'func', false, 'module'],
+      ['H', 'func', false, 'global'],
     ],
   );
   const raw = rows(model.items).filter(([kind]) => kind === ItemKind.rawInsn);

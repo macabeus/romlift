@@ -434,7 +434,7 @@ test('a folded pad: the function file lays out from the pad, its start macro emi
   assert.equal(file.text.includes('.align'), false);
   assert.equal(checkEntries(r, m, entries).ok, true);
   assert.deepEqual(entryDiagnostics(r, m, file), []);
-  const unaligned = entryDiagnostics(r, m, entry(file.path, file.text.replace('thumb_func_start_local B', 'non_word_aligned_thumb_func_start_local B')));
+  const unaligned = entryDiagnostics(r, m, entry(file.path, file.text.replace('thumb_func_start B', 'non_word_aligned_thumb_func_start B')));
   assert.deepEqual(
     unaligned.map((d) => [d.code, d.addr]),
     [['E_SELF_CHECK_TEXT', BASE + 0x10a]],

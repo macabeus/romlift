@@ -13,7 +13,7 @@ sub_080000F4: @ 080000F4
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/main/sub_08000120.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000120
+	thumb_func_start sub_08000120
 sub_08000120: @ 08000120
 	movs r0, #0
 	adds r0, #1
@@ -21,7 +21,7 @@ sub_08000120: @ 08000120
 	thumb_func_end sub_08000120
 ==> asm/nonmatchings/main/sub_08000134.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000134
+	thumb_func_start sub_08000134
 sub_08000134: @ 08000134
 	movs r0, #0
 	adds r0, #2
@@ -29,7 +29,7 @@ sub_08000134: @ 08000134
 	thumb_func_end sub_08000134
 ==> asm/nonmatchings/main/sub_08000154.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000154
+	thumb_func_start sub_08000154
 sub_08000154: @ 08000154
 	movs r0, #0
 	adds r0, #3
@@ -37,7 +37,7 @@ sub_08000154: @ 08000154
 	thumb_func_end sub_08000154
 ==> asm/nonmatchings/main/sub_08000168.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000168
+	thumb_func_start sub_08000168
 sub_08000168: @ 08000168
 	movs r0, #0
 	adds r0, #4
@@ -45,7 +45,7 @@ sub_08000168: @ 08000168
 	thumb_func_end sub_08000168
 ==> asm/nonmatchings/main/sub_0800017C.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_0800017C
+	thumb_func_start sub_0800017C
 sub_0800017C: @ 0800017C
 	movs r0, #0
 	adds r0, #5

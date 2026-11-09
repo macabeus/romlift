@@ -27,6 +27,10 @@
 //                     addend unknown, a relocation type the reader does not decode
 //   trailing-pad      a zero halfword after the last instruction that the reference's symbol size counts and
 //                     the base's chunk leaves to the next `.align` (`.hword 0x0 | (none)`)
+//   default-name      a relocation `<a> | <b>` where <b> is romlift's default data name `gUnk_<ADDR>` of the address
+//                     it spells (D111: a work-RAM word nothing names), outside <a>, and both sides with their addends
+//                     link to the same word: the plain value the default name stands for, as value-for-symbol
+//                     (the owner's answer of 9 November 2026, D111)
 //   relocation-other  any other relocation difference: two words that differ, or the same word through a label
 //                     outside the symbol's ELF size (not claimed as symbol-addend)
 //   instruction-other any other instruction difference
@@ -48,6 +52,7 @@ export type ObjdiffClass =
   | 'alias'
   | 'symbol-addend'
   | 'value-for-symbol'
+  | 'default-name'
   | 'unverified'
   | 'trailing-pad'
   | 'relocation-other'
@@ -66,6 +71,7 @@ export const OBJDIFF_CLASSES: readonly ObjdiffClass[] = [
   'alias',
   'symbol-addend',
   'value-for-symbol',
+  'default-name',
   'unverified',
   'trailing-pad',
   'relocation-other',
@@ -78,7 +84,7 @@ export const OBJDIFF_CLASSES: readonly ObjdiffClass[] = [
 ];
 
 /** The classes whose two sides are checked to link to the same word. */
-export const SAME_WORD: ReadonlySet<ObjdiffClass> = new Set<ObjdiffClass>(['resolved-call', 'static-callee', 'value-named', 'alias', 'symbol-addend', 'value-for-symbol']);
+export const SAME_WORD: ReadonlySet<ObjdiffClass> = new Set<ObjdiffClass>(['resolved-call', 'static-callee', 'value-named', 'alias', 'symbol-addend', 'value-for-symbol', 'default-name']);
 /** The classes that are functions objdiff did not compare. */
 export const NOT_COMPARED: ReadonlySet<ObjdiffClass> = new Set<ObjdiffClass>(['missing-symbol', 'tool']);
 
@@ -139,8 +145,11 @@ function linkedWord(span: NamedSpan, addend: number, type: number): number | und
   return undefined;
 }
 
-/** The class of a relocation `<a> | <b>`: alias, symbol-addend, relocation-other or unverified. */
-function relocationClass(a: readonly NamedSpan[], b: readonly NamedSpan[], d: ObjdiffDifference): ObjdiffClass {
+/** romlift's default data name `gUnk_<ADDR>` (D111), as foundation/util/project-files.ts dataName spells it. */
+const DEFAULT_DATA_NAME = /^gUnk_[0-9A-F]{8}$/;
+
+/** The class of a relocation `<a> | <b>`: alias, symbol-addend, default-name, relocation-other or unverified. */
+function relocationClass(a: readonly NamedSpan[], b: readonly NamedSpan[], d: ObjdiffDifference, baseName = ''): ObjdiffClass {
   const { relocationType: type, referenceAddend, baseAddend } = d.facts;
   if (type === undefined || referenceAddend === undefined || baseAddend === undefined || a.length === 0 || b.length === 0) return 'unverified';
   if (!R_ARM_BRANCHES.has(type) && type !== R_ARM.ABS32) return 'unverified';
@@ -153,7 +162,12 @@ function relocationClass(a: readonly NamedSpan[], b: readonly NamedSpan[], d: Ob
       else if (y.addr > x.addr && y.addr <= x.addr + x.size) inside = true;
     }
   }
-  return alias ? 'alias' : inside ? 'symbol-addend' : 'relocation-other';
+  if (alias) return 'alias';
+  if (inside) return 'symbol-addend';
+  // The base names the word by its default name, the address it spells, which the reference's `<a> + addend` links to.
+  const spelled = DEFAULT_DATA_NAME.test(baseName) ? defaultSpellingAddress(baseName) : undefined;
+  const sameWord = spelled !== undefined && a.some((x) => linkedWord(x, referenceAddend, type) === linkedWord({ addr: spelled, size: 0, thumb: false }, baseAddend, type));
+  return sameWord ? 'default-name' : 'relocation-other';
 }
 
 /** The class of a missing relocation: value-for-symbol, relocation-other or unverified. */
@@ -195,7 +209,7 @@ export function objdiffClass(d: ObjdiffDifference, addressesOf: NameAddresses): 
       return instructionClass(d, addressesOf);
     case 'relocation': {
       const names = RELOCATION_ROW.exec(d.example.detail);
-      return names === null ? 'relocation-other' : relocationClass(addressesOf(names[1] ?? ''), addressesOf(names[2] ?? ''), d);
+      return names === null ? 'relocation-other' : relocationClass(addressesOf(names[1] ?? ''), addressesOf(names[2] ?? ''), d, names[2] ?? '');
     }
     case 'missing-relocation': {
       const name = MISSING_ROW.exec(d.example.detail);

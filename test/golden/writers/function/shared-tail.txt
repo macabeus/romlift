@@ -6,13 +6,13 @@ sub_080000F4: @ 080000F4
 	movs r0, #2
 	bl sub_08000110
 	ldr r0, _08000108 @ =sub_08000120
-	ldr r1, _0800010C @ =0x02000000
+	ldr r1, _0800010C @ =gUnk_02000000
 	str r0, [r1]
 	pop {r0}
 	bx r0
 	.align 2, 0
 _08000108: .4byte sub_08000120
-_0800010C: .4byte 0x02000000
+_0800010C: .4byte gUnk_02000000
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/asm_08000110/sub_08000110.s (generated, function) <==
 .thumb

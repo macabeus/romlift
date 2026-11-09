@@ -119,7 +119,7 @@ test('runs_at plumbing: a moved run address puts the labels at run addresses and
   const chunk = model.chunks.find((c) => c.name === 'RamFunc');
   assert.equal(chunk?.runAt, 0x0300_0000);
   assert.deepEqual(model.labels.filter((l) => l.addr >= 0x0300_0000 && l.addr < 0x0300_0010).map((l) => [l.name, l.addr, l.scope]), [
-    ['RamFunc', 0x0300_0000, 'module'],
+    ['RamFunc', 0x0300_0000, 'global'],
     ['_08000148', 0x0300_0008, 'module'],
     ['_0800014C', 0x0300_000c, 'module'],
   ]);
@@ -138,7 +138,7 @@ test('runs_at plumbing: a moved run address puts the labels at run addresses and
 
 // Fix round 6 (architecture-o1-5): a TOML-sized function of a runs_at module is a sized entry at its run address, so a
 // pool word holding an odd run address inside it prints `name + offset` (resolver.ts entryLabelOf over the labels at the
-// run address), the function label stays module-scoped, and no other label takes the word.
+// run address), the function label is global for its unique name (D111), and no other label takes the word.
 test('a pool word inside a TOML-sized function of a runs_at module prints `name + offset` at the run address', () => {
   const { rom, analysis, config } = ramCode(0x0300_0005);
   const base = config(0x0300_0000);
@@ -150,7 +150,7 @@ test('a pool word inside a TOML-sized function of a runs_at module prints `name 
   const lines = printChunk(rom, model, i).lines;
   assert.ok(lines.includes('_0800014C: .4byte RamFunc + 4'), lines.join('\n'));
   assert.deepEqual(model.labels.filter((l) => l.addr >= 0x0300_0000 && l.addr < 0x0300_0010).map((l) => [l.name, l.addr, l.scope]), [
-    ['RamFunc', 0x0300_0000, 'module'],
+    ['RamFunc', 0x0300_0000, 'global'],
     ['_08000148', 0x0300_0008, 'module'],
     ['_0800014C', 0x0300_000c, 'module'],
   ]);

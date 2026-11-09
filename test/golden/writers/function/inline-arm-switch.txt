@@ -17,6 +17,7 @@ sub_08000108: @ 08000108
 	adr r2, sub_0800010C
 	bx r2
 .arm
+.global sub_0800010C
 .type sub_0800010C, %function
 sub_0800010C:
 	umull r2, r3, r0, r1

@@ -10,13 +10,13 @@ sub_080000F4: @ 080000F4
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/main/sub_08000100.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000100
+	thumb_func_start sub_08000100
 sub_08000100: @ 08000100
 	b sub_08000100
 	thumb_func_end sub_08000100
 ==> asm/nonmatchings/main/sub_08000104.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000104
+	thumb_func_start sub_08000104
 sub_08000104: @ 08000104
 	push {lr}
 	adds r2, r0, #0
@@ -24,7 +24,7 @@ sub_08000104: @ 08000104
 	bne _08000110
 	bl sub_08000100
 _08000110:
-	ldr r3, _080004FC @ =0x02000000
+	ldr r3, _080004FC @ =gUnk_02000000
 	str r2, [r3]
 	adds r0, r2, #1
 	str r0, [r3, #4]
@@ -526,7 +526,7 @@ _08000110:
 	adds r1, r3, r0
 	b _08000500
 	.align 2, 0
-_080004FC: .4byte 0x02000000
+_080004FC: .4byte gUnk_02000000
 _08000500:
 	adds r0, r2, #0
 	adds r0, #0x78
@@ -1247,11 +1247,11 @@ _08000500:
 	str r0, [r1]
 	subs r0, r2, #1
 	bl sub_08000104
-	ldr r1, _08000AAC @ =0x02000400
+	ldr r1, _08000AAC @ =gUnk_02000400
 	str r0, [r1]
 	adds r0, #1
 	pop {r1}
 	bx r1
 	.align 2, 0
-_08000AAC: .4byte 0x02000400
+_08000AAC: .4byte gUnk_02000400
 	thumb_func_end sub_08000104

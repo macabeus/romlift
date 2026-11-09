@@ -1228,7 +1228,8 @@ summary (round-trip share, raw count per `RawReason`, coverage classes) goes to 
   extent is the TOML's `size`) prints `name + offset`, as the
   compiler relocates `&sym.field` and `&array[i]`, unless a named entry links to exactly the word, and only when
   `.4byte name + offset` links to it: R_ARM_ABS32 writes (S + A) | T, so an even word inside a Thumb function is never
-  spelled from that function (D102). The rule is one function, `core/model/resolver.ts wordNameOf`, which the printer
+  spelled from that function (D102). A work-RAM word that nothing names gets a default `gUnk_<ADDR>` symbol, which
+  symbols.ld defines and `rename` accepts (D111). The rule is one function, `core/model/resolver.ts wordNameOf`, which the printer
   and the label scopes read: the entry's label is global when such a word lies in another module, a local label is
   never named by a word, and a word an entry holds makes no `gUnk_` label of its own. Far pools are printed where they
   sit, always in the module of the load that names them: `as` cannot assemble a PC-relative load of a symbol
@@ -1243,7 +1244,8 @@ summary (round-trip share, raw count per `RawReason`, coverage classes) goes to 
   or the `mov r8, r8` printed as an instruction), then `.arm`. Every chunk opens with `.thumb` or
   `.arm`, so no file depends on state from an earlier include. ARM functions open with
   `arm_func_start`; a Thumb entry at a 2-mod-4 address uses `non_word_aligned_thumb_func_start`; a
-  function whose label is module-scoped (§6.2) uses the `_local` variant of its macro.
+  function whose label is module-scoped (§6.2: only a name another module defines too) uses the `_local` variant of
+  its macro.
 - **Branches and calls.** `b`, `bcc` and `bl` print to labels; a `bl` judged far prints as `bl` to a
   `local` label. **Every branch prints symbolically when its target is in the same module** (plan:
   "no branch or load is left as raw data"). `init` never draws a module border across a short branch,
@@ -1310,8 +1312,10 @@ earlier gates.
    `from` key when present. A `local` label is made only where an item can start: never at an odd code
    address, the second halfword of a `bl`, the inside of an ARM word or of a pool or table word (an ARM
    `adr r0, X + 1` before a `bx r0` into Thumb names one), so the instruction naming such an address fails
-   the printing rule and prints raw (D63). A label referenced from another module has `scope: 'global'`,
-   every other label `scope: 'module'`. Names are unique within a module (`E_NAME_COLLISION`). A name may repeat in
+   the printing rule and prints raw (D63). A label referenced from another module has `scope: 'global'`, and so
+   does a function whose name no other module defines (D111: a call inside its module then keeps its relocation, as a
+   call to a function compiled from C does, so objdiff's targets agree with the C objects); every other label
+   `scope: 'module'`. Names are unique within a module (`E_NAME_COLLISION`). A name may repeat in
    different modules only when no other module references it, as static functions do in real decomps
    (Emerald has 117 duplicated static `FUNC` names); such labels print with the `_local` macros. Two file
    names in one directory that differ only by case (Emerald's `VBlankCB` and `VblankCB`, `InitBgs` and
@@ -1444,7 +1448,9 @@ only `update --write` and `rename` patch the TOML.
   `OBJS` (every unit object in link order), `C_OBJS`, and per C object `build/src/<m>.o: CC1 := …` and
   `build/src/<m>.o: CFLAGS := …`, and per module with a hand-written `source` (D109) `SOURCE_build/<m>.o := <source>`
   and the rule that assembles `build/<m>.o` from it, with `asm/<m>.s: ;` for the generated source an older build's
-  dependency list still names. A generated `src/<m>.c` is `#include "include_asm.h"` and one
+  dependency list still names; with C units, a `$(warning)` for each `INCLUDE_ASM` line naming an `asm/nonmatchings/`
+  file that is gone while its `asm/matchings/` twin exists, a stub put back by hand over a decompiled function, with the
+  command that writes the file back (D111). A generated `src/<m>.c` is `#include "include_asm.h"` and one
   `INCLUDE_ASM("asm/nonmatchings/<m>", <Name>);` per chunk file in ROM order (`foundation/asm/dialect.ts`).
 
 ### 6.4 Writing safely
@@ -2132,7 +2138,8 @@ it (§5: `name + offset` inside a named, sized entry; the bench gives the model 
 word). Only functions whose entry and extent agree with the ELF are scored; the others are already rows of the entries
 and extents families. Each difference is sorted into a class (`bench/src/objdiff-classes.ts`); a class that says both
 sides link to the same word is given only when the word each side links to is checked. The same-word classes
-(`resolved-call`, `static-callee`, `value-named`, `alias`, `symbol-addend`, `value-for-symbol`, phase-3.md Q1 option (b)),
+(`resolved-call`, `static-callee`, `value-named`, `alias`, `symbol-addend`, `value-for-symbol`, phase-3.md Q1 option (b);
+`default-name`, D111),
 the functions objdiff did not compare (`missing-symbol`, and `tool`, a reference object objdiff-cli refuses, Q6 option
 (c)) and `unnamed-target` (a relocation whose reference side targets a section symbol) are reported, not gated; every
 other difference is gated, and each tuning ROM's gated count must not exceed its ceiling in

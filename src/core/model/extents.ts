@@ -247,7 +247,7 @@ export function inferSymbolExtents(
       diagnostic(
         ModelCodes,
         'W_POOL_WORD_PAST_SYMBOL',
-        `the [symbols] entry ${s.name} at ${hexAddr(s.addr)} ${known}, and ${fns} function${fns === 1 ? '' : 's'} that load it also load ${listed}, which print as numbers; if they lie inside ${s.name}, give it a size (\`${hexAddr(s.addr)} = { name = "${s.name}", size = ... }\`) and they print as ${s.name} + offset`,
+        `the [symbols] entry ${s.name} at ${hexAddr(s.addr)} ${known}, and ${fns} function${fns === 1 ? '' : 's'} that load it also load ${listed}, which print as objects of their own (gUnk_<ADDR>, D111); if they lie inside ${s.name}, give it a size (\`${hexAddr(s.addr)} = { name = "${s.name}", size = ... }\`) and they print as ${s.name} + offset; if they are other objects, rename them`,
         { addr: s.addr },
       ),
     ];

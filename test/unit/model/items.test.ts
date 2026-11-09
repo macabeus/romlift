@@ -273,7 +273,11 @@ test('a short Thumb branch across a moved border prints raw with W_CROSS_MODULE_
   const branch = itemsOf(split, rom).find((i) => i.span.start === BASE + 0x102);
   assert.deepEqual(branch?.kind === 'raw-insn' ? [branch.reason, branch.insn?.specId] : branch, ['cross-module-short-branch', 'thumb.b']);
   assert.equal(split.items.aux[at(split, BASE + 0x102)], ITEM_RAW_REASONS.indexOf('cross-module-short-branch'));
-  assert.equal(split.labels.find((l) => l.name === 'B')?.scope, 'module', 'a raw branch references nothing');
+  // B is global for its unique name (D111); with its name defined in module main too (an alias of A), only a reference
+  // would make it global, and the raw branch is none.
+  const aliased: [Addr, { name: string; aliases: string[] } | string][] = [[BASE + 0x100, { name: 'A', aliases: ['B'] }], [BASE + 0x108, 'B']];
+  const repeated = buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END], ['moved', BASE + 0x108]], functions: aliased }));
+  assert.equal(repeated.labels.find((l) => l.name === 'B')?.scope, 'module', 'a raw branch references nothing');
 });
 
 test('a bl naming a function of the other state prints raw with W_INTERWORKING_BRANCH: ld would insert a veneer (correctness-r2-2)', () => {

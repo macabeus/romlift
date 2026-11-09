@@ -1,7 +1,8 @@
 // The modules-mk writer (architecture §6.3, D47, D74 f): modules.mk holds OBJS (every unit's object in link order),
 // C_OBJS (the C units'), and per C object its CC1 and CFLAGS as target-specific variables, each line naming
 // build/src/<module>.o, with the module's compiler and the Model's flags (the compiler's, then the module's cflags);
-// from phase 6 EXPECTED_OBJS, every generated module's objdiff target (build/expected/<module>.o, `make expected`, D92, D101 c).
+// from phase 6 EXPECTED_OBJS, every generated module's objdiff target (build/expected/<module>.o, `make expected`, D92, D101 c);
+// with C units, the warning for an INCLUDE_ASM restored by hand over a decompiled function's moved file (D111).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -48,6 +49,11 @@ build/src/main.o: CC1 := tools/agbcc/bin/agbcc
 build/src/main.o: CFLAGS :=
 build/src/old.o: CC1 := tools/agbcc/bin/old_agbcc
 build/src/old.o: CFLAGS := -O1 -g
+# A stub put back by hand for a function the C defined: its file is under asm/matchings/ until generate runs (D111).
+ROMLIFT_RESTORED := $(strip $(foreach f,$(shell sed -n 's|^[[:space:]]*INCLUDE_ASM("\\([^"]*\\)",[[:space:]]*\\([A-Za-z0-9_]*\\)).*|\\1/\\2.s|p' src/main.c src/old.c 2>/dev/null),$(if $(wildcard $(f)),,$(if $(wildcard $(subst asm/nonmatchings/,asm/matchings/,$(f))),$(f)))))
+ifneq ($(ROMLIFT_RESTORED),)
+$(warning INCLUDE_ASM names $(ROMLIFT_RESTORED), which generate moved to asm/matchings/ when the C defined the function: run $(or $(ROMLIFT_RUN),npx romlift) generate to write it back)
+endif
 `,
   });
   assert.equal(modulesMkWriter.scope, 'global');

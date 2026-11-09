@@ -9,7 +9,7 @@ sub_080000F4: @ 080000F4
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/asm_08000100/sub_08000100.s (generated, function) <==
 .arm
-	arm_func_start_local sub_08000100
+	arm_func_start sub_08000100
 sub_08000100: @ 08000100
 	stmdb sp!, {r4, r5, r6, r8, r9, r10, lr}
 	mov r4, r0

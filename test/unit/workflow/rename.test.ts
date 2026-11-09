@@ -112,10 +112,10 @@ test('refusals: an invalid new name, an unknown old one, a name the project has;
   }
   assert.deepEqual(codes(planRename(inputs('NoSuchName', 'Other'))), ['E_RENAME_UNKNOWN']);
   assert.ok(!(planRename(inputs('NoSuchName', 'Other')).diagnostics[0]?.message ?? '').includes('default name'));
-  // A default label of the model: the message names the [symbols] entry to add first (end-to-end-user-r1-2).
-  const label = planRename(inputs('gUnk_0809B670', 'gVision'));
-  assert.deepEqual(codes(label), ['E_RENAME_UNKNOWN']);
-  assert.match(label.diagnostics[0]?.message ?? '', /gUnk_0809B670 is a default name of the project's model at 0x0809B670: add `0x0809B670 = "gUnk_0809B670"` to \[symbols\]/);
+  // Another default name of the model: the message names the entry to add first (end-to-end-user-r1-2).
+  const orphan = planRename(inputs('unk_0800032C', 'gVision'));
+  assert.deepEqual(codes(orphan), ['E_RENAME_UNKNOWN']);
+  assert.match(orphan.diagnostics[0]?.message ?? '', /unk_0800032C is a default name of the project's model at 0x0800032C: add `0x0800032C = "unk_0800032C"` to \[symbols\]/);
   for (const taken of ['Third', 'ThirdAlias', 'gMain', 'main', 'sub_08000100']) assert.deepEqual(codes(planRename(inputs('m4aSoundMain', taken))), ['E_RENAME_EXISTS'], taken);
   assert.deepEqual(codes(planRename(inputs('NoSuchName', 'main'))), ['E_RENAME_UNKNOWN', 'E_RENAME_EXISTS'], 'every refusal at once');
   assert.deepEqual(renameProblems(config(), 'sub_08000100', 'InitGame'), []);
@@ -172,4 +172,23 @@ test('the journal and stale-config checks', () => {
   assert.deepEqual(staleRenameConfig('romlift.toml', 'a', 'a'), []);
   assert.deepEqual(staleRenameConfig('romlift.toml', 'a', 'b').map((d) => [d.code, d.path]), [['E_STALE_CONFIG', 'romlift.toml']]);
   assert.match(staleRenameConfig('romlift.toml', 'a', undefined)[0]?.message ?? '', /is gone since rename read it/);
+});
+
+test('a default data name (gUnk_<ADDR>, ROM or RAM) renames directly: rename adds its [symbols] entry under the new name (D111)', () => {
+  const names = new Map([...MODEL_NAMES, ['gUnk_03004FD4', 0x0300_4fd4]]);
+  const texts = new Map([['src/main.c', 'extern int gUnk_03004FD4;\nint f(void) { return gUnk_03004FD4; }\n']]);
+  const sha1s = new Map([['src/main.c', 'sha1-of-src/main.c']]);
+  for (const [from, key] of [['gUnk_03004FD4', '0x03004FD4'], ['gUnk_0809B670', '0x0809B670']] as const) {
+    const plan = planRename({ configText: TOML, config: config(), from, to: 'gVision', texts, sha1s, modelNames: names });
+    assert.ok(plan.ok, from);
+    const patched = config(plan.tomlText);
+    assert.equal(patched.symbols.get(Number.parseInt(key, 16))?.name, 'gVision', from);
+    assert.ok(plan.tomlText.includes(`${key} = "gVision"`), plan.tomlText);
+    assert.equal(patched.symbols.get(0x0300_0000)?.name, 'gMain', 'every other entry kept');
+  }
+  const ram = planRename({ configText: TOML, config: config(), from: 'gUnk_03004FD4', to: 'gVision', texts, sha1s, modelNames: names });
+  assert.ok(ram.ok);
+  assert.equal(applyTextEdits(texts.get('src/main.c') ?? '', ram.edits[0]?.edits ?? []), 'extern int gVision;\nint f(void) { return gVision; }\n');
+  // A gUnk_ spelling that is not the default name of its address, or one the model does not emit, stays unknown.
+  assert.deepEqual(codes(planRename({ configText: TOML, config: config(), from: 'gUnk_03000004', to: 'gVision', texts, sha1s, modelNames: names })), ['E_RENAME_UNKNOWN']);
 });

@@ -165,6 +165,11 @@ export interface ModelSymbol {
    * `name + offset`. Never set beside `size`.
    */
   readonly inferredSize?: number;
+  /**
+   * A default name (D111): a work-RAM address a pool word holds that no [symbols] entry, sized entry or run range
+   * names, given `gUnk_<ADDR>` so the word prints a name and symbols.ld defines it. Never in the config.
+   */
+  readonly default?: true;
 }
 
 export interface Model {
@@ -240,6 +245,8 @@ export interface ModelJsonSymbol {
   readonly size?: number;
   /** ModelSymbol.inferredSize (D110). */
   readonly inferredSize?: number;
+  /** ModelSymbol.default (D111). */
+  readonly default?: true;
 }
 
 export interface ModelJsonUnlisted {

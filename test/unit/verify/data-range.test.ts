@@ -126,8 +126,10 @@ test('each layout passes the model self-checks and its stream the text-layout an
 
 test('the ldscript places main\'s .rodata at its range, in ROM order, with its ASSERT; main\'s check section keeps only RAM data', () => {
   const text = ldscriptText(LAYOUTS.between);
+  // From the line after `SECTIONS {`: an INCLUDE of symbols.ld comes first when the code names RAM (D111).
+  const lines = text.split('\n');
   assert.equal(
-    text.split('\n').slice(2).join('\n'),
+    lines.slice(lines.indexOf('SECTIONS {') + 1).join('\n'),
     `    . = 0x08000000;
     .text : {
         build/rom_header.o(.text);

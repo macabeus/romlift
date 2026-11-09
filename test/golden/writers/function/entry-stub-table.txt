@@ -11,7 +11,7 @@ sub_080000F4: @ 080000F4
 	thumb_func_end sub_080000F4
 ==> asm/nonmatchings/asm_08000104/sub_08000104.s (generated, function) <==
 .thumb
-	thumb_func_start_local sub_08000104
+	thumb_func_start sub_08000104
 sub_08000104: @ 08000104
 	movs r1, #0xb
 	b _08000112
@@ -22,6 +22,7 @@ sub_08000104: @ 08000104
 sub_08000108: @ 08000108
 	movs r1, #0xc
 	b _08000112
+.global sub_0800010C
 .type sub_0800010C, %function
 .thumb_func
 sub_0800010C:

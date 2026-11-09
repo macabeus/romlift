@@ -53,6 +53,26 @@ function handWrittenRule(module: string, object: string, source: string): string
 }
 
 /**
+ * The warning a restored INCLUDE_ASM gets (D111): a function the C defined has its chunk file under asm/matchings/ (D92),
+ * so a stub put back by hand names an asm/nonmatchings/ file that is gone, and the assembler fails on it. make reads the
+ * C sources' INCLUDE_ASM lines (a line of its own, as the reconciler writes them) and warns, before building, for each
+ * one whose file is missing while its asm/matchings twin exists, naming the command that writes it back. A warning, not
+ * an error: a stub inside `#if 0` names such a file harmlessly. It lives here, not in the Makefile, so every project
+ * gets it at its next `generate`.
+ */
+function restoredStubWarning(sources: readonly string[]): string {
+  if (sources.length === 0) return '';
+  const files = `$(shell sed -n 's|^[[:space:]]*INCLUDE_ASM("\\([^"]*\\)",[[:space:]]*\\([A-Za-z0-9_]*\\)).*|\\1/\\2.s|p' ${sources.join(' ')} 2>/dev/null)`;
+  return [
+    '# A stub put back by hand for a function the C defined: its file is under asm/matchings/ until generate runs (D111).',
+    `ROMLIFT_RESTORED := $(strip $(foreach f,${files},$(if $(wildcard $(f)),,$(if $(wildcard $(subst asm/nonmatchings/,asm/matchings/,$(f))),$(f)))))`,
+    'ifneq ($(ROMLIFT_RESTORED),)',
+    '$(warning INCLUDE_ASM names $(ROMLIFT_RESTORED), which generate moved to asm/matchings/ when the C defined the function: run $(or $(ROMLIFT_RUN),npx romlift) generate to write it back)',
+    'endif',
+  ].join('\n') + '\n';
+}
+
+/**
  * The text of modules.mk; `configSha1`, in a project, the SHA-1 of the romlift.toml it is generated from, which the
  * scaffold's Makefile compares with the file's (fix round 6, correctness-b1-1: a pull that changed the TOML leaves
  * a stale tree, which make then refuses with the command that regenerates it).
@@ -78,6 +98,7 @@ export function modulesMkText(model: Pick<Model, 'modules' | 'chunks'>, configSh
       const unit = units[i];
       return m.source === undefined || unit === undefined ? [] : [handWrittenRule(m.name, unit.object, m.source)];
     }),
+    restoredStubWarning(cUnits.map((c) => c.unit.source)),
   ];
   return parts.join('');
 }
