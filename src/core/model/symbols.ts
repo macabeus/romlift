@@ -1,7 +1,7 @@
 // The model's symbols (architecture §6.2, §6.5): the config's [symbols], in address order. A symbol inside the
 // ROM names data there (a data label, and the start of a data chunk in a data module); every other one (RAM,
 // I/O, an absolute address) is for the symbols writer's symbols.ld.
-import { isRamAddress } from '../../foundation/rom/memory-map.ts';
+import { isBiosIwram, isRamAddress } from '../../foundation/rom/memory-map.ts';
 import { ROM_BASE } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { dataName } from '../../foundation/util/project-files.ts';
@@ -38,7 +38,9 @@ export function externalSymbols(model: Pick<Model, 'symbols' | 'rom'>): readonly
 /**
  * `symbols` with a default `gUnk_<ADDR>` entry (D111) at every work-RAM address one of `words` (the pool words) holds
  * that nothing names: no symbol is there, no sized entry holds it (that word prints `name + offset`, D102, D110), and no
- * runs_at range runs over it (code there has its own labels). The ROM's data gets its default labels from its data
+ * runs_at range runs over it (code there has its own labels). The BIOS's top of IWRAM (isBiosIwram) gets none (D113):
+ * C spells those words as constants, so a name there would put a relocation in expected/ that no C object has; a
+ * [symbols] entry there is still honoured. The ROM's data gets its default labels from its data
  * modules (labels.ts); RAM has no module, so its default names are symbols, which symbols.ld defines. A default entry
  * is no knowledge: it bounds no inferred extent (extents.ts reads the config's symbols only).
  */
@@ -47,7 +49,7 @@ export function withDefaultRamSymbols(words: readonly number[], symbols: readonl
   const runs = relocated.flatMap((m) => (m.runAt === undefined ? [] : [{ start: m.runAt, end: m.runAt + (m.span.end - m.span.start) }]));
   const fresh = new Set<number>();
   for (const w of words) {
-    if (!isRamAddress(w) || named.has(w) || sizedEntryAt(entries, w) !== undefined) continue;
+    if (!isRamAddress(w) || isBiosIwram(w) || named.has(w) || sizedEntryAt(entries, w) !== undefined) continue;
     if (runs.some((r) => w >= r.start && w < r.end)) continue;
     fresh.add(w);
   }

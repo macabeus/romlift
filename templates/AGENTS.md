@@ -83,7 +83,9 @@ a symbolic link (an edit would replace the link with a file), a file that is not
 (`W_RENAME_SKIPPED`) of every other such file it left alone. It renames what `romlift.toml` lists (every function is
 listed) and the default data names `gUnk_<ADDR>`: renaming one adds its `[symbols]` entry under the new name
 (`0x03004FD4 = "gPlayer"`); add `size` to that entry when you know it. Every RAM address the code loads has such a name
-until you give it one: `symbols.ld` defines `gUnk_<ADDR>`, so C can name it at once (`extern u32 gUnk_03004FD4;`). A
+until you give it one: `symbols.ld` defines `gUnk_<ADDR>`, so C can name it at once (`extern u32 gUnk_03004FD4;`),
+except the BIOS's top of IWRAM, 0x03007F00 to 0x03007FFF (its stacks, and `INTR_CHECK`, `INTR_VECTOR` and
+`SOUND_INFO_PTR` of `gba/defines.h`), whose words stay numbers, as the C's constants compile. A
 word inside a sized symbol prints as `name + offset` instead, and a symbol without `size` is sized by the furthest
 access the code makes through its address. Any other default name (`unk_<ADDR>`, a chunk's) needs its entry first.
 
@@ -170,7 +172,9 @@ bytes `build/src/<module>.o` had before you decompiled anything. `objdiff.json` 
 with that target and the object `make` builds from `src/<module>.c`, `build/src/<module>.o`. Open the project in objdiff
 (or run `objdiff-cli`) after `make expected`: it runs `make build/src/<module>.o` itself before each diff
 (`build_base`), never `make expected` (`build_target` is false), so run `make expected` again after a `romlift
-generate` that changed `expected/`. Before you change anything, objdiff scores every function at 100%. Use objdiff
+generate` that changed `expected/`. Decompiling or reverting a function changes only the path `expected/<module>.s`
+includes its file from (`asm/nonmatchings/` or `asm/matchings/`), not the target, so it needs no `make expected`; a
+change to `romlift.toml` may. Before you change anything, objdiff scores every function at 100%. Use objdiff
 3.7.2 or later (the version romlift is tested with): older releases cannot load the targets (`Unsupported ARM implicit
 relocation`).
 

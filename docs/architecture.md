@@ -1229,7 +1229,8 @@ summary (round-trip share, raw count per `RawReason`, coverage classes) goes to 
   compiler relocates `&sym.field` and `&array[i]`, unless a named entry links to exactly the word, and only when
   `.4byte name + offset` links to it: R_ARM_ABS32 writes (S + A) | T, so an even word inside a Thumb function is never
   spelled from that function (D102). A work-RAM word that nothing names gets a default `gUnk_<ADDR>` symbol, which
-  symbols.ld defines and `rename` accepts (D111). The rule is one function, `core/model/resolver.ts wordNameOf`, which the printer
+  symbols.ld defines and `rename` accepts (D111), except in the BIOS's top 0x100 bytes of IWRAM, which C spells as
+  constants (`INTR_CHECK`, D113). The rule is one function, `core/model/resolver.ts wordNameOf`, which the printer
   and the label scopes read: the entry's label is global when such a word lies in another module, a local label is
   never named by a word, and a word an entry holds makes no `gUnk_` label of its own. Far pools are printed where they
   sit, always in the module of the load that names them: `as` cannot assemble a PC-relative load of a symbol
