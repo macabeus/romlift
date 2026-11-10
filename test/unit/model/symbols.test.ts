@@ -60,3 +60,10 @@ test('withDefaultRamSymbols: a gUnk_ entry at each work-RAM pool word nothing na
   ]);
   assert.equal(withDefaultRamSymbols([0x0400_0000], symbols, entries, []), symbols, 'nothing to add: the same array');
 });
+
+test('withDefaultRamSymbols: no default name in the BIOS top of IWRAM, [0x03007F00, 0x03008000), but an entry there stays (D113)', () => {
+  const bios = [0x0300_7f00, 0x0300_7fa0, 0x0300_7ff0, 0x0300_7ff8, 0x0300_7ffa, 0x0300_7ffc];
+  assert.deepEqual(withDefaultRamSymbols([...bios, 0x0300_7efc], [], sizedEntries({ symbols: [], functions: [] }), []), [{ addr: 0x0300_7efc, name: 'gUnk_03007EFC', default: true }]);
+  const listed = [{ addr: 0x0300_7ff8, name: 'gIntrCheck' }];
+  assert.equal(withDefaultRamSymbols(bios, listed, sizedEntries({ symbols: listed, functions: [] }), []), listed);
+});

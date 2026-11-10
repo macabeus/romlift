@@ -41,6 +41,17 @@ export function isRomAddress(addr: Addr): boolean {
   return regionOf(addr)?.kind === 'rom';
 }
 
+/**
+ * Whether `addr` lies in the top 0x100 bytes of IWRAM, [0x03007F00, 0x03008000), which the BIOS owns (GBATEK "BIOS RAM
+ * Usage"): the default user stack's top (0x03007F00), the IRQ and supervisor stacks below 0x03007FA0 and 0x03007FE0,
+ * and the BIOS's words at 0x03007FF0 to 0x03007FFF (the sound info pointer, the IRQ check flags, the soft-reset flag
+ * and the IRQ vector). C reaches them through constants (`gba/defines.h`'s `INTR_CHECK`, `INTR_VECTOR`,
+ * `SOUND_INFO_PTR`), never through a variable.
+ */
+export function isBiosIwram(addr: Addr): boolean {
+  return addr >= 0x0300_7f00 && addr < 0x0300_8000;
+}
+
 /** Whether `addr` lies in work RAM (EWRAM or IWRAM). */
 export function isRamAddress(addr: Addr): boolean {
   return regionOf(addr)?.kind === 'work-ram';

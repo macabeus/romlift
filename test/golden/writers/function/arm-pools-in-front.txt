@@ -12,7 +12,7 @@ sub_080000F4: @ 080000F4
 	arm_func_start sub_08000108
 sub_08000108: @ 08000108
 	ldr r0, _08000100 @ =0x04000000
-	ldr r1, _08000104 @ =gUnk_03007FFC
+	ldr r1, _08000104 @ =0x03007FFC
 	str r0, [r1]
 	mov r0, #0
 	bx lr

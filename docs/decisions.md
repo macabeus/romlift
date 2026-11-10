@@ -5296,6 +5296,42 @@ gate now covers a stub after a `const`. The data-range unit tests whose range ru
 **Rejected.** Accepting a shortfall below the range end's alignment (report option a): it would pass a size error that
 happens to be small. A post-link check that `.rodata_<m>` holds no function symbol: (a) removes the cause.
 
+## D113. No default names in the BIOS's top of IWRAM, and `make expected` after a decompile; the owner's words of 9 November 2026
+
+**Context.** The kl2dct session's fourth report (`kl2dct-handoff/romlift-report-2026-11-09-round4.txt`, on `0e307dc`)
+confirmed D111 and D112 and found one regression of D111 (a):
+
+- (13) The default names reached the words the BIOS owns at the top of IWRAM: `gUnk_03007FF0` (the sound info
+  pointer, 14 m4a functions), `gUnk_03007FF8` (the IRQ check flags, 9 functions), `gUnk_03007FFA` (the soft-reset
+  flag), `gUnk_03007FFC` (the IRQ vector), `gUnk_03007FA0` (the IRQ stack's top). C reaches them through
+  `gba/defines.h`'s `SOUND_INFO_PTR`, `INTR_CHECK` and `INTR_VECTOR`, constant casts that agbcc emits as plain pool
+  words, while `expected/` now relocated them (R_ARM_ABS32 against `gUnk_…`). The ROM linked the same, but six
+  decompiled interrupt handlers of kl2dct no longer matched their targets in an instruction-and-relocation comparison,
+  and every m4a or interrupt function decompiled with the standard headers would follow. `g6.objdiff` did not see it:
+  the reference decomps use the same macros, and a plain value against a relocation to the same word is the same-word
+  `value-for-symbol` class.
+- (15) A decompile or a revert rewrites `expected/<module>.s`, since the file it includes moves between
+  `asm/nonmatchings/` and `asm/matchings/` (D92, D111 d); the report read AGENTS.md as asking for `make expected` after
+  each.
+
+**Decision.** The owner ("Yes, fix it and merge once the tests pass locally"):
+
+- (a) `withDefaultRamSymbols` (core/model/symbols.ts) gives no default name to a word in [0x03007F00, 0x03008000)
+  (`foundation/rom/memory-map.ts isBiosIwram`): the default user stack's top, the IRQ and supervisor stacks, and the
+  BIOS's words at 0x03007FF0 to 0x03007FFF. Such a word prints as its number, as before D111; a `[symbols]` entry
+  there is honoured as any other, for a project that declares one as a variable.
+- (b) AGENTS.md says a decompile or a revert changes only the include path of `expected/<module>.s`, not the target,
+  so it needs no `make expected`.
+
+**Consequences.** symbols.ld loses the BIOS words' default names; their pool words print as numbers again, and an
+interrupt handler written with `INTR_CHECK` matches its target's relocations. A RAM word below 0x03007F00 keeps its
+default name, so a game variable placed in the user stack's area still gets one.
+
+**Rejected.** Naming a fixed address only when the project's headers do not `#define` it (the report's other option): it
+would make the model read the C headers. A printed comment naming the register: no other pool word carries one. The
+report's finding 14 (a `W_POOL_WORD_PAST_SYMBOL` that ends once its first word is listed): the words after it then lie
+past a listed symbol, which is the extent rule working; left as is.
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

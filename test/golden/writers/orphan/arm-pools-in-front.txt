@@ -5,7 +5,7 @@
 unk_080000FE: @ 080000FE
 	.align 2, 0
 _08000100: .4byte 0x04000000
-_08000104: .4byte gUnk_03007FFC
+_08000104: .4byte 0x03007FFC
 ==> asm/nonmatchings/main/unk_08000122.s (generated, orphan) <==
 .thumb
 @ bytes between functions: 2 bytes
