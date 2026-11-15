@@ -247,7 +247,11 @@ export const REFERENCE_WALK: readonly ResolvedPolicy[] = [
     const t = insn.flow.target;
     const past = t === c.entry || c.walked(t) ? undefined : c.view.boundaryBetween(c.entry, t);
     const foreign =
-      past !== undefined ? past || t < c.entry : t !== c.entry && !c.walked(t) && ((c.mode === 'arm' && t < c.entry) || c.view.isFunction(t) || c.view.claimAt(t) === Claim.code);
+      past !== undefined
+        ? t > c.entry
+          ? past
+          : c.mode === 'arm' || c.view.isBoundary(t) || c.view.claimAt(t) === Claim.code
+        : t !== c.entry && !c.walked(t) && ((c.mode === 'arm' && t < c.entry) || c.view.isFunction(t) || c.view.claimAt(t) === Claim.code);
     return foreign ? { step: 'end-path', exit: 'tail' } : undefined;
   }),
   policy('walk.trailing-zero-padding', (insn, c) => (c.phase === 'stop' && insn.size === 2 && u16(c.view.rom, insn.addr) === 0 ? { step: 'padding' } : undefined)),

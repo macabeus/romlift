@@ -10,14 +10,18 @@
 //   the listed `label = true` entries, which init writes from exactly that); every other entry is a boundary. In
 //   discover mode the labels grow to a fixpoint: an entry a re-read extent now covers becomes a label too.
 // - The canonical walk (view.isBoundary, view.boundaryBetween). A boundary function's walk stops when it falls into a
-//   boundary entry and passes through inner labels; a branch is a tail exit when its target lies below the entry or
-//   past another boundary entry, whatever the claims say. An inner label's own walk is bounded by every entry. Such a
-//   reading depends on the ROM, the entries and the labels only: not on the claims, nor on the order.
+//   boundary entry and passes through inner labels; a forward branch is a tail exit when its target lies past another
+//   boundary entry, whatever the claims say; a backward one as before (ARM: always; Thumb: at a boundary entry or into
+//   claimed code), the claims being those of the lower entries' final readings. An inner label's own walk is bounded
+//   by every entry. Such a reading depends on the ROM, the entries, the labels and the readings of lower entries:
+//   not on the order the functions were taken in.
 // - Re-reading. A function is read again when its reading may differ under that walk (mayChange): it is an inner
-//   label, a boundary or a label lies inside its code, a followed branch would now leave, a tail exit would now be
-//   followed or would now name a function, or a far `bl` targets an entry. Every other reading already is canonical.
+//   label, a boundary or a label lies inside its code, it has a backward branch, a followed branch would now leave, a
+//   tail exit would now be followed or would now name a function, or a far `bl` targets an entry. Every other reading
+//   already is canonical.
 //   `tuning.canonicalSweep: 'full'` re-reads every function: the reference a test holds the selection to.
-// - Claims are rebuilt from nothing, in ascending entry order, so no claim a replaced reading left survives.
+// - Claims are rebuilt from nothing in ascending entry order as the functions are read, so no claim a replaced
+//   reading left survives and a backward branch sees the lower entries' final code only.
 //
 // A reading whose shape does not change is kept as it is, with the provenance of its verdicts. The pass emits no
 // trail event: what it decides is the final reading, which explain prints.
@@ -108,6 +112,7 @@ function mayChange(s: DriverState, r: Reading, labels: readonly Addr[], boundari
     if (x.kind !== 'tail') continue;
     const t = branchTarget(s, r, x.at);
     if (t === undefined || t < s.rom.base || t >= s.rom.end) continue;
+    if (t < e) return true;
     if (t > e && !anyIn(boundaries, e, t) && !r.insnAt.has(t)) return true;
     if (s.funcs.has(t) && !r.calls.some((c) => c.site === x.at)) return true;
   }
@@ -134,33 +139,31 @@ function sweep(s: DriverState, entries: readonly Addr[], labels: ReadonlySet<Add
     s.reuse.carried.clear();
     s.reuse.facts.clear();
   }
+  const reread = new Set(selected);
   for (const e of selected) s.settled.delete(e);
-  let changed = 0;
-  for (const e of selected) {
-    const f = s.funcs.get(e);
-    if (f === undefined) continue;
-    s.canonical = labels.has(e) ? inner : canonical;
-    const r = f.reading.mode === 'thumb' ? settle(s, e) : analyzeArm(s, e);
-    s.canonical = canonical;
-    if (shape(r) !== shape(f.reading)) {
-      f.reading = r;
-      changed += 1;
-    }
-    if (f.reading.mode === 'thumb') s.settled.set(e, f.reading);
-  }
-  s.ownerIndex = undefined;
-  return changed;
-}
-
-/** Rebuilds every claim from nothing: the data overrides, then each function's reading in ascending entry order. */
-function reclaim(s: DriverState, entries: readonly Addr[]): void {
+  // Claims are rebuilt from nothing in ascending entry order as the functions are read, so a backward branch, which
+  // claimed code decides (walk.branch-into-function), sees the final readings of the lower entries only.
   s.claims.fill(Claim.free);
   for (const d of s.dataOverrides) s.claims.fill(Claim.data, d.start - s.rom.base, d.end - s.rom.base);
+  s.ownerIndex = undefined;
+  let changed = 0;
   for (const e of entries) {
     const f = s.funcs.get(e);
-    if (f !== undefined) claim(s, e, f.reading);
+    if (f === undefined) continue;
+    if (reread.has(e)) {
+      s.canonical = labels.has(e) ? inner : canonical;
+      const r = f.reading.mode === 'thumb' ? settle(s, e) : analyzeArm(s, e);
+      s.canonical = canonical;
+      if (shape(r) !== shape(f.reading)) {
+        f.reading = r;
+        changed += 1;
+      }
+      if (f.reading.mode === 'thumb') s.settled.set(e, f.reading);
+    }
+    claim(s, e, f.reading);
+    s.ownerIndex = undefined;
   }
-  s.ownerIndex = undefined;
+  return changed;
 }
 
 /** The canonical pass (see the header); the walk is the ordinary one again afterwards. */
@@ -184,7 +187,6 @@ export function canonicalize(s: DriverState): void {
     if (grown.size === labels.size) continue;
     labels = grown;
   }
-  reclaim(s, entries);
   s.canonical = undefined;
   s.muted = false;
 }

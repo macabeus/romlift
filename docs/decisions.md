@@ -5362,18 +5362,20 @@ done. Merge the PR as soon as the tests passes"):
   extent, grown to a fixpoint (an entry a re-read extent now covers becomes a label too); in confirm mode, the listed
   labels. Every other entry is a boundary.
 - (c) **The canonical walk** (`AnalysisView.isBoundary`, `boundaryBetween`). A boundary function's walk stops when it
-  falls into a boundary entry and passes through inner labels; a branch is a tail exit when its target lies below the
-  entry or past another boundary entry, whatever the claims say, which is where the source lays the functions out (a
-  shared tail belongs to the entry it follows). An inner label's own walk is bounded by every entry (the
-  `entry-stub-table` fixture's `SwampFx` is 4 bytes, as its ELF size says). `bl` verdicts read the final function
-  set: `bl.self-or-accepted` answers for every entry.
+  falls into a boundary entry and passes through inner labels; a forward branch is a tail exit when its target lies
+  past another boundary entry, whatever the claims say, which is where the source lays the functions out (a shared
+  tail belongs to the entry it follows). A backward branch is judged as before (ARM: a tail exit; Thumb: one at a
+  boundary entry or into claimed code), the claims being those of the lower entries' final readings, which the pass
+  rebuilds in ascending entry order as it reads: so tmc's `__divsi3` still reaches `_divide_by_zero` below it, as on
+  `main`. An inner label's own walk is bounded by every entry (the `entry-stub-table` fixture's `SwampFx` is 4 bytes,
+  as its ELF size says). `bl` verdicts read the final function set: `bl.self-or-accepted` answers for every entry.
 - (d) **Only what may change is read again.** A function is re-read when it is an inner label, a boundary or a label
-  lies inside its code, a followed branch would now leave, a tail exit would now be followed or would now name a
+  lies inside its code, it has a backward branch, a followed branch would now leave, a tail exit would now be followed or would now name a
   function, or a far `bl` targets an entry; a reading of the same shape is kept, with its verdicts' provenance. The
   internal tuning `canonicalSweep: 'full'` re-reads every function; `test/unit/analysis/driver/canonical.test.ts`
   (every fixture, both modes) and `test/local/canonical.test.ts` (the six tuning ROMs) hold the selection to it,
   analysis for analysis. The epoch's readings of entries not accepted, and 'epoch-reuse' carried readings, are
-  dropped first. Claims are then rebuilt from nothing in ascending entry order. The pass emits no trail event.
+  dropped first. The pass emits no trail event.
 - (e) **The gate is strict.** `KNOWN_DIFFERENCES`, its records and its staleness checks are removed
   (`test/gates/confirm-differences.ts`); any differing function or claim run fails, on any ROM. The binding of
   `TMC_AT_D61` stays for the two other tmc scopings (D61 c, d).
@@ -5381,8 +5383,11 @@ done. Merge the PR as soon as the tests passes"):
 **Consequences.** Measured against `main` (`fed7767`): confirm equals discover on all six tuning ROMs (tmc: 8
 functions and 4 claim runs differed); on fe7j, klonoa, pokeemerald, sa2 and sa3 no reading changes; on tmc the
 entry set is the same and the bench row is identical (precision, recall, extents 8,388 of 8,388, code end, baseline
-rows), the extents that move are those of hand-written code with several entries (the eight, and inner labels whose
-own extents now run to their cluster's end), and tmc's listed labels go from 36 to 31. Every tuning row and the
+rows, every byte's claim kind), the extents that move are those of hand-written code with several entries (the
+eight, and inner labels whose own extents now run to their cluster's end), and tmc's listed labels go from 36 to 31.
+A first version judged a Thumb branch below the entry a tail exit too; it freed 18 bytes of tmc code only backward
+branches reach (`_divide_by_zero`, `reset_vel`), which lowered tmc's readability shares (`bench regression`), and was
+changed before landing. Every tuning row and the
 sealed pair's counts are unchanged; `init` to `make` still gives tmc's SHA-1. The 32 MiB synthetic ROM of
 `g3.large-rom` has the same functions and extents and four more files, because the rebuilt claims drop a 2-byte code
 claim with no owner that a replaced reading had left. Discover's CPU time grows by the re-reads and the claim

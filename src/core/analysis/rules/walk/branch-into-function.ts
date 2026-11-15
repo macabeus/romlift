@@ -5,10 +5,11 @@
 // below the entry is foreign too. The walker counts the exit (and the call when the target is a
 // function); an unconditional branch ends the path, a conditional one goes on.
 //
-// In the canonical pass (D114) the claims, which hold whatever the readings taken earlier left, do not decide:
-// a branch is foreign when its target lies below the entry or past another boundary entry (one that is not an
-// inner label), that is in the code of another function as the source lays the functions out. A shared tail
-// belongs to the entry it follows, whichever function was read first.
+// In the canonical pass (D114) a forward branch is foreign when its target lies past another boundary entry (one
+// that is not an inner label), that is in the code of another function as the source lays the functions out,
+// whatever the claims say: a shared tail belongs to the entry it follows, whichever function was read first. A
+// backward branch is judged as before (ARM: foreign; Thumb: a boundary entry or claimed code), the claims then being
+// those of the lower entries' final readings only, which the pass rebuilds in ascending order.
 import { Claim } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
 
@@ -28,7 +29,10 @@ export default defineRule({
     if (target === cursor.entry || cursor.walked(target)) return undefined;
     const v = cursor.view;
     const past = v.boundaryBetween(cursor.entry, target);
-    if (past !== undefined) return past || target < cursor.entry ? { step: 'end-path', exit: 'tail' } : undefined;
+    if (past !== undefined) {
+      const leaves = target > cursor.entry ? past : cursor.mode === 'arm' || v.isBoundary(target) || v.claimAt(target) === Claim.code;
+      return leaves ? { step: 'end-path', exit: 'tail' } : undefined;
+    }
     const below = cursor.mode === 'arm' && target < cursor.entry;
     const foreign = below || v.isFunction(target) || v.claimAt(target) === Claim.code;
     return foreign ? { step: 'end-path', exit: 'tail' } : undefined;

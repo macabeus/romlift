@@ -954,16 +954,17 @@ modes, the pass makes every reading the one the final function set gives:
   entries, which `init` writes from exactly that); every other entry is a *boundary*. In discover mode the labels
   grow to a fixpoint, an entry a re-read extent now covers becoming a label too.
 - The canonical walk (`AnalysisView.isBoundary`, `boundaryBetween`): a boundary function's walk stops when it falls
-  into a boundary entry and passes through inner labels; a branch is a tail exit when its target lies below the
-  entry or past another boundary entry, that is in another function's code as the source lays it out, whatever the
-  claims say (`walk.branch-into-function`). An inner label's own walk is bounded by every entry. Such a reading
-  depends on the ROM, the entries and the labels only.
+  into a boundary entry and passes through inner labels; a forward branch is a tail exit when its target lies past
+  another boundary entry, that is in another function's code as the source lays it out, whatever the claims say,
+  and a backward one as before (ARM: always; Thumb: at a boundary entry or into claimed code), the claims being
+  those of the lower entries' final readings (`walk.branch-into-function`). An inner label's own walk is bounded by
+  every entry. Such a reading depends on the ROM, the entries, the labels and the lower entries' readings.
 - A function is read again only when its reading may differ under that walk (it is an inner label; a boundary or a
-  label lies inside its code; a followed branch would now leave; a tail exit would now be followed or would now name
+  label lies inside its code; it has a backward branch; a followed branch would now leave; a tail exit would now be followed or would now name
   a function; a far `bl` targets an entry); `canonicalSweep: 'full'` (an internal tuning) re-reads every function and
   is the reference the selection is tested against on every fixture and tuning ROM. A reading of the same shape is
-  kept with its verdicts' provenance. Claims are then rebuilt from nothing in ascending entry order. The pass emits
-  no trail event.
+  kept with its verdicts' provenance. Claims are rebuilt from nothing in ascending entry order as the functions are
+  read. The pass emits no trail event.
 
 `g2.confirm-equals-discover` (tier real, phase 2) runs discover, builds the listed set from it (entries, modes,
 `label` for entries inside another found extent, no sizes), runs confirm, and requires the parity view (functions,
