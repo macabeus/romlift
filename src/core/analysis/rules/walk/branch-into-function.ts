@@ -4,6 +4,11 @@
 // A target this walk already reached, and the entry itself, are the function's own loop. In ARM a target
 // below the entry is foreign too. The walker counts the exit (and the call when the target is a
 // function); an unconditional branch ends the path, a conditional one goes on.
+//
+// In the canonical pass (D114) the claims, which hold whatever the readings taken earlier left, do not decide:
+// a branch is foreign when its target lies below the entry or past another boundary entry (one that is not an
+// inner label), that is in the code of another function as the source lays the functions out. A shared tail
+// belongs to the entry it follows, whichever function was read first.
 import { Claim } from '../../types.ts';
 import { defineRule } from '../define-rule.ts';
 
@@ -22,6 +27,8 @@ export default defineRule({
     const target = insn.flow.target;
     if (target === cursor.entry || cursor.walked(target)) return undefined;
     const v = cursor.view;
+    const past = v.boundaryBetween(cursor.entry, target);
+    if (past !== undefined) return past || target < cursor.entry ? { step: 'end-path', exit: 'tail' } : undefined;
     const below = cursor.mode === 'arm' && target < cursor.entry;
     const foreign = below || v.isFunction(target) || v.claimAt(target) === Claim.code;
     return foreign ? { step: 'end-path', exit: 'tail' } : undefined;

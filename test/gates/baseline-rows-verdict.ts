@@ -81,7 +81,7 @@ export interface BaselineRowsVerdict {
 
 /**
  * Benchmark rows that no longer apply, each a stale record (code-quality-r1-4), as SCOPED_OUT
- * (poc-parity-check.ts) and KNOWN_DIFFERENCES (confirm-differences.ts staleRecords) report theirs: a name
+ * (poc-parity-check.ts) reports its own: a name
  * that is not a tuning dataset, and a ROM whose PoC reference is not the pinned PoC's own run of it
  * (`poc.source` 'dump'), for which the verdict would silently ignore the record. `roms` are the run's rows.
  */

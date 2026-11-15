@@ -1,12 +1,9 @@
 // g2.confirm-equals-discover (architecture §4.2, §13, D8): on every tuning ROM, a confirm run seeded with
 // exactly the functions a discover run found (entries and modes, `label` for an entry inside another found
-// extent, no sizes) gives the same parity view: functions, extents, far `bl` verdicts and claims. tmc's eight
-// differing functions are a known phase-2 limitation (D61 e, the owner's answers to Q3 and Q6), pinned by content:
-// the gate judges every ROM in full, equal digests or not, accepts tmc only when its differences are
-// exactly the recorded ones (each function's and claim run's records in both views), prints them every
-// time, and fails on any other difference there, on a recorded difference that changed or is gone, on a
-// record whose dataset is absent or another build, and on any difference on another ROM
-// (confirm-differences.ts).
+// extent, no sizes) gives the same parity view: functions, extents, far `bl` verdicts and claims. The gate judges
+// every ROM in full, equal digests or not, and any difference fails (confirm-differences.ts): since D114 the
+// canonical pass reads every function under the final function set in both modes, which removed the eight tmc
+// functions D61 e and g had accepted as a known limitation.
 //
 // Calls the phase-2 API as frozen in architecture §3.3: romFromBytes(bytes, sha1), sha1Of(bytes),
 // profileById('agbcc'), analyze(rom, profile, {mode, seeds, overrides: [], trail: 'off'}). The verdict
@@ -15,7 +12,7 @@
 // with no differing function or claim run fail too.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { judgeDifferences, staleRecords, viewDifferences, type ParityView } from './confirm-differences.ts';
+import { judgeDifferences, viewDifferences, type ParityView } from './confirm-differences.ts';
 import { gate } from './gate.ts';
 
 type Mode = 'thumb' | 'arm';
@@ -122,8 +119,7 @@ gate({
     const profile = cx.need<ProfileById>('profileById')('agbcc');
     if (profile === undefined) throw new Error("profileById('agbcc') returned undefined");
 
-    const problems: string[] = [...staleRecords(cx.datasets.map((d) => d.name))];
-    const known: string[] = [];
+    const problems: string[] = [];
     const counts: string[] = [];
     for (const dataset of cx.datasets) {
       const bytes = new Uint8Array(await readFile(path.resolve(cx.benchRoot, dataset.rom)));
@@ -135,16 +131,13 @@ gate({
       const a = sha256Stream(canonicalJson(views.discover));
       const b = sha256Stream(canonicalJson(views.confirm));
       const labels = seeds.filter((s) => s.label === true).length;
-      // Judged on every ROM, equal digests included, so a known limitation that no longer differs is stale.
+      // Judged on every ROM, equal digests included.
       const differences = viewDifferences(views.discover, views.confirm);
       if (a !== b && differences.functions.length === 0 && differences.claims.length === 0) problems.push(`${dataset.name}: the views' digests differ but no function or claim run does (their order)`);
-      const judged = judgeDifferences(dataset.name, dataset, differences);
-      problems.push(...judged.problems);
-      if (judged.note !== undefined) known.push(`KNOWN LIMITATION: ${judged.note}`);
+      problems.push(...judgeDifferences(dataset.name, differences).problems);
       counts.push(`${dataset.name} ${seeds.length} listed (${labels} labels), ${confirm.unlisted?.length ?? 0} unlisted, ${confirm.listedInvalid?.length ?? 0} listed-invalid, ${differences.functions.length} functions and ${differences.claims.length} claim runs differ`);
     }
     // Noted before any failure, so the failure detail keeps the per-ROM measurements (D59 q).
-    for (const n of known) cx.note(n);
     cx.note(counts.join('; '));
     if (problems.length > 0) throw new Error(`confirm differs from discover: ${problems.join('; ')}`);
   },

@@ -8,7 +8,7 @@ import type { AnalysisView, OverrideFact, Seed } from '../types.ts';
 import { factOf, ownerOf } from './facts.ts';
 import { readAddr, readInProgress, readOpaque } from './reuse.ts';
 import { inSpans } from './seeds.ts';
-import { claimAt, isFunction } from './state.ts';
+import { boundaryBetween, claimAt, isBoundary, isFunction } from './state.ts';
 import type { DriverState } from './state.ts';
 
 /** A view query the 'epoch-reuse' cache does not track: the reading being computed, if any, is never carried. */
@@ -61,6 +61,12 @@ export function makeView(get: () => DriverState): AnalysisView {
       if (s.reuse !== undefined) readAddr(s.reuse, a);
       return isFunction(s, a);
     },
+    isBoundary: (a) => {
+      const s = get();
+      if (s.reuse !== undefined) readAddr(s.reuse, a);
+      return isBoundary(s, a);
+    },
+    boundaryBetween: (lo, hi) => boundaryBetween(get(), lo, hi),
     functions: () => opaque(get()).order.slice(),
     accepted: (entry) => opaque(get()).funcs.get(entry)?.reading,
     read: (entry, mode) => get().services.read(entry, mode),

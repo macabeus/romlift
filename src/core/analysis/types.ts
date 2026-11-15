@@ -214,6 +214,11 @@ export interface AnalysisTuning {
   readonly cache: 'epoch' | 'epoch-reuse';
   /** `analyze --disable`, `bench ablate`: these rules are skipped. */
   readonly disabled: readonly RuleId[];
+  /**
+   * The canonical pass re-reads the functions whose reading may change (the default), or every function ('full'),
+   * the reference the default is tested against (D114).
+   */
+  readonly canonicalSweep?: 'full';
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -338,6 +343,16 @@ export interface AnalysisView {
   owner(a: Addr): FunctionFact | undefined;
   /** discover: accepted; confirm: listed or accepted (§4.2). */
   isFunction(a: Addr): boolean;
+  /**
+   * Whether a walk stops at `a` (falls into it, or ends a branch to it as a tail exit): isFunction, except that in the
+   * canonical pass an inner label does not stop the walk of the function around it (D114, driver/canonical.ts).
+   */
+  isBoundary(a: Addr): boolean;
+  /**
+   * In the canonical pass, whether a boundary entry b lies in (lo, hi]: a branch from the entry `lo` to `hi` then
+   * leaves the function (D114). Undefined outside the canonical pass, where claims decide (walk.branch-into-function).
+   */
+  boundaryBetween(lo: Addr, hi: Addr): boolean | undefined;
   /** Accepted entries in acceptance order (D56). */
   functions(): readonly Addr[];
   /** The reading an entry was accepted with, merged with any absorbed block (D56). */

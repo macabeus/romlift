@@ -1,24 +1,9 @@
-// The comparison of g2.confirm-equals-discover (architecture §4.2, D8, D61 e), in one place: the gate calls
-// it and test/unit/gates/confirm-differences.test.ts tests it. Two parity views (functions with their
-// extents and far `bl` verdicts, and claim runs) are compared in full: every function that differs (in one
-// view only, or with another mode, extent or far verdicts) and every claim run that differs, each with its
-// record in both views.
-//
-// The owner's answer to Q3 of phase-2.md (18 October 2026, "Build resettle, else accept"): D8's resettle
-// stage was built and measured (f287b0d) and reverted (af0f75c) because it changes rows on the other tuning
-// ROMs and the sealed pair, so tmc's six differences are a known phase-2 limitation (KNOWN_DIFFERENCES).
-// The owner's answer to Q6 (18 October 2026, "Yes, cover all 8") extends it to 0x080B255C and 0x080B2874,
-// which 95b257b moved after Q3's count, and their three claim runs. They are pinned by content: each
-// function's discover and confirm records and each differing claim run's, the six of Q3 as measured at
-// 9c8b282 (identical at 95b257b^ and 5e18731), the two of Q6 and their claim runs at 51ea4ee. The gate accepts a ROM's differences only
-// when they are exactly those records, no more and no fewer: a known function that differs otherwise
-// (another extent, mode or far verdicts, or gone from a view) is a changed limitation, one that no longer
-// differs, or a record whose ROM is not a tuning dataset, is a stale record, and each fails; so does the
-// record when the dataset's ROM or ELF is not the one it was decided on (dataset-binding.ts). It prints
-// the limitation every run. Every other ROM must have no difference at all.
+// The differences of g2.confirm-equals-discover's two views (architecture §4.2, §13, D8, D114): every function
+// (entry, mode, extent, far verdicts) and every claim run that differs between the discover run and the confirm run
+// seeded with its functions. Since D114 the canonical pass makes both runs read every function under the final
+// function set, so the gate holds on every tuning ROM with no recorded exception: any difference fails, on any ROM.
+// (D61 e and g had accepted eight tmc functions and four claim runs as a known limitation; D114 removed them.)
 
-import { bindingMismatch, TMC_AT_D61, type DatasetBinding, type DatasetIdentity } from './dataset-binding.ts';
-import { byCodeUnit } from './order.ts';
 
 export interface ViewFunction {
   readonly entry: number;
@@ -58,70 +43,6 @@ export interface ViewDifferences {
   /** Ascending by start, then end. */
   readonly claims: readonly ClaimDifference[];
 }
-
-/** A ROM whose confirm and discover views differ by a recorded limitation, pinned by content. */
-export interface KnownDifferences {
-  readonly decision: string;
-  readonly reason: string;
-  /** The dataset the limitation was measured and decided on. */
-  readonly rom: DatasetBinding;
-  readonly functions: readonly FunctionDifference[];
-  readonly claims: readonly ClaimDifference[];
-}
-
-const thumb = (entry: number, end: number): ViewFunction => ({ entry, mode: 'thumb', extent: { start: entry, end }, far: [] });
-const arm = (entry: number, end: number): ViewFunction => ({ entry, mode: 'arm', extent: { start: entry, end }, far: [] });
-
-/**
- * tmc's eight differences (D61 e). The six Q3 named, with their records as measured at 9c8b282: functions
- * of hand-written code with several entries, whose shared code goes to whichever entry is taken first (D60
- * k), so confirm, which takes every listed entry from round 0, cuts them where discover does not; and the
- * one claim run that follows (0x080087D2..0x08008886, owned by 0x08008790 in discover, unowned in confirm).
- * The two Q6 added ("Yes, cover all 8"), with their records as measured at 51ea4ee: 0x080B255C and
- * 0x080B2874, the same class, moved by the pool boundary of 95b257b, and their three claim runs
- * (0x080B2874..0x080B289C and 0x080B289C..0x080B299C in discover, 0x080B2874..0x080B299C in confirm).
- * Nothing else is covered.
- */
-export const KNOWN_DIFFERENCES: Readonly<Record<string, KnownDifferences>> = {
-  tmc: {
-    decision: 'D61 e',
-    reason:
-      'known phase-2 limitation (the owner\'s answer to Q3 on 2026-10-18, "Build resettle, else accept": the resettle stage changed rows on the other tuning ROMs and the sealed pair and was reverted; and to Q6 on 2026-10-18, "Yes, cover all 8": 0x080B255C and 0x080B2874 with their three claim runs)',
-    rom: TMC_AT_D61,
-    functions: [
-      { entry: 0x0800_4274, discover: thumb(0x0800_4274, 0x0800_4356), confirm: thumb(0x0800_4274, 0x0800_42ac) },
-      { entry: 0x0800_42b8, discover: thumb(0x0800_42b8, 0x0800_42d0), confirm: thumb(0x0800_42b8, 0x0800_432a) },
-      { entry: 0x0800_42ba, discover: thumb(0x0800_42ba, 0x0800_42d0), confirm: thumb(0x0800_42ba, 0x0800_432a) },
-      { entry: 0x0800_43ac, discover: thumb(0x0800_43ac, 0x0800_43e8), confirm: thumb(0x0800_43ac, 0x0800_43b0) },
-      { entry: 0x0800_8790, discover: thumb(0x0800_8790, 0x0800_8886), confirm: thumb(0x0800_8790, 0x0800_8796) },
-      { entry: 0x080b_1a8c, discover: arm(0x080b_1a8c, 0x080b_1af0), confirm: arm(0x080b_1a8c, 0x080b_1aa8) },
-      { entry: 0x080b_255c, discover: arm(0x080b_255c, 0x080b_299c), confirm: arm(0x080b_255c, 0x080b_280c) },
-      { entry: 0x080b_2874, discover: arm(0x080b_2874, 0x080b_289c), confirm: arm(0x080b_2874, 0x080b_299c) },
-    ],
-    claims: [
-      {
-        span: { start: 0x0800_87d2, end: 0x0800_8886 },
-        discover: { span: { start: 0x0800_87d2, end: 0x0800_8886 }, kind: 1, owner: 0x0800_8790 },
-        confirm: { span: { start: 0x0800_87d2, end: 0x0800_8886 }, kind: 1 },
-      },
-      {
-        span: { start: 0x080b_2874, end: 0x080b_289c },
-        discover: { span: { start: 0x080b_2874, end: 0x080b_289c }, kind: 1, owner: 0x080b_2874 },
-        confirm: null,
-      },
-      {
-        span: { start: 0x080b_2874, end: 0x080b_299c },
-        discover: null,
-        confirm: { span: { start: 0x080b_2874, end: 0x080b_299c }, kind: 1, owner: 0x080b_2874 },
-      },
-      {
-        span: { start: 0x080b_289c, end: 0x080b_299c },
-        discover: { span: { start: 0x080b_289c, end: 0x080b_299c }, kind: 1, owner: 0x080b_255c },
-        confirm: null,
-      },
-    ],
-  },
-};
 
 function hex(addr: number): string {
   return `0x${addr.toString(16).toUpperCase().padStart(8, '0')}`;
@@ -184,11 +105,6 @@ export function viewDifferences(discover: ParityView, confirm: ParityView): View
 /** How many records a failure message shows of each list; it gives the list's count too (code-quality-r0-3, r1-5). */
 const FIRST = 4;
 
-/** The marker that a message shows only the first FIRST of `list`. */
-function more(list: readonly unknown[]): string {
-  return list.length > FIRST ? '; …' : '';
-}
-
 /** How many differ of each, and the first few, for a message (code-quality-r0-3). */
 export function summarize(d: ViewDifferences, first = FIRST): string {
   const shown = [...d.functions.slice(0, first).map(fnDiffText), ...d.claims.slice(0, first).map(claimDiffText)];
@@ -196,67 +112,7 @@ export function summarize(d: ViewDifferences, first = FIRST): string {
   return `${d.functions.length} functions and ${d.claims.length} claim runs differ: ${shown.join('; ')}${more}`;
 }
 
-/** The verdict on one ROM: problems (empty when it passes) and, for a ROM with a known limitation, the note it prints. */
-export function judgeDifferences(
-  name: string,
-  dataset: DatasetIdentity,
-  d: ViewDifferences,
-  known: Readonly<Record<string, KnownDifferences>> = KNOWN_DIFFERENCES,
-): { readonly problems: readonly string[]; readonly note?: string } {
-  const k = known[name];
-  const empty = d.functions.length === 0 && d.claims.length === 0;
-  if (k === undefined) return empty ? { problems: [] } : { problems: [`${name}: ${summarize(d)}`] };
-  const unbound = bindingMismatch(name, k.decision, k.rom, dataset);
-  if (unbound !== undefined) return { problems: [unbound, ...(empty ? [] : [`${name}: ${summarize(d)}`])] };
-
-  const problems: string[] = [];
-  const actualFn = new Map(d.functions.map((f) => [f.entry, f]));
-  const knownFn = new Set(k.functions.map((f) => f.entry));
-  const gone = k.functions.filter((f) => !actualFn.has(f.entry));
-  const changed = k.functions.filter((f) => {
-    const got = actualFn.get(f.entry);
-    return got !== undefined && fnDiffText(got) !== fnDiffText(f);
-  });
-  const uncovered = d.functions.filter((x) => !knownFn.has(x.entry));
-  if (uncovered.length > 0) {
-    const shown = uncovered.slice(0, FIRST).map(fnDiffText);
-    problems.push(`${name}: ${uncovered.length} functions differ, not covered by ${k.decision}: ${shown.join('; ')}${more(uncovered)}`);
-  }
-  if (changed.length > 0) {
-    const shown = changed.slice(0, FIRST).map((f) => `${fnDiffText(actualFn.get(f.entry) ?? f)} (recorded: ${fnDiffText(f)})`);
-    problems.push(`${name}: ${changed.length} known differences changed (${k.decision}): ${shown.join('; ')}${more(changed)}`);
-  }
-  if (gone.length > 0) problems.push(`${name}: known differences no longer differ, the record is stale (${k.decision}): ${gone.map((f) => hex(f.entry)).join(', ')}`);
-
-  const actualClaim = new Map(d.claims.map((c) => [spanKey(c.span), c]));
-  const knownClaim = new Set(k.claims.map((c) => spanKey(c.span)));
-  const extraClaims = d.claims.filter((c) => !knownClaim.has(spanKey(c.span)));
-  const goneClaims = k.claims.filter((c) => !actualClaim.has(spanKey(c.span)));
-  const changedClaims = k.claims.filter((c) => {
-    const got = actualClaim.get(spanKey(c.span));
-    return got !== undefined && claimDiffText(got) !== claimDiffText(c);
-  });
-  if (extraClaims.length > 0) problems.push(`${name}: ${extraClaims.length} claim runs differ, not covered by ${k.decision}: ${extraClaims.slice(0, FIRST).map(claimDiffText).join('; ')}${more(extraClaims)}`);
-  if (changedClaims.length > 0) {
-    const shown = changedClaims.slice(0, FIRST).map((c) => `${claimDiffText(actualClaim.get(spanKey(c.span)) ?? c)} (recorded: ${claimDiffText(c)})`);
-    problems.push(`${name}: ${changedClaims.length} known claim differences changed (${k.decision}): ${shown.join('; ')}${more(changedClaims)}`);
-  }
-  if (goneClaims.length > 0) problems.push(`${name}: known claim differences no longer differ, the record is stale (${k.decision}): ${goneClaims.map((c) => span(c.span)).join(', ')}`);
-
-  const held = k.functions.length - gone.length - changed.length;
-  const heldClaims = k.claims.length - goneClaims.length - changedClaims.length;
-  return {
-    problems,
-    note:
-      `${name}: ${held} of ${k.functions.length} known functions differ as recorded (${k.functions.map((f) => hex(f.entry)).join(', ')}), ` +
-      `${heldClaims} of ${k.claims.length} known claim runs (${k.claims.map((c) => span(c.span)).join(', ')}): ${k.reason}, ${k.decision}`,
-  };
-}
-
-/** Known limitations whose ROM is not a tuning dataset: each a stale record (code-quality-r0-1). */
-export function staleRecords(tuning: readonly string[], known: Readonly<Record<string, KnownDifferences>> = KNOWN_DIFFERENCES): readonly string[] {
-  return Object.keys(known)
-    .sort(byCodeUnit)
-    .filter((name) => !tuning.includes(name))
-    .map((name) => `${name}: a known limitation (${known[name]?.decision ?? '?'}) is recorded but ${name} is not a tuning dataset, the record is stale`);
+/** The verdict on one ROM: no problem when the views agree, else one naming the counts and the first differences. */
+export function judgeDifferences(name: string, d: ViewDifferences): { readonly problems: readonly string[] } {
+  return d.functions.length === 0 && d.claims.length === 0 ? { problems: [] } : { problems: [`${name}: ${summarize(d)}`] };
 }

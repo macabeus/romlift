@@ -178,6 +178,8 @@ export function viewWith(setup: ViewSetup): AnalysisView {
     claimAt: (a) => (a >= BASE && a - BASE < claims.length ? ((claims[a - BASE] ?? 0) as ClaimKind) : Claim.free),
     owner: (a) => setup.owner?.(a),
     isFunction: (a) => functions.includes(a),
+    isBoundary: (a) => functions.includes(a),
+    boundaryBetween: () => undefined,
     functions: () => functions,
     accepted: (entry) => (functions.includes(entry) ? (readings.get(`${entry}:thumb`) ?? readings.get(`${entry}:arm`)) : undefined),
     read: (entry, mode) => readings.get(`${entry}:${mode}`) ?? walkReading(view, entry, mode, setup.walk),
@@ -243,7 +245,9 @@ export const REFERENCE_WALK: readonly ResolvedPolicy[] = [
   policy('walk.branch-into-function', (insn, c) => {
     if (c.phase !== 'insn' || insn.flow.kind !== 'branch') return undefined;
     const t = insn.flow.target;
-    const foreign = t !== c.entry && !c.walked(t) && ((c.mode === 'arm' && t < c.entry) || c.view.isFunction(t) || c.view.claimAt(t) === Claim.code);
+    const past = t === c.entry || c.walked(t) ? undefined : c.view.boundaryBetween(c.entry, t);
+    const foreign =
+      past !== undefined ? past || t < c.entry : t !== c.entry && !c.walked(t) && ((c.mode === 'arm' && t < c.entry) || c.view.isFunction(t) || c.view.claimAt(t) === Claim.code);
     return foreign ? { step: 'end-path', exit: 'tail' } : undefined;
   }),
   policy('walk.trailing-zero-padding', (insn, c) => (c.phase === 'stop' && insn.size === 2 && u16(c.view.rom, insn.addr) === 0 ? { step: 'padding' } : undefined)),

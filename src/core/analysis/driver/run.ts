@@ -29,6 +29,7 @@ import { extentEndOf, factOf, ownerOf } from './facts.ts';
 import { fillGaps } from './fill-gaps.ts';
 import { grow } from './grow.ts';
 import { RULES } from './rules.ts';
+import { canonicalize } from './canonical.ts';
 import { createDriver } from './state.ts';
 import type { DriverState } from './state.ts';
 import { emit } from './trail.ts';
@@ -51,6 +52,7 @@ export function runDriver(s: DriverState): StartupRegion {
       if (grow(s) + fillGaps(s, pass) === 0) break;
     }
   }
+  canonicalize(s);
   let startup: StartupRegion | undefined;
   for (const { id, rule } of s.rules.region) {
     for (const e of rule.classify(s.view)) {

@@ -1,7 +1,7 @@
-// The binding of an owner's scoping to the dataset it was decided on (D61 c, d, e; overfitting-r0-4), in one
-// place: g2.poc-parity (poc-parity-check.ts SCOPED_OUT), g2.baseline-rows (baseline-rows-verdict.ts
-// BENCHMARK_ROWS) and g2.confirm-equals-discover (confirm-differences.ts KNOWN_DIFFERENCES) each hold tmc
-// by name, ROM SHA-1 and ELF SHA-256, as held-out-verdict.ts FAMILY_WAIVER holds the sealed pair. A dataset
+// The binding of an owner's scoping to the dataset it was decided on (D61 c, d; overfitting-r0-4), in one
+// place: g2.poc-parity (poc-parity-check.ts SCOPED_OUT) and g2.baseline-rows (baseline-rows-verdict.ts
+// BENCHMARK_ROWS) each hold tmc by name, ROM SHA-1 and ELF SHA-256 (g2.confirm-equals-discover's, D61 e, ended
+// with D114), as held-out-verdict.ts FAMILY_WAIVER holds the sealed pair. A dataset
 // of that name with another ROM or ELF (another build, another region) is not what the owner decided on:
 // the scoping ends, fails as stale, and the ROM is judged as without it until the owner decides anew.
 

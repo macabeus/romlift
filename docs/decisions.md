@@ -217,6 +217,10 @@ resumes discovery with seeds (reorders acceptance inside the phase-2 port).
 (`f287b0d`); it changes rows on every other tuning ROM and on the sealed pair, so it was reverted
 (`af0f75c`) and tmc's six differences of Q3 are a known phase-2 limitation the gate prints.
 
+**Revision (15 November 2026, D114).** The canonical pass replaces `resettle`: in both modes every reading is taken
+again under the final function set, with inner labels passing through and branches judged by where the boundary
+entries lie, so confirm equals discover on every tuning ROM and the known limitation is gone.
+
 ## D9. One proposal shape; the TOML decides and records the source
 
 **Context.** The PoC applies signatures at every `generate` and rewrites the TOML. The first version of
@@ -2062,7 +2066,7 @@ skipped or removed.
   `pointer-entry`; 0x080B20AC `split-after-returning-call`; 0x080B2718, 0x080B27E4 `local-subroutine`) are
   accepted as listed, 51 improvements as before, tp 8,631 at the floor; the five unchanged. The roadmap's
   narrowing of `28b9005` (D60, Rejected) stays rejected for every ROM but tmc.
-- (e) **Q3, `g2.confirm-equals-discover`.** D8's `resettle` stage was built (`f287b0d`: after the passes, in
+- (e) *(Superseded by D114, 15 November 2026: the canonical pass removed the limitation.)* **Q3, `g2.confirm-equals-discover`.** D8's `resettle` stage was built (`f287b0d`: after the passes, in
   both modes, every accepted function read again under the final function set, its own claims released
   while it is read, until no reading changes, then every reading claimed again) and measured: it cuts the
   cartridge entry's extent at the startup piece on every ROM (the startup region shrinks to one 4-byte
@@ -2102,7 +2106,7 @@ skipped or removed.
   before. One identity type (`DatasetIdentity`) and one order (`test/gates/order.ts` `byCodeUnit`) serve the
   three; `test/unit/gates/dataset-binding.test.ts` pins `TMC_AT_D61` to `bench/dataset/real/tmc.json` and
   tests `bindingMismatch` (code-quality-r1-6, r1-7).
-- (g) **Q6, two more tmc functions** (`test/gates/confirm-differences.ts`). By the answer ("Yes, cover all
+- (g) *(Superseded by D114.)* **Q6, two more tmc functions** (`test/gates/confirm-differences.ts`). By the answer ("Yes, cover all
   8") `KNOWN_DIFFERENCES.tmc` holds, next to the six of Q3 and their claim run, the records of 0x080B255C
   (discover arm 0x080B255C..0x080B299C, confirm arm 0x080B255C..0x080B280C) and 0x080B2874 (discover arm
   0x080B2874..0x080B289C, confirm arm 0x080B2874..0x080B299C), no far verdicts in either, and the three claim
@@ -5331,6 +5335,65 @@ default name, so a game variable placed in the user stack's area still gets one.
 would make the model read the C headers. A printed comment naming the register: no other pool word carries one. The
 report's finding 14 (a `W_POOL_WORD_PAST_SYMBOL` that ends once its first word is listed): the words after it then lie
 past a listed symbol, which is the extent rule working; left as is.
+
+## D114. The canonical pass: every reading under the final function set, in both modes; the owner's words of 15 November 2026
+
+**Context.** `g2.confirm-equals-discover` accepted eight tmc functions and four claim runs as a known limitation
+(D61 e, g). A reading is taken once, under the function set and the claims of that moment: the walk stops when it
+falls into an accepted function, a branch to one or into code another function claimed is a tail exit
+(`walk.branch-into-function`), and nothing reads it again. Discover accepts functions one at a time, so code that
+several entries share goes to whichever entry is read first; confirm lists every entry from round 0. On tmc,
+0x080B255C was read before 0x080B2874 was accepted, so its walk ran through 0x080B2874's code to 0x080B299C, while
+confirm, which knows 0x080B2874 from the start, read it otherwise. Measured on the six tuning ROMs, entries strictly
+inside another found extent are not a tmc quirk: every ROM has 7 to 9 (the startup piece, the m4a mixer's and
+`umul3232H32`'s inner entries, short shared tails), tmc 36 (those, and its hand-written clusters). The ELFs disagree
+on what they are: the same m4a inner entries are FUNC symbols in fe7j, klonoa and tmc, and plain labels inside a
+sized `SoundMainRAM` in the pret decomps. D8's `resettle` re-read every function with every entry a boundary, which
+cut those sized functions at their inner entries and moved the rows; it was reverted.
+
+**Decision.** The owner, after the investigation ("Follow with approach, and update the artifact as soon as you are
+done. Merge the PR as soon as the tests passes"):
+
+- (a) **Discovery and extents are separate.** Discovery decides which entries exist and which are inner labels
+  (heuristic, and recorded by `init`: every entry in `[functions]`, `label = true` for one strictly inside another
+  found extent). The canonical pass (`core/analysis/driver/canonical.ts`), after the passes and in both modes, makes
+  every reading a function of the ROM, the entries and the labels only.
+- (b) **Labels and boundaries.** In discover mode the labels are the entries strictly inside another function's
+  extent, grown to a fixpoint (an entry a re-read extent now covers becomes a label too); in confirm mode, the listed
+  labels. Every other entry is a boundary.
+- (c) **The canonical walk** (`AnalysisView.isBoundary`, `boundaryBetween`). A boundary function's walk stops when it
+  falls into a boundary entry and passes through inner labels; a branch is a tail exit when its target lies below the
+  entry or past another boundary entry, whatever the claims say, which is where the source lays the functions out (a
+  shared tail belongs to the entry it follows). An inner label's own walk is bounded by every entry (the
+  `entry-stub-table` fixture's `SwampFx` is 4 bytes, as its ELF size says). `bl` verdicts read the final function
+  set: `bl.self-or-accepted` answers for every entry.
+- (d) **Only what may change is read again.** A function is re-read when it is an inner label, a boundary or a label
+  lies inside its code, a followed branch would now leave, a tail exit would now be followed or would now name a
+  function, or a far `bl` targets an entry; a reading of the same shape is kept, with its verdicts' provenance. The
+  internal tuning `canonicalSweep: 'full'` re-reads every function; `test/unit/analysis/driver/canonical.test.ts`
+  (every fixture, both modes) and `test/local/canonical.test.ts` (the six tuning ROMs) hold the selection to it,
+  analysis for analysis. The epoch's readings of entries not accepted, and 'epoch-reuse' carried readings, are
+  dropped first. Claims are then rebuilt from nothing in ascending entry order. The pass emits no trail event.
+- (e) **The gate is strict.** `KNOWN_DIFFERENCES`, its records and its staleness checks are removed
+  (`test/gates/confirm-differences.ts`); any differing function or claim run fails, on any ROM. The binding of
+  `TMC_AT_D61` stays for the two other tmc scopings (D61 c, d).
+
+**Consequences.** Measured against `main` (`fed7767`): confirm equals discover on all six tuning ROMs (tmc: 8
+functions and 4 claim runs differed); on fe7j, klonoa, pokeemerald, sa2 and sa3 no reading changes; on tmc the
+entry set is the same and the bench row is identical (precision, recall, extents 8,388 of 8,388, code end, baseline
+rows), the extents that move are those of hand-written code with several entries (the eight, and inner labels whose
+own extents now run to their cluster's end), and tmc's listed labels go from 36 to 31. Every tuning row and the
+sealed pair's counts are unchanged; `init` to `make` still gives tmc's SHA-1. The 32 MiB synthetic ROM of
+`g3.large-rom` has the same functions and extents and four more files, because the rebuilt claims drop a 2-byte code
+claim with no owner that a replaced reading had left. Discover's CPU time grows by the re-reads and the claim
+rebuild (measured by `g2.speed` in the closing run). A function with absorbed blocks keeps its merged reading.
+
+**Rejected.** `resettle` as D8 designed it (every entry a boundary: it cuts sized functions at inner entries).
+"The lowest entry owns shared code" (an ascending re-read with claims deciding): it gave the `entry-stub-table`
+fixture's `DrownFx` the shared tail its ELF sizes at 4 bytes. A fresh reading at take time only (D60 k: it refreshes
+the reading being taken, not those taken before). Writing every function's `size` into the TOML (it would freeze
+discover's order-dependent extents into the project instead of removing them). Re-reading every function in
+production (it doubled the analysis time on pokeemerald while changing nothing there).
 
 ## Review findings index
 
