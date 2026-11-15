@@ -22,7 +22,7 @@ test('package.json declares the Node floor, ESM and the romlift bin', () => {
   };
   assert.equal(pkg.name, 'romlift');
   assert.equal(pkg.type, 'module');
-  assert.equal(pkg.engines.node, '>=22.18');
+  assert.equal(pkg.engines.node, '>=24.7');
   assert.ok(pkg.bin['romlift']);
 });
 

@@ -37,7 +37,7 @@ extent and code-end gates of §8. Requirements R1–R9 of the plan apply unchang
 | # | Requirement | Where this architecture meets it |
 | --- | --- | --- |
 | R1 | One shot, split into functions | `init` (§2.1); gates `g4.e2e-fixtures`, `g4.e2e-real` (every tuning ROM: six since D60, tmc included), `g4.packed-e2e` (the published tarball) |
-| R2 | Node and TypeScript only | Node ≥ 22.18 type stripping, three runtime dependencies (D2, D38); `g1.runtime-deps` |
+| R2 | Node and TypeScript only | Node ≥ 24.7 type stripping, three runtime dependencies (D2, D38); `g1.runtime-deps` |
 | R3 | One TOML; `generate` never writes it | `generate` runs in confirm mode and takes every name, extent and border from the TOML (D8, D9); `g4.no-toml-write` |
 | R4 | Generated `.s` regenerated and gitignored; two runs identical | one emission stream, one write plan, a manifest (§6.3, §6.4); `g3.tree-determinism` with a varied environment (D30); the scaffold's `.gitignore` ignores every generated root and a fresh clone or worktree gets the tree from `setup.sh`'s duty 5 (the owner's answer to phase-4 Q9, D79 b; `g4.worktree`) |
 | R5 | Byte-exact, self-checked, proven by the build | four self-checks before any write, including the text-layout check that re-reads every emitted file (§6.4, D49); the link of `g3.link`; the SHA-1 after `make` |
@@ -94,7 +94,7 @@ romlift/
   README.md
   package.json                      bin romlift (dist/cli/main.js, whose first line runs Node with
                                     --max-old-space-size=1024, D68 b, D72); exports ".", "./node", "./isa", "./internal" (source/default
-                                    conditions); engines node >=22.18; files: dist/, templates/
+                                    conditions); engines node >=24.7; files: dist/, templates/
   package-lock.json
   tsconfig.json, tsconfig.build.json
   .gitignore                        *.gba *.elf *.map *.o (fixture builds re-included), dist/, bench/.local/,
@@ -1073,8 +1073,8 @@ numbers and a reordered `validity` slot, and requires it to typecheck and run on
   by case, so APFS and ext4 write the same tree.
 - `g2.determinism` and `g3.tree-determinism` run the analysis or the emission twice in two processes,
   the second with a different working directory and project path, `TZ=Pacific/Kiritimati` and
-  `LANG=tr_TR.UTF-8`, and compare the sha256 of the canonical outputs; CI compares the digests across
-  Node 22.18 and 24, on Linux (D30, D108).
+  `LANG=tr_TR.UTF-8`, and compare the sha256 of the canonical outputs; CI runs them on Node 24, on Linux
+  (D30, D108, D115).
 
 ### 4.5 Port strategy and milestones
 
@@ -2123,7 +2123,7 @@ message states the reason, as the working rule requires.
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
 | Code end | within 16 bytes of the ELF's code end (`bench/src/truth.ts` `elfCodeEnd`): the largest end of its functions, a sized function at addr + size and an unsized one (hand-written asm without `.size`) at the `$d` mapping symbol or typed symbol that closes its last code run before the next typed symbol (an inline pool followed by more of its code does not end it), one convention for every ROM, tuning and sealed, in every scorer, the rescoring of the PoC's own dumps included (the owner's answer to Q5, "Use $d for every ROM", D61 a). The PoC's pinned rows keep the PoC's own convention (`pocCodeEnd`, addr + size): `bench poc-check` compares the rescored row with them as the scorer measures them and checks separately that they carry the PoC's convention | 2 |
 | Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (both family conditions waived by the owner, the fresh-family one by the decision of D60 and the two-families one by the answer to Q4, "Waive both" (D61 b), for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else) | 2 |
-| Determinism | two processes with a varied environment, identical analysis and tree digests; Node 22.18 and 24 agree | 2, 3 |
+| Determinism | two processes with a varied environment, identical analysis and tree digests | 2, 3 |
 | Speed | median CPU time of the analysis, over nine serial runs, ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`; nine since the owner's answer to Q2 of phase 4, D76 b); ≤ 3 s CPU analysis per tuning ROM (the median of the first five of those runs, the five it was measured over before D76 b, D77 f), `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
 | Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff's gated differences at or below each tuning ROM's ceiling (below; `g6.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a, into phase 6 with the `expected/` writers when he skipped phase 5, D92, and amended by his answers to Q6 and Q15 of phase-6.md, D102; phase 3 records the classified counts) | 3, 6 |
@@ -2232,10 +2232,10 @@ information.
 
 **Workflows** (`.github/workflows/`):
 
-- `ci.yml` (matrix `ubuntu-latest` and `macos-latest`, Node 22.18 and 24): `npm run typecheck`,
-  `npm test`, `npm run bench -- gates --require $(phase) --tier ci`, the determinism runs with a varied
-  environment, `npm run bench -- regression` against the merge-base (from phase 2), and the
-  synthetic-tier analysis and tree digests uploaded per job and compared by a final job (D30).
+- `ci.yml` (Node 24, D115): `npm run typecheck`, `npm test`, `npm run bench -- gates --require $(phase) --tier
+  ci`, the determinism runs with a varied environment, which compare the synthetic-tier analysis and tree digests,
+  and `npm run bench -- regression` against the merge-base (from phase 2). Until D115 a final job compared the
+  digests of Node 22.18 and 24 (D30).
 - `printer.yml`: the corpus on Ubuntu's apt binutils.
 - Every job runs on Linux (`ubuntu-latest`) only (D108).
 - `fixtures.yml`: builds agbcc at the pinned commit, rebuilds every fixture and compares as above, then
@@ -2440,7 +2440,7 @@ in roadmap.md pass. The gates per phase are those of §1.
 | The 3 s budget is not reached | slow `generate` on large ROMs | M2 starts from a profile; the measured hotspot is a quadratic getter; `g3.speed-budget` |
 | A held-out ROM gets revealed during diagnosis, or fails | it stops counting; phase 2 blocks | the reveal is recorded in Git; a reserve pool is named in benchmark-roms.md; landing on a failure needs an owner decision (D53) |
 | Signatures arrive in phase 6 | phase-4 scaffolds have no library modules | still byte-exact: unrecognised library code stays in game modules as `INCLUDE_ASM` stubs, and its hand-written parts land in `asm`-only modules by the rule of §6.2; moving signatures earlier touches only `core/signatures`, `propose.ts` and the `LibraryRegion` input of `infer-modules` |
-| Node type stripping | no enums or parameter properties; Node ≥ 22.18 | enforced by `erasableSyntaxOnly`; CI runs Node 22.18 and 24 |
+| Node type stripping | no enums or parameter properties; Node ≥ 24.7 | enforced by `erasableSyntaxOnly`; CI runs Node 24 |
 
 **Decisions that need the owner** (each is built with the safe default until answered):
 

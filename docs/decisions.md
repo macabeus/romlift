@@ -5400,6 +5400,31 @@ the reading being taken, not those taken before). Writing every function's `size
 discover's order-dependent extents into the project instead of removing them). Re-reading every function in
 production (it doubled the analysis time on pokeemerald while changing nothing there).
 
+## D115. Node 24.7 is the engines floor; the owner's words of 15 November 2026
+
+**Context.** `engines.node` was `>=22.18` and CI ran Node 22.18 and 24 (D2, D30). `@match-kit/decomp-yaml`, a runtime
+dependency, declares `node >=24`, so `npm ci` on Node 22.18 printed an `EBADENGINE` warning, which AGENTS.md and
+`ci.yml` explained away.
+
+**Decision.** The owner: "Use Node.js 24, so we can avoid the warning. Clean up this note on `AGENTS.md`":
+
+- (a) `engines.node` is `>=24.7`, and `@types/node` is pinned to the floor's types, `~24.7.0` (D2). Not 24.0: the
+  CLI starts on `import.meta.main`, which Node has from 24.2 (and 22.18, the old floor's reason), and `@types/node`
+  before 24.7 does not typecheck with TypeScript 6 (`https.d.ts`: `AgentOptions` extends two types whose `port`
+  differ; measured on 24.0, 24.2, 24.3, 24.5 and 24.6). Node 24.7 is the first 24 whose types build.
+- (b) CI runs Node 24 only: `ci.yml`'s and `packed.yml`'s matrices lose 22.18, and `ci.yml`'s final job, which
+  compared the digests of the two Node versions, goes with its artifact upload; each job's run in a varied
+  environment and another directory still compares its own digests (D30). `bench/tools/ci-digests.ts --compare`
+  stays, unused by CI.
+- (c) The generated project's `setup.sh` and README, and romlift's README, ask for Node.js 24.7 or later; the
+  AGENTS.md note on the warning is gone.
+
+**Consequences.** No `EBADENGINE` warning on Node 24.7 or later: the engines floor and every dependency's agree. A
+machine on Node 22, or on Node 24 before 24.7, gets `EBADENGINE` for romlift itself. The scaffold goldens change
+with the two template lines.
+
+**Rejected.** Keeping Node 22.18 in CI as an unsupported extra (it would test a floor romlift no longer claims).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per
