@@ -5390,8 +5390,12 @@ branches reach (`_divide_by_zero`, `reset_vel`), which lowered tmc's readability
 changed before landing. Every tuning row and the
 sealed pair's counts are unchanged; `init` to `make` still gives tmc's SHA-1. The 32 MiB synthetic ROM of
 `g3.large-rom` has the same functions and extents and four more files, because the rebuilt claims drop a 2-byte code
-claim with no owner that a replaced reading had left. Discover's CPU time grows by the re-reads and the claim
-rebuild (measured by `g2.speed` in the closing run). A function with absorbed blocks keeps its merged reading.
+claim with no owner that a replaced reading had left. pokeemerald has the same functions and extents and four fewer files: with the claim
+rules applied in ascending entry order, four 2-byte pads inside 0x082DEEE2's extent (m4a code), which no function owned,
+become its dead code, and the word at 0x082DF034 a pool word of 0x082DF012 rather than dead code; the tree still links to
+the SHA-1. Measured back to back on pokeemerald (`bench speed`), discover's CPU
+grows from 2,189 to 2,530 ms and generate's falls from 9,880 to 9,099 ms (the confirm run takes 1,995 ms against
+2,512: it re-reads few functions and no longer depends on claims left by readings it replaced). A function with absorbed blocks keeps its merged reading.
 
 **Rejected.** `resettle` as D8 designed it (every entry a boundary: it cuts sized functions at inner entries).
 "The lowest entry owns shared code" (an ascending re-read with claims deciding): it gave the `entry-stub-table`
