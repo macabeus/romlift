@@ -1,7 +1,6 @@
 # AGENTS.md
 
-How to work in the romlift repository. This file is the agent instructions of the repository; there is
-no `CLAUDE.md` and none is ever created.
+How to work in the romlift repository.
 
 romlift turns a GBA ROM into a matching-decompilation project. Its design is fixed by
 [docs/architecture.md](docs/architecture.md) (definitive), [docs/decisions.md](docs/decisions.md) (every
