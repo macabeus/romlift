@@ -151,15 +151,15 @@ test('a patch whose module starts generate would refuse is E_MODULE_BORDER namin
   assert.ok(confirmModel({ rom, config: { ...config, functions } }).model.diagnostics.some((d) => d.code === 'E_MODULE_BORDER' && d.addr === x));
 });
 
-test('unlistedProposals: found and not listed, with label = true for an entry inside another found extent', () => {
+test('unlistedProposals: found and not listed, an entry point for an entry inside another found extent', () => {
   const rom = fixtureRom('far-jump');
   const found = discover(rom);
   const config = configFromDiscover(rom, found);
   assert.deepEqual(unlistedProposals(found, config), []);
-  const listedLabels = [...config.functions].filter(([, f]) => f.label === true).map(([a]) => a);
-  const proposals = unlistedProposals(found, { functions: new Map() });
+  const listedLabels = [...config.entryPoints.keys()];
+  const proposals = unlistedProposals(found, { functions: new Map(), entryPoints: new Map() });
   assert.equal(proposals.length, found.functions.length);
-  assert.deepEqual(proposals.filter((p) => p.kind === 'function' && p.label === true).map((p) => (p.kind === 'function' ? p.addr : 0)), listedLabels);
+  assert.deepEqual(proposals.filter((p) => p.kind === 'function' && p.entryPoint === true).map((p) => (p.kind === 'function' ? p.addr : 0)), listedLabels);
 });
 
 test('unifiedDiff: empty for equal texts, hunks with three lines of context, additions at the end and the start', () => {

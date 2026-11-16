@@ -1,5 +1,5 @@
 // The validity of a listed extent (phase-6.md Q10, option (c), D100): a listed Thumb entry that asks for validation is
-// judged with the ARM code of its extent's inner `label = true` of mode arm checked as ARM, and a fall-through into the
+// judged with the ARM code of its extent's inner label (an [entry_points] entry) of mode arm checked as ARM, and a fall-through into the
 // next listed function is its exit; anything else still warns W_LISTED_INVALID. Run with the agbcc profile, as a
 // confirm run after `init` runs.
 import assert from 'node:assert/strict';

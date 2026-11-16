@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import type { RomliftConfig } from '../../../src/core/config/schema.ts';
-import { functionLine, serializeConfig, symbolLine, tomlString } from '../../../src/core/config/serialize.ts';
+import { entryPointLine, functionLine, serializeConfig, symbolLine, tomlString } from '../../../src/core/config/serialize.ts';
 import { profileById } from '../../../src/core/profile/registry.ts';
 import { configFromDiscover } from '../../../src/core/workflow/config-from-discover.ts';
 import { discover } from '../../../src/core/workflow/discover.ts';
@@ -32,8 +32,8 @@ const EXAMPLE: RomliftConfig = {
     [0x0800_0470, { name: 'AgbMain', mode: 'thumb', aliases: [] }],
     [0x0800_00fc, { name: 'IntrMain', mode: 'arm', aliases: [] }],
     [0x0804_f318, { name: 'SoundMainRAM', mode: 'thumb', size: 0x3a4, aliases: [], from: 'sig:m4a@2001' }],
-    [0x0804_f73e, { name: '_0804F73E', mode: 'thumb', label: true, aliases: [] }],
   ]),
+  entryPoints: new Map([[0x0804_f73e, { name: '_0804F73E', mode: 'thumb', aliases: [] }]]),
   symbols: new Map([
     [0x0300_5220, { name: 'gUnk_03005220', aliases: [] }],
     [0x0300_2920, { name: 'gEntityInfo', aliases: ['gUnk_03002920'] }],
@@ -103,7 +103,9 @@ kind = "data"
 0x080000FC = { name = "IntrMain", mode = "arm" }
 0x08000470 = "AgbMain"
 0x0804F318 = { name = "SoundMainRAM", size = 0x3A4, from = "sig:m4a@2001" }
-0x0804F73E = { name = "_0804F73E", label = true }
+
+[entry_points]
+0x0804F73E = "_0804F73E"
 
 [symbols]
 0x03002920 = { name = "gEntityInfo", aliases = ["gUnk_03002920"] }
@@ -123,11 +125,12 @@ test("§6.5's example serialises to the canonical layout, entries in address ord
 
 test('every optional key is written only when set, in its fixed order', () => {
   assert.equal(functionLine(0x0800_0000, { name: 'F', mode: 'thumb', aliases: [] }), '0x08000000 = "F"');
-  assert.equal(functionLine(0x0800_0000, { name: 'F', mode: 'thumb', label: false, aliases: [] }), '0x08000000 = "F"');
   assert.equal(
-    functionLine(0x0800_0000, { from: 'sig:gate@0', aliases: ['A', 'B'], label: true, size: 0x10, mode: 'arm', name: 'F' }),
-    '0x08000000 = { name = "F", mode = "arm", size = 0x10, label = true, aliases = ["A", "B"], from = "sig:gate@0" }',
+    functionLine(0x0800_0000, { from: 'sig:gate@0', aliases: ['A', 'B'], size: 0x10, mode: 'arm', name: 'F' }),
+    '0x08000000 = { name = "F", mode = "arm", size = 0x10, aliases = ["A", "B"], from = "sig:gate@0" }',
   );
+  assert.equal(entryPointLine(0x0800_0004, { name: 'E', mode: 'thumb', aliases: [] }), '0x08000004 = "E"');
+  assert.equal(entryPointLine(0x0800_0004, { from: 'sig:gate@0', aliases: ['A'], size: 0x8, mode: 'arm', name: 'E' }), '0x08000004 = { name = "E", mode = "arm", size = 0x8, aliases = ["A"], from = "sig:gate@0" }');
   assert.equal(symbolLine(0x0300_0000, { name: 'gS', aliases: [] }), '0x03000000 = "gS"');
   assert.equal(
     symbolLine(0x0300_0000, { from: 'sig:m4a@2001', aliases: ['gT'], type: 'bytes', size: 4, name: 'gS' }),
@@ -138,12 +141,13 @@ test('every optional key is written only when set, in its fixed order', () => {
     signatures: { enabled: false, libraries: ['m4a'] },
     modules: [{ name: 'kept', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0f00, generated: false, compiler: 'old_agbcc', cflags: [], library: 'agb', version: '1' }],
     functions: new Map(),
+    entryPoints: new Map(),
     symbols: new Map(),
     overrides: [{ start: 0x0800_0100, size: 0x20, kind: 'data' }],
   });
   assert.ok(text.includes('[signatures]\nenabled = false\nlibraries = ["m4a"]\n\n'), text);
   assert.ok(text.includes('[[modules]]\nname = "kept"\nstart = 0x08000000\nkind = "c"\ndata_start = 0x08000F00\ngenerated = false\ncompiler = "old_agbcc"\ncflags = []\nlibrary = "agb"\nversion = "1"\n\n'), text);
-  assert.ok(text.endsWith('[functions]\n\n[symbols]\n\n[[overrides]]\nstart = 0x08000100\nsize = 0x20\nkind = "data"\n'), text);
+  assert.ok(text.endsWith('[functions]\n\n[entry_points]\n\n[symbols]\n\n[[overrides]]\nstart = 0x08000100\nsize = 0x20\nkind = "data"\n'), text);
   // A hand-written source (D109) follows `generated`, before the compiler.
   const hand = serializeConfig({ ...EXAMPLE, modules: [{ name: 'hand', start: 0x0800_0000, kind: 'asm', generated: true, source: 'src/asm/hand.s', library: 'agb', version: '1' }] });
   assert.ok(hand.includes('[[modules]]\nname = "hand"\nstart = 0x08000000\nkind = "asm"\nsource = "src/asm/hand.s"\nlibrary = "agb"\nversion = "1"\n'), hand);

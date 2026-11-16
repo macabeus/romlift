@@ -82,7 +82,9 @@ kind = "data"
 0x08000470 = "AgbMain"
 0x080000FC = { name = "IntrMain", mode = "arm" }
 0x0804F318 = { name = "SoundMainRAM", size = 0x3A4, from = "sig:m4a@2001" }
-0x0804F73E = { name = "_0804F73E", label = true }               # a second entry inside its parent
+
+[entry_points]
+0x0804F73E = "_0804F73E"               # a second entry inside its parent
 
 [symbols]                     # data and RAM
 0x03005220 = "gUnk_03005220"

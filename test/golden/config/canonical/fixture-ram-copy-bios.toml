@@ -38,15 +38,17 @@ kind = "data"
 
 [functions]
 0x08000000 = { name = "sub_08000000", mode = "arm" }
-0x080000C0 = { name = "sub_080000C0", mode = "arm", label = true }
 0x080000F4 = "sub_080000F4"
 0x08000130 = "sub_08000130"
 0x08000134 = "sub_08000134"
 0x08000138 = "sub_08000138"
-0x0800013C = { name = "sub_0800013C", label = true }
 0x08000148 = { name = "sub_08000148", mode = "arm" }
 0x08000154 = { name = "sub_08000154", mode = "arm" }
 0x08000160 = { name = "sub_08000160", mode = "arm" }
 0x0800016C = { name = "sub_0800016C", mode = "arm" }
+
+[entry_points]
+0x080000C0 = { name = "sub_080000C0", mode = "arm" }
+0x0800013C = "sub_0800013C"
 
 [symbols]

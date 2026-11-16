@@ -133,7 +133,7 @@ test('a local label gives way to another label at its address; a table has a tab
   const analysis = analysisOf(rom, {
     functions: [fact({ entry: BASE + 0x100, end: BASE + 0x110, code: [{ start: BASE + 0x100, end: BASE + 0x108 }], tables: [{ base: BASE + 0x108, targets: [BASE + 0x104, BASE + 0x106], thumbBit: true }] })],
   });
-  const model = buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'F'], [BASE + 0x104, { name: 'Inner', label: true }]] }));
+  const model = buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'F'], [BASE + 0x104, { name: 'Inner', entryPoint: true }]] }));
   assert.deepEqual(
     model.labels.filter((l) => l.addr >= BASE + 0x100).map((l) => [l.addr - BASE, l.name, l.kind]),
     [

@@ -72,6 +72,8 @@ function raised(): Diagnostic[] {
   const ramRom = romWith([{ at: BASE + 0x100, bytes: ram }, { at: BASE + 0x110, bytes: Uint8Array.from([0x00, 0x01, 0x00, 0x03, 0x80, 0x01, 0x00, 0x03]) }], { size: 0x200 });
   const ramAnalysis = analysisOf(ramRom, { functions: [fact({ entry: BASE + 0x100, end: BASE + 0x118, pools: [BASE + 0x110, BASE + 0x114] })] });
   out.push(...buildModel(ramRom, ramAnalysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A']], symbols: [[0x0300_0100, { name: 'gRam', aliases: [] }]] })).diagnostics);
+  // B listed in [entry_points] although A's extent ends where B starts (D116): E_ENTRY_POINT_OUTSIDE.
+  out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x108, { name: 'B', entryPoint: true }]] })).diagnostics);
   // A Thumb pointer value pasted as a [functions] key (fix round 5).
   out.push(...buildModel(rom, analysis, configOf({ modules: [['rom_header', BASE], ['main', HEADER_END]], functions: [[BASE + 0x100, 'A'], [BASE + 0x103, 'Odd']] })).diagnostics);
   return out;

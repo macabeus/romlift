@@ -4,7 +4,7 @@
 //
 //   1. the discover run of the ROM under the config's [[overrides]] (a data override claims its span, a code override
 //      seeds its start, correctness-b0-3): every function it finds that [functions] does not list is a function
-//      proposal (source `analysis`, its accepting rule, seed.override for a code override's start; `label = true` when
+//      proposal (source `analysis`, its accepting rule, seed.override for a code override's start; an [entry_points] entry when
 //      its entry lies inside another found function's extent, as configFromDiscover writes it). Only those proposals
 //      outlive the run.
 //   2. the confirm run over the project's config, with `generate`'s seeds (listedSeedsOf): under the owner's answer
@@ -16,7 +16,7 @@
 // gives the signature proposals (architecture §7.3, signature-layer.ts): the placements screened against the analysis and
 // the config (checkProposals; a contradiction is W_EVIDENCE_CONFLICT and drops the proposal), of which updateProposals
 // keeps those that name an entry still carrying its default name or an unlisted one (`--write` renames only default
-// names, D9), with `label = true` for the listed entries a restored extent holds; and the library [[modules]] the
+// names, D9), with an [entry_points] entry for each listed function a restored extent holds; and the library [[modules]] the
 // config lacks (libraryModuleProposals: each region shrunk to legal borders and cut around the runs_at ranges, with
 // the module that held it resumed after it; W_LIBRARY_MODULE_DROPPED when it cannot be inserted).
 //
@@ -92,16 +92,16 @@ interface Discovered {
 }
 
 /** The function proposals of a discover result against `config`: every found entry the config does not list. */
-export function unlistedProposals(result: Pick<AnalysisResult, 'functions'>, config: Pick<RomliftConfig, 'functions'>): readonly Proposal[] {
+export function unlistedProposals(result: Pick<AnalysisResult, 'functions'>, config: Pick<RomliftConfig, 'functions' | 'entryPoints'>): readonly Proposal[] {
   const nested = coveredEntries(result.functions);
   return result.functions
-    .filter((f) => !config.functions.has(f.entry))
+    .filter((f) => !config.functions.has(f.entry) && !config.entryPoints.has(f.entry))
     .map(
       (f): Proposal => ({
         kind: 'function',
         addr: f.entry,
         mode: f.mode,
-        ...(nested.has(f.entry) ? { label: true } : {}),
+        ...(nested.has(f.entry) ? { entryPoint: true } : {}),
         source: { kind: 'analysis', rule: f.accepted.rule },
       }),
     );

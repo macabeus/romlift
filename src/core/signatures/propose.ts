@@ -2,7 +2,7 @@
 // {kind: 'signature', library, version, rule}. A function placement proposes its entry with the signature's name and,
 // only where the signature's extent is larger than the analysis function at that entry (the signature restores an
 // extent the analysis split), its size; a table proposes a symbol with its size, typed 'pointers' when its words name
-// members, else 'bytes'. The folding into the config (label = true inside a restored extent, the library modules) is
+// members, else 'bytes'. The folding into the config ([entry_points] inside a restored extent, the library modules) is
 // the workflow's (p6-proposals); nothing here knows the config.
 import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
 import { functionAt } from '../analysis/types.ts';

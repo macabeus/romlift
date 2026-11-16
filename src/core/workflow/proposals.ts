@@ -19,6 +19,7 @@ import { hexAddr } from '../../foundation/util/hex.ts';
 import { sortedEntries } from '../../foundation/util/sorted.ts';
 import { Claim, claimName, functionAt } from '../analysis/types.ts';
 import type { AnalysisResult, ClaimKind, ClaimRun } from '../analysis/types.ts';
+import { listedEntries } from '../config/schema.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import { runsAtSpans } from '../model/modules.ts';
 import type { Proposal, ProposalSource } from '../proposals/types.ts';
@@ -120,7 +121,7 @@ function overlaps(a: Addr, b: Addr, span: Span): boolean {
 function againstConfig(p: Proposal, config: RomliftConfig): readonly Contradiction[] {
   const out: Contradiction[] = [];
   if (p.kind === 'function') {
-    const listed = config.functions.get(p.addr);
+    const listed = listedEntries(config).get(p.addr);
     if (listed !== undefined && listed.mode !== p.mode) out.push({ text: `romlift.toml lists ${listed.name} there as a ${listed.mode} function`, at: p.addr });
     for (const o of config.overrides) {
       const span = { start: o.start, end: o.start + o.size };
@@ -151,7 +152,7 @@ function proposedName(p: Proposal): string | undefined {
 function configNames(config: RomliftConfig | undefined): Map<string, Addr> {
   const names = new Map<string, Addr>();
   if (config === undefined) return names;
-  for (const [addr, f] of sortedEntries(config.functions)) for (const n of [f.name, ...f.aliases]) if (!names.has(n)) names.set(n, addr);
+  for (const [addr, f] of sortedEntries(listedEntries(config))) for (const n of [f.name, ...f.aliases]) if (!names.has(n)) names.set(n, addr);
   for (const [addr, s] of sortedEntries(config.symbols)) for (const n of [s.name, ...s.aliases]) if (!names.has(n)) names.set(n, addr);
   return names;
 }

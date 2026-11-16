@@ -142,21 +142,24 @@ function entriesInside(functions: ReadonlyMap<Addr, FunctionConfig>, entry: Addr
 /**
  * The kept signature proposals folded into `config` as init writes them (architecture §7.3): every placed function
  * its [functions] entry with the signature's name, `from = "sig:<library>@<version>"` and, where the signature
- * restores an extent the analysis split, `size`; every listed entry inside that extent `label = true`; every table a
+ * restores an extent the analysis split, `size`; every listed function inside that extent an [entry_points] entry (D116); every table a
  * [symbols] entry with `size`, `type` and `from`. Modules are module inference's (InferModulesOptions.libraries).
  */
 export function foldSignatures(config: RomliftConfig, proposals: readonly Proposal[]): RomliftConfig {
   const signed = proposals.filter((p) => (p.kind === 'function' || p.kind === 'symbol') && p.source.kind === 'signature');
   const applied = applyProposals(config, signed);
   const functions = new Map(applied.functions);
+  const entryPoints = new Map(applied.entryPoints);
   for (const p of signed) {
     if (p.kind !== 'function' || p.size === undefined) continue;
-    for (const inner of entriesInside(functions, p.addr, p.size)) {
+    for (const inner of entriesInside(applied.functions, p.addr, p.size)) {
       const entry = functions.get(inner);
-      if (entry !== undefined && entry.label !== true) functions.set(inner, { ...entry, label: true });
+      if (entry === undefined) continue;
+      entryPoints.set(inner, entry);
+      functions.delete(inner);
     }
   }
-  return { ...applied, functions: new Map(sortedEntries(functions)) };
+  return { ...applied, functions: new Map(sortedEntries(functions)), entryPoints: new Map(sortedEntries(entryPoints)) };
 }
 
 /** Whether `name` is romlift's default spelling of `addr` (sub_, gUnk_, …): a name nobody gave. */
@@ -168,22 +171,22 @@ export function isDefaultName(name: string, addr: Addr): boolean {
  * The proposals `update` takes from the signatures against a project's config: a function or symbol
  * proposal for an entry the config lists under another than its default name is left out (the TOML decides, and
  * `--write` renames only entries that still carry a default name, D9), and for each function kept that restores an
- * extent, a `label = true` proposal for every listed entry it holds (source the analysis's, so `from` is not written
+ * extent, an entry-point proposal for every listed function it holds (source the analysis's, so `from` is not written
  * there).
  */
 export function updateProposals(config: RomliftConfig, analysis: AnalysisResult, proposals: readonly Proposal[]): readonly Proposal[] {
   const out: Proposal[] = [];
   for (const p of proposals) {
     if (p.kind === 'function') {
-      const listed = config.functions.get(p.addr);
+      const listed = config.functions.get(p.addr) ?? config.entryPoints.get(p.addr);
       if (listed !== undefined && !isDefaultName(listed.name, p.addr)) continue;
       out.push(p);
       if (p.size === undefined) continue;
       for (const inner of entriesInside(config.functions, p.addr, p.size)) {
         const entry = config.functions.get(inner);
         const fact = functionAt(analysis.functions, inner);
-        if (entry === undefined || entry.label === true) continue;
-        out.push({ kind: 'function', addr: inner, mode: entry.mode, label: true, source: { kind: 'analysis', rule: fact?.accepted.rule ?? 'seed.listed' } });
+        if (entry === undefined) continue;
+        out.push({ kind: 'function', addr: inner, mode: entry.mode, entryPoint: true, source: { kind: 'analysis', rule: fact?.accepted.rule ?? 'seed.listed' } });
       }
     } else if (p.kind === 'symbol') {
       const listed = config.symbols.get(p.addr);

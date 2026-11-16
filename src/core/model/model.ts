@@ -92,12 +92,47 @@ function modelFunctions(
   });
 }
 
-/** W_FUNCTION_OUTSIDE_ROM for every [functions] entry outside the ROM, W_OVERRIDE_OUTSIDE_ROM for every [[overrides]] range reaching outside it. */
+/**
+ * Every listed entry, [functions] and [entry_points] together, by address. The same merge as core/config/schema.ts
+ * listedEntries, which the model may not import (it reads the config module for types only).
+ */
+function listedEntries(config: RomliftConfig): ReadonlyMap<Addr, FunctionConfig> {
+  const all: [Addr, FunctionConfig][] = sortedEntries(config.functions);
+  for (const [addr, e] of sortedEntries(config.entryPoints)) if (!config.functions.has(addr)) all.push([addr, e]);
+  return new Map(all.sort((a, b) => compareNumbers(a[0], b[0])));
+}
+
+/**
+ * E_ENTRY_POINT_OUTSIDE for every [entry_points] entry no other listed entry's extent covers (D116): it would start no
+ * file, yet lie in no function's file.
+ */
+function entryPointsOutside(rom: Rom, config: RomliftConfig, analysis: AnalysisResult): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  for (const [entry, e] of sortedEntries(config.entryPoints)) {
+    if (!contains(rom, entry)) continue;
+    const covered = analysis.functions.some((f) => f.entry !== entry && f.extent.start < entry && f.extent.end > entry);
+    if (covered) continue;
+    const below = analysis.functions.filter((f) => f.entry < entry && !config.entryPoints.has(f.entry)).at(-1);
+    const near = below === undefined ? 'no function lies below it' : `the nearest function below it, ${hexAddr(below.entry)}, ends at ${hexAddr(below.extent.end)}`;
+    out.push(
+      diagnostic(
+        ModelCodes,
+        'E_ENTRY_POINT_OUTSIDE',
+        `the [entry_points] entry ${hexAddr(entry)} (${e.name}) lies inside no function: ${near}; an entry point is a name inside a function's code, so list it in [functions] instead`,
+        { addr: entry },
+      ),
+    );
+  }
+  return out;
+}
+
+/** W_FUNCTION_OUTSIDE_ROM for every [functions] or [entry_points] entry outside the ROM, W_OVERRIDE_OUTSIDE_ROM for every [[overrides]] range reaching outside it. */
 function outsideTheRom(rom: Rom, config: RomliftConfig): Diagnostic[] {
   const out: Diagnostic[] = [];
-  for (const [entry, f] of sortedEntries(config.functions)) {
+  for (const [entry, f] of sortedEntries(listedEntries(config))) {
     if (contains(rom, entry)) continue;
-    out.push(diagnostic(ModelCodes, 'W_FUNCTION_OUTSIDE_ROM', `the [functions] entry ${hexAddr(entry)} (${f.name}) lies outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}`, { addr: entry }));
+    const table = config.entryPoints.has(entry) ? 'entry_points' : 'functions';
+    out.push(diagnostic(ModelCodes, 'W_FUNCTION_OUTSIDE_ROM', `the [${table}] entry ${hexAddr(entry)} (${f.name}) lies outside the ROM ${hexAddr(rom.base)}..${hexAddr(rom.end)}`, { addr: entry }));
   }
   for (const o of config.overrides) {
     if (contains(rom, o.start) && o.start + o.size <= rom.end) continue;
@@ -147,6 +182,7 @@ function ignoredOverrides(rom: Rom, config: RomliftConfig, placed: readonly Plac
 function codeOverrideIgnoredWhy(o: RomliftConfig['overrides'][number], config: RomliftConfig, analysis: AnalysisResult): string {
   const at = hexAddr(o.start);
   if (config.functions.has(o.start)) return `a function already starts at ${at}: [functions] lists it, so the override is redundant and can be removed`;
+  if (config.entryPoints.has(o.start)) return `an entry point already starts at ${at}: [entry_points] lists it, so the override is redundant and can be removed`;
   if (analysis.mode === 'confirm' && analysis.unlisted.some((u) => u.entry === o.start)) {
     return `[functions] does not list ${at}, and a confirm run takes only the listed functions, reporting what the seed finds as W_UNLISTED_FUNCTION; list it (\`romlift update\` proposes it), after which the override is redundant and can be removed`;
   }
@@ -189,9 +225,9 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
   const modules = pieces;
   const relocated = relocatedModules(modules);
 
-  const functions = new Map<Addr, FunctionConfig>(sortedEntries(config.functions).filter(([entry]) => contains(rom, entry)));
+  const functions = new Map<Addr, FunctionConfig>(sortedEntries(listedEntries(config)).filter(([entry]) => contains(rom, entry)));
   const headerCovered = headerCoveredEntries(analysis.functions, layout.headerEnd);
-  const listed: ListedEntry[] = sortedEntries(functions).map(([entry, f]) => ({ entry, label: isLabelEntry(entry, f.label, headerCovered), ...(f.size === undefined ? {} : { size: f.size }) }));
+  const listed: ListedEntry[] = sortedEntries(functions).map(([entry, f]) => ({ entry, label: isLabelEntry(entry, config.entryPoints.has(entry), headerCovered), ...(f.size === undefined ? {} : { size: f.size }) }));
   const placed = placeEntries(listed, analysis);
   const symbols = modelSymbols(config);
   const inRom = romSymbols(symbols, rom);
@@ -261,6 +297,6 @@ export function buildModel(rom: Rom, analysis: AnalysisResult, config: RomliftCo
     labels: labelled.labels,
     symbols: allSymbols,
     unlisted: analysis.mode === 'confirm' ? analysis.unlisted : [],
-    diagnostics: [...planned.diagnostics, ...moduleNameProblems(planned.modules), ...sectionNameCollisions(planned.modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced), ...extents.diagnostics].sort(compareDiagnostics),
+    diagnostics: [...planned.diagnostics, ...moduleNameProblems(planned.modules), ...sectionNameCollisions(planned.modules), ...collisions, ...invalid, ...built.diagnostics, ...outsideTheRom(rom, config), ...entryPointsOutside(rom, config, analysis), ...ignoredOverrides(rom, config, placed, analysis), ...unplacedSymbols(labelled.unplaced), ...extents.diagnostics].sort(compareDiagnostics),
   };
 }

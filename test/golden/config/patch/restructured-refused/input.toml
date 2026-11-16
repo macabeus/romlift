@@ -39,12 +39,14 @@ kind = "data"
 
 [functions]                   # every entry is listed
 0x08000000 = { name = "sub_08000000", mode = "arm" }
-0x080000C0 = { name = "sub_080000C0", mode = "arm", label = true }
 # the game's main loop, found by hand
 0x080000F4 = "sub_080000F4"   # TODO: name it
 0x08000108 = "sub_08000108"
-0x0800010C = { name = "sub_0800010C", label = true }
-0x08000110 = { name = "sub_08000110", label = true }
+
+[entry_points]
+0x080000C0 = { name = "sub_080000C0", mode = "arm" }
+0x0800010C = "sub_0800010C"
+0x08000110 = "sub_08000110"
 
 [symbols]                     # data and RAM
 

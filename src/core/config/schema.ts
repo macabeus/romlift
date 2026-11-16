@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { isModuleName, isSymbolName, MODULE_NAME_RULE, SYMBOL_NAME_RULE } from '../../foundation/asm/dialect.ts';
 import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import { BASEROM_FILE } from '../../foundation/util/project-files.ts';
+import { compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import { isBuildCompilerId } from './compilers.ts';
 import type { BuildCompilerId } from './compilers.ts';
 
@@ -41,10 +42,22 @@ export interface FunctionConfig {
   readonly name: string;
   readonly mode: Mode;
   readonly size?: number;
-  /** A typed global label inside the containing function, not a chunk start. */
-  readonly label?: boolean;
   readonly aliases: readonly string[];
   /** Where a proposed entry came from: a sourceKey (core/proposals/types.ts, D9). */
+  readonly from?: string;
+}
+
+/**
+ * An `[entry_points]` entry (D116): a named entry point inside a function's code, not a function of its own. It gets a
+ * global label in the file of the function around it (the nearest `[functions]` entry below it) and no file of its own;
+ * the analysis does not cut that function there (D114).
+ */
+export interface EntryPointConfig {
+  readonly name: string;
+  readonly mode: Mode;
+  /** The entry point's own extent, when known (an ELF's size): it never cuts the function around it. */
+  readonly size?: number;
+  readonly aliases: readonly string[];
   readonly from?: string;
 }
 
@@ -75,8 +88,20 @@ export interface RomliftConfig {
   /** In link order. */
   readonly modules: readonly ModuleConfig[];
   readonly functions: ReadonlyMap<Addr, FunctionConfig>;
+  readonly entryPoints: ReadonlyMap<Addr, EntryPointConfig>;
   readonly symbols: ReadonlyMap<Addr, SymbolConfig>;
   readonly overrides: readonly OverrideConfig[];
+}
+
+/**
+ * Every listed entry of `config`, functions and entry points together, by address: what the analysis seeds, the model
+ * names and labels, and `rename` finds. An address is in one table only (parse.ts E_DUPLICATE_ADDRESS).
+ */
+export function listedEntries(config: Pick<RomliftConfig, 'functions' | 'entryPoints'>): ReadonlyMap<Addr, FunctionConfig> {
+  const all: [Addr, FunctionConfig][] = [];
+  for (const [addr, f] of sortedEntries(config.functions)) all.push([addr, f]);
+  for (const [addr, e] of sortedEntries(config.entryPoints)) if (!config.functions.has(addr)) all.push([addr, e]);
+  return new Map(all.sort((a, b) => compareNumbers(a[0], b[0])));
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -134,7 +159,17 @@ const functionSchema = z
     name: symbolName,
     mode,
     size: size.exactOptional(),
-    label: z.boolean().exactOptional(),
+    aliases: z.array(symbolName).readonly(),
+    from: nonEmpty.exactOptional(),
+  })
+  .strict()
+  .readonly();
+
+const entryPointSchema = z
+  .object({
+    name: symbolName,
+    mode,
+    size: size.exactOptional(),
     aliases: z.array(symbolName).readonly(),
     from: nonEmpty.exactOptional(),
   })
@@ -175,6 +210,7 @@ const ROMLIFT_CONFIG_SCHEMA = z
       .readonly(),
     modules: z.array(moduleSchema).readonly(),
     functions: z.map(address, functionSchema).readonly(),
+    entryPoints: z.map(address, entryPointSchema).readonly(),
     symbols: z.map(address, symbolSchema).readonly(),
     overrides: z.array(overrideSchema).readonly(),
   })

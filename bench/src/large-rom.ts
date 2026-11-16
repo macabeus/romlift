@@ -97,13 +97,13 @@ export interface LargeRomReport {
 // The config the init child hands the generate child: RomliftConfig as JSON, its maps as [address, entry] pairs.
 
 export function encodeConfig(config: RomliftConfig): string {
-  return JSON.stringify({ ...config, functions: [...config.functions], symbols: [...config.symbols] });
+  return JSON.stringify({ ...config, functions: [...config.functions], entryPoints: [...config.entryPoints], symbols: [...config.symbols] });
 }
 
 export function decodeConfig(text: string): RomliftConfig {
   const raw = JSON.parse(text) as Record<string, unknown>;
   const pairs = <T>(value: unknown): Map<number, T> => new Map(Array.isArray(value) ? (value as [number, T][]) : []);
-  const checked = validateConfig({ ...raw, functions: pairs<FunctionConfig>(raw['functions']), symbols: pairs<SymbolConfig>(raw['symbols']) });
+  const checked = validateConfig({ ...raw, functions: pairs<FunctionConfig>(raw['functions']), entryPoints: pairs<FunctionConfig>(raw['entryPoints']), symbols: pairs<SymbolConfig>(raw['symbols']) });
   if (!checked.ok) throw new Error(`the config is not schema 1: ${checked.issues.map((i) => `${i.path}: ${i.message}`).join('; ')}`);
   return checked.config;
 }

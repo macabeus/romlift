@@ -86,7 +86,7 @@ export function nestedEntries(functions: readonly FunctionFact[], headerEnd: Add
 
 /**
  * The entries of `functions` (sorted by entry) strictly inside an earlier function's extent as the analysis
- * gives it, nothing clipped: configFromDiscover lists them with `label = true`, so the confirm run reads every
+ * gives it, nothing clipped: configFromDiscover lists them in [entry_points] (D116), so the confirm run reads every
  * extent as the discover run did (the listed set of g2.confirm-equals-discover). The cartridge entry's extent
  * covers the startup code it branches to; were that entry not a label, the confirm run would cut the cartridge
  * entry at it and accept it as a call, outside the startup region.
@@ -97,7 +97,7 @@ export function coveredEntries(functions: readonly FunctionFact[]): ReadonlySet<
 
 /**
  * The entries past the header that only the cartridge entry's extent covers (coveredEntries but not
- * nestedEntries): the header chunk clips that extent (correctness-6), so a `label = true` entry there still
+ * nestedEntries): the header chunk clips that extent (correctness-6), so an [entry_points] entry there still
  * starts a chunk.
  */
 export function headerCoveredEntries(functions: readonly FunctionFact[], headerEnd: Addr): ReadonlySet<Addr> {
@@ -106,14 +106,14 @@ export function headerCoveredEntries(functions: readonly FunctionFact[], headerE
   return new Set(functions.map((f) => f.entry).filter((e) => e >= headerEnd && covered.has(e) && !nested.has(e)));
 }
 
-/** Whether a listed entry starts no chunk: its config says `label = true` and an extent past the header covers it. */
+/** Whether a listed entry starts no chunk: it is an [entry_points] entry and an extent past the header covers it. */
 export function isLabelEntry(entry: Addr, label: boolean | undefined, headerCovered: ReadonlySet<Addr>): boolean {
   return label === true && !headerCovered.has(entry);
 }
 
 /**
  * The listed entries of an analysis: in discover mode every function, nested ones as labels; in confirm mode
- * the listed seeds (the TOML's functions), with their `size` and their `label` (isLabelEntry).
+ * the listed seeds (the TOML's functions and entry points), with their `size` and whether they are entry points (isLabelEntry).
  */
 export function listedEntriesOf(analysis: AnalysisResult, headerEnd: Addr): ListedEntry[] {
   if (analysis.mode === 'discover') {

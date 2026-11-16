@@ -93,11 +93,20 @@ export function analysisOf(rom: Rom, spec: AnalysisSpec): AnalysisResult {
 export interface ConfigSpec {
   /** [name, start] or a whole module; kind default 'asm'. */
   readonly modules: readonly (readonly [string, Addr] | ModuleConfig)[];
-  /** [entry, name] (Thumb) or [entry, a whole FunctionConfig]. */
-  readonly functions?: readonly (readonly [Addr, string | Partial<FunctionConfig>])[];
+  /** [entry, name] (Thumb) or [entry, a whole FunctionConfig]; `entryPoint: true` lists it in [entry_points] (D116). */
+  readonly functions?: readonly (readonly [Addr, string | (Partial<FunctionConfig> & { readonly entryPoint?: true })])[];
   readonly symbols?: readonly (readonly [Addr, SymbolConfig])[];
   readonly overrides?: readonly OverrideConfig[];
   readonly compiler?: string;
+}
+
+/** The spec's functions (`entryPoints` false) or entry points (true), each with its defaults. */
+function listedOf(spec: ConfigSpec, entryPoints: boolean): [Addr, FunctionConfig][] {
+  return (spec.functions ?? []).flatMap(([entry, f]): [Addr, FunctionConfig][] => {
+    const { entryPoint, ...given } = typeof f === 'string' ? { name: f, entryPoint: undefined } : f;
+    if ((entryPoint === true) !== entryPoints) return [];
+    return [[entry, { name: `sub_${entry.toString(16).toUpperCase().padStart(8, '0')}`, mode: 'thumb', aliases: [], ...given }]];
+  });
 }
 
 /** A config of the given modules and functions; a function's name defaults to sub_<ADDR>, its mode to Thumb. */
@@ -108,12 +117,8 @@ export function configOf(spec: ConfigSpec): RomliftConfig {
     build: { name: 'test', compiler: spec.compiler ?? 'agbcc' },
     signatures: { enabled: false },
     modules: spec.modules.map((m): ModuleConfig => ('name' in m ? m : { name: m[0], start: m[1], kind: 'asm', generated: true })),
-    functions: new Map(
-      (spec.functions ?? []).map(([entry, f]): [Addr, FunctionConfig] => {
-        const given = typeof f === 'string' ? { name: f } : f;
-        return [entry, { name: `sub_${entry.toString(16).toUpperCase().padStart(8, '0')}`, mode: 'thumb', aliases: [], ...given }];
-      }),
-    ),
+    functions: new Map(listedOf(spec, false)),
+    entryPoints: new Map(listedOf(spec, true)),
     symbols: new Map(spec.symbols ?? []),
     overrides: spec.overrides ?? [],
   };

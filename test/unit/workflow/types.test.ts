@@ -29,6 +29,7 @@ const config: RomliftConfig = {
   signatures: { enabled: false },
   modules: [{ name: 'rom_header', start: 0x08000000, kind: 'asm', generated: true }],
   functions: new Map(),
+  entryPoints: new Map(),
   symbols: new Map(),
   overrides: [],
 };

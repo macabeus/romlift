@@ -83,7 +83,7 @@ export interface Chunk {
   readonly module: string;
   /** Its items: indexes [first, first + count) of Model.items. */
   readonly items: { readonly first: number; readonly count: number };
-  /** `label = true` entries and second entries inside the chunk, sorted by addr then name. */
+  /** [entry_points] entries and second entries inside the chunk, sorted by addr then name. */
   readonly innerLabels: readonly Label[];
   readonly runAt?: Addr;
   /**

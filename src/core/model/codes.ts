@@ -10,6 +10,10 @@ export const ModelCodes = defineCodes({
     meaning: 'a module starts where no legal border is (core/layout/borders.ts); the message names the nearest legal borders',
   },
   E_MODULE_ORDER: { severity: 'error', meaning: 'the module starts do not increase from the ROM base' },
+  E_ENTRY_POINT_OUTSIDE: {
+    severity: 'error',
+    meaning: 'an [entry_points] entry lies inside no function: no listed entry below it reads over it (D116); list it in [functions] instead, or move it',
+  },
   E_NAME_COLLISION: {
     severity: 'error',
     meaning: 'two labels of one module share a name, or a name repeats in another module while one of them is referenced from outside its module',

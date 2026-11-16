@@ -18,8 +18,8 @@ import type { ConfigCode } from './codes.ts';
 import { addressDefinitions, addressKey, addressKeyUses, outlineToml } from './keys.ts';
 import type { AddressTable } from './keys.ts';
 import { verifyPatched } from './patch.ts';
-import type { FunctionConfig, RomliftConfig, SymbolConfig } from './schema.ts';
-import { functionLine, symbolLine } from './serialize.ts';
+import type { EntryPointConfig, FunctionConfig, RomliftConfig, SymbolConfig } from './schema.ts';
+import { entryPointLine, functionLine, symbolLine } from './serialize.ts';
 
 /** The entry a rename patches: its table and address, and whether `from` is its name or one of its aliases. */
 export interface RenamedEntry {
@@ -32,16 +32,17 @@ export type RenamePatchResult =
   | { readonly ok: true; readonly text: string; readonly entry: RenamedEntry; readonly config: RomliftConfig }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic<ConfigCode>[] };
 
-/** Every [functions] and [symbols] entry whose name or one of whose aliases is `name`, functions first, by address. */
-export function entriesNamed(config: Pick<RomliftConfig, 'functions' | 'symbols'>, name: string): readonly RenamedEntry[] {
+/** Every [functions], [entry_points] and [symbols] entry whose name or one of whose aliases is `name`, in that order, by address. */
+export function entriesNamed(config: Pick<RomliftConfig, 'functions' | 'entryPoints' | 'symbols'>, name: string): readonly RenamedEntry[] {
   const out: RenamedEntry[] = [];
-  const scan = (table: AddressTable, entries: ReadonlyMap<Addr, FunctionConfig | SymbolConfig>): void => {
+  const scan = (table: AddressTable, entries: ReadonlyMap<Addr, FunctionConfig | EntryPointConfig | SymbolConfig>): void => {
     for (const [addr, entry] of sortedEntries(entries)) {
       if (entry.name === name) out.push({ table, addr, role: 'name' });
       else if (entry.aliases.includes(name)) out.push({ table, addr, role: 'alias' });
     }
   };
   scan('functions', config.functions);
+  scan('entry_points', config.entryPoints);
   scan('symbols', config.symbols);
   return out;
 }
@@ -58,6 +59,12 @@ function respelled(name: string, from: string, to: string): string {
 function renamedFunction(fn: FunctionConfig, from: string, to: string): FunctionConfig {
   const { from: _source, ...rest } = fn;
   return { ...rest, name: respelled(fn.name, from, to), aliases: fn.aliases.map((a) => respelled(a, from, to)) };
+}
+
+/** `e` with `from` (its name or an alias) spelled `to`, and no `from` key; every other key kept as it is. */
+function renamedEntryPoint(e: EntryPointConfig, from: string, to: string): EntryPointConfig {
+  const { from: _source, ...rest } = e;
+  return { ...rest, name: respelled(e.name, from, to), aliases: e.aliases.map((a) => respelled(a, from, to)) };
 }
 
 /** `symbol` with `from` (its name or an alias) spelled `to`, and no `from` key; every other key kept as it is. */
@@ -78,6 +85,12 @@ function intendedOf(config: RomliftConfig, entry: RenamedEntry, from: string, to
     const now = renamedFunction(was, from, to);
     return { config: { ...config, functions: new Map([...config.functions, [entry.addr, now]]) }, line: functionLine(entry.addr, now) };
   }
+  if (entry.table === 'entry_points') {
+    const was = config.entryPoints.get(entry.addr);
+    if (was === undefined) return undefined;
+    const now = renamedEntryPoint(was, from, to);
+    return { config: { ...config, entryPoints: new Map([...config.entryPoints, [entry.addr, now]]) }, line: entryPointLine(entry.addr, now) };
+  }
   const was = config.symbols.get(entry.addr);
   if (was === undefined) return undefined;
   const now = renamedSymbol(was, from, to);
@@ -93,7 +106,7 @@ function intendedOf(config: RomliftConfig, entry: RenamedEntry, from: string, to
 export function planRenamePatch(text: string, config: RomliftConfig, from: string, to: string): RenamePatchResult {
   const named = entriesNamed(config, from);
   const entry = named[0];
-  if (entry === undefined) return { ok: false, diagnostics: [refused(`no [functions] or [symbols] entry of romlift.toml is named ${from} or has it as an alias`)] };
+  if (entry === undefined) return { ok: false, diagnostics: [refused(`no [functions], [entry_points] or [symbols] entry of romlift.toml is named ${from} or has it as an alias`)] };
   if (named.length > 1) {
     const where = named.map((e) => `[${e.table}] ${addressKey(e.addr)}`).join(', ');
     return { ok: false, diagnostics: [refused(`${from} names more than one entry of romlift.toml (${where}); give each its own name first`, entry.addr)] };

@@ -25,6 +25,7 @@ import { compareCodeUnits, sortedEntries } from '../../foundation/util/sorted.ts
 import { analyze } from '../analysis/driver/run.ts';
 import type { AnalysisOptions, AnalysisResult, OverrideFact, Seed } from '../analysis/types.ts';
 import { romSha1Problems } from '../config/rom-sha1.ts';
+import { listedEntries } from '../config/schema.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import { emitTree } from '../emit/emit-tree.ts';
 import type { DecompState, EmitContext, FileEntry, Printer } from '../emit/tree.ts';
@@ -74,18 +75,19 @@ export interface GenerateResult extends ConfirmedModel {
 }
 
 /**
- * The seeds of a confirm run: every [functions] entry as `seed.listed`, with its name, size and label, by address;
- * an entry with `from` (another source's proposal, §6.5) is validated (`validate: true`), one without is not.
+ * The seeds of a confirm run: every [functions] and [entry_points] entry as `seed.listed`, with its name and size, an
+ * entry point as an inner label (`label: true`, D114, D116), by address; an entry with `from` (another source's
+ * proposal, §6.5) is validated (`validate: true`), one without is not.
  */
 export function listedSeedsOf(config: RomliftConfig): readonly Seed[] {
-  return sortedEntries(config.functions).map(
+  return sortedEntries(listedEntries(config)).map(
     ([entry, f]): Seed => ({
       entry,
       mode: f.mode,
       rule: 'seed.listed',
       name: f.name,
       ...(f.size === undefined ? {} : { size: f.size }),
-      ...(f.label === true ? { label: true } : {}),
+      ...(config.entryPoints.has(entry) ? { label: true } : {}),
       ...(f.from === undefined ? {} : { validate: true }),
     }),
   );

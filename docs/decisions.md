@@ -5429,6 +5429,47 @@ with the two template lines.
 
 **Rejected.** Keeping Node 22.18 in CI as an unsupported extra (it would test a floor romlift no longer claims).
 
+## D116. `[entry_points]`: the entries inside a function's code get a table of their own; the owner's words of 15 November 2026
+
+**Context.** `[functions]` held two kinds of entry: functions, which get a file and are decompiled one by one, and
+entries inside another function's code (`label = true`): the startup code the cartridge entry branches to, m4a's ARM
+parts of `SoundMainRAM`, shared tails and second entries of hand-written code. Which an entry is cannot be read from the
+bytes (D114: both readings are consistent, and the ELFs disagree), so the TOML must record it; but a boolean on one line
+said nothing of the function it is inside, "label" already named three other things (local, data and default labels),
+a `label = true` on an entry inside nothing did nothing, and the generated AGENTS.md did not describe it.
+
+**Decision.** The owner, after the comparison ("Do the schema change, by adding `[entry_points]`, on an upcoming PR"):
+
+- (a) **`[entry_points]`** (`EntryPointConfig`: `name`, `mode`, `size`, `aliases`, `from`, as a function's; `size` is the
+  entry point's own extent and never cuts the function around it, as `size` did on a `label = true` entry): one line per entry point,
+  written between `[functions]` and `[symbols]`, its header even when empty. `label` is gone from `[functions]`, with
+  no compatibility: schema 1 changes, as romlift is unpublished (the owner's rule of D108).
+- (b) **One address, one table**: an address in both is `E_DUPLICATE_ADDRESS`; the alignment check covers both
+  (`E_FUNCTION_MISALIGNED`).
+- (c) **The parent is derived**, not written: an entry point lies in the code of the function around it, the nearest
+  listed function below it whose extent covers it. `generate` refuses one that no listed entry's extent covers
+  (`E_ENTRY_POINT_OUTSIDE`, a model error): it would start no file yet lie in none.
+- (d) **Inside, nothing else changes.** `listedEntries(config)` merges both tables where every listed entry counts (the
+  confirm seeds, the model's names, labels and aliases, the proposal screen, `rename`); an entry point is the
+  analysis's inner label (D114, `Seed.label`) and the model's label entry (no chunk; the startup exception of D64 a
+  stays).
+- (e) **Who writes it.** `init` (configFromDiscover) lists every entry inside another found extent there; a signature
+  that restores an extent moves the listed functions it holds there (`foldSignatures`, `updateProposals`); `update`
+  proposes `entryPoint: true` for an unlisted entry inside a found extent. The patch planner moves a `[functions]` line
+  to `[entry_points]` (deleting the old line, keeping every other line and comment), adds a missing `[entry_points]`
+  table before `[symbols]`, and never moves an entry point back; `rename` renames an entry point on its line. `update
+  --json` prints `"entryPoint": true` where it printed `"label": true`.
+- (f) **AGENTS.md** describes the table: what an entry point is, why such a function is not one C function as it
+  stands, and how to move a line between the two tables to split or fold code.
+
+**Consequences.** A project's `romlift.toml` gains an `[entry_points]` table (the far-jump fixture's has one line, the
+startup code at 0x080000C0); every generated file is the same as before. An existing project moves its `label = true`
+lines by hand once (kl2dct). The config goldens and tests change with the schema.
+
+**Rejected.** `within = <addr>` on each line (the parent can be derived, and a stored one can go stale). A nested
+table under the parent function (TOML inline tables cannot span lines, and the one-line-per-address patching would go).
+Keeping `label` with a clearer name (it would still mix the two kinds in one table).
+
 ## Review findings index
 
 The findings of the four adversarial reviews of the architecture (17 October 2026) are indexed, one row per

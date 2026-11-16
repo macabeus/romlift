@@ -28,9 +28,11 @@ kind = "c"
 
 [functions]
 0x08000000 = { name = "sub_08000000", mode = "arm" }
-0x080000C0 = { name = "sub_080000C0", mode = "arm", label = true }
 0x080000F4 = "sub_080000F4"
 0x0800010C = "sub_0800010C"
 0x08000118 = "sub_08000118"
+
+[entry_points]
+0x080000C0 = { name = "sub_080000C0", mode = "arm" }
 
 [symbols]

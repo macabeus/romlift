@@ -8,7 +8,7 @@
 //      layer is off (`--no-signatures`), the signature files the shell located placed on that discover result and
 //      screened (signature-layer.ts signatureLayer, proposals.ts checkProposals), their library regions given to module inference
 //      (`asm` modules with library and version) and their kept proposals folded into the config (foldSignatures: the
-//      signature's name, `from`, `size` and inner `label = true`, tables as [symbols]); [signatures] records `enabled`
+//      signature's name, `from`, `size` and the listed functions inside it as [entry_points], tables as [symbols]); [signatures] records `enabled`
 //      and the libraries used. The discover result is garbage before any confirm run starts, so the two never share
 //      the bin's 1,024 MiB heap cap (D69, D72);
 //   3. the config serialised (serializeConfig, the canonical layout) and parsed back: what romlift.toml says is what

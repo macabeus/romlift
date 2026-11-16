@@ -28,7 +28,7 @@ test('the build name is the game code lower-cased when it is four letters or dig
   assert.equal(buildNameOf(romFromBytes(romWith([], { size: 0x200 }).bytes, SHA1)), 'rom');
 });
 
-test('every found entry is listed with its mode and default name; an entry inside another extent is a label, the startup code inside the cartridge entry included', () => {
+test('every found entry is listed with its mode and default name; an entry inside another extent is an entry point, the startup code inside the cartridge entry included', () => {
   const rom = romWithCode('KLON');
   const analysis = analysisOf(rom, {
     functions: [
@@ -45,10 +45,15 @@ test('every found entry is listed with its mode and default name; an entry insid
     [...config.functions.entries()].map(([a, f]) => [a - BASE, f]),
     [
       [0, { name: 'sub_08000000', mode: 'arm', aliases: [] }],
-      [0xc0, { name: 'sub_080000C0', mode: 'arm', aliases: [], label: true }],
       [0x100, { name: 'sub_08000100', mode: 'thumb', aliases: [] }],
-      [0x110, { name: 'sub_08000110', mode: 'thumb', aliases: [], label: true }],
       [0x120, { name: 'sub_08000120', mode: 'arm', aliases: [] }],
+    ],
+  );
+  assert.deepEqual(
+    [...config.entryPoints.entries()].map(([a, e]) => [a - BASE, e]),
+    [
+      [0xc0, { name: 'sub_080000C0', mode: 'arm', aliases: [] }],
+      [0x110, { name: 'sub_08000110', mode: 'thumb', aliases: [] }],
     ],
   );
   assert.deepEqual(
@@ -84,8 +89,8 @@ test('on every committed fixture the config validates, lists the cartridge and s
     const config = configFromDiscover(rom, analysis);
     const valid = validateConfig(config);
     assert.ok(valid.ok, `${fixture.name}: ${valid.ok ? '' : JSON.stringify(valid.issues)}`);
-    assert.equal(config.functions.size, analysis.functions.length, fixture.name);
-    for (const e of analysis.startup.entries) assert.ok(config.functions.has(e), `${fixture.name}: startup entry 0x${e.toString(16)}`);
+    assert.equal(config.functions.size + config.entryPoints.size, analysis.functions.length, fixture.name);
+    for (const e of analysis.startup.entries) assert.ok(config.functions.has(e) || config.entryPoints.has(e), `${fixture.name}: startup entry 0x${e.toString(16)}`);
     assert.equal(config.modules[0]?.name, 'rom_header');
     const model = buildModel(rom, analysis, config);
     assert.deepEqual(model.diagnostics, [], fixture.name);

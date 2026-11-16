@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { parseConfig } from '../../../src/core/config/parse.ts';
 import { applyProposals, planPatch } from '../../../src/core/config/patch.ts';
 import type { RomliftConfig } from '../../../src/core/config/schema.ts';
-import { functionLine, serializeConfig, symbolLine } from '../../../src/core/config/serialize.ts';
+import { entryPointLine, functionLine, serializeConfig, symbolLine } from '../../../src/core/config/serialize.ts';
 import type { Proposal } from '../../../src/core/proposals/types.ts';
 
 const DIR = fileURLToPath(new URL('./patch/', import.meta.url));
@@ -37,12 +37,16 @@ function comments(text: string): string[] {
   });
 }
 
-/** The canonical lines of the entries whose line `intended` changes, functions then symbols, by address. */
+/** The canonical lines of the entries whose line `intended` changes, functions, entry points then symbols, by address. */
 function changedLines(config: RomliftConfig, intended: RomliftConfig): string[] {
   const out: string[] = [];
   for (const [addr, fn] of [...intended.functions].sort((a, b) => a[0] - b[0])) {
     const was = config.functions.get(addr);
     if (was === undefined || functionLine(addr, was) !== functionLine(addr, fn)) out.push(functionLine(addr, fn));
+  }
+  for (const [addr, e] of [...intended.entryPoints].sort((a, b) => a[0] - b[0])) {
+    const was = config.entryPoints.get(addr);
+    if (was === undefined || entryPointLine(addr, was) !== entryPointLine(addr, e)) out.push(entryPointLine(addr, e));
   }
   for (const [addr, symbol] of [...intended.symbols].sort((a, b) => a[0] - b[0])) {
     const was = config.symbols.get(addr);

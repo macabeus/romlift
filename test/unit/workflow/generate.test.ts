@@ -38,6 +38,7 @@ function config(over: Partial<RomliftConfig> = {}): RomliftConfig {
     signatures: { enabled: false },
     modules: [],
     functions: new Map(),
+    entryPoints: new Map(),
     symbols: new Map(),
     overrides: [],
     ...over,
@@ -57,13 +58,13 @@ function tree(entries: Iterable<FileEntry>): readonly (readonly [string, string]
   return [...entries].map((e) => [e.path, text(e)] as const);
 }
 
-test('confirmOptions lists every [functions] entry as seed.listed with name, size and label, by address, and the overrides', () => {
+test('confirmOptions lists every [functions] and [entry_points] entry as seed.listed with name and size by address, an entry point as a label, and the overrides', () => {
   const c = config({
     functions: new Map([
       [0x0800_0200, { name: 'Later', mode: 'arm' as const, aliases: [], size: 0x10 }],
       [0x0800_0100, { name: 'First', mode: 'thumb' as const, aliases: ['Alias'] }],
-      [0x0800_0104, { name: 'Inner', mode: 'thumb' as const, aliases: [], label: true }],
     ]),
+    entryPoints: new Map([[0x0800_0104, { name: 'Inner', mode: 'thumb' as const, aliases: [] }]]),
     overrides: [{ start: 0x0800_0300, size: 0x20, kind: 'code', mode: 'thumb', runsAt: 0x0300_0000 }, { start: 0x0800_0400, size: 4, kind: 'data' }],
   });
   assert.deepEqual(listedSeedsOf(c), [
@@ -88,8 +89,8 @@ test('listedSeedsOf validates exactly the entries with `from` (another source\'s
       [0x0800_0100, { name: 'Found', mode: 'thumb' as const, aliases: [] }],
       [0x0800_0104, { name: 'Legacy', mode: 'thumb' as const, aliases: [], from: 'legacy' }],
       [0x0800_0108, { name: 'SoundMain', mode: 'arm' as const, aliases: [], size: 0x10, from: 'sig:m4a@2001' }],
-      [0x0800_0118, { name: 'Inner', mode: 'thumb' as const, aliases: [], label: true, from: 'evidence:trace' }],
     ]),
+    entryPoints: new Map([[0x0800_0118, { name: 'Inner', mode: 'thumb' as const, aliases: [], from: 'evidence:trace' }]]),
   });
   assert.deepEqual(listedSeedsOf(c), [
     { entry: 0x0800_0100, mode: 'thumb', rule: 'seed.listed', name: 'Found' },
