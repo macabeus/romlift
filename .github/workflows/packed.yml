@@ -1,7 +1,7 @@
 # The published tarball works on its own (architecture §2, §8.6, g4.packed-e2e). The package is built and packed
 # with Node 24; the tarball must list templates/** and dist/** (with the bin, dist/cli/main.js) and no ROM, ELF, map,
 # object, save or built signature file. It is then installed with --ignore-scripts into an empty directory, on the
-# matrix's Node (24, and 22.18, the engines floor, D2, D30), on Linux (D108), and every committed fixture but c-data (whose C array must fail the link, g4.c-data-fails-loud) goes through `npx romlift init <rom>`
+# matrix's Node (24, the engines floor, D2, D30, D115), on Linux (D108), and every committed fixture but c-data (whose C array must fail the link, g4.c-data-fails-loud) goes through `npx romlift init <rom>`
 # in a directory below the install that holds only its ROM, `./setup.sh` and `make`, which must end at the fixture's
 # SHA-1. ROMLIFT_CLI points setup.sh at the installed bin, since the pinned version is not on the registry, and it
 # then skips its npm duty. agbcc and old_agbcc are built once per job at the commit templates/agbcc.json pins (as
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.18', '24']
+        node: ['24']
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:

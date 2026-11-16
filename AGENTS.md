@@ -46,9 +46,7 @@ and the exit commands of each phase). Follow them; a decision changes only throu
 | `node --conditions=source src/cli/main.ts --version` | the package version (final-review end-to-end-user-12) |
 
 Node runs the TypeScript sources directly (type stripping, `--conditions=source`); `engines.node` is
-`>=22.18` and CI runs Node 22.18 and 24 on Linux (D2, D30, D108). `@match-kit/decomp-yaml` declares
-`node >=24`, so `npm ci` on Node 22.18 prints an `EBADENGINE` warning; it is only a warning, and
-`engine-strict` stays off. The installed `romlift` bin (`dist/cli/main.js`) runs Node with V8's old space capped at
+`>=24.7` and CI runs Node 24 on Linux (D2, D30, D108, D115). The installed `romlift` bin (`dist/cli/main.js`) runs Node with V8's old space capped at
 1,024 MiB: the first line of `src/cli/main.ts` is `#!/usr/bin/env -S node --max-old-space-size=1024`, which `tsc` keeps
 (the owner's answers to Q2, Q6 and Q7 of phase-3.md, D68 b, D69, D72; Q7's 1,024 replaces Q6's 384, which replaced Q2's
 256); `node --conditions=source src/cli/main.ts` does not apply it, so pass `--max-old-space-size=1024` to measure memory as a user's run holds it (`bench large-rom --bin` does, D70).

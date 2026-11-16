@@ -11,7 +11,7 @@ import type { DriverState } from './state.ts';
 
 /** Streams a trail event when the options' level and filter keep it. */
 export function emit(s: DriverState, kind: TrailKind, at: Addr, rule: RuleId, cites: readonly Addr[], detail?: string): void {
-  if (s.sink === undefined || s.options.trail === 'off') return;
+  if (s.sink === undefined || s.options.trail === 'off' || s.muted) return;
   const e = { kind, at, rule, round: s.round, cites: capCites(cites), ...(detail === undefined ? {} : { detail }) };
   if (trailKeeps(s.options.trail, s.options.trailFilter, e)) s.sink.event(e);
 }

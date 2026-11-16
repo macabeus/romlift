@@ -4,13 +4,12 @@
 #
 # Phase 2 adds: `bench regression` against the merge-base (the full history is fetched so that
 # `git merge-base origin/main HEAD` resolves), the determinism run of the synthetic-tier analysis with a
-# varied environment and another working directory, and one file of synthetic-tier analysis digests per
-# job (bench/tools/ci-digests.ts), which the final job compares across both Node versions. Every job runs on
-# Linux (D108).
+# varied environment and another working directory, which must give the same synthetic-tier analysis digests
+# (bench/tools/ci-digests.ts). Every job runs on Linux (D108), on Node 24, the engines floor (D115).
 #
 # Phase 3 adds the tree digest per fixture to the same file (ci-digests@2: the digest g3.tree-determinism
-# computes of the tree emitted from the discover model), so the varied-environment run and the final job
-# compare the emitted trees too.
+# computes of the tree emitted from the discover model), so the varied-environment run compares the emitted
+# trees too.
 name: ci
 
 on:
@@ -27,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.18', '24']
+        node: ['24']
     runs-on: ubuntu-latest
     steps:
       # The whole history: bench regression's default base is `git merge-base origin/main HEAD`.
@@ -40,7 +39,6 @@ jobs:
           cache: npm
       - name: Install binutils (apt)
         run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
-      # @match-kit/decomp-yaml declares node >=24, so Node 22.18 prints EBADENGINE as a warning only.
       - name: Install exactly the lock file
         run: npm ci --ignore-scripts
       - name: Typecheck
@@ -65,32 +63,3 @@ jobs:
           cd "$RUNNER_TEMP/elsewhere/second run"
           node --conditions=source "$GITHUB_WORKSPACE/bench/tools/ci-digests.ts" > varied.json
           cmp "$RUNNER_TEMP/ci-digests.json" varied.json
-      - name: Upload the analysis and tree digests
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-digests-node-${{ matrix.node }}
-          path: ${{ runner.temp }}/ci-digests.json
-          if-no-files-found: error
-          retention-days: 7
-
-  digests:
-    name: Analysis and tree digests agree across both Node versions
-    needs: check
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - name: Install exactly the lock file
-        run: npm ci --ignore-scripts
-      # Each artifact lands in its own directory, named after it.
-      - name: Download every job's digests
-        uses: actions/download-artifact@v4
-        with:
-          pattern: ci-digests-*
-          path: ${{ runner.temp }}/digests
-      - name: Compare the two digest files
-        run: node --conditions=source bench/tools/ci-digests.ts --compare "$RUNNER_TEMP"/digests/*/ci-digests.json --expect 2

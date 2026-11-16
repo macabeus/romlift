@@ -37,7 +37,7 @@ extent and code-end gates of §8. Requirements R1–R9 of the plan apply unchang
 | # | Requirement | Where this architecture meets it |
 | --- | --- | --- |
 | R1 | One shot, split into functions | `init` (§2.1); gates `g4.e2e-fixtures`, `g4.e2e-real` (every tuning ROM: six since D60, tmc included), `g4.packed-e2e` (the published tarball) |
-| R2 | Node and TypeScript only | Node ≥ 22.18 type stripping, three runtime dependencies (D2, D38); `g1.runtime-deps` |
+| R2 | Node and TypeScript only | Node ≥ 24.7 type stripping, three runtime dependencies (D2, D38); `g1.runtime-deps` |
 | R3 | One TOML; `generate` never writes it | `generate` runs in confirm mode and takes every name, extent and border from the TOML (D8, D9); `g4.no-toml-write` |
 | R4 | Generated `.s` regenerated and gitignored; two runs identical | one emission stream, one write plan, a manifest (§6.3, §6.4); `g3.tree-determinism` with a varied environment (D30); the scaffold's `.gitignore` ignores every generated root and a fresh clone or worktree gets the tree from `setup.sh`'s duty 5 (the owner's answer to phase-4 Q9, D79 b; `g4.worktree`) |
 | R5 | Byte-exact, self-checked, proven by the build | four self-checks before any write, including the text-layout check that re-reads every emitted file (§6.4, D49); the link of `g3.link`; the SHA-1 after `make` |
@@ -94,7 +94,7 @@ romlift/
   README.md
   package.json                      bin romlift (dist/cli/main.js, whose first line runs Node with
                                     --max-old-space-size=1024, D68 b, D72); exports ".", "./node", "./isa", "./internal" (source/default
-                                    conditions); engines node >=22.18; files: dist/, templates/
+                                    conditions); engines node >=24.7; files: dist/, templates/
   package-lock.json
   tsconfig.json, tsconfig.build.json
   .gitignore                        *.gba *.elf *.map *.o (fixture builds re-included), dist/, bench/.local/,
@@ -154,7 +154,7 @@ romlift/
                                     reading.ts, insn-lookup.ts
         driver/                     run.ts, state.ts, facts.ts, trail.ts, view.ts, grow.ts, fill-gaps.ts, accept.ts,
                                     settle.ts, validity.ts, epoch.ts, worklist.ts, confirm.ts, diagnose.ts, reuse.ts,
-                                    rules.ts, seeds.ts, listed-extent.ts
+                                    rules.ts, seeds.ts, listed-extent.ts, canonical.ts
         walk/                       cursor.ts, record.ts, predicates.ts, insn-index.ts, thumb.ts, arm.ts
         rules/                      define-rule.ts, index.ts (concatenates the family registries)
           seed/ walk/ bl/ valid/ accept/ gap/ claim/ region/     index.ts + one file per rule (§4.1)
@@ -944,32 +944,37 @@ which they are dropped (their verdicts stay memoised) and re-walked when asked f
   same `bl.*` rules but never creates a function. So a tool upgrade cannot add or drop a split; it can
   only report.
 
-`g2.confirm-equals-discover` (tier real, phase 2) runs discover, builds the listed set from it (entries,
-modes, `label` for entries inside another found extent, no sizes), runs confirm, and requires the parity
-view (functions, extents, far verdicts, claims) to be equal on every tuning ROM. If it fails on a ROM,
-the remedy is a final `resettle` stage in discover that recomputes `bl` verdicts and readings against the
-final function set until stable; it then runs in both modes and lands as its own commit with its bench
-diff under the rules of §4.5. `g4.generate-idempotent` later proves the same on the files. The gate
-holds on fe7j, klonoa, pokeemerald, sa2 and sa3 and fails on tmc, on six functions of hand-written code
-with several entries whose shared code goes to whichever entry is taken first (D60 k); a confirm mode that
-took the listed entries after the passes held by construction and was withdrawn. By the owner's answer to
-Q3 ("Build resettle, else accept", D61 e) the `resettle` stage was built and measured: it cuts the cartridge
-entry's extent at the startup piece and the m4a mixer's at its inner entries on the other tuning ROMs and
-moves the sealed pair's counts, so it was reverted, and tmc's six differences of Q3 are a known phase-2
-limitation, pinned by content (D61 e); by the owner's answer to Q6 ("Yes, cover all 8") the limitation also
-covers 0x080B255C and 0x080B2874, which `95b257b` moved after Q3's count, and their three claim runs. The gate (`test/gates/confirm-differences.ts`) compares the two views
-in full on every ROM, equal digests or not, and decides on the differences themselves (`viewDifferences`,
-`judgeDifferences`; the views' digests are only a cross-check). `KNOWN_DIFFERENCES.tmc` holds each of the
-eight functions' discover and confirm records (mode, extent, far verdicts) and the four differing claim runs
-(0x080087D2..0x08008886, as measured at `9c8b282` with the six of Q3; 0x080B2874..0x080B289C,
-0x080B2874..0x080B299C and 0x080B289C..0x080B299C, as measured at `51ea4ee` with the two of Q6); tmc passes only when its differences are exactly those
-records, printed as `KNOWN LIMITATION` every run. A known function whose record changed or that is gone
-from a view fails; any other differing function or claim run fails wherever it lies, inside a known
-extent included; a recorded difference that no longer differs, and a record whose ROM is not a tuning
-dataset, fail as stale; every other ROM must have no difference. Each failure message gives the counts
-and the first four records of each list. The record is bound to tmc's ROM SHA-1 and ELF SHA-256 as the
-answer was given on (`test/gates/dataset-binding.ts` `TMC_AT_D61`, D61 f): for another build of that name
-it is stale and fails, and tmc is judged as without it. A ninth differing function fails.
+**The canonical pass** (`core/analysis/driver/canonical.ts`, D114). A reading is taken once, under the function set
+and the claims of that moment: a walk stops when it falls into an accepted function, and a branch to one, or into
+code another function claimed, is a tail exit. Discover accepts functions one at a time, so code several entries
+share went to whichever was read first, while confirm lists every entry from round 0. After the passes, in both
+modes, the pass makes every reading the one the final function set gives:
+
+- An *inner label* is an entry strictly inside another function's extent (in confirm mode the listed `label = true`
+  entries, which `init` writes from exactly that); every other entry is a *boundary*. In discover mode the labels
+  grow to a fixpoint, an entry a re-read extent now covers becoming a label too.
+- The canonical walk (`AnalysisView.isBoundary`, `boundaryBetween`): a boundary function's walk stops when it falls
+  into a boundary entry and passes through inner labels; a forward branch is a tail exit when its target lies past
+  another boundary entry, that is in another function's code as the source lays it out, whatever the claims say,
+  and a backward one as before (ARM: always; Thumb: at a boundary entry or into claimed code), the claims being
+  those of the lower entries' final readings (`walk.branch-into-function`). An inner label's own walk is bounded by
+  every entry. Such a reading depends on the ROM, the entries, the labels and the lower entries' readings.
+- A function is read again only when its reading may differ under that walk (it is an inner label; a boundary or a
+  label lies inside its code; it has a backward branch; a followed branch would now leave; a tail exit would now be followed or would now name
+  a function; a far `bl` targets an entry); `canonicalSweep: 'full'` (an internal tuning) re-reads every function and
+  is the reference the selection is tested against on every fixture and tuning ROM. A reading of the same shape is
+  kept with its verdicts' provenance. Claims are rebuilt from nothing in ascending entry order as the functions are
+  read. The pass emits no trail event.
+
+`g2.confirm-equals-discover` (tier real, phase 2) runs discover, builds the listed set from it (entries, modes,
+`label` for entries inside another found extent, no sizes), runs confirm, and requires the parity view (functions,
+extents, far verdicts, claims) to be equal on every tuning ROM, with no recorded exception
+(`test/gates/confirm-differences.ts` compares the two views in full, equal digests or not, and any differing
+function or claim run fails; each failure message gives the counts and the first four records). `g4.generate-idempotent`
+later proves the same on the files. History: before D114 the gate failed on tmc, on eight functions of hand-written
+code with several entries; D8's `resettle` (re-reading with every entry a boundary) cut the startup and the m4a
+mixer at their inner entries on the other ROMs and was reverted, and the eight were a known limitation pinned by
+content (D60 k, D61 e, g) until the canonical pass removed them.
 
 **Limits** (`core/analysis/limits.ts`). Reaching `settleRounds` (600) keeps the last reading and raises
 `W_SETTLE_LIMIT`, as the PoC's capped loop does; reaching `fixpointRounds` raises `W_FIXPOINT_LIMIT` and
@@ -1068,8 +1073,8 @@ numbers and a reordered `validity` slot, and requires it to typecheck and run on
   by case, so APFS and ext4 write the same tree.
 - `g2.determinism` and `g3.tree-determinism` run the analysis or the emission twice in two processes,
   the second with a different working directory and project path, `TZ=Pacific/Kiritimati` and
-  `LANG=tr_TR.UTF-8`, and compare the sha256 of the canonical outputs; CI compares the digests across
-  Node 22.18 and 24, on Linux (D30, D108).
+  `LANG=tr_TR.UTF-8`, and compare the sha256 of the canonical outputs; CI runs them on Node 24, on Linux
+  (D30, D108, D115).
 
 ### 4.5 Port strategy and milestones
 
@@ -1142,8 +1147,8 @@ when the dataset lists it with a category (a `labels` or `untyped` row), and is 
 unlisted or uncategorised row and a stale accepted diff still fail; and its tp 8,631 of 8,636 (recall
 99.94%) is a floor. The five original ROMs are judged exactly as above.
 
-The three tmc scopings (`BENCHMARK_ROWS` here, `SCOPED_OUT` of `g2.poc-parity` below, `KNOWN_DIFFERENCES` of
-§4.2) are one mechanism (D61 f, `test/gates/dataset-binding.ts`): each holds tmc by name, ROM SHA-1 and ELF
+The tmc scopings (`BENCHMARK_ROWS` here and `SCOPED_OUT` of `g2.poc-parity` below; `KNOWN_DIFFERENCES` of §4.2
+until D114 removed it) are one mechanism (D61 f, `test/gates/dataset-binding.ts`): each holds tmc by name, ROM SHA-1 and ELF
 SHA-256 as the owner's answers were given on (`TMC_AT_D61`, pinned to `bench/dataset/real/tmc.json` by
 `test/unit/gates/dataset-binding.test.ts`), as `g2.held-out`'s waiver holds the sealed pair. A dataset of
 that name with another ROM or ELF ends the scoping, which fails as stale, and tmc is judged as without it;
@@ -2118,7 +2123,7 @@ message states the reason, as the working rule requires.
 | Extents | no agreeing function stops agreeing; ≥ 99.9% of sized functions agree | 2 |
 | Code end | within 16 bytes of the ELF's code end (`bench/src/truth.ts` `elfCodeEnd`): the largest end of its functions, a sized function at addr + size and an unsized one (hand-written asm without `.size`) at the `$d` mapping symbol or typed symbol that closes its last code run before the next typed symbol (an inline pool followed by more of its code does not end it), one convention for every ROM, tuning and sealed, in every scorer, the rescoring of the PoC's own dumps included (the owner's answer to Q5, "Use $d for every ROM", D61 a). The PoC's pinned rows keep the PoC's own convention (`pocCodeEnd`, addr + size): `bench poc-check` compares the rescored row with them as the scorer measures them and checks separately that they carry the PoC's convention | 2 |
 | Held-out | per sealed ROM: raw precision ≥ 99.7%, raw recall ≥ 99.46%, zero `glued` misses, label candidates ≤ 11, extents ≥ 99.9%, code end within 16 bytes; at least two sealed ROMs pass, from at least two codebase families, one of them absent from the tuning set (both family conditions waived by the owner, the fresh-family one by the decision of D60 and the two-families one by the answer to Q4, "Waive both" (D61 b), for the sealed pokefirered and pokeruby and the tuning families of D60, and for nothing else) | 2 |
-| Determinism | two processes with a varied environment, identical analysis and tree digests; Node 22.18 and 24 agree | 2, 3 |
+| Determinism | two processes with a varied environment, identical analysis and tree digests | 2, 3 |
 | Speed | median CPU time of the analysis, over nine serial runs, ≤ 1.5 × `bench/baseline/speed.json` per ROM (`g2.speed`; nine since the owner's answer to Q2 of phase 4, D76 b); ≤ 3 s CPU analysis per tuning ROM (the median of the first five of those runs, the five it was measured over before D76 b, D77 f), `generate` ≤ 10 s and `init` ≤ 15 s on Emerald (`g3.speed-budget`); both scaled by the calibration ratio on another machine | 2, 3 |
 | Scaffold | the PoC's scaffold reproduces the SHA-1 on all five (phase-1 harness); the raw printer links to the SHA-1 on every tuning ROM and every fixture (`g3.raw-link`); the readable printer on every fixture and at least three tuning ROMs, target all six (`g3.link`, D62 h); `init`, `setup.sh`, `make` on every fixture and every tuning ROM (`g4.e2e-*`); build time recorded per ROM in `timings.json` | 1, 3, 4 |
 | Readability | per-ROM shares of mnemonics, symbolic branches and symbolic pool loads only increase, computed on every tuning ROM (from phase 3); objdiff's gated differences at or below each tuning ROM's ceiling (below; `g6.objdiff`, moved to phase 5 by the owner's answer to Q1 of phase-3.md, D68 a, into phase 6 with the `expected/` writers when he skipped phase 5, D92, and amended by his answers to Q6 and Q15 of phase-6.md, D102; phase 3 records the classified counts) | 3, 6 |
@@ -2227,10 +2232,10 @@ information.
 
 **Workflows** (`.github/workflows/`):
 
-- `ci.yml` (matrix `ubuntu-latest` and `macos-latest`, Node 22.18 and 24): `npm run typecheck`,
-  `npm test`, `npm run bench -- gates --require $(phase) --tier ci`, the determinism runs with a varied
-  environment, `npm run bench -- regression` against the merge-base (from phase 2), and the
-  synthetic-tier analysis and tree digests uploaded per job and compared by a final job (D30).
+- `ci.yml` (Node 24, D115): `npm run typecheck`, `npm test`, `npm run bench -- gates --require $(phase) --tier
+  ci`, the determinism runs with a varied environment, which compare the synthetic-tier analysis and tree digests,
+  and `npm run bench -- regression` against the merge-base (from phase 2). Until D115 a final job compared the
+  digests of Node 22.18 and 24 (D30).
 - `printer.yml`: the corpus on Ubuntu's apt binutils.
 - Every job runs on Linux (`ubuntu-latest`) only (D108).
 - `fixtures.yml`: builds agbcc at the pinned commit, rebuilds every fixture and compares as above, then
@@ -2435,7 +2440,7 @@ in roadmap.md pass. The gates per phase are those of §1.
 | The 3 s budget is not reached | slow `generate` on large ROMs | M2 starts from a profile; the measured hotspot is a quadratic getter; `g3.speed-budget` |
 | A held-out ROM gets revealed during diagnosis, or fails | it stops counting; phase 2 blocks | the reveal is recorded in Git; a reserve pool is named in benchmark-roms.md; landing on a failure needs an owner decision (D53) |
 | Signatures arrive in phase 6 | phase-4 scaffolds have no library modules | still byte-exact: unrecognised library code stays in game modules as `INCLUDE_ASM` stubs, and its hand-written parts land in `asm`-only modules by the rule of §6.2; moving signatures earlier touches only `core/signatures`, `propose.ts` and the `LibraryRegion` input of `infer-modules` |
-| Node type stripping | no enums or parameter properties; Node ≥ 22.18 | enforced by `erasableSyntaxOnly`; CI runs Node 22.18 and 24 |
+| Node type stripping | no enums or parameter properties; Node ≥ 24.7 | enforced by `erasableSyntaxOnly`; CI runs Node 24 |
 
 **Decisions that need the owner** (each is built with the safe default until answered):
 
@@ -2466,7 +2471,8 @@ in roadmap.md pass. The gates per phase are those of §1.
    every ROM" (the code-end convention of §8.4). `g2.confirm-equals-discover` then failed on two more tmc
    functions (0x080B255C, 0x080B2874) that Q3's count of six, taken before `95b257b`, did not include
    (phase-2.md, Q6); the owner answered Q6 on 18 October 2026, "Yes, cover all 8", and the known limitation
-   covers the eight with their records. Nothing else is waived.
+   covered the eight with their records, until the canonical pass removed it (D114, 15 November 2026: confirm
+   equals discover on every tuning ROM). Nothing else is waived.
 5. Whether `[functions]` moves into an included `romlift.functions.toml` above some size (Emerald is
    about 16,000 lines). Built default: one `romlift.toml`, `[functions]` inline.
 6. Whether `romlift/isa` becomes its own package shared with gba-kit, or stays a subpath export. Built default: a

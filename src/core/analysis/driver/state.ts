@@ -5,6 +5,7 @@ import { RomliftInvariantError } from '../../../foundation/diagnostics/diagnosti
 import type { Diagnostic } from '../../../foundation/diagnostics/diagnostic.ts';
 import type { Rom } from '../../../foundation/rom/rom.ts';
 import type { Addr, Mode, Span } from '../../../foundation/rom/span.ts';
+import { lowerBound } from '../../../foundation/util/arrays.ts';
 import type { IntervalIndex } from '../../../foundation/util/interval-index.ts';
 import { sortedKeys } from '../../../foundation/util/sorted.ts';
 import type { CompilerProfile } from '../../profile/types.ts';
@@ -104,6 +105,10 @@ export interface DriverState extends DriverInputs {
   epoch: number;
   seq: number;
   ownerIndex: IntervalIndex<Addr> | undefined;
+  /** During the canonical pass (D114): the inner labels a walk passes through and the boundary entries, ascending. */
+  canonical: { readonly labels: ReadonlySet<Addr>; readonly boundaries: readonly Addr[] } | undefined;
+  /** While true no trail event is emitted (the canonical pass's re-reads and claims, D114). */
+  muted: boolean;
   readonly services: DriverServices;
   readonly view: AnalysisView;
   readonly walkEnv: WalkEnv;
@@ -124,6 +129,19 @@ export function isFunction(s: DriverState, a: Addr): boolean {
   const k = a - s.rom.base;
   if (k >= 0 && k < s.claims.length && Number.isInteger(k)) return ((s.entryBits[k >>> 3] ?? 0) & (1 << (k & 7))) !== 0;
   return s.funcs.has(a) || isListedBoundary(s, a);
+}
+
+/** Whether a walk stops at `a`: isFunction, except an inner label of the canonical pass (D114). */
+export function isBoundary(s: DriverState, a: Addr): boolean {
+  return isFunction(s, a) && s.canonical?.labels.has(a) !== true;
+}
+
+/** In the canonical pass, whether a boundary entry lies in (lo, hi]; undefined outside it (D114). */
+export function boundaryBetween(s: Pick<DriverState, 'canonical'>, lo: Addr, hi: Addr): boolean | undefined {
+  const b = s.canonical?.boundaries;
+  if (b === undefined) return undefined;
+  const next = b[lowerBound(b, lo + 1, (x) => x)];
+  return next !== undefined && next <= hi;
 }
 
 /** A listed entry that is not a label (confirm mode). */
@@ -188,6 +206,8 @@ export function createDriver(rom: Rom, profile: CompilerProfile, given: Analysis
     epoch: 0,
     seq: 0,
     ownerIndex: undefined,
+    canonical: undefined,
+    muted: false,
     services: {
       read: (entry, mode) => read(get(), entry, mode),
       valid: (entry) => valid(get(), entry),

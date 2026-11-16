@@ -11,7 +11,7 @@ You need:
 - GNU binutils for ARM (`arm-none-eabi-as`, `-ld`, `-objcopy`): `brew install arm-none-eabi-binutils` on macOS,
   `apt install binutils-arm-none-eabi` on Debian and Ubuntu;
 - `make`, `git` and a C compiler (agbcc is built from source, and C files go through its preprocessor);
-- Node.js 22.18 or later (npm runs romlift).
+- Node.js 24.7 or later (npm runs romlift).
 
 Then:
 

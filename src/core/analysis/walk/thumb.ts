@@ -192,7 +192,7 @@ export function walkThumb(env: WalkEnv, entry: Addr, far: ReadonlySet<Addr>, nor
     const path: Path = { rec, env, run: [], work, cursor };
     runs.current = path.run;
     while (!rec.insns.has(pc)) {
-      if (pc !== entry && view.isFunction(pc)) break; // fell into the next function
+      if (pc !== entry && view.isBoundary(pc)) break; // fell into the next function
       if (view.inDataOverride(pc)) break; // reached a data override, which no walk enters (correctness-b0-3)
       if (!contains(rom, pc, 2) || !insnAligned('thumb', pc)) {
         rec.errors.push({ reason: 'out-of-rom', at: pc });

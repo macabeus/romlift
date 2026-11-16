@@ -113,7 +113,7 @@ install_romlift() {
     fi
     return 0
   fi
-  have npm || die "npm is missing: install Node.js 22.18 or later"
+  have npm || die "npm is missing: install Node.js 24.7 or later"
   if [ -f package-lock.json ]; then
     npm ci || npm_failed
   else
