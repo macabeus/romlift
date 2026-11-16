@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "051a4d6a5d352af837cf971718cdb00779184805",
+    "commit": "1273626937e47d813d770ffd72012cf037764ca1",
     "dirty": false,
-    "sourceDigest": "057bbf19856d3e74d6854684a6ec4801fd7b2c85aef8019d28d32beb35cc48b7",
+    "sourceDigest": "0b7c018180e2876092840589660d7543ac8b922b249a6ced3170dfe13d0c6bff",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -120,7 +120,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "7946ae4f3aee64642524fd0d991df5bb386cf799acc3b9886c5b84ad34d65bcd",
+    "inputsDigest": "9b162687e46ba073cba7406d443faa807515576615dd488b2e8bac251e036deb",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1904,16 +1904,16 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1042.34,
+        "maxRssMiB": 1073.13,
         "maxOldSpaceSizeMiB": 1024,
-        "treeDigest": "05558ba120dad9ffb699dbfefd467d31fbec9790490e4e468bf52a6f984f5f0f"
+        "treeDigest": "c125ed46dfd51493704a765b5b68c7b7b4d9c4b4dead5e3d383e31e53ae94cd8"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1060.09,
+        "maxRssMiB": 1111.34,
         "maxOldSpaceSizeMiB": 1024,
-        "treeDigest": "05558ba120dad9ffb699dbfefd467d31fbec9790490e4e468bf52a6f984f5f0f"
+        "treeDigest": "c125ed46dfd51493704a765b5b68c7b7b4d9c4b4dead5e3d383e31e53ae94cd8"
       }
     ]
   },
@@ -1964,7 +1964,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "KNOWN LIMITATION: tmc: 8 of 8 known functions differ as recorded (0x08004274, 0x080042B8, 0x080042BA, 0x080043AC, 0x08008790, 0x080B1A8C, 0x080B255C, 0x080B2874), 4 of 4 known claim runs (0x080087D2..0x08008886, 0x080B2874..0x080B289C, 0x080B2874..0x080B299C, 0x080B289C..0x080B299C): known phase-2 limitation (the owner's answer to Q3 on 2026-10-18, \"Build resettle, else accept\": the resettle stage changed rows on the other tuning ROMs and the sealed pair and was reverted; and to Q6 on 2026-10-18, \"Yes, cover all 8\": 0x080B255C and 0x080B2874 with their three claim runs), D61 e; fe7j 7739 listed (7 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; klonoa 560 listed (7 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; pokeemerald 15866 listed (9 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; sa2 2901 listed (7 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; sa3 4702 listed (7 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; tmc 8645 listed (36 labels), 1 unlisted, 0 listed-invalid, 8 functions and 4 claim runs differ"
+        "detail": "fe7j 7739 listed (7 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; klonoa 560 listed (7 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; pokeemerald 15866 listed (9 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; sa2 2901 listed (7 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; sa3 4702 listed (7 labels), 0 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ; tmc 8645 listed (31 labels), 1 unlisted, 0 listed-invalid, 0 functions and 0 claim runs differ"
       },
       {
         "id": "g2.determinism",
@@ -1972,7 +1972,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label analysis 4a583114878c22a6b2ce949472c8546ef425c2b408327ebbbcd78cdf42d744c0; adr-handler-block analysis a9888e130ec7db8e43fdccc797df8e770d1204bad0b481af216ac3001a28c9e7; adr-label-and-data analysis 149b6024ddbb8c36148872903a6666a51ba751b4045ffdbe307e2c5db0b94342; arm-pools-in-front analysis 3512f982430104165c339d6d645e705b36433c1474bdffcaab7069188ede25e9; bx-lr-stub-chain analysis 8dd00dd9814a0b7d9ede8aef1c862aed9e0f832a47f9f0c5acef104ca834cce8; bx-pc-veneer analysis 97517d908bb8b52eb14985b16421f9c9c711ff97ad65236699298517035bc716; c-data analysis 372de1facb27fab27741948ff201c7b778cf7e24a396d502fb22cb347765d68d; code-copied-to-ram analysis 9af7095a91324805b929e3eac95d4c89a504518bac21238eabb9200582e84996; code-end-data-decodes analysis 12260156d0022794e01cef47ce64eab02c918e7d19047449b83cd07dd9030bdf; code-end-unsized-last analysis 2c42fb6b70ee32cf19bc354fe986e69e5b1f4e736172a2d929088411089f3150; composite analysis 4927714d0baa3487aa0e10ad95a69c30fe736e47e6553e12b3c5a8a4a2f56871; computed-jump-callback analysis 98e9d084d7ec6cca4f0186c4b9d23a7459e771ecddfe634776a633ab0ad537c8; data-frame-not-function analysis 585841a995181ab6dc50468c220b6f21595e4db1e07b38181a2a08236658d11f; data-named-between-data analysis 0d2f9de27b8b036a6952e4d98237acb1ba3da9ab4b188c67a09499e867386bc1; data-table-between-functions analysis 213c686fa0d84a9f76d2f7f9a2f63319b9fe10f4c97a292e808def030c6fc66a; data-thumb-push-pop analysis ff3a8f0fe256d1749d7b11a0c2fcbfd2b16f00c6a75a348474d8d98aa8175d61; dead-code-in-extent analysis f078291aac4b57658742eea8fd9f2e364e3357c8712c408ec512db0fe6a2608f; entry-stub-table analysis e59ec1e21b53de59c5b82884d5af75075c57dddb114ea52a2be796d9ad429eba; false-stub-2byte analysis a58f456fe1d74fc72c079a4c6732a709859e5eb92ea93b0027fa70d5c9b9fa00; far-jump analysis 87339a5180e8e3d81e79001d0323395280b0a88a7cf004441fac2976b7109844; gap-resume-2mod4 analysis 375c706750791987fd1b45cd7a797a349f9bfc7472e051b9a09be8478bbbbbc4; handwritten-2mod4 analysis 7968444af79e7ba92d5f152516b786e7622fe52473f4bb5a5ff7b92eee7f7bb1; inline-arm-switch analysis 5b92c04ce55e51ff53e9c04874843f5a8d56ed104e78ac6c0812e26ea96cb348; large-data-referenced analysis 6202468060ca43f33cc8d3d16a05c255d93431f177a095fa1497992d5ccf2754; leaf-handler-pointer-table analysis 10ba4219ca9c99baccf9999f940e1e27244175d58198c563ade08e038b23042e; library analysis 81aa65c7d0d7a62f7f3d69ed0607b66491c0a4c6f46f660b377b5d33717351b1; library-game analysis 951a92e0f3e37f824c7c290dc97d77de42072502dbcf4aa21e97e5e6c49123e2; library-ref2 analysis 3839767ccce5f58b3c68381fdc3e1df87c12b2537c903d47ebfaaec55b78fed7; local-subroutine analysis 05a2a48bc7af9c6879f9425e0b14026d1275a43bd1c28214caec98e05a1ea166; mixer-tiled-hole analysis d91d3a72e7974ca9bbbdca5073191732a3eb044197a859e63995dc9f3d6276e6; mov-lr-pc-bx analysis 5f8f7a24bba5a512bf5ffe424b96f43f3c857237f8805557a798627b783b8fc3; multi-compiler analysis 9f30c12c8e5e1c99d9c7bdb94a50a2c59ea77fe5567ec144b5493303af3042d2; noreturn-call-then-next analysis 421395617d9da81626d0429ca36f4369b6281a83f8cf7e763b22e485f88d61ea; pointer-table-before-leaf analysis cd3b838cbe0c906907343c38e17abd9307bc8d415e92cb7bd08d64944a9cb2e2; pointer-word-in-gap analysis ac18015937d64682782d42b9ee8685bc193772a52b0aaae71918392053adca5a; pool-padded-46c0 analysis c48f2233442bc637fd5017d11f198747886ef98c5addce233177f366664bf167; pool-word-push-lr analysis 0dbeebd4355e180ed6f950151ebfe31b0ea4229a94631aea9e48afcb71ead09b; pops-unpushed-frame analysis 20eb9ced695067b67549509cb02930a41eeb1002cd394603ce0b798f85cb8253; prologueless-thumb-over-arm analysis 454aa9c5ca0dff986660f606bf9ee89cbddbabd511128af22a8b7b13439510ce; push-lr-2mod4 analysis d32a8ebc8922c7b9d9266e5778457adc5b441ed548f8cc444eb6cb262dc7bf1e; ram-code-entries analysis cfee8d2e271b76a7015ad34429ff54dec0a7b82fb9848f42461fedb7d3a5a7ca; ram-copy-args-straight-line analysis 021837eb5033588f029f58881195810c655c8854e0410980f0c6216514f644e8; ram-copy-bios analysis f988ff25f26cdfb6121e4e01254f21222f1b03fcca3a38acfd4d4504301b1d92; ram-copy-call-via analysis 501699feaea422a092e1a202c582fe5efb6cc9d0dac042dc9d2af238b7c8cb15; ram-copy-entry-boundaries analysis 702c943237c1782d08f94d4d97a9da43f9e5aa8b8277a343d9e0b41477c780cd; ram-copy-memcpy analysis 5d21f2ab45403999eb18fdcfc2b2b2540da66abf1053f5e13c6aca95d4a1f362; ram-copy-setup-bound analysis 85da5febc58e1e2b5214876660899f968e2a6502f34d36ccfc51c3e653dc12d7; recursive-far-call analysis c54b6d2eebb9b798ee06f98f04a17e82d9ca166d4ad990f0c39ed3f4f5c942d5; shared-tail analysis c3ea584056788d9dd41b70392b3127a7452288aff5fc9ff7ee8e5cd317b78225; swi-reset analysis 23a0a03d3ea93aef1ea9feb9fac2669993b43fc1e7d25513bcf59d0fa5421805; table-jump-hoisted analysis 4728d30c90e8e82aa45b9a92d18c12725e4c4f5600dac715a45c6e3a1cd42b6e; thumb-pointer-run analysis f2affd9792c2e20cd3930d85982bac5c0c910210eaf407f5617a98e27cb84314; unreferenced-leaf analysis 35a69d14c2ad4f9364569fff60e9a5cfcf4d67790b0b52dea9727721789e5d55; veneer-array analysis 44121a5b5f7f9a8001edf061a19f6104bed7287c0a06c4853d41feff705937cf; fe7j analysis 1c49de0837c3bfa47a8a34a574238531338a82d411a73d807d44cc3e82327273; klonoa analysis 61d6f1d18e6226336d38268c68ba4b89de7eb085140f79a08c184a92c228b4b7; pokeemerald analysis 52e65732e2d8c35eca65d2d4043de0e4bb7013f03bb3f4db75c3da7469334d85; sa2 analysis 6deff375e4323dbdb2c55815c33b845e6a832e07e940003f5bef4340ecda6374; sa3 analysis 6c11e0a3181edd5daea95fce12352daa8c647738eed361fe16e5ce4e20a4bd71; tmc analysis 7979532201c3223196f5b30e132a552cbb4d345df66e903699daa4723cf25fc1; 60 analyses identical across cwd, project path, TZ and locale"
+        "detail": "adr-function-label analysis 4a583114878c22a6b2ce949472c8546ef425c2b408327ebbbcd78cdf42d744c0; adr-handler-block analysis a9888e130ec7db8e43fdccc797df8e770d1204bad0b481af216ac3001a28c9e7; adr-label-and-data analysis 149b6024ddbb8c36148872903a6666a51ba751b4045ffdbe307e2c5db0b94342; arm-pools-in-front analysis 3512f982430104165c339d6d645e705b36433c1474bdffcaab7069188ede25e9; bx-lr-stub-chain analysis 8dd00dd9814a0b7d9ede8aef1c862aed9e0f832a47f9f0c5acef104ca834cce8; bx-pc-veneer analysis 97517d908bb8b52eb14985b16421f9c9c711ff97ad65236699298517035bc716; c-data analysis 372de1facb27fab27741948ff201c7b778cf7e24a396d502fb22cb347765d68d; code-copied-to-ram analysis 9af7095a91324805b929e3eac95d4c89a504518bac21238eabb9200582e84996; code-end-data-decodes analysis 12260156d0022794e01cef47ce64eab02c918e7d19047449b83cd07dd9030bdf; code-end-unsized-last analysis 2c42fb6b70ee32cf19bc354fe986e69e5b1f4e736172a2d929088411089f3150; composite analysis 4927714d0baa3487aa0e10ad95a69c30fe736e47e6553e12b3c5a8a4a2f56871; computed-jump-callback analysis 98e9d084d7ec6cca4f0186c4b9d23a7459e771ecddfe634776a633ab0ad537c8; data-frame-not-function analysis 585841a995181ab6dc50468c220b6f21595e4db1e07b38181a2a08236658d11f; data-named-between-data analysis 0d2f9de27b8b036a6952e4d98237acb1ba3da9ab4b188c67a09499e867386bc1; data-table-between-functions analysis 213c686fa0d84a9f76d2f7f9a2f63319b9fe10f4c97a292e808def030c6fc66a; data-thumb-push-pop analysis ff3a8f0fe256d1749d7b11a0c2fcbfd2b16f00c6a75a348474d8d98aa8175d61; dead-code-in-extent analysis f078291aac4b57658742eea8fd9f2e364e3357c8712c408ec512db0fe6a2608f; entry-stub-table analysis e59ec1e21b53de59c5b82884d5af75075c57dddb114ea52a2be796d9ad429eba; false-stub-2byte analysis a58f456fe1d74fc72c079a4c6732a709859e5eb92ea93b0027fa70d5c9b9fa00; far-jump analysis 87339a5180e8e3d81e79001d0323395280b0a88a7cf004441fac2976b7109844; gap-resume-2mod4 analysis 375c706750791987fd1b45cd7a797a349f9bfc7472e051b9a09be8478bbbbbc4; handwritten-2mod4 analysis 7968444af79e7ba92d5f152516b786e7622fe52473f4bb5a5ff7b92eee7f7bb1; inline-arm-switch analysis 5b92c04ce55e51ff53e9c04874843f5a8d56ed104e78ac6c0812e26ea96cb348; large-data-referenced analysis 6202468060ca43f33cc8d3d16a05c255d93431f177a095fa1497992d5ccf2754; leaf-handler-pointer-table analysis 10ba4219ca9c99baccf9999f940e1e27244175d58198c563ade08e038b23042e; library analysis 81aa65c7d0d7a62f7f3d69ed0607b66491c0a4c6f46f660b377b5d33717351b1; library-game analysis 951a92e0f3e37f824c7c290dc97d77de42072502dbcf4aa21e97e5e6c49123e2; library-ref2 analysis 3839767ccce5f58b3c68381fdc3e1df87c12b2537c903d47ebfaaec55b78fed7; local-subroutine analysis 05a2a48bc7af9c6879f9425e0b14026d1275a43bd1c28214caec98e05a1ea166; mixer-tiled-hole analysis d91d3a72e7974ca9bbbdca5073191732a3eb044197a859e63995dc9f3d6276e6; mov-lr-pc-bx analysis 5f8f7a24bba5a512bf5ffe424b96f43f3c857237f8805557a798627b783b8fc3; multi-compiler analysis 9f30c12c8e5e1c99d9c7bdb94a50a2c59ea77fe5567ec144b5493303af3042d2; noreturn-call-then-next analysis 421395617d9da81626d0429ca36f4369b6281a83f8cf7e763b22e485f88d61ea; pointer-table-before-leaf analysis cd3b838cbe0c906907343c38e17abd9307bc8d415e92cb7bd08d64944a9cb2e2; pointer-word-in-gap analysis ac18015937d64682782d42b9ee8685bc193772a52b0aaae71918392053adca5a; pool-padded-46c0 analysis c48f2233442bc637fd5017d11f198747886ef98c5addce233177f366664bf167; pool-word-push-lr analysis 0dbeebd4355e180ed6f950151ebfe31b0ea4229a94631aea9e48afcb71ead09b; pops-unpushed-frame analysis 20eb9ced695067b67549509cb02930a41eeb1002cd394603ce0b798f85cb8253; prologueless-thumb-over-arm analysis 454aa9c5ca0dff986660f606bf9ee89cbddbabd511128af22a8b7b13439510ce; push-lr-2mod4 analysis d32a8ebc8922c7b9d9266e5778457adc5b441ed548f8cc444eb6cb262dc7bf1e; ram-code-entries analysis cfee8d2e271b76a7015ad34429ff54dec0a7b82fb9848f42461fedb7d3a5a7ca; ram-copy-args-straight-line analysis 021837eb5033588f029f58881195810c655c8854e0410980f0c6216514f644e8; ram-copy-bios analysis f988ff25f26cdfb6121e4e01254f21222f1b03fcca3a38acfd4d4504301b1d92; ram-copy-call-via analysis 501699feaea422a092e1a202c582fe5efb6cc9d0dac042dc9d2af238b7c8cb15; ram-copy-entry-boundaries analysis 702c943237c1782d08f94d4d97a9da43f9e5aa8b8277a343d9e0b41477c780cd; ram-copy-memcpy analysis 5d21f2ab45403999eb18fdcfc2b2b2540da66abf1053f5e13c6aca95d4a1f362; ram-copy-setup-bound analysis 85da5febc58e1e2b5214876660899f968e2a6502f34d36ccfc51c3e653dc12d7; recursive-far-call analysis c54b6d2eebb9b798ee06f98f04a17e82d9ca166d4ad990f0c39ed3f4f5c942d5; shared-tail analysis c3ea584056788d9dd41b70392b3127a7452288aff5fc9ff7ee8e5cd317b78225; swi-reset analysis 23a0a03d3ea93aef1ea9feb9fac2669993b43fc1e7d25513bcf59d0fa5421805; table-jump-hoisted analysis 4728d30c90e8e82aa45b9a92d18c12725e4c4f5600dac715a45c6e3a1cd42b6e; thumb-pointer-run analysis f2affd9792c2e20cd3930d85982bac5c0c910210eaf407f5617a98e27cb84314; unreferenced-leaf analysis 35a69d14c2ad4f9364569fff60e9a5cfcf4d67790b0b52dea9727721789e5d55; veneer-array analysis 44121a5b5f7f9a8001edf061a19f6104bed7287c0a06c4853d41feff705937cf; fe7j analysis 706f57555aed030fdb239dde0d625b9c56cd2b59f556947586b5782455ea8c14; klonoa analysis e91403a29d4a8f781a8e60e132d5ca1fbdf48b07762d794a7bdd8d023509f894; pokeemerald analysis 0bc71a9e7da0e770befb4af7815aeb53371244c6d0ef2df5fd7e5d0a0652f9a5; sa2 analysis 44304e4ab58f507ca7b2e84782eaac23dcafc688cda5a364fe96ac29706bc40d; sa3 analysis ecc1d3d4a404a87be0a9892b8d62eb7997a56882f5fc07596a1e65e32d6af573; tmc analysis 27a0e48d4ced1d9529c67833c5cf7d9b8ed963038481364849b021159b5b6a30; 60 analyses identical across cwd, project path, TZ and locale"
       },
       {
         "id": "g2.entries",
@@ -2025,7 +2025,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.947; CPU/limit: fe7j 1114/12511 ms, klonoa 225/302 ms, pokeemerald 2124/4159 ms, sa2 608/772 ms, sa3 975/1471 ms, tmc 1319/1759 ms"
+        "detail": "median of 9 runs; calibration ratio 0.970; CPU/limit: fe7j 1211/12815 ms, klonoa 306/309 ms, pokeemerald 2849/4260 ms, sa2 738/791 ms, sa3 1096/1507 ms, tmc 1689/1801 ms"
       },
       {
         "id": "g3.link",
@@ -2068,7 +2068,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 0.947; fe7j analysis 1104/2840 ms, klonoa analysis 224/2840 ms, pokeemerald analysis 2093/2840 ms, pokeemerald generate 7832/9468 ms, pokeemerald init 9768/14201 ms, sa2 analysis 656/2840 ms, sa3 analysis 1017/2840 ms, tmc analysis 1405/2840 ms"
+        "detail": "calibration ratio 1.066; fe7j analysis 1418/3199 ms, klonoa analysis 283/3199 ms, pokeemerald analysis 2834/3199 ms, pokeemerald generate 10136/10662 ms, pokeemerald init 12263/15993 ms, sa2 analysis 695/3199 ms, sa3 analysis 1317/3199 ms, tmc analysis 1583/3199 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2084,7 +2084,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label tree 782857b8d049de5ad4fc804d0954130d94c37a5a667a0f82ed888c0e81bac87e (17 files); adr-handler-block tree 96bc3ec9487ebce0815fb88f325776e580108feba6d81f51bd62b0caf83a10e2 (14 files); adr-label-and-data tree 5ae15675c4a1f8cea3211f3c0ecd103b40c5d25db6ea02ac7a62a458eefaa739 (23 files); arm-pools-in-front tree 901988085ec29875f6a95ae835bab4bdba248e57ce0591644c6b1eddc39a0d9c (17 files); bx-lr-stub-chain tree 8d44c508f4610d31be7c50b35580e255db356ff0faa663fe2fb973deafec70d3 (17 files); bx-pc-veneer tree f207e238be04609f8ae2229844ecf7901c075c851d0122ed26d0bbabd1a721c5 (20 files); c-data tree cc8266b770efec9bc02949490dc2e6455336f74e695e0eb6c6ea254cdbd9c538 (17 files); code-copied-to-ram tree 5b4eb64607fd7077a027b0fa164706d822fc77d0993ca69f676bb18fa3436504 (16 files); code-end-data-decodes tree 82251436ef3fbb543130a413dffa80e58e744eb44f2553ae5d406ed70fdc93c2 (15 files); code-end-unsized-last tree 8458d31456063280e4ea30756d047dddccd2c4c7f9cca2ed9ff5f8e1f0b01a74 (14 files); composite tree f90f6ae48ed31b2cb3ff80cc6f0d6e6de76aa61c9183d4b9083357ae9e6a2f9f (46 files); computed-jump-callback tree 042ce3230368371666e2167a9b02370e1ef929d7ef8d62b42e5eb3d3f812fc5e (14 files); data-frame-not-function tree 37b958b214dc0018dd90cb025259c6630fcc5e6c7e50df9bd941b190d8294da6 (16 files); data-named-between-data tree a6877a9ae3c822cbb005b3805c90493b54c857f99846f53e073fc79250fc1a2c (18 files); data-table-between-functions tree 174f15c49cfa64df6dc12c1b1cbc1e57080456ad92c884298aa36c0d2ec298fd (20 files); data-thumb-push-pop tree 3266230651faa6a0f4cf75bb348ff6e89fd4329bbc39093f7ac0b1b08a15a7ac (22 files); dead-code-in-extent tree 1a5f86a6cfa6a0f1aec3fba7e559b3c918cacc24cd648bb11bfb20a8cd99b864 (18 files); entry-stub-table tree 422261c1bbd917723de8d63ef7ec7301dcbbe515c342f7d5b4959193bc51b2fa (18 files); false-stub-2byte tree 82358b032dd267d5a23e10feeeac633b675e32734a1976124eb5cbf197f2f590 (15 files); far-jump tree eb3017e52091217e63533115b2d5b04be1eb2dc2509760e9a7a9b1ff4ed5dbd9 (13 files); gap-resume-2mod4 tree 8e1bd229cdbadac504a8d92bdc98c1694b5f668154ee21b3467526e5d92de2e2 (24 files); handwritten-2mod4 tree 1a1e146838cf57c5322c4725b5acaa39e177f51eebd679fe17acc0c35387dcf0 (19 files); inline-arm-switch tree f4b33f3c96dfa01c1aa9f5b38ce7e08c0920f70815c2a6bf3ee0ab6b8fe1fec1 (19 files); large-data-referenced tree 370d6f4d42207ffe0b790c0cdca80a1a90ef184b12c68e019178eeb0d14c05d1 (17 files); leaf-handler-pointer-table tree 76bd72b9dc3d96330c316b215c6d9c552f093a9ff6726da31bd2dbe61973dc42 (16 files); library tree 7ea5edca0f41383b70a633a0448488ff96109929281c85216e244431ff19dc63 (25 files); library-game tree 7717d1891bfc41939f8959475ca3ac3634b623b10c569bac89b7af76efa8a2f9 (32 files); library-ref2 tree 19669e976f460191e6b74b4b582c5aa8e045459725c1e3bb02ae2e8470e2840a (19 files); local-subroutine tree 038a9424a51d4bea92ba6db9bcb7420f08775c2b26c9e3a21fd1645a8ce41838 (14 files); mixer-tiled-hole tree d5ac6a272510f0ca36265de8048d564e63a41ae483e1373724078fdb4a01980f (28 files); mov-lr-pc-bx tree 7e0870ca0b420df2f627d22407c86c6420dd60c0c305c8982a8941555bb3e675 (20 files); multi-compiler tree 20e657582d343cc5d334c417b3533dcdabd4c950f64dc0dcd64b22185c7be435 (18 files); noreturn-call-then-next tree 06295dd96a03b886c53c61c7599ba3eb36c81fbe47ff88d36a456f0dc5d40670 (14 files); pointer-table-before-leaf tree 532c362ee3c0ee62fc54764f94d70839e112780aca648f2273c2da62ceae1715 (22 files); pointer-word-in-gap tree 00f359aeeaf867c345c4ccbda4fa6e0f4305be40aac9f93a66a7424d0fc91b33 (18 files); pool-padded-46c0 tree 1d131ff5d0ea58828e14d895936a33eb2982805687663974966353eb9437b8a9 (19 files); pool-word-push-lr tree d65e569f7f0cad65a218dc2816fec5b2ff415cc44a618a65637db190ed15519f (16 files); pops-unpushed-frame tree bbfe4d0ce556e6a866b529214ffce0c2b4b301acff93eb25c4c941b220eff22e (22 files); prologueless-thumb-over-arm tree 736a1655fa4670365c3d1baad047c7136b47dccc430d7093c70ed54437b1a0b6 (19 files); push-lr-2mod4 tree 1b8ca01f2c581306e13ba367437fc4fe9c8fbccf4ca32a5b566553fec09dd58d (21 files); ram-code-entries tree 370239dc1a156b63ebd2c4c41ad62cdb8b1a0861f9c06117a7224b4962f98812 (22 files); ram-copy-args-straight-line tree 24b2b2c1da0669d26502faaf0cc8a6618925d060c1276ae1296b6b5a7f01f2a0 (15 files); ram-copy-bios tree 44b228a522ad24e3d68361beaea19ace8081e208106c475907c88912d45b9365 (23 files); ram-copy-call-via tree e94a8ff58f67b8f4fdea703e3a2c61467f4d79f9065ed9bd14311a44818e49c2 (21 files); ram-copy-entry-boundaries tree b06d96fa344330c2659d11f37c9ecca591de3f28dae0abc91912e28d966615ad (25 files); ram-copy-memcpy tree a09eab239775c83a620a95fc725ba4418d38079ab28b4da0f9ca89c7f55f72ac (21 files); ram-copy-setup-bound tree f556a4a51616e860fc56eaea916bafc256bcf5bb81c022892625d64135566217 (22 files); recursive-far-call tree 54ff88759ae72d130074f5815137d34d74ec6a23ba68a2d28ac6b031adc303de (14 files); shared-tail tree a84e54a2113985feff247bf2ed7e40f105559668739f9a9670be474afd461d7e (16 files); swi-reset tree d624c1878b32ec977251e9373d0028e9b58ff75075a879b6ff73a6d6b552ec81 (14 files); table-jump-hoisted tree 990586cb222de9700f5e351da4f0f9e03edab25dec461b17359ed57729392d02 (14 files); thumb-pointer-run tree 0ef04c3403ab2f37b8d25672f8f29574470dc56f8502c8e37d8bdd3762eae606 (22 files); unreferenced-leaf tree a30fb0a4832df413eb18384218e3093854d63153208c1efc652a75a457f91c3e (15 files); veneer-array tree fdc1f356f364c66f1f99394f9cc7873a1da389d21c0f848cf710843de4b19a8c (23 files); fe7j tree af7469fda4aea0f8b9a77160ee749a7f13a3e85dea141731a15ae8a472af82e7 (7862 files); klonoa tree 2694e0ca79b9fc2e60b7f228c9800d2e66963d531e1f13bf64ff86bafe4949bc (615 files); pokeemerald tree b9551e3d831a14937eaed0af27b33094ecc55fcf43ac7161f292e2db32606250 (15967 files); sa2 tree f7286a7e35361bc22d81a39364be558691ad1e424c8f556990f1e535e69d35ff (2956 files); sa3 tree de8ee7e4517f3196634cd92b11baaf091b00134d1ab8bb923f47c9788a7baf47 (4762 files); tmc tree b289783e67c5c300b53287234313badf704962a4c3373534012aa4d8b2fc4c26 (8724 files); 60 trees identical across cwd, project path, TZ and locale; no file names a project path"
+        "detail": "adr-function-label tree 782857b8d049de5ad4fc804d0954130d94c37a5a667a0f82ed888c0e81bac87e (17 files); adr-handler-block tree 96bc3ec9487ebce0815fb88f325776e580108feba6d81f51bd62b0caf83a10e2 (14 files); adr-label-and-data tree 5ae15675c4a1f8cea3211f3c0ecd103b40c5d25db6ea02ac7a62a458eefaa739 (23 files); arm-pools-in-front tree 901988085ec29875f6a95ae835bab4bdba248e57ce0591644c6b1eddc39a0d9c (17 files); bx-lr-stub-chain tree 8d44c508f4610d31be7c50b35580e255db356ff0faa663fe2fb973deafec70d3 (17 files); bx-pc-veneer tree f207e238be04609f8ae2229844ecf7901c075c851d0122ed26d0bbabd1a721c5 (20 files); c-data tree cc8266b770efec9bc02949490dc2e6455336f74e695e0eb6c6ea254cdbd9c538 (17 files); code-copied-to-ram tree 5b4eb64607fd7077a027b0fa164706d822fc77d0993ca69f676bb18fa3436504 (16 files); code-end-data-decodes tree 82251436ef3fbb543130a413dffa80e58e744eb44f2553ae5d406ed70fdc93c2 (15 files); code-end-unsized-last tree 8458d31456063280e4ea30756d047dddccd2c4c7f9cca2ed9ff5f8e1f0b01a74 (14 files); composite tree f90f6ae48ed31b2cb3ff80cc6f0d6e6de76aa61c9183d4b9083357ae9e6a2f9f (46 files); computed-jump-callback tree 042ce3230368371666e2167a9b02370e1ef929d7ef8d62b42e5eb3d3f812fc5e (14 files); data-frame-not-function tree 37b958b214dc0018dd90cb025259c6630fcc5e6c7e50df9bd941b190d8294da6 (16 files); data-named-between-data tree a6877a9ae3c822cbb005b3805c90493b54c857f99846f53e073fc79250fc1a2c (18 files); data-table-between-functions tree 174f15c49cfa64df6dc12c1b1cbc1e57080456ad92c884298aa36c0d2ec298fd (20 files); data-thumb-push-pop tree 3266230651faa6a0f4cf75bb348ff6e89fd4329bbc39093f7ac0b1b08a15a7ac (22 files); dead-code-in-extent tree 1a5f86a6cfa6a0f1aec3fba7e559b3c918cacc24cd648bb11bfb20a8cd99b864 (18 files); entry-stub-table tree 422261c1bbd917723de8d63ef7ec7301dcbbe515c342f7d5b4959193bc51b2fa (18 files); false-stub-2byte tree 82358b032dd267d5a23e10feeeac633b675e32734a1976124eb5cbf197f2f590 (15 files); far-jump tree eb3017e52091217e63533115b2d5b04be1eb2dc2509760e9a7a9b1ff4ed5dbd9 (13 files); gap-resume-2mod4 tree 8e1bd229cdbadac504a8d92bdc98c1694b5f668154ee21b3467526e5d92de2e2 (24 files); handwritten-2mod4 tree 1a1e146838cf57c5322c4725b5acaa39e177f51eebd679fe17acc0c35387dcf0 (19 files); inline-arm-switch tree f4b33f3c96dfa01c1aa9f5b38ce7e08c0920f70815c2a6bf3ee0ab6b8fe1fec1 (19 files); large-data-referenced tree 370d6f4d42207ffe0b790c0cdca80a1a90ef184b12c68e019178eeb0d14c05d1 (17 files); leaf-handler-pointer-table tree 76bd72b9dc3d96330c316b215c6d9c552f093a9ff6726da31bd2dbe61973dc42 (16 files); library tree 7ea5edca0f41383b70a633a0448488ff96109929281c85216e244431ff19dc63 (25 files); library-game tree 7717d1891bfc41939f8959475ca3ac3634b623b10c569bac89b7af76efa8a2f9 (32 files); library-ref2 tree 19669e976f460191e6b74b4b582c5aa8e045459725c1e3bb02ae2e8470e2840a (19 files); local-subroutine tree 038a9424a51d4bea92ba6db9bcb7420f08775c2b26c9e3a21fd1645a8ce41838 (14 files); mixer-tiled-hole tree d5ac6a272510f0ca36265de8048d564e63a41ae483e1373724078fdb4a01980f (28 files); mov-lr-pc-bx tree 7e0870ca0b420df2f627d22407c86c6420dd60c0c305c8982a8941555bb3e675 (20 files); multi-compiler tree 20e657582d343cc5d334c417b3533dcdabd4c950f64dc0dcd64b22185c7be435 (18 files); noreturn-call-then-next tree 06295dd96a03b886c53c61c7599ba3eb36c81fbe47ff88d36a456f0dc5d40670 (14 files); pointer-table-before-leaf tree 532c362ee3c0ee62fc54764f94d70839e112780aca648f2273c2da62ceae1715 (22 files); pointer-word-in-gap tree 00f359aeeaf867c345c4ccbda4fa6e0f4305be40aac9f93a66a7424d0fc91b33 (18 files); pool-padded-46c0 tree 1d131ff5d0ea58828e14d895936a33eb2982805687663974966353eb9437b8a9 (19 files); pool-word-push-lr tree d65e569f7f0cad65a218dc2816fec5b2ff415cc44a618a65637db190ed15519f (16 files); pops-unpushed-frame tree bbfe4d0ce556e6a866b529214ffce0c2b4b301acff93eb25c4c941b220eff22e (22 files); prologueless-thumb-over-arm tree 736a1655fa4670365c3d1baad047c7136b47dccc430d7093c70ed54437b1a0b6 (19 files); push-lr-2mod4 tree 1b8ca01f2c581306e13ba367437fc4fe9c8fbccf4ca32a5b566553fec09dd58d (21 files); ram-code-entries tree 370239dc1a156b63ebd2c4c41ad62cdb8b1a0861f9c06117a7224b4962f98812 (22 files); ram-copy-args-straight-line tree 24b2b2c1da0669d26502faaf0cc8a6618925d060c1276ae1296b6b5a7f01f2a0 (15 files); ram-copy-bios tree 44b228a522ad24e3d68361beaea19ace8081e208106c475907c88912d45b9365 (23 files); ram-copy-call-via tree e94a8ff58f67b8f4fdea703e3a2c61467f4d79f9065ed9bd14311a44818e49c2 (21 files); ram-copy-entry-boundaries tree b06d96fa344330c2659d11f37c9ecca591de3f28dae0abc91912e28d966615ad (25 files); ram-copy-memcpy tree a09eab239775c83a620a95fc725ba4418d38079ab28b4da0f9ca89c7f55f72ac (21 files); ram-copy-setup-bound tree f556a4a51616e860fc56eaea916bafc256bcf5bb81c022892625d64135566217 (22 files); recursive-far-call tree 54ff88759ae72d130074f5815137d34d74ec6a23ba68a2d28ac6b031adc303de (14 files); shared-tail tree a84e54a2113985feff247bf2ed7e40f105559668739f9a9670be474afd461d7e (16 files); swi-reset tree d624c1878b32ec977251e9373d0028e9b58ff75075a879b6ff73a6d6b552ec81 (14 files); table-jump-hoisted tree 990586cb222de9700f5e351da4f0f9e03edab25dec461b17359ed57729392d02 (14 files); thumb-pointer-run tree 0ef04c3403ab2f37b8d25672f8f29574470dc56f8502c8e37d8bdd3762eae606 (22 files); unreferenced-leaf tree a30fb0a4832df413eb18384218e3093854d63153208c1efc652a75a457f91c3e (15 files); veneer-array tree fdc1f356f364c66f1f99394f9cc7873a1da389d21c0f848cf710843de4b19a8c (23 files); fe7j tree af7469fda4aea0f8b9a77160ee749a7f13a3e85dea141731a15ae8a472af82e7 (7862 files); klonoa tree 8b9a854f918a33052a5166273b146c35b430cd4034b8113ae6fc6e5ae599d7c6 (611 files); pokeemerald tree 41bc9b15510999cbb9d2f3161493ca884642973160d8d53765df8ef6ebab87ee (15963 files); sa2 tree 456c9430b823ae9063f49d70a0eae9685d4d32e9f65aa2afa984467d5b2bfdde (2952 files); sa3 tree 5d80bce624d866a4b4e13ffc1a6b34f275f36ba237c02362fbf81fea0c705484 (4758 files); tmc tree fafbe71864a7f5c26a6d2c29b71c77de957a532bdc2c7ccecaeb61ef4ef13683 (8724 files); 60 trees identical across cwd, project path, TZ and locale; no file names a project path"
       },
       {
         "id": "g4.e2e-real",
@@ -2101,7 +2101,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "adr-function-label: 37 files, 17 ops all keep; adr-handler-block: 34 files, 14 ops all keep; adr-label-and-data: 43 files, 23 ops all keep; arm-pools-in-front: 37 files, 17 ops all keep; bx-lr-stub-chain: 37 files, 17 ops all keep; bx-pc-veneer: 40 files, 20 ops all keep; c-data: 37 files, 17 ops all keep; code-copied-to-ram: 36 files, 16 ops all keep; code-end-data-decodes: 35 files, 15 ops all keep; code-end-unsized-last: 34 files, 14 ops all keep; composite: 66 files, 46 ops all keep; computed-jump-callback: 34 files, 14 ops all keep; data-frame-not-function: 36 files, 16 ops all keep; data-named-between-data: 38 files, 18 ops all keep; data-table-between-functions: 40 files, 20 ops all keep; data-thumb-push-pop: 42 files, 22 ops all keep; dead-code-in-extent: 38 files, 18 ops all keep; entry-stub-table: 38 files, 18 ops all keep; false-stub-2byte: 35 files, 15 ops all keep; far-jump: 33 files, 13 ops all keep; gap-resume-2mod4: 44 files, 24 ops all keep; handwritten-2mod4: 39 files, 19 ops all keep; inline-arm-switch: 39 files, 19 ops all keep; large-data-referenced: 37 files, 17 ops all keep; leaf-handler-pointer-table: 36 files, 16 ops all keep; library: 45 files, 25 ops all keep; library-game: 52 files, 32 ops all keep; library-ref2: 39 files, 19 ops all keep; local-subroutine: 34 files, 14 ops all keep; mixer-tiled-hole: 48 files, 28 ops all keep; mov-lr-pc-bx: 40 files, 20 ops all keep; multi-compiler: 38 files, 18 ops all keep; noreturn-call-then-next: 34 files, 14 ops all keep; pointer-table-before-leaf: 42 files, 22 ops all keep; pointer-word-in-gap: 38 files, 18 ops all keep; pool-padded-46c0: 39 files, 19 ops all keep; pool-word-push-lr: 36 files, 16 ops all keep; pops-unpushed-frame: 42 files, 22 ops all keep; prologueless-thumb-over-arm: 39 files, 19 ops all keep; push-lr-2mod4: 41 files, 21 ops all keep; ram-code-entries: 42 files, 22 ops all keep; ram-copy-args-straight-line: 35 files, 15 ops all keep; ram-copy-bios: 43 files, 23 ops all keep; ram-copy-call-via: 41 files, 21 ops all keep; ram-copy-entry-boundaries: 45 files, 25 ops all keep; ram-copy-memcpy: 41 files, 21 ops all keep; ram-copy-setup-bound: 42 files, 22 ops all keep; recursive-far-call: 34 files, 14 ops all keep; shared-tail: 36 files, 16 ops all keep; swi-reset: 34 files, 14 ops all keep; table-jump-hoisted: 34 files, 14 ops all keep; thumb-pointer-run: 42 files, 22 ops all keep; unreferenced-leaf: 35 files, 15 ops all keep; veneer-array: 43 files, 23 ops all keep; fe7j: 7865 files, 7845 ops all keep; klonoa: 615 files, 595 ops all keep; pokeemerald: 15968 files, 15948 ops all keep; sa2: 2961 files, 2941 ops all keep; sa3: 4771 files, 4751 ops all keep; tmc: 8770 files, 8750 ops all keep; generate after init changes no file on 60 ROMs"
+        "detail": "adr-function-label: 37 files, 17 ops all keep; adr-handler-block: 34 files, 14 ops all keep; adr-label-and-data: 43 files, 23 ops all keep; arm-pools-in-front: 37 files, 17 ops all keep; bx-lr-stub-chain: 37 files, 17 ops all keep; bx-pc-veneer: 40 files, 20 ops all keep; c-data: 37 files, 17 ops all keep; code-copied-to-ram: 36 files, 16 ops all keep; code-end-data-decodes: 35 files, 15 ops all keep; code-end-unsized-last: 34 files, 14 ops all keep; composite: 66 files, 46 ops all keep; computed-jump-callback: 34 files, 14 ops all keep; data-frame-not-function: 36 files, 16 ops all keep; data-named-between-data: 38 files, 18 ops all keep; data-table-between-functions: 40 files, 20 ops all keep; data-thumb-push-pop: 42 files, 22 ops all keep; dead-code-in-extent: 38 files, 18 ops all keep; entry-stub-table: 38 files, 18 ops all keep; false-stub-2byte: 35 files, 15 ops all keep; far-jump: 33 files, 13 ops all keep; gap-resume-2mod4: 44 files, 24 ops all keep; handwritten-2mod4: 39 files, 19 ops all keep; inline-arm-switch: 39 files, 19 ops all keep; large-data-referenced: 37 files, 17 ops all keep; leaf-handler-pointer-table: 36 files, 16 ops all keep; library: 45 files, 25 ops all keep; library-game: 52 files, 32 ops all keep; library-ref2: 39 files, 19 ops all keep; local-subroutine: 34 files, 14 ops all keep; mixer-tiled-hole: 48 files, 28 ops all keep; mov-lr-pc-bx: 40 files, 20 ops all keep; multi-compiler: 38 files, 18 ops all keep; noreturn-call-then-next: 34 files, 14 ops all keep; pointer-table-before-leaf: 42 files, 22 ops all keep; pointer-word-in-gap: 38 files, 18 ops all keep; pool-padded-46c0: 39 files, 19 ops all keep; pool-word-push-lr: 36 files, 16 ops all keep; pops-unpushed-frame: 42 files, 22 ops all keep; prologueless-thumb-over-arm: 39 files, 19 ops all keep; push-lr-2mod4: 41 files, 21 ops all keep; ram-code-entries: 42 files, 22 ops all keep; ram-copy-args-straight-line: 35 files, 15 ops all keep; ram-copy-bios: 43 files, 23 ops all keep; ram-copy-call-via: 41 files, 21 ops all keep; ram-copy-entry-boundaries: 45 files, 25 ops all keep; ram-copy-memcpy: 41 files, 21 ops all keep; ram-copy-setup-bound: 42 files, 22 ops all keep; recursive-far-call: 34 files, 14 ops all keep; shared-tail: 36 files, 16 ops all keep; swi-reset: 34 files, 14 ops all keep; table-jump-hoisted: 34 files, 14 ops all keep; thumb-pointer-run: 42 files, 22 ops all keep; unreferenced-leaf: 35 files, 15 ops all keep; veneer-array: 43 files, 23 ops all keep; fe7j: 7865 files, 7845 ops all keep; klonoa: 615 files, 595 ops all keep; pokeemerald: 15968 files, 15948 ops all keep; sa2: 2961 files, 2941 ops all keep; sa3: 4771 files, 4751 ops all keep; tmc: 8771 files, 8751 ops all keep; generate after init changes no file on 60 ROMs"
       },
       {
         "id": "g4.toml-mutations",
@@ -2128,7 +2128,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "433 expected modules on 61 targets (1 runs_at), each linked at its module's address, equal their ROM ranges byte for byte with every symbol where the model places it"
+        "detail": "432 expected modules on 61 targets (1 runs_at), each linked at its module's address, equal their ROM ranges byte for byte with every symbol where the model places it"
       },
       {
         "id": "g6.objdiff",
@@ -2396,7 +2396,7 @@
           "sha1Match": true
         }
       },
-      "analysisDigest": "a1e91da50b55b4d0dba09f3a50c1474fd36ce8d073bab60338bc4bb268dd3245",
+      "analysisDigest": "6a923cdea0dfd0ecbdff5a470186913c67092fa43a59023cc629a8de96ad247c",
       "poc": {
         "tp": 7724,
         "source": "baseline"
@@ -2408,7 +2408,7 @@
         "staleAccepted": []
       },
       "parity": {
-        "digest": "d2c87e513af3721b8116b31b1abd726c68f4c4b13c0084ad52aef0ca08279555",
+        "digest": "a4e6c5a90fef65753f3485ed8b042b9496b955bb0f5007442ebc8f957d656e52",
         "expected": "73a6cd2bb6230ef9937aba977e777601a9f4574a22f0d81243200fd8b2ea6d6a"
       },
       "readability": {
@@ -2656,7 +2656,7 @@
           "sha1Match": true
         }
       },
-      "analysisDigest": "518d95721bb0808e3d54ce2a53f32416c877771ed81a856fe6fd53e5fe4f5855",
+      "analysisDigest": "f063f96b1ec21df466bd883612109d62827ee75cf257013268f2b8dabf5007d2",
       "poc": {
         "tp": 556,
         "source": "baseline"
@@ -2668,7 +2668,7 @@
         "staleAccepted": []
       },
       "parity": {
-        "digest": "49c426765a00a227935e5e3d7a6a3fe2225333a047211ddf21eba0ebf9dd4d85",
+        "digest": "1e919ee50013d637877f0e443c5dd199d313d5428c5aedb7114bb863ea55c2b0",
         "expected": "849470bdc0a3bf41844f59d068303b0b661082c8236961145efffee2107ff7f2"
       },
       "readability": {
@@ -2785,7 +2785,7 @@
           ]
         }
       },
-      "treeDigest": "2694e0ca79b9fc2e60b7f228c9800d2e66963d531e1f13bf64ff86bafe4949bc",
+      "treeDigest": "8b9a854f918a33052a5166273b146c35b430cd4034b8113ae6fc6e5ae599d7c6",
       "signatures": {
         "libraries": [
           {
@@ -2941,7 +2941,7 @@
           "sha1Match": true
         }
       },
-      "analysisDigest": "698343b9bac9aaca662a68bcfcc3fc6c5338d82397ce00658bba7327b26accd7",
+      "analysisDigest": "f340ace3db47f7e6cc805801ac2d5df87a718592943fdfb28ca1e3fbca1f6161",
       "poc": {
         "tp": 15856,
         "source": "baseline"
@@ -2958,7 +2958,7 @@
         "staleAccepted": []
       },
       "parity": {
-        "digest": "d7348336a0825f6627bc2976e025247d06913ea3622ccb23bbe9569f54702df8",
+        "digest": "d5cbbfb32af93440bf155bea1f3d0150270d66990e0ad1ef40d773dd4c45a44c",
         "expected": "46225fad3837c00909e481e886e38c23daec402ce2418afd2a718f37efaace17"
       },
       "readability": {
@@ -3139,7 +3139,7 @@
           ]
         }
       },
-      "treeDigest": "b9551e3d831a14937eaed0af27b33094ecc55fcf43ac7161f292e2db32606250",
+      "treeDigest": "41bc9b15510999cbb9d2f3161493ca884642973160d8d53765df8ef6ebab87ee",
       "signatures": {
         "libraries": [
           {
@@ -3307,7 +3307,7 @@
           "sha1Match": true
         }
       },
-      "analysisDigest": "bfa0a805eb66b5c0ffa149364831c39fa40a7d68a503de9cdfedcd3f772e2d1f",
+      "analysisDigest": "d48b0e65ba8def1e969d33a6f83f550c2c28f04eaa30b3c7ac7afac8b118a20d",
       "poc": {
         "tp": 2892,
         "source": "baseline"
@@ -3324,7 +3324,7 @@
         "staleAccepted": []
       },
       "parity": {
-        "digest": "ae83e802213876014f5629ef8db2daefd382fe70ed2a56d30ab64bdbfcf1a022",
+        "digest": "180dc24fe1b4b744ae826c26657e9fd2f990aa1c5ac9ea6479f686ba95d6809d",
         "expected": "9db7cb5918c59501f07235d553cfaf81f37030a7fc96364c6932b5a964b15a19"
       },
       "readability": {
@@ -3442,7 +3442,7 @@
           ]
         }
       },
-      "treeDigest": "f7286a7e35361bc22d81a39364be558691ad1e424c8f556990f1e535e69d35ff",
+      "treeDigest": "456c9430b823ae9063f49d70a0eae9685d4d32e9f65aa2afa984467d5b2bfdde",
       "signatures": {
         "libraries": [
           {
@@ -3598,7 +3598,7 @@
           "sha1Match": true
         }
       },
-      "analysisDigest": "9c0fb9645564567c9fa7f1cf01dfda9bd9e9b1118df31838cef806a392092dc2",
+      "analysisDigest": "72b8e195ecc64d8df21dda88e62fe6b8362ec7afdf16fb4cada5786e5d37c49c",
       "poc": {
         "tp": 4693,
         "source": "baseline"
@@ -3615,7 +3615,7 @@
         "staleAccepted": []
       },
       "parity": {
-        "digest": "396939bfb6f130c0f2e7fc6f69429ba76e37a6fbcd8753a7991521724bdf5bfb",
+        "digest": "0f0ec24b88a0f814eb916949fced00f6e544956325ba6d219234ef07f47dc24e",
         "expected": "8b127ab4ab28a9d95ccbff44fe4c98437a70fdd92a16fc1c9407106a906470ad"
       },
       "readability": {
@@ -3758,7 +3758,7 @@
           ]
         }
       },
-      "treeDigest": "de8ee7e4517f3196634cd92b11baaf091b00134d1ab8bb923f47c9788a7baf47",
+      "treeDigest": "5d80bce624d866a4b4e13ffc1a6b34f275f36ba237c02362fbf81fea0c705484",
       "signatures": {
         "libraries": [
           {
@@ -3945,14 +3945,14 @@
         {
           "addr": "0x080B2718",
           "origin": "call",
-          "size": 24,
+          "size": 204,
           "listed": true,
           "category": "local-subroutine"
         },
         {
           "addr": "0x080B27E4",
           "origin": "call",
-          "size": 40,
+          "size": 16,
           "listed": true,
           "category": "local-subroutine"
         }
@@ -3978,7 +3978,7 @@
           "sha1Match": true
         }
       },
-      "analysisDigest": "5c747e554bfec4642d293dbdf792355109f05f6dfa1c2a6693ded3e0d63e7e83",
+      "analysisDigest": "3bf5ef43e9e35674e95b65197d396b4f8c63ed90c9efe005e5210ebdbe2912c7",
       "poc": {
         "tp": 8582,
         "source": "dump"
@@ -4260,7 +4260,7 @@
         "staleAccepted": []
       },
       "parity": {
-        "digest": "ea700ad02d22c2ba68766d36f87cc204a1e6bfa23b8929dbb777e4db6b4a27ed",
+        "digest": "95191a6218d8100c59948d51b60c78f79084de2c1ca1aa34f03c7d2d4c5fce49",
         "expected": ""
       },
       "readability": {
@@ -4424,7 +4424,7 @@
           ]
         }
       },
-      "treeDigest": "b289783e67c5c300b53287234313badf704962a4c3373534012aa4d8b2fc4c26",
+      "treeDigest": "fafbe71864a7f5c26a6d2c29b71c77de957a532bdc2c7ccecaeb61ef4ef13683",
       "signatures": {
         "libraries": [
           {
