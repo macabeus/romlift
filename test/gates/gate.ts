@@ -723,9 +723,18 @@ async function loadEnvironment(): Promise<Environment> {
   return { repoRoot: REPO_ROOT, benchRoot, pocRoot, landed, tuning, sealed, fixtures };
 }
 
+/** One entry point's namespace; each import names its module literally, so the edge rules check it (D117). */
 async function importEntry(name: EntryPoint): Promise<Record<string, unknown>> {
-  const namespace: Record<string, unknown> = await import(name);
-  return namespace;
+  switch (name) {
+    case 'romlift':
+      return { ...(await import('romlift')) };
+    case 'romlift/node':
+      return { ...(await import('romlift/node')) };
+    case 'romlift/isa':
+      return { ...(await import('romlift/isa')) };
+    case 'romlift/internal':
+      return { ...(await import('romlift/internal')) };
+  }
 }
 
 async function loadExports(): Promise<Exports> {
