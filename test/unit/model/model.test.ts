@@ -23,7 +23,7 @@ test('the model of a config: schema, ROM, build name, functions with the sources
     modules: [['rom_header', BASE], ['main', HEADER_END], { name: 'data', start: BASE + 0x180, kind: 'data', generated: true }],
     functions: [
       [BASE + 0x100, { name: 'Main', from: 'legacy' }],
-      [BASE + 0x108, { name: 'sub_08000108', label: true }],
+      [BASE + 0x108, { name: 'sub_08000108', entryPoint: true }],
       [BASE + 0x130, { name: 'Sized', size: 6 }],
       [BASE + 0x144, 'Overridden'],
       [BASE + 0x160, { name: 'Listed', mode: 'arm' }],

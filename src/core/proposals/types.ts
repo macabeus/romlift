@@ -25,7 +25,8 @@ export type Proposal =
       readonly mode: Mode;
       readonly name?: string;
       readonly size?: number;
-      readonly label?: boolean;
+      /** Inside another listed function's extent: an [entry_points] entry, which gets no file of its own (D116). */
+      readonly entryPoint?: boolean;
       readonly source: ProposalSource;
     }
   | {

@@ -121,7 +121,7 @@ export function claimAt(s: DriverState, a: Addr): ClaimKind {
 }
 
 /**
- * discover: accepted; confirm: accepted, or listed and not a label. A `label = true` entry lies inside
+ * discover: accepted; confirm: accepted, or listed and not a label. A label (an [entry_points] entry, D116) lies inside
  * another listed function, so until it is taken a walk passes through it, as discover's walk of the
  * function around it did.
  */

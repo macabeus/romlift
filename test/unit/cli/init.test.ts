@@ -78,6 +78,7 @@ test('init in a directory holding only the ROM writes the whole project; the loc
   assert.ok(config.value.modules.length > 3, '--module-size 0x200 reached the inference');
   const counts = summary?.['counts'] as Record<string, number>;
   assert.equal(counts['functions'], config.value.functions.size);
+  assert.equal(counts['entry_points'], config.value.entryPoints.size);
 });
 
 test('init a second time in the project changes no file', async () => {

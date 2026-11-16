@@ -1,6 +1,6 @@
 // The in-memory config of a discover run (architecture §6.1, §6.2, D62 c): what `generate` and the gates' tree checks
 // run on, and what phase 4's init serialises. Every function the analysis found is listed with its mode and default
-// name (an entry inside another found function's extent with `label = true`, the startup code inside the cartridge
+// name (an entry inside another found function's extent in [entry_points] instead, D116, the startup code inside the cartridge
 // entry's included, so the confirm run equals the discover run: coveredEntries); the modules are inferModules'
 // proposals. Since phase 4 (§6.1 rung 2, D62 c, D74 b) a module inferModules proposes as agbcc-shaped (moduleKind
 // 'c') and that carries no library is kind 'c', built from the c-stub writer's src/<module>.c; the header, the
@@ -10,7 +10,7 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import type { AnalysisResult } from '../analysis/types.ts';
 import { DEFAULT_BUILD_COMPILER } from '../config/compilers.ts';
-import type { FunctionConfig, ModuleConfig, RomliftConfig } from '../config/schema.ts';
+import type { EntryPointConfig, FunctionConfig, ModuleConfig, RomliftConfig } from '../config/schema.ts';
 import type { Proposal } from '../proposals/types.ts';
 import { coveredEntries } from '../layout/borders.ts';
 import { inferModules } from '../layout/infer-modules.ts';
@@ -47,9 +47,9 @@ export function configFromDiscover(rom: Rom, analysis: AnalysisResult, options: 
     ];
   });
   const nested = coveredEntries(analysis.functions);
-  const functions = new Map<Addr, FunctionConfig>(
-    analysis.functions.map((f) => [f.entry, { name: defaultFunctionName(f.entry), mode: f.mode, aliases: [], ...(nested.has(f.entry) ? { label: true } : {}) }] as const),
-  );
+  const listed = (f: AnalysisResult['functions'][number]): readonly [Addr, FunctionConfig] => [f.entry, { name: defaultFunctionName(f.entry), mode: f.mode, aliases: [] }];
+  const functions = new Map<Addr, FunctionConfig>(analysis.functions.filter((f) => !nested.has(f.entry)).map(listed));
+  const entryPoints = new Map<Addr, EntryPointConfig>(analysis.functions.filter((f) => nested.has(f.entry)).map(listed));
   return {
     schema: 1,
     rom: { path: BASEROM_FILE, sha1: rom.sha1 },
@@ -57,6 +57,7 @@ export function configFromDiscover(rom: Rom, analysis: AnalysisResult, options: 
     signatures: { enabled: false },
     modules,
     functions,
+    entryPoints,
     symbols: new Map(),
     overrides: [],
   };

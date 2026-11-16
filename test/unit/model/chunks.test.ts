@@ -40,7 +40,7 @@ function config(modules: readonly (readonly [string, number])[] = DEFAULT_MODULE
       [BASE, { name: 'Start', mode: 'arm' }],
       [HEADER_END, { name: 'Init', mode: 'arm' }],
       [BASE + 0x100, 'Main'],
-      [BASE + 0x110, { name: 'MainInner', label: true }],
+      [BASE + 0x110, { name: 'MainInner', entryPoint: true }],
       [BASE + 0x124, 'Next'],
     ],
     symbols: [
@@ -83,7 +83,7 @@ test('a chunk never crosses a module border: a function cut by a moved border le
   const a = analysis();
   const c = config([['rom_header', BASE], ['crt0', HEADER_END], ['main', BASE + 0xdc], ['moved', BASE + 0x108], ['data', BASE + 0x130]]);
   const { modules } = planModules(ROM, c, { borders: [], dataStart: ROM.end, end: ROM.end });
-  const functions = new Map([...c.functions].filter(([, f]) => f.label !== true));
+  const functions = new Map(c.functions);
   const entries = placeEntries([...functions.keys()].map((entry) => ({ entry, label: false })), a);
   const chunks = planChunks({ rom: ROM, modules, entries, functions, headerEnd: HEADER_END, startupEnd: BASE + 0xdc, symbols: [] });
   assert.deepEqual(
@@ -286,7 +286,7 @@ test('never folded: a pad inside the startup region', () => {
 });
 
 test('never folded: a pad holding a listed label entry or a [symbols] entry, each of which needs a label there', () => {
-  const labelled = padModel({ functions: [[BASE + 0x100, 'A'], [BASE + 0x10a, { name: 'Mid', label: true }], [BASE + 0x10c, 'B']] });
+  const labelled = padModel({ functions: [[BASE + 0x100, 'A'], [BASE + 0x10a, { name: 'Mid', entryPoint: true }], [BASE + 0x10c, 'B']] });
   assert.deepEqual(around(labelled).map((c) => c[1]), ['A', 'unk_0800010A', 'B']);
   assert.deepEqual(labelled.chunks.find((c) => c.name === 'unk_0800010A')?.innerLabels.map((l) => l.name), ['Mid'], 'the label entry stays in the orphan');
   const symbol = padModel({ symbols: [[BASE + 0x10a, { name: 'gPad', aliases: [] }]] });

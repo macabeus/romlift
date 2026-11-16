@@ -26,8 +26,8 @@ const EXAMPLE: RomliftConfig = {
     [0x0800_0470, { name: 'AgbMain', mode: 'thumb', aliases: [] }],
     [0x0800_00fc, { name: 'IntrMain', mode: 'arm', aliases: [] }],
     [0x0804_f318, { name: 'SoundMainRAM', mode: 'thumb', size: 0x3a4, aliases: [], from: 'sig:m4a@2001' }],
-    [0x0804_f73e, { name: '_0804F73E', mode: 'thumb', label: true, aliases: [] }],
   ]),
+  entryPoints: new Map([[0x0804_f73e, { name: '_0804F73E', mode: 'thumb', aliases: [] }]]),
   symbols: new Map([
     [0x0300_5220, { name: 'gUnk_03005220', aliases: [] }],
     [0x0300_2920, { name: 'gEntityInfo', aliases: ['gUnk_03002920'] }],

@@ -2,7 +2,7 @@
 // D93), on the library-game fixture with in-memory signature files: libfix's committed golden file (built from the
 // self-authored library fixtures) names every placed function with `from = "sig:libfix@1.0"`, its table becomes a
 // [symbols] entry with size and type, its region an `asm` module carrying library and version, and [signatures] lists
-// the library; a member that restores an extent the analysis split gets `size` and the entry it holds `label = true`;
+// the library; a member that restores an extent the analysis split gets `size` and the entry it holds an [entry_points] entry;
 // a member that contradicts the analysis is W_EVIDENCE_CONFLICT and changes nothing; no file leaves every default name;
 // `signatures: false` (`--no-signatures`) writes `enabled = false` and ignores the files.
 import assert from 'node:assert/strict';
@@ -63,12 +63,13 @@ test("libfix's file: every placement named with its from, the table a symbol, th
   assert.deepEqual(made.diagnostics.map((d) => d.code), ['W_SIGNATURE_CONSTANT'], "FixScale's game constant, reported by the matcher");
 });
 
-test('a member restoring an extent the analysis split: its size, and label = true for the entry it holds', () => {
+test('a member restoring an extent the analysis split: its size, and an [entry_points] entry for the one it holds', () => {
   // GameShift [0x154, 0x15A), its pad and GameReturnZero [0x15C, 0x160) as one member: one function of 12 bytes.
   const pair = signatureFile('gamelib', { id: '1', members: [{ name: 'GamePair', bytes: bytesAt(0x0800_0154, 0x0800_0160) }] });
   const { config } = configOf([pair]);
   assert.deepEqual(config.functions.get(0x0800_0154), { name: 'GamePair', mode: 'thumb', size: 0xc, aliases: [], from: 'sig:gamelib@1' });
-  assert.deepEqual(config.functions.get(0x0800_015c), { name: 'sub_0800015C', mode: 'thumb', aliases: [], label: true });
+  assert.equal(config.functions.has(0x0800_015c), false);
+  assert.deepEqual(config.entryPoints.get(0x0800_015c), { name: 'sub_0800015C', mode: 'thumb', aliases: [] });
   assert.deepEqual(
     config.modules.filter((m) => m.library !== undefined).map((m) => [m.name, m.start]),
     [['gamelib', 0x0800_0154]],

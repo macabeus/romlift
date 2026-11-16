@@ -22,9 +22,10 @@ import type { Rom } from '../../foundation/rom/rom.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
 import { dataName } from '../../foundation/util/project-files.ts';
-import { compareCodeUnits, compareNumbers } from '../../foundation/util/sorted.ts';
+import { compareCodeUnits, compareNumbers, sortedEntries } from '../../foundation/util/sorted.ts';
 import { planPatch } from '../config/patch.ts';
 import { entriesNamed, planRenamePatch } from '../config/rename-patch.ts';
+import { listedEntries } from '../config/schema.ts';
 import type { RomliftConfig } from '../config/schema.ts';
 import type { FileEntry } from '../emit/tree.ts';
 import { linkerDefinedNames } from '../model/modules.ts';
@@ -86,10 +87,10 @@ export function isRenameTarget(name: string): boolean {
   return C_IDENTIFIER.test(name) && !C_KEYWORDS.has(name) && isSymbolName(name);
 }
 
-/** Every name of the config a new name may not take: functions', symbols' and their aliases, and modules'. */
+/** Every name of the config a new name may not take: functions', entry points', symbols' and their aliases, and modules'. */
 function projectNames(config: RomliftConfig): ReadonlySet<string> {
   const names = new Set<string>(config.modules.map((m) => m.name));
-  for (const entry of [...config.functions.values(), ...config.symbols.values()]) {
+  for (const entry of [...sortedEntries(listedEntries(config)).map(([, f]) => f), ...sortedEntries(config.symbols).map(([, s]) => s)]) {
     names.add(entry.name);
     for (const alias of entry.aliases) names.add(alias);
   }

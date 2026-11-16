@@ -59,7 +59,6 @@ interface ModuleConfig {
 interface FunctionConfig {
   readonly name: string;
   readonly mode: Mode;
-  readonly label?: boolean;
   readonly aliases: readonly string[];
 }
 
@@ -231,7 +230,7 @@ function legalEdit(kind: LegalKind, facts: Facts, random: () => number): { reado
       const candidates = facts.analysis.functions.flatMap((f) => {
         const listed = config.functions.get(f.entry);
         const pool = f.pools.filter((p) => p >= f.codeEnd && p < f.extent.end).sort((a, b) => a - b)[0];
-        if (listed === undefined || listed.label === true || pool === undefined) return [];
+        if (listed === undefined || pool === undefined) return [];
         if (config.overrides.some((o) => o.start < f.extent.end && pool < o.start + o.size)) return [];
         return [{ entry: f.entry, start: pool, end: f.extent.end }];
       });

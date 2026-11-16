@@ -1,5 +1,5 @@
 // A jump-table entry without the Thumb bit whose target a Thumb function names (phase-6 fix round 6,
-// architecture-o1-1). On table-jump-hoisted, `0x0800013C = { name = "CaseA", label = true }` makes a case target of
+// architecture-o1-1). On table-jump-hoisted, `0x0800013C = "CaseA"` under [entry_points] makes a case target of
 // sub_08000108's table a Thumb function label. R_ARM_ABS32 is (S + A) | T, so no addend makes `CaseA` link to the even
 // entry 0x0800013C: the old printer wrote `.4byte CaseA - 1`, which ld links to 0x0800013B (generate exited 0 and the
 // link failed the SHA-1 at 0x08000124 before fix round 5; E_SELF_CHECK_TEXT after it). The entry now names the local
@@ -27,7 +27,7 @@ if (FIXTURE === undefined) throw new Error('the table-jump-hoisted fixture is no
 const rom = readFixtureRom(FIXTURE);
 const CASE_A = 0x0800_013c;
 const base = configFromDiscover(rom, discover(rom));
-const config = { ...base, functions: new Map([...base.functions, [CASE_A, { name: 'CaseA', mode: 'thumb' as const, label: true, aliases: [] }]]) };
+const config = { ...base, entryPoints: new Map([...base.entryPoints, [CASE_A, { name: 'CaseA', mode: 'thumb' as const, aliases: [] }]]) };
 const { model } = confirmModel({ rom, config });
 const tools = findBinutils(process.env);
 const roots: string[] = [];

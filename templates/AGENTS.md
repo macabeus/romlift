@@ -73,6 +73,23 @@ branch of a block with an `#else` defines it (`#ifdef NONMATCHING` C `#else` a `
 decompiled function, change both its C name and `romlift.toml`; renamed in C alone, `romlift generate` refuses
 (`E_C_STALE_DEFINITION`) rather than add its `INCLUDE_ASM` line again.
 
+**Entry points.** `[functions]` lists the functions: each gets its own file and is decompiled on its own.
+`[entry_points]` lists the other names code reaches inside a function's code, as hand-written code and libraries
+have them: a second entry that falls into the code around it, a shared tail, an ARM part inside a Thumb function
+(m4a's `SoundMainRAM`), or the startup code the cartridge entry branches to (`init` puts it there):
+
+```toml
+[entry_points]
+0x080000C0 = { name = "Init", mode = "arm" }
+```
+
+An entry point is a global label inside the file of the nearest function below it, with no file of its own, and the
+analysis does not cut that function there. `romlift generate` refuses one that lies inside no function
+(`E_ENTRY_POINT_OUTSIDE`). A function whose code holds an entry point cannot become one C function as it stands: C has
+no second entry into a function. To split such code the way its source did, move the line from `[entry_points]` to
+`[functions]` (an address is in one table only) and run `npx romlift generate`; to fold a function into the one
+before it, move its line the other way. `npx romlift rename` renames entry points like functions.
+
 **`npx romlift rename <old> <new>`** makes both edits at once: it renames the entry of `romlift.toml` named (or aliased)
 `<old>` on its one line, drops its `from` key (the name is yours from then on), and renames every identifier `<old>` of
 `src/` and `include/` (never a comment, a string or a character literal; the `INCLUDE_ASM` line included). It never runs

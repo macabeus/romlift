@@ -162,12 +162,27 @@ test('`from` records a persisted source; the analysis leaves it as it was; alias
   assert.match(patched(text, [analysis]), /^0x08000010 = \{ name = "A", size = 0x30, aliases = \["B"\], from = "sig:gate@0" \}$/m);
 });
 
-test('a proposal never removes `label = true`: the startup code inside the cartridge entry keeps it (D64 a)', () => {
-  const text = `${BASE}\n[functions]\n0x08000000 = { name = "sub_08000000", mode = "arm" }\n0x080000C0 = { name = "sub_080000C0", mode = "arm", label = true }\n`;
+test('a proposal never moves an entry point back to [functions]: the startup code inside the cartridge entry stays one (D64 a, D116)', () => {
+  const text = `${BASE}\n[functions]\n0x08000000 = { name = "sub_08000000", mode = "arm" }\n\n[entry_points]\n0x080000C0 = { name = "sub_080000C0", mode = "arm" }\n`;
   const output = patched(text, [rename(0x0800_00c0, 'start', 'arm')]);
-  assert.deepEqual(changedLines(text, output), ['0x080000C0 = { name = "start", mode = "arm", label = true, from = "sig:gate@0" }']);
-  const cleared: Proposal = { kind: 'function', addr: 0x0800_00c0, mode: 'arm', label: false, name: 'start', source: SIGNATURE };
-  assert.equal(parsed(patched(text, [cleared])).functions.get(0x0800_00c0)?.label, true);
+  assert.deepEqual(changedLines(text, output), ['0x080000C0 = { name = "start", mode = "arm", from = "sig:gate@0" }']);
+  const cleared: Proposal = { kind: 'function', addr: 0x0800_00c0, mode: 'arm', entryPoint: false, name: 'start', source: SIGNATURE };
+  const after = parsed(patched(text, [cleared]));
+  assert.equal(after.entryPoints.get(0x0800_00c0)?.name, 'start');
+  assert.equal(after.functions.has(0x0800_00c0), false);
+});
+
+test('an entry-point proposal moves a [functions] line to [entry_points], adding the table before [symbols] when it is missing (D116)', () => {
+  const text = `${BASE}\n[functions]\n0x08000000 = { name = "sub_08000000", mode = "arm" }  # keep\n0x08000100 = "Inner"\n0x08000200 = "After"\n\n# the RAM\n[symbols]\n`;
+  const p: Proposal = { kind: 'function', addr: 0x0800_0100, mode: 'thumb', entryPoint: true, source: { kind: 'analysis', rule: 'seed.call' } };
+  const output = patched(text, [p]);
+  assert.equal(
+    output,
+    `${BASE}\n[functions]\n0x08000000 = { name = "sub_08000000", mode = "arm" }  # keep\n0x08000200 = "After"\n\n[entry_points]\n0x08000100 = "Inner"\n\n# the RAM\n[symbols]\n`,
+  );
+  const config = parsed(output);
+  assert.deepEqual([...config.functions.keys()], [0x0800_0000, 0x0800_0200]);
+  assert.deepEqual([...config.entryPoints.keys()], [0x0800_0100]);
 });
 
 test('symbols are patched like functions', () => {

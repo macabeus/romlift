@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "1273626937e47d813d770ffd72012cf037764ca1",
+    "commit": "2f8bfbff100adcd34387db7db6668cd2f79776c6",
     "dirty": false,
-    "sourceDigest": "0b7c018180e2876092840589660d7543ac8b922b249a6ced3170dfe13d0c6bff",
+    "sourceDigest": "dabd81d0f4640780bf3371602461c7aec1e1ef4edfcbb4e2054883d4cc52918c",
     "nodeMajor": 24,
     "romliftVersion": "0.0.0",
     "inputs": {
@@ -120,7 +120,7 @@
   },
   "printer": {
     "schema": "romlift/corpus-summary@1",
-    "inputsDigest": "9b162687e46ba073cba7406d443faa807515576615dd488b2e8bac251e036deb",
+    "inputsDigest": "7f3e351d74946df3dc6c4101714de9aa0c686cabb57f9423c65df7f0faa0fc46",
     "as": "GNU assembler (Arm GNU Toolchain 15.3.Rel1 (Build arm-15.149)) 2.45.1.20260126",
     "options": {
       "seed": 539365399,
@@ -1904,14 +1904,14 @@
       {
         "command": "init",
         "exitCode": 0,
-        "maxRssMiB": 1073.13,
+        "maxRssMiB": 1008.03,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "c125ed46dfd51493704a765b5b68c7b7b4d9c4b4dead5e3d383e31e53ae94cd8"
       },
       {
         "command": "generate",
         "exitCode": 0,
-        "maxRssMiB": 1111.34,
+        "maxRssMiB": 1033.61,
         "maxOldSpaceSizeMiB": 1024,
         "treeDigest": "c125ed46dfd51493704a765b5b68c7b7b4d9c4b4dead5e3d383e31e53ae94cd8"
       }
@@ -2025,7 +2025,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "median of 9 runs; calibration ratio 0.970; CPU/limit: fe7j 1211/12815 ms, klonoa 306/309 ms, pokeemerald 2849/4260 ms, sa2 738/791 ms, sa3 1096/1507 ms, tmc 1689/1801 ms"
+        "detail": "median of 9 runs; calibration ratio 0.963; CPU/limit: fe7j 1148/12729 ms, klonoa 247/307 ms, pokeemerald 2302/4231 ms, sa2 681/785 ms, sa3 1106/1497 ms, tmc 1427/1789 ms"
       },
       {
         "id": "g3.link",
@@ -2068,7 +2068,7 @@
         "inputs": {
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a"
         },
-        "detail": "calibration ratio 1.066; fe7j analysis 1418/3199 ms, klonoa analysis 283/3199 ms, pokeemerald analysis 2834/3199 ms, pokeemerald generate 10136/10662 ms, pokeemerald init 12263/15993 ms, sa2 analysis 695/3199 ms, sa3 analysis 1317/3199 ms, tmc analysis 1583/3199 ms"
+        "detail": "calibration ratio 0.947; fe7j analysis 1184/2842 ms, klonoa analysis 236/2842 ms, pokeemerald analysis 2302/2842 ms, pokeemerald generate 8232/9474 ms, pokeemerald init 10301/14212 ms, sa2 analysis 681/2842 ms, sa3 analysis 1164/2842 ms, tmc analysis 1653/2842 ms"
       },
       {
         "id": "g3.text-layout",
@@ -2110,7 +2110,7 @@
           "roms": "7d376e83adeab8729d560a3049422d0f991411db887c480b12d6e949000c390a",
           "toolchain": "a9a391d29cd98ee582fea0120159be1cf8cda7a9efe200b69bdb243d462bc9cf"
         },
-        "detail": "adr-function-label: no place for move-start; adr-function-label: no place for split-module; adr-function-label: no place for split-asm-module; adr-handler-block: no place for split-asm-module; adr-label-and-data: no place for split-module; arm-pools-in-front: no place for move-start; arm-pools-in-front: no place for split-module; arm-pools-in-front: no place for split-asm-module; bx-lr-stub-chain: no place for split-asm-module; bx-pc-veneer: no place for split-module; c-data: no place for split-asm-module; code-copied-to-ram: no place for split-asm-module; code-end-data-decodes: no place for split-asm-module; code-end-unsized-last: no place for split-asm-module; computed-jump-callback: no place for split-asm-module; data-frame-not-function: no place for split-asm-module; data-named-between-data: no place for split-asm-module; data-table-between-functions: no place for split-asm-module; data-thumb-push-pop: no place for split-asm-module; dead-code-in-extent: no place for move-start; dead-code-in-extent: no place for delete-function; dead-code-in-extent: no place for split-module; dead-code-in-extent: no place for split-asm-module; entry-stub-table: no place for move-start; entry-stub-table: no place for split-module; entry-stub-table: no place for split-asm-module; false-stub-2byte: no place for split-asm-module; far-jump: no place for split-asm-module; handwritten-2mod4: no place for move-start; handwritten-2mod4: no place for split-module; handwritten-2mod4: no place for split-asm-module; inline-arm-switch: no place for move-start; inline-arm-switch: no place for split-module; inline-arm-switch: no place for split-asm-module; large-data-referenced: no place for split-asm-module; leaf-handler-pointer-table: no place for split-asm-module; library: no place for split-asm-module; library-game: no place for split-asm-module; library-ref2: no place for split-asm-module; local-subroutine: no place for move-start; local-subroutine: no place for split-module; local-subroutine: no place for split-asm-module; mixer-tiled-hole: no place for split-asm-module; mov-lr-pc-bx: no place for move-start; mov-lr-pc-bx: no place for split-module; mov-lr-pc-bx: no place for split-asm-module; multi-compiler: no place for split-asm-module; noreturn-call-then-next: no place for split-asm-module; pointer-table-before-leaf: no place for split-asm-module; pointer-word-in-gap: no place for split-asm-module; pool-padded-46c0: no place for move-start; pool-padded-46c0: no place for delete-function; pool-padded-46c0: no place for split-module; pool-padded-46c0: no place for split-asm-module; pool-word-push-lr: no place for split-asm-module; pops-unpushed-frame: no place for split-asm-module; prologueless-thumb-over-arm: no place for move-start; prologueless-thumb-over-arm: no place for delete-function; prologueless-thumb-over-arm: no place for split-module; prologueless-thumb-over-arm: no place for split-asm-module; push-lr-2mod4: no place for move-start; push-lr-2mod4: no place for split-module; push-lr-2mod4: no place for split-asm-module; ram-copy-args-straight-line: no place for split-asm-module; recursive-far-call: no place for split-asm-module; shared-tail: no place for move-start; shared-tail: no place for split-module; shared-tail: no place for split-asm-module; swi-reset: no place for split-asm-module; table-jump-hoisted: no place for split-asm-module; thumb-pointer-run: no place for split-asm-module; unreferenced-leaf: no place for split-asm-module; veneer-array: no place for split-asm-module; 287 legal edits link to the SHA-1 and build with make to it (move-start 48, rename 60, delete-function 57, add-override 60 (each a data override that changes the model, no W_OVERRIDE_IGNORED, D98 d, D104 a), split-module 46, split-asm-module 16), and 239 illegal edits give their codes, on 60 ROMs"
+        "detail": "adr-function-label: no place for move-start; adr-function-label: no place for split-module; adr-function-label: no place for split-asm-module; adr-handler-block: no place for split-asm-module; adr-label-and-data: no place for split-module; arm-pools-in-front: no place for move-start; arm-pools-in-front: no place for split-module; arm-pools-in-front: no place for split-asm-module; bx-lr-stub-chain: no place for split-asm-module; bx-pc-veneer: no place for split-module; c-data: no place for split-asm-module; code-copied-to-ram: no place for split-asm-module; code-end-data-decodes: no place for split-asm-module; code-end-unsized-last: no place for split-asm-module; computed-jump-callback: no place for split-asm-module; data-frame-not-function: no place for split-asm-module; data-named-between-data: no place for split-asm-module; data-table-between-functions: no place for split-asm-module; data-thumb-push-pop: no place for split-asm-module; dead-code-in-extent: no place for move-start; dead-code-in-extent: no place for delete-function; dead-code-in-extent: no place for split-module; dead-code-in-extent: no place for split-asm-module; entry-stub-table: no place for move-start; entry-stub-table: no place for split-module; entry-stub-table: no place for split-asm-module; false-stub-2byte: no place for split-asm-module; far-jump: no place for split-asm-module; handwritten-2mod4: no place for move-start; handwritten-2mod4: no place for split-module; handwritten-2mod4: no place for split-asm-module; inline-arm-switch: no place for move-start; inline-arm-switch: no place for delete-function; inline-arm-switch: no place for split-module; inline-arm-switch: no place for split-asm-module; large-data-referenced: no place for split-asm-module; leaf-handler-pointer-table: no place for split-asm-module; library: no place for split-asm-module; library-game: no place for split-asm-module; library-ref2: no place for split-asm-module; local-subroutine: no place for move-start; local-subroutine: no place for delete-function; local-subroutine: no place for split-module; local-subroutine: no place for split-asm-module; mixer-tiled-hole: no place for split-asm-module; mov-lr-pc-bx: no place for move-start; mov-lr-pc-bx: no place for split-module; mov-lr-pc-bx: no place for split-asm-module; multi-compiler: no place for split-asm-module; noreturn-call-then-next: no place for split-asm-module; pointer-table-before-leaf: no place for split-asm-module; pointer-word-in-gap: no place for split-asm-module; pool-padded-46c0: no place for move-start; pool-padded-46c0: no place for delete-function; pool-padded-46c0: no place for split-module; pool-padded-46c0: no place for split-asm-module; pool-word-push-lr: no place for split-asm-module; pops-unpushed-frame: no place for split-asm-module; prologueless-thumb-over-arm: no place for move-start; prologueless-thumb-over-arm: no place for delete-function; prologueless-thumb-over-arm: no place for split-module; prologueless-thumb-over-arm: no place for split-asm-module; push-lr-2mod4: no place for move-start; push-lr-2mod4: no place for split-module; push-lr-2mod4: no place for split-asm-module; ram-copy-args-straight-line: no place for split-asm-module; recursive-far-call: no place for split-asm-module; shared-tail: no place for move-start; shared-tail: no place for split-module; shared-tail: no place for split-asm-module; swi-reset: no place for split-asm-module; table-jump-hoisted: no place for split-asm-module; thumb-pointer-run: no place for split-asm-module; unreferenced-leaf: no place for split-asm-module; veneer-array: no place for split-asm-module; 285 legal edits link to the SHA-1 and build with make to it (move-start 48, rename 60, delete-function 55, add-override 60 (each a data override that changes the model, no W_OVERRIDE_IGNORED, D98 d, D104 a), split-module 46, split-asm-module 16), and 239 illegal edits give their codes, on 60 ROMs"
       },
       {
         "id": "g4.worktree",

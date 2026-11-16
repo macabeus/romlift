@@ -11,7 +11,7 @@ import { parse, TomlError } from 'smol-toml';
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
-import { compareNumbers } from '../../foundation/util/sorted.ts';
+import { compareNumbers, sortedKeys } from '../../foundation/util/sorted.ts';
 import { ConfigCodes } from './codes.ts';
 import type { ConfigCode } from './codes.ts';
 import { addressKey, addressKeyUses, checkAddressKeys, duplicateDefinitions, isAddressKey, misalignedFunctionKeys, outlineToml } from './keys.ts';
@@ -28,18 +28,19 @@ type Table = Readonly<Record<string, unknown>>;
 
 /** TOML key -> in-memory key, per kind of table; a key not listed is E_TOML_SCHEMA. */
 const KEYS = {
-  root: { schema: 'schema', rom: 'rom', build: 'build', signatures: 'signatures', modules: 'modules', functions: 'functions', symbols: 'symbols', overrides: 'overrides' },
+  root: { schema: 'schema', rom: 'rom', build: 'build', signatures: 'signatures', modules: 'modules', functions: 'functions', entry_points: 'entryPoints', symbols: 'symbols', overrides: 'overrides' },
   rom: { path: 'path', sha1: 'sha1' },
   build: { name: 'name', compiler: 'compiler' },
   signatures: { enabled: 'enabled', libraries: 'libraries' },
   module: { name: 'name', start: 'start', kind: 'kind', data_start: 'dataStart', generated: 'generated', source: 'source', library: 'library', version: 'version', compiler: 'compiler', cflags: 'cflags' },
-  function: { name: 'name', mode: 'mode', size: 'size', label: 'label', aliases: 'aliases', from: 'from' },
+  function: { name: 'name', mode: 'mode', size: 'size', aliases: 'aliases', from: 'from' },
+  entryPoint: { name: 'name', mode: 'mode', size: 'size', aliases: 'aliases', from: 'from' },
   symbol: { name: 'name', size: 'size', type: 'type', aliases: 'aliases', from: 'from' },
   override: { start: 'start', size: 'size', kind: 'kind', mode: 'mode', runs_at: 'runsAt', from: 'from' },
 } as const satisfies Readonly<Record<string, Readonly<Record<string, string>>>>;
 
 /** In-memory key -> TOML key, for messages (`runsAt` is written `runs_at`, `dataStart` `data_start`). */
-const TOML_SPELLING: Readonly<Record<string, string>> = { runsAt: 'runs_at', dataStart: 'data_start' };
+const TOML_SPELLING: Readonly<Record<string, string>> = { runsAt: 'runs_at', dataStart: 'data_start', entryPoints: 'entry_points' };
 
 function isTable(value: unknown): value is Table {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
@@ -111,10 +112,10 @@ function entryOf(value: unknown, keys: Readonly<Record<string, string>>, default
   return undefined;
 }
 
-/** [functions] or [symbols]: a Map in address order (the keys were checked by keys.ts). */
+/** [functions], [entry_points] or [symbols]: a Map in address order (the keys were checked by keys.ts). */
 function addressMap(
   root: Table,
-  name: 'functions' | 'symbols',
+  name: 'functions' | 'entry_points' | 'symbols',
   keys: Readonly<Record<string, string>>,
   defaults: Readonly<Record<string, unknown>>,
   out: Collector,
@@ -160,6 +161,7 @@ function candidateOf(root: Table, out: Collector): unknown {
     signatures: signatures === undefined ? undefined : pick(signatures, KEYS.signatures, ['signatures'], out),
     modules: tableArray(root, 'modules', KEYS.module, { generated: true }, out),
     functions: addressMap(root, 'functions', KEYS.function, { mode: 'thumb', aliases: [] }, out),
+    entryPoints: addressMap(root, 'entry_points', KEYS.entryPoint, { mode: 'thumb', aliases: [] }, out),
     symbols: addressMap(root, 'symbols', KEYS.symbol, { aliases: [] }, out),
     overrides: tableArray(root, 'overrides', KEYS.override, {}, out),
   };
@@ -175,7 +177,7 @@ function issueSegments(path: string): Segment[] {
     else if (m[2] !== undefined) {
       const n = Number.parseInt(m[2], 10);
       const parent = segments[segments.length - 1];
-      segments.push((parent === 'functions' || parent === 'symbols') && segments.length === 1 && n >= 0 ? addressKey(n) : n);
+      segments.push((parent === 'functions' || parent === 'entry_points' || parent === 'symbols') && segments.length === 1 && n >= 0 ? addressKey(n) : n);
     }
   }
   return segments;
@@ -185,6 +187,26 @@ function issueSegments(path: string): Segment[] {
 function tomlReason(error: TomlError): string {
   const first = error.message.split('\n')[0] ?? error.message;
   return first.replace(/^Invalid TOML document:\s*/, '');
+}
+
+/** E_DUPLICATE_ADDRESS for an address both [functions] and [entry_points] list: an entry is one or the other (D116). */
+function bothTables(config: RomliftConfig, outline: TomlOutline): Diagnostic<ConfigCode>[] {
+  const lines = new Map<Addr, number>();
+  for (const use of addressKeyUses(outline)) if (use.table === 'entry_points' && use.addr !== undefined && !lines.has(use.addr)) lines.set(use.addr, use.line);
+  const out: Diagnostic<ConfigCode>[] = [];
+  for (const addr of sortedKeys(config.entryPoints)) {
+    if (!config.functions.has(addr)) continue;
+    const line = lines.get(addr);
+    out.push(
+      diagnostic(
+        ConfigCodes,
+        'E_DUPLICATE_ADDRESS',
+        `${line === undefined ? '' : `line ${line}: `}${addressKey(addr)} is in both [functions] and [entry_points]; an entry is a function (a file of its own) or an entry point inside one, so keep one line`,
+        { addr },
+      ),
+    );
+  }
+  return out;
 }
 
 /** Parses romlift.toml text into the in-memory config, or every diagnostic that stops it. */
@@ -209,7 +231,7 @@ export function parseConfig(text: string): ConfigParseResult {
   const validated = validateConfig(candidateOf(root, out));
   if (!validated.ok) for (const issue of validated.issues) schemaIssue(out, issueSegments(issue.path), issue.message, issue.code);
   if (!validated.ok || out.diagnostics.length > 0) return { ok: false, diagnostics: out.diagnostics };
-  const misaligned = misalignedFunctionKeys(validated.config, outline);
+  const misaligned = [...misalignedFunctionKeys(validated.config, outline), ...bothTables(validated.config, outline)];
   if (misaligned.length > 0) return { ok: false, diagnostics: misaligned };
   return { ok: true, value: validated.config, diagnostics: [] };
 }

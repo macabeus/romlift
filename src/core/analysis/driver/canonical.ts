@@ -7,7 +7,7 @@
 // round 0, so it could read the same code differently (D61 e). The pass removes that history:
 //
 // - Labels and boundaries. An inner label is an entry strictly inside another function's extent (in confirm mode,
-//   the listed `label = true` entries, which init writes from exactly that); every other entry is a boundary. In
+//   the listed [entry_points] entries, which init writes from exactly that); every other entry is a boundary. In
 //   discover mode the labels grow to a fixpoint: an entry a re-read extent now covers becomes a label too.
 // - The canonical walk (view.isBoundary, view.boundaryBetween). A boundary function's walk stops when it falls into a
 //   boundary entry and passes through inner labels; a forward branch is a tail exit when its target lies past another

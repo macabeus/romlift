@@ -59,7 +59,9 @@ kind = "data"
 0x080000FC = { name = "IntrMain", mode = "arm" }
 0x08000470 = "AgbMain"
 0x0804F318 = { name = "SoundMainRAM", size = 0x3A4, from = "sig:m4a@2001" }
-0x0804F73E = { name = "_0804F73E", label = true }
+
+[entry_points]
+0x0804F73E = "_0804F73E"
 
 [symbols]
 0x03002920 = { name = "gEntityInfo", aliases = ["gUnk_03002920"] }

@@ -5,8 +5,9 @@
 //   config's order; one blank line between blocks, a final newline, no comment.
 //
 // A [functions] entry is `0x08000470 = "Name"` when it is a Thumb entry with nothing else, else an inline table
-// with the keys in the fixed order name, mode (only `arm`), size, label (only `true`), aliases (only when there
-// are some), from; a [symbols] entry likewise (name, size, type, aliases, from). A module writes name, start, kind,
+// with the keys in the fixed order name, mode (only `arm`), size, aliases (only when there are some), from; an
+// [entry_points] entry likewise (name, mode, size, aliases, from: D116), and a [symbols] entry (name, size, type, aliases,
+// from). [entry_points] is written between [functions] and [symbols], its header even when it is empty. A module writes name, start, kind,
 // then `data_start` only when set (phase 6, D92), `generated = false` only when false, and compiler, cflags, library
 // and version only when set. Address keys and address values
 // are `0x` and eight upper-case hex digits; sizes are upper-case hex without padding. parse.ts reads exactly this
@@ -15,7 +16,7 @@ import type { Addr } from '../../foundation/rom/span.ts';
 import { hex, hexAddr, hexSize } from '../../foundation/util/hex.ts';
 import { sortedEntries } from '../../foundation/util/sorted.ts';
 import { addressKey } from './keys.ts';
-import type { FunctionConfig, ModuleConfig, OverrideConfig, RomliftConfig, SymbolConfig } from './schema.ts';
+import type { EntryPointConfig, FunctionConfig, ModuleConfig, OverrideConfig, RomliftConfig, SymbolConfig } from './schema.ts';
 
 /** A TOML basic string: `"`, `\` and control characters escaped, everything else as it is. */
 export function tomlString(text: string): string {
@@ -56,7 +57,6 @@ export function functionValue(fn: FunctionConfig): string {
   const pairs: (readonly [string, string])[] = [['name', tomlString(fn.name)]];
   if (fn.mode === 'arm') pairs.push(['mode', tomlString(fn.mode)]);
   if (fn.size !== undefined) pairs.push(['size', tomlSize(fn.size)]);
-  if (fn.label === true) pairs.push(['label', 'true']);
   if (fn.aliases.length > 0) pairs.push(['aliases', stringArray(fn.aliases)]);
   if (fn.from !== undefined) pairs.push(['from', tomlString(fn.from)]);
   return pairs.length === 1 ? tomlString(fn.name) : inlineTable(pairs);
@@ -70,6 +70,21 @@ export function symbolValue(symbol: SymbolConfig): string {
   if (symbol.aliases.length > 0) pairs.push(['aliases', stringArray(symbol.aliases)]);
   if (symbol.from !== undefined) pairs.push(['from', tomlString(symbol.from)]);
   return pairs.length === 1 ? tomlString(symbol.name) : inlineTable(pairs);
+}
+
+/** The value of an [entry_points] entry: a bare name for a Thumb entry point with nothing else, else an inline table. */
+export function entryPointValue(e: EntryPointConfig): string {
+  const pairs: (readonly [string, string])[] = [['name', tomlString(e.name)]];
+  if (e.mode === 'arm') pairs.push(['mode', tomlString(e.mode)]);
+  if (e.size !== undefined) pairs.push(['size', tomlSize(e.size)]);
+  if (e.aliases.length > 0) pairs.push(['aliases', stringArray(e.aliases)]);
+  if (e.from !== undefined) pairs.push(['from', tomlString(e.from)]);
+  return pairs.length === 1 ? tomlString(e.name) : inlineTable(pairs);
+}
+
+/** One [entry_points] line. */
+export function entryPointLine(addr: Addr, e: EntryPointConfig): string {
+  return `${addressKey(addr)} = ${entryPointValue(e)}`;
 }
 
 /** One [functions] line. */
@@ -117,6 +132,7 @@ export function serializeConfig(config: RomliftConfig): string {
     ],
     ...config.modules.map(moduleLines),
     ['[functions]', ...sortedEntries(config.functions).map(([addr, fn]) => functionLine(addr, fn))],
+    ['[entry_points]', ...sortedEntries(config.entryPoints).map(([addr, e]) => entryPointLine(addr, e))],
     ['[symbols]', ...sortedEntries(config.symbols).map(([addr, symbol]) => symbolLine(addr, symbol))],
     ...config.overrides.map(overrideLines),
   ];

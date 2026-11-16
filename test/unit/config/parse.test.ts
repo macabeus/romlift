@@ -77,7 +77,9 @@ kind = "data"
 0x08000470 = "AgbMain"
 0x080000FC = { name = "IntrMain", mode = "arm" }
 0x0804F318 = { name = "SoundMainRAM", size = 0x3A4, from = "sig:m4a@2001" }
-0x0804F73E = { name = "_0804F73E", label = true }               # a second entry inside its parent
+
+[entry_points]                # names inside a function's code, with no file of their own (D116)
+0x0804F73E = "_0804F73E"      # a second entry inside its parent
 
 [symbols]                     # data and RAM
 0x03005220 = "gUnk_03005220"
@@ -110,8 +112,8 @@ const ILLUSTRATIVE_CONFIG: RomliftConfig = {
     [0x0800_00fc, { name: 'IntrMain', mode: 'arm', aliases: [] }],
     [0x0800_0470, { name: 'AgbMain', mode: 'thumb', aliases: [] }],
     [0x0804_f318, { name: 'SoundMainRAM', mode: 'thumb', size: 0x3a4, aliases: [], from: 'sig:m4a@2001' }],
-    [0x0804_f73e, { name: '_0804F73E', mode: 'thumb', label: true, aliases: [] }],
   ]),
+  entryPoints: new Map([[0x0804_f73e, { name: '_0804F73E', mode: 'thumb', aliases: [] }]]),
   symbols: new Map([
     [0x0300_2920, { name: 'gEntityInfo', aliases: ['gUnk_03002920'] }],
     [0x0300_5220, { name: 'gUnk_03005220', aliases: [] }],
@@ -150,7 +152,7 @@ test("§6.5's illustrative file parses, comments and all, to its in-memory confi
   assert.ok(parsed.ok);
   assert.deepEqual(parsed.diagnostics, []);
   assert.deepEqual(parsed.value, ILLUSTRATIVE_CONFIG);
-  assert.deepEqual([...parsed.value.functions.keys()], [0x0800_00fc, 0x0800_0470, 0x0804_f318, 0x0804_f73e], 'the maps are in address order');
+  assert.deepEqual([...parsed.value.functions.keys()], [0x0800_00fc, 0x0800_0470, 0x0804_f318], 'the maps are in address order');
 });
 
 test('every key of schema 1 reads into its in-memory member', () => {
@@ -167,7 +169,10 @@ library = "agb"
 version = "1"
 
 [functions]
-0x08000000 = { name = "F", mode = "arm", size = 0x10, label = true, aliases = ["G", "H"], from = "sig:gate@0" }
+0x08000000 = { name = "F", mode = "arm", size = 0x10, aliases = ["G", "H"], from = "sig:gate@0" }
+
+[entry_points]
+0x08000004 = { name = "E", mode = "arm", size = 0x8, aliases = ["E2"], from = "sig:gate@0" }
 
 [symbols]
 0x03000000 = { name = "gS", size = 0x4, type = "bytes", aliases = ["gT"], from = "sig:m4a@2001" }
@@ -182,7 +187,8 @@ from = "sig:m4a@2001"
 `);
   assert.deepEqual(config.signatures, { enabled: true, libraries: ['m4a', 'libgcc'] });
   assert.deepEqual(config.modules, [{ name: 'kept', start: 0x0800_0000, kind: 'c', dataStart: 0x0800_0f00, generated: false, compiler: 'old_agbcc', cflags: ['-O1', '-ftst'], library: 'agb', version: '1' }]);
-  assert.deepEqual(config.functions.get(0x0800_0000), { name: 'F', mode: 'arm', size: 0x10, label: true, aliases: ['G', 'H'], from: 'sig:gate@0' });
+  assert.deepEqual(config.functions.get(0x0800_0000), { name: 'F', mode: 'arm', size: 0x10, aliases: ['G', 'H'], from: 'sig:gate@0' });
+  assert.deepEqual(config.entryPoints.get(0x0800_0004), { name: 'E', mode: 'arm', size: 8, aliases: ['E2'], from: 'sig:gate@0' });
   assert.deepEqual(config.symbols.get(0x0300_0000), { name: 'gS', size: 4, type: 'bytes', aliases: ['gT'], from: 'sig:m4a@2001' });
   assert.deepEqual(config.overrides, [{ start: 0x0800_0100, size: 0x20, kind: 'data', mode: 'thumb', runsAt: 0x0300_0000, from: 'sig:m4a@2001' }]);
 });
@@ -245,7 +251,7 @@ test('the build name is one init accepts, and the project\'s ROM is always baser
 
 test('TOML that is not schema 1 is E_TOML_SCHEMA, every issue at once, with its line', () => {
   assert.deepEqual(messages(`${MINIMAL}\n[analysis]\ndisable = ["seed.x"]\n`), [
-    'E_TOML_SCHEMA line 14: analysis: unknown key `analysis` (schema 1 has schema, rom, build, signatures, modules, functions, symbols, overrides)',
+    'E_TOML_SCHEMA line 14: analysis: unknown key `analysis` (schema 1 has schema, rom, build, signatures, modules, functions, entry_points, symbols, overrides)',
   ]);
   assert.deepEqual(messages(`${MINIMAL}\n[[overrides]]\nstart = 0x08000000\nsize = 0x10\nkind = "code"\nrunsAt = 0x03000000\n`), [
     'E_TOML_SCHEMA line 18: overrides[0].runsAt: unknown key `runsAt` (schema 1 has start, size, kind, mode, runs_at, from)',

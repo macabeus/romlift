@@ -1,6 +1,6 @@
 // `romlift update [--write] [--json]` (architecture §2.1, §6.5): inside a project, what the analysis proposes for its
 // romlift.toml (core/workflow/update.ts): one line per proposal (text) or
-// {"type":"proposal","kind","addr","mode","label"?,"rule"} (--json), the reports (W_LISTED_INVALID), the patch as a
+// {"type":"proposal","kind","addr","mode","entryPoint"?,"rule"} (--json; entryPoint: an [entry_points] entry, D116), the reports (W_LISTED_INVALID), the patch as a
 // unified diff ({"type":"patch","path","changed","diff"} with --json), then the summary. While the config's
 // [signatures] is enabled, the built signature files are located (shell/signatures/locate.ts) and the workflow adds
 // their screened proposals (a function or symbol with its name and `from`, a library module); a proposal record then
@@ -37,7 +37,7 @@ export function proposalRecord(p: Proposal): RecordFields {
         mode: p.mode,
         name: p.name,
         size: p.size,
-        label: p.label,
+        entryPoint: p.entryPoint,
         source: p.source.kind,
         rule: 'rule' in p.source ? p.source.rule : undefined,
         from: sourceKey(p.source),
@@ -54,7 +54,7 @@ export function proposalRecord(p: Proposal): RecordFields {
 function proposalText(p: Proposal): string {
   const record = proposalRecord(p);
   const rule = typeof record['rule'] === 'string' ? ` (${record['rule']})` : '';
-  const label = record['label'] === true ? ', label' : '';
+  const label = record['entryPoint'] === true ? ', entry point' : '';
   const name = typeof record['name'] === 'string' && p.kind !== 'module' ? ` ${record['name']}` : '';
   const from = typeof record['from'] === 'string' ? `, from ${record['from']}` : '';
   const library = typeof record['library'] === 'string' ? ` ${String(record['name'])}, library ${record['library']}` : '';

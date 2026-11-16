@@ -97,7 +97,7 @@ export const initCommand: CommandSpec = {
     const failed = diagnostics.some((d) => d.severity === 'error');
     const exitCode = failed ? ExitCode.errors : ExitCode.ok;
     const ops = written.ok ? written.value.plan.ops : [];
-    const summary: RunSummary = { ok: !failed, exitCode, counts: { ...opCounts(ops), functions: plan.config.functions.size, modules: plan.config.modules.length } };
+    const summary: RunSummary = { ok: !failed, exitCode, counts: { ...opCounts(ops), entry_points: plan.config.entryPoints.size, functions: plan.config.functions.size, modules: plan.config.modules.length } };
     const lines = failed ? [] : [`initialised ${plan.config.build.name} in ${dir}: ${ROMLIFT_CONFIG_FILE}, ${DECOMP_YAML_FILE}, the scaffold and the tree; run ./setup.sh, then make\n`];
     print(io, json, diagnostics, summary, lines);
     return exitCode;

@@ -689,7 +689,7 @@ export type ChunkKind = 'header' | 'startup' | 'function' | 'orphan' | 'data';
 export interface Chunk {
   readonly span: Span; readonly kind: ChunkKind; readonly name: string; readonly mode: Mode | null;
   readonly module: string; readonly items: { readonly first: number; readonly count: number };
-  readonly innerLabels: readonly Label[];         // `label = true` entries and second entries
+  readonly innerLabels: readonly Label[];         // [entry_points] entries and second entries
   readonly runAt?: Addr;
   readonly entry?: Addr;                          // where its label and start macro go, when not span.start:
 }                                                 // a function chunk whose span opens with a folded pad (§6.2, D75 d)
@@ -930,11 +930,11 @@ which they are dropped (their verdicts stay memoised) and re-walked when asked f
 - `confirm` (used by `generate`, `rename` and `explain` inside a project) seeds exactly the
   TOML's `[functions]` as `seed.listed`, and `isFunction(a)` is true for every listed entry from round
   0. A listed entry's extent is its TOML `size` when given; otherwise its reading under that fixed
-  function set, cut at the next listed entry that is not `label = true` (`ModelFunction.source.extent`
+  function set, cut at the next `[functions]` entry, an `[entry_points]` entry never cutting it (D116; `ModelFunction.source.extent`
   says which). Only a listed entry with `from` (another source's proposal, §6.5) is validated
   (`Seed.validate`, which `listedSeedsOf` sets exactly when the entry has `from`; D68 e, the owner's answer
   "Only entries with `from`", D76 a), over its listed extent per inner label's mode: the entry by its Thumb
-  reading with the bytes its extent's ARM labels (`label = true`, `mode = "arm"`) read counted as covered, each such
+  reading with the bytes its extent's ARM entry points (`[entry_points]`, `mode = "arm"`) read counted as covered, each such
   label that is not yet a function by the valid.* rules over its own ARM reading, and a reading whose last
   instruction falls through into the next listed function, starting exactly at the extent's end, taking that
   fall-through as its exit (`core/analysis/driver/listed-extent.ts`; phase-6.md Q10, the owner's option (c), D100).
@@ -950,7 +950,7 @@ code another function claimed, is a tail exit. Discover accepts functions one at
 share went to whichever was read first, while confirm lists every entry from round 0. After the passes, in both
 modes, the pass makes every reading the one the final function set gives:
 
-- An *inner label* is an entry strictly inside another function's extent (in confirm mode the listed `label = true`
+- An *inner label* is an entry strictly inside another function's extent (in confirm mode the `[entry_points]`
   entries, which `init` writes from exactly that); every other entry is a *boundary*. In discover mode the labels
   grow to a fixpoint, an entry a re-read extent now covers becoming a label too.
 - The canonical walk (`AnalysisView.isBoundary`, `boundaryBetween`): a boundary function's walk stops when it falls
@@ -967,7 +967,7 @@ modes, the pass makes every reading the one the final function set gives:
   read. The pass emits no trail event.
 
 `g2.confirm-equals-discover` (tier real, phase 2) runs discover, builds the listed set from it (entries, modes,
-`label` for entries inside another found extent, no sizes), runs confirm, and requires the parity view (functions,
+entry points for the entries inside another found extent, no sizes), runs confirm, and requires the parity view (functions,
 extents, far verdicts, claims) to be equal on every tuning ROM, with no recorded exception
 (`test/gates/confirm-differences.ts` compares the two views in full, equal digests or not, and any differing
 function or claim run fails; each failure message gives the counts and the first four records). `g4.generate-idempotent`
@@ -1295,10 +1295,10 @@ earlier gates.
    claims, padding from region rules, the rest `data` (with its note) or `raw-insn`. Invariant: every ROM
    byte is in exactly one item.
 2. **Chunks** (`chunks.ts`, ported from the PoC's `tile()`): one chunk per listed function. In confirm
-   mode every listed entry starts a chunk, except an entry with `label = true`, which becomes an inner
-   label of the chunk that contains it (a second entry, or a label a signature folded into its parent); a
-   `label = true` entry that only the cartridge entry's extent covers still starts a chunk, because the header
-   chunk clips that extent (D64 a).
+   mode every `[functions]` entry starts a chunk, and an `[entry_points]` entry becomes an inner label of the
+   chunk that contains it (a second entry, or an entry a signature folded into its parent; D116); an entry point
+   that only the cartridge entry's extent covers still starts a chunk, because the header chunk clips that extent
+   (D64 a): the startup code.
    Bytes between functions in a code module become an `orphan` chunk named `unk_XXXXXXXX`, with its own
    file and stub line, never glued to a neighbour, with one exception: a pad, 1 to 3 zero bytes up to a
    word-aligned address with no listed entry or `[symbols]` entry inside (D68 e, D75 d). A pad before a
@@ -1363,7 +1363,7 @@ follows the plan's rule:
   unit's typical size, and `start` stays easy to move.
 
 `core/workflow/config-from-discover.ts` turns a discover result and the inferred modules into an in-memory
-`RomliftConfig` (every found entry listed; entries inside another found extent with `label = true`, the
+`RomliftConfig` (every found entry listed; entries inside another found extent in `[entry_points]`, the
 startup code inside the cartridge entry's included, so the confirm run reads every extent as discover did,
 D64 a). It
 lives in `core/workflow` because the edge table forbids `core/layout` to import `core/config` (D62 c). In
@@ -1595,7 +1595,9 @@ kind = "data"
 0x08000470 = "AgbMain"
 0x080000FC = { name = "IntrMain", mode = "arm" }
 0x0804F318 = { name = "SoundMainRAM", size = 0x3A4, from = "sig:m4a@2001" }
-0x0804F73E = { name = "_0804F73E", label = true }               # a second entry inside its parent
+
+[entry_points]                # names inside a function's code, with no file of their own (D116)
+0x0804F73E = "_0804F73E"      # a second entry inside its parent
 
 [symbols]                     # data and RAM
 0x03005220 = "gUnk_03005220"
@@ -1975,7 +1977,7 @@ passes them to `planPatch`:
 
 - every placed function becomes its `[functions]` entry with the signature's name, `from =
   "sig:<library>@<version>"` and, where the signature restores an extent the analysis split, `size`;
-  entries the fold puts inside that extent become `label = true`;
+  entries the fold puts inside that extent become `[entry_points]` entries;
 - tables become `[symbols]` entries with `size`, `type` and `from`;
 - `infer-modules` receives the placements' `LibraryRegion`s and proposes the library `[[modules]]`
   with `library` and `version`, cut on legal borders;
@@ -2259,7 +2261,7 @@ architecture-2). The codes:
 | --- | --- |
 | `E_ROM_NOT_GBA` | `foundation/rom` |
 | `E_TOML_PARSE`, `E_TOML_SCHEMA`, `E_TOML_KEY_SPELLING`, `E_DUPLICATE_ADDRESS`, `E_FUNCTION_MISALIGNED`, `E_TOML_PATCH_REFUSED`, `E_UNKNOWN_COMPILER`, `E_DECOMP_YAML_INVALID`, `E_ROM_SHA1_MISMATCH` | `core/config` |
-| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_DATA_RANGE_INVALID`, `E_MODULE_SOURCE_INVALID`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED`, `W_POOL_WORD_PAST_SYMBOL`, `W_DATA_RANGE_TO_ROM_END` | `core/model` (`E_DATA_RANGE_INVALID`: a C data range, phase 6, D92; `E_MODULE_SOURCE_INVALID`: a hand-written source, D109; `W_POOL_WORD_PAST_SYMBOL`: words past an unsized RAM symbol, D110; `W_DATA_RANGE_TO_ROM_END`: a data range nothing ends, D112) |
+| `E_MODULE_BORDER`, `E_MODULE_ORDER`, `E_MODULE_NAME_DUPLICATE`, `E_NAME_COLLISION`, `E_NAME_INVALID`, `E_OVERRIDE_INVALID`, `E_DATA_RANGE_INVALID`, `E_MODULE_SOURCE_INVALID`, `E_ENTRY_POINT_OUTSIDE`, `W_CROSS_MODULE_SHORT_BRANCH`, `W_INTERWORKING_BRANCH`, `W_FUNCTION_OUTSIDE_ROM`, `W_OVERRIDE_OUTSIDE_ROM`, `W_OVERRIDE_IGNORED`, `W_SYMBOL_UNPLACED`, `W_POOL_WORD_PAST_SYMBOL`, `W_DATA_RANGE_TO_ROM_END` | `core/model` (`E_DATA_RANGE_INVALID`: a C data range, phase 6, D92; `E_MODULE_SOURCE_INVALID`: a hand-written source, D109; `W_POOL_WORD_PAST_SYMBOL`: words past an unsized RAM symbol, D110; `W_DATA_RANGE_TO_ROM_END`: a data range nothing ends, D112) |
 | `W_UNLISTED_FUNCTION`, `W_LISTED_INVALID`, `W_SEED_MALFORMED`, `W_SETTLE_LIMIT`, `W_FIXPOINT_LIMIT`, `W_CANDIDATE_BUDGET`, `W_WALK_LIMIT`, `W_READING_BUDGET`, `E_ANALYSIS_JSON` | `core/analysis` (`E_ANALYSIS_JSON`: the analysis codec's refusal; `W_PROFILE_MISFIT` and `W_UNDECODED_GAP` are not defined: each lands with its first raiser, D59 g) |
 | `E_SELF_CHECK_TILING`, `E_SELF_CHECK_REENCODE`, `E_MODULE_SIZE`, `E_SELF_CHECK_TEXT`, `E_PATH_CASE_COLLISION`, `E_PATH_INVALID`, `E_PATH_TOO_LONG` | `core/verify` |
 | `E_PATH_NOT_OWNED`, `E_STALE_EDIT`, `W_UNOWNED_FILE` | `core/write-plan` (`E_STALE_EDIT` through `staleEdit`, which the shell's `applyWrites` also calls at write time, D81 b) |

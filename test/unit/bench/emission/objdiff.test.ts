@@ -125,6 +125,7 @@ test('namedConfig: functions take the ELF FUNC name, data outside every extent a
       [0x0800_0120, f('sub_08000120')],
       [0x0800_0140, f('sub_08000140')],
     ]),
+    entryPoints: new Map(),
     symbols: new Map(),
     overrides: [],
   };
@@ -166,6 +167,7 @@ test('namedConfig: an unsized symbol is sized up to the next of its section; a s
     signatures: { enabled: false },
     modules: [],
     functions: new Map(),
+    entryPoints: new Map(),
     symbols: new Map(),
     overrides: [],
   };

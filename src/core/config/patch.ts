@@ -16,10 +16,12 @@
 //     when `config` is not what `text` says).
 //
 // The intended config is applyProposals(config, proposals): a function or symbol proposal sets the fields it
-// carries over the listed entry (name, mode, size, label, type), keeps its aliases, and records its source in
-// `from` when that source is persisted (sourceKey; the analysis and module inference are not, and leave `from` as
-// it was). A proposal never removes `label = true`: the startup code inside the cartridge entry's extent must
-// keep it (D64 a, phase-3 known limitation). Pure; never throws.
+// carries over the listed entry (name, mode, size, type), keeps its aliases, and records its source in `from` when
+// that source is persisted (sourceKey; the analysis and module inference are not, and leave `from` as it was). A
+// function proposal with `entryPoint` makes its address an [entry_points] entry, moving a [functions] line there
+// (D116); a proposal never moves an entry point back to [functions]: the startup code inside the cartridge entry's
+// extent must stay one (D64 a, phase-3 known limitation). A missing [entry_points] table is added before [symbols].
+// Pure; never throws.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Addr } from '../../foundation/rom/span.ts';
@@ -33,8 +35,8 @@ import type { ConfigCode } from './codes.ts';
 import { addressDefinitions, addressKey, addressKeyUses, outlineToml } from './keys.ts';
 import type { AddressDefinition, AddressKeyUse, AddressTable, TomlKeyValue, TomlOutline } from './keys.ts';
 import { parseConfig } from './parse.ts';
-import type { FunctionConfig, ModuleConfig, OverrideConfig, RomliftConfig, SymbolConfig } from './schema.ts';
-import { functionLine, moduleLines, overrideLines, serializeConfig, symbolLine } from './serialize.ts';
+import type { EntryPointConfig, FunctionConfig, ModuleConfig, OverrideConfig, RomliftConfig, SymbolConfig } from './schema.ts';
+import { entryPointLine, functionLine, moduleLines, overrideLines, serializeConfig, symbolLine } from './serialize.ts';
 
 export type ConfigPatchResult =
   | { readonly ok: true; readonly text: string; readonly diagnostics: readonly Diagnostic<ConfigCode>[] }
@@ -42,13 +44,23 @@ export type ConfigPatchResult =
 
 function proposedFunction(existing: FunctionConfig | undefined, p: Extract<Proposal, { kind: 'function' }>): FunctionConfig {
   const size = p.size ?? existing?.size;
-  const label = p.label === true || existing?.label === true;
   const from = sourceKey(p.source) ?? existing?.from;
   return {
     name: p.name ?? existing?.name ?? defaultFunctionName(p.addr),
     mode: p.mode,
     ...(size === undefined ? {} : { size }),
-    ...(label ? { label: true } : {}),
+    aliases: existing?.aliases ?? [],
+    ...(from === undefined ? {} : { from }),
+  };
+}
+
+function proposedEntryPoint(existing: FunctionConfig | EntryPointConfig | undefined, p: Extract<Proposal, { kind: 'function' }>): EntryPointConfig {
+  const size = p.size ?? existing?.size;
+  const from = sourceKey(p.source) ?? existing?.from;
+  return {
+    name: p.name ?? existing?.name ?? defaultFunctionName(p.addr),
+    mode: p.mode,
+    ...(size === undefined ? {} : { size }),
     aliases: existing?.aliases ?? [],
     ...(from === undefined ? {} : { from }),
   };
@@ -100,13 +112,17 @@ function proposedOverride(p: Extract<Proposal, { kind: 'override' }>): OverrideC
  */
 export function applyProposals(config: RomliftConfig, proposals: readonly Proposal[]): RomliftConfig {
   const functions = new Map(config.functions);
+  const entryPoints = new Map(config.entryPoints);
   const symbols = new Map(config.symbols);
   let modules = [...config.modules];
   let overrides = [...config.overrides];
   for (const p of proposals) {
     switch (p.kind) {
       case 'function':
-        functions.set(p.addr, proposedFunction(functions.get(p.addr), p));
+        if (p.entryPoint === true || entryPoints.has(p.addr)) {
+          entryPoints.set(p.addr, proposedEntryPoint(entryPoints.get(p.addr) ?? functions.get(p.addr), p));
+          functions.delete(p.addr);
+        } else functions.set(p.addr, proposedFunction(functions.get(p.addr), p));
         break;
       case 'symbol':
         symbols.set(p.addr, proposedSymbol(symbols.get(p.addr), p));
@@ -131,6 +147,7 @@ export function applyProposals(config: RomliftConfig, proposals: readonly Propos
     ...config,
     modules,
     functions: new Map(sortedEntries(functions)),
+    entryPoints: new Map(sortedEntries(entryPoints)),
     symbols: new Map(sortedEntries(symbols)),
     overrides,
   };
@@ -199,11 +216,12 @@ function tableEdits(
   uses: readonly AddressKeyUse[],
   table: AddressTable,
   changes: readonly ChangedEntry[],
+  removed: ReadonlySet<Addr> = new Set(),
 ): { readonly edits: LineEdit[]; readonly refusals: Diagnostic<ConfigCode>[] } {
   const edits: LineEdit[] = [];
   const refusals: Diagnostic<ConfigCode>[] = [];
   if (changes.length === 0) return { edits, refusals };
-  const own = ownLines(uses, table);
+  const own = ownLines(uses, table).filter((o) => !removed.has(o.addr));
   const ownByAddr = new Map(own.map((o) => [o.addr, o] as const));
   const ownSorted = [...own].sort((a, b) => compareNumbers(a.addr, b.addr));
   const header = outline.headers.find((h) => !h.array && h.path.length === 1 && h.path[0] === table);
@@ -236,6 +254,7 @@ function tableEdits(
       continue;
     }
     if (header === undefined) {
+      if (table === 'entry_points') continue;
       refusals.push(refused(`romlift.toml has no [${table}] table to add ${key} to; add the table with this line: ${change.line}`, change.addr));
       continue;
     }
@@ -251,6 +270,35 @@ function tableEdits(
     if (slot === undefined) continue;
     const eol = eolAt(text, at);
     edits.push({ start: at, end: at, text: slot.lines.map((l) => `${eol}${slot.indent}${l}`).join('') });
+  }
+  if (header === undefined && table === 'entry_points') edits.push(newEntryPointsTable(text, outline, changes));
+  return { edits, refusals };
+}
+
+/** A new [entry_points] table holding `changes`: before the [symbols] header and the comments above it, else at the end. */
+function newEntryPointsTable(text: string, outline: TomlOutline, changes: readonly ChangedEntry[]): LineEdit {
+  const symbols = outline.headers.find((h) => !h.array && h.path.length === 1 && h.path[0] === 'symbols');
+  const at = symbols === undefined ? text.length : leadingCommentStart(text, lineOffset(text, symbols.line));
+  const eol = eolBefore(text, at);
+  const body = ['[entry_points]', ...changes.map((c) => c.line)].join(eol);
+  if (at < text.length) return { start: at, end: at, text: `${body}${eol}${eol}` };
+  return { start: at, end: at, text: `${text.endsWith('\n') ? '' : eol}${eol}${body}${eol}` };
+}
+
+/** The deletions of `table`'s lines at `addrs` (moved to another table), or the refusal of one that is not its own line. */
+function tableRemovals(text: string, uses: readonly AddressKeyUse[], table: AddressTable, addrs: readonly Addr[]): { readonly edits: LineEdit[]; readonly refusals: Diagnostic<ConfigCode>[] } {
+  const edits: LineEdit[] = [];
+  const refusals: Diagnostic<ConfigCode>[] = [];
+  const own = new Map(ownLines(uses, table).map((o) => [o.addr, o] as const));
+  for (const addr of addrs) {
+    const line = own.get(addr);
+    const places = addressDefinitions(uses).filter((d) => d.table === table && d.addr === addr);
+    if (line === undefined || places.length !== 1 || line.statement.endLine !== line.statement.line) {
+      refusals.push(refused(`${addressKey(addr)} in [${table}] is not one single-line entry, so the planner does not move it to [entry_points]; delete it from [${table}] by hand`, addr));
+      continue;
+    }
+    const end = line.statement.lineEnd;
+    edits.push({ start: line.statement.lineStart, end: text.startsWith('\r\n', end) ? end + 2 : text.startsWith('\n', end) ? end + 1 : end, text: '' });
   }
   return { edits, refusals };
 }
@@ -361,11 +409,14 @@ export function planLineEdits(text: string, config: RomliftConfig, proposals: re
   const modules = moduleInsertions(text, outline, config, intended);
   const refusals = blockRefusals(config, intended, modules);
   const uses = addressKeyUses(outline);
-  const functions = tableEdits(text, outline, uses, 'functions', changedEntries('functions', config.functions, intended.functions, functionLine));
+  const moved = sortedKeys(config.functions).filter((addr) => !intended.functions.has(addr));
+  const removals = tableRemovals(text, uses, 'functions', moved);
+  const functions = tableEdits(text, outline, uses, 'functions', changedEntries('functions', config.functions, intended.functions, functionLine), new Set(moved));
+  const entryPoints = tableEdits(text, outline, uses, 'entry_points', changedEntries('entry_points', config.entryPoints, intended.entryPoints, entryPointLine));
   const symbols = tableEdits(text, outline, uses, 'symbols', changedEntries('symbols', config.symbols, intended.symbols, symbolLine));
-  refusals.push(...functions.refusals, ...symbols.refusals);
+  refusals.push(...removals.refusals, ...functions.refusals, ...entryPoints.refusals, ...symbols.refusals);
   if (refusals.length > 0) return { ok: false, diagnostics: refusals };
-  const edits = [...(modules ?? []), ...functions.edits, ...symbols.edits];
+  const edits = [...(modules ?? []), ...removals.edits, ...functions.edits, ...entryPoints.edits, ...symbols.edits];
   return { ok: true, text: applyEdits(text, edits), intended, changed: edits.length };
 }
 
@@ -382,6 +433,7 @@ function firstDifference(a: string, b: string): string {
 function pasteText(config: RomliftConfig, intended: RomliftConfig): string {
   const lines = [
     ...changedEntries('functions', config.functions, intended.functions, functionLine).map((c) => `[functions] ${c.line}`),
+    ...changedEntries('entry_points', config.entryPoints, intended.entryPoints, entryPointLine).map((c) => `[entry_points] ${c.line}`),
     ...changedEntries('symbols', config.symbols, intended.symbols, symbolLine).map((c) => `[symbols] ${c.line}`),
   ];
   return lines.length === 0 ? '' : `; paste these entries by hand:\n${lines.join('\n')}`;

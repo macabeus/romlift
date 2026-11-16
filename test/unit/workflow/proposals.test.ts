@@ -117,11 +117,12 @@ test('one conflict per proposal, however many sides it contradicts', () => {
   assert.match(out.conflicts[0]?.message ?? '', /the analysis found a arm function there .*; and romlift\.toml lists Arm there as a arm function/);
 });
 
-test('foldSignatures: the name, from and size of a placed function, label = true inside a restored extent, tables as symbols', () => {
+test('foldSignatures: the name, from and size of a placed function, an entry point inside a restored extent, tables as symbols', () => {
   const cfg = config({ functions: [[BASE + 0x100, 'sub_08000100'], [BASE + 0x110, 'sub_08000110'], [BASE + 0x120, 'sub_08000120'], [BASE + 0x140, { name: 'sub_08000140', mode: 'arm' }]] });
   const folded = foldSignatures(cfg, [fn(BASE + 0x100, 'SoundMain', 'thumb', { size: 0x20 }), fn(BASE + 0x140, 'ArmPart', 'arm'), table(BASE + 0x170, 'gTable', 0x10)]);
   assert.deepEqual(folded.functions.get(BASE + 0x100), { name: 'SoundMain', mode: 'thumb', size: 0x20, aliases: [], from: 'sig:m4a@2001' });
-  assert.deepEqual(folded.functions.get(BASE + 0x110), { name: 'sub_08000110', mode: 'thumb', aliases: [], label: true }, 'inside the restored extent, no from of its own');
+  assert.equal(folded.functions.has(BASE + 0x110), false, 'inside the restored extent: moved to [entry_points]');
+  assert.deepEqual(folded.entryPoints.get(BASE + 0x110), { name: 'sub_08000110', mode: 'thumb', aliases: [] }, 'inside the restored extent, no from of its own');
   assert.deepEqual(folded.functions.get(BASE + 0x120), { name: 'sub_08000120', mode: 'thumb', aliases: [] }, 'at the extent end: not inside');
   assert.deepEqual(folded.functions.get(BASE + 0x140), { name: 'ArmPart', mode: 'arm', aliases: [], from: 'sig:m4a@2001' });
   assert.deepEqual(folded.symbols.get(BASE + 0x170), { name: 'gTable', size: 0x10, type: 'pointers', aliases: [], from: 'sig:m4a@2001' });
@@ -130,13 +131,13 @@ test('foldSignatures: the name, from and size of a placed function, label = true
   assert.deepEqual(librariesOf([fn(1, 'a'), { ...fn(2, 'b'), source: { kind: 'signature', library: 'libgcc', version: 'agbcc', rule: 'sig.unique-fit' } }, { kind: 'function', addr: 4, mode: 'thumb', source: { kind: 'analysis', rule: 'seed.call' } }]), ['libgcc', 'm4a']);
 });
 
-test('updateProposals: only entries that still carry a default name are renamed; a restored extent labels the entries it holds', () => {
+test('updateProposals: only entries that still carry a default name are renamed; a restored extent makes the entries it holds entry points', () => {
   const cfg = config({ functions: [[BASE + 0x100, 'sub_08000100'], [BASE + 0x110, 'sub_08000110'], [BASE + 0x120, 'MyName']], symbols: [[BASE + 0x170, { name: 'gMine', aliases: [] }]] });
   const proposals = [fn(BASE + 0x100, 'SoundMain', 'thumb', { size: 0x20 }), fn(BASE + 0x120, 'Renamed'), fn(BASE + 0x150, 'Unlisted'), table(BASE + 0x170, 'gTable', 0x10), table(BASE + 0x180, 'gNew', 0x10)];
   const kept = updateProposals(cfg, A, proposals);
   assert.deepEqual(
-    kept.map((p) => (p.kind === 'function' || p.kind === 'symbol' ? `${p.kind} ${(p.addr - BASE).toString(16)} ${p.name ?? '(label)'}${p.kind === 'function' && p.label === true ? ' label' : ''}` : p.kind)),
-    ['function 100 SoundMain', 'function 110 (label) label', 'function 150 Unlisted', 'symbol 180 gNew'],
+    kept.map((p) => (p.kind === 'function' || p.kind === 'symbol' ? `${p.kind} ${(p.addr - BASE).toString(16)} ${p.name ?? '(unnamed)'}${p.kind === 'function' && p.entryPoint === true ? ' entry point' : ''}` : p.kind)),
+    ['function 100 SoundMain', 'function 110 (unnamed) entry point', 'function 150 Unlisted', 'symbol 180 gNew'],
   );
   assert.ok(isDefaultName('sub_08000100', 0x0800_0100) && isDefaultName('gUnk_03000000', 0x0300_0000));
   assert.ok(!isDefaultName('sub_08000100', 0x0800_0104) && !isDefaultName('SoundMain', 0x0800_0100));

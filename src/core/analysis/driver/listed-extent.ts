@@ -2,7 +2,7 @@
 // entry that asks for validation (`Seed.validate`) over its listed extent, per inner label's mode, and takes a
 // fall-through into the next listed function as the path's exit.
 //
-// - Per mode. The listed extent [entry, end) (extentEndOf) may hold inner labels (`label = true`) of mode arm: m4a's
+// - Per mode. The listed extent [entry, end) (extentEndOf) may hold inner labels ([entry_points] entries, D116) of mode arm: m4a's
 //   umul3232H32 and SoundMainRAM are Thumb entries that switch to ARM in place, their ARM code folded in as such
 //   labels. The Thumb walk leaves that ARM code unwalked (walk.inline-arm-switch), so the entry's reading alone counts
 //   it as holes. The entry is judged by its Thumb reading with the bytes each such label's ARM reading covers counted

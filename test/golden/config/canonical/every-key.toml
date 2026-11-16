@@ -39,10 +39,12 @@ start = 0x08008000
 kind = "data"
 
 [functions]
-0x080000C0 = { name = "start", mode = "arm", label = true }
 0x08000400 = "AgbMain"
 0x08004000 = { name = "m4aSoundMain", size = 0x40, aliases = ["SoundMain", "_SoundMain"], from = "sig:m4a@2001" }
 0x08004040 = { name = "Kept", from = "sig:libgcc@agbcc" }
+
+[entry_points]
+0x080000C0 = { name = "start", mode = "arm" }
 
 [symbols]
 0x03000000 = "gMain"

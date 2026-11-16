@@ -9,7 +9,7 @@
 // parse.ts reports the syntax error itself. Pure; never throws.
 import { diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
 import type { Diagnostic } from '../../foundation/diagnostics/diagnostic.ts';
-import type { Addr } from '../../foundation/rom/span.ts';
+import type { Addr, Mode } from '../../foundation/rom/span.ts';
 import { insnAligned } from '../../foundation/rom/span.ts';
 import { lowerBound } from '../../foundation/util/arrays.ts';
 import { hexAddr } from '../../foundation/util/hex.ts';
@@ -60,7 +60,7 @@ export interface TomlOutline {
 }
 
 /** The tables whose keys are addresses. */
-export const ADDRESS_TABLES = ['functions', 'symbols'] as const;
+export const ADDRESS_TABLES = ['functions', 'entry_points', 'symbols'] as const;
 export type AddressTable = (typeof ADDRESS_TABLES)[number];
 
 const ADDRESS_KEY = /^0x[0-9A-F]{8}$/;
@@ -338,7 +338,7 @@ export interface AddressKeyUse {
 }
 
 function isAddressTable(name: string | undefined): name is AddressTable {
-  return name === 'functions' || name === 'symbols';
+  return name === 'functions' || name === 'entry_points' || name === 'symbols';
 }
 
 /** Every use of an address key in the outline, in text order. */
@@ -462,16 +462,20 @@ export function checkAddressKeys(outline: TomlOutline): Diagnostic<ConfigCode>[]
  * 5, correctness-b0-4; raised here since fix round 6, architecture-b1-1, so every command that loads romlift.toml
  * refuses it before any analysis, as it refuses a misspelt key). The pointer-value hint for an odd Thumb key.
  */
-export function misalignedFunctionKeys(config: Pick<RomliftConfig, 'functions'>, outline: TomlOutline): Diagnostic<ConfigCode>[] {
+export function misalignedFunctionKeys(config: Pick<RomliftConfig, 'functions' | 'entryPoints'>, outline: TomlOutline): Diagnostic<ConfigCode>[] {
+  return [...misalignedIn('functions', config.functions, outline), ...misalignedIn('entry_points', config.entryPoints, outline)];
+}
+
+function misalignedIn(table: 'functions' | 'entry_points', entries: ReadonlyMap<Addr, { readonly name: string; readonly mode: Mode }>, outline: TomlOutline): Diagnostic<ConfigCode>[] {
   const lines = new Map<Addr, number>();
-  for (const use of addressKeyUses(outline)) if (use.table === 'functions' && use.addr !== undefined && !lines.has(use.addr)) lines.set(use.addr, use.line);
+  for (const use of addressKeyUses(outline)) if (use.table === table && use.addr !== undefined && !lines.has(use.addr)) lines.set(use.addr, use.line);
   const out: Diagnostic<ConfigCode>[] = [];
-  for (const [entry, f] of sortedEntries(config.functions)) {
+  for (const [entry, f] of sortedEntries(entries)) {
     if (insnAligned(f.mode, entry)) continue;
     const line = lines.get(entry);
     const hint = f.mode === 'thumb' ? `; a Thumb function's pointer value has bit 0 set, its entry is ${addressKey(entry - 1)}` : '';
     const what = f.mode === 'arm' ? 'word-aligned ARM' : 'halfword-aligned Thumb';
-    out.push(diagnostic(ConfigCodes, 'E_FUNCTION_MISALIGNED', `${line === undefined ? '' : `line ${line}: `}the [functions] key ${addressKey(entry)} (${f.name}) is not a ${what} instruction address${hint}`, { addr: entry }));
+    out.push(diagnostic(ConfigCodes, 'E_FUNCTION_MISALIGNED', `${line === undefined ? '' : `line ${line}: `}the [${table}] key ${addressKey(entry)} (${f.name}) is not a ${what} instruction address${hint}`, { addr: entry }));
   }
   return out;
 }

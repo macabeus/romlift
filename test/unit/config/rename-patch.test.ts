@@ -92,7 +92,7 @@ test('CRLF: the line keeps its terminator', () => {
 });
 
 test('refusals: no entry, two entries, a restructured table, a multi-line value', () => {
-  assert.match(refusal(TEXT, 'NoSuchName', 'X')[0] ?? '', /^E_TOML_PATCH_REFUSED no \[functions\] or \[symbols\] entry/);
+  assert.match(refusal(TEXT, 'NoSuchName', 'X')[0] ?? '', /^E_TOML_PATCH_REFUSED no \[functions\], \[entry_points\] or \[symbols\] entry/);
   const twice = TEXT.replace('aliases = ["ThirdAlias", "Other"]', 'aliases = ["ThirdAlias", "gMain"]');
   assert.match(refusal(twice, 'gMain', 'X')[0] ?? '', /names more than one entry .*\[functions\] 0x08000300, \[symbols\] 0x03000000/);
   const table = TEXT.replace('0x08000300 = { name = "Third", aliases = ["ThirdAlias", "Other"] }\n', '').replace('[symbols]', '[functions.0x08000300]\nname = "Third"\n\n[symbols]');

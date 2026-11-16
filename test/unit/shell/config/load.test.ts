@@ -30,6 +30,7 @@ const CONFIG: RomliftConfig = {
   signatures: { enabled: false },
   modules: [{ name: 'main', start: 0x0800_0000, kind: 'asm', generated: true }],
   functions: new Map([[0x0800_0000, { name: 'sub_08000000', mode: 'arm', aliases: [] }]]),
+  entryPoints: new Map(),
   symbols: new Map(),
   overrides: [],
 };

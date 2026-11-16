@@ -352,20 +352,24 @@ function isAddressedMemory(addr: number): boolean {
 export function namedConfig(config: RomliftConfig, rom: Rom, symbols: readonly ElfSymbol[], extents: readonly { readonly entry: number; readonly end: number }[]): RomliftConfig {
   const inside = (addr: number): boolean => extents.some((f) => addr >= f.entry && addr < f.end);
   const sizes = symbolSizes(symbols);
-  const funcs = namesByAddr(symbols, sizes, (s) => s.type === 'func' && config.functions.has(s.addr));
-  const data = namesByAddr(symbols, sizes, (s) => s.type !== 'func' && (contains(rom, s.addr) ? !config.functions.has(s.addr) && !inside(s.addr) : s.sectionName !== undefined && isAddressedMemory(s.addr)));
+  const listed = (addr: number): boolean => config.functions.has(addr) || config.entryPoints.has(addr);
+  const funcs = namesByAddr(symbols, sizes, (s) => s.type === 'func' && listed(s.addr));
+  const data = namesByAddr(symbols, sizes, (s) => s.type !== 'func' && (contains(rom, s.addr) ? !listed(s.addr) && !inside(s.addr) : s.sectionName !== undefined && isAddressedMemory(s.addr)));
   const uses = new Map<string, number>();
   for (const { name } of [...funcs.values(), ...data.values()]) uses.set(name, (uses.get(name) ?? 0) + 1);
   const unique = (name: string): boolean => uses.get(name) === 1;
-  const functions = new Map<number, FunctionConfig>();
-  for (const [addr, f] of config.functions) {
-    const elf = funcs.get(addr);
-    const sized = elf !== undefined && elf.size > 0 ? { ...f, size: elf.size } : f;
-    functions.set(addr, elf !== undefined && unique(elf.name) ? { ...sized, name: elf.name, aliases: [] } : sized);
-  }
+  const withElf = <T extends FunctionConfig>(table: ReadonlyMap<number, T>): Map<number, T> => {
+    const out = new Map<number, T>();
+    for (const [addr, f] of table) {
+      const elf = funcs.get(addr);
+      const sized = elf !== undefined && elf.size > 0 ? { ...f, size: elf.size } : f;
+      out.set(addr, elf !== undefined && unique(elf.name) ? { ...sized, name: elf.name, aliases: [] } : sized);
+    }
+    return out;
+  };
   const named = new Map<number, SymbolConfig>(config.symbols);
   for (const [addr, { name, size }] of data) if (unique(name) && !named.has(addr)) named.set(addr, size > 0 ? { name, size, aliases: [] } : { name, aliases: [] });
-  return { ...config, functions, symbols: named };
+  return { ...config, functions: withElf(config.functions), entryPoints: withElf(config.entryPoints), symbols: named };
 }
 
 /** The chunks of its module that hold a word chunk `chunk`'s PC-relative loads and adrs reach outside it. */
