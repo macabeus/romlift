@@ -140,6 +140,11 @@ removes the variable instead of testing it.
 **Rejected.** dependency-cruiser (an extra dependency and a `.cjs` config, and it cannot ban globals).
 ESLint `no-restricted-imports` (per-directory config sprawl). A denylist (incomplete by construction).
 
+**Revision (15 November 2026, D117).** The rules are ESLint rules now: the edges eslint-plugin-boundaries policies in
+`lint/edges.ts`, the globals allowlist and Map rule romlift's own ESLint rules in `lint/plugin.ts`, the members
+built-in rules, all in `eslint.config.js`; `test/architecture.test.ts` runs ESLint and the typechecker. The rules
+themselves are unchanged.
+
 ## D6. "Provenance" for rule records, "evidence" for external facts, "accept" for the acceptance rules
 
 **Context.** The plan uses "evidence" for the importers of traces, ELFs, maps and cfgs, and also for
@@ -5469,6 +5474,61 @@ lines by hand once (kl2dct). The config goldens and tests change with the schema
 **Rejected.** `within = <addr>` on each line (the parent can be derived, and a stored one can go stale). A nested
 table under the parent function (TOML inline tables cannot span lines, and the one-line-per-address patching would go).
 Keeping `label` with a clearer name (it would still mix the two kinds in one table).
+
+## D117. The architecture rules are ESLint rules; the owner's words of 15 November 2026
+
+**Context.** D5 enforced the layer rules with `test/helpers/architecture.ts`, 804 lines over the TypeScript compiler
+API: an edge table with its own glob matcher and first-row semantics, the globals allowlist, the locale, sort and hex
+members, the Map/Set iteration rule, the one `readdir` site, the barrel shape and the dynamic-import rule. It worked,
+and its mutation test proved each rule fired, but nobody had a reason to know its format, a violation showed only when
+the test ran, and half of it reimplemented what standard tools do. The owner asked whether a tool such as
+dependency-cruiser would be better; dependency-cruiser checks the import graph alone, which is one of the five jobs (D5
+rejected it for that). The owner chose the recommendation: "Yes, do it as D117 and merge once tests pass".
+
+**Decision.**
+
+- (a) **ESLint, with `eslint.config.js`, checks the architecture and nothing else**: no style rule, no recommended
+  set. `npm run lint` is `eslint --max-warnings 0`; `test/architecture.test.ts` runs ESLint over the repository and the
+  typechecker in `npm test` (`g1.architecture` runs that file). An editor with the ESLint extension shows a violation
+  as it is typed. Dev dependencies, pinned: `eslint` 10.14.0, `typescript-eslint` and `@typescript-eslint/utils`
+  8.72.1, `eslint-plugin-boundaries` 7.4.0.
+- (b) **The import edges are eslint-plugin-boundaries policies** (`lint/edges.ts`): an element per folder of the table
+  of architecture §2 (first match wins), an allow policy per element, a reset-then-allow pair for the files whose rights
+  are not their folder's (the entry barrels, `core/diagnostic-codes.ts`, `cli/commands/index.ts`, a family's
+  `index.ts`), and the guards of the rule files last (boundaries applies the last matching policy). `checkInternals`
+  makes an import between two files of one element a checked edge too, and an additional dependency node makes
+  `import('…')` in a type one. Equivalence was measured before the old checker was deleted: over 40 importers (every
+  row, and a file of no row) times 54 files and 12 package specifiers, as a value import, a type-only import, a value
+  and a type-only re-export, an `import('…')` type and a dynamic import, the old table and the new policies gave the same
+  verdict in all 15,636 cases.
+- (c) **Built-in rules where one exists**: `@typescript-eslint/require-array-sort-compare` (with string arrays; the old
+  rule refused any argument-less `.sort()`, the new one refuses it on arrays, where the default order is a string
+  order), `no-restricted-properties` (the locale members everywhere in `src/`, `Math.random` in foundation and core),
+  `no-restricted-syntax` (`.toString(16)` outside the hex formatters, `import.meta` in foundation and core, a
+  directory listing in the shell outside `shell/fs.ts`). `no-import-type-side-effects` and `consistent-type-exports`
+  make every type-only import and export say so at the top, where boundaries reads the kind (`src/api/formats.ts` and
+  `src/api/profile.ts` became `export type *`).
+- (d) **romlift's own rules** (`lint/plugin.ts`) are the four no plugin has: `romlift/globals` (the allowlist, as D5),
+  `romlift/map-iteration` (as D5), `romlift/barrel` (the barrel and api-file shape) and `romlift/dynamic-import` (a
+  dynamic import names its module with a string literal, so boundaries checks it as an edge; the files that load the
+  PoC are exempt). The globals and Map rules read the program typescript-eslint builds. `test/gates/gate.ts` imported an
+  entry point through a union-typed variable; it now names each entry point literally.
+- (e) **No rule can be switched off in a file**: `noInlineConfig` ignores every `eslint-disable` comment, and the
+  warning ESLint gives for one fails the lint (`--max-warnings 0`). An exception is a change to `eslint.config.js` or
+  `lint/`, reviewed as such.
+- (f) **The mutation test** (`test/mutation/phase1/architecture.test.ts`, `g1.checks-fail`) builds the same clean
+  mini-repository with the repository's `eslint.config.js` and `lint/`, and each of its 21 faults, plus an inline-type
+  import and an `import('…')` type reaching the shell from core, must make ESLint report exactly one problem of the
+  expected rule; a disable comment must leave the problem reported and add one of its own.
+
+**Consequences.** `test/helpers/architecture.ts` is deleted. An import of a file that does not exist is left to the
+typechecker (`TS2307`), as boundaries checks resolved files only. ESLint over the repository costs about 35 s of CPU,
+most of it typescript-eslint's program, which `npm test` now spends once more; the mutation test, about 25 type-aware
+runs on a tiny tree, a minute. The dev dependencies grow from two packages to six direct ones (about 200 installed).
+
+**Rejected.** dependency-cruiser (the graph alone; the globals, sort, Map and barrel rules would stay custom, in a
+second tool). Keeping the custom checker (it works, but only a test run shows a violation, and its format is
+romlift's alone). An ESLint denylist for globals, `no-restricted-globals` (incomplete by construction, as D5 said).
 
 ## Review findings index
 

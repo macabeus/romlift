@@ -1,6 +1,6 @@
-// g1.architecture (architecture §13, D5): the import edges of §2 (type-only imports included), the
-// globals allowlist, Map/Set iteration, rule-file isolation and barrel shape hold, checked by
-// test/architecture.test.ts, and `tsc --noEmit` passes over src/, test/ and bench/.
+// g1.architecture (architecture §13, D5, D117): the import edges of §2 (type-only imports included), the
+// globals allowlist, Map/Set iteration, rule-file isolation and barrel shape hold, checked by ESLint
+// (eslint.config.js) in test/architecture.test.ts, and `tsc --noEmit` passes over src/, test/, bench/ and lint/.
 import { gate, type ExecResult } from './gate.ts';
 
 function tail(run: ExecResult, lines = 40): string {
@@ -25,7 +25,7 @@ gate({
       { cwd: cx.repoRoot },
     );
     if (checker.code !== 0) throw new Error(`test/architecture.test.ts exited ${checker.code}:\n${tail(checker)}`);
-    cx.note(`architecture checker: ${tapTotals(checker.stdout)}`);
+    cx.note(`ESLint and tsc: ${tapTotals(checker.stdout)}`);
 
     const tsc = await cx.exec('npx', ['--no', '--', 'tsc', '--noEmit', '-p', 'tsconfig.json'], { cwd: cx.repoRoot });
     if (tsc.code !== 0) throw new Error(`tsc --noEmit -p tsconfig.json exited ${tsc.code}:\n${tail(tsc)}`);

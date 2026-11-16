@@ -42,7 +42,7 @@ extent and code-end gates of §8. Requirements R1–R9 of the plan apply unchang
 | R4 | Generated `.s` regenerated and gitignored; two runs identical | one emission stream, one write plan, a manifest (§6.3, §6.4); `g3.tree-determinism` with a varied environment (D30); the scaffold's `.gitignore` ignores every generated root and a fresh clone or worktree gets the tree from `setup.sh`'s duty 5 (the owner's answer to phase-4 Q9, D79 b; `g4.worktree`) |
 | R5 | Byte-exact, self-checked, proven by the build | four self-checks before any write, including the text-layout check that re-reads every emitted file (§6.4, D49); the link of `g3.link`; the SHA-1 after `make` |
 | R6 | No ROM-specific constant in code | every analysis constant is a named `CompilerProfile` field and the rule order is profile data (D12); per-ROM facts live in the TOML; `g2.second-profile` |
-| R7 | Pure core, small modules, typed boundaries | four layers, one file per rule, `test/architecture.test.ts` (D3, D5, D7); `g1.architecture` |
+| R7 | Pure core, small modules, typed boundaries | four layers, one file per rule, ESLint with `eslint.config.js` and `lint/` (D3, D5, D7, D117); `g1.architecture` |
 | R8 | Agent-friendly | no prompts, NDJSON diagnostics, `explain`; `g4.cli-contract`, `g4.worktree` |
 | R9 | `generate` touches C only on `INCLUDE_ASM` lines | `reconciled` file ownership: `TextEdit`s only (§6.3), `g6.reconciler` |
 
@@ -97,6 +97,9 @@ romlift/
                                     conditions); engines node >=24.7; files: dist/, templates/
   package-lock.json
   tsconfig.json, tsconfig.build.json
+  eslint.config.js                  the architecture rules of §2 and nothing else (D117); no inline disable comment works
+  lint/                             edges.ts (the edge table below, as eslint-plugin-boundaries elements and policies),
+                                    plugin.ts (romlift's own rules: globals, map-iteration, barrel, dynamic-import)
   .gitignore                        *.gba *.elf *.map *.o (fixture builds re-included), dist/, bench/.local/,
                                     bench/timings.json, signatures/*.json (built files, D40)
   .github/workflows/                ci.yml, printer.yml, fixtures.yml, provenance.yml, packed.yml
@@ -246,12 +249,12 @@ romlift/
                                     g6.ram-code-mapped appends after init (D91 c)
     results.json                    the committed artifact; refreshed only by a phase lead (D43)
   test/
-    architecture.test.ts            layer edges, globals allowlist, rule-file isolation, Map iteration, barrels
+    architecture.test.ts            tsc, and ESLint over the repository: no problem (D117)
     unit/                           mirrors src/
     golden/                         printer, writers, config serializer and patcher, reconciler, explain
     corpus/                         generate.ts (the as round-trip corpus driver over runCorpus; output never
                                     committed; imports only the entry points and bench/src/args.ts, D55)
-    mutation/                       fault injection into every checker (§10)
+    mutation/                       fault injection into every checker (§10); phase1/architecture.test.ts, one fault per lint rule
     gates/                          g1.*.test.ts … g6.*.test.ts, gate.ts, phase.json, and the pure helpers the
                                     gates call and test/unit/gates tests: held-out-verdict.ts (g2.held-out's
                                     cross-ROM verdict and the D60 waiver), poc-parity-check.ts
@@ -265,9 +268,14 @@ romlift/
                                     large-rom.ts, e2e.ts
 ```
 
-**Dependency rules.** `test/architecture.test.ts` parses every import of `src/`, `bench/src/` and
-`test/gates/` with the TypeScript compiler API (D5). A type-only import is an edge like any other, and
-the test also runs the typechecker, so a frozen type that names a type from a forbidden layer fails it.
+**Dependency rules.** ESLint checks every import and re-export of `src/`, `bench/src/`, `bench/tools/`, `test/gates/`,
+`test/local/` and `test/corpus/` with eslint-plugin-boundaries (D5, D117): `lint/edges.ts` is the table below as
+elements (folders) and policies, and a dependency no policy allows fails. A type-only import, a type-only re-export
+and `import('…')` in a type are edges like any other, which only the rows that allow types accept; every type-only
+import and export says so at the top (`no-import-type-side-effects`, `consistent-type-exports`), where boundaries reads
+the kind. A dynamic import names its module with a string literal (`romlift/dynamic-import`), so it is an edge too. An
+import of a file that does not exist is the typechecker's (`TS2307`). `npm run lint` runs ESLint, `test/architecture.test.ts`
+runs it and the typechecker in `npm test`, and an editor with the ESLint extension shows a violation as it is typed.
 It fails on any edge not allowed here:
 
 | From | May import |
@@ -300,11 +308,13 @@ global must be one of: `Math` (but not `Math.random`), `Number`, `String`, `Bool
 `JSON`, `Error` and its subclasses, `TextEncoder`, `TextDecoder`, `Infinity`, `NaN`, `undefined`.
 Everything else (`process`, `Date`, `performance`, `crypto`, `Intl`, `globalThis`, `setTimeout`,
 `import.meta`, …) fails, as do the members `localeCompare` and `toLocaleString` and an argument-less
-`.sort()`. A second AST check, using the type checker, fails when `core/analysis`, `core/model`,
+`.sort()` (`@typescript-eslint/require-array-sort-compare`; the rest is `romlift/globals` and ESLint's
+`no-restricted-properties` and `no-restricted-syntax`). `romlift/map-iteration`, using the type checker, fails when `core/analysis`, `core/model`,
 `core/emit`, `core/layout` or `core/signatures` iterates a `Map` or `Set` (`for…of`, spread,
 `Array.from`, `forEach`, `keys`, `values`, `entries`) except through `sortedKeys` or `sortedEntries`
 from `foundation/util/sorted.ts`. In the shell, only `shell/fs.ts` may call `readdir`, and
-`listDir` returns names sorted by code unit.
+`listDir` returns names sorted by code unit. No file can switch one of these rules off: `noInlineConfig` ignores every
+`eslint-disable` comment, and the warning it gives for one fails `npm run lint` (`--max-warnings 0`).
 
 **Barrels.** `src/index.ts`, `node.ts`, `isa.ts` and `internal.ts` contain only `export * from
 './api/<component>.ts'` lines, one per component, written by component 0 of the phase that creates
@@ -1049,23 +1059,23 @@ export function profileById(id: ProfileId): CompilerProfile | undefined;
 `agbcc.ts` holds the PoC's numbers (`minDistance` 1536, `maxBaseDistance` 0x400, `maxEntries` 2048,
 `maxTargetSpan` 0x10000, `minHoles` 8, `holeShift` 4, `pointerTableRun` 3, `tinyFunctionInsns` 3,
 `backwardWindow` 4096, `fillSlack` 3, `armFrontPoolWords` 16, and so on) and the PoC's slot orders.
-Rules read the profile only through `v.profile`; the architecture test forbids a rule file to import
+Rules read the profile only through `v.profile`; the lint (`lint/edges.ts`) forbids a rule file to import
 `agbcc.ts` or `registry.ts`. `g2.second-profile` builds a dummy profile in `test/helpers/` with different
 numbers and a reordered `validity` slot, and requires it to typecheck and run on every fixture.
 
 ### 4.4 Determinism
 
 - Output collections are sorted arrays with numeric comparators. A `Map` or `Set` only indexes; the
-  architecture test enforces that iteration goes through `sortedKeys`/`sortedEntries` (§2) in `core/analysis`,
-  `core/model`, `core/emit`, `core/layout` and `core/signatures` (its `MAP_ITERATION_SCOPES`). Elsewhere (the config,
+  lint enforces that iteration goes through `sortedKeys`/`sortedEntries` (§2) in `core/analysis`,
+  `core/model`, `core/emit`, `core/layout` and `core/signatures` (`MAP_ITERATION` in `eslint.config.js`). Elsewhere (the config,
   the workflows, the shell) a `Map` or `Set` is iterated only after its input was sorted or filled in sorted order, a
-  convention the test does not check (final-review architecture-3, D106 f).
+  convention the lint does not check (final-review architecture-3, D106 f).
 - The worklist key is total (D10): `'ascending'` pops the minimum of `(addr, modeRank, ruleRank, seq)`,
   where `modeRank` is 0 for Thumb and 1 for ARM, `ruleRank` is the proposing rule's index in its
   pipeline slot, and `seq` is the proposal counter. `'poc-lifo'`, which reproduced the PoC's
   `work.pop()`, was deleted by the phase-2 integration (D59).
 - No clock, environment, locale, `os` or path value reaches core. Text is LF only, paths are POSIX, and
-  numbers print through `foundation/util/hex.ts` (`hex`, `hexAddr`, `hexSize`); the architecture test refuses a
+  numbers print through `foundation/util/hex.ts` (`hex`, `hexAddr`, `hexSize`); the lint refuses a
   `.toString(16)` anywhere else in `src/` but the instruction formatter's operands and the corpus (final-review
   architecture-4). Generated files never contain the project's absolute
   path.
@@ -2214,7 +2224,7 @@ per-ROM thresholds and "at least two sealed ROMs pass" still decide.
 | `gates [--require <phase>] [--tier ci\|real]` | runs the gate tests and prints every gate with its verdict and input digests; `--tier real` writes the gate record into `results.json` |
 | `signatures [--only <rom>] [--loo] [--json]` | phase 6: the signatures family (§8.4) after a seedless discover run, per tuning ROM (`romlift/bench-signatures@1`), sealed ROMs by counts only; `--loo` rebuilds each multi-reference version without each reference (`romlift/bench-signatures-loo@1`); `g6.signatures-judged`, `-heldout`, `-loo` read it |
 
-npm scripts: `typecheck` (`tsc --noEmit`), `test` (unit, golden, architecture, property and mutation
+npm scripts: `typecheck` (`tsc --noEmit`), `lint` (ESLint with `eslint.config.js`, D117), `test` (unit, golden, architecture, property and mutation
 tests, `node --conditions=source --test`), `corpus` (generate and assemble the corpus), `fixtures`
 (`rebuild` and `check`), `bench`, `export-poc` (`--mode scored|parity|queries`; runs
 `bench/tools/export-poc.ts`, which spawns the PoC's own `tsx` from `ROMLIFT_POC`), `test:local` (needs ROMs
