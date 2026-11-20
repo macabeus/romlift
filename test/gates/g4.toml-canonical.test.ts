@@ -15,7 +15,7 @@
 //   a rename proposal: {kind: 'function', addr, mode, name, source: {kind: 'legacy'}}
 import { copyFile, mkdir, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+import { CHECKOUT_CLI_ENV, FIXTURE_PARALLELISM, gate, pooled, type ExecResult, type GateContext } from './gate.ts';
 
 type Addr = number;
 type Mode = 'thumb' | 'arm';
@@ -125,13 +125,20 @@ gate({
 
     const base = await cx.tmpDir('romlift-toml-canonical-');
     const cli = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
-    for (const fixture of cx.fixtures) {
+    // The inits, each in a project of its own, run FIXTURE_PARALLELISM at once; what is checked of their files is checked
+    // in the fixtures' order, and an init that failed stops the gate where a serial loop would have.
+    const inits = await pooled(cx.fixtures, FIXTURE_PARALLELISM, async (fixture): Promise<{ readonly text: string } | { readonly error: Error }> => {
       const dir = path.join(base, fixture.name);
       await mkdir(dir, { recursive: true });
       await copyFile(fixture.rom, path.join(dir, 'baserom.gba'));
-      const init = await cx.exec(process.execPath, ['--conditions=source', cli, 'init', 'baserom.gba', '--json'], { cwd: dir });
-      if (init.code !== 0 || cx.jsonLines<CliLine>(init.stdout).at(-1)?.exitCode !== 0) throw new Error(`${fixture.name}: init exited ${init.code}:\n${tail(init)}`);
-      const text = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
+      const init = await cx.exec(process.execPath, ['--conditions=source', cli, 'init', 'baserom.gba', '--json'], { cwd: dir, env: CHECKOUT_CLI_ENV });
+      if (init.code !== 0 || cx.jsonLines<CliLine>(init.stdout).at(-1)?.exitCode !== 0) return { error: new Error(`${fixture.name}: init exited ${init.code}:\n${tail(init)}`) };
+      return { text: await readFile(path.join(dir, 'romlift.toml'), 'utf8') };
+    });
+    for (const [i, fixture] of cx.fixtures.entries()) {
+      const init = inits[i];
+      if (init === undefined || 'error' in init) throw init?.error ?? new Error(`${fixture.name}: no init`);
+      const text = init.text;
       const config = roundTrip(fixture.name, text);
       if (config === undefined) continue;
 

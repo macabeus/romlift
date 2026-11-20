@@ -617,19 +617,32 @@ export function unscannableWarning(where: string, path: string | undefined, why:
 /**
  * The edits in text order (an insertion before a removal at its offset), the insertions at one offset joined into one
  * edit in wanted order, so stubs that follow an unterminated last line get one line terminator (`eol`) between them,
- * not two (`\nA\n` then `\nB\n` become `\nA\nB\n`).
+ * not two (`\nA\n` then `\nB\n` become `\nA\nB\n`). The pieces of a joined edit are concatenated once, and only the
+ * joined text's last `eol.length` characters are kept to test its end, so a module that gains thousands of stubs at
+ * one offset costs linear time, not quadratic.
  */
 function joinAtOffsets(edits: readonly TextEdit[], eol: string): readonly TextEdit[] {
   const sorted = edits.map((edit, index) => ({ edit, index })).sort((a, b) => a.edit.start - b.edit.start || a.edit.end - b.edit.end || a.index - b.index);
   const out: TextEdit[] = [];
+  /** The insertion being joined: its first edit, its pieces, and the last eol.length characters of their text. */
+  let open: { first: TextEdit; pieces: string[]; tail: string } | undefined;
+  const close = (): void => {
+    if (open === undefined) return;
+    out.push(open.pieces.length === 1 ? open.first : { ...open.first, text: open.pieces.join('') });
+    open = undefined;
+  };
   for (const { edit } of sorted) {
-    const last = out[out.length - 1];
-    if (last === undefined || last.start !== edit.start || last.end !== last.start || edit.end !== edit.start) {
-      out.push(edit);
+    const isInsertion = edit.end === edit.start;
+    if (open !== undefined && isInsertion && open.first.start === edit.start) {
+      const piece = open.tail === eol && edit.text.startsWith(eol) ? edit.text.slice(eol.length) : edit.text;
+      open.pieces.push(piece);
+      open.tail = (open.tail + piece).slice(-eol.length);
       continue;
     }
-    const text = last.text.endsWith(eol) && edit.text.startsWith(eol) ? last.text + edit.text.slice(eol.length) : last.text + edit.text;
-    out[out.length - 1] = { ...last, text };
+    close();
+    if (isInsertion) open = { first: edit, pieces: [edit.text], tail: edit.text.slice(-eol.length) };
+    else out.push(edit);
   }
+  close();
   return out;
 }

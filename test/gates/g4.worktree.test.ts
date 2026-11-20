@@ -14,9 +14,9 @@
 // worktree's `./setup.sh` checks the submodule out (`git submodule update --init`) and builds it again. Later worktrees
 // get a copy of the main checkout's built tools/agbcc, which setup.sh then finds present.
 import { createHash } from 'node:crypto';
-import { copyFile, cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+import { copyAgbcc, gate, pooled, withSharedAgbcc, type ExecResult, type GateContext } from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -90,7 +90,7 @@ async function inWorktree(cx: GateContext, cli: string, target: Target, base: st
   const expected = sha1(await readFile(target.rom));
   await mkdir(main, { recursive: true });
   await copyFile(target.rom, path.join(main, ROM_FILE));
-  const init = await cx.exec(cli, ['init', ROM_FILE, '--json'], { cwd: main });
+  const init = await cx.exec(cli, ['init', ROM_FILE, '--json'], { cwd: main, env });
   const last = cx.jsonLines<CliLine>(init.stdout).at(-1);
   if (init.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0) return { failure: `init exited ${init.code}:\n${tail(init)}`, worktree, main };
   await run(cx, 'git init', 'git', ['init', '-q'], main);
@@ -115,7 +115,7 @@ async function inWorktree(cx: GateContext, cli: string, target: Target, base: st
   }
   await run(cx, 'git worktree add', 'git', ['worktree', 'add', '-q', '-b', 'gate-worktree', worktree], main);
   if (await exists(path.join(worktree, ROM_FILE))) return { failure: 'the fresh worktree already holds the ROM', worktree, main };
-  if (agbcc !== undefined && !viaSubmodule) await cp(agbcc, path.join(worktree, 'tools', 'agbcc'), { recursive: true });
+  if (agbcc !== undefined && !viaSubmodule) await copyAgbcc(agbcc, worktree);
   const setup = await cx.exec('./setup.sh', [], { cwd: worktree, env });
   if (setup.code !== 0) return { failure: `./setup.sh in the worktree exited ${setup.code}:\n${tail(setup)}`, worktree, main };
   if (!/asm\/ is absent: running romlift generate/.test(`${setup.stdout}${setup.stderr}`)) {
@@ -149,15 +149,22 @@ gate({
     if (cx.tier === 'real') for (const d of cx.datasets) targets.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) });
     const cli = await sourceCli(cx);
     const base = await cx.tmpDir('romlift-worktree-');
-    const problems: string[] = [];
-    let agbcc: string | undefined;
-    for (const [i, target] of targets.entries()) {
+    // The first target builds agbcc (through the submodule its main checkout registers); the rest get a copy,
+    // FIXTURE_PARALLELISM fixtures at once, the tuning ROMs of the real tier one at a time.
+    const one = async ({ target, i }: { readonly target: Target; readonly i: number }, agbcc: string | undefined): Promise<{ readonly failure?: string; readonly agbcc?: string }> => {
       const { failure, worktree, main } = await inWorktree(cx, cli, target, base, agbcc, i === 0);
-      if (failure !== undefined) problems.push(`${target.name}: ${failure}`);
+      let fresh: string | undefined;
       for (const built of [path.join(main, 'tools', 'agbcc'), path.join(worktree, 'tools', 'agbcc')]) {
-        if (agbcc === undefined && (await exists(path.join(built, 'bin', 'agbcc')))) agbcc = built;
+        if (agbcc === undefined && fresh === undefined && (await exists(path.join(built, 'bin', 'agbcc')))) fresh = built;
       }
-    }
+      return { ...(failure === undefined ? {} : { failure }), ...(fresh === undefined ? {} : { agbcc: fresh }) };
+    };
+    const items = targets.map((target, i) => ({ target, i }));
+    const fixtureCount = targets.length - (cx.tier === 'real' ? cx.datasets.length : 0);
+    const fromFixtures = await withSharedAgbcc(items.slice(0, fixtureCount), one);
+    const agbcc = fromFixtures.find((o) => o.agbcc !== undefined)?.agbcc;
+    const outcomes = [...fromFixtures, ...(await pooled(items.slice(fixtureCount), 1, (item) => one(item, agbcc)))];
+    const problems = outcomes.flatMap((o, i) => (o.failure === undefined ? [] : [`${targets[i]?.name ?? '?'}: ${o.failure}`]));
     if (problems.length > 0) throw new Error(`the worktree build: ${problems.join(' | ')}`);
     cx.note(`${targets.length} fresh worktrees copied the ROM and built to the SHA-1; ${targets[0]?.name ?? '?'} through the tools/agbcc submodule setup.sh registered in the main checkout`);
   },

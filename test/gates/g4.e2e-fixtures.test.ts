@@ -22,9 +22,9 @@
 // The first project builds agbcc through setup.sh's duty (2); later projects get a copy of its tools/agbcc,
 // which that duty then finds present, so one gate run builds the compiler once.
 import { createHash } from 'node:crypto';
-import { copyFile, cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type FixtureRef, type GateContext } from './gate.ts';
+import { copyAgbcc, gate, withSharedAgbcc, type ExecResult, type FixtureRef, type GateContext } from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -69,7 +69,7 @@ async function sourceCli(cx: GateContext): Promise<string> {
 }
 
 async function romlift(cx: GateContext, cli: string, cwd: string, args: readonly string[]): Promise<{ readonly run: ExecResult; readonly lines: readonly CliLine[] }> {
-  const run = await cx.exec(cli, [...args, '--json'], { cwd });
+  const run = await cx.exec(cli, [...args, '--json'], { cwd, env: { ROMLIFT_CLI: cli } });
   let lines: readonly CliLine[];
   try {
     lines = cx.jsonLines<CliLine>(run.stdout);
@@ -192,8 +192,15 @@ async function handWritten(cx: GateContext, cli: string, fixture: FixtureRef, di
   return actual === target.sha1 ? undefined : `make with ${module.name}'s hand-written source built SHA-1 ${actual}, expected ${target.sha1}`;
 }
 
+/** One fixture's share of the gate's report: why its build did not reach the SHA-1 (or undefined), its notes, and the tools/agbcc its setup.sh built, if it built one. */
+interface Built {
+  readonly failure: string | undefined;
+  readonly notes: readonly string[];
+  readonly agbcc?: string | undefined;
+}
+
 /** init, setup.sh and make in `dir`; returns why the build did not reach the SHA-1, or undefined. */
-async function build(cx: GateContext, cli: string, fixture: FixtureRef, dir: string, args: readonly string[], agbcc: string | undefined): Promise<string | undefined> {
+async function build(cx: GateContext, cli: string, fixture: FixtureRef, dir: string, args: readonly string[], agbcc: string | undefined, notes: string[]): Promise<string | undefined> {
   const expected = sha1(await readFile(fixture.rom));
   await mkdir(dir, { recursive: true });
   const rom = `${fixture.name}.gba`;
@@ -202,7 +209,7 @@ async function build(cx: GateContext, cli: string, fixture: FixtureRef, dir: str
   if (init.run.code !== 0) return `init exited ${init.run.code}:\n${tail(init.run)}`;
   const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
   const before = await snapshot(dir);
-  if (agbcc !== undefined) await cp(agbcc, path.join(dir, 'tools', 'agbcc'), { recursive: true });
+  if (agbcc !== undefined) await copyAgbcc(agbcc, dir);
   const env = { ROMLIFT_CLI: cli };
   const setup = await cx.exec('./setup.sh', [], { cwd: dir, env });
   if (setup.code !== 0) return `./setup.sh exited ${setup.code}:\n${tail(setup)}`;
@@ -210,7 +217,7 @@ async function build(cx: GateContext, cli: string, fixture: FixtureRef, dir: str
   if (make.code !== 0) return `make exited ${make.code}:\n${tail(make)}`;
   if ((await readFile(path.join(dir, 'romlift.toml'), 'utf8')) !== toml) return 'setup.sh or make changed romlift.toml';
   const lost = changed(before, await snapshot(dir)).filter((file) => before.has(file) && file !== rom && !file.startsWith('asm/') && !file.startsWith('data/'));
-  if (lost.length > 0) cx.note(`${fixture.name}: files setup.sh or make rewrote: ${lost.slice(0, 8).join(', ')}`);
+  if (lost.length > 0) notes.push(`${fixture.name}: files setup.sh or make rewrote: ${lost.slice(0, 8).join(', ')}`);
   const target = await sha1File(dir);
   if (target.sha1 !== expected) return `${fixture.name}.sha1 records ${target.sha1}, the ROM is ${expected}`;
   const built = path.join(dir, target.file);
@@ -231,20 +238,21 @@ gate({
     const cli = await sourceCli(cx);
     const base = await cx.tmpDir('romlift-e2e-fixtures-');
     const problems: string[] = [];
-    let agbcc: string | undefined;
-    let built = 0;
-    for (const fixture of cx.fixtures) {
+    // The first fixture built builds agbcc through setup.sh's duty 2; the rest get a copy, FIXTURE_PARALLELISM at once.
+    const outcomes = await withSharedAgbcc(cx.fixtures, async (fixture, agbcc): Promise<Built & { readonly skipped: boolean }> => {
       const skip = NOT_BUILT[fixture.name];
-      if (skip !== undefined) {
-        cx.note(`${fixture.name} not built here: ${skip}`);
-        continue;
-      }
+      if (skip !== undefined) return { failure: undefined, notes: [`${fixture.name} not built here: ${skip}`], skipped: true };
       const dir = path.join(base, fixture.name);
-      const failure = await build(cx, cli, fixture, dir, (await readExpect(fixture)).init?.args ?? [], agbcc);
-      if (failure !== undefined) problems.push(`${fixture.name}: ${failure}`);
-      else built++;
-      if (agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc')))) agbcc = path.join(dir, 'tools', 'agbcc');
+      const notes: string[] = [];
+      const failure = await build(cx, cli, fixture, dir, (await readExpect(fixture)).init?.args ?? [], agbcc, notes);
+      const fresh = agbcc === undefined && (await exists(path.join(dir, 'tools', 'agbcc', 'bin', 'agbcc'))) ? path.join(dir, 'tools', 'agbcc') : undefined;
+      return { failure, notes, agbcc: fresh, skipped: false };
+    });
+    for (const [i, o] of outcomes.entries()) {
+      for (const note of o.notes) cx.note(note);
+      if (o.failure !== undefined) problems.push(`${cx.fixtures[i]?.name ?? '?'}: ${o.failure}`);
     }
+    const built = outcomes.filter((o) => !o.skipped && o.failure === undefined).length;
 
     const border = (await readExpect(composite)).illegalBorder;
     if (border === undefined) {

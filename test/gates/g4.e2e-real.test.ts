@@ -14,9 +14,9 @@
 // `npm pack`, `npm install --ignore-scripts <tarball>` into an empty directory), with `npx romlift init` in a directory
 // below the install and setup.sh's ROMLIFT_CLI set to the installed bin.
 import { createHash } from 'node:crypto';
-import { copyFile, cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, withLock, type DatasetRef, type ExecResult, type GateContext } from './gate.ts';
+import { copyAgbcc, gate, withLock, type DatasetRef, type ExecResult, type GateContext } from './gate.ts';
 
 interface CliLine {
   readonly type: string;
@@ -102,7 +102,7 @@ async function build(cx: GateContext, runner: Runner, dataset: DatasetRef, dir: 
   }
   if (init.code !== 0 || last?.type !== 'summary' || last.exitCode !== 0) return `init exited ${init.code} ${shown(init)}`;
   const toml = await readFile(path.join(dir, 'romlift.toml'), 'utf8');
-  if (agbcc !== undefined) await cp(agbcc, path.join(dir, 'tools', 'agbcc'), { recursive: true });
+  if (agbcc !== undefined) await copyAgbcc(agbcc, dir);
   const env = { ROMLIFT_CLI: cli };
   const setup = await cx.exec('./setup.sh', [], { cwd: dir, env });
   if (setup.code !== 0) return `./setup.sh exited ${setup.code} ${shown(setup)}`;

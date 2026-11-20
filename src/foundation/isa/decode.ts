@@ -29,12 +29,19 @@ function catchAll(rows: readonly Row[], table: string): Row {
 const THUMB_LAST: Row = catchAll(THUMB16, 'Thumb');
 const ARM_LAST: Row = catchAll(ROWS.arm, 'ARM');
 
-/** Halfword to index into THUMB16. */
+/**
+ * Halfword to index into THUMB16: the first row that matches it. Every process that decodes builds it, so the loop
+ * reads the rows' masks and matches from typed arrays rather than calling `matches` through findIndex 65,536 times.
+ */
 const THUMB_INDEX: Uint16Array = (() => {
+  const n = THUMB16.length;
+  const masks = Uint32Array.from(THUMB16, (r) => r.spec.mask);
+  const values = Uint32Array.from(THUMB16, (r) => r.spec.match);
   const index = new Uint16Array(0x10000);
   for (let hw = 0; hw < 0x10000; hw++) {
-    const at = THUMB16.findIndex((r) => matches(r, hw));
-    index[hw] = at < 0 ? THUMB16.length - 1 : at;
+    let at = 0;
+    while (at < n && ((hw & (masks[at] as number)) >>> 0) !== values[at]) at++;
+    index[hw] = at < n ? at : n - 1;
   }
   return index;
 })();
@@ -45,9 +52,13 @@ function armKey(word: number): number {
 }
 
 const ARM_BUCKETS: readonly (readonly Row[])[] = (() => {
+  const keys = ROWS.arm.map((r) => armKey(r.spec.match));
+  const keyMasks = ROWS.arm.map((r) => armKey(r.spec.mask));
   const buckets: Row[][] = [];
   for (let key = 0; key < 0x1000; key++) {
-    buckets.push(ROWS.arm.filter((r) => ((key ^ armKey(r.spec.match)) & armKey(r.spec.mask)) === 0));
+    const bucket: Row[] = [];
+    for (let i = 0; i < ROWS.arm.length; i++) if (((key ^ (keys[i] as number)) & (keyMasks[i] as number)) === 0) bucket.push(ROWS.arm[i] as Row);
+    buckets.push(bucket);
   }
   return buckets;
 })();

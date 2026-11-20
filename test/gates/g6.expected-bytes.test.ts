@@ -31,7 +31,7 @@
 //   __load_<module>                      the load address of a runs_at module, which its own code may name (§6.7)
 import { appendFile, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+import { CHECKOUT_CLI_ENV, gate, onTargets, type ExecResult, type GateContext } from './gate.ts';
 
 type Address = number | string;
 
@@ -109,8 +109,8 @@ async function exists(file: string): Promise<boolean> {
   }
 }
 
-async function step(cx: GateContext, what: string, command: string, args: readonly string[], cwd: string): Promise<ExecResult> {
-  const run = await cx.exec(command, args, { cwd });
+async function step(cx: GateContext, what: string, command: string, args: readonly string[], cwd: string, env?: Readonly<Record<string, string>>): Promise<ExecResult> {
+  const run = await cx.exec(command, args, env === undefined ? { cwd } : { cwd, env });
   if (run.code !== 0) throw new Error(`${what} exited ${run.code}:\n${tail(run)}`);
   return run;
 }
@@ -227,7 +227,7 @@ async function projectModel(cx: GateContext, dir: string): Promise<string> {
 
 async function checkTarget(cx: GateContext, target: Target, dir: string): Promise<{ readonly problems: readonly string[]; readonly modules: number; readonly runsAt: number }> {
   const main = path.join(cx.repoRoot, 'src', 'cli', 'main.ts');
-  const cli = (what: string, ...args: string[]): Promise<ExecResult> => step(cx, what, process.execPath, ['--conditions=source', main, ...args], dir);
+  const cli = (what: string, ...args: string[]): Promise<ExecResult> => step(cx, what, process.execPath, ['--conditions=source', main, ...args], dir, CHECKOUT_CLI_ENV);
   await mkdir(dir, { recursive: true });
   await copyFile(target.rom, path.join(dir, 'baserom.gba'));
   await cli('init', 'init', 'baserom.gba', '--json');
@@ -293,17 +293,14 @@ gate({
       if (override !== undefined) targets.push({ name: `${fixture.name}+runs_at`, rom: fixture.rom, override });
     }
     if (!targets.some((t) => t.override !== undefined)) throw new Error('no committed fixture declares ramCopy in its expect.json');
-    if (cx.tier === 'real') for (const d of cx.datasets) targets.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) });
+    const datasets: Target[] = cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
     const base = await cx.tmpDir('romlift-expected-');
-    const problems: string[] = [];
-    let modules = 0;
-    let runsAt = 0;
-    for (const target of targets) {
-      const result = await checkTarget(cx, target, path.join(base, target.name));
-      modules += result.modules;
-      runsAt += result.runsAt;
-      for (const p of result.problems) problems.push(`${target.name}: ${p}`);
-    }
+    // Each target in a project of its own: the fixtures FIXTURE_PARALLELISM at once, the tuning ROMs one at a time.
+    const results = await onTargets(targets, datasets, async (target) => ({ target, result: await checkTarget(cx, target, path.join(base, target.name)) }));
+    targets.push(...datasets);
+    const problems = results.flatMap(({ target, result }) => result.problems.map((p) => `${target.name}: ${p}`));
+    const modules = results.reduce((n, r) => n + r.result.modules, 0);
+    const runsAt = results.reduce((n, r) => n + r.result.runsAt, 0);
     if (problems.length > 0) throw new Error(`expected/ against the ROM: ${problems.join(' | ')}`);
     cx.note(`${modules} expected modules on ${targets.length} targets (${runsAt} runs_at), each linked at its module's address, equal their ROM ranges byte for byte with every symbol where the model places it`);
   },

@@ -2244,8 +2244,8 @@ information.
 
 **Workflows** (`.github/workflows/`):
 
-- `ci.yml` (Node 24, D115): `npm run typecheck`, `npm test`, `npm run bench -- gates --require $(phase) --tier
-  ci`, the determinism runs with a varied environment, which compare the synthetic-tier analysis and tree digests,
+- `ci.yml` (Node 24, D115): `npm test` (whose test/architecture.test.ts typechecks the repository, so no separate
+  `npm run typecheck` step), `npm run bench -- gates --require $(phase) --tier ci`, the determinism runs with a varied environment, which compare the synthetic-tier analysis and tree digests,
   and `npm run bench -- regression` against the merge-base (from phase 2). Until D115 a final job compared the
   digests of Node 22.18 and 24 (D30).
 - `printer.yml`: the corpus on Ubuntu's apt binutils.

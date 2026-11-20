@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { gate, type ExecResult, type GateContext } from './gate.ts';
+import { gate, onTargets, reportTargets, type ExecResult, type GateContext, type TargetReport } from './gate.ts';
 
 const VARIED_ENV: Readonly<Record<string, string>> = { TZ: 'Pacific/Kiritimati', LANG: 'tr_TR.UTF-8', LC_ALL: 'tr_TR.UTF-8' };
 
@@ -50,19 +50,22 @@ gate({
   realInputs: ['roms'],
   needs: ['discover', 'encodeAnalysis', 'readRom'],
   async run(cx) {
-    const targets: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
-    if (targets.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
-    if (cx.tier === 'real') for (const d of cx.datasets) targets.push({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) });
+    const fixtures: Target[] = cx.fixtures.map((f) => ({ name: f.name, rom: f.rom }));
+    if (fixtures.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
+    const datasets: Target[] = cx.tier === 'real' ? cx.datasets.map((d) => ({ name: d.name, rom: path.resolve(cx.benchRoot, d.rom) })) : [];
+    const targets = [...fixtures, ...datasets];
 
     const base = await cx.tmpDir('romlift-determinism-');
-    const problems: string[] = [];
-    for (const target of targets) {
+    // Each target's two runs one after the other; the fixtures FIXTURE_PARALLELISM at once, the tuning ROMs one at a time.
+    const reports = await onTargets(fixtures, datasets, async (target): Promise<TargetReport> => {
+      const problems: string[] = [];
       const first = await analyzeIn(cx, target, path.join(base, 'first', target.name), {});
       const second = await analyzeIn(cx, target, path.join(base, 'second run', 'elsewhere', target.name), VARIED_ENV);
       if (first.digest !== second.digest) problems.push(`${target.name}: ${first.digest} then ${second.digest}`);
       if (first.leaked || second.leaked) problems.push(`${target.name}: the output contains the project path`);
-      cx.note(`${target.name} analysis ${first.digest}`);
-    }
+      return { problems, notes: [`${target.name} analysis ${first.digest}`] };
+    });
+    const problems = reportTargets(cx, reports);
     if (problems.length > 0) throw new Error(`the analysis is not deterministic: ${problems.join('; ')}`);
     cx.note(`${targets.length} analyses identical across cwd, project path, TZ and locale`);
   },

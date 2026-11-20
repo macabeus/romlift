@@ -11,7 +11,7 @@
 // Rule ids come from `RULES` (romlift/internal, see g2.rule-registry).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { type ExecResult, byCodeUnit, gate } from './gate.ts';
+import { byCodeUnit, FIXTURE_PARALLELISM, gate, pooled, type ExecResult } from './gate.ts';
 
 interface Ablation {
   readonly schema: string;
@@ -44,15 +44,17 @@ gate({
     if (cx.fixtures.length === 0) throw new Error('no committed fixture under bench/dataset/synthetic');
     const exempt = exemptions(await readFile(path.join(cx.repoRoot, 'docs', 'decisions.md'), 'utf8'), ids);
 
-    const uncovered: string[] = [];
-    let covered = 0;
-    for (const id of ids) {
+    // One `bench ablate` process per rule, which reads the fixtures and writes nothing, FIXTURE_PARALLELISM at once.
+    const ablations = await pooled(ids, FIXTURE_PARALLELISM, async (id) => {
       const run = await cx.npm('bench', ['ablate', id, '--tier', 'synthetic', '--json']);
       if (run.code !== 0) throw new Error(`bench ablate ${id} --tier synthetic --json exited ${run.code}:\n${tail(run)}`);
       const ablation = cx.lastJson<Ablation>(run.stdout);
       if (ablation.schema !== 'romlift/bench-ablate@1' || ablation.rule !== id) throw new Error(`bench ablate ${id} printed another schema or rule`);
-      const decisive = ablation.decisiveIn.length > 0;
-      const moves = ablation.changed.length > 0;
+      return { id, decisive: ablation.decisiveIn.length > 0, moves: ablation.changed.length > 0 };
+    });
+    const uncovered: string[] = [];
+    let covered = 0;
+    for (const { id, decisive, moves } of ablations) {
       if (decisive && moves) covered++;
       else if (!exempt.has(id)) uncovered.push(`${id} (${decisive ? 'decisive' : 'never decisive'}, ${moves ? 'moves an outcome' : 'moves nothing'})`);
     }
